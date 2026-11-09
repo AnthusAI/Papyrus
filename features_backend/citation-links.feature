@@ -27,11 +27,22 @@ Feature: A cited Story never links to a source list that is not on the page, and
     Then every citation number links to an entry on the same page
     And the page lists "A Page Cited" once, inside the article
 
-  Scenario: A site that says nothing renders exactly the bibliography it always did
+  Scenario: A site that says nothing links a source out, unless the site has a page for it
     Given a Papyrus site whose citations setting is not declared
     When the site renders a Story with citation markers and a bibliography line
-    Then the source "A Page Cited" links to "https://example.org/outside"
+    Then the source "Another Page" links to "https://example.net/other"
+    And the source "A Page Cited" links to "/references/smith/"
     And the page is the same as for a site whose citations links are "external"
+
+  Scenario: A source that leaves the site opens in a new tab and carries the external-link icon
+    Given a Papyrus site whose citations setting is not declared
+    When the site renders a Story with citation markers and a bibliography line
+    Then the source "Another Page" opens in a new tab and carries the external-link icon
+
+  Scenario: A source that stays on the site carries no icon and opens in the same tab
+    Given a Papyrus site whose citations setting is not declared
+    When the site renders a Story with citation markers and a bibliography line
+    Then the source "A Page Cited" has no icon and does not open a new tab
 
   Scenario Outline: A site that links no outside address has none in its bibliography
     Given a Papyrus site whose citations links are "<mode>"

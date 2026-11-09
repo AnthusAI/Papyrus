@@ -8,7 +8,8 @@ import json
 from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Protocol
+from collections.abc import Mapping
+from typing import Any, Protocol
 
 from ..markus_renderer.build import DEFAULT_THEME, render_fragment_text
 from ..markus_renderer.citations import DEFAULT_LINK_MODE, LINK_MODES, CitationRendering
@@ -227,6 +228,14 @@ class MarkusSiteProjector:
         settings = dataclasses.replace(settings_from_mapping(raw), plugins=plugins)
         return cls(settings, read_static_files(static_directory, settings.theme), renditions=renditions)
 
+    #: Set for the length of one item page's render: ``entry -> path`` of this site's own page for a cited source (see ``site_relations.py``).
+    _citation_page_for: Callable[[Mapping[str, Any]], str | None] | None = None
+
+    def _citation_config(self) -> CitationRendering | None:
+        if self._citations is None or self._citation_page_for is None:
+            return self._citations
+        return dataclasses.replace(self._citations, page_for=self._citation_page_for)
+
     def _content_sections(self) -> tuple[str, ...]:
         return (ARTICLES_SECTION, *self._settings.sections)
 
@@ -297,7 +306,7 @@ class MarkusSiteProjector:
             depth=depth,
             images=self._pipeline(),
             image_builder=self._image_builder(text),
-            citations=self._citations,
+            citations=self._citation_config(),
             transform=transform,
             videos=videos,
         )
