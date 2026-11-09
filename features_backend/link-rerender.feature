@@ -33,3 +33,7 @@ Feature: Linking stories re-renders the affected pages without purging the edge
     Then the link command succeeds
     And there is 1 link
     And the warning names the manual command "papyrus ops content rerender --story item-post-1 --no-invalidate"
+
+  Scenario: Each re-render is announced before it starts
+    When a signed-in editor "Grace Editor" asks the CLI: "papyrus stories link-story --story big --to post-1"
+    Then the progress line "rerendering item-big (about a minute)..." was printed first

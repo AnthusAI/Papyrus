@@ -215,3 +215,8 @@ def _rerender_lines(context, closing):
 @then('the warning names the manual command "{command}"')
 def _manual_command(context, command):
     assert command in context.err, context.err
+
+
+@then('the progress line "{line}" was printed first')
+def _progress_line(context, line):
+    assert line in context.err, context.err

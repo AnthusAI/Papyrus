@@ -130,7 +130,9 @@ def run_operator(name: str, arguments: dict[str, Any], invoke=None) -> dict[str,
         import boto3
         from botocore.config import Config
 
-        client = boto3.client("lambda", config=Config(read_timeout=120, retries={"max_attempts": 1}))
+        from ..env import graphql_timeout_seconds
+
+        client = boto3.client("lambda", config=Config(read_timeout=graphql_timeout_seconds(120.0), retries={"max_attempts": 1}))
         invoke = lambda body: client.invoke(FunctionName=function_name, InvocationType="RequestResponse", Payload=json.dumps(body).encode("utf-8"))  # noqa: E731
     response = invoke(payload)
     body = response["Payload"].read() if hasattr(response.get("Payload"), "read") else response.get("Payload")

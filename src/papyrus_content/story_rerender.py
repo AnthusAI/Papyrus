@@ -55,7 +55,12 @@ def _outcome(result: dict[str, Any]) -> str | None:
     return None
 
 
-def rerender_stories(client, lineages: list[str], *, request=None, cap: int = RERENDER_CAP) -> dict[str, Any]:
+def progress_line(lineage: str) -> None:
+    """Printed before each re-render (stderr, so --json stays clean): one call can take about a minute and the server has no batch path."""
+    print(f"rerendering {lineage} (about a minute)...", file=sys.stderr, flush=True)
+
+
+def rerender_stories(client, lineages: list[str], *, request=None, cap: int = RERENDER_CAP, progress=None) -> dict[str, Any]:
     """Re-renders the published stories among ``lineages`` (deduplicated, unpublished skipped), at most ``cap`` of them, one request each.
 
     Returns ``{"rerendered": [{"lineageId", "status": "ok" | "failed", "purged": False, "error"?}], "notRun": [lineage ids over the cap], "warnings": [text]}``.
@@ -65,6 +70,8 @@ def rerender_stories(client, lineages: list[str], *, request=None, cap: int = RE
     run, not_run = published[:cap], published[cap:]
     rows: list[dict[str, Any]] = []
     for lineage in run:
+        if progress:
+            progress(lineage)
         try:
             problem = _outcome(request(client, lineage))
         except Exception as error:  # noqa: BLE001 - a timeout or a missing lane must never fail the link command
@@ -82,11 +89,11 @@ def rerender_stories(client, lineages: list[str], *, request=None, cap: int = RE
     return {"rerendered": rows, "notRun": not_run, "warnings": warnings}
 
 
-def rerender_after_write(client, lineages: list[str], *, enabled: bool = True, request=None, cap: int = RERENDER_CAP) -> dict[str, Any]:
+def rerender_after_write(client, lineages: list[str], *, enabled: bool = True, request=None, cap: int = RERENDER_CAP, progress=None) -> dict[str, Any]:
     """The one call every link command and agent tool makes after a real write that created something. ``lineages`` is empty when nothing was written."""
     if not enabled or not lineages:
         return {"rerendered": [], "notRun": [], "warnings": []}
-    return rerender_stories(client, lineages, request=request, cap=cap)
+    return rerender_stories(client, lineages, request=request, cap=cap, progress=progress)
 
 
 def announce(done: dict[str, Any], *, quiet: bool = False) -> None:

@@ -340,11 +340,11 @@ def stories_link_story(flags: list[str]) -> None:
     note = normalize_string(options.get("note"))
     rows = link_story_set(client, story, others, actor=author, note=note, apply=apply, on_row=show)
     reference_rows = link_reference_set(client, story, references, actor=author, note=note, apply=apply, on_row=show_reference)
-    from .story_rerender import announce, rerender_after_write
+    from .story_rerender import announce, progress_line, rerender_after_write
 
     wrote = [row for row in rows if row["outcome"] == "write"]
     changed = [lineage_id, *(row["lineageId"] for row in wrote)] if wrote or any(row["outcome"] == "write" for row in reference_rows) else []
-    done = rerender_after_write(client, changed, enabled=apply and not parse_boolean_option(options.get("no-rerender"), default=False, label="--no-rerender"))
+    done = rerender_after_write(client, changed, enabled=apply and not parse_boolean_option(options.get("no-rerender"), default=False, label="--no-rerender"), progress=progress_line)
     if as_json:
         print(json.dumps({"ok": True, "story": lineage_id, "dryRun": not apply, "links": rows, "referenceLinks": reference_rows, "rerendered": done["rerendered"]}, indent=2))
     announce(done, quiet=as_json)

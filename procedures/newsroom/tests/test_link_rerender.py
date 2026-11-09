@@ -198,5 +198,67 @@ class ConceptCommandRerenderTests(WithRecorder):
         self.assertIn("--story item-big --no-invalidate", err)
 
 
+class AfterMergeTests(WithRecorder):
+    """The --reference path and the suggest-links ready commands still work with the re-render in place."""
+
+    def test_link_story_reference_path_still_writes_and_rerenders_only_the_story(self):
+        import test_story_reference_links as references
+
+        client = references.site()
+        out, err, failure = link(client, "--story", "item-big", "--reference", "ref-a")
+        self.assertIsNone(failure, err)
+        self.assertEqual(len(references.rows(client)), 1)
+        self.assertEqual(self.recorder.asked, ["item-big"])   # a Reference has no page of its own
+        self.assertIn("rerender\titem-big\tno purge\tok", out)
+
+    def test_suggest_links_ready_commands_run_as_printed(self):
+        import shlex
+
+        import test_link_suggestions as suggestions
+        from papyrus_content.link_suggestions import suggest_links
+
+        client = suggestions.site()
+        client.endpoint = "https://fake.example/graphql"
+        found = suggest_links(client, "s0")["candidates"]
+        for command in (found["articles"][0]["command"], found["references"][0]["command"]):
+            words = shlex.split(command)
+            self.assertEqual(words[:3], ["papyrus", "stories", "link-story"])
+            out, err, failure = link(client, *words[3:])
+            self.assertIsNone(failure, err)
+            self.assertIn("write", out)
+        self.assertIn("s0", self.recorder.asked)
+
+    def test_a_progress_line_precedes_each_rerender_and_stays_off_stdout(self):
+        out, err, failure = link(link_site(), "--story", "item-big", "--to", "item-post-1")
+        self.assertIsNone(failure)
+        self.assertIn("rerendering item-big (about a minute)...", err)
+        self.assertIn("rerendering item-post-1 (about a minute)...", err)
+        self.assertNotIn("rerendering", out)
+
+
+class TimeoutEnvTests(unittest.TestCase):
+    def test_the_operator_lane_waits_as_long_as_the_timeout_variable_says(self):
+        import os
+
+        from papyrus_content.page_refresh.cli import run_operator
+
+        seen = []
+
+        class Boto:
+            @staticmethod
+            def client(_name, config=None):
+                seen.append(config.read_timeout)
+                return mock.Mock(invoke=mock.Mock(return_value={"Payload": b'{"ok": true}'}))
+
+        for value, expected in ((None, 120), ("300", 300)):
+            env = {k: v for k, v in os.environ.items() if k != "PAPYRUS_GRAPHQL_TIMEOUT_SECONDS"}
+            if value:
+                env["PAPYRUS_GRAPHQL_TIMEOUT_SECONDS"] = value
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch.dict(sys.modules, {"boto3": Boto}), \
+                    mock.patch("papyrus_content.projection_trigger.content_actions_function", return_value="fn"):
+                run_operator("site_rerender_pages", {"scope": "story"})
+            self.assertEqual(seen[-1], expected)
+
+
 if __name__ == "__main__":
     unittest.main()

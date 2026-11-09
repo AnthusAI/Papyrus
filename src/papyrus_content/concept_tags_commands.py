@@ -65,10 +65,10 @@ def _link_concept(flags: list[str], group: str, target_kind: str, target_flag: s
                                note=normalize_string(options.get("note")), apply=apply, on_row=show)
     done = None
     if target_kind == "story":   # a Reference has no public page yet: nothing to re-render
-        from .story_rerender import announce, rerender_after_write
+        from .story_rerender import announce, progress_line, rerender_after_write
 
         wrote = any(row["outcome"] == "write" for row in result["concepts"])
-        done = rerender_after_write(client, [result["target"]] if wrote else [], enabled=apply and not parse_boolean_option(options.get("no-rerender"), default=False, label="--no-rerender"))
+        done = rerender_after_write(client, [result["target"]] if wrote else [], enabled=apply and not parse_boolean_option(options.get("no-rerender"), default=False, label="--no-rerender"), progress=progress_line)
     if as_json:
         print(json.dumps({"ok": True, **result, **({"rerendered": done["rerendered"]} if done else {})}, indent=2))
     if done:
