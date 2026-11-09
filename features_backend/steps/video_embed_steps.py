@@ -370,12 +370,13 @@ def flat_button(context):
     assert not re.search(r"border:\s*[1-9]", css) and "border-color" not in css
 
 
-@then("the button is a real button element and the poster link is hidden once the script has made the button available")
+@then("the button is a real button element and the poster link stays visible under the button once the script has made the button available")
 def real_button(context):
     css = _style(context)
     assert "<button type=\"button\" class=\"papyrus-video-play\"" in context.html
     assert ".papyrus-video-play{display:none" in css and ".papyrus-video-player.is-ready .papyrus-video-play{display:flex}" in css
-    assert ".papyrus-video-player.is-ready .papyrus-video-link{display:none}" in css
+    assert ".papyrus-video-player.is-ready .papyrus-video-link{pointer-events:none}" in css
+    assert ".papyrus-video-link{display:none" not in css and "is-ready .papyrus-video-link{display:none" not in css
 
 
 @then('the poster is a placeholder showing the title "{title}"')
@@ -755,3 +756,53 @@ def stopped(context):
 @then("the command reports no videos")
 def reports_none(context):
     assert "0 video(s)" in context.output and "no videos" in context.output, context.output
+
+
+@then("the stock rules keep the poster link in place and only stop it taking clicks once the script has made the button available")
+def poster_stays(context):
+    css = _style(context)
+    assert ".papyrus-video-player.is-ready .papyrus-video-link{pointer-events:none}" in css
+    assert not re.search(r"\.papyrus-video-link\{[^}]*display:none", css)
+
+
+@then("the play button is stacked above the poster link")
+def button_above(context):
+    rule = re.search(r"\.papyrus-video-play\{[^}]*\}", _style(context)).group(0)
+    assert "position:absolute" in rule and "z-index:1" in rule
+
+
+@then("in a real browser the thumbnail is visible behind the play button before the click and gone after it")
+def real_browser(context):
+    chromium = next(iter(sorted(Path.home().glob("Library/Caches/ms-playwright/chromium-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"))), None)
+    playwright = next((c for c in (REPO_ROOT / "node_modules" / "playwright", Path.home() / "Projects/Papyrus/node_modules/playwright") if c.exists()), REPO_ROOT / "node_modules" / "playwright")
+    if chromium is None or not playwright.exists():
+        return  # no browser here; the stylesheet-level steps above still pin the rules
+    work = Path(tempfile.mkdtemp())
+    try:
+        Image.new("RGB", (480, 270), (200, 40, 40)).save(work / "poster.jpg")
+        player = re.search(r'<div class="papyrus-video-player".*?</div>', context.html, re.S).group(0)
+        player = re.sub(r"<picture>.*?</picture>", '<img src="poster.jpg" alt="">', player, flags=re.S)
+        html = "<!doctype html><html><body>" + _style_tag(context) + '<div style="width:640px">' + player + "</div></body></html>"
+        (work / "page.html").write_text(html)
+        shutil.copy(REPO_ROOT / "src/papyrus_content/projection/standard/assets/papyrus-video.js", work / "player.js")
+        (work / "page.html").write_text(html.replace("</body>", '<script src="player.js"></script></body>'))
+        script = (
+            "const {chromium}=require(%s);(async()=>{const b=await chromium.launch({executablePath:%s});const p=await b.newPage();"
+            "await p.goto('file://'+%s);"
+            "const m=async()=>p.evaluate(()=>{const i=document.querySelector('.papyrus-video-poster img');const r=i&&i.getBoundingClientRect();"
+            "const bt=document.querySelector('.papyrus-video-play');if(!bt)return {img:false,play:false,top:false,frame:!!document.querySelector('iframe')};const q=bt.getBoundingClientRect();"
+            "const top=document.elementFromPoint(q.x+q.width/2,q.y+q.height/2);"
+            "return {img:!!i&&r.width>0&&r.height>0&&i.naturalWidth>0,play:q.width>0,top:top&&top.closest('.papyrus-video-play')!==null,frame:!!document.querySelector('iframe')}});"
+            "const before=await m();await p.click('.papyrus-video-play');const after=await m();console.log(JSON.stringify({before,after}));await b.close()})()"
+        ) % (json.dumps(str(playwright)), json.dumps(str(chromium)), json.dumps(str(work / "page.html")))
+        result = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=120)
+        assert result.returncode == 0, result.stderr
+        seen = json.loads(result.stdout.strip().splitlines()[-1])
+        assert seen["before"]["img"] and seen["before"]["play"] and seen["before"]["top"] and not seen["before"]["frame"], seen
+        assert seen["after"]["frame"] and not seen["after"]["img"], seen
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _style_tag(context) -> str:
+    return "<style>" + _style(context) + "</style>"

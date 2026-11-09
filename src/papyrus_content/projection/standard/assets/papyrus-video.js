@@ -45,6 +45,12 @@
     if (!button) return;
     player.setAttribute("data-ready", "true");
     if (player.classList) player.classList.add("is-ready");
+    // The poster link stays as the picture behind the button; the button is the one control, so the link leaves the tab order and the reader tree.
+    var link = player.querySelector("a");
+    if (link) {
+      link.setAttribute("tabindex", "-1");
+      link.setAttribute("aria-hidden", "true");
+    }
     button.addEventListener("click", function () { play(player); });
     button.addEventListener("keydown", function (event) {
       if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {

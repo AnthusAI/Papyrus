@@ -211,7 +211,17 @@ Feature: A Story can embed a video as a click-to-play poster
       """
     Then the stock rules use the media ratio token with 16 by 9 as its fallback
     And the stock rules draw the button as a flat shape with no border and colours from the site's tokens
-    And the button is a real button element and the poster link is hidden once the script has made the button available
+    And the button is a real button element and the poster link stays visible under the button once the script has made the button available
+
+  Scenario: With scripting on, the thumbnail stays visible behind the play button
+    Given a site with embeds on that has the poster of "UytYrhYLOKI" in its storage
+    When the Story is projected:
+      """
+      ::video{src="https://youtu.be/UytYrhYLOKI" title="Aircraft demonstration" credit="Example Channel"}
+      """
+    Then the stock rules keep the poster link in place and only stop it taking clicks once the script has made the button available
+    And the play button is stacked above the poster link
+    And in a real browser the thumbnail is visible behind the play button before the click and gone after it
 
   Scenario: A video whose poster has not been copied yet shows the placeholder with its title
     Given a site with embeds on that has no poster for "UytYrhYLOKI" in its storage
