@@ -103,7 +103,7 @@ def home_markdown(title: str, description: str, source_text: str) -> str:
 
     A home page written as page blocks opens with ``::band`` and carries its own H1, so a second title in front of it
     would not be in the source."""
-    body = body_of(source_text)
+    body = canonicalize_image_credits(body_of(source_text))
     lines = [] if _opens_with_heading(body) else [f"# {title}", ""]
     if description:
         lines += [f"> {description}", ""]

@@ -17,7 +17,7 @@ from PIL import Image  # noqa: E402
 
 from papyrus_content.markus_renderer.content_markup import prepare_page  # noqa: E402
 from papyrus_content.markus_renderer.images import ImageBuilder, ImagePipeline  # noqa: E402
-from papyrus_content.projection.standard.markdown import item_markdown  # noqa: E402
+from papyrus_content.projection.standard.markdown import home_markdown, item_markdown  # noqa: E402
 
 
 @given('a Story picture credited "{credit}"')
@@ -47,6 +47,11 @@ def credit_on_page(context, expected):
 def make_twin(context):
     entry = SimpleNamespace(title="Harbour", author_details=None, date=None, updated=None, summary_text="")
     context.twin = item_markdown(entry, "---\ntitle: Harbour\n---\n" + context.picture_directive + "\n", None)
+
+
+@when("the Markdown copy of the home page is made")
+def make_home_twin(context):
+    context.twin = home_markdown("Home", "A home page.", "---\ntitle: Home\n---\n" + context.picture_directive + "\n")
 
 
 @then('the picture in the Markdown copy is credited "{expected}"')

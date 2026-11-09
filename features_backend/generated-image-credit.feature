@@ -32,6 +32,11 @@ Feature: A generated image's credit is exactly "Generated"
       | Illustration drafted by AI.    |
       | Drafted by AI.                 |
 
+  Scenario: The Markdown copy of a home page says "Generated" too
+    Given a Story picture credited "Illustration generated with AI"
+    When the Markdown copy of the home page is made
+    Then the picture in the Markdown copy is credited "Generated"
+
   Scenario: A real third-party credit is not touched
     Given a Story picture credited "Image: U.S. Air Force / Trevor Cokley, Public domain via Wikimedia Commons"
     When the picture is rendered on the page
