@@ -472,15 +472,15 @@ keys are not among the Story's entries.
 A publication chooses in `web/projection.json`:
 
 ```json
-{ "citations": { "links": "internal" } }
+{ "citations": { "links": "internal", "externalIcon": false } }
 ```
 
 `citations` is `true` / `false` (as before: `false` turns citations off) or an
-object with one key, `links`:
+object with the keys `links` and (optional, default `false`) `externalIcon`:
 
 | `links` | Bibliography entry |
 | --- | --- |
-| `external` (default; also what `true` or no setting gives) | The formatted entry plus the source's own URL as a link, exactly as above, except that every outside link opens in a new tab (`target="_blank" rel="noopener noreferrer"`), has the class `citation-external` and ends with the Lucide `external-link` icon (`svg.citation-external-icon`, `data-icon="external-link"`, drawn in `currentColor`). An entry whose CSL-JSON carries `internalUrl` links to that page of this site instead: the formatted entry is the link text, with no icon and no new tab. |
+| `external` (default; also what `true` or no setting gives) | The formatted entry plus the source's own URL as a link, exactly as above, (outside links already open in a new tab with `target="_blank" rel="noopener noreferrer"`). With `"citations": {"externalIcon": true}` an outside link also gets the class `citation-external` and ends with the Lucide `external-link` icon (`svg.citation-external-icon`, `data-icon="external-link"`, drawn in `currentColor`); without it the markup is byte-identical to before. An entry whose CSL-JSON carries `internalUrl` links to that page of this site instead: the formatted entry is the link text, with no icon and no new tab. |
 | `internal` | No outside address, linked or printed. An entry is linked only to the site's own page for it when its CSL-JSON carries `internalUrl` (a path starting with `/` on this site), otherwise it is plain text. |
 | `none` | Plain text: title, publisher and date. No link of any kind in the list. |
 
