@@ -67,6 +67,6 @@ def call_story_signal_tool(name: str, arguments: dict[str, Any], client, actor: 
         if unknown:
             raise ValueError(f"Unknown argument(s) for papyrus_link_stories: {', '.join(sorted(unknown))}. There is no relation to choose.")
         story, others = resolve_link_targets(client, args["story"], list(args["related_to_stories"]))
-        rows = link_story_set(client, story, others, actor=actor, note=args.get("note") or None, apply=not args.get("dryRun"))
+        rows = link_story_set(client, story, others, actor=actor, provenance="derived", note=args.get("note") or None, apply=not args.get("dryRun"))
         return {"story": story.get("lineageId") or story["id"], "dryRun": bool(args.get("dryRun")), "links": rows}
     raise ValueError(f"Unknown story tool {name}.")

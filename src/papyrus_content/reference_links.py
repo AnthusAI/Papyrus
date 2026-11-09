@@ -30,6 +30,7 @@ DECISIONS = ("accepted", "rejected")
 REFERENCE_LINK_KIND = "reference.link"
 REFERENCE_CONCEPT_KIND = "reference.concept"
 ITEM_CONCEPT_KIND = "item.concept"
+ITEM_LINK_KIND = "item.link"
 REFERENCE_LINK_FEED_KEY = "reference-links"
 STATE_FOR_PROVENANCE = {"human": "current", "derived": "current", "suggested": "suggested"}
 STATE_FOR_DECISION = {"accepted": "current", "rejected": "rejected"}
@@ -91,6 +92,10 @@ def _write_edge(
     existing = client.get_record("SemanticRelation", relation_id)
     if provenance == "suggested" and existing and existing.get("relationState") != "suggested":
         return {"relationId": relation_id, "relationState": existing["relationState"], "outcome": "kept"}
+    if existing and existing.get("relationState") == "rejected":
+        # A person rejected this edge. No writer flips it back (a suggestion, a derived link or a tag): only a person's decision does, through ``decide``.
+        return {"relationId": relation_id, "relationState": "rejected", "outcome": "rejected",
+                "decidedBy": _stored_metadata(existing).get("decidedBy"), "decidedAt": _stored_metadata(existing).get("decidedAt")}
     state = STATE_FOR_PROVENANCE[provenance]
     previous = _stored_metadata(existing)
     metadata = {
@@ -265,6 +270,44 @@ def link_item_concept(
         predicate=RELATED_TO,
         subject=item_end,
         object_=node_end,
+        provenance=provenance,
+        actor=actor,
+        score=None,
+        confidence=None,
+        classifier_id=None,
+        model_version=None,
+        note=note,
+        now=now,
+    )
+
+
+def link_items(
+    client,
+    first: dict[str, Any],
+    second: dict[str, Any],
+    provenance: str,
+    *,
+    actor: str,
+    note: str | None = None,
+    now: str | None = None,
+) -> dict[str, Any]:
+    """Links two stories (Items, as their current records) with the one official ``related_to`` edge, kind ``item.link``.
+
+    Symmetric like reference links: one row, the lower lineage id as subject, the deterministic id from the pair, so A to B and B to A are one row.
+    A rejected edge is never flipped back (see ``_write_edge``)."""
+    _require_provenance(provenance)
+    now = now or utc_now_iso()
+    ends = sorted(({"kind": "item", "id": story["id"], "lineageId": story.get("lineageId") or story["id"], "versionNumber": story.get("versionNumber")}
+                   for story in (first, second)), key=lambda end: end["lineageId"])
+    if ends[0]["lineageId"] == ends[1]["lineageId"]:
+        raise ValueError("A story cannot be linked to itself.")
+    return _write_edge(
+        client,
+        relation_id=reference_link_relation_id(RELATED_TO, ends[0]["lineageId"], ends[1]["lineageId"]),
+        kind=ITEM_LINK_KIND,
+        predicate=RELATED_TO,
+        subject=ends[0],
+        object_=ends[1],
         provenance=provenance,
         actor=actor,
         score=None,

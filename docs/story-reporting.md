@@ -203,8 +203,10 @@ the latest draft's citations include its citation key.
 ## Linking stories to each other
 
 A story's Related block lists other stories that go with it (an article to related articles, a larger story to several posts). The link is one
-`SemanticRelation` of type `related_to` between two stories (Items), subject to object, metadata `kind: story.link` with `addedBy`, `addedAt` and an
-optional `note`. **This is the only supported way to write one, and the public page reads exactly this relation**: the name lives in one constant
+`SemanticRelation` of type `related_to` between two stories (Items), written by `reference_links.link_items` like every reference edge: one row (the lower
+lineage id as subject, a deterministic id from the pair), `relationState` `current`, metadata `kind: item.link`, `provenance` (`human` from the CLI, `derived` from the
+agent tools), `addedBy`, `addedAt` and an optional `note`. A link a person rejected is never flipped back by any writer (the command prints `rejected` and a
+warning; only a person's decision in the newsroom reinstates it). **This is the only supported way to write one, and the public page reads exactly this relation**: the name lives in one constant
 (`STORY_LINK_RELATION` in `src/papyrus_content/story_links.py`) that the writer, `stories show` and the tests all use. `SemanticRelation.predicate` is a
 free string in the schema, so the guard is in our writers: no command, tool or argument can choose another relation name (`--relation related_to` is
 tolerated, any other value is refused with the allowed value), and `link_stories` refuses to write any other predicate or a record without the seeded

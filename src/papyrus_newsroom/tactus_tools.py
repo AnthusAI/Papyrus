@@ -136,7 +136,7 @@ def papyrus_link_stories(story: str, related_to_stories: Any, author_label: str,
     targets = related_to_stories.split(",") if isinstance(related_to_stories, str) else list(related_to_stories or [])
     client, _ = create_authoring_client()
     resolved, others = resolve_link_targets(client, story, targets)
-    return {"story": resolved.get("lineageId") or resolved["id"], "links": link_story_set(client, resolved, others, actor=author_label, note=note or None)}
+    return {"story": resolved.get("lineageId") or resolved["id"], "links": link_story_set(client, resolved, others, actor=author_label, provenance="derived", note=note or None)}
 
 
 def papyrus_find_or_register_source(url: str, title: str, corpus: str, author_label: str, media_type: str = "text/html", rationale: str = "") -> dict:

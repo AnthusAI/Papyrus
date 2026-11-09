@@ -16,14 +16,13 @@ import json
 from typing import Any
 
 from .content_item_lifecycle import SYSTEM_ITEM_TYPES
-from .ids import hash_short
-from .publishing import published_item_id_for, utc_now_iso
-from .relation_types import load_relation_type_lookup, semantic_relation_type_fields_for_predicate
+from .publishing import published_item_id_for
+from .reference_links import ITEM_LINK_KIND, RELATED_TO, link_items, reference_link_relation_id
+from .relation_types import load_relation_type_lookup
 from .story_reporting import current_story_version, story_versions
 
-STORY_LINK_RELATION = "related_to"
-STORY_LINK_KIND = "story.link"
-STORY_LINK_FEED = "story-links"
+STORY_LINK_RELATION = RELATED_TO   # the one name, from reference_links, where every reference and concept edge gets it
+STORY_LINK_KIND = ITEM_LINK_KIND
 
 
 def check_official_relation(name: object) -> str:
@@ -65,7 +64,8 @@ def story_summary(client, story: dict[str, Any]) -> dict[str, Any]:
 
 
 def story_link_relation_id(lineage_id: str, other_lineage_id: str) -> str:
-    return "semantic-relation-" + hash_short(["story-link", STORY_LINK_RELATION, *sorted([lineage_id, other_lineage_id])])
+    """The deterministic id of the link between two stories (the same from either end), as every reference edge gets its id."""
+    return reference_link_relation_id(STORY_LINK_RELATION, *sorted([lineage_id, other_lineage_id]))
 
 
 def _item_relations(client, lineage_id: str) -> list[tuple[dict[str, Any], str, str]]:
@@ -117,51 +117,19 @@ def existing_link(client, lineage_id: str, other_lineage_id: str) -> dict[str, A
     return next((link for link in links_of_story(client, lineage_id) if link["otherLineageId"] == other_lineage_id), None)
 
 
-def link_stories(client, story: dict[str, Any], other: dict[str, Any], *, actor: str, note: str | None = None, now: str | None = None) -> dict[str, Any]:
-    """Creates the official link and returns ``{"outcome": "created", "relationId"}``; when it already exists (either direction) writes nothing and
-    returns ``"exists"``. Create only: the relation is never updated, so it works for a signed-in editor's token."""
+def link_stories(client, story: dict[str, Any], other: dict[str, Any], *, actor: str, provenance: str = "human", note: str | None = None,
+                 now: str | None = None) -> dict[str, Any]:
+    """Creates the official link (``reference_links.link_items``) and returns ``{"outcome", "relationId"}``: ``created``; ``exists`` (either direction, nothing
+    written); or ``rejected`` (a person rejected this link: nothing is written, only a person's decision reinstates it)."""
     lineage_id, other_id = story.get("lineageId") or story["id"], other.get("lineageId") or other["id"]
     if lineage_id == other_id:
         raise ValueError("A story cannot be linked to itself.")
     found = existing_link(client, lineage_id, other_id)
     if found:
         return {"outcome": "exists", "relationId": found["relationId"]}
-    now = now or utc_now_iso()
-    relation_id = story_link_relation_id(lineage_id, other_id)
-    metadata = {"kind": STORY_LINK_KIND, "addedBy": actor, "addedAt": now}
-    if note:
-        metadata["note"] = note
-    object_state_key = f"item#{other_id}#current"
-    record = {
-        "id": relation_id,
-        "relationState": "current",
-        "predicate": STORY_LINK_RELATION,
-        **semantic_relation_type_fields_for_predicate(STORY_LINK_RELATION),
-        "subjectKind": "item",
-        "subjectId": story["id"],
-        "subjectLineageId": lineage_id,
-        "subjectVersionNumber": story.get("versionNumber"),
-        "objectKind": "item",
-        "objectId": other["id"],
-        "objectLineageId": other_id,
-        "objectVersionNumber": other.get("versionNumber"),
-        "subjectStateKey": f"item#{lineage_id}#current",
-        "objectStateKey": object_state_key,
-        "objectSubjectStateKey": f"{object_state_key}#item",
-        "predicateObjectStateKey": f"{STORY_LINK_RELATION}#{object_state_key}",
-        "subjectVersionKey": f"item#{story['id']}",
-        "objectVersionKey": f"item#{other['id']}",
-        "score": 1,
-        "rank": 1,
-        "reviewRecommended": False,
-        "importedAt": now,
-        "metadata": json.dumps(metadata, sort_keys=True),
-        "newsroomFeedKey": STORY_LINK_FEED,
-    }
-    if record["predicate"] != STORY_LINK_RELATION or record.get("relationTypeKey") != STORY_LINK_RELATION or not record.get("relationTypeId"):
-        raise ValueError(f"Refusing to write a story-to-story relation that is not the official {STORY_LINK_RELATION!r} (seeded relation type missing?).")
-    client.upsert("SemanticRelation", record)
-    return {"outcome": "created", "relationId": relation_id}
+    done = link_items(client, story, other, provenance, actor=actor, note=note, now=now)
+    return {"outcome": "rejected" if done["outcome"] == "rejected" else "created", "relationId": done["relationId"],
+            **({"decidedBy": done.get("decidedBy"), "decidedAt": done.get("decidedAt")} if done["outcome"] == "rejected" else {})}
 
 
 def resolve_link_targets(client, story_ref: str, target_refs: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -180,10 +148,10 @@ def resolve_link_targets(client, story_ref: str, target_refs: list[str]) -> tupl
     return story, others
 
 
-def link_story_set(client, story: dict[str, Any], others: list[dict[str, Any]], *, actor: str | None, note: str | None = None, apply: bool = True,
-                   on_row: Any = None) -> list[dict[str, Any]]:
+def link_story_set(client, story: dict[str, Any], others: list[dict[str, Any]], *, actor: str | None, provenance: str = "human", note: str | None = None,
+                   apply: bool = True, on_row: Any = None) -> list[dict[str, Any]]:
     """Links the story to each target (the one shared path for the CLI, the Tactus tool and the MCP tool). One row per target: the target's lineageId,
-    title, type, stage, published, ``outcome`` (``write``, ``exists`` or ``dry run``), ``relationId`` when known, and a ``warning`` when it is not published.
+    title, type, stage, published, ``outcome`` (``write``, ``exists``, ``rejected`` or ``dry run``), ``relationId`` when known, and a ``warning`` when it is not published.
     ``on_row`` is called with each row as soon as it is settled (the CLI prints its ``write`` line there, after the save)."""
     if apply and not actor:
         raise ValueError("A link needs to record who added it.")
@@ -198,9 +166,11 @@ def link_story_set(client, story: dict[str, Any], others: list[dict[str, Any]], 
         elif not apply:
             row["outcome"] = "dry run"
         else:
-            done = link_stories(client, story, other, actor=actor, note=note)
-            row["outcome"], row["relationId"] = ("write" if done["outcome"] == "created" else "exists"), done["relationId"]
-        if not summary["published"]:
+            done = link_stories(client, story, other, actor=actor, provenance=provenance, note=note)
+            row["outcome"], row["relationId"] = {"created": "write", "exists": "exists", "rejected": "rejected"}[done["outcome"]], done["relationId"]
+        if row["outcome"] == "rejected":
+            row["warning"] = f"A person rejected this link on {str(done.get('decidedAt') or 'an earlier date')[:10]}; nothing was written. Use the newsroom to reinstate it."
+        elif not summary["published"]:
             row["warning"] = f"{summary['title']} is not published yet (stage {summary['stage']}); the public Related block shows published stories only."
         rows.append(row)
         if on_row:

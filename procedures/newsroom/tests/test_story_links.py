@@ -13,7 +13,7 @@ for entry in (HERE.parents[2] / "src", HERE.parents[2], HERE):
         sys.path.insert(0, str(entry))
 
 from papyrus_content import story_commands  # noqa: E402
-from papyrus_content.story_links import STORY_LINK_RELATION, link_stories, links_of_story, resolve_story, story_link_relation_id  # noqa: E402
+from papyrus_content.story_links import STORY_LINK_RELATION, links_of_story, story_link_relation_id  # noqa: E402
 from story_reference_role_site import SignedInSite  # noqa: E402
 from test_story_cli_live_test_edges import run  # noqa: E402
 
@@ -106,14 +106,25 @@ class LinkStoryTests(unittest.TestCase):
         self.assertEqual((row["predicate"], row["relationTypeKey"], row["relationTypeId"]), (STORY_LINK_RELATION, STORY_LINK_RELATION, "semantic-relation-type-related-to"))
         self.assertTrue(row["predicateObjectStateKey"].startswith(STORY_LINK_RELATION + "#"))
 
-    def test_the_writer_refuses_a_wrong_relation_type_record(self):
-        from unittest import mock
-
+    def test_a_rejected_link_is_never_flipped_back_and_says_so(self):
         client = site()
-        with mock.patch("papyrus_content.story_links.STORY_LINK_RELATION", "related-to"):
-            with self.assertRaises(ValueError):
-                link_stories(client, resolve_story(client, "item-big"), resolve_story(client, "item-post-1"), actor="x")
-        self.assertEqual(client.tables.get("SemanticRelation", {}), {})
+        link(client, "--story", "item-big", "--to", "item-post-1")
+        row = next(iter(client.tables["SemanticRelation"].values()))
+        row.update({"relationState": "rejected", "subjectStateKey": "item#item-big#rejected", "objectStateKey": "item#item-post-1#rejected"})
+        row["metadata"] = json.dumps({**json.loads(row["metadata"]), "decidedBy": "Ada", "decidedAt": "2026-11-01T00:00:00Z", "decision": "rejected"})
+        before = json.dumps(client.tables["SemanticRelation"], sort_keys=True)
+        out, err, failure = link(client, "--story", "item-post-1", "--to", "item-big")
+        self.assertIsNone(failure)
+        self.assertTrue(out.rstrip().endswith("\trejected"), out)
+        self.assertIn("rejected this link on 2026-11-01", err)
+        self.assertEqual(json.dumps(client.tables["SemanticRelation"], sort_keys=True), before)
+
+    def test_the_row_is_the_reference_links_shape(self):
+        client = site()
+        link(client, "--story", "item-post-1", "--to", "item-big")
+        row = next(iter(client.tables["SemanticRelation"].values()))
+        self.assertEqual(row["id"], story_link_relation_id("item-big", "item-post-1"))
+        self.assertEqual((row["subjectLineageId"], json.loads(row["metadata"])["kind"], json.loads(row["metadata"])["provenance"]), ("item-big", "item.link", "human"))
 
     def test_a_hand_written_link_under_another_name_is_listed_not_shown(self):
         client = site()
