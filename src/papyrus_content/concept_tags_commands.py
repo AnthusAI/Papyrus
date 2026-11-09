@@ -8,7 +8,7 @@ import sys
 from .concept_tags import audit_reference_links, audit_story_links, tag_with_concepts
 from .content_item_lifecycle import SYSTEM_ITEM_TYPES
 from .graphql_authoring import create_authoring_client
-from .options import normalize_string, parse_options, parse_repeated_option, resolve_mutation_apply
+from .options import normalize_string, parse_boolean_option, parse_options, parse_repeated_option, resolve_mutation_apply
 
 
 def _actor(client, options: dict, group: str, command: str, apply: bool):
