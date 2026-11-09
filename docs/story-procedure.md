@@ -11,6 +11,7 @@ One definition of how a Story moves through the newsroom. The command line reads
 | research | reporting | Reporter | `papyrus assignments research-multi ASSIGNMENT_ID` | live |
 | outline | reporting | Editor agent | `papyrus stories outline --story LINEAGE` | live |
 | draft | copywriting | Copywriter | `papyrus stories draft --story LINEAGE` | live |
+| related_content | copywriting | Editor or reviewing agent | `papyrus stories suggest-links --story LINEAGE` | live, not required |
 | fact_check | copywriting | Fact-check agent | none yet (PPY-719a02) | not built |
 | copy_edit | copywriting | Copywriter with Humanus | `papyrus editorial check-version --item VERSION_ID` | live |
 | editor_review | copywriting | Editor agent | none (needs the `editor_review.tac` procedure, which no site has on) | off |
