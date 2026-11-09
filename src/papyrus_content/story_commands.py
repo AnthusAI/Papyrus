@@ -26,6 +26,7 @@ from .story_reporting import (
     repair_story_versions,
     save_story_version,
     story_messages,
+    utc_now_iso,
     story_references,
     story_versions,
 )
@@ -739,8 +740,55 @@ def stories_set_slug(flags: list[str]) -> None:
         print(f"stories\tset-slug\tprojection\t{json.dumps(outcome)}")
 
 
+def chosen_story_type(options: dict[str, Any], *, static_directory: Path | None = None) -> str | None:
+    """The ``--type`` of a command, checked: a lowercase Story type name that is not a system type, and, when the site's own list is known (a ``projection.json`` in
+    ``PAPYRUS_SITE_STATIC_DIR`` or in ``./web``), one of the types the site offers. With no list the name is accepted with a note, never guessed."""
+    from .story_types import SITE_STATIC_DIRECTORY_ENV, read_projection_settings, require_story_type, story_types_from_mapping
+
+    raw = normalize_string(options.get("type"))
+    if not raw:
+        return None
+    name = require_story_type(raw, "--type")
+    directory = static_directory
+    if directory is None:
+        configured = (os.environ.get(SITE_STATIC_DIRECTORY_ENV) or "").strip()
+        directory = Path(configured) if configured else (Path("web") if Path("web/projection.json").is_file() else None)
+    offered = story_types_from_mapping(read_projection_settings(directory)).offered if directory is not None else ()
+    if offered and name not in offered:
+        raise ValueError(f"--type {name!r} is not one of this site's Story types ({', '.join(offered)}).")
+    if not offered:
+        print(f"stories\ttype\tnote\t{name} was not checked against the site's list of types (run from the site checkout or set {SITE_STATIC_DIRECTORY_ENV})")
+    return name
+
+
+def stories_set_type(flags: list[str]) -> None:
+    """papyrus stories set-type --story <lineage|slug> --type <article|post|...> [--dry-run]
+
+    Changes the type of a story that is not published yet (a draft, idea or in review). A published story is refused: its page lives at an address that
+    depends on its type, so that change is not made from the CLI."""
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories set-type")
+    story = _required_option(options, "story")
+    new_type = chosen_story_type({**options, "type": _required_option(options, "type")})
+    client, _ = create_authoring_client()
+    lineage_id = story
+    if not story_versions(client, lineage_id):
+        raise ValueError(f"No story found for {story}. Give the story's lineage id (see papyrus stories list).")
+    if published_story_version(client, lineage_id) is not None:
+        raise ValueError("That story is published, so its type cannot be changed here: its page address depends on the type. Take it down first (stories withdraw) or ask for the change in the newsroom.")
+    latest = current_story_version(client, lineage_id)
+    if latest.get("type") == new_type:
+        print(f"stories\tset-type\tunchanged\t{lineage_id}\t{new_type}")
+        return
+    print(f"stories\tset-type\t{lineage_id}\t{latest.get('type')} -> {new_type}\t{'write' if apply else 'dry run'}")
+    if not apply:
+        return
+    client.update_record("Item", {"id": latest["id"], "type": new_type, "typeStatus": f"{new_type}#{latest.get('status') or 'draft'}", "updatedAt": utc_now_iso()})
+    print(f"stories\tset-type\tdone\t{latest['id']}\t{new_type}")
+
+
 def stories_create(flags: list[str]) -> None:
-    """papyrus stories create --title <text> [--section <key>] [--stage idea|assignment|reporting] [--summary <text>] [--brief <text>] [--reference <reference id> ...] [--with-assignment]
+    """papyrus stories create --title <text> [--type article|post|...] [--section <key>] [--stage idea|assignment|reporting] [--summary <text>] [--brief <text>] [--reference <reference id> ...] [--with-assignment]
 
     Each ``--reference`` is the Reference the story is based on: it is linked ``based_on`` (docs/reference-curation-pipeline.md)."""
     options = parse_options(flags)
@@ -753,15 +801,18 @@ def stories_create(flags: list[str]) -> None:
     section_key = normalize_string(options.get("section"))
     summary = normalize_string(options.get("summary")) or title
     actor = normalize_string(options.get("actor-label")) or "papyrus-cli"
+    story_type = chosen_story_type(options)
     if not apply:
-        print(f"stories\tcreate\t{title}\tstage {stage}\tdry run")
+        print(f"stories\tcreate\t{title}\tstage {stage}\ttype {story_type or 'site default'}\tdry run")
         if options.get("with-assignment"):
             print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened")
         return
     client, _ = create_authoring_client()
-    item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor)
+    item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor, item_type=story_type)
     lineage_id = item["lineageId"]
-    print(f"stories\tcreate\t{title}\tstage {stage}\twrite")
+    print(f"stories\tcreate\t{title}\tstage {stage}\ttype {item.get('type')}\twrite")
+    if item.get("type") == "untyped":
+        print("stories\tcreate\twarning\tthis story has no type and cannot be published until it has one: run papyrus stories set-type --story <lineage> --type post|article")
     print(f"stories\tcreate\tcreated\t{item['id']}")
     print(f"stories\tcreate\tlineage\t{lineage_id}")
     for reference_id in reference_ids:
