@@ -358,7 +358,9 @@ def stories_agent_note(flags: list[str]) -> None:
 
 
 def stories_show(flags: list[str]) -> None:
-    """papyrus stories show --story <lineage>"""
+    """papyrus stories show --story <lineage> [--bucket day|week|none]
+
+    After the headline line, a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt)."""
     options = parse_options(flags)
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
@@ -367,6 +369,16 @@ def stories_show(flags: list[str]) -> None:
     print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tcurrent version {latest.get('versionNumber')} of {len(versions)}")
     metadata = latest.get("metadata")
     metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
+    from .home_page.ordering import utc_today
+    from .projection.standard.config import DEFAULT_STORY_BUCKET
+    from .story_signals import signals
+
+    if versions:
+        signal = signals(latest, normalize_string(options.get("bucket")) or DEFAULT_STORY_BUCKET, utc_today())
+        print("\t".join(["stories", "show", "signals", f"type {signal['type']}", f"section {signal['section']}", f"bucket {signal['bucket']}",
+                         f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
+        if signal["source"] == "editor":
+            print("\t".join(["stories", "show", "rating", f"ratedBy {signal['ratedBy']}", f"ratedAt {signal['ratedAt']}"]))
     for move in metadata.get(STAGE_MOVES_KEY) or []:
         print("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
     for reference in story_references(client, lineage_id):
@@ -382,38 +394,48 @@ def stories_show(flags: list[str]) -> None:
 
 
 def stories_list(flags: list[str]) -> None:
-    """papyrus stories list [--stage <stage>] [--section <id|slug|name>] [--limit N]
+    """papyrus stories list [--stage <stage>] [--section <id|slug|name>] [--type article|post] [--stars N | --min-stars N | --max-stars N]
+    [--sort updated|stars|rank] [--bucket day|week|none] [--limit N]
 
-    Read only. One line per Story (its lineage id, the id `stories show --story` takes), newest change first. Without --stage it lists
-    every board stage except spiked and held."""
-    from .content_item_lifecycle import CONTENT_ITEM_STAGES, SYSTEM_ITEM_TYPES, require_content_item_stage
-    from .editorial_context import find_section
+    Read only. One line per Story: stories, list, lineage id (the id `stories show --story` takes), stage, section, title, then the signals the layouts use:
+    stars (the effective quality rating, 0 unrated), source (editor|none), votes, bucket (the rolling window, week:0 is the last seven days), type, words,
+    published (last-published date). Without --stage it lists every board stage except spiked and held. --sort updated (default) is newest change first;
+    --sort stars is rated high to low, unrated last; --sort rank is what the Articles and Posts page shows first (newest bucket first, rated Stories first
+    inside it): it uses the projection's own ranking code with the site's default bucket, or --bucket. --stars 0 finds unrated Stories; --min-stars and
+    --max-stars match rated Stories only. Ratings are private newsroom data."""
+    from .story_signals import list_stories, optional_stars
 
     options = parse_options(flags)
-    stage = normalize_string(options.get("stage"))
-    if stage:
-        require_content_item_stage(stage)
-    stages = [stage] if stage else [name for name in CONTENT_ITEM_STAGES if name not in ("held", "spiked")]
     limit = int(normalize_string(options.get("limit")) or 50)
     client, _ = create_authoring_client()
-    section_id = None
-    if normalize_string(options.get("section")):
-        section = find_section(client, str(options["section"]))
-        if not section:
-            raise ValueError(f"Unknown NewsroomSection {options['section']}.")
-        section_id = section["id"]
-    rows = []
-    for name in stages:
-        rows += client.list_by_index("itemsByStage", name)
-    rows = [row for row in rows if row.get("versionState", "current") == "current" and row.get("type") not in SYSTEM_ITEM_TYPES
-            and (section_id is None or row.get("section") == section_id)]
-    found = client.get_records_by_id("Item", [row["id"] for row in rows])
-    stories = [found[row["id"]] for row in rows if row["id"] in found]
-    stories.sort(key=lambda story: str(story.get("updatedAt") or ""), reverse=True)
-    for story in stories[:max(limit, 1)]:
-        print("\t".join(["stories", "list", str(story.get("lineageId") or story["id"]), str(story.get("stage") or ""),
-                         str(story.get("section") or ""), str(story.get("headline") or story.get("title") or "")]))
-    print(f"stories\tlist\t{min(len(stories), max(limit, 1))} of {len(stories)}")
+    stories, total = list_stories(
+        client, stage=normalize_string(options.get("stage")), section=normalize_string(options.get("section")), story_type=normalize_string(options.get("type")),
+        stars=optional_stars(options, "stars"), min_stars=optional_stars(options, "min-stars"), max_stars=optional_stars(options, "max-stars"),
+        sort=normalize_string(options.get("sort")) or "updated", bucket=normalize_string(options.get("bucket")), limit=limit)
+    for story in stories:
+        print("\t".join(["stories", "list", str(story["lineageId"]), story["stage"], story["section"], story["title"], str(story["stars"]), story["source"],
+                         str(story["votes"]), story["bucket"], story["type"], str(story["words"]), story["published"]]))
+    print(f"stories\tlist\t{len(stories)} of {total}")
+
+
+def stories_set_stars(flags: list[str]) -> None:
+    """papyrus stories set-stars --story <lineage> --stars <0-5> [--agent <your name>] [--dry-run]
+
+    Sets the editor's rating of a Story (1 to 5; 0 clears it) as the signed-in person, through the newsroom's setItemStars mutation (the one the console
+    calls), which also re-renders the listing pages whose order changed. It does not republish the Story. It writes unless you pass --dry-run. It sets the
+    editor value only; `stories show` also prints the effective rating, which can differ once votes are aggregated."""
+    from .story_signals import set_story_stars, validated_stars
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories set-stars")
+    lineage_id = _required_option(options, "story")
+    if options.get("stars") is None or options.get("stars") is True:
+        raise ValueError("stories set-stars requires --stars 0 to 5 (0 clears the rating).")
+    stars = validated_stars(options["stars"])
+    client, _ = create_authoring_client()
+    result = set_story_stars(client, lineage_id, stars, apply=apply, agent=normalize_string(options.get("agent")))
+    print("\t".join(["stories", "set-stars", lineage_id, f"previous {result['previous']}", f"stars {result['stars']}", "editor value",
+                     "write" if result["applied"] else "dry-run: nothing sent"]))
 
 
 def stories_next(flags: list[str]) -> None:
