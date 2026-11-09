@@ -176,7 +176,7 @@ _ENTRIES = dict([
   _e("knowledge entities registry", "Write the entity registry JSON for `knowledge extract-entities --registry`.", "--out FILE [--vocabulary FILE]", "operator", "reads", ""),
   _e("knowledge clusters list", "List topic clusters.", "[--status proposed|accepted|rejected|all] [--limit N] --actor ai|human", "operator", "reads", ""),
   _e("knowledge relations list", "List typed relations between concepts.", "[--state proposed|accepted|rejected|all] [--limit N] --actor ai|human", "operator", "reads", ""),
-  _e("knowledge query", "Query the shared knowledge engine: ranked records around a query text or anchors. Prints one JSON object (structured, context, warnings, provenance, debug); with no query it succeeds and returns an empty one.",
+  _e("knowledge query", "Query the shared knowledge engine: ranked records around a query text or anchors. Prints one JSON object; with no query it still succeeds, with an empty one.",
      "(--query TEXT | --anchor KIND:ID [--anchor ...] | --input FILE|-) [--profile researcher|reporter|reporting|editor|reviewer|chat] [--format structured|markdown|both] "
      "[--site HOST] [--max-tokens N] [--depth N] [--top-k N] [--include-kind KIND ...] [--exclude-kind KIND ...] [--execution auto|remote|local]",
      "both", "reads", "find"),
@@ -290,6 +290,26 @@ GROUP_ORDER = {
 }
 
 
+GROUP_SUMMARIES = {
+  "knowledge concepts": "Find concepts by meaning and see the concepts near one (search, related); operator imports.",
+  "knowledge entities": "List, link and review concepts (generated entities).",
+  "knowledge clusters": "Review topic clusters (operator).",
+  "knowledge relations": "Review typed relations between concepts (operator).",
+  "knowledge topics": "Category and topic steering (operator).",
+  "knowledge ontology": "Ontology maintenance (operator).",
+  "knowledge wiki": "Public wiki pages: sync and publish (operator).",
+  "knowledge run": "Undo or restore a knowledge run (operator).",
+  "knowledge corpus": "Export the published items of a site as a Biblicus-ready folder.",
+  "ops content": "Publish, re-render and refresh pages, and content maintenance.",
+  "ops relations": "The relation-type vocabulary (operator).",
+  "ops corpora": "Corpus status and sync (operator).",
+  "ops categories": "Category steering (operator).",
+  "ops messages": "Message maintenance (operator).",
+  "ops site": "Site copy (operator).",
+  "ops": "Content, relations, corpora, categories, messages and site operations.",
+}
+
+
 def _legacy(path: list[str]) -> Usage | None:
   from .group_commands import COMMAND_USAGE
 
@@ -319,6 +339,8 @@ def usage_for_path(path: list[str]) -> Usage | None:
 
 
 def summary_for_path(path: list[str]) -> str:
+  if " ".join(path) in GROUP_SUMMARIES:
+    return GROUP_SUMMARIES[" ".join(path)]
   if path and path[0] == "images":
     from papyrus_content.images.cli import COMMANDS
 
