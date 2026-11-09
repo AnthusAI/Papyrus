@@ -136,5 +136,5 @@ def references_check_links(flags: list[str]) -> None:
         lineages = sorted({str(row.get("lineageId") or row["id"]) for row in client.list_by_index(REFERENCE_BY_CURATION_STATUS, f"{corpus}#accepted")
                            if row.get("versionState", "current") == "current"})
     else:
-        raise ValueError("references check-links needs --reference ID or --corpus-id ID (the p.apyr.us corpus is knowledge-corpus-ai-ml-research).")
+        raise ValueError("references check-links needs --reference ID or --corpus-id ID.")
     _print_findings("references", len(lineages), audit_reference_links(client, lineages), bool(options.get("json")), "References")
