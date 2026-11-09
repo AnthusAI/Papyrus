@@ -40,6 +40,9 @@ ENFORCE_NOT_BEFORE = "2026-11-13"
 # (base, per unit). The first week of summaries replaces these guesses; a unit is whatever the run declares (an id named on the
 # command line, a delivery, a Reference examined). Longest matching prefix wins.
 DEFAULT_BUDGET = (200, 8)
+CONTENT_ACTIONS_PUBLISH_BASE = 60     # the publish's own reads and writes (Item, PublishedItem, media, checklist) plus the build when it runs inline
+CONTENT_ACTIONS_BUILD_BASE = 10       # job bookkeeping lives in DynamoDB, not AppSync: only the summary pages and a few records
+CONTENT_ACTIONS_PER_BUILD = 12        # one Story built: its Item and PublishedItem, its lineage, two summary passes, a media list, a few ratings
 BUDGETS: dict[str, tuple[int, int]] = {
     "lambda:router:route": (400, 8),
     "lambda:router:collect": (300, 8),
@@ -51,6 +54,15 @@ BUDGETS: dict[str, tuple[int, int]] = {
     "lambda:procedure-runner": (300, 8),
     "stage:": (300, 8),
     "cli:": DEFAULT_BUDGET,
+    # The content-actions function, one run per invocation (PPY-3acc8d). A publish and the build of its pages read a fixed number of records
+    # whatever the size of the site (the bodies other pages need come from the body cache, not one read per Story); a unit is one Story built.
+    # features_backend/publish-cost.feature and procedures/newsroom/tests/test_publish_cost.py hold them to these numbers.
+    "lambda:content-actions:publishItem": (CONTENT_ACTIONS_PUBLISH_BASE, 0),
+    "lambda:content-actions:saveItemDraft": (CONTENT_ACTIONS_PUBLISH_BASE, 0),
+    "lambda:content-actions:item": (CONTENT_ACTIONS_BUILD_BASE, CONTENT_ACTIONS_PER_BUILD),
+    "lambda:content-actions:item-pages": (CONTENT_ACTIONS_BUILD_BASE, CONTENT_ACTIONS_PER_BUILD),
+    "lambda:content-actions:drain": (CONTENT_ACTIONS_BUILD_BASE, CONTENT_ACTIONS_PER_BUILD),
+    "lambda:content-actions": DEFAULT_BUDGET,
 }
 
 # CLI commands that read or write a whole corpus on purpose. They declare themselves sweeps: counted, never budget-checked.

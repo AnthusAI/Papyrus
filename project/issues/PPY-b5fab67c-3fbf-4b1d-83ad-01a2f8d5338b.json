@@ -1,7 +1,7 @@
 {
   "id": "PPY-b5fab67c-3fbf-4b1d-83ad-01a2f8d5338b",
   "title": "M1 Cost fixes that would multiply by tenants, and the standard layout track",
-  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M0.\nExit criteria: PPY-7f1e54 stages B and C merged and rolled out (MoM first); PPY-ee02b8 closed including ReferenceIntake's whole-table list; PPY-d647ee incremental reader snapshot; PPY-3fd0aa call-count test at 1 tenant. In parallel (front-end track): PPY-c446fe ordering rule, PPY-2a44b2 native tokens, PPY-31efef cards, preset and brand pack.\nCustomer-visible: Lower cost on our sites; MoM and TI look unchanged or better.\nIndex-adding deploys in this milestone: Reference.publicFeedKey (PR #1239), per site, alone, after stage A and the backfill.\nContains: PPY-7f1e54, PPY-ee02b8, PPY-d647ee, PPY-3fd0aa, PPY-c446fe, PPY-2a44b2, PPY-31efef\nFollows: M0.",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3). Critical-path plan: PPY-e38a2d. Design note: docs/plans/multi-tenant-architecture.md (PR #1305).\n\nEntry criteria: M0 (cost fixes may start at once; they are already in progress).\nExit criteria: PPY-7f1e54 stages B and C merged and rolled out (MoM first); PPY-ee02b8 closed including ReferenceIntake's whole-table list; PPY-d647ee incremental reader snapshot; PPY-3fd0aa call-count test at 1 tenant. Front-end track on the M7 path: PPY-31efef cards and brand pack (slices PPY-ecb656, PPY-7bc5b7), the publication preset PPY-cf7e6e, TI's brand-neutral acceptance PPY-7e396d.\nCustomer-visible: Lower cost on our sites; MoM and TI look unchanged or better.\nIndex-adding deploys in this milestone: Reference.publicFeedKey (PR #1239), per site, alone, after stage A and the backfill.\nContains: PPY-7f1e54, PPY-ee02b8, PPY-d647ee, PPY-3fd0aa, PPY-31efef, PPY-613a29, PPY-88a883, PPY-cf7e6e, PPY-7e396d\nNot gating M7 (recommended off the path; decision D4): PPY-c446fe ordering rule, PPY-2a44b2 native tokens and retiring the scaler. The preset ships on today's token values.\nFollows: M0.\n\nAcceptance (Gherkin):\nScenario: Cost does not grow with corpus or tenant count (PPY-3fd0aa)\nScenario: One vote costs a constant number of calls (PPY-d647ee)\nScenario: A card renders from its data alone (PPY-613a29)\nScenario: A story card renders from data in two brands (features_backend/core-cards.feature, PPY-ecb656)\nScenario: A low-contrast pack is refused naming the pair (features_backend/brand-pack-validator.feature, PPY-7bc5b7)\nScenario: A valid pack builds a branded site; A font outside the allow-list is rejected (PPY-88a883)\nScenario: A site picks the preset in configuration only (PPY-cf7e6e)\nScenario: The shared suite passes for a second brand (PPY-7e396d)\n\nAcceptance checks:\n1. The home-page snapshot and Reference intake make no whole-table read: the call-count test passes and the MoM AppSync request graph for one week after rollout is flat against corpus growth.\n2. TI renders on the preset with only a brand pack, sections and pages: golden renders accepted, git shows no change in the MoM repository.\n3. Browser policy checks pass in light and dark for TI and the fixture brand (colour-safe pairs, contrast).",
   "type": "task",
   "status": "open",
   "priority": 1,
@@ -22,13 +22,13 @@
     {
       "id": "90cffd42-1dca-4c05-af1e-98d3143852ea",
       "author": "home",
-      "text": "Adds in parallel: PPY-25e0d7 cost accounting on our dedicated sites, then the design partner's three sites.",
+      "text": "Adds in parallel: PPY-25e0d7 cost accounting on our dedicated sites, then the shared stack, where the design partner's three sites launch directly at M7 (never dedicated).",
       "created_at": "2026-11-08T21:19:01.988682Z",
       "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T18:46:26.516174Z",
-  "updated_at": "2026-11-08T21:19:01.989003Z",
+  "updated_at": "2026-11-09T00:29:56.168965Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

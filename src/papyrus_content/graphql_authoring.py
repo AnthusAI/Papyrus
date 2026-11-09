@@ -160,6 +160,7 @@ PUBLISHED_ITEM_FIELDS = (
     "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
     "title headline deck body byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
 )
+SUMMARY_PAGE_SIZE = 1000
 PUBLISHED_ITEM_SUMMARY_FIELDS = (
     "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
 )
@@ -932,8 +933,8 @@ class PapyrusGraphQLAuthoringClient:
         fields = graphql_type.get("fields") or []
         return sorted(str(field.get("name")) for field in fields if field.get("name"))
 
-    def list_records(self, model_name: str) -> list[dict[str, Any]]:
-        """EVERY row of the model: a whole-table read that costs one request per 100 rows. Outside a named sweep (`request_meter.sweep`)
+    def list_records(self, model_name: str, *, page_size: int = 100) -> list[dict[str, Any]]:
+        """EVERY row of the model: a whole-table read that costs one request per ``page_size`` rows (100). Outside a named sweep (`request_meter.sweep`)
         it is logged and counted as an unbounded list; read through an index (`list_by_index`, `index_many`) instead."""
         request_meter.note_unbounded_list(model_name)
         definition = LIST_DEFINITIONS[model_name]
@@ -942,7 +943,7 @@ class PapyrusGraphQLAuthoringClient:
         next_token = None
         while True:
             with request_meter.model(model_name):
-                result = self.graphql(query, {"limit": 100, "nextToken": next_token})
+                result = self.graphql(query, {"limit": page_size, "nextToken": next_token})
             connection = result.get(definition["field"]) or {}
             items.extend(entry for entry in connection.get("items") or [] if entry)
             next_token = connection.get("nextToken")
@@ -957,7 +958,10 @@ class PapyrusGraphQLAuthoringClient:
         return tenant_scoped_record_id(model_name, self.tenant_id, record_id)
 
     def list_published_item_summaries(self) -> list[dict[str, Any]]:
-        return rows_for_tenant("PublishedItem", self.tenant_id, self.list_records("PublishedItemSummary"))
+        """The listing fields of every published row (no body): what every projection reads. Pages of 1,000 rows (a summary is a few KB, well inside
+        a DynamoDB page of 1 MB), so a site of a few hundred Stories costs one request (PPY-3acc8d)."""
+        rows = self.list_records("PublishedItemSummary", page_size=SUMMARY_PAGE_SIZE)
+        return rows_for_tenant("PublishedItem", self.tenant_id, rows)
 
     def get_record(self, model_name: str, record_id: str) -> dict[str, Any] | None:
         definition = GET_DEFINITIONS[model_name]

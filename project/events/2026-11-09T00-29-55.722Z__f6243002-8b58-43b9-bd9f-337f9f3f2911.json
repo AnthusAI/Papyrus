@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "f6243002-8b58-43b9-bd9f-337f9f3f2911",
+  "issue_id": "PPY-e54ecaba-80a3-467c-9e79-00cad5016a00",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-09T00:29:55.722Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "What: the end-to-end acceptance check of M7 (PPY-dad077). Creating a Prospectus deployment record for product papyrus (operator-triggered; self-serve checkout and payment come at M8) chains provisioning (PPY-70a429), the starter site, the subdomain and the owner's first Google sign-in on newsroom.p.apyr.us, with no code change, no deploy and no Cognito or certificate change.\nAcceptance:\nScenario: A deployment record reaches a live site with no human step\n  Given an Account entitled to a shared-tier site in staging\n  When an operator creates deployment \"harbour-news\" through the Prospectus API\n  Then harbour-news.p.apyr.us serves the starter site, the owner signs in as admin, and neither repository changed nor deployed\n\nScenario: A paid sign-up reaches a live site (M8 variant)\n  Given a new person completes Stripe checkout in staging\n  When provisioning finishes\n  Then their subdomain serves a starter site and they can sign in as admin\n\nChecks: run on staging, then on production with an internal test deployment; record timings and the git and deploy history showing no change.",
+        "to": "What: the end-to-end acceptance check of M7 (PPY-dad077). Creating a Prospectus deployment record for product papyrus (operator-triggered; self-serve checkout and payment come at M8) chains provisioning (PPY-70a429), the starter site, the subdomain and the owner's first Google sign-in on newsroom.p.apyr.us, with no code change, no deploy and no Cognito or certificate change.\nAcceptance:\nScenario: A deployment record reaches a live site with no human step\n  Given an Account entitled to a shared-tier site in staging\n  When an operator creates deployment \"harbour-news\" through the Prospectus API\n  Then harbour-news.p.apyr.us serves the starter site, the owner signs in as admin, and neither repository changed nor deployed\n\nScenario: A paid sign-up reaches a live site (M8 variant)\n  Given a new person completes Stripe checkout in staging\n  When provisioning finishes\n  Then their subdomain serves a starter site and they can sign in as admin\n\nThe design partner's three deployments at M7 are this check's first production runs (PPY-37f2ec). Checks: run on staging, then on production with an internal test deployment; record timings and the git and deploy history showing no change."
+      }
+    }
+  }
+}

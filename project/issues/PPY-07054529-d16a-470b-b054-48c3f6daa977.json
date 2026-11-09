@@ -1,0 +1,32 @@
+{
+  "id": "PPY-07054529-d16a-470b-b054-48c3f6daa977",
+  "title": "P6 Administration > Policies > Writing guidelines",
+  "description": "What: admins edit writing guidelines in the newsroom, beside Visual style (PPY-6d878b), with the same layout. Fulfils the writing-guidelines part of PPY-90e312.\n\nFiles:\n- components/writing-guidelines-admin-panel.tsx, lib/guidelines/writing-guidelines-admin.ts (client over guidelinesRead/guidelinesWrite)\n- components/topic-steering-workspace.tsx: nav entry under Policies; move the section editor's Visual Guidance box to the section's Visual style tab\n- features/newsroom-writing-guidelines-admin.feature + steps; scripts/test-writing-guidelines-admin.ts\n\nAcceptance checks:\n- Site tab and one tab per section; each field labelled in text with its source (Site / This section / Locked by site), never colour alone.\n- History lists who, when, why; diff between two versions; save requires a reason.\n- Exemplars picked from published Stories; derived checks listed with a link to Editorial checks.\n- Lucide icons only, flat backgrounds, no borders; editors see a read-only view.\n\nGherkin scenarios:\n- An admin edits the site's writing guidelines and sees a new version in history\n- An admin adds a section override and sees which fields come from the site\n- A locked field cannot be changed on a section tab\n- An editor sees the guidelines read-only\n- Saving without a reason is not possible\n- An admin picks a published Story as a voice example\n\nDesign: docs/plans/guidelines-as-data.md. Gherkin specs are required and ship in the same PR. Text lives in S3, never inline in DynamoDB; no new GSI; no subscriptions. Style and voice wording is data, never code.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-8d41d7b8-455c-4370-9564-a8845c739e68",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-6d878b2d-783e-4cee-9e14-164fdfff4b74",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-09T00:15:34.422475Z",
+  "updated_at": "2026-11-09T00:16:38.729138Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

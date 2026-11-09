@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "551cfd18-8c3f-4732-a3e9-321a37e66420",
+  "issue_id": "PPY-e38a2d5f-fb7e-4beb-9e06-d8390d640668",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:29:25.459Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Critical path to M7: the execution plan for launching the design partner's sites on the shared tier",
+    "description": "(being written)",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "ba4e438e-242c-4989-b83c-3add10933e14",
+  "issue_id": "PPY-ecb656f0-e079-4e5e-a0e4-1003671bef90",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:32:24.905Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Port the story card and the reference card from Machines on Machines' web/mom_components.py into core as one Python implementation taking data, not HTML, with golden renders for two brand packs. No MoM file changes. Thread and wiki cards are a later slice. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) core-cards-slice-1, branch feature/<this issue id>-core-cards-slice-1 from origin/develop (spikes: branch spike/<this issue id>-core-cards-slice-1, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/projection/standard/ (new cards module), golden render fixtures, MoM repository read-only.\n\nAcceptance (Gherkin feature file: features_backend/core-cards.feature):\nScenario: A story card renders from data in two brands\n    Given a story's data and two brand packs\n    When the card renders\n    Then the HTML matches the accepted golden render for each brand\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-613a29.\n\nTesting: poetry run pytest src/papyrus_content/projection/standard; poetry run behave features_backend/core-cards.feature.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

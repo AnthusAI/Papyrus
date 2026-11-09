@@ -3,8 +3,8 @@ Feature: papyrus stories lens-check reports what code can check about a Story fo
   command reads one Story's current version and, when it is given the site's web directory, the site's settings. It reads nothing else
   from the site, writes nothing, calls no model and shows no number Papyrus made up. Every check ends in one of five states: it looks
   fine, it needs a look, it is a problem, it could not be checked or it does not apply. Each finding is one plain sentence with the
-  evidence behind it. Three problems must be fixed before a lens step can close as done, and the command says so clearly: an image with
-  no alt text, a third-party image with no credit, and a Markdown copy that differs from the Story's source. A check that could not be
+  evidence behind it. Four problems must be fixed before a lens step can close as done, and the command says so clearly: an image with
+  no alt text, a third-party image with no credit, a video with no title or no credit, and a Markdown copy that differs from the Story's source. A check that could not be
   made is never a pass: it says what Papyrus could not tell and why. The preview the checks judge is built by the same function the
   projector uses for the page's head, so a check never judges a stand-in.
 

@@ -499,8 +499,8 @@ def stories_lens_check(flags: list[str]) -> None:
     """papyrus stories lens-check --story <lineage> [--lens people|agents|search|social] [--static <web directory>] [--json]
 
     Read only; it writes nothing. Runs the checks of the four review lenses that code can run on the Story's current version and prints each finding
-    with its state (Looks fine, Needs a look, Problem, Could not check), plain words and where to look. Three problems must be fixed before a lens
-    step can close as done: an image with no alt text, a third-party image with no credit and a Markdown copy that differs from the source.
+    with its state (Looks fine, Needs a look, Problem, Could not check), plain words and where to look. Four problems must be fixed before a lens
+    step can close as done: an image with no alt text, a third-party image with no credit, a video with no title or no credit and a Markdown copy that differs from the source.
     --static names the site's web directory (it holds projection.json; default PAPYRUS_SITE_STATIC_DIR); without it the checks that need the site's
     settings say they could not be checked (docs/four-lens-review.md)."""
     from .audience_lenses import LENS_VERSION, STATE_LABELS

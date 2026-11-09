@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "dc11f8f0-bfcb-41a8-b527-6ae44ed32dfc",
+  "issue_id": "PPY-cc8a4c84-34e6-44bf-80f8-142ad2f8439f",
+  "event_type": "issue_deleted",
+  "occurred_at": "2026-11-08T21:32:09.027Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Functions part 1: one TenantContext builder in Python and TypeScript (from AppSync claims, or an explicit tenant for IAM)",
+    "issue_type": "sub-task",
+    "status": "open"
+  }
+}

@@ -33,6 +33,7 @@ from types import SimpleNamespace
 from ...markus_export import EXPORTED_TYPES
 from ...markus_renderer.convert import convert_text_in_process
 from ...markus_renderer.shell import BodyParts, PageContext, SiteChrome, render_page
+from ...markus_renderer.video import SCRIPT_PATH as VIDEO_SCRIPT, csp_text as video_csp_text
 from ...renditions import PrefixedRenditionStore, RenditionCatalog
 
 from ..model import ItemSummary, ProjectedItem, SiteIndex
@@ -109,6 +110,9 @@ MERMAID_SCRIPT_PATH = "_plugins/papyrus-mermaid-v1.js"
 MERMAID_LIBRARY_PATH = "_plugins/mermaid-11.17.2.min.js"   # the vendored library; the loader fetches it from the site's own origin
 MERMAID_BLOCK = '<pre><code class="language-mermaid">'
 ASSET_DIRECTORY = Path(__file__).parent / "assets"
+VIDEO_SCRIPT_PATH = VIDEO_SCRIPT   # the click-to-play player (published only by a site with ``embeds.enabled``)
+VIDEO_CSP_PATH = "_config/content-security-policy.txt"   # the policy fragment the site's edge needs for the player, generated from ``embeds``
+VIDEO_MARKER = 'data-papyrus-video=""'
 
 
 def own_page_actions_stylesheet(standard: StandardSettings) -> bool:
@@ -153,6 +157,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[PAGE_ACTIONS_SCRIPT] = (ASSET_DIRECTORY / "papyrus-page-actions.js").read_bytes()
             if own_page_actions_stylesheet(standard):
                 files[PAGE_ACTIONS_STYLESHEET] = page_actions_stylesheet_text((ASSET_DIRECTORY / "markus-components.css").read_text(encoding="utf-8")).encode("utf-8")
+        if standard.embeds.enabled:
+            files[VIDEO_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-video.js").read_bytes()
+            files[VIDEO_CSP_PATH] = (video_csp_text(standard.embeds) + "\n").encode("utf-8")
         if standard.mermaid:
             files[MERMAID_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-mermaid.js").read_bytes()
             files[MERMAID_LIBRARY_PATH] = (ASSET_DIRECTORY / "mermaid.min.js").read_bytes()
@@ -193,6 +200,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if "convert_text" not in kwargs:
             self._convert_text = self._convert_with_wiki_directives
         self.standard = standard
+        self._embeds = standard.embeds
         if standard.home_page is not None and standard.home_page.references.paging is not None:
             taken = [custom.id for custom in standard.pages if custom.path.split("/")[0] == home_page_lists.LIST_DIRECTORY]
             if taken:
@@ -1538,9 +1546,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
             "wiki_footer": wiki.footer_html(entry, front, self.standard, date_format, form, {str(e.get("key")) for e in index.get("entities") or []}, self.policy.path),
         }
 
+    def _hook_byline(self, entry: StandardEntry) -> str | None:
+        return self.hooks.byline(entry) if self.hooks.byline is not None else None
+
     def _item_twin(self, entry: StandardEntry, text: str, canonical: str | None) -> str:
         notes = tuple(wiki.notes(entry.data, self.standard.identity.date_format, self.policy.path)) if wiki.is_wiki_entry(entry, self.standard) else ()
-        return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes, self.environment.origin)
+        return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes, self.environment.origin, self._hook_byline(entry))
 
     def _chrome(self, page: StandardPage) -> SiteChrome:
         base = self._settings.chrome
@@ -1579,6 +1590,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             scripts += (home_page_lists.SCRIPT_PATH,)
         if page.page_actions:  # only pages that render the actions load their script
             scripts += (PAGE_ACTIONS_SCRIPT,)
+        if self.standard.embeds.enabled and VIDEO_MARKER in page.fragment:  # only a page with a video loads the player script
+            scripts += (VIDEO_SCRIPT_PATH,)
         identity = self.standard.identity
         return dataclasses.replace(
             base,
@@ -1817,7 +1830,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             entry = page.entry
             extras = []
             if entry is not None and self.standard.item_byline:
-                extras.append(components.byline(entry, self.standard.identity.date_format))
+                extras.append(components.byline(entry, self.standard.identity.date_format, self._hook_byline(entry)))
             if entry is not None and entry.tags and self.standard.listings.tags:
                 extras.append(components.tag_list(entry.tags, lambda tag: self.policy.path(f"/{self.policy.tag_base(slugify_tag(tag))}/")))
             actions = self._page_actions(page)

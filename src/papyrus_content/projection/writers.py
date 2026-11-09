@@ -16,6 +16,8 @@ from ..page_refresh.paths import paths_for_page_keys
 
 STATE_PREFIX = "_papyrus/"
 HEAD_WORKERS = 16
+PUT_WORKERS = 16
+S3_MAX_POOL_CONNECTIONS = 32   # above HEAD_WORKERS and PUT_WORKERS, so parallel requests never wait for a pooled connection ("Connection pool is full")
 DEFAULT_HTML_S_MAXAGE_SECONDS = 300
 FALLBACK_HTML_S_MAXAGE_SECONDS = 60
 HTML_STALE_WHILE_REVALIDATE_SECONDS = 60
@@ -141,8 +143,9 @@ class S3PageWriter:
     ) -> None:
         if s3_client is None:
             import boto3
+            from botocore.config import Config
 
-            s3_client = boto3.client("s3")
+            s3_client = boto3.client("s3", config=Config(max_pool_connections=S3_MAX_POOL_CONNECTIONS))
         self._bucket = bucket
         self._s3 = s3_client
         self._html_s_maxage_seconds = html_s_maxage_seconds
@@ -221,6 +224,17 @@ class S3PageWriter:
         if metadata:
             arguments["Metadata"] = metadata
         self._s3.put_object(**arguments)
+
+    def put_many(self, pages: list[tuple[str, bytes, int | None, str | None]]) -> None:
+        """Write ``(key, body, version, inputs)`` with up to ``PUT_WORKERS`` requests at once. Sitemaps and feeds (``.xml``) go after every
+        other page of the batch, as the engine orders them, so a sitemap never names a page that is not written yet. Raises the first failure."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        phases = [[page for page in pages if not page[0].endswith(".xml")], [page for page in pages if page[0].endswith(".xml")]]
+        with ThreadPoolExecutor(max_workers=PUT_WORKERS) as pool:
+            for phase in phases:
+                for future in [pool.submit(self.put, key, body, version=version, inputs=inputs) for key, body, version, inputs in phase]:
+                    future.result()
 
     def delete(self, key: str) -> None:
         self._s3.delete_object(Bucket=self._bucket, Key=key)
