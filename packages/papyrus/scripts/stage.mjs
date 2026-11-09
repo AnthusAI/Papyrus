@@ -252,7 +252,7 @@ fs.writeFileSync(path.join(stage, "package.json"), JSON.stringify(pkg, null, 2) 
 // ---- package-owned files --------------------------------------------------
 fs.mkdirSync(path.join(stage, "bin"), { recursive: true });
 fs.mkdirSync(path.join(stage, "src"), { recursive: true });
-for (const f of ["bin/papyrus-app.mjs", "bin/papyrus-infra.mjs", "src/with-papyrus.mjs", "src/edge-stack-deploy.mjs", "src/cdk-environment.mjs", "src/owning-app.mjs", "src/amplify-cost-check.mjs", "src/amplify-job-log.mjs", "src/with-papyrus.d.mts", "src/sync.mjs", "src/backend.ts"]) {
+for (const f of ["bin/papyrus-app.mjs", "bin/papyrus-infra.mjs", "src/with-papyrus.mjs", "src/edge-stack-deploy.mjs", "src/cdk-environment.mjs", "src/owning-app.mjs", "src/amplify-cost-check.mjs", "src/amplify-job-log.mjs", "src/backend-deploy.mjs", "src/with-papyrus.d.mts", "src/sync.mjs", "src/backend.ts"]) {
   fs.copyFileSync(path.join(pkgDir, f), path.join(stage, f));
 }
 fs.copyFileSync(path.join(repo, "LICENSE"), path.join(stage, "LICENSE"));

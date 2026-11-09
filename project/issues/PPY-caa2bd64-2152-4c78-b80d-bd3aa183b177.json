@@ -1,0 +1,20 @@
+{
+  "id": "PPY-caa2bd64-2152-4c78-b80d-bd3aa183b177",
+  "title": "Cost tags in waves under the CloudFormation stack-operation limit; site ID from site.json",
+  "description": "Papyrus 5.99.0 tagged every backend resource at once: the update touched 61 of 62 stacks (2,918 resources on Machines on Machines), over CloudFormation's 2,500-resource limit per stack operation, and rolled back (Amplify job 80, app d260vp72hqglnc). #1337 made the tags opt-in. Fix (Ryan, 2026-11-09, 'fix and retry'): the backend plans its nested stacks into waves of at most 1,000 resources (counting the parent stacks each wave updates); papyrus-infra backend-deploy runs ampx pipeline-deploy once per wave inside one build, reading the wave reached from the root stack output PapyrusCostTagWave, so no step is manual. The site ID comes from the site's own infra/site.json, not a branch variable. Sites switch their amplify.yml backend command to npx papyrus-infra backend-deploy in their pin bump.",
+  "type": "bug",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25e0d79b-8bbf-4321-ae42-f2950a8ef7d4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T19:57:18.711933Z",
+  "updated_at": "2026-11-09T19:57:23.070778Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
