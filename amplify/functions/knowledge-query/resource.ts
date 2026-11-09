@@ -42,7 +42,7 @@ export const knowledgeQuery = defineFunction(
       code: pythonLambdaCode(
         {
           functionDir: "knowledge-query",
-          modules: ["papyrus_knowledge_query"],
+          modules: ["papyrus_knowledge_query", "papyrus_cost_usage"],
         },
         [
           "bash",
@@ -52,6 +52,8 @@ export const knowledgeQuery = defineFunction(
             "mkdir -p /asset-output/papyrus_knowledge_query",
             "cp amplify/functions/knowledge-query/handler.py /asset-output/handler.py",
             "cp -R src/papyrus_knowledge_query/. /asset-output/papyrus_knowledge_query/",
+            "mkdir -p /asset-output/papyrus_cost_usage",
+            "cp -R src/papyrus_cost_usage/. /asset-output/papyrus_cost_usage/",
           ].join(" && "),
         ],
       ),

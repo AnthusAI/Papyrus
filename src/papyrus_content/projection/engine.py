@@ -687,7 +687,7 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     projector = context.projector
     items = context.source.all_published_items()
     summaries = tuple(item.summary for item in items)
-    site = SiteIndex(items=summaries, load_item=context.source.load_item, story_stars=context.source.story_stars(summaries))
+    site = SiteIndex(items=summaries, load_item=context.source.load_item, story_stars=context.source.story_stars(summaries), relations=context.source.site_relations(summaries))
     rendered: dict[str, bytes] = {}
     states: list[ItemState] = []
     sibling_keys: set[str] = set()
@@ -769,7 +769,7 @@ def project_item_pages(
     else:
         items = context.source.all_published_items()
         summaries = tuple(item.summary for item in items)
-        site = SiteIndex(items=summaries, load_item=context.source.load_item, story_stars=context.source.story_stars(summaries))
+        site = SiteIndex(items=summaries, load_item=context.source.load_item, story_stars=context.source.story_stars(summaries), relations=context.source.site_relations(summaries))
     for item in items:
         if item.summary.item_id == except_item_id:
             continue

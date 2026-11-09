@@ -1,0 +1,20 @@
+{
+  "id": "PPY-d4002590-eb20-4a37-8a60-51121cd73ff5",
+  "title": "Concept hashtags for social announcements",
+  "description": "Ryan 2026-11-09: the concepts tagged to a story are the ideal hashtags when we announce items on X and other social media. A read-only command and agent tool returns a story's hashtag list (the name part of each tagged concept's nodeKey, CamelCase for readability, ordered by how many stories use the concept), usable by the announcement writer. Depends on the concept tagging utilities.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T13:03:48.900726Z",
+  "updated_at": "2026-11-09T13:03:48.900759Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -472,24 +472,35 @@ keys are not among the Story's entries.
 A publication chooses in `web/projection.json`:
 
 ```json
-{ "citations": { "links": "internal" } }
+{ "citations": { "links": "internal", "externalIcon": false } }
 ```
 
 `citations` is `true` / `false` (as before: `false` turns citations off) or an
-object with one key, `links`:
+object with the keys `links` and (optional, default `false`) `externalIcon`:
 
 | `links` | Bibliography entry |
 | --- | --- |
-| `external` (default; also what `true` or no setting gives) | The formatted entry plus the source's own URL as a link, exactly as above. Output is byte-identical to before. |
+| `external` (default; also what `true` or no setting gives) | The formatted entry plus the source's own URL as a link, exactly as above, (outside links already open in a new tab with `target="_blank" rel="noopener noreferrer"`). With `"citations": {"externalIcon": true}` an outside link also gets the class `citation-external` and ends with the Lucide `external-link` icon (`svg.citation-external-icon`, `data-icon="external-link"`, drawn in `currentColor`); without it the markup is byte-identical to before. An entry whose CSL-JSON carries `internalUrl` links to that page of this site instead: the formatted entry is the link text, with no icon and no new tab. |
 | `internal` | No outside address, linked or printed. An entry is linked only to the site's own page for it when its CSL-JSON carries `internalUrl` (a path starting with `/` on this site), otherwise it is plain text. |
 | `none` | Plain text: title, publisher and date. No link of any kind in the list. |
 
 `URL` and `DOI` are left out of the entry text for `internal` and `none`. An
 `internalUrl` that is an address (`https://...`, `//...`, `javascript:`) is never
 linked. The inline markers link to `#citation-N` on the same page in every mode,
-which is not an outbound link. Today the engine publishes no page per Reference,
-so no entry carries `internalUrl` yet and `internal` renders plain text until a
-site's Stories add one. Machines on Machines sets `internal`.
+which is not an outbound link.
+
+#### Where `internalUrl` comes from
+
+A page's own front matter may name it. The standard front end also fills it
+when a published Story is `based_on` the accepted Reference whose `sourceUri`
+is the entry's `URL` (matched with `story_from_reference.url_key`, which
+ignores tracking parameters, the fragment, `www.` and a trailing slash). The
+link goes to the newest published Story based on that Reference, never to the
+page being rendered; a withdrawn or unpublished Story does not count. The order
+for an entry is: our Story, then (not built yet, PPY-13fb8aa8) our page for the
+Reference, then the outside address. The data and its cost are described in
+[surfable site](surfable-site.md). Machines on Machines used `internal` while no
+page existed to link to; with the lookup it can use `external`.
 
 ### Formatting
 

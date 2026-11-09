@@ -68,6 +68,14 @@ class Services:
     generator: Any = _DEFAULT
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
     last_check_request: dict[str, Any] | None = field(default=None, init=False)
+    # The site's Prospectus usage sender (papyrus_cost_usage.SiteUsage); None records nothing.
+    usage: Any = None
+
+    def checked(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Reports the Jev classifier tokens a Humanus check used, then returns the result unchanged."""
+        if self.usage is not None:
+            self.usage.record_humanus_check(result)
+        return result
 
     def humanus_kwargs(self, name: str) -> dict[str, Any]:
         value = getattr(self, name)
@@ -275,7 +283,7 @@ def check_editorial(arguments: dict[str, Any], services: Services, prepared: tup
         "options": {"lanes": lanes, "classifier": classifier},
     }
     services.last_check_request = request
-    result = mark_whole_story_findings(humanus.check(request, **services.humanus_kwargs("decision_model")))
+    result = mark_whole_story_findings(services.checked(humanus.check(request, **services.humanus_kwargs("decision_model"))))
     if skip_judgments:
         result["lanes"]["classifier"] = skipped_judgments(missing_doctrine)
     # No NewsroomSection for the stored value: the section's own mission and policy could not be applied. Say so (PPY-2c4b56).
@@ -338,7 +346,7 @@ def try_policy(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
         "pack": {"schemaVersion": 1, "packId": "papyrus-try", "version": "draft", "policies": [policy]},
         "options": {"classifier": {"model": settings["classifierModel"], "deadlineSeconds": settings["deadlineSeconds"]}},
     }
-    return mark_whole_story_findings(humanus.check(request, **services.humanus_kwargs("decision_model")))
+    return mark_whole_story_findings(services.checked(humanus.check(request, **services.humanus_kwargs("decision_model"))))
 
 
 def import_starter_pack(arguments: dict[str, Any], services: Services) -> dict[str, Any]:

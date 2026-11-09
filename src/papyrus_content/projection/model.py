@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
+from .site_relations import EMPTY as EMPTY_RELATIONS, SiteRelations
+
 
 @dataclass(frozen=True)
 class ItemSummary:
@@ -44,6 +46,8 @@ class SiteIndex:
     load_item: Callable[[str], ProjectedItem]
     #: ``{lineage id: stars (1 to 5)}`` of the rated Stories, read when the index was. Private: listings order by it and nothing prints it.
     story_stars: Mapping[str, int] = field(default_factory=dict)
+    #: The published Stories' ``based_on`` Reference addresses and concept links, read when the index was (``site_relations.py``).
+    relations: SiteRelations = EMPTY_RELATIONS
 
 
 @dataclass

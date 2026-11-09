@@ -469,6 +469,7 @@ class S3VectorsProvider:
         )
         with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - fixed OpenAI endpoint
             payload = json.loads(response.read().decode("utf-8"))
+        _record_embedding_usage(payload)
         return payload["data"][0]["embedding"]
 
     def _metadata_filter(self, scope: dict[str, Any], vector_kind: str | None = None) -> dict[str, Any] | None:
@@ -1170,3 +1171,12 @@ def _bucket_from_amplify_outputs() -> str:
             if isinstance(entry, dict) and isinstance(entry.get("bucket_name"), str) and entry["bucket_name"]:
                 return entry["bucket_name"]
     return ""
+
+
+def _record_embedding_usage(payload: dict[str, Any]) -> None:
+    """Reports the embedding's tokens to the site's Prospectus usage sender (inactive outside a deployed site)."""
+    try:
+        from papyrus_cost_usage import site_usage
+    except ImportError:  # a bundle without the sender reports nothing
+        return
+    site_usage().record_openai(payload.get("usage"))

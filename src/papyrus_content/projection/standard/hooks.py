@@ -55,6 +55,9 @@ The hooks that shape an item page before and after it is converted (a site whose
 that rendered page, so a site's own card drawing applies to cards loaded later. Those pages read no Story unless ``DEPENDS_ON`` names
 ``"reference_list"`` (or is a list of sections).
 
+``page.concept_links`` and ``page.related_stories`` (item pages) are the Story's public concept pages and its related published Stories, read from its
+relations (see docs/surfable-site.md); a hook that draws them is rendered again when a relation changes.
+
 ``page.ranked(entries, bucket=None)`` returns entries (newest first, as ``page.entries`` is) in the Story ranking the home page and listings use
 (the newest rolling bucket first, the editors' stars inside it; ``bucket`` is ``day``, ``week`` or ``none``, default the site's ``listings.bucket``).
 A hook that builds its own listing calls it instead of sorting; with nothing rated it returns the list unchanged. A rating or a new day that

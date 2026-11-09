@@ -34,6 +34,8 @@ aws cloudformation deploy \
   --no-fail-on-empty-changeset
 ```
 
+The SNS topic carries the Prospectus cost tags. `CostAccount` defaults to `owner` (Prospectus charges whichever Account holds the `papyrus-<SiteId>` entitlement); the operator stack passes `shared`.
+
 ### Operator stack: notify.anth.us (PPY-bf63d5)
 
 Deployed by the release (PPY-b8cc79): its parameters live in `infra/pipeline/stacks.json` and the zone is looked up at deploy time. The command below is the same thing by hand, kept for reference; do not run it.
@@ -45,7 +47,7 @@ ZONE=$(aws route53 list-hosted-zones --query 'HostedZones[?Name==`anth.us.`].Id'
 aws cloudformation deploy \
   --template-file infra/newsletter/papyrus-newsletter-sending.yaml \
   --stack-name papyrus-newsletter-sending-operators \
-  --parameter-overrides SiteId=operators SendingDomain=notify.anth.us HostedZoneId="$ZONE" EventTransport=eventbridge \
+  --parameter-overrides SiteId=operators SendingDomain=notify.anth.us HostedZoneId="$ZONE" EventTransport=eventbridge CostAccount=shared \
   --tags papyrus:site=operators papyrus:feature=operator-alerts \
   --no-fail-on-empty-changeset
 ```

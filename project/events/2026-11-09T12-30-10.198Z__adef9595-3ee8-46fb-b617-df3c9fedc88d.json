@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "adef9595-3ee8-46fb-b617-df3c9fedc88d",
+  "issue_id": "PPY-cb3753ea-77b6-40f7-9b77-866b4dc70fba",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T12:30:10.198Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Optional wide-screen split view with the original",
+    "description": "Later experiment. Record at ingestion whether a source allows framing (X-Frame-Options, CSP frame-ancestors); show the original beside our summary only on wide displays and only when allowed; always keep an Open original link. Measure engagement before keeping it.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+    "labels": []
+  }
+}

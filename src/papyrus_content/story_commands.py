@@ -266,6 +266,60 @@ def stories_link_reference(flags: list[str]) -> None:
     print_reminder(client, lineage_id)
 
 
+def stories_link_story(flags: list[str]) -> None:
+    """papyrus stories link-story --story <lineage|slug> --to <lineage|slug> [--to ...] [--note <text>] [--author-label <name>] [--dry-run] [--json]
+
+    Links a story to one or more other stories (an article to related articles, a larger story to several posts) for its See also block. There is
+    one relation, `see_also`, and it cannot be chosen: no relation name is accepted (`--relation see_also` is tolerated, anything else is refused).
+    Every story must exist and none may be the story itself; all are checked before anything is written. The link is symmetric, so one that exists in
+    either direction is reported as `exists` and nothing is written (safe to repeat). A line per target gives its title, type and stage; a target that
+    is not published yet gets a warning on stderr, because the public See also block shows published stories only. Signed in, the link records the
+    person who signed in (--author-label is ignored); on the IAM lane --author-label is required. The `write` line prints only after the link was
+    saved. Links are only created: removing one is not a command yet (docs/story-reporting.md)."""
+    from .operator_errors import OperatorError
+    from .story_links import STORY_LINK_RELATION, check_official_relation, link_story_set, resolve_link_targets
+    from .user_auth_mode import user_auth_requested
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories link-story")
+    story_ref = _required_option(options, "story")
+    if not parse_repeated_option(flags, "to"):
+        raise ValueError("--to is required (repeat it to link several stories).")
+    check_official_relation(options.get("relation"))
+    as_json = bool(options.get("json"))
+    as_person = user_auth_requested()
+    label = normalize_string(options.get("author-label"))
+    if not as_person and not label:
+        raise ValueError("--author-label is required on the IAM lane, where there is no sign-in to name the author.")
+    client, _ = create_authoring_client()
+    story, others = resolve_link_targets(client, story_ref, parse_repeated_option(flags, "to"))
+    lineage_id = story.get("lineageId") or story["id"]
+    author = None
+    if apply:
+        if as_person:
+            if label:
+                print("stories\tlink-story\twarning\t--author-label is ignored: the link records the person who signed in.", file=sys.stderr)
+            from .cli_user_auth import signed_in_label
+
+            author = signed_in_label(client.endpoint)
+            if not author:
+                raise OperatorError("The link was not saved: the signed-in session names no one. Run `papyrus whoami` to check it.")
+        else:
+            author = label
+
+    def show(row: dict) -> None:
+        if as_json:
+            return
+        print("\t".join(["stories", "link-story", lineage_id, row["lineageId"], STORY_LINK_RELATION, row["title"], f"type {row['type']}", f"stage {row['stage']}", row["outcome"]]))
+        if row.get("warning"):
+            print(f"stories\tlink-story\twarning\t{row['warning']}", file=sys.stderr)
+
+    rows = link_story_set(client, story, others, actor=author, note=normalize_string(options.get("note")), apply=apply, on_row=show)
+    if as_json:
+        print(json.dumps({"ok": True, "story": lineage_id, "dryRun": not apply, "links": rows}, indent=2))
+
+
+
 def _one_line(error: BaseException) -> str:
     lines = [line.strip() for line in str(error).splitlines() if line.strip()]
     return lines[0] if lines else error.__class__.__name__
@@ -358,14 +412,22 @@ def stories_agent_note(flags: list[str]) -> None:
 
 
 def stories_show(flags: list[str]) -> None:
-    """papyrus stories show --story <lineage> [--bucket day|week|none]
+    """papyrus stories show --story <lineage> [--bucket day|week|none] [--json]
 
-    After the headline line, a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt)."""
+    --json prints only the story, its `related` stories (either end of a link: title, type, stage, published, note) and `unofficialRelations`
+    (item-to-item relations whose name is not the official `see_also`, which the See also block never shows). After the headline line, a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt)."""
     options = parse_options(flags)
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
     versions = story_versions(client, lineage_id)
     latest = current_story_version(client, lineage_id) if versions else {}
+    if options.get("json"):
+        from .story_links import related_stories, unofficial_item_relations
+
+        print(json.dumps({"ok": True, "story": lineage_id, "title": latest.get("headline") or latest.get("title"), "type": latest.get("type"), "stage": latest.get("stage"),
+                          "related": related_stories(client, lineage_id) if versions else [],
+                          "unofficialRelations": unofficial_item_relations(client, lineage_id) if versions else []}, indent=2))
+        return
     print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tcurrent version {latest.get('versionNumber')} of {len(versions)}")
     metadata = latest.get("metadata")
     metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
@@ -383,6 +445,14 @@ def stories_show(flags: list[str]) -> None:
         print("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
     for reference in story_references(client, lineage_id):
         print(f"stories\tshow\treference\t{reference['referenceLineageId']}\t{reference['role']}\t{reference.get('citationKey') or ''}")
+    if versions:
+        from .story_links import related_stories, unofficial_item_relations
+
+        for linked in related_stories(client, lineage_id):
+            print("\t".join(["stories", "show", "related", linked["lineageId"], linked["title"], f"type {linked['type']}", f"stage {linked['stage']}", str(linked.get("note") or "")]))
+        for odd in unofficial_item_relations(client, lineage_id):
+            print("\t".join(["stories", "show", "unofficial-relation", odd["relationId"], odd["predicate"], odd["otherLineageId"], "seeded type" if odd["knownType"] else "unknown name",
+                             "not shown as a Related story"]))
     for message in story_messages(client, lineage_id):
         summary = " ".join(str(message.get("summary") or message.get("content") or "").split())
         print("\t".join(["stories", "show", "message", str(message.get("createdAt") or ""), f"{message.get('authorLabel') or message.get('role') or 'unknown'} ({message.get('messageKind') or 'message'})", summary]))

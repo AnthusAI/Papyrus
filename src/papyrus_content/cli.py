@@ -36,7 +36,7 @@ from .analysis_commands import (
 from .batch_commands import register_catalog_batches, run_post_ingestion_enrichment_batches
 from .analysis_profiles import analysis_profiles, validate_analysis_profiles
 from .assignments import apply_assignment_action
-from .story_commands import stories_link_reference, stories_next, stories_note, stories_save_version, stories_show, stories_versions
+from .story_commands import stories_link_reference, stories_link_story, stories_next, stories_note, stories_save_version, stories_show, stories_versions
 from .assignments_commands import (
     assignments_apply_reporting_packet,
     assignments_apply_research_packet,
@@ -281,6 +281,10 @@ PORTED_COMMANDS = frozenset(
         "references:reject",
         "references:request-delegation",
         "references:link",
+        "references:link-concept",
+        "references:check-links",
+        "stories:link-concept",
+        "stories:check-links",
         "references:set-stars",
         "references:set-section",
         "references:list-predictions",
@@ -360,6 +364,7 @@ PORTED_COMMANDS = frozenset(
         "stories:save-version",
         "stories:versions",
         "stories:link-reference",
+        "stories:link-story",
         "stories:note",
         "stories:agent-note",
         "stories:show",
@@ -858,6 +863,12 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         stories_versions(flags)
     elif route == "stories:link-reference":
         stories_link_reference(flags)
+    elif route in ("stories:link-concept", "stories:check-links", "references:link-concept", "references:check-links"):
+        from . import concept_tags_commands
+
+        getattr(concept_tags_commands, route.replace(":", "_").replace("-", "_"))(flags)
+    elif route == "stories:link-story":
+        stories_link_story(flags)
     elif route == "stories:note":
         stories_note(flags)
     elif route == "stories:agent-note":

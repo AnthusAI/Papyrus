@@ -9,7 +9,7 @@
       "paths": ["infra/newsletter/", "infra/pipeline/stacks.json", "infra/pipeline/allowed-changes.json", "infra/pipeline/papyrus-stack-pipeline.yaml"],
       "capabilities": [],
       "tags": { "papyrus:site": "operators", "papyrus:feature": "operator-alerts" },
-      "parameters": { "SiteId": "operators", "SendingDomain": "notify.anth.us", "EventTransport": "eventbridge" },
+      "parameters": { "SiteId": "operators", "SendingDomain": "notify.anth.us", "EventTransport": "eventbridge", "CostAccount": "shared" },
       "lookups": { "HostedZoneId": { "hostedZone": "anth.us" } },
       "keepPrevious": false
     },
