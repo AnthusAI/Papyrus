@@ -20,7 +20,7 @@
 2. **The API does not need a big redesign.** Existing queries and mutations keep their shape. What changes: an optional `tenantId` field on 52 models (additive); six new models (additive, new tables); tenant prefixes inside existing index values (a data change, not a schema change); one new index on each of about nine tables that have no way to list one tenant's rows; and two breaking steps at the end: removing the global group rules on the shared stack, and making `tenantId` required there. The table in [Schema changes](#schema-changes-model-by-model) lists every model.
 3. **Isolation is enforced in the API rules, through claims.** A session acts for one tenant at a time; the token carries one claim per role (`papyrus_tenant_editor = alpha`); every tenant model's rule compares the claim with the row's `tenantId`. A three-day spike (PPY-9f3de0) must prove Amplify can do this before we rely on it, with a named fallback.
 4. **Serving is one bucket and one distribution** with each tenant under its own prefix and a small edge function that maps the host name to the tenant. Pages are fresh within the cache lifetime (one hour); an editor can still push one page live now, for that tenant only, never with a wildcard.
-5. **Threat Intelligence can move at milestone M5**, after isolation is enforced (M3) and shared serving and site-as-data work (M4). **M7 is the first point at which launching a site is a data change only**, so it gates every new shared-tier site, including the design partner's. Earliest realistic M7 is about five weeks out (around 2026-12-11). The first outside customer through self-serve sign-up is M8, after an external security review and Stripe in Prospectus.
+5. **Threat Intelligence can move at milestone M5**, after isolation is enforced (M3) and shared serving and site-as-data work (M4). **M7 is the first point at which launching a site is a data change only**, and it is when the design partner's three sites launch, directly on the shared tier (never dedicated first). Earliest realistic M7 is about five weeks out (around 2026-12-11). Public self-serve sign-up is M8, after Stripe in Prospectus.
 
 ## What exists today (verified)
 
@@ -58,9 +58,9 @@ Confirmed by the Prospectus session on 2026-11-08: each site is product `papyrus
 - **Products are one reviewed file entry per site** (`accounts/papyrus-sites.json`: a Cognito client and review id per site). Self-serve sign-up needs one shared `papyrus` product with a deployment per site.
 - The newsroom already reads a "selected account" from the Prospectus session (`lib/prospectus-tenant.ts`) and today maps tenant = Account (`lib/tenant-keys.ts`, `tenantIdForProspectusAccount`).
 
-**Since then (Prospectus `develop` a329ee1, 2026-11-08):**
+**Since then (Prospectus `develop` a329ee1, 2026-11-08, and PR #143):**
 
-- The Prospectus session filed epic kanbus-b770c2, *Papyrus deployments created through an API and held as data*: deployment records and routes (kanbus-271b4a), shared sign-in bound to a deployment (kanbus-3e5e82), shared-tier cost accounting (kanbus-f45f7f), custom domains with DNS proof (kanbus-6daa8f), bring-your-own Google client (kanbus-3c5b8b) and its own security review (kanbus-fa72e8). Dedicated sites, including the design partner's first three, stay on the per-site registry until moved.
+- The Prospectus session filed epic kanbus-b770c2, *Papyrus deployments created through an API and held as data*: deployment records and routes (kanbus-271b4a), shared sign-in bound to a deployment (kanbus-3e5e82), shared-tier cost accounting (kanbus-f45f7f), custom domains with DNS proof (kanbus-6daa8f), bring-your-own Google client (kanbus-3c5b8b) and its own security review (kanbus-fa72e8). Its first text said the partner's sites would start dedicated; Prospectus #143 corrected that and raised kanbus-fa72e8, kanbus-271b4a, kanbus-3e5e82 and kanbus-f45f7f to priority 1 for the partner launch at M7.
 - Billing standing now changes access in Prospectus's own docs (`docs/BILLING.md`, "Billing standing and access"): standing is derived from the ledger (kanbus-b19d5a) and published as events through kanbus-6efecd. Its decision 7 ("billing never changes access", kanbus-8e3174) is superseded.
 - Cost accounting is partly built: the `@anthus/cost-accounting` package (`applyCostTags`, `assertCostTags`, a TypeScript `UsageSender`), the private cost ledger and the quota on real cost are merged; the per-product usage queues are merged behind a flag that is off until Ryan approves the permissions (kanbus-71ff98). There is no Python sender yet; Papyrus's model calls are Python.
 
@@ -116,7 +116,7 @@ One artefact, two ways to run it. The **shared stack** is the normal Papyrus bac
 
 ### Proving isolation
 
-A mandatory adversarial suite (PPY-29f730), generated from the schema so a new model or function without a case fails the build. It tries every model operation across tenants, every custom mutation with foreign ids, subscriptions, storage, search (the vector index and the title-word table), snapshot files, the edge (host spoofing, path tricks), the reader API and exports. It gates every release to the shared stack (PPY-f7ce77). An internal security review before isolation is claimed and an external one before the first outside customer (PPY-3ff465).
+A mandatory adversarial suite (PPY-29f730), generated from the schema so a new model or function without a case fails the build. It tries every model operation across tenants, every custom mutation with foreign ids, subscriptions, storage, search (the vector index and the title-word table), snapshot files, the edge (host spoofing, path tricks), the reader API and exports. It gates every release to the shared stack (PPY-f7ce77). An internal security review before isolation is claimed and an external one before the first outside tenants, the design partner's sites at M7 (PPY-3ff465, D22).
 
 ## Schema changes, model by model
 
@@ -217,6 +217,58 @@ owner ── <site>.p.apyr.us/newsroom ──> newsroom.p.apyr.us ── Google 
 4. The owner signs in on the one newsroom host with the shared Google client; Prospectus `authorize` checks that the token is bound to that deployment and that the person is a member (kanbus-3e5e82); only then does the pre-token Lambda issue role claims.
 5. Lifecycle: `billing.standing_changed` makes editing read-only at the next token refresh (public site stays up); `deployment.deletion_due` runs export-then-delete and Papyrus confirms deletion back to Prospectus. A retired deployment's edge host entry is removed before Prospectus releases the hostname (takeover protection).
 
+## Shared-tier request flow (for the joint security review, kanbus-fa72e8)
+
+The rule everywhere: **the tenant comes from who is calling or from where the page was served, never from the request body.** A tenant id in a body, query string or header is either ignored or must equal the derived tenant, or the call is refused.
+
+### 1. Editors and agents (newsroom, CLI, MCP)
+
+1. A person opens `<site>.p.apyr.us/newsroom` (or a custom domain's `/newsroom`). The edge redirects to `https://newsroom.p.apyr.us/` with OAuth `state` carrying only the site id. The site id is a hint for the site picker; it grants nothing.
+2. Sign-in is Google only, through the one shared Google OAuth client and the one Cognito app client of the shared pool. The callback list is fixed: the newsroom host, the CLI loopback addresses and localhost for development. No Cognito password users exist.
+3. The person picks a site (or the hint preselects it). The newsroom server calls **Prospectus `authorize`** with the person's verified identity and the **deployment** (site id) and gets back a yes or no, the capabilities and the billing standing (kanbus-3e5e82). Prospectus checks three things: the token is bound to that deployment (host or audience), the deployment's Account owns it, and the person is a member of that Account.
+4. Cognito's pre-token-generation Lambda issues role claims for **that one deployment only**, and only when two things hold: `authorize` approved it, and the person has a `TenantMembership` row for it. The claims are `papyrus_tenant_admin`, `_editor`, `_curator` and `_member`, each holding the tenant id. If billing standing is restricted, it issues read-only claims. Switching site means a new token. The Lambda reads its own table only, so sign-in never waits on Prospectus at token refresh. Membership changes and standing changes arrive by events.
+5. Every AppSync call carries that token. Each tenant model's rule compares the row's `tenantId` with the role claim (spike PPY-9f3de0, fallback named). `tenantId` cannot be changed after create. Lists go through tenant-prefixed index keys. No group rule grants anything on the shared stack (PPY-bdc4ee).
+6. Every function builds a `TenantContext` from the AppSync identity's claims (PPY-cc8a4c) and uses the tenant-scoped client for every read and write: DynamoDB, S3 under `tenants/<t>/` and `sites/<t>/`, the vector index and the tables outside AppSync. `PAPYRUS_TENANT_ID` is not used on the shared stack.
+7. Agents acting for a customer use that customer's signed-in session (remote login), so they get exactly the person's claims. IAM calls are for platform staff only. On a shared stack an IAM call must name a tenant explicitly, is refused without one, and is audited.
+
+### 2. Readers (public pages and the reader API)
+
+1. Pages are static files that CloudFront serves from `sites/<tenant>/`. A CloudFront Function maps the `Host` header to a tenant through a KeyValueStore written only by the provisioning and domain workflows, and rewrites the path into that prefix. An unknown host gets a 404. A request cannot name a prefix: a path that tries is rewritten under the host's tenant.
+2. There are no guest AppSync reads on the shared stack (PPY-baa75d).
+3. Reader writes (votes, comments, submissions, sign-ups) go to the reader API, which takes the tenant from the **host the page was served on**, looked up in `TenantDomain`, never from the body (PPY-6b084f). Reader identities are pairwise per deployment (Prospectus kanbus-3e5e82; PPY-5219fc).
+
+### 3. Background work
+
+Monitors, knowledge runs, projections and scheduled jobs carry an explicit tenant from the record that created them. They write an audit line, use the per-tenant lease and the fair queue, and cannot reach another tenant's prefix: writers refuse keys outside their own prefix.
+
+### 4. Where Papyrus calls Prospectus
+
+| Call | When | Direction | What it carries |
+| --- | --- | --- | --- |
+| `authorize` | When a person picks or switches site, then cached briefly | Papyrus → Prospectus, signed | identity, deployment; returns allow, capabilities, standing |
+| Quota `check` | Before model work, cached a few seconds | Papyrus → Prospectus, signed | Account, deployment |
+| Usage messages | About once a minute, or at the end of each invocation | Papyrus → `prospectus-usage-papyrus` SQS queue (one queue, one sending role) | Account, app `papyrus`, deployment, item kinds and quantities, operation id; no dollars, no personal data |
+| Deployment record read | On each provisioning step and lifecycle action | Papyrus → Prospectus, signed | deployment id; returns Account, hostnames, status, revision |
+| Changed-since list | Reconcile sweep on a schedule | Papyrus → Prospectus, signed | cursor; returns changed deployments |
+| `deployment.changed`, `billing.standing_changed`, `deployment.deletion_due`, membership and entitlement events | When they happen | Prospectus → Papyrus (kanbus-6efecd), at least once | ids and revisions only; Papyrus re-reads before acting |
+| Deletion confirmed | After verified-empty deletion | Papyrus → Prospectus | deployment id |
+
+The Papyrus shared-tier role may read deployments and request hostname changes for its own tenants. It cannot create Accounts, grant entitlements or write billing.
+
+### 5. What a token for one deployment cannot do
+
+A session token issued for deployment `alpha` cannot:
+
+- read, list, create, update or delete any row of `beta`, including through an index, a custom query or mutation, a search (vector index, title-word table) or a snapshot file;
+- move a row from `alpha` to `beta`, or create a row stamped `beta`;
+- upload to, read from or delete under `beta`'s storage prefixes;
+- receive `beta`'s events (subscriptions are off on the shared stack);
+- obtain `beta` claims by refreshing, by sending `beta` in a request body or in OAuth `state`, or by opening `beta`'s newsroom URL: `authorize` refuses and no claim is issued;
+- act as `alpha` after the person's membership is removed or `alpha` is suspended, beyond the next token refresh;
+- trigger provisioning, change hostnames or set sign-in clients for any deployment (these are operator, Prospectus or tenant-admin actions, each re-checked server-side).
+
+Every item has a case in the adversarial suite (PPY-29f730), which gates every shared-stack release (PPY-f7ce77). The scenario "A token for one deployment cannot act on another" is on PPY-1da916.
+
 ## Security review of data-driven provisioning
 
 There is no human gate any more, so provisioning is attack surface. Two reviews run together on one threat model: Papyrus's (PPY-1da916) and Prospectus's (kanbus-fa72e8). Inputs from the Prospectus review that Papyrus must answer or match:
@@ -241,11 +293,11 @@ Ryan asked for Prospectus cost accounting (`docs/COST_ACCOUNTING.md`, epic kanbu
 
 ## The design partner's three sites
 
-As briefed on 2026-11-08: they launch after M7, first as dedicated sites (today's per-site registry and backend, tagged and reporting cost from day one), then move to the shared tier with the TI runbook once M7's readiness checklist is true (PPY-37f2ec). The board also carried an unexecuted draft saying "shared tier at M7, no dedicated launch"; decision D1 asks Ryan to confirm. The path to M7 is the same either way. A dedicated launch does not technically need M7.
+Ryan (2026-11-08, repeated): the design partner's three new sites launch **directly on the shared tier at M7**, as tenant deployments created by data. They never start as dedicated sites; there is no dedicated launch, no later move and no migration runbook for them (PPY-37f2ec). M7 therefore includes everything they need to be live: provisioning from a Prospectus deployment record, shared Google sign-in on `newsroom.p.apyr.us`, branding and layout as data (publication preset, SiteConfig, BrandPack, starter template), lifecycle, export and deletion, cost accounting basics (shared stack tagged, model tokens and per-tenant shared usage reported, spend ceiling on), and the isolation and review gates. They are the first outside test of Prospectus cost accounting on the shared tier (kanbus-f45f7f). An operator creates their deployments and the partner is invoiced; self-serve checkout is M8.
 
 ## Critical path to M7
 
-Full plan, release order, schedule and dispatch list: PPY-e38a2d. Three chains of similar length, so all three are managed as critical (estimates in one-agent sessions of 2 to 4 hours):
+Full plan, release order, schedule and dispatch list: PPY-e38a2d. M7 is the launch of the design partner's three sites on the shared tier. Three chains of similar length, so all three are managed as critical (estimates in one-agent sessions of 2 to 4 hours):
 
 | Chain | Steps | Size |
 | --- | --- | --- |
@@ -280,8 +332,8 @@ Each milestone task on the board lists its Gherkin scenarios (by name and featur
 | M4 Shared serving | "Each host shows its own tenant"; "A large publish never becomes a wildcard"; "A new site needs no sign-in configuration change" | tenant-marker check clean; fixed callback list; no `/*` purge; load test |
 | M5 TI | "The staging tenant matches the live TI site"; "A bad cut-over can be reversed without losing edits" | URL parity; second copy changes nothing; rollback rehearsed |
 | M6 Metering | "A model call on a dedicated site reaches the cost ledger once"; "A tenant over its weekly budget cannot start model work" | ledger agrees with Cost Explorer for a week; no unknown item kinds |
-| M7 Data-only launch | "A new shared-tier site is created with no code change"; "A deployment record creates one tenant even when the event repeats"; "A token for one deployment cannot act on another"; "Deletion leaves nothing behind" | on production a test deployment goes live with no commit, deploy or callback change; replay safe; export and delete verified; both reviews closed |
-| M8 First outside customer | "A paid sign-up reaches a live site"; "A tenant that opted in keeps working past its quota and is billed for it" | external review; first invoice matches the ledger |
+| M7 Partner sites live on the shared tier | "A new shared-tier site is created with no code change"; "A deployment record creates one tenant even when the event repeats"; "A token for one deployment cannot act on another"; "Deletion leaves nothing behind" | on production a test deployment goes live with no commit, deploy or callback change; replay safe; export and delete verified; provisioning and external reviews closed; the partner's three sites live with cost per deployment |
+| M8 Public self-serve sign-up | "A paid sign-up reaches a live site"; "A tenant that opted in keeps working past its quota and is billed for it" | a stranger signs up and pays with no operator step; first invoice matches the ledger |
 
 - Unchanged: Threat Intelligence moves at M5; M7 needs TI's cut-over, not its 14-day close (D3).
 
@@ -296,7 +348,7 @@ TI's rows carry no tenant today. The move is a full copy into a tenant of the sh
 3. **Invisible rows after the breaking step**: a row without `tenantId` disappears for its editors. Mitigation: backfill reports must show zero tenant-less rows before stage 2; stage 2 is a rules-only release that can be rolled back.
 4. **Cost multiplies by tenant count**: whole-corpus snapshots, whole-table intake, wildcard purges. Mitigation: PPY-7f1e54, PPY-ee02b8, PPY-d647ee in M1; no wildcard on the shared stack; call-count tests at 50 tenants; load test before TI moves.
 5. **Wrong host routing** sends one tenant's host to another's pages. Mitigation: only workflows write the KeyValueStore, with read-back; a synthetic tenant-marker check.
-6. **Prospectus is not ready** for self-serve: products per site (each with its own pool, client and compute role, capped at about 40), no provisioning API, no invites by email, no lifecycle events, billing per deployment plan rather than usage, quota live for Babulus only. Mitigation: each gap is a filed issue (PPY-966ef5, PPY-6cb44b, PPY-8a3c6a, PPY-25e0d7); the shared tier serves our own sites (TI) long before outside customers.
+6. **Prospectus is not ready** for self-serve: products per site (each with its own pool, client and compute role, capped at about 40), no provisioning API, no invites by email, no lifecycle events, billing per deployment plan rather than usage, quota live for Babulus only. Mitigation: each gap is a filed issue (PPY-966ef5, PPY-6cb44b, PPY-8a3c6a, PPY-25e0d7); Prospectus has filed each (kanbus-b770c2) and raised them to priority 1 for the partner launch at M7; TI moves onto the shared tier before the partner's sites.
 11. **Data-driven provisioning has no human gate**, so a flaw lets anyone who can pay create sites at scale. Mitigation: the provisioning security review (PPY-1da916): entitlement re-read from Prospectus, learned rate limits with an operator stop, input validation and moderation, an audit trail kept outside tenant data, replay keys, one-command takedown.
 7. **Noisy neighbours** on the projection, the API's request rate or the account's Lambda concurrency. Mitigation: per-tenant lease, fair queue, learned limits, the shared stack in its own AWS account.
 8. **One bad release breaks every tenant.** Mitigation: staging shared stack first, golden renders, browser matrix, release gate, rollback runbook.
@@ -305,15 +357,14 @@ TI's rows carry no tenant today. The move is a full copy into a tenant of the sh
 
 ## Decisions only Ryan can make
 
-**Already decided (Ryan, 2026-11-07 and 2026-11-08):** launching a site is a data change only, through one Prospectus `papyrus` product whose deployments are created by API, with its own security review; billing may change access (read-only 14 days past due, deletion 30 days after cancellation, export throughout); build cost accounting and test it on our sites and the partner's three; one shared Google OAuth client by default, a tenant's own client later; public sites at `<site>.p.apyr.us`; subscriptions off on the shared stack; Google sign-in only, never Cognito password users; usage pricing through Prospectus, no free tier.
+**Already decided (Ryan, 2026-11-07 and 2026-11-08):** the design partner's three sites launch directly on the shared tier at M7, never dedicated first; launching a site is a data change only, through one Prospectus `papyrus` product whose deployments are created by API, with its own security review; billing may change access (read-only 14 days past due, deletion 30 days after cancellation, export throughout); build cost accounting and test it on our sites and the partner's three; one shared Google OAuth client by default, a tenant's own client later; public sites at `<site>.p.apyr.us`; subscriptions off on the shared stack; Google sign-in only, never Cognito password users; usage pricing through Prospectus, no free tier.
 
 **Still open, each with my recommended default.** If you do not answer, agents go ahead with the default.
 
 | # | Question, in plain words | Recommended default |
 | --- | --- | --- |
-| D1 | The partner's three sites: launch after M7 as dedicated sites and move them to the shared tier later (as briefed), or put them straight onto the shared tier at M7? An earlier draft on the board said the second. | As briefed: dedicated first, tagged and reporting cost from day one, moved with the TI runbook once M7's checklist is true. (A dedicated launch could also happen before M7 if the partner wants it sooner.) |
 | D2 | Where do editors of shared-tier sites sign in? | One shared address, `newsroom.p.apyr.us`, picking the site after sign-in. A separate newsroom address per site needs a certificate per site and runs into Cognito's limit of 100 sign-in return addresses. |
-| D3 | Can partner sites go live once TI has moved, without waiting for TI's 14 trouble-free days? | Yes. The 14 days still decide when TI's old backend is retired. |
+| D3 | Can the partner's sites go live once TI has moved, without waiting for TI's 14 trouble-free days? | Yes. The 14 days still decide when TI's old backend is retired. |
 | D4 | Leave the new sizing system (retiring the scaler) and the one ordering rule for every list out of the M7 path? | Yes. The layout ships on today's sizes; both follow after M7. |
 | D5 | For the partner, does an operator create its sites in Prospectus and invoice it, rather than waiting for Stripe checkout? | Yes. Self-serve checkout comes at M8. |
 | D6 | Do the partner's sites need reader votes and comments, live preview or the guided first-run setup at launch? | No; they follow after M7 unless the partner needs them. Please ask the partner. Same for custom domains (the plan supports them). |
@@ -332,6 +383,7 @@ TI's rows carry no tenant today. The move is a full copy into a tenant of the sh
 | D19 | When a tenant hits its weekly model budget, stop model work or keep going as paid overage? | Stop model work; reading, editing and serving continue. Paid overage as an opt-in after M7 (PPY-8a3c6a). |
 | D20 | Restoring one tenant's data after a mistake: a promise or best effort? | Best effort with a rehearsed runbook in v1. |
 | D21 | Agents working for a customer act only through that customer's signed-in session; AWS-level access is for our staff only? | Yes. |
+| D22 | Move the external security review in front of the partner's launch at M7 (they are our first outside tenants), instead of M8? | Yes; book it now so it runs during M4 to M6 and does not lengthen the path. |
 
 ## What the 2026-11-07 memo got wrong or missed
 
