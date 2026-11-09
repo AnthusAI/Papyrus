@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 from ..model import ItemSummary
@@ -101,7 +101,14 @@ class StandardPage:
     thread: Mapping | None = None               # thread pages: the per-thread document the snapshot wrote
     thread_reference: Mapping | None = None     # thread pages: the anchor Reference's record when the snapshot holds it
     ledger: PageLedger = field(default_factory=PageLedger)   # what this page render has placed so far; shared by every include on it
+    ranker: Callable | None = field(default=None, repr=False, compare=False)   # the projector's Story ranking; ``ranked`` calls it
     components = components
+
+    def ranked(self, entries, bucket: str | None = None) -> list[StandardEntry]:
+        """``entries`` (newest first, as ``page.entries`` is) in the Story ranking the home page and listings use: the newest rolling bucket first, the
+        editors' private stars inside each bucket (``story_order.py``). ``bucket`` is ``day``, ``week`` or ``none`` and defaults to the site's ``listings.bucket``.
+        Nothing rated, or a page built without a projector: the list is unchanged. A page that calls it is rendered again when a rating moves the order."""
+        return list(entries) if self.ranker is None else self.ranker(entries, bucket)
 
     @property
     def site_name(self) -> str:

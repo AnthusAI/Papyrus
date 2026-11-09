@@ -50,6 +50,11 @@ The hooks that shape an item page before and after it is converted (a site whose
 that rendered page, so a site's own card drawing applies to cards loaded later. Those pages read no Story unless ``DEPENDS_ON`` names
 ``"reference_list"`` (or is a list of sections).
 
+``page.ranked(entries, bucket=None)`` returns entries (newest first, as ``page.entries`` is) in the Story ranking the home page and listings use
+(the newest rolling bucket first, the editors' stars inside it; ``bucket`` is ``day``, ``week`` or ``none``, default the site's ``listings.bucket``).
+A hook that builds its own listing calls it instead of sorting; with nothing rated it returns the list unchanged. A rating or a new day that
+moves the order re-renders the pages of a site whose hooks take ``page``.
+
 A hook that takes ``page`` can read any entry, so by default every page depends on all of them. A module may narrow
 that with ``DEPENDS_ON = ["essays", "@root"]`` (section names; ``@root`` is the items with no section) or ``[]`` for
 "nothing beyond the page's own entry and the listing slice". It may also be a dict keyed by page id (``home``,

@@ -799,5 +799,5 @@ uses the text display.
 
 Entries carry the item's raw front matter as `entry.data` and a `derived` map from the `derive` hook, both part of
 the dependency fingerprints, so a new per-item field (a content shape, a shelf life, a pin-until date) reaches
-hooks, cards and listings without a change to the model. Ordering is one function (`entries.newest_first`) and
+hooks, cards and listings without a change to the model. Ordering is one function (`entries.newest_first`; hooks that draw their own listing call `page.ranked(entries, bucket=None)` for the Story ranking the home page uses: rolling recency bucket, then the editors' stars, unchanged when nothing is rated; a rating that moves the order re-renders those pages) and
 selection is the `listed` flag plus section options, so pin and shelf-life rules are additions at those two seams.
