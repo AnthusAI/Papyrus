@@ -372,6 +372,8 @@ PORTED_COMMANDS = frozenset(
         "stories:draft",
         "stories:create",
         "stories:move",
+        "stories:withdraw",
+        "stories:restore",
         "stories:fire-triggers",
         "stories:assign-research",
         "stories:repair-versions",
@@ -912,6 +914,14 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_move
 
         stories_move(flags)
+    elif route == "stories:withdraw":
+        from .story_commands import stories_withdraw
+
+        stories_withdraw(flags)
+    elif route == "stories:restore":
+        from .story_commands import stories_restore
+
+        stories_restore(flags)
     elif route == "stories:fire-triggers":
         from .story_commands import stories_fire_triggers
 

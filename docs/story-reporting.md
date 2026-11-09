@@ -145,6 +145,46 @@ papyrus stories move --story <lineage> --stage reporting [--reason "why"] [--aut
 warning on stderr saying so (in a `--dry-run` too; stdout keeps its tab-separated lines) and naming
 `papyrus ops content publish --id <item-id>`, which is what publishes.
 
+**`--stage spiked` does not take a page down either.** It is board-only, as `--stage published` is: a published Story that is spiked stays live. To take a published Story's page down use `stories withdraw`.
+
+### Withdrawing and restoring a published Story
+
+```bash
+papyrus stories withdraw --story <lineage> [--reason "why"] [--author-label NAME] [--run] [--force-paths N] [--dry-run]
+papyrus stories restore  --story <lineage> [--author-label NAME] [--run] [--force-paths N] [--dry-run]
+```
+
+`stories move --stage spiked` leaves the page live, and `ops content unpublish` removes the data but leaves the Story in copywriting with no plan and
+no record. `stories withdraw` does the whole job. Like every mutation it writes unless `--dry-run`, but **it prints the exact plan first**: the Story page
+and its Markdown twin, every index page that lists it (home, lists, sections, archives, tags), the invalidation paths with their count and the cost note
+(the first 1000 paths a month are free, then 0.005 USD each). The plan is the dry run of `ops content refresh --story`, so it is the same list. Above the
+per-call cap of 25 paths the command refuses (exit 2) and writes nothing, unless you pass `--force-paths N`. With more than 5 paths it is a dry run until
+you repeat it with `--run`, as `ops content update-live` is. A typical withdrawal purges about 9 paths on a small site (the Story's three forms, the home
+page's three, the section list's three) and more with archive, section and tag pages; the plan says exactly.
+
+Then it unpublishes the Story (`unpublish_item`), has the site's function project the page, twin and listing entries away, moves the board stage to
+`spiked` (not copywriting), records on the withdrawn version `metadata.withdrawal` = `{withdrawnVersion, withdrawnBy, withdrawnAt, reason, previousStage}`
+(plus the item id and the planned paths) and purges the planned paths. The projection function purges what it wrote under its own capped invalidation; this
+command purges only the planned paths it did not, through the guarded `site_refresh_pages` operation, so no path is paid for twice. The sitemap and feed files
+are rewritten by the projection and purged by that same function; they are not in the plan's count. A withdrawn Story is not in the published data, so
+`project --all` and `project --reconcile` treat it as removed and never bring its page back. Other Stories and the private star ratings are not touched.
+
+It refuses a Story that is not published. Withdrawing a withdrawn Story prints `already-withdrawn` with who, when and why, and changes nothing. A failed projection
+exits 1: the data is withdrawn and the output gives the retry (`papyrus ops content unpublish --id <item-id>`, which repeats the projection and changes nothing
+already done).
+
+`stories restore` republishes the withdrawn version with `publish_item` (so the checklist and the site's publish approval apply), puts the stage back to `published`,
+clears the withdrawal record, projects the page again and purges the planned paths the record kept. It refuses when nothing was withdrawn. The republished page's
+source-version marker restarts at 1, because unpublishing deletes the published row that held the count.
+
+**The old address shows the site's 404 page.** Static hosting cannot answer 410 Gone, and withdrawal does not write a redirect: the existing redirect mechanism
+(the projection's `redirects`, item aliases, `redirects.exact` in `projection.json`, the CloudFront KeyValueStore) is rebuilt from the site's configuration and from
+the published Stories' aliases, so nothing can write an exact redirect to a section page at withdrawal time. A site that wants a withdrawn address to land on a section
+page adds `"redirects": {"exact": {"/articles/old-slug/": "/articles/"}}` to its `projection.json`, which needs a site deploy (remove it again if the Story is restored).
+
+The MCP tools `stories_withdraw` and `stories_restore` (`story_withdrawal_mcp.py`) take the same flags in camelCase (`storyLineageId`, `reason`, `authorLabel`, `dryRun`, `run`, `forcePaths`).
+The MCP server is not in this repository and has no registry here, so they follow the standalone pattern of `page_refresh/mcp.py` and `story_signals_mcp.py`.
+
 The `write` line prints only after the move was saved (a failed move prints no `write` line); `--dry-run` prints its `dry run` line. `stories create`, `stories save-version`, `stories link-reference` and `stories set-slug` follow the same rule.
 
 This is the same `Item.stage` update a card move makes. The stage must be one of the content item stages (`idea`, `assignment`, `reporting`, `copywriting`, `illustration`, `typesetting`, `published`, `held`, `spiked`). The move is recorded on the latest version's `metadata.stageMoves` (who, when, from, to and why), which `stories show` lists and the Reporting trail shows under Stage moves; it posts no Message. The `moveStoryStage` GraphQL mutation (input `{ lineageId, stage, reason }`, editor groups) does the same for browser and agent clients.

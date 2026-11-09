@@ -680,8 +680,9 @@ PUBLISHED_STAGE_WARNING = (
 def stories_move(flags: list[str]) -> None:
     """papyrus stories move --story <lineage> --stage <stage> [--reason <text>] [--author-label <name>]
 
-    Only the board stage changes. With --stage published it prints a warning on stderr: no page is published;
-    `papyrus ops content publish` does that."""
+    Only the board stage changes (board-only). With --stage published it prints a warning on stderr: no page is published;
+    `papyrus ops content publish` does that. Likewise --stage spiked takes no page down: a published Story stays live.
+    To take a published Story's page down, run `papyrus stories withdraw`; `stories restore` brings it back."""
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories move")
     lineage_id = _required_option(options, "story")
@@ -712,6 +713,59 @@ def stories_move(flags: list[str]) -> None:
     if assessment is not None and result["changed"] and _moved_forward(result):
         warn_skipped(assessment)
     print_next_lines(assessment)
+
+
+def _withdrawal_options(flags: list[str], label: str) -> tuple[dict, bool]:
+    from .page_refresh.cli import _explicit
+
+    options = parse_options(_explicit(flags))
+    return options, resolve_mutation_apply(options, label)
+
+
+def _run_withdrawal(flags: list[str], label: str, function) -> None:
+    from .story_withdrawal import render_lines
+
+    options, apply = _withdrawal_options(flags, label)
+    lineage_id = _required_option(options, "story")
+    allowed = normalize_string(options.get("force-paths"))
+    if allowed and (not allowed.isdigit() or int(allowed) < 1):
+        raise ValueError("--force-paths needs a whole number of paths you accept for this one call, for example --force-paths 40.")
+    client, claims = create_authoring_client()
+    actor = normalize_string(options.get("author-label")) or normalize_string((claims or {}).get("sub")) or "papyrus-cli"
+    extra = {"reason": normalize_string(options.get("reason"))} if label == "stories withdraw" else {}
+    result = function(
+        client, lineage_id, actor=actor, dry_run=not apply, run=parse_boolean_option(options.get("run"), default=False, label="--run"),
+        force_paths=int(allowed) if allowed else None, **extra,
+    )
+    for line in render_lines(result):
+        print(line)
+    if result["status"] == "refused":
+        raise SystemExit(2)
+    if result.get("ok") is False:
+        raise SystemExit(1)
+
+
+def stories_withdraw(flags: list[str]) -> None:
+    """papyrus stories withdraw --story <lineage> [--reason <text>] [--author-label <name>] [--run] [--force-paths N] [--dry-run]
+
+    Takes a published Story down safely. It prints the exact plan first (the Story page and Markdown twin, every index page that lists it, the
+    invalidation paths with their count and cost), refuses above the 25-path cap unless --force-paths N, and with more than 5 paths is a dry
+    run until you repeat it with --run. Then it unpublishes the Story, has the site project the pages away, moves the board stage to spiked,
+    records who withdrew it and why on the Story, and purges exactly the planned paths. Withdrawing a withdrawn Story only says so.
+    The old address then shows the site's 404 page. `papyrus stories restore` brings the Story back."""
+    from .story_withdrawal import withdraw_story
+
+    _run_withdrawal(flags, "stories withdraw", withdraw_story)
+
+
+def stories_restore(flags: list[str]) -> None:
+    """papyrus stories restore --story <lineage> [--author-label <name>] [--run] [--force-paths N] [--dry-run]
+
+    Republishes the version `stories withdraw` took down, puts the stage back to published, clears the withdrawal record, projects the
+    pages again and purges the same kind of exact plan. Refuses when nothing was withdrawn."""
+    from .story_withdrawal import restore_story
+
+    _run_withdrawal(flags, "stories restore", restore_story)
 
 
 def _moved_forward(result: dict) -> bool:
