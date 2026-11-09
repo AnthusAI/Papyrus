@@ -34,10 +34,10 @@ def step_concept(context, name, key):
     assert (node["displayName"], node["nodeKind"], node["nodeKey"], node["status"], node["versionCreatedBy"], node["versionCreatedAt"], node.get("description")) == (name, "editor_concept", key, "accepted", "editor-1", "2026-11-02T12:00:00Z", None), node
 
 
-@then("the Reference has one current related_to link to it, made by a person and confirmed")
+@then("the Reference has one current tagged_with link to it, made by a person and confirmed")
 def step_link(context):
     [row] = context.written["relations"]
-    assert (row["relationState"], row["predicate"], row["objectKind"], row["metadata"]["provenance"], row["metadata"]["decision"]) == ("current", "related_to", "semanticNode", "human", "accepted"), row
+    assert (row["relationState"], row["predicate"], row["objectKind"], row["metadata"]["provenance"], row["metadata"]["decision"]) == ("current", "tagged_with", "semanticNode", "human", "accepted"), row
 
 
 @then("there is one concept and one link")
