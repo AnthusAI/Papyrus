@@ -85,7 +85,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   // `papyrus.config.ts`'s default export. Backend options live under `backend`;
   // the default brand id namespaces account-global resources.
   const site = { brandId: papyrusSite.defaultBrand, ...papyrusSite.backend };
-  // Prospectus cost accounting: the owner Account and site ID the app shell set on the branch; none fails the synth.
+  // Prospectus cost accounting is opt-in (PAPYRUS_COST_TAGS=on on the branch). Null leaves the backend untouched; on
+  // without the site ID the app shell sets fails the synth.
   const costAttribution = siteCostAttribution();
   const knowledgeVectorDimension = 1536;
   const knowledgeEmbeddingModel = "text-embedding-3-small";
@@ -165,7 +166,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   });
 
   // Every resource in every backend stack carries the anthus: cost tags (Prospectus reads cost by them).
-  applySiteBackendCostTags(backend.stack, costAttribution);
+  if (costAttribution) applySiteBackendCostTags(backend.stack, costAttribution);
   enablePointInTimeRecoveryOnDataTables(backend.data.resources.cfnResources.amplifyDynamoDbTables);
 
   if (authConfig.disableGoogleOAuth !== true) {
@@ -880,8 +881,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   });
   wireEditorialChecks(backend);
   // The functions that call models report their tokens to the site's Prospectus usage queue.
-  wireSiteUsageSender(backend.editorialChecks.resources.lambda as LambdaFunction, costAttribution);
-  wireSiteUsageSender(knowledgeQueryLambda, costAttribution);
+  if (costAttribution) {
+    wireSiteUsageSender(backend.editorialChecks.resources.lambda as LambdaFunction, costAttribution);
+    wireSiteUsageSender(knowledgeQueryLambda, costAttribution);
+  }
   wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);
   wireImageService(backend);

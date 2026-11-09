@@ -5,6 +5,10 @@ Prospectus keeps a private ledger of what each customer costs Anthus, and draws 
 1. It tags every AWS resource, so Prospectus can read each day's cost from Cost Explorer.
 2. It reports the model tokens each site uses to that site's own Prospectus usage queue.
 
+**Cost accounting is opt-in per site (5.99.1).** Tagging every resource updates every DynamoDB table, and CloudFormation refuses one operation that updates that many resources: on Machines on Machines the 5.99.0 backend deploy updated about sixty table stacks at once and rolled back ("Limit on the number of resources in a single stack operation exceeded"). A site that has not opted in deploys exactly the backend it had before cost accounting: no tags on any resource, no usage environment on any function, no new IAM statements, and no `PAPYRUS_SITE_ID` needed. The site backend, app shell and private chat stack are all untagged.
+
+To turn it on for a site, set `"costAccounting": true` in its `site.json` and redeploy the app shell. That tags the app shell and chat stacks and sets two Amplify branch variables, `PAPYRUS_COST_TAGS=on` (only the exact value `on` counts) and `PAPYRUS_SITE_ID=<site>`, which switch on the backend's tags and usage senders at its next build. The first tagged backend build updates every table, so a site with many tables hits the limit above. **Staggering that update is an open problem** (for example, tagging a few table stacks per deploy); do not turn it on for a large site until it is solved. The knowledge-run stack, edge distributions and newsletter sending are separate stacks and still carry their tags.
+
 Board: PPY-25e0d7 (Prospectus kanbus-1f0c86). Specs: `infra/amplify-app-shell/features/cost-tags.feature` and `features_backend/cost-accounting-reports.feature`.
 
 ## Tags
@@ -24,11 +28,11 @@ Every costed resource carries four tags from the vendored Prospectus package `@a
 - **`owner`:** Prospectus charges whichever Account holds the active `papyrus-<site>` entitlement. When no Account holds it, the cost is overhead; Prospectus never guesses (Ryan, 2026-11-09). Papyrus configures no Account ID anywhere, and a change of owner needs no redeploy.
 - **`shared`:** the resource serves every site, and Prospectus splits its cost by the usage the sites report.
 
-The site backend learns its site ID from the Amplify branch variable `PAPYRUS_SITE_ID`, which the app-shell stack sets. A backend build without it fails rather than synthesizing untagged resources. For a sandbox, export it. The Anth.us edge templates are left unchanged.
+For a site that opted in, the site backend learns its site ID from the Amplify branch variable `PAPYRUS_SITE_ID`, which the app-shell stack sets. A backend build with `PAPYRUS_COST_TAGS=on` and without it fails rather than synthesizing untagged resources. For a sandbox, export it. The Anth.us edge templates are left unchanged.
 
 **IAM roles** carry the tags too: the package's check includes them. A site's usage queue accepts any role in the account tagged `anthus:app=papyrus` and `anthus:deployment=<site>` (AnthusAI/Prospectus#150), so every role in a site's stacks may send to that site's queue. The `infra/pipeline` templates are not checked: they hold only the deploy roles, which change only through their own approval flow and never send usage.
 
-**CI:** `scripts/test-cost-tags.ts` synthesizes every CDK stack and reads every template under `infra/`, then runs the package's `assertCostTags`. An untagged costed resource fails the build, naming the resource. It also catches costed resources that CDK writes without tag support (the bucket auto-delete provider Lambda); `amplify/cost-attribution.ts` tags those directly.
+**CI:** `scripts/test-cost-tags.ts` synthesizes the opted-in stacks (with `PAPYRUS_COST_TAGS=on`), proves the default backend has no `anthus:` tag, no table `Tags` and no usage environment, and synthesizes every CDK stack and reads every template under `infra/`, then runs the package's `assertCostTags`. An untagged costed resource fails the build, naming the resource. It also catches costed resources that CDK writes without tag support (the bucket auto-delete provider Lambda); `amplify/cost-attribution.ts` tags those directly.
 
 **Activation:** Prospectus activates the tag keys as cost allocation tags in the management account once tagged resources have been billed. Until a stack is redeployed with the tags, its cost shows as untagged overhead.
 
