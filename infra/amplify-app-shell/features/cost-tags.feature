@@ -41,7 +41,14 @@ Feature: Every Papyrus stack tags its resources for Prospectus cost accounting
     Then no costed resource lacks the tags
     And Anth.us's own edge templates are left unchanged, because Anth.us is never touched without an explicit instruction
 
+  Scenario: IAM roles carry the tags, because they authorize usage sends
+    Given Prospectus lets a site's usage queue accept any role in its account tagged anthus:app "papyrus" and anthus:deployment the site ID (AnthusAI/Prospectus#150)
+    When every stack and template is checked
+    Then every IAM role carries the tags too, and a role without them fails CI
+    And the pipeline's own deploy roles are left out, because they change only through their reviewed approval flow and never send usage
+
   Scenario: A model-calling function may send usage only to its own site's queue
     When the site backend is synthesized for site "dataparade"
     Then the editorial-checks and knowledge-query functions have PROSPECTUS_USAGE_QUEUE_URL set to prospectus-usage-papyrus-dataparade in the stack's own account
     And each of their roles may sqs:SendMessage on that one queue and on nothing else
+    And each of their roles carries anthus:app "papyrus" and anthus:deployment "dataparade"

@@ -374,6 +374,10 @@ Resources:
   CollectorRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       ManagedPolicyArns: !If
         - HasBedrockWebSearch
         - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
@@ -449,6 +453,10 @@ Resources:
   ScheduleRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -710,6 +718,10 @@ Resources:
   SuggestWorkerRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -866,6 +878,10 @@ Resources:
   StoryWorkerRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       ManagedPolicyArns: !If
         - HasBedrockWebSearch
         - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
@@ -1012,6 +1028,10 @@ Resources:
   RouterRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       ManagedPolicyArns: !If
         - HasBedrockWebSearch
         - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
@@ -1475,6 +1495,10 @@ Resources:
   ResearchWorkerRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       ManagedPolicyArns: !If
         - HasBedrockWebSearch
         - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
@@ -1713,6 +1737,10 @@ Resources:
   ResearchWorkerScheduleRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -1757,6 +1785,10 @@ Resources:
   RouterScheduleRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -2954,6 +2986,10 @@ Resources:
   OperatorRecipientKeyRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -3070,6 +3106,10 @@ Resources:
   OperatorCoreRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -3117,6 +3157,10 @@ Resources:
   OperatorEmailRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -3173,6 +3217,10 @@ Resources:
   OperatorSesEventsRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -3393,6 +3441,10 @@ Resources:
   OperatorScheduleRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -3482,6 +3534,10 @@ Resources:
   OperatorDeadmanSeedRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:

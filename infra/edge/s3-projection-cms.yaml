@@ -120,6 +120,11 @@ Resources:
   NotFoundPageRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: owner }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:deployment", Value: !Ref CostDeployment }
+        - { Key: "anthus:cost-key", Value: !Sub "owner/papyrus/${CostDeployment}" }
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:

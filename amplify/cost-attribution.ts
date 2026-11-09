@@ -32,6 +32,13 @@ export function siteCostAttribution(env: Record<string, string | undefined> = pr
   return { account: OWNER, app: "papyrus", deployment: siteId };
 }
 
+/**
+ * What Papyrus requires the cost tags on: the package's costed types, plus IAM roles. Prospectus lets a site's usage
+ * queue accept any role in the account tagged anthus:app=papyrus and anthus:deployment=<site> (AnthusAI/Prospectus#150),
+ * so a role's tags are what authorize it to send usage.
+ */
+export const PAPYRUS_TAGGED_RESOURCE_TYPES: readonly string[] = [...COSTED_RESOURCE_TYPES, "AWS::IAM::Role"];
+
 /** Tags every resource in the backend (all nested stacks) with the site's cost attribution. */
 export function applySiteBackendCostTags(scope: IConstruct, attribution: SiteCostAttribution): void {
   applyCostTags(scope, attribution);
@@ -40,14 +47,14 @@ export function applySiteBackendCostTags(scope: IConstruct, attribution: SiteCos
 
 /**
  * The Tags aspect reaches only constructs with a TagManager. CDK writes some costed resources as raw CfnResources
- * (the custom-resource provider Lambda behind `autoDeleteObjects`, for one), so their tags are written directly.
+ * (the custom-resource provider Lambda and role behind `autoDeleteObjects`, for one), so their tags are written directly.
  */
 class TagUntaggableCostedResources implements IAspect {
   constructor(private readonly tags: Record<string, string>) {}
 
   visit(node: IConstruct): void {
     if (!CfnResource.isCfnResource(node) || TagManager.isTaggable(node)) return;
-    if (!(COSTED_RESOURCE_TYPES as readonly string[]).includes(node.cfnResourceType)) return;
+    if (!PAPYRUS_TAGGED_RESOURCE_TYPES.includes(node.cfnResourceType)) return;
     node.addPropertyOverride("Tags", Object.entries(this.tags).map(([Key, Value]) => ({ Key, Value })));
   }
 }

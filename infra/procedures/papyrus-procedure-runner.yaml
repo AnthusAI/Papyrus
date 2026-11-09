@@ -56,6 +56,10 @@ Resources:
   RunnerRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:

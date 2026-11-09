@@ -2,8 +2,10 @@
  * Prospectus cost accounting: every Papyrus stack tags every costed resource (infra/amplify-app-shell/features/cost-tags.feature).
  *
  * Synthesizes every CDK stack (site backend, app shell, private chat, knowledge run, projection lease) and reads
- * every CloudFormation template under infra/, then runs the package's `assertCostTags` on each. An untagged costed
- * resource fails CI, naming the resource. A dedicated site's resources are tagged account "owner" (Prospectus finds
+ * every CloudFormation template under infra/, then runs the package's `checkCostTags` on each, and the same check on
+ * every IAM role (PAPYRUS_TAGGED_RESOURCE_TYPES): Prospectus lets a site's usage queue accept roles tagged
+ * anthus:app=papyrus and anthus:deployment=<site> (AnthusAI/Prospectus#150). An untagged costed resource or role fails
+ * CI, naming it. A dedicated site's resources are tagged account "owner" (Prospectus finds
  * the owning Account from the papyrus-<site> entitlement); resources that serve every site are tagged "shared".
  */
 import assert from "node:assert/strict";
@@ -17,8 +19,8 @@ import { App, Stack } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { parse } from "yaml";
-import { assertCostTags, checkCostTags } from "../amplify/vendor/anthus-cost-accounting/tags";
-import { siteCostAttribution, usageQueueUrlFor } from "../amplify/cost-attribution";
+import { assertCostTags, checkCostTags, COSTED_RESOURCE_TYPES, TAG_ACCOUNT, TAG_APP, TAG_COST_KEY } from "../amplify/vendor/anthus-cost-accounting/tags";
+import { PAPYRUS_TAGGED_RESOURCE_TYPES, siteCostAttribution, usageQueueUrlFor } from "../amplify/cost-attribution";
 import { parseSiteConfig } from "../infra/amplify-app-shell/lib/site-config";
 import { KnowledgeRunStack } from "../infra/scheduled-jobs/lib/knowledge-pipeline";
 import { resolveKnowledgeRunConfig } from "../infra/scheduled-jobs/lib/knowledge-run-config";
@@ -28,13 +30,29 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const env = { account: "111122223333", region: "us-east-1" };
 const examples = path.join(repo, "infra/amplify-app-shell/examples");
 
+/** The package's check plus IAM roles, which it does not list. Returns the violations; an empty list passes. */
+function checkPapyrusTags(template: any) {
+  const violations = checkCostTags(template);
+  const extra = PAPYRUS_TAGGED_RESOURCE_TYPES.filter((type) => !(COSTED_RESOURCE_TYPES as readonly string[]).includes(type));
+  for (const [logicalId, resource] of Object.entries<any>(template.Resources ?? {})) {
+    if (!extra.includes(resource.Type)) continue;
+    const tags = tagsOf(template, logicalId);
+    const missing = [TAG_APP, TAG_ACCOUNT, TAG_COST_KEY].filter((key) => tags[key] === undefined);
+    if (missing.length) violations.push({ logicalId, type: resource.Type, missing });
+  }
+  return violations;
+}
+const assertPapyrusTags = (template: any, where = "") => assert.deepEqual(checkPapyrusTags(template), [], where);
+
 function tagsOf(template: any, logicalId: string): Record<string, unknown> {
   const tags = template.Resources[logicalId].Properties?.Tags ?? [];
   return Array.isArray(tags) ? Object.fromEntries(tags.map((tag: any) => [tag.Key, tag.Value])) : tags;
 }
 
-// Scenario: an untagged costed resource fails CI, naming the resource.
+// Scenario: an untagged costed resource, or an untagged role, fails CI, naming it.
 {
+  const roleOnly = { Resources: { SenderRole: { Type: "AWS::IAM::Role", Properties: { Tags: [{ Key: "purpose", Value: "x" }] } } } };
+  assert.deepEqual(checkPapyrusTags(roleOnly), [{ logicalId: "SenderRole", type: "AWS::IAM::Role", missing: ["anthus:app", "anthus:account", "anthus:cost-key"] }]);
   const stack = new Stack(new App(), "Untagged");
   new dynamodb.Table(stack, "Ledger", { partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING } });
   assert.throws(() => assertCostTags(Template.fromStack(stack).toJSON()), /Ledger[A-Z0-9]+ \(AWS::DynamoDB::Table\): anthus:app, anthus:account, anthus:cost-key/);
@@ -59,11 +77,11 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
 {
   const site = parseSiteConfig(JSON.parse(fs.readFileSync(path.join(examples, "shipped.site.json"), "utf8")));
   const knowledge = Template.fromStack(new KnowledgeRunStack(new App(), "Knowledge", resolveKnowledgeRunConfig(site, process.env, examples), { env, imageTag: "test" })).toJSON();
-  assertCostTags(knowledge);
+  assertPapyrusTags(knowledge, "knowledge run");
   const machine = Object.keys(knowledge.Resources).find((id) => knowledge.Resources[id].Type === "AWS::StepFunctions::StateMachine")!;
   assert.equal(tagsOf(knowledge, machine)["anthus:cost-key"], "owner/papyrus/shipped");
   const lease = Template.fromStack(new ProjectionLockStack(new App(), "Lease", { env })).toJSON();
-  assertCostTags(lease);
+  assertPapyrusTags(lease, "projection lease");
   const table = Object.keys(lease.Resources).find((id) => lease.Resources[id].Type === "AWS::DynamoDB::Table")!;
   assert.equal(tagsOf(lease, table)["anthus:account"], "shared");
   assert.equal(tagsOf(lease, table)["anthus:cost-key"], "shared/papyrus/");
@@ -85,13 +103,18 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
     let sendStatements = 0;
     for (const file of templates) {
       const template = JSON.parse(fs.readFileSync(path.join(out, file), "utf8"));
-      assert.deepEqual(checkCostTags(template), [], file);
+      assertPapyrusTags(template, file);
       for (const [logicalId, resource] of Object.entries<any>(template.Resources ?? {})) {
         if (resource.Type === "AWS::Lambda::Function") {
           assert.equal(tagsOf(template, logicalId)["anthus:cost-key"], "owner/papyrus/dataparade", `${file} ${logicalId}`);
           const variables = resource.Properties.Environment?.Variables ?? {};
           if (variables.PROSPECTUS_USAGE_QUEUE_URL) {
             senders.push(logicalId);
+            // Prospectus accepts the send because the function's own role carries the site's tags (AnthusAI/Prospectus#150).
+            const roleId = resource.Properties.Role["Fn::GetAtt"][0];
+            assert.equal(template.Resources[roleId].Type, "AWS::IAM::Role", `${file} ${logicalId} role`);
+            assert.equal(tagsOf(template, roleId)["anthus:app"], "papyrus", `${file} ${roleId}`);
+            assert.equal(tagsOf(template, roleId)["anthus:deployment"], "dataparade", `${file} ${roleId}`);
             assert.deepEqual(variables.PROSPECTUS_USAGE_QUEUE_URL, { "Fn::Join": ["", ["https://sqs.us-east-1.amazonaws.com/", { Ref: "AWS::AccountId" }, "/prospectus-usage-papyrus-dataparade"]] });
             assert.equal(variables.PAPYRUS_SITE_ID, "dataparade");
           }
@@ -130,7 +153,12 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
     const document = parse(fs.readFileSync(path.join(repo, file), "utf8"), { logLevel: "silent" });
     if (!document?.Resources) continue;
     templates += 1;
-    assert.deepEqual(checkCostTags(document), [], file);
+    if (file.startsWith("infra/pipeline/")) {
+      // The pipeline's own deploy roles change only through their reviewed approval flow, and never send usage.
+      assert.deepEqual(checkCostTags(document), [], file);
+      continue;
+    }
+    assertPapyrusTags(document, file);
   }
   assert.ok(templates >= 12, `expected the Papyrus CloudFormation templates, read ${templates}`);
 }
