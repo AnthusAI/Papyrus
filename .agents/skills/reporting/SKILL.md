@@ -5,6 +5,8 @@ description: Research a Papyrus story while recording immutable draft versions, 
 
 # Reporting
 
+> **CLI syntax:** the exact `papyrus` commands for this work, with the flags each takes, are in [docs/agent-cli-guide.md](../../../docs/agent-cli-guide.md) (or run `papyrus guide`). `papyrus <group> <command> --help` prints a command's real usage, its lane and whether it writes. Do not guess a flag.
+
 Work on the assigned topic and publication. Inspect repository instructions and active work; preserve other agents' edits. The reusable skill belongs in Papyrus, but editorial records belong in the selected publication's backend, never its product tracker. Before writing, verify the publication repository/configuration, endpoint and authoring identity, then read the existing Item to resolve its actual `lineageId`; an Item version id is not the story lineage. Keep the assigned stage and unpublished status unless authorized otherwise. Use project Kanbus for scoped development work, not as an alternative editorial store.
 
 A story is an Item lineage. All drafts, Reference links and Messages hang off that lineage. Never overwrite historical article text: every article change is a new version. The supported save operation marks the previous version superseded without replacing its text. Attribute agent work as "AI"; do not invent human authorship. Messages come only from people: never write a `Message` for machine work, and never run `papyrus stories note` (that is a person's note, and under a person's login it would carry their name). Record your own notes with `papyrus stories agent-note`.

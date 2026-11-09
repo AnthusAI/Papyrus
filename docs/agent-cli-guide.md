@@ -4,7 +4,7 @@
 
 **Agents: read this file, or run `papyrus guide` (`papyrus guide --list` lists the tasks, `papyrus guide find` prints one section).** It is written so you never have to guess a flag.
 
-> **Maintainer note.** Whoever builds or changes a `papyrus` command updates the recipe for it in this file in the same pull request. The drift test (`procedures/newsroom/tests/test_agent_cli_guide.py`, specified by `features_backend/agent-cli-guide.feature`) parses every fenced `papyrus ...` command below and fails CI when a command is not in the CLI's route table or when a `--flag` is not in that command's `--help` usage. Commands that are still in an open pull request sit in fences marked `pending` and in the test's `PENDING` list; remove both marks when the pull request merges. After editing, copy the file to `src/papyrus_content/data/agent-cli-guide.md` (the copy `papyrus guide` prints; the same test fails when the two differ). Verified against Papyrus 5.100.0 on 2026-11-09 with a signed-in editor on `newsroom.machines-on-machines.anth.us`.
+> **Maintainer note.** Whoever builds or changes a `papyrus` command updates the recipe for it in this file in the same pull request. The drift test (`procedures/newsroom/tests/test_agent_cli_guide.py`, specified by `features_backend/agent-cli-guide.feature`) parses every fenced `papyrus ...` command below and fails CI when a command is not in the CLI's route table or when a `--flag` is not in that command's `--help` usage. Commands that are still in an open pull request sit in fences marked `pending` and in the test's `PENDING` list; remove both marks when the pull request merges. The usage text `--help` prints comes from the table in `src/papyrus/operator/command_usage.py`: change an entry in the same pull request when you change a command's flags (the drift test checks every `--flag` used here against it). After editing, copy the file to `src/papyrus_content/data/agent-cli-guide.md` (the copy `papyrus guide` prints; the same test fails when the two differ). Verified against Papyrus 5.100.0 on 2026-11-09 with a signed-in editor on `newsroom.machines-on-machines.anth.us`.
 
 Every recipe says its **lane** (editor, operator or both) and the **version** it needs. Commands print tab-separated lines; a JSON `papyrus_request_summary` line on standard error is the request meter and can be ignored.
 
@@ -41,9 +41,9 @@ A failed user session never falls back to the operator lane. If a command says i
 ### Write by default, and which commands cannot dry-run
 Mutation commands **write unless you pass `--dry-run`**. `--apply` is rejected ("no longer accepts --apply"). `--help` never writes: it is answered before anything runs.
 
-Commands that write with **no `--dry-run`**: `papyrus ops relations import-types`, `papyrus ops content publish-gate`, `papyrus login`/`logout`, `papyrus stories link-concept` and `references link-concept` have `--dry-run`, but `papyrus ops content rebuild`, `papyrus ops content project`, `papyrus ops corpora sync-to-cloud` and several `knowledge`/`ops` maintenance commands apply immediately: read their `--help` usage ("Writes: ... no --dry-run") before running. When a usage line does not show `--dry-run`, assume it writes immediately.
+Commands that write with **no `--dry-run`** (their `--help` says `Writes: yes, immediately`): `papyrus ops relations import-types`, `papyrus knowledge concepts import-types`, `papyrus ops content rebuild`, `papyrus ops content upload-preview`, `papyrus ops content project` (only `--reconcile` takes `--dry-run`), `papyrus stories fire-triggers`, `papyrus editorial check-version` (it stores its result with the version), `papyrus ideas synthesize` (it files the ideas it makes), `papyrus references register`, `papyrus login` and `papyrus logout`. Never run one to see what it does. `--help` prints `Writes:` for every command; when it says `not stated`, assume the command writes immediately.
 
-`papyrus ops content rerender --no-invalidate --dry-run` was found to ignore `--dry-run` on 5.100.0 (it re-rendered the story's pages and purged nothing). The fix ships with this guide; on 5.100.0 use `papyrus ops content update-live --story LINEAGE --dry-run` to preview a re-render.
+`papyrus ops content rerender --no-invalidate --dry-run` was seen to re-render the story's pages anyway on 5.100.0 (the flag is sent to the site's function, which acted on it). Preview a re-render with `papyrus ops content update-live --story LINEAGE --dry-run` instead.
 
 ### Timeouts and the safe re-run rule
 A write that prints `timed out` or `The read operation timed out` has an **unknown outcome**. Re-run the same command: `references create-from-catalog` derives the Reference id from the canonical URL, so a source already recorded is returned unchanged and is not re-curated; links and stars are idempotent (the same link is reported, not duplicated). Do not change arguments between attempts. Do not re-run `stories create` blindly: it makes a new Story each time, so list first (`papyrus stories list --limit 5`).
@@ -100,27 +100,37 @@ papyrus stories versions --story LINEAGE
 `list` prints `stories list LINEAGE stage section title stars source votes bucket type words published`. The first column is the lineage id every other `stories` command takes. `type` is `article`, `post` or `untyped`. `show` prints the headline, a `signals` line, each stage move, its References by lineage id and its agent notes; `--json` prints the Story and its related Stories only.
 
 ### Concepts
-**Lane:** both. **Version:** 5.100.0 (list); search arrives with PR #1341.
+**Lane:** both. **Version:** 5.101+ for `search` and `related` (PR #1341); `entities list` any. Read only.
 
 ```sh
+papyrus knowledge concepts search --list
+papyrus knowledge concepts search "license plate" --limit 10
+papyrus knowledge concepts related --concept "License plate readers" --limit 10
 papyrus knowledge entities list --actor human
 ```
 
-`knowledge entities list` returns about 100 generated concepts and cannot search. Concept search and related concepts arrive with PR #1341:
+- `search --list` prints every accepted concept and needs no key. Free text searches by meaning and needs `OPENAI_API_KEY` set in your shell (a signed-in editor session does not carry one); name matches come first and duplicates are flagged.
+- `related` lists the concepts near one: confirmed links, aliases, and concepts that appear together on published Stories and accepted References. It finds the concept the way `link-concept` does (exact name, alias, `#hashtag` or node key) and needs no key.
+- `knowledge entities list` returns about 100 generated concepts and cannot search; use `search`.
 
-```sh pending
-papyrus knowledge concepts search "license plate" --limit 10
-papyrus knowledge concepts related --key CONCEPT_KEY --limit 10
+### Suggested links for a Story
+**Lane:** both. **Version:** 5.101+ (PR #1341). Read only.
+
+```sh
+papyrus stories suggest-links --story LINEAGE --kinds articles,posts,references --limit 10
+papyrus stories suggest-links --story LINEAGE --include-linked --json
 ```
 
-### Suggested links (arriving with PR #1341)
-**Lane:** operator today; the editor lane arrives with PR #1341. **Version:** 5.101.0 expected.
+Ranks published articles and posts and accepted References that share the Story's concepts (rare concepts count most), shows the shared concepts and the path, and prints the exact command that would link each one. Already linked items are left out unless `--include-linked`. It writes nothing: run the printed `stories link-story` command yourself.
 
-```sh pending
-papyrus references suggest-links --reference-id REFERENCE_ID --corpus-id knowledge-corpus-ai-ml-research --dry-run
+### Suggested links for a Reference (operator only)
+**Lane:** operator. **Version:** any.
+
+```sh
+papyrus references suggest-links --corpus-id knowledge-corpus-ai-ml-research --reference-id REFERENCE_ID --dry-run
 ```
 
-On 5.100.0 this fails signed in with `Missing PAPYRUS_S3_VECTOR_INDEX_ARN`. Do not retry it as an editor.
+Needs the vector index. Signed in it fails with `Missing PAPYRUS_S3_VECTOR_INDEX_ARN`: do not retry it as an editor; tag by hand with `references link-concept` after `knowledge concepts search`.
 
 ## File a Reference from URLs
 <!-- guide:file-reference -->
@@ -276,9 +286,17 @@ papyrus ops content inspect-page --story LINEAGE
 ```
 
 - `update-live` re-projects one Story, purges exactly its pages and the index pages that list it (12 exact paths for a typical article) and checks the live page shows the new version. The dry run prints `site_update_live: ok (dry run: nothing written or invalidated)`, the pages and `invalidation: ok (dry-run), 12 paths`.
-- `rerender --no-invalidate` rebuilds the pages from the deployed hooks and **does not purge**; use it after link writes when the edge may wait five minutes. (PR #1344 re-renders automatically after link writes.)
+- `rerender --no-invalidate` rebuilds the pages from the deployed hooks and **does not purge**; use it after link writes when the edge may wait five minutes. Once PR #1344 merges the link commands (`link-story`, `link-concept`, `link-reference`) re-render the published Stories whose page changed by themselves (never purging, a failure is only a warning, at most 20 per command) and `--no-rerender` skips that (the recipe at the end of this section).
 - `refresh --path PATH` purges exact pages (both URL forms and the Markdown twin) and nothing else. Never `/*`.
 - `inspect-page` is read only: the record, the stored page and what the edge serves, with one verdict.
+
+After PR #1344 merges (pending until then; remove the `pending` mark and the `--no-rerender` entry in the drift test's `PENDING` list):
+
+```sh pending
+papyrus stories link-story --story LINEAGE --to OTHER_LINEAGE --note "Earlier coverage" --no-rerender
+```
+
+Until then run the `rerender` command above by hand after you link.
 
 ## Checks
 <!-- guide:checks -->

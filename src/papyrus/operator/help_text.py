@@ -165,11 +165,11 @@ def print_group_help(group: str) -> None:
   if node is None:
     print(TOP_LEVEL_HELP)
     return
-  if group == "assignments":
-    print("Cloud rows are GraphQL Assignment work records (kind: newsroom-assignment).")
-    print("Local rows are Kanbus pod stories (kind: pod-story).")
-    print("Use kbs for board columns, transitions, and workflow state.\n")
-  if group == "references":
-    print("Agents filing and linking References: `papyrus guide find`, `papyrus guide file-reference`, `papyrus guide tag-and-link`.")
-    print("`register` is for the local pod only; it does not file a Reference on a site.\n")
   print(group_text([group], node))
+  if group == "assignments":
+    print("\nCloud rows are GraphQL Assignment work records (kind: newsroom-assignment).")
+    print("Local rows are Kanbus pod stories (kind: pod-story).")
+    print("Use kbs for board columns, transitions, and workflow state.")
+  if group == "references":
+    print("\nFiling and linking References as an agent: `papyrus guide find`, `papyrus guide file-reference`, `papyrus guide tag-and-link`.")
+    print("`register` is for the local pod only; it does not file a Reference on a site.")

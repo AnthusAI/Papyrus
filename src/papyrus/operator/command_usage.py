@@ -206,11 +206,6 @@ _ENTRIES = dict([
   _e("ops corpora status", "Show a corpus's local and cloud state.", "--corpus-key KEY [--config STEERING.yml] [--force] [--json]", "operator", "reads", ""),
   # ---- items ------------------------------------------------------------------------------------------------------
   _e("items link-references", "Operator backfill: link each Story to the References it used.", "--site KEY [--role consulted|cited|based_on] [--json] [--dry-run]", "operator", _DRY, ""),
-  # ---- ideas ------------------------------------------------------------------------------------------------------
-  _e("ideas digest", "Digest recent References by section and Cyclotron label (not by concept cluster or link).",
-     "--publication KEY [--since 7d] [--status accepted[,pending]] [--max-references N] [--excerpts] [--out DIR] [--json]", "operator", "writes", "ideas"),
-  _e("ideas synthesize", "Synthesize private story ideas from a digest. Needs a model key.",
-     "--publication KEY [--digest ID|PATH | --since 7d] [--max 5] [--store items|json] [--feedback FILE] [--report FILE] [--out DIR] [--json]", "operator", "writes", "ideas"),
   # ---- editorial --------------------------------------------------------------------------------------------------
   _e("editorial check-version", "Run the editorial rules on a saved version and store the result with it.", "--item LINEAGE-vN [--json]", "both", "writes", "checks"),
   _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--section KEY] [--pack FILE] [--output FILE]", "both", "reads", ""),
@@ -224,6 +219,41 @@ _ENTRIES = dict([
   _e("doctor", "Check the install, the sign-in and the site connection.", "[options]", "both", "reads", "orientation"),
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
 ])
+
+_ENTRIES.update(dict([
+  # ---- ideas (the full text is `ideas.commands.USAGE`) ------------------------------------------------------------
+  _e("ideas digest", "Digest recent References by section and Cyclotron label (not by concept cluster or link); writes a local file.",
+     "--publication KEY [--since 7d] [--status accepted[,pending]] [--max-references N] [--excerpts] [--out DIR] [--json]", "both", "local", "ideas"),
+  _e("ideas synthesize", "Synthesize private story ideas from a digest and file them at the idea stage. Needs a model key (OPENAI_API_KEY).",
+     "--publication KEY [--digest ID|PATH | --since 7d [--status ...] [--excerpts]] [--max 5] [--store items|json] [--feedback FILE] [--model NAME] [--dedupe-threshold X] "
+     "[--max-cost-usd 0.50] [--story-days N] [--out DIR] [--report FILE] [--json]  (--store json keeps the ideas as local files only)", "both", "writes", "ideas"),
+  _e("ideas trends", "File ideas from a weekly knowledge snapshot's trends. Needs a model key.",
+     "--site KEY --snapshot PATH|URL [--store items|json] [--dry-run] [--max 3] [--trend-config FILE] [--model NAME] [--dedupe-threshold X] [--max-cost-usd 0.50] "
+     "[--story-days N] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]", "both", _DRY, "ideas"),
+  _e("ideas monitor-stories", "File a cited story idea for accepted, monitored References that have none. Needs a model key.",
+     "--site KEY [--corpus-key KEY] [--limit 3] [--since 7d] [--status accepted[,pending]] [--store items|json] [--dry-run] [--model NAME] [--dedupe-threshold X] "
+     "[--max-cost-usd 0.50] [--story-days N] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json] [--packs-only | --single-only]", "both", _DRY, "ideas"),
+  _e("ideas migrate-proposals", "Move open story_draft Proposals to Items at the idea stage; a dry run unless --write (needs an editor session).",
+     "[--write] [--json]", "editor", "reads", ""),
+  _e("ideas labels", "Editors' accept and decline decisions on generated ideas as JSON Lines for a Cyclotron (read only).", "[--out FILE]", "both", "reads", ""),
+  _e("ideas select", "Select Stories for a feed or page by the site's signals.", "[options]  (see `docs/idea-pipeline.md`)", "unverified", "unknown", ""),
+  # ---- ops content: the rest (the text is in `papyrus_content.cli.print_usage`) ---------------------------------------
+  _e("ops content project", "Project the site's pages from the content store (all pages, listings, item pages, one item, or reconcile).",
+     "(--all | --listings | --item-pages | --reconcile [--dry-run] [--only SITE_RELATIVE_PREFIX] [--amplify-outputs PATH] | --item ITEM_ID [--unpublished] | --unpublished-items FILE) "
+     "[--from-dir CONTENT_DIR] [--out DIR] [--static-dir DIR] [--knowledge-dir DIR] [--allow-deletions] [--bucket B] [--json]  (--dry-run exists only with --reconcile)",
+     "operator", "writes", "publish"),
+  _e("ops content renditions", "Create image renditions (sizes) for stored pictures. Signed in with no --function-name it needs no AWS login.",
+     "(--backfill | --source SRC_PATH) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json]", "both", _DRY, ""),
+  _e("ops content export-published", "Export published items as Markus files.", "--out DIR [--tenant ID] [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json]", "operator", "local", ""),
+  _e("ops content upload-preview", "Upload a built preview folder to the preview bucket.", "--dir DIR [--bucket B] [--prefix preview/] [--json]", "operator", "writes", ""),
+  _e("ops content markus-derive", "Derive the Markus intermediate form of a Markdown file.", "(--file article.md | --stdin) [--emit-ir]", "both", "reads", ""),
+  _e("ops content import-markus", "Import Markus files as items.",
+     "--content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json]",
+     "operator", _DRY, ""),
+  _e("ops content convert-bodies", "Convert stored bodies to the current format.", "[--models Item,PublishedItem] [--dry-run | --apply] [--json]  (a dry run unless --apply)", "operator", "unknown", ""),
+  _e("ops content adopt-tenant-data", "Adopt pre-tenant rows into a tenant; a dry run unless --apply.", "--tenant ID [--apply] [--json]", "operator", "unknown", ""),
+  _e("ops content schema-check", "Check that a GraphQL type has the named fields.", "[--type NAME] [--fields a,b]", "operator", "reads", ""),
+]))
 
 # ---- drafted entries -----------------------------------------------------------------------------------------------
 

@@ -1,5 +1,7 @@
 # Operator CLI (dual backend)
 
+> **Agents and anyone using the CLI for editing work:** start with the [agent CLI guide](agent-cli-guide.md) (or run `papyrus guide`): task-first recipes with exact syntax and what each prints, the two lanes (signed-in editor and IAM operator), which commands write by default, and a troubleshooting table. `papyrus <group> <command> --help` prints each command's usage, lane and write behaviour from `src/papyrus/operator/command_usage.py`. This page is the reference for operators.
+
 One `papyrus` command against a local pod or the cloud newsroom. Executable spec: `features_backend/operator-cli.feature`.
 
 Operators use **one** `papyrus` command on PATH (`[project.scripts] papyrus =
