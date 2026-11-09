@@ -165,3 +165,53 @@ def _show_json(context, slug):
 def _flagged(context, name):
     assert context.shown["related"] == [], context.shown
     assert [entry["predicate"] for entry in context.shown["unofficialRelations"]] == [name], context.shown
+
+
+# ---- features_backend/link-rerender.feature: the page re-render is a recording stand-in ----
+
+@given("the page re-render is a recording stand-in")
+def _recording_rerender(context):
+    from unittest import mock
+
+    from papyrus_content import story_rerender
+
+    context.rerender_asked, context.rerender_failing = [], set()
+
+    def request(_client, lineage, **_kw):
+        context.rerender_asked.append(lineage)
+        if lineage in context.rerender_failing:
+            return {"ok": False, "rendered": {"ok": False, "errors": ["render failed"]}}
+        return {"ok": True, "rendered": {"ok": True}}
+
+    patcher = mock.patch.object(story_rerender, "request_story_rerender", request)
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+
+
+@given('the re-render of "{lineage}" fails')
+def _rerender_fails(context, lineage):
+    context.rerender_failing.add(lineage)
+
+
+@then('the stories re-rendered were "{lineages}"')
+def _rerendered(context, lineages):
+    assert context.rerender_asked == [part for part in lineages.split(", ") if part], context.rerender_asked
+    context.rerender_asked.clear()
+
+
+@then("no story was re-rendered")
+def _none_rerendered(context):
+    assert context.rerender_asked == [], context.rerender_asked
+    context.rerender_asked.clear()
+
+
+@then('it printed "rerender" lines saying "no purge" and the closing line "{closing}"')
+def _rerender_lines(context, closing):
+    lines = context.out.splitlines()
+    assert any(line.startswith("rerender\t") and "\tno purge\t" in line for line in lines), context.out
+    assert lines[-1] == closing, lines[-1]
+
+
+@then('the warning names the manual command "{command}"')
+def _manual_command(context, command):
+    assert command in context.err, context.err
