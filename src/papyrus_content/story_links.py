@@ -17,12 +17,14 @@ from typing import Any
 
 from .content_item_lifecycle import SYSTEM_ITEM_TYPES
 from .publishing import published_item_id_for
-from .reference_links import ITEM_LINK_KIND, SEE_ALSO, link_items, reference_link_relation_id
+from .reference_links import ITEM_LINK_KIND, ITEM_REFERENCE_LINK_KIND, SEE_ALSO, link_item_reference_see_also, link_items, reference_link_relation_id
 from .relation_types import load_relation_type_lookup
-from .story_reporting import current_story_version, story_versions
+from .story_reporting import current_reference, current_story_version, story_versions
 
 STORY_LINK_RELATION = SEE_ALSO   # the one name, from reference_links, where every reference and concept edge gets it
 STORY_LINK_KIND = ITEM_LINK_KIND
+STORY_REFERENCE_LINK_KIND = ITEM_REFERENCE_LINK_KIND
+ACCEPTED = "accepted"
 
 
 def check_official_relation(name: object) -> str:
@@ -172,6 +174,80 @@ def link_story_set(client, story: dict[str, Any], others: list[dict[str, Any]], 
             row["warning"] = f"A person rejected this link on {str(done.get('decidedAt') or 'an earlier date')[:10]}; nothing was written. Use the newsroom to reinstate it."
         elif not summary["published"]:
             row["warning"] = f"{summary['title']} is not published yet (stage {summary['stage']}); the public Related block shows published stories only."
+        rows.append(row)
+        if on_row:
+            on_row(row)
+    return rows
+
+
+# ------------------------------------------------------------------ story -> Reference (the same `see_also`, directional)
+
+def references_of_story(client, lineage_id: str) -> list[dict[str, Any]]:
+    """The story's current see-also edges to References (one index read): ``referenceLineageId``, ``referenceId``, ``note``, ``addedBy``, ``addedAt``,
+    ``relationId``; oldest first. A rejected or suggested edge is not listed (the state is in the index key)."""
+    rows = []
+    for row in client.list_by_index("semanticRelationsBySubjectState", f"item#{lineage_id}#current"):
+        if row.get("predicate") == STORY_LINK_RELATION and row.get("objectKind") == "reference" and row.get("subjectLineageId") == lineage_id and row.get("objectLineageId"):
+            metadata = _metadata(row)
+            rows.append({"relationId": row["id"], "referenceLineageId": row["objectLineageId"], "referenceId": row.get("objectId"), "note": metadata.get("note"),
+                         "addedBy": metadata.get("addedBy"), "addedAt": metadata.get("addedAt")})
+    return sorted(rows, key=lambda link: (str(link["addedAt"] or ""), link["relationId"]))
+
+
+def reference_summary(reference: dict[str, Any]) -> dict[str, Any]:
+    from .home_page.export import host_of
+    from .public_text import public_url
+
+    address = public_url(reference.get("sourceUri"))
+    return {"referenceId": reference["id"], "referenceLineageId": reference.get("lineageId") or reference["id"], "title": reference.get("title") or reference["id"],
+            "host": host_of(address) or "", "status": reference.get("curationStatus") or ""}
+
+
+def related_references(client, lineage_id: str) -> list[dict[str, Any]]:
+    """The story's see-also References with each one's title, host and curation status (a Reference that cannot be read is listed by id)."""
+    rows = []
+    for link in references_of_story(client, lineage_id):
+        found = current_reference(client, link["referenceLineageId"])
+        summary = reference_summary(found) if found else {"referenceId": link["referenceId"], "referenceLineageId": link["referenceLineageId"], "title": link["referenceLineageId"], "host": "", "status": "missing"}
+        rows.append({**link, **summary})
+    return rows
+
+
+def resolve_link_references(client, reference_ids: list[str]) -> list[dict[str, Any]]:
+    """The Reference rows for the ids, each of which must exist and be accepted, or nothing is written (only accepted References are shown on the page)."""
+    wanted = list(dict.fromkeys(str(value).strip() for value in reference_ids if str(value).strip()))
+    found = []
+    for value in wanted:
+        reference = current_reference(client, value)
+        if reference is None:
+            raise ValueError(f"Reference not found: {value}")
+        if reference.get("curationStatus") != ACCEPTED:
+            raise ValueError(f"Reference {value} ({reference.get('title') or 'untitled'}) is {reference.get('curationStatus') or 'not accepted'}. Nothing was written: only accepted References are shown on the page, so only those can be linked.")
+        found.append(reference)
+    return found
+
+
+def link_reference_set(client, story: dict[str, Any], references: list[dict[str, Any]], *, actor: str | None, provenance: str = "human", note: str | None = None,
+                       apply: bool = True, on_row: Any = None) -> list[dict[str, Any]]:
+    """Links the story to each accepted Reference (CLI, Tactus tool and MCP tool share this). One row per Reference: ``referenceId``, ``referenceLineageId``, title,
+    host, status, ``outcome`` (``write``, ``exists``, ``rejected`` or ``dry run``) and ``relationId`` when known."""
+    if apply and not actor:
+        raise ValueError("A link needs to record who added it.")
+    lineage_id = story.get("lineageId") or story["id"]
+    existing = {link["referenceLineageId"]: link for link in references_of_story(client, lineage_id)}
+    rows = []
+    for reference in references:
+        row = {**reference_summary(reference), "relation": STORY_LINK_RELATION}
+        found = existing.get(row["referenceLineageId"])
+        if found:
+            row["outcome"], row["relationId"] = "exists", found["relationId"]
+        elif not apply:
+            row["outcome"] = "dry run"
+        else:
+            done = link_item_reference_see_also(client, lineage_id, reference["id"], provenance, actor=actor, note=note, story=story)
+            row["outcome"], row["relationId"] = {"exists": "exists", "rejected": "rejected"}.get(done["outcome"], "write"), done["relationId"]
+        if row["outcome"] == "rejected":
+            row["warning"] = f"A person rejected this link; nothing was written. Use the newsroom to reinstate it."
         rows.append(row)
         if on_row:
             on_row(row)

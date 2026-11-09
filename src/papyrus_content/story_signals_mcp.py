@@ -29,10 +29,12 @@ TOOLS_TABLE: dict[str, tuple[str, dict, str]] = {
     # No field names a relation: the one official type (story_links.STORY_LINK_RELATION) is written by the code, and additionalProperties is false.
     "papyrus_link_stories": ("staff", _closed({
         "story": {"type": "string", "description": "lineage id or slug of the story that gets the See also block"},
-        "see_also_stories": {"type": "array", "items": _STR, "minItems": 1, "description": "lineage ids or slugs of the stories it goes with"},
-        "note": _STR, "dryRun": {"type": "boolean"}}, ("story", "see_also_stories")),
+        "see_also_stories": {"type": "array", "items": _STR, "description": "lineage ids or slugs of the stories it goes with"},
+        "see_also_references": {"type": "array", "items": _STR, "description": "ids of accepted References to read too (the page shows accepted References only; a Reference that is not accepted refuses the whole call)"},
+        "note": _STR, "dryRun": {"type": "boolean"}}, ("story",)),
         "Links a story to other stories for its See also block. Every one must be an existing story and none the story itself; a link that exists in either direction is left alone. "
-        "Returns each target's title, type, stage, outcome (write, exists or dry run) and a warning when it is not published yet (the public block shows published stories only)."),
+        "Returns each target's title, type, stage, outcome (write, exists or dry run) and a warning when it is not published yet (the public block shows published stories only). "
+        "Give at least one story or Reference; see_also_references links the story to accepted References (directional, story to Reference)."),
     "papyrus_suggest_links": ("staff", _closed({
         "story": {"type": "string", "description": "lineage id or slug of the story"},
         "kinds": {"type": "array", "items": {"type": "string", "enum": ["articles", "posts", "references"]}},
@@ -79,14 +81,19 @@ def call_story_signal_tool(name: str, arguments: dict[str, Any], client, actor: 
     if name == "stories_set_stars":
         return set_story_stars(client, args["storyLineageId"], validated_stars(args["stars"], "stars"), apply=not args.get("dryRun"))
     if name == "papyrus_link_stories":
-        from .story_links import link_story_set, resolve_link_targets
+        from .story_links import link_reference_set, link_story_set, resolve_link_references, resolve_link_targets, resolve_story
 
-        unknown = set(args) - {"story", "see_also_stories", "note", "dryRun"}
+        unknown = set(args) - {"story", "see_also_stories", "see_also_references", "note", "dryRun"}
         if unknown:
             raise ValueError(f"Unknown argument(s) for papyrus_link_stories: {', '.join(sorted(unknown))}. There is no relation to choose.")
-        story, others = resolve_link_targets(client, args["story"], list(args["see_also_stories"]))
+        targets, reference_ids = list(args.get("see_also_stories") or []), list(args.get("see_also_references") or [])
+        if not targets and not reference_ids:
+            raise ValueError("Give see_also_stories or see_also_references.")
+        story, others = resolve_link_targets(client, args["story"], targets) if targets else (resolve_story(client, args["story"]), [])
+        references = resolve_link_references(client, reference_ids)
         rows = link_story_set(client, story, others, actor=actor, provenance="derived", note=args.get("note") or None, apply=not args.get("dryRun"))
-        return {"story": story.get("lineageId") or story["id"], "dryRun": bool(args.get("dryRun")), "links": rows}
+        reference_rows = link_reference_set(client, story, references, actor=actor, provenance="derived", note=args.get("note") or None, apply=not args.get("dryRun"))
+        return {"story": story.get("lineageId") or story["id"], "dryRun": bool(args.get("dryRun")), "links": rows, "referenceLinks": reference_rows}
     if name == "papyrus_suggest_links":
         from .link_suggestions import suggest_links
 

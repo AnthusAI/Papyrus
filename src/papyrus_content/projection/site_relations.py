@@ -1,6 +1,9 @@
 """What the published Stories say about other things, read once per projection so a page can keep readers on the site.
 
-Two facts about a Story live in ``SemanticRelation`` rows, not in its front matter, and a page wants both:
+Three facts about a Story live in ``SemanticRelation`` rows, not in its front matter, and a page wants them:
+
+* **Which References it points a reader to.** ``see_also`` relations from the Story (an item) to an accepted Reference: "read this source too", looser than
+  citing or consulting it (the ``uses_evidence`` relations are the reporting trail and are not shown here). ``SiteRelations.references``.
 
 * **Which Reference a Story is based on.** A ``uses_evidence`` relation whose metadata ``role`` is ``based_on`` points from the Story to an
   accepted Reference. A citation in another Story's list whose address matches that Reference's ``sourceUri`` links to our Story instead of the
@@ -9,7 +12,7 @@ Two facts about a Story live in ``SemanticRelation`` rows, not in its front matt
   ``editor_concept--<slug>``. When a published wiki page has that slug as its ``entityKey`` the Story page links to it.
 
 The read is bounded and goes through indexes only: the relations of the published Stories by ``semanticRelationsBySubjectState`` (25 Stories to a
-request), the Reference rows of the ``based_on`` relations (25 to a request), and the SemanticNode rows of the concepts that have a public page
+request), the Reference rows of the ``based_on`` and ``see_also`` relations, one fetch for their union (25 to a request), and the SemanticNode rows of the concepts that have a public page
 (25 to a request, to skip a rejected one). Machines on Machines (122 published Stories) costs about ten requests. No table is scanned.
 
 The result rides on the :class:`~papyrus_content.projection.model.SiteIndex` and is part of the projector's shared inputs, so a Story published
@@ -24,6 +27,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..batched_reads import references_by_id
 from ..concept_link_predicates import CONCEPT_KIND, CONCEPT_LINK_PREDICATES
 from ..story_from_reference import url_key
 from ..story_reporting import BASED_ON, STORY_REFERENCE_PREDICATE
@@ -42,12 +46,16 @@ class SiteRelations:
     concepts: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     #: ``{item id: item ids}`` of the published Stories each published Story is related to (``see_also`` between two Stories, read in both directions).
     related: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    #: ``{item id: references}`` of the accepted References each published Story points a reader to with a current ``see_also`` edge, newest linked first, each a
+    #: plain mapping (:func:`_reference_entry`): never the captured text, never a Reference that is not accepted.
+    references: Mapping[str, tuple[Mapping[str, Any], ...]] = field(default_factory=dict)
 
     def digest_input(self) -> list:
         return [
             sorted((key, list(ids)) for key, ids in self.based_on.items()),
             sorted((item, list(slugs)) for item, slugs in self.concepts.items()),
             sorted((item, list(ids)) for item, ids in self.related.items()),
+            sorted((item, [sorted(entry.items()) for entry in found]) for item, found in self.references.items()),
         ]
 
 
@@ -107,6 +115,7 @@ def read_site_relations(client: Any, stories: Iterable[tuple[str, str | None, st
     rows = _relations_of(client, [f"item#{lineage}#current" for lineage in published])
     based_pairs: list[tuple[str, str]] = []
     concept_pairs: list[tuple[str, str, str]] = []   # (story lineage, slug, node row id)
+    see_also: list[tuple[str, str, str, str]] = []   # (story lineage, reference row id, linked at, note)
     for lineage, (item_id, _) in published.items():
         for relation in rows.get(f"item#{lineage}#current") or []:
             if relation.get("relationState") not in (None, "current"):
@@ -115,14 +124,19 @@ def read_site_relations(client: Any, stories: Iterable[tuple[str, str | None, st
             if predicate == STORY_REFERENCE_PREDICATE and relation.get("objectKind") == "reference":
                 if _metadata(relation).get("role") == BASED_ON and relation.get("objectId"):
                     based_pairs.append((lineage, str(relation["objectId"])))
+            elif predicate == SEE_ALSO and relation.get("objectKind") == "reference" and relation.get("subjectLineageId") in (None, lineage) and relation.get("objectId"):
+                metadata = _metadata(relation)
+                see_also.append((lineage, str(relation["objectId"]), str(metadata.get("addedAt") or ""), str(metadata.get("note") or "")))
             elif predicate in CONCEPT_LINK_PREDICATES and relation.get("objectKind") == CONCEPT_KIND:
                 slug = concept_slug(relation.get("objectLineageId"))
                 if slug and slug in wanted and relation.get("objectId"):
                     concept_pairs.append((lineage, slug, str(relation["objectId"])))
 
     by_address: dict[str, list[tuple[str, str]]] = {}
+    references: dict[str, dict[str, Any]] = {}
+    if based_pairs or see_also:   # one fetch for the union, 25 to a request
+        references = references_by_id(client, [reference_id for _, reference_id in based_pairs] + [reference_id for _, reference_id, _, _ in see_also])
     if based_pairs:
-        references = _rows_by_id(client, "Reference", [reference_id for _, reference_id in based_pairs])
         for lineage, reference_id in based_pairs:
             reference = references.get(reference_id) or {}
             if str(reference.get("curationStatus") or "") != ACCEPTED:
@@ -146,7 +160,41 @@ def read_site_relations(client: Any, stories: Iterable[tuple[str, str | None, st
         based_on=based_on,
         concepts={item: tuple(slugs) for item, slugs in concepts.items()},
         related=_related_stories(client, published, rows),
+        references=_see_also_references(published, see_also, references),
     )
+
+
+def _see_also_references(published: Mapping[str, tuple[str, str]], links: list[tuple[str, str, str, str]], rows: Mapping[str, Mapping[str, Any]]) -> dict[str, tuple[dict, ...]]:
+    """The accepted References each published Story points to, newest linked first (ties by Reference id), once per Reference."""
+    found: dict[str, dict[str, tuple[str, str, Mapping[str, Any]]]] = {}
+    for lineage, reference_id, linked_at, note in links:
+        row = rows.get(reference_id)
+        if row is not None and str(row.get("curationStatus") or "") == ACCEPTED:
+            found.setdefault(published[lineage][0], {})[reference_id] = (linked_at, note, row)
+    return {
+        item: tuple(_reference_entry(row, note) for _, _, note, row in sorted(((at, ref, note, row) for ref, (at, note, row) in entries.items()), key=lambda e: (e[0], e[1]), reverse=True))
+        for item, entries in found.items()
+    }
+
+
+def _reference_entry(row: Mapping[str, Any], note: str) -> dict[str, Any]:
+    """One Reference as a page shows it: public card fields only, never the captured text."""
+    from ..home_page.export import displayed_title, host_of
+    from ..public_text import public_url
+
+    address = public_url(row.get("sourceUri"))
+    return {
+        "referenceId": row.get("id"),
+        "lineageId": row.get("lineageId"),
+        "title": displayed_title(row, address, None),
+        "url": address,
+        "host": row.get("cardSiteName") or host_of(address),
+        "image": row.get("cardImage") or None,
+        "summary": row.get("cardSummary") or None,
+        "medium": row.get("medium") or None,
+        "acceptedAt": row.get("curationStatusUpdatedAt"),
+        "note": note or None,
+    }
 
 
 ITEM_KIND = "item"

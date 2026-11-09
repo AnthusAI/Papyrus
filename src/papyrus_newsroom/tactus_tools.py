@@ -125,18 +125,27 @@ def papyrus_link_story_reference(story: str, reference: str, role: str, author_l
     return link_reference_to_story(client, story, reference, role=role, actor=author_label, note=note or None, citation_key=citation_key or None)
 
 
-def papyrus_link_stories(story: str, see_also_stories: Any, author_label: str, note: str = "") -> dict:
+def papyrus_link_stories(story: str, see_also_stories: Any, author_label: str, note: str = "", see_also_references: Any = None) -> dict:
     """Link a story to other stories for its See also block: pass the story (lineage id or slug) and see_also_stories (a list, or comma separated), each a lineage id or slug.
     There is no relation to choose. Every one must be an existing story and none the story itself; a link that exists in either direction is left alone.
-    Returns one row per target with its title, type, stage, outcome (write or exists) and a warning when it is not published yet."""
+    Returns one row per target with its title, type, stage, outcome (write or exists) and a warning when it is not published yet.
+    see_also_references (optional, a list or comma separated) are Reference ids to "read this source too"; each must exist and be accepted, or nothing is written."""
 
     from papyrus_content.graphql_authoring import create_authoring_client
-    from papyrus_content.story_links import link_story_set, resolve_link_targets
+    from papyrus_content.story_links import link_reference_set, link_story_set, resolve_link_references, resolve_link_targets, resolve_story
 
     targets = see_also_stories.split(",") if isinstance(see_also_stories, str) else list(see_also_stories or [])
+    reference_ids = see_also_references.split(",") if isinstance(see_also_references, str) else list(see_also_references or [])
     client, _ = create_authoring_client()
-    resolved, others = resolve_link_targets(client, story, targets)
-    return {"story": resolved.get("lineageId") or resolved["id"], "links": link_story_set(client, resolved, others, actor=author_label, provenance="derived", note=note or None)}
+    if targets:
+        resolved, others = resolve_link_targets(client, story, targets)
+    else:
+        if not reference_ids:
+            raise ValueError("At least one related story or Reference is required.")
+        resolved, others = resolve_story(client, story), []
+    references = resolve_link_references(client, reference_ids)
+    return {"story": resolved.get("lineageId") or resolved["id"], "links": link_story_set(client, resolved, others, actor=author_label, provenance="derived", note=note or None),
+            "referenceLinks": link_reference_set(client, resolved, references, actor=author_label, provenance="derived", note=note or None)}
 
 
 def papyrus_link_concepts(target_kind: str, target: str, concepts: Any, author_label: str, note: str = "") -> dict:

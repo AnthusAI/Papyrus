@@ -409,11 +409,11 @@ relationTypes:
     contextPackTags: [editing, publication, reference_graph]
   - key: see_also
     label: see also
-    inverseLabel: see also
-    description: An editor or agent says "read this too" between two stories (Items). One symmetric row per pair; the public page shows it as See also on an article and as Posts when the other story is a post.
+    inverseLabel: see also (from)
+    description: An editor or agent says "read this too". Between two stories (Items) it is one symmetric row per pair; the public page shows it as See also on an article and as Posts when the other story is a post. From a story to a Reference it is directional (story to Reference, never the reverse) and means "read this source too", looser than citing or consulting it; the public page shows only accepted References.
     domain: editorial
     allowedSubjectKinds: [item]
-    allowedObjectKinds: [item]
+    allowedObjectKinds: [item, reference]
     isDirectional: false
     isSymmetric: true
     isTransitive: false
