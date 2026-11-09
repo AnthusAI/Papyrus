@@ -267,6 +267,16 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """``entries`` (newest first) in the Story ranking of ``story_order.py``: the newest bucket first, the editors' stars inside it. Unchanged when nothing is rated."""
         return rank_entries(entries, self._story_stars, bucket or self.standard.listings.bucket, self._as_of)
 
+    def _ranking_inputs(self, listed) -> list | None:
+        """What a hook that calls ``page.ranked`` reads beyond the entries' own fingerprints: the Story order (it moves with a rating and with the day) and the ratings.
+        ``None`` when no hook is handed the page or no listed Story is rated, where the ranking changes nothing."""
+        if not self.hooks.sees_the_site:
+            return None
+        rated = sorted((entry.item_id, self._story_stars[entry.item_id]) for entry in listed if self._story_stars.get(entry.item_id))
+        if not rated:
+            return None
+        return [[entry.item_id for entry in self._ranked(listed)], rated]
+
     def _day(self) -> dt.date:
         """The UTC day rolling buckets count back from: the day of this projection run, or today when a caller asks before any run has started (the keys of a paged
         list's files, which the snapshot task needs before it projects anything)."""
@@ -733,12 +743,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         shared = self._shared()
 
         page_inputs = self._page_inputs(site)
+        ranking = self._ranking_inputs(listed)
 
         def add(key: str, page_id: str, digest_input, build_page: Callable[[], StandardPage], markdown: bool = True, members=()) -> None:
             listed_ids = frozenset(entry.item_id for entry in members)
             meta[key] = (page_id, listed_ids)
             dependency = self._dependency_digest(entries, page_id)
-            digest = digest_of([shared, key, digest_input, dependency, page_inputs])
+            digest = digest_of([shared, key, digest_input, dependency, page_inputs, ranking])
             plan[key] = (digest, lambda: self._render(build_page()))
             twin = md_key(key) if markdown and self.standard.agents.markdown else None
             if twin:
@@ -1526,6 +1537,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             summaries=site.items,
             breadcrumbs=crumbs,
             site=self._hook_site(site),
+            ranker=self._ranked,
             **extra,
         )
         if kind not in ("item", "custom") and not (kind in EVERYWHERE_KINDS and self.standard.page_actions.everywhere):
