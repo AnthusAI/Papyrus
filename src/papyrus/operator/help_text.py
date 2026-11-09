@@ -28,6 +28,7 @@ Operator groups:
   items         Stories as a whole (items link-references)
   home-page     Public data of the home page (home-page snapshot)
   images        Pictures for Stories: stock search, generation, review, apply and undo (images <command>)
+  topics        What recent References are about: topics of the last 7, 14 or 28 days, rising or falling (topics model)
   editorial     Editorial context and quality loop commands
   publication   Create the backend's canonical publication (publication init)
   site          Site repository operations (site google-secrets set|check)

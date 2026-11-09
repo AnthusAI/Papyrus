@@ -110,7 +110,7 @@ def parse(spec: dict, tokens: list[str]) -> tuple[dict, bool]:
             else:
                 values[entry["field"]] = _convert(entry, raw)
         else:
-            raise _BadFlags(f"{flag} is not a flag of papyrus images {' '.join(spec['words'])}.", flag)
+            raise _BadFlags(f"{flag} is not a flag of papyrus {spec.get('group', 'images')} {' '.join(spec['words'])}.", flag)
     if len(positional) > len(spec["positional"]):
         raise _BadFlags(f"Unexpected argument {positional[len(spec['positional'])]!r}.", "arguments")
     for field, raw in zip(spec["positional"], positional):

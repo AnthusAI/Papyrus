@@ -2069,6 +2069,9 @@ const schema = a.schema({
       index("starFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByStarFeedAndArrival"),
       index("mediumFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByMediumFeedAndArrival"),
       index("contentNeededKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByContentNeededAndArrival"),
+      // The References of one corpus in a range of their SOURCE dates (`sourcePublishedAt`, an ISO date or instant): the window of `papyrus topics model`
+      // (docs/topics.md). Needs no new attribute and no backfill; a Reference with no source date is simply not in it.
+      index("corpusId").sortKeys(["sourcePublishedAt"]).queryField("listReferencesByCorpusAndSourcePublishedAt"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),

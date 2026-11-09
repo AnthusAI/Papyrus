@@ -53,6 +53,7 @@ BUDGETS: dict[str, tuple[int, int]] = {
     "lambda:monitor-collector": (300, 8),
     "lambda:procedure-runner": (300, 8),
     "stage:": (300, 8),
+    "cli:topics": (200, 1),                    # a window read is one request per page of 100 rows and declares each row it read as a unit
     "cli:": DEFAULT_BUDGET,
     # The content-actions function, one run per invocation (PPY-3acc8d). A publish and the build of its pages read a fixed number of records
     # whatever the size of the site (the bodies other pages need come from the body cache, not one read per Story); a unit is one Story built.

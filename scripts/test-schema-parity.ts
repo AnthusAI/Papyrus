@@ -24,6 +24,7 @@ const REQUIRED_INDEXES = [
   'index("starFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByStarFeedAndArrival")',
   'index("mediumFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByMediumFeedAndArrival")',
   'index("contentNeededKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByContentNeededAndArrival")',
+  'index("corpusId").sortKeys(["sourcePublishedAt"]).queryField("listReferencesByCorpusAndSourcePublishedAt")',
 ];
 
 function extractFieldNames(source: string, modelName: string): Set<string> {

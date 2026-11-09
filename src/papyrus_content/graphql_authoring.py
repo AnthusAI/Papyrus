@@ -518,6 +518,14 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "sortKey": "externalItemId",
         "fields": REFERENCE_FIELDS,
     },
+    # Partition corpusId, sort sourcePublishedAt: the References of one corpus in a range of their SOURCE dates (the topics window). Read with `iterate_index_range`.
+    "referencesByCorpusAndSourcePublishedAt": {
+        "field": "listReferencesByCorpusAndSourcePublishedAt",
+        "partitionKey": "corpusId",
+        "partitionType": "ID",
+        "sortKey": "sourcePublishedAt",
+        "fields": REFERENCE_FIELDS,
+    },
     "referencesByMediumFeedAndArrival": {
         "field": "listReferencesByMediumFeedAndArrival",
         "partitionKey": "mediumFeedKey",
@@ -669,6 +677,19 @@ def _newest_first_query(field: str, partition_key: str, fields: str, partition_t
     return f"""
 query {operation}NewestFirst(${partition_key}: {partition_type}!, $limit: Int, $nextToken: String) {{
   {field}({partition_key}: ${partition_key}, sortDirection: DESC, limit: $limit, nextToken: $nextToken) {{
+    items {{ {fields} }}
+    nextToken
+  }}
+}}
+"""
+
+
+def _range_query(field: str, partition_key: str, sort_key: str, fields: str, partition_type: str = "String") -> str:
+    """Newest sort value first, only the rows whose sort field lies between two values (a key condition: nothing outside the range is read)."""
+    operation = field[0].upper() + field[1:]
+    return f"""
+query {operation}InRange(${partition_key}: {partition_type}!, $sortRange: ModelStringKeyConditionInput, $limit: Int, $nextToken: String) {{
+  {field}({partition_key}: ${partition_key}, {sort_key}: $sortRange, sortDirection: DESC, limit: $limit, nextToken: $nextToken) {{
     items {{ {fields} }}
     nextToken
   }}
@@ -1128,6 +1149,24 @@ class PapyrusGraphQLAuthoringClient:
             for entry in connection.get("items") or []:
                 if entry:
                     yield entry
+            next_token = connection.get("nextToken")
+            if not next_token:
+                return
+
+    def iterate_index_range(self, index_name: str, key_value: str, low: str, high: str, *, page_size: int = 100):
+        """Rows of one index partition whose sort value is between ``low`` and ``high`` (both included), newest sort value first, one page at a
+        time. Stop reading and no further page is fetched. The index must name a ``sortKey``."""
+        index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
+        definition = INDEX_DEFINITIONS[index_name]
+        if not definition.get("sortKey"):
+            raise ValueError(f"Index {index_name} has no sort key to range over.")
+        query = _range_query(definition["field"], definition["partitionKey"], definition["sortKey"], definition["fields"], definition.get("partitionType", "String"))
+        next_token = None
+        while True:
+            result = self.graphql(query, {definition["partitionKey"]: key_value, "sortRange": {"between": [low, high]}, "limit": page_size, "nextToken": next_token})
+            connection = result.get(definition["field"]) or {}
+            page = [entry for entry in connection.get("items") or [] if entry]
+            yield from page
             next_token = connection.get("nextToken")
             if not next_token:
                 return

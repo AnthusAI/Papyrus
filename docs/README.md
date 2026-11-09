@@ -121,6 +121,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [editorial-context.md](editorial-context.md): the mission, policy and section guidance that agents and checks read.
 - [image-style-profiles.md](image-style-profiles.md): a publication's visual style profile and image types, how they resolve for a Story, and what agents read.
 - [images.md](images.md): the image operations (profile, search, generate, review, apply, undo) as commands and MCP tools, generated from one table.
+- [topics.md](topics.md): topic modeling on recent References (`papyrus topics model`): windows on the source date, rising and falling, the saved id; generated from one table.
 - [Context packs for newsroom agents](newsroom-context-packs.md): the one pack every agent in a section works from, and how to change it.
 - [Choosing which ideas become Stories](idea-selection.md): the editor agent's picky selection, what recent means and the rate limit.
 - [story-reporting.md](story-reporting.md): story versions, reference links and the reporting trail.

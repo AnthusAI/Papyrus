@@ -30,6 +30,10 @@ Both are partitioned by `feedStateKey`.
 
 The page reads `<corpusId>#unrated` for Reviewed **No** and both partitions for Reviewed **Any**, merging the two streams with the same comparator. Reviewed **Yes** reads `<corpusId>#rated` alone, and Reviewed **Accepted** reads the same partition and keeps only the rows whose `curationStatus` is `accepted` (the partition holds the rejected too, so the page filters each page as it reads it, `acceptedRows` in `lib/reference-feed-pages.ts`). The saved browser values keep their old names: `unrated` is No, `all` is Any, `rated` is Yes, and `accepted` is Accepted; only the words changed.
 
+## The source-date index
+
+`listReferencesByCorpusAndSourcePublishedAt` (partition `corpusId`, sort key `sourcePublishedAt`) lists a corpus's References whose **source date** lies between two values, newest first, without a scan. It serves `papyrus topics model` ([topics](topics.md)), which asks for a window of days. Unlike the feed indexes it adds **no attribute and needs no backfill**: both keys are fields the table already has. It is not sparse by version, state or section, so a reader keeps or drops each returned row (current version, vote, section, monitor); a Reference with no source date, or one written in a form that is not ISO text, is not in it. The Python reader is `iterate_index_range` on the authoring client (`topics/select.py` is the one user). It is one new index on `Reference`, so it ships in a data API release of its own.
+
 ## The star index
 
 `listReferencesByStarFeedAndArrival` (partition `starFeedKey`, sort key `feedArrivalAt`), read descending, serves the **Quality** sort and the **Minimum stars** row (Any, 3+, 4+, 5). It is sparse: a Reference with no stars has no `starFeedKey` and is in no star partition. There is one partition per corpus and star level (`<corpusId>#stars#5` down to `#1`), and the reader merges the levels it needs with the same `MergedFeedReader` as the feed:
