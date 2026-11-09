@@ -10,11 +10,22 @@
   "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ea5b2389-f7da-46db-841e-cb0af83582a7",
+      "author": "home",
+      "text": "Investigated 2026-11-09: NOT a bypass. The stored checklist history shows direction done 22:34:41, review_people done 22:35:03 (the other steps between), publish recorded 22:35:25: the news desk's step commands succeeded before the publish, so require_checklist_closed saw no open required step. The confusion came from `stories next`, which shows an evidence view (an Assignment with a direction or research packet; the four review lenses always not_done) that ignores the stored checklist. Follow-up story filed.",
+      "created_at": "2026-11-09T22:48:53.706093Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-09T22:41:11.813376Z",
-  "updated_at": "2026-11-09T22:41:11.813500Z",
+  "updated_at": "2026-11-09T22:48:53.706602Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }
