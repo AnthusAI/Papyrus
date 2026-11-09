@@ -163,6 +163,8 @@
     "test:home-page-plugin": "tsx scripts/test-home-page-plugin.ts",
     "test:newsletter-plugin": "tsx scripts/test-newsletter-plugin.ts",
     "test:newsletter-api": "tsx scripts/test-newsletter-api.ts",
+    "test:notifications-plugin": "tsx scripts/test-notifications-plugin.ts",
+    "test:notifications-api": "tsx scripts/test-notifications-api.ts",
     "test:newsletter-pages-browser": "tsx --test scripts/test-newsletter-pages-browser.ts",
     "test:reference-list-browser": "poetry run python -m procedures.newsroom.tests.build_reference_list_site out/reference-list-site && REFERENCE_LIST_SITE=out/reference-list-site tsx --test scripts/browser-reference-list-scroll.ts",
     "test:newsletter-panel": "tsx scripts/test-newsletter-panel.ts",
