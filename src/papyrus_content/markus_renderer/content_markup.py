@@ -85,6 +85,42 @@ def parse_attrs(raw: str) -> dict[str, str]:
     return out
 
 
+GENERATED_CREDIT = "Generated"
+_GENERATED_CREDIT_RE = re.compile(
+    r"""^\s*(?:(?:illustration|image|picture|art|artwork|cover|photo)\s+)?
+    (?:
+        (?:(?:drafted|generated|made|created|produced|rendered)\s+(?:with|by)\s+
+           (?:an?\s+)?(?:ai|a\.i\.|model|artificial\s+intelligence|machine))
+      | (?:ai[\s-]+(?:generated|drafted|made|created|produced|rendered))
+      | generated
+    )\s*\.?\s*$""",
+    re.I | re.X,
+)
+
+
+def canonical_image_credit(text: str | None) -> str | None:
+    """A credit that only says a machine made the picture becomes exactly ``Generated``; any other credit is returned unchanged."""
+    if text and _GENERATED_CREDIT_RE.match(text):
+        return GENERATED_CREDIT
+    return text
+
+
+_CREDIT_ATTR_RE = re.compile(r"""(?P<head>\bcredit\s*=\s*)(?:"(?P<dq>[^"]*)"|'(?P<sq>[^']*)')""")
+
+
+def canonicalize_image_credits(markus: str) -> str:
+    """The Markus source with every ``::image{...}`` credit that merely says a machine made it written as ``Generated``."""
+
+    def directive(match: re.Match) -> str:
+        def credit(attr: re.Match) -> str:
+            value = attr.group("dq") if attr.group("dq") is not None else attr.group("sq")
+            return f'{attr.group("head")}"{GENERATED_CREDIT}"' if canonical_image_credit(value) != value else attr.group(0)
+
+        return _CREDIT_ATTR_RE.sub(credit, match.group(0))
+
+    return _IMAGE_DIRECTIVE_RE.sub(directive, markus)
+
+
 # -- front matter ----------------------------------------------------------
 
 
@@ -257,7 +293,7 @@ def prepare_page(
                 alt=attrs.get("alt", ""),
                 layout=attrs.get("layout"),
                 caption=attrs.get("caption"),
-                credit=attrs.get("credit"),
+                credit=canonical_image_credit(attrs.get("credit")),
                 sizes=attrs.get("sizes"),
                 loading=attrs.get("loading"),
                 src_dark=attrs.get("srcDark"),
