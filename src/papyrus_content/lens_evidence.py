@@ -419,16 +419,18 @@ def check_p10(facts: Facts) -> list[dict[str, Any]]:
     seeded = facts.front_matter.get("seededImage")
     seeded_url = str(seeded.get("url") or "") if isinstance(seeded, dict) else ""
     cover_image = str(facts.front_matter.get("image") or "").lstrip("/")
-    rows = []
+    rows, unknown = [], []
     for image in facts.images:
         src = image.src.lstrip("/")
-        # Ours: a picture whose credit only said a machine made it (the credit is dropped, a generated picture has none), or one in our own media
-        # storage that is neither the stock cover record nor a Reference's seeded picture. Everything else that someone else made is third-party.
+        # Ours: a picture whose credit only said a machine made it (the credit is dropped, a generated picture has none). A local picture with no
+        # record is not assumed ours: third-party pictures are often copied into our media, so it stays "unknown" and cannot be assessed.
         third = not image.ours and bool(image.remote or (cover_src and src == cover_src) or (seeded_url and image.src == seeded_url))
         origin = ("ours (generated)" if image.ours else "a remote address" if image.remote else "the stock cover record" if cover_src and src == cover_src
-                  else "a Reference's picture" if third else "ours (our own media)")
+                  else "a Reference's picture" if third else "unknown")
         row = {"line": image.line, "src": image.src, "thirdParty": bool(third), "origin": origin, "credit": image.credit.strip() or None}
         rows.append(row)
+        if not third and not image.ours and not image.credit.strip():
+            unknown.append(row)
     for video in facts.videos:   # a video's poster is a picture the Story shows that someone else made: it counts as a third-party picture
         rows.append({"line": video.line, "src": video.src, "thirdParty": True, "origin": "a video's poster (the video's own thumbnail)", "credit": video.credit or None})
     if cover_src and cover_image and not any(image.src.lstrip("/") == cover_src for image in facts.images):
@@ -439,6 +441,8 @@ def check_p10(facts: Facts) -> list[dict[str, Any]]:
     elif uncredited:
         message = f"{many(len(uncredited), 'third-party picture')} with no credit: " + "; ".join(f"{short(row['src'], 60)}" + (f" (line {row['line']})" if row["line"] else "") for row in uncredited) + "."
         results = [finding(key, CONCERN, message, images=rows) for key in ("P10", "C6")]
+    elif unknown:
+        results = [finding(key, NOT_ASSESSABLE, "Papyrus cannot tell where this picture came from. Add where it came from, or say it is ours.", images=rows) for key in ("P10", "C6")]
     else:
         results = [finding(key, PASS, "Every third-party picture is credited.", images=rows) for key in ("P10", "C6")]
     return results

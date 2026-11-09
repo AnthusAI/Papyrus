@@ -4,7 +4,7 @@ Feature: A generated image has no credit line
   even "Generated": it is obvious that we generated it. Every credit that only says a machine made the picture is therefore dropped, on the page and in
   the Markdown copy of the Story, whatever the agent wrote, and the caption (if any) stands alone. A real credit to a person, a photographer or a
   source is never touched, because it is the credit the rights holder asked for. The four-lens review treats a picture with such a credit as ours, so it
-  needs no credit, while a third-party picture with no credit is still blocked. Agents are told the rule in their context pack.
+  needs no credit, while a third-party picture with no credit is still blocked and a local picture with no record stays unassessable. Agents are told the rule in their context pack.
 
   Scenario Outline: A credit that only says a machine made the picture is not shown on the page
     Given a Story picture credited "<written>"
@@ -73,14 +73,22 @@ Feature: A generated image has no credit line
     Then the finding "P10" is a "pass"
     And the finding "C6" is a "pass"
 
-  Scenario: A generated picture in our own media with no credit passes the third-party credit check
+  Scenario: A generated picture in our own media with a machine credit passes the third-party credit check
+    Given a Story with this body
+      """
+      ::image{src="assets/harbour.png" alt="A harbour at dusk" credit="Generated"}
+      """
+    When the lens checks run
+    Then the finding "P10" is a "pass"
+    And the finding "C6" is a "pass"
+
+  Scenario: A local picture with no credit and no record is not assumed to be ours
     Given a Story with this body
       """
       ::image{src="assets/harbour.png" alt="A harbour at dusk"}
       """
     When the lens checks run
-    Then the finding "P10" is a "pass"
-    And the finding "C6" is a "pass"
+    Then the finding "P10" is a "not_assessable"
 
   Scenario: A third-party picture with no credit is still blocked
     Given a Story with this body
