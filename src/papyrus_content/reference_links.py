@@ -21,8 +21,8 @@ from .story_reporting import current_reference, latest_story_version
 
 RELATED_TO = "related_to"
 # Concept tagging (a story or a Reference "tagged with" a concept) is `tagged_with`. `related_to` was the name before 2026-11-09; rows under it still exist
-# (the console, the suggestion pipeline and the pack builder write them), so every reader accepts both until a migration: CONCEPT_TAG_PREDICATES. A rename
-# of the tag name is a change to CONCEPT_TAG_PREDICATE, plus a migration of the stored rows.
+# (written before the rename), so every reader accepts both until `papyrus relations migrate-concept-tags` has run: CONCEPT_TAG_PREDICATES. Every writer now writes
+# CONCEPT_TAG_PREDICATE; the legacy name is only read, and migrated.
 TAGGED_WITH = "tagged_with"
 CONCEPT_TAG_PREDICATE = TAGGED_WITH
 LEGACY_CONCEPT_TAG_PREDICATE = RELATED_TO
@@ -77,6 +77,25 @@ def _require_provenance(provenance: str) -> None:
 def _require_tag_predicate(predicate: str) -> None:
     if predicate not in CONCEPT_TAG_PREDICATES:
         raise ValueError(f"A concept tag is one of {', '.join(CONCEPT_TAG_PREDICATES)}.")
+
+
+def _legacy_tag_outcome(client, subject_lineage_id: str, object_lineage_id: str, predicate: str, provenance: str) -> dict[str, Any] | None:
+    """What a ``tagged_with`` writer must honour in the same pair's row under the legacy ``related_to`` name (until ``relations migrate-concept-tags`` has run).
+
+    A person's rejection there is kept (no writer flips it back, whatever the name), and a machine writer (a suggestion or a derived tag) does not add a second row beside a
+    legacy one that is still current or suggested. A person's tag is written: it is the confirmed row, and the migration skips a pair that already has one."""
+    if predicate != CONCEPT_TAG_PREDICATE:
+        return None
+    legacy_id = reference_link_relation_id(LEGACY_CONCEPT_TAG_PREDICATE, subject_lineage_id, object_lineage_id)
+    legacy = client.get_record("SemanticRelation", legacy_id)
+    if not legacy or legacy.get("relationState") == "superseded":
+        return None
+    if legacy.get("relationState") == "rejected":
+        meta = _stored_metadata(legacy)
+        return {"relationId": legacy_id, "relationState": "rejected", "outcome": "rejected", "decidedBy": meta.get("decidedBy"), "decidedAt": meta.get("decidedAt")}
+    if provenance != "human":
+        return {"relationId": legacy_id, "relationState": legacy["relationState"], "outcome": "kept"}
+    return None
 
 
 def _require_reference(client, reference_id: str) -> dict[str, Any]:
@@ -230,9 +249,9 @@ def link_concept(
     model_version: str | None = None,
     note: str | None = None,
     now: str | None = None,
-    predicate: str = LEGACY_CONCEPT_TAG_PREDICATE,
+    predicate: str = CONCEPT_TAG_PREDICATE,
 ) -> dict[str, Any]:
-    """Tags a Reference with a concept: a ``related_to`` edge from the reference to the ``semanticNode`` row ``node``.
+    """Tags a Reference with a concept: a ``tagged_with`` edge from the reference to the ``semanticNode`` row ``node``.
 
     ``node`` is the SemanticNode row (``id``, ``lineageId``, ``versionNumber``). ``mentions`` is not used here; it stays
     for text that enrichment extracted.
@@ -242,6 +261,9 @@ def link_concept(
     now = now or utc_now_iso()
     reference_end = _reference_end(_require_reference(client, reference), reference)
     node_end = {"kind": "semanticNode", "id": node["id"], "lineageId": node.get("lineageId") or node["id"], "versionNumber": node.get("versionNumber")}
+    legacy = _legacy_tag_outcome(client, reference_end["lineageId"], node_end["lineageId"], predicate, provenance)
+    if legacy is not None:
+        return legacy
     return _write_edge(
         client,
         relation_id=reference_link_relation_id(predicate, reference_end["lineageId"], node_end["lineageId"]),
@@ -270,10 +292,10 @@ def link_item_concept(
     note: str | None = None,
     now: str | None = None,
     story: dict[str, Any] | None = None,
-    predicate: str = LEGACY_CONCEPT_TAG_PREDICATE,
+    predicate: str = CONCEPT_TAG_PREDICATE,
 ) -> dict[str, Any]:
-    """Tags a story (an Item, by lineage id) with a concept: a ``related_to`` edge from the item to the ``semanticNode`` row ``node``, so the
-    story shows on the concept's page. Same row conventions as ``link_concept``; ``related_to`` allows an item as its subject.
+    """Tags a story (an Item, by lineage id) with a concept: a ``tagged_with`` edge from the item to the ``semanticNode`` row ``node``, so the
+    story shows on the concept's page. Same row conventions as ``link_concept``; ``tagged_with`` allows an item as its subject.
     ``story`` is the record the caller has just written; the lineage index is eventually consistent (see ``link_reference_to_story``)."""
     _require_provenance(provenance)
     _require_tag_predicate(predicate)
@@ -281,6 +303,9 @@ def link_item_concept(
     story = story or latest_story_version(client, item_lineage_id)
     item_end = {"kind": "item", "id": story["id"], "lineageId": item_lineage_id, "versionNumber": story.get("versionNumber")}
     node_end = {"kind": "semanticNode", "id": node["id"], "lineageId": node.get("lineageId") or node["id"], "versionNumber": node.get("versionNumber")}
+    legacy = _legacy_tag_outcome(client, item_lineage_id, node_end["lineageId"], predicate, provenance)
+    if legacy is not None:
+        return legacy
     return _write_edge(
         client,
         relation_id=reference_link_relation_id(predicate, item_lineage_id, node_end["lineageId"]),

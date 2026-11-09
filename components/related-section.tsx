@@ -431,7 +431,7 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
     await reload();
   };
   const addLink = async (item: RelatedItem) => {
-    await store.create({ subjectLineageId: lineageId, objectKind: item.kind === "concept" ? "semanticNode" : "reference", objectLineageId: item.lineageId, predicate: "related_to" });
+    await store.create({ subjectLineageId: lineageId, objectKind: item.kind === "concept" ? "semanticNode" : "reference", objectLineageId: item.lineageId, predicate: item.kind === "concept" ? "tagged_with" : "related_to" });
     await reload();
   };
   const renderReference = (entry: RelatedEntry) => entry.state === "suggested" ? (
@@ -560,7 +560,7 @@ export function LinkedByEditors({ conceptLineageId, disabledReason = null, hrefF
   const { entries, state, error, reload } = useEntries(store ? () => store.listLinkedByEditors(conceptLineageId) : null);
   if (!store) return null;
   const addLink = async (item: RelatedItem) => {
-    await store.create({ subjectLineageId: item.lineageId, objectKind: "semanticNode", objectLineageId: conceptLineageId, predicate: "related_to" });
+    await store.create({ subjectLineageId: item.lineageId, objectKind: "semanticNode", objectLineageId: conceptLineageId, predicate: "tagged_with" });
     await reload();
   };
   const explain: SaveExplanation = async (entry, text) => {
