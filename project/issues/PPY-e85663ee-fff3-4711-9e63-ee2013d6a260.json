@@ -10,11 +10,22 @@
   "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "64922995-5f3e-46bd-a317-8d4b4628854c",
+      "author": "home",
+      "text": "Ryan 2026-11-09: it is two hops. FIRST identify related Concepts (new read-only command, e.g. papyrus knowledge concepts related --concept X): editor-confirmed concept-to-concept links (concept.link, with their written explanations; papyrus knowledge entities link), alias/same_as, then co-occurrence of concepts on the same stories and References computed from existing tags (fills gaps while confirmed links are sparse). THEN scan those Concepts: collect articles, posts and accepted References carrying the story's own concepts (weight 1.0), confirmed neighbours (about 0.5) and co-occurrence neighbours (about 0.3), with rarity (IDF) weighting, and show the path as evidence ('via A, then B'). suggest-links calls the related-concepts step and takes the second hop. Related-concepts is useful on its own (concept pages, editors, agents deciding what to tag).",
+      "created_at": "2026-11-09T18:52:44.828493Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-09T18:52:20.282737Z",
-  "updated_at": "2026-11-09T18:52:20.282822Z",
+  "updated_at": "2026-11-09T18:52:44.828715Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }
