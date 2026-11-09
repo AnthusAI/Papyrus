@@ -110,7 +110,8 @@ export class AmplifyAppShellStack extends Stack {
   constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps) {
     super(scope, id, props);
     // Prospectus cost accounting: every resource carries the site's owner Account, app papyrus and the site ID.
-    applySiteCostTags(this, config.siteId);
+    // Opt-in (site.json costAccounting): tags on a site's stacks are resource updates, which a site must choose.
+    if (config.costAccounting) applySiteCostTags(this, config.siteId);
 
     if (!hasCmsApp(config)) {
       if (!config.reader) throw new Error(`site ${config.siteId} has neither a cms section nor a reader`);
@@ -266,7 +267,7 @@ export class AmplifyAppShellStack extends Stack {
       PAPYRUS_AMPLIFY_APP_ID: cmsApp.attrAppId,
       PAPYRUS_COMPUTE_ROLE_ARN: computeRole.roleArn,
       // The backend build tags its stacks and configures its usage senders from these (amplify/cost-attribution.ts).
-      ...costAttributionBranchVariables(config.siteId),
+      ...costAttributionBranchVariables(config),
       ...(edgeDistributionArn ? { PAPYRUS_EDGE_DISTRIBUTION_ARN: edgeDistributionArn } : {}),
     };
 
