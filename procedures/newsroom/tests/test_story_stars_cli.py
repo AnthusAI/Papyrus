@@ -124,7 +124,7 @@ def test_effective_rating_is_the_editor_value_today():
 
 def test_mcp_tools_mirror_the_cli():
     assert set(story_signal_tools()) == set(story_signal_descriptions()) == {"stories_list", "stories_show", "stories_set_stars", "papyrus_link_stories", "papyrus_link_concepts",
-                                                                                                           "papyrus_suggest_links", "papyrus_related_concepts"}
+                                                                                                           "papyrus_suggest_links", "papyrus_related_concepts", "papyrus_search_concepts"}
     client = fleet()
     listed = call_story_signal_tool("stories_list", {"minStars": 4, "sort": "stars"}, client)
     assert [row["lineageId"] for row in listed["stories"]] == ["b", "d"] and listed["stories"][0]["source"] == "editor"

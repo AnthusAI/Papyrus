@@ -186,6 +186,18 @@ def papyrus_related_concepts(concept: str, limit: int = 15) -> dict:
     return related_concepts(client, concept, limit=int(limit or 15))
 
 
+def papyrus_search_concepts(query: str = "", list_all: bool = False, limit: int = 10) -> dict:
+    """Read only. Finds accepted concepts by meaning for free text (one embedding, concept vectors only); an exact or prefix name match comes first. The order is relevance, never popularity.
+    Each result has the node key, reason, similarity, whether it has a public wiki page, counts of stories and References that carry it (information only) and a duplicate flag. Set list_all
+    to list every accepted concept alphabetically. It says so, with the rebuild command, when the concept index is empty or stale."""
+
+    from papyrus_content.concept_search import default_provider, search_concepts
+    from papyrus_content.graphql_authoring import create_authoring_client
+
+    client, _ = create_authoring_client()
+    return search_concepts(client, None if list_all else default_provider(), query or None, limit=int(limit or 10), list_all=bool(list_all))
+
+
 def papyrus_find_or_register_source(url: str, title: str, corpus: str, author_label: str, media_type: str = "text/html", rationale: str = "") -> dict:
     """Return the publication's Reference for a source URL (an opinion PDF, a notice, an article),
     registering it as pending in the corpus when it is new. Use its id with papyrus_link_story_reference."""

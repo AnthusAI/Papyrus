@@ -83,3 +83,43 @@ def stories_suggest_links(flags: list[str]) -> None:
             print(f"  {index}. {item['score']:.2f}\t{item['title']}\t{item['type']}\t{item['date'] or '-'}\tshared: {', '.join(item['shared'])}\tpath: {item['path']}" + ("\talready linked" if item.get("alreadyLinked") else ""))
             print(f"     {item['command']}")
     print(f"\nstories\tsuggest-links\t{result['requests']} request(s)")
+
+
+def relations_search(flags: list[str]) -> None:
+    """papyrus knowledge concepts search "free text" [--limit N] [--json]   |   papyrus knowledge concepts search --list [--json]
+
+    Read only. Finds accepted concepts by MEANING: the text is embedded once and only concept vectors are queried, so the order is relevance, never popularity. A typed
+    exact (then prefix) name or alias comes first as 'name match'. Each result shows its similarity, whether it has a public wiki page, how many published stories and
+    accepted References carry it (information only), and a flag when it is a likely duplicate of another concept. Says plainly when the concept index is empty or stale
+    and prints the command that rebuilds it. --list prints every accepted concept alphabetically."""
+    from .concept_search import default_provider, search_concepts
+
+    leading = []
+    for token in flags:
+        if token.startswith("--"):
+            break
+        leading.append(token)
+    options = parse_options(flags[len(leading):])
+    list_all = bool(options.get("list"))
+    query = " ".join(leading).strip() or None
+    if not list_all and not query:
+        raise ValueError('Give the text to search for (papyrus knowledge concepts search "privacy from audio"), or --list.')
+    client, _ = create_authoring_client()
+    provider = None if list_all else default_provider()
+    result = search_concepts(client, provider, query, limit=_limit(options, "limit", 10), list_all=list_all)
+    if options.get("json"):
+        print(json.dumps({"ok": True, **result}, indent=2))
+        return
+    if result.get("health", {}).get("message"):
+        print(f"concepts\tsearch\tWARNING\t{result['health']['message']}")
+    if result.get("indexNote"):
+        print(f"concepts\tsearch\tNOTE\t{result['indexNote']}")
+    for entry in result["results"]:
+        similarity = "" if entry["similarity"] is None else f"{entry['similarity']:.3f}"
+        page = "wiki page" if entry["publicPage"] else "no wiki page"
+        carried = f"{entry['stories']} stories, {entry['references']} References" if "stories" in entry else ""
+        duplicate = "; ".join(f"possible duplicate of {d['name']} ({d['nodeKey']}): {d['why']}" for d in entry.get("duplicates") or [])
+        print("\t".join(["concepts", "search", str(entry["rank"]), entry["name"], str(entry["nodeKey"]), entry["reason"], similarity, page, carried, duplicate]))
+    health = result.get("health") or {}
+    index_line = f"; concept vectors for {health['withVector']} of {health['acceptedConcepts']} accepted concepts" if health.get("withVector") is not None else ""
+    print(f"concepts\tsearch\t{len(result['results'])} result(s) of {result['acceptedConcepts']} accepted concepts{index_line}; {result['requests']} request(s)")

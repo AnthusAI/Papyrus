@@ -45,6 +45,12 @@ TOOLS_TABLE: dict[str, tuple[str, dict, str]] = {
         "concept": {"type": "string", "description": "exact node key, hashtag, name or alias of an accepted concept"},
         "limit": {"type": "integer", "minimum": 1}}, ("concept",)),
         "Read only. The concepts near a concept: editor-confirmed links with their explanation, aliases, and concepts that co-occur on the same stories and References (count, lift, strength)."),
+    "papyrus_search_concepts": ("staff", _closed({
+        "query": {"type": "string", "description": "free text to find concepts for; leave out with list=true"},
+        "list": {"type": "boolean", "description": "list every accepted concept alphabetically instead of searching"},
+        "limit": {"type": "integer", "minimum": 1}}, ()),
+        "Read only. Finds accepted concepts by meaning (one embedding, concept vectors only); an exact or prefix name match comes first. Order is relevance, never popularity. Each result has the node key, reason, "
+        "similarity, whether it has a public wiki page, counts of stories and References that carry it (information only) and a duplicate flag. Reports an empty or stale concept index with the command that rebuilds it."),
     "papyrus_link_concepts": ("staff", _closed({
         "target_kind": {"type": "string", "enum": ["story", "reference"]},
         "target": {"type": "string", "description": "a story's lineage id or slug, or a Reference id"},
@@ -108,6 +114,13 @@ def call_story_signal_tool(name: str, arguments: dict[str, Any], client, actor: 
         if unknown:
             raise ValueError(f"Unknown argument(s) for papyrus_related_concepts: {', '.join(sorted(unknown))}.")
         return related_concepts(client, args["concept"], limit=int(args.get("limit") or 15))
+    if name == "papyrus_search_concepts":
+        from .concept_search import default_provider, search_concepts
+
+        unknown = set(args) - {"query", "list", "limit"}
+        if unknown:
+            raise ValueError(f"Unknown argument(s) for papyrus_search_concepts: {', '.join(sorted(unknown))}.")
+        return search_concepts(client, None if args.get("list") else default_provider(), args.get("query"), limit=int(args.get("limit") or 10), list_all=bool(args.get("list")))
     if name == "papyrus_link_concepts":
         from .concept_tags import tag_with_concepts
 
