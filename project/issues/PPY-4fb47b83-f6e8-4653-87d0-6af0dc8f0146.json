@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4fb47b83-f6e8-4653-87d0-6af0dc8f0146",
+  "title": "Publish went through with open required checklist steps (reported by the editing session, 2026-11-09)",
+  "description": "The news desk editing session published a new post (typed with stories set-type, set-slug, saved with --images) while several required checklist steps (direction, research, review_*) were still not_done, even though publishing.publish_item calls require_checklist_closed. Reproduce on a throwaway story: which command published (papyrus ops content publish?), and whether the gate is skipped for posts, for new stories whose checklist template version differs (template version 3 added related_content), or when the checklist rows are state not_done rather than open (open_required only matches state OPEN?). Add a test that every publish path (ops content publish, the console, the content-actions handler) refuses with open required steps. Also: Markdown twin of posts printed 'By <author>' (core ignored an empty hook byline): PR #1349.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T22:41:11.813376Z",
+  "updated_at": "2026-11-09T22:41:11.813500Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
