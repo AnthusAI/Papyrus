@@ -244,17 +244,15 @@ class TimeoutEnvTests(unittest.TestCase):
 
         seen = []
 
-        class Boto:
-            @staticmethod
-            def client(_name, config=None):
-                seen.append(config.read_timeout)
-                return mock.Mock(invoke=mock.Mock(return_value={"Payload": b'{"ok": true}'}))
+        def fake_client(_name, config=None):
+            seen.append(config.read_timeout)
+            return mock.Mock(invoke=mock.Mock(return_value={"Payload": b'{"ok": true}'}))
 
         for value, expected in ((None, 120), ("300", 300)):
             env = {k: v for k, v in os.environ.items() if k != "PAPYRUS_GRAPHQL_TIMEOUT_SECONDS"}
             if value:
                 env["PAPYRUS_GRAPHQL_TIMEOUT_SECONDS"] = value
-            with mock.patch.dict(os.environ, env, clear=True), mock.patch.dict(sys.modules, {"boto3": Boto}), \
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch("boto3.client", fake_client), \
                     mock.patch("papyrus_content.projection_trigger.content_actions_function", return_value="fn"):
                 run_operator("site_rerender_pages", {"scope": "story"})
             self.assertEqual(seen[-1], expected)
