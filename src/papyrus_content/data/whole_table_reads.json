@@ -31,6 +31,7 @@
   "src/papyrus_content/knowledge_snapshot/reference_documents.py": 2,
   "src/papyrus_content/knowledge_wiki/commands.py": 3,
   "src/papyrus_content/learning_classifiers.py": 2,
+  "src/papyrus_content/link_suggestions.py": 1,
   "src/papyrus_content/markus_export.py": 1,
   "src/papyrus_content/markus_import.py": 1,
   "src/papyrus_content/messages_commands.py": 3,
