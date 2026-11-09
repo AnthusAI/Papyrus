@@ -134,6 +134,8 @@ compileList.push("lib/markus-ir.ts");
 compileList.push("lib/reference-policy.ts", "lib/newsroom-references.ts", "lib/reference-feed-ranking.ts", "lib/needs-me-ranking.ts", "lib/relevance-decisions.ts");
 // category-action links hashtags typed in Messages to wiki concepts with the same rules the console uses.
 compileList.push("lib/message-hashtags.ts", "lib/wiki.ts");
+// category-action's Story-source role route repeats the editor/admin check with the one staff-group list (story-reference-role.ts).
+compileList.push("lib/staff-groups.ts");
 const compiled = new Set(compileList.map((r) => r.replace(/\.ts$/, ".js")));
 const writeCompiled = (rel) => {
   const file = path.join(stage, rel);

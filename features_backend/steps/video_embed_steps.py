@@ -128,6 +128,22 @@ def save_story(context, state):
     context.derivation = derive_body(None, context.text.strip() + "\n", features)
 
 
+@then("converting the Markus of that Story gives the same page whether or not it names a credit and a caption")
+def same_page(context):
+    from papyrus_content.markus_renderer.convert import convert_text_in_process
+
+    plain = 'Words.\n\n::video{src="https://youtu.be/UytYrhYLOKI" title="Aircraft demonstration" poster="/assets/poster.jpg"}\n'
+    wide = plain.replace('poster=', 'credit="Example Channel" caption="The first pass." start="90" poster=')
+    assert convert_text_in_process(plain) == convert_text_in_process(wide)
+    assert "<video" in convert_text_in_process(plain)
+
+
+@then('the save is refused saying "{text}"')
+def save_refused_saying(context, text):
+    assert not context.derivation.ok
+    assert any(text in error.message for error in context.derivation.errors), context.derivation.errors
+
+
 @then("the video save succeeds")
 def save_ok(context):
     assert context.derivation.ok, [error.message for error in context.derivation.errors]

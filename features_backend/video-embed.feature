@@ -141,6 +141,33 @@ Feature: A Story can embed a video as a click-to-play poster
       """
     Then the save is refused with the code "video-attrs" saying "needs a title attribute"
 
+  Scenario: Saving a version with credit, caption, start and poster succeeds whatever the site's embeds setting
+    When a Story with this body is saved on a site with embeds off:
+      """
+      ::video{src="https://youtu.be/UytYrhYLOKI" title="Aircraft demonstration" credit="Example Channel" caption="The first pass." start="90" poster="/assets/poster.jpg"}
+      """
+    Then the video save succeeds
+    When a Story with this body is saved on a site with embeds on:
+      """
+      ::video{src="https://youtu.be/UytYrhYLOKI" title="Aircraft demonstration" credit="Example Channel" caption="The first pass." start="90" poster="/assets/poster.jpg"}
+      """
+    Then the video save succeeds
+
+  Scenario: Embeds off: the line is saved and rendered as before
+    When a Story with this body is saved on a site with embeds off:
+      """
+      ::video{src="https://youtu.be/UytYrhYLOKI" title="Aircraft demonstration" poster="/assets/poster.jpg"}
+      """
+    Then the video save succeeds
+    And converting the Markus of that Story gives the same page whether or not it names a credit and a caption
+
+  Scenario: An attribute that is not documented is still refused when embeds are off
+    When a Story with this body is saved on a site with embeds off:
+      """
+      ::video{src="https://youtu.be/UytYrhYLOKI" title="Aircraft demonstration" width="800"}
+      """
+    Then the save is refused saying "width"
+
   Scenario: A site with embeds off does not read the directive at all
     When a Story with this body is saved on a site with embeds off:
       """

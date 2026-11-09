@@ -433,8 +433,50 @@ def link_reference_to_story(
         "metadata": json.dumps(metadata, sort_keys=True),
         "newsroomFeedKey": "story-references",
     }
-    outcome = client.upsert("SemanticRelation", record)
+    try:
+        outcome = client.upsert("SemanticRelation", record)
+    except Exception as error:  # noqa: BLE001 - only the one refusal below is answered; anything else is raised as it was
+        if not (existing and _update_refused(error)):
+            raise
+        # A signed-in editor's token may create a SemanticRelation but never update one (the model is append-only for the groups). The refusal
+        # is certain (nothing was written), so the role change goes through the site's own route, which changes only a Story source's role,
+        # citation key and note. The IAM lane never gets here: its rule allows the update.
+        changed = set_story_reference_role(client, relation_id, role=role, citation_key=citation_key, note=note)
+        return {"relationId": relation_id, "role": changed.get("role") or role, "outcome": "updated", "referenceLineageId": reference_lineage_id}
     return {"relationId": relation_id, "role": role, "outcome": outcome, "referenceLineageId": reference_lineage_id}
+
+
+SET_STORY_REFERENCE_ROLE_MUTATION = """
+mutation SetStoryReferenceRole($relationId: ID!, $role: String!, $citationKey: String, $note: String) {
+  setStoryReferenceRole(relationId: $relationId, role: $role, citationKey: $citationKey, note: $note) {
+    ok relationId role previousRole citationKey
+  }
+}
+"""
+
+
+def _update_refused(error: BaseException) -> bool:
+    return "Not Authorized to access updateSemanticRelation" in str(error)
+
+
+def set_story_reference_role(client, relation_id: str, *, role: str, citation_key: str | None = None, note: str | None = None) -> dict[str, Any]:
+    """Changes the role of a source already attached to a Story through the site's ``setStoryReferenceRole`` route (editor and admin groups).
+
+    The site stamps who changed it from the sign-in and refuses any relation that is not a Story source, so no other relation can be rewritten this way."""
+    if role not in STORY_REFERENCE_ROLES:
+        raise ValueError(f"role must be one of {', '.join(STORY_REFERENCE_ROLES)}.")
+    variables = {"relationId": relation_id, "role": role, "citationKey": citation_key, "note": note}
+    try:
+        data = client.graphql(SET_STORY_REFERENCE_ROLE_MUTATION, variables)
+    except Exception as error:  # noqa: BLE001 - re-raised with the reason a site that predates the route gives
+        if "setStoryReferenceRole" in str(error) and ("Cannot query field" in str(error) or "FieldUndefined" in str(error) or "Unknown field" in str(error)):
+            raise RuntimeError(
+                "This site's backend predates the setStoryReferenceRole route, so a signed-in editor cannot change the role of a source already attached. "
+                "Until the site's backend is deployed, ask an operator to run the same command with AWS credentials (PAPYRUS_GRAPHQL_AUTH=iam). "
+                "A source attached for the first time can still be attached as cited directly."
+            ) from error
+        raise
+    return (data or {}).get("setStoryReferenceRole") or {}
 
 
 def stories_based_on_reference(client, reference_lineage_id: str) -> list[dict[str, Any]]:
