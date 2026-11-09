@@ -533,6 +533,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "curationStatusKey",
         "fields": REFERENCE_FIELDS,
     },
+    "publishedItemsByTypeStatus": {
+        "field": "listPublishedItemsByTypeStatusAndPublishedAt",
+        "partitionKey": "typeStatus",
+        "fields": "id itemLineageId slug title type status metadata",
+    },
     "semanticRelationsByObjectState": {
         "field": "listSemanticRelationsByObjectState",
         "partitionKey": "objectStateKey",

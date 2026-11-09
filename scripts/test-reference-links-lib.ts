@@ -39,6 +39,14 @@ test("Linked by editors keeps only current human related_to rows from References
   assert.deepEqual(symmetricSubjectFirst("b", "a"), ["a", "b"]);
 });
 
+test("Linked by editors reads the tagged_with tag as well as the older related_to", () => {
+  const rows = [
+    { id: "t", relationState: "current", predicate: "tagged_with", subjectKind: "reference", subjectLineageId: "r1", objectKind: "semanticNode", objectLineageId: "c", metadata: { provenance: "human" } },
+    { id: "o", relationState: "current", predicate: "related_to", subjectKind: "reference", subjectLineageId: "r2", objectKind: "semanticNode", objectLineageId: "c", metadata: { provenance: "human" } },
+  ];
+  assert.deepEqual(editorLinkedReferenceLineages("c", rows).map(found => found.relationId), ["t", "o"]);
+});
+
 test("A skip reason from the backend is shown in plain words, and an unknown one never leaks", () => {
   assert.equal(suggestSkippedText("no reference_summary vector is indexed for this Reference"), "Suggestions appear once this Reference has a summary.");
   assert.equal(suggestSkippedText("calibration_not_ready: kind=reference"), "No suggestions could be made for this Reference yet.");

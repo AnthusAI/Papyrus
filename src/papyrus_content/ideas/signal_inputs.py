@@ -60,7 +60,9 @@ from .digest import CORPUS_PREFIX, collect_references, iso, relations_of, releva
 from .items import idea_rows
 from .monitor_stories import POSITIVE_LABEL
 
-CONCEPT_PREDICATES = ("mentions", "related_to")
+from ..reference_links import CONCEPT_TAG_PREDICATES   # noqa: E402 - the tag (tagged_with) and its legacy name (related_to), read alike until migrated
+
+CONCEPT_PREDICATES = ("mentions", *CONCEPT_TAG_PREDICATES)
 EDGE_PREDICATES = ("related_to", "cites", "supports", "contradicts")
 REFERENCE_KIND = "reference"
 REFERENCE_ANCHOR_PREFIX = "reference#"
@@ -264,7 +266,7 @@ def concept_links_of(lineage: str, relations: list[dict[str, Any]]) -> list[Conc
             and relation.get("objectKind") == "semanticNode"
             and concept
         ):
-            explanation = explanation_of(relation) if relation["predicate"] == "related_to" else None
+            explanation = explanation_of(relation) if relation["predicate"] in CONCEPT_TAG_PREDICATES else None
             found[(concept, relation["predicate"])] = ConceptLink(lineage, concept, relation["predicate"], explanation)
     return [found[key] for key in sorted(found)]
 

@@ -396,6 +396,17 @@ relationTypes:
     isSymmetric: true
     isTransitive: false
     contextPackTags: [reference_graph]
+  - key: tagged_with
+    label: tagged with
+    inverseLabel: tag of
+    description: A story or Reference is tagged with a concept (an accepted SemanticNode), by a person or an agent. mentions stays for concepts found in text by enrichment; related_to was this relation's name before tagged_with.
+    domain: editorial
+    allowedSubjectKinds: [item, reference]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [editing, publication, reference_graph]
   - key: see_also
     label: see also
     inverseLabel: see also
