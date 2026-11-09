@@ -190,7 +190,13 @@ papyrus stories link-reference --story <lineage> --reference <reference id> \
 
 Signed in (`papyrus login`), the link records the person who signed in, taken from the sign-in session, as who added it. `--author-label` is optional there and is ignored (the command says so on stderr), so a link never names someone else. The label comes from the CLI session, not from the newsroom (the relation is written directly, not through a mutation that stamps the author the way `postMessage` does), so it identifies the person for the trail rather than proving it against a caller who writes the record by hand. With an operator's AWS credentials (`PAPYRUS_GRAPHQL_AUTH=iam`) there is no sign-in, so `--author-label` is required and is recorded as given. The `write` line prints only after the link was saved.
 
-Running `link-reference` again for the same pair changes its role and keeps who added it and when. The Reporting trail
+Running `link-reference` again for the same pair changes its role and keeps who added it and when. A signed-in editor's token may
+create a `SemanticRelation` but never update one (the model is append-only for the editor and administrator groups, so category notes,
+provenance and reference links cannot be rewritten from a browser or a signed-in CLI). When the site refuses that direct update, the CLI
+changes the role through the site's `setStoryReferenceRole` mutation (editor and admin groups, `category-action` Lambda). It refuses any
+relation that is not a Story's `uses_evidence` source, writes only the role, the citation key, the note, `updatedBy` (from the sign-in)
+and `updatedVia`, and never weakens `based_on`. The IAM lane keeps writing the row directly. A site whose backend predates the mutation
+answers with a message that says to use the IAM lane until it is deployed ([spec](../features_backend/story-reference-role.feature)). The Reporting trail
 shows each reference with its role, note and the person or agent who attached it, and marks a reference "in the text" when
 the latest draft's citations include its citation key.
 

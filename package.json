@@ -90,6 +90,7 @@
     "test:create-story": "tsx scripts/test-story-from-reference.ts && tsx scripts/test-create-story-ui.ts && cucumber-js --profile createStory && poetry run behave features_backend/create-story-from-reference.feature",
     "test:card-suggestions": "tsx scripts/test-card-suggestions.ts && tsx scripts/test-card-suggestions-ui.ts && cucumber-js --profile cardSuggestions",
     "test:reference-stars": "tsx scripts/test-reference-stars-ui.ts && cucumber-js --profile referenceStars && poetry run behave features_backend/reference-stars.feature",
+    "test:story-reference-role": "tsx --test scripts/test-story-reference-role.ts && poetry run behave features_backend/story-reference-role.feature && poetry run pytest -q procedures/newsroom/tests/test_story_reference_role.py",
     "test:story-notes": "tsx --test scripts/test-story-reporting-trail.ts && cucumber-js --profile storyAgentNotes && poetry run behave features_backend/story-notes.feature features_backend/messages-only-from-people-writers.feature && poetry run pytest -q procedures/newsroom/tests/test_story_notes.py procedures/newsroom/tests/test_story_reporting.py",
     "test:story-stars": "tsx scripts/test-story-stars-api.ts && tsx scripts/test-story-stars-ui.ts && cucumber-js --profile storyStars && poetry run behave features_backend/story-stars.feature && poetry run pytest -q src/papyrus_content/item_stars_test.py",
     "test:auto-accepted-list": "tsx scripts/test-auto-accepted-list.ts && tsx scripts/test-auto-accepted-list-ui.ts && cucumber-js --profile autoAcceptedList",
