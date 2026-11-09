@@ -105,14 +105,13 @@ Feature: papyrus stories lens-check reports what code can check about a Story fo
     When the lens checks run
     Then the finding "P10" is a "problem"
 
-  Scenario: A local picture with no record of where it came from could not be checked
+  Scenario: A local picture with no credit is ours
     Given a Story with this body
       """
       ::image{src="assets/chart.png" alt="A chart of costs"}
       """
     When the lens checks run
-    Then the finding "P10" is a "not_assessable"
-    And the finding "P10" says "Papyrus cannot tell where this picture came from"
+    Then the finding "P10" is a "pass"
     And no lens step is blocked
 
   Scenario: The Markdown copy is the Story's source

@@ -369,7 +369,7 @@ A site needs several kinds of picture, and the same family needs different rules
     "social": ["social-card"]
   },
 
-  "attribution": {"generatedCredit": "Drafted by AI. Approved by {approvedBy}.", "disclosure": "Generated illustrations are labelled in the credit."},
+  "attribution": {"generatedCredit": null, "disclosure": "A generated image has no credit line at all (Ryan, 2026-11-08); a machine-made credit is dropped on render."},
   "constraints": [ /* publication only, 5.4 */ ],
   "designSources": [ /* 5.5 */ ],
   "generation": {"interactiveCount": 4, "defaultSpread": "types", "variationDirectives": ["wide view", "close view", "from the side", "a single object"]}

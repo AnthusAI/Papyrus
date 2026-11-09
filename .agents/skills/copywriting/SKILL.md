@@ -55,8 +55,8 @@ These hold for every publication. The site's policies add its own rules on top.
   opinion apart from evidence. Don't promise what hasn't shipped.
 - **No speed bragging and no hype.** Describe the problem, the mechanism and the
   honest limits.
-- **Credit generated images as "Generated".** A generated image's credit is exactly "Generated".
-  A real third-party credit is written as the source gives it.
+- **A generated image has no credit line at all; leave credit off.** A real third-party credit
+  is written as the source gives it.
 - A story based on a Reference has its own text: never seed it from the
   Reference's captured text (the copy guard refuses runs of 12 or more shared words).
 

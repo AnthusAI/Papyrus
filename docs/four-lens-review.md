@@ -5,7 +5,7 @@ Before a Story is published it is looked at four ways: as people read it, as AI 
 ## What this is for
 
 - **The lens steps are mainly for agents.** An agent does them before a person reviews the Story, so obvious problems are fixed before any human time is spent. An agent may finish a lens step, and it is recorded by name. Only a person gives the final approval.
-- **A generated image's credit is exactly "Generated".** It satisfies P10 and C6 for our own picture; a real third-party credit is never rewritten.
+- **A generated image has no credit line at all; leave credit off.** P10 and C6 pass for it: a credit that only says a machine made the picture is dropped and the picture counts as ours, and so does a picture in our own media storage. A picture at a web address, the stock cover record or a Reference's picture is third-party and must be credited; a real third-party credit is never rewritten.
 - **Three failures are errors.** A step cannot be closed as done while one stands: an image with no alt text, a third-party image with no credit, and a Markdown copy that differs from the Story's source. Closing a step despite one (as "done, accepted risk" with a reason) is a later piece of work; for now the checks report them clearly.
 - **The checklist and the final review matter even more for sites that publish without a person's approval.**
 - **No new gate.** Findings are advice. The checklist's own rule (an open step blocks publishing) is the gate.

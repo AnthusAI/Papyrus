@@ -85,8 +85,7 @@ def parse_attrs(raw: str) -> dict[str, str]:
     return out
 
 
-GENERATED_CREDIT = "Generated"
-_GENERATED_CREDIT_RE = re.compile(
+_MACHINE_CREDIT_RE = re.compile(
     r"""^\s*(?:(?:illustration|image|picture|art|artwork|cover|photo)\s+)?
     (?:
         (?:(?:drafted|generated|made|created|produced|rendered)\s+(?:with|by)\s+
@@ -98,25 +97,42 @@ _GENERATED_CREDIT_RE = re.compile(
 )
 
 
-def canonical_image_credit(text: str | None) -> str | None:
-    """A credit that only says a machine made the picture becomes exactly ``Generated``; any other credit is returned unchanged."""
-    if text and _GENERATED_CREDIT_RE.match(text):
-        return GENERATED_CREDIT
-    return text
+def is_machine_credit(text: str | None) -> bool:
+    """True when a credit only says a machine made the picture ("Illustration generated with AI", "Generated").
+
+    A generated image has no credit at all, so such a credit is dropped, never shown. Any other credit (a person, a photographer, a source) is real."""
+    return bool(text and _MACHINE_CREDIT_RE.match(text))
 
 
-_CREDIT_ATTR_RE = re.compile(r"""(?P<head>\bcredit\s*=\s*)(?:"(?P<dq>[^"]*)"|'(?P<sq>[^']*)')""")
+def without_machine_credit(text: str | None) -> str | None:
+    """The credit to show: ``None`` for a machine-made statement, otherwise the credit unchanged."""
+    return None if is_machine_credit(text) else text
 
 
-def canonicalize_image_credits(markus: str) -> str:
-    """The Markus source with every ``::image{...}`` credit that merely says a machine made it written as ``Generated``."""
+def drop_machine_credits(markus: str) -> str:
+    """The Markus source with the ``credit`` attribute removed from every ``::image{...}`` whose credit only says a machine made it.
+
+    Only the attribute is cut (with the space that separated it), so the rest of the directive, including a multi-line one, stays valid."""
 
     def directive(match: re.Match) -> str:
-        def credit(attr: re.Match) -> str:
-            value = attr.group("dq") if attr.group("dq") is not None else attr.group("sq")
-            return f'{attr.group("head")}"{GENERATED_CREDIT}"' if canonical_image_credit(value) != value else attr.group(0)
-
-        return _CREDIT_ATTR_RE.sub(credit, match.group(0))
+        attrs = match.group("attrs")
+        out, pos = [], 0
+        for attr in _ATTR_RE.finditer(attrs):
+            value = attr.group("dq") if attr.group("dq") is not None else attr.group("sq") if attr.group("sq") is not None else attr.group("bare")
+            if attr.group("key") != "credit" or not is_machine_credit(value):
+                continue
+            start, end = attr.start(), attr.end()
+            before = attrs[pos:start]
+            stripped = before.rstrip()
+            if stripped:   # there is an attribute before it: cut the space that separated them
+                out.append(stripped)
+            else:          # it is first: cut the space after it instead
+                out.append(before)
+                end = len(attrs) - len(attrs[end:].lstrip())
+            pos = end
+        out.append(attrs[pos:])
+        cut = "".join(out)
+        return match.group(0) if cut == attrs else match.group(0).replace("{" + attrs + "}", "{" + cut + "}", 1)
 
     return _IMAGE_DIRECTIVE_RE.sub(directive, markus)
 
@@ -293,7 +309,7 @@ def prepare_page(
                 alt=attrs.get("alt", ""),
                 layout=attrs.get("layout"),
                 caption=attrs.get("caption"),
-                credit=canonical_image_credit(attrs.get("credit")),
+                credit=without_machine_credit(attrs.get("credit")),
                 sizes=attrs.get("sizes"),
                 loading=attrs.get("loading"),
                 src_dark=attrs.get("srcDark"),
