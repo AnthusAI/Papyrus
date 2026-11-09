@@ -8,9 +8,10 @@ them into data a page and a site hook can use.
 | --- | --- | --- |
 | A Story is based on a Reference | `uses_evidence` from the Story to the Reference, metadata `role: based_on` | A cited source whose address matches an accepted Reference's `sourceUri` links to our newest published Story based on it (`internalUrl`, see [markus content markup](markus-content-markup.md#how-the-bibliography-links-a-source)). |
 | A Story is about a concept | `mentions` or `related_to` from the Story to a `SemanticNode` | `page.concept_links`: the concept pages that are published (`entityKey` is the part of `nodeKey` after `editor_concept--`), most used first, then by name. Rejected nodes are skipped. |
-| A Story is related to another Story | `related_to` between two `item` rows, symmetric | `page.related_stories`: the related published Stories, newest first, each `{itemId, type, section, title, url, image, summary, date}`. Never the Story itself, never an unpublished one. |
+| A Story points a reader to a Reference ("read this source too") | `see_also` from the Story (an `item`) to a `Reference`, written by `papyrus stories link-story --story S --reference R` (kind `item.reference-link`, directional) | `page.related_references`: the **accepted** References (never pending, recommended or rejected), newest linked first, each `{referenceId, lineageId, title, url, host, image, summary, medium, acceptedAt, note}`; `image`, `summary` (the generated card summary), `medium` and `note` are `None` when there is none. The captured text is never included. Citing or consulting a Reference (`uses_evidence`) is the reporting trail and never appears here. Rejected or suggested links are ignored. |
+| A Story is related to another Story | `see_also` between two `item` rows, symmetric | `page.related_stories`: the related published Stories, newest first, each `{itemId, type, section, title, url, image, summary, date}`. Never the Story itself, never an unpublished one. |
 
-`page.concept_links` and `page.related_stories` are fields of `StandardPage` on item pages (empty on wiki pages). A hook takes `page` and draws them.
+`page.concept_links`, `page.related_references` and `page.related_stories` are fields of `StandardPage` on item pages (empty on wiki pages). A hook takes `page` and draws them.
 
 ## What the read costs
 

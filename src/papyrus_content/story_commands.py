@@ -267,7 +267,7 @@ def stories_link_reference(flags: list[str]) -> None:
 
 
 def stories_link_story(flags: list[str]) -> None:
-    """papyrus stories link-story --story <lineage|slug> --to <lineage|slug> [--to ...] [--note <text>] [--author-label <name>] [--dry-run] [--json]
+    """papyrus stories link-story --story <lineage|slug> (--to <lineage|slug> [--to ...] | --reference <reference id> [--reference ...]) [--note <text>] [--author-label <name>] [--dry-run] [--json]
 
     Links a story to one or more other stories (an article to related articles, a larger story to several posts) for its See also block. There is
     one relation, `see_also`, and it cannot be chosen: no relation name is accepted (`--relation see_also` is tolerated, anything else is refused).
@@ -275,7 +275,11 @@ def stories_link_story(flags: list[str]) -> None:
     either direction is reported as `exists` and nothing is written (safe to repeat). A line per target gives its title, type and stage; a target that
     is not published yet gets a warning on stderr, because the public See also block shows published stories only. Signed in, the link records the
     person who signed in (--author-label is ignored); on the IAM lane --author-label is required. The `write` line prints only after the link was
-    saved. Links are only created: removing one is not a command yet (docs/story-reporting.md)."""
+    saved. Links are only created: removing one is not a command yet (docs/story-reporting.md).
+
+    ``--reference REFERENCE_ID`` (repeatable, with or without --to) links the story to an accepted Reference with the same `see_also` ("read this source too";
+    directional, story to Reference). Every Reference must exist and be accepted, or nothing at all is written: only accepted References are shown on the
+    page, and there is no override. A line per Reference gives its title, host and curation status."""
     from .operator_errors import OperatorError
     from .story_links import STORY_LINK_RELATION, check_official_relation, link_story_set, resolve_link_targets
     from .user_auth_mode import user_auth_requested
@@ -283,8 +287,9 @@ def stories_link_story(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories link-story")
     story_ref = _required_option(options, "story")
-    if not parse_repeated_option(flags, "to"):
-        raise ValueError("--to is required (repeat it to link several stories).")
+    reference_ids = parse_repeated_option(flags, "reference")
+    if not parse_repeated_option(flags, "to") and not reference_ids:
+        raise ValueError("--to or --reference is required (repeat either to link several).")
     check_official_relation(options.get("relation"))
     as_json = bool(options.get("json"))
     as_person = user_auth_requested()
@@ -292,7 +297,15 @@ def stories_link_story(flags: list[str]) -> None:
     if not as_person and not label:
         raise ValueError("--author-label is required on the IAM lane, where there is no sign-in to name the author.")
     client, _ = create_authoring_client()
-    story, others = resolve_link_targets(client, story_ref, parse_repeated_option(flags, "to"))
+    from .story_links import link_reference_set, resolve_link_references
+
+    if parse_repeated_option(flags, "to"):
+        story, others = resolve_link_targets(client, story_ref, parse_repeated_option(flags, "to"))
+    else:
+        from .story_links import resolve_story
+
+        story, others = resolve_story(client, story_ref), []
+    references = resolve_link_references(client, reference_ids)   # all checked before anything is written
     lineage_id = story.get("lineageId") or story["id"]
     author = None
     if apply:
@@ -314,9 +327,18 @@ def stories_link_story(flags: list[str]) -> None:
         if row.get("warning"):
             print(f"stories\tlink-story\twarning\t{row['warning']}", file=sys.stderr)
 
-    rows = link_story_set(client, story, others, actor=author, note=normalize_string(options.get("note")), apply=apply, on_row=show)
+    def show_reference(row: dict) -> None:
+        if as_json:
+            return
+        print("\t".join(["stories", "link-story", lineage_id, row["referenceId"], STORY_LINK_RELATION, row["title"], f"host {row['host']}", f"status {row['status']}", row["outcome"]]))
+        if row.get("warning"):
+            print(f"stories\tlink-story\twarning\t{row['warning']}", file=sys.stderr)
+
+    note = normalize_string(options.get("note"))
+    rows = link_story_set(client, story, others, actor=author, note=note, apply=apply, on_row=show)
+    reference_rows = link_reference_set(client, story, references, actor=author, note=note, apply=apply, on_row=show_reference)
     if as_json:
-        print(json.dumps({"ok": True, "story": lineage_id, "dryRun": not apply, "links": rows}, indent=2))
+        print(json.dumps({"ok": True, "story": lineage_id, "dryRun": not apply, "links": rows, "referenceLinks": reference_rows}, indent=2))
 
 
 
@@ -422,10 +444,11 @@ def stories_show(flags: list[str]) -> None:
     versions = story_versions(client, lineage_id)
     latest = current_story_version(client, lineage_id) if versions else {}
     if options.get("json"):
-        from .story_links import related_stories, unofficial_item_relations
+        from .story_links import related_references, related_stories, unofficial_item_relations
 
         print(json.dumps({"ok": True, "story": lineage_id, "title": latest.get("headline") or latest.get("title"), "type": latest.get("type"), "stage": latest.get("stage"),
                           "related": related_stories(client, lineage_id) if versions else [],
+                          "relatedReferences": related_references(client, lineage_id) if versions else [],
                           "unofficialRelations": unofficial_item_relations(client, lineage_id) if versions else []}, indent=2))
         return
     print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tcurrent version {latest.get('versionNumber')} of {len(versions)}")
@@ -450,6 +473,10 @@ def stories_show(flags: list[str]) -> None:
 
         for linked in related_stories(client, lineage_id):
             print("\t".join(["stories", "show", "related", linked["lineageId"], linked["title"], f"type {linked['type']}", f"stage {linked['stage']}", str(linked.get("note") or "")]))
+        from .story_links import related_references
+
+        for linked in related_references(client, lineage_id):
+            print("\t".join(["stories", "show", "see-also-reference", linked["referenceId"], linked["title"], f"host {linked['host']}", f"status {linked['status']}", str(linked.get("note") or "")]))
         for odd in unofficial_item_relations(client, lineage_id):
             print("\t".join(["stories", "show", "unofficial-relation", odd["relationId"], odd["predicate"], odd["otherLineageId"], "seeded type" if odd["knownType"] else "unknown name",
                              "not shown as a Related story"]))

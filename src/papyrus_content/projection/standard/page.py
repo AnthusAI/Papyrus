@@ -99,6 +99,7 @@ class StandardPage:
     section_index: SectionIndexView | None = None    # section front pages: what the generated layout shows (empty fragment unless the index is authored)
     home_sections: tuple[HomeSectionBlock, ...] = ()  # the home of sections: one block per section
     concept_links: tuple[Mapping, ...] = ()     # item pages: the public concept pages the Story's relations reach, most used first: {slug, name, href, stories}
+    related_references: tuple[Mapping, ...] = ()   # item pages: the accepted References the Story points a reader to (see_also, newest linked first): {referenceId, lineageId, title, url, host, image, summary, medium, acceptedAt, note}
     related_stories: tuple[Mapping, ...] = ()   # item pages: the published Stories this one is related to (related_to, either direction), newest first: {itemId, type, section, title, url, image, summary, date}
     thread: Mapping | None = None               # thread pages: the per-thread document the snapshot wrote
     thread_reference: Mapping | None = None     # thread pages: the anchor Reference's record when the snapshot holds it
