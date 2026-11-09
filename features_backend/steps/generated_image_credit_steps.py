@@ -26,6 +26,16 @@ def picture_credited(context, credit):
     context.picture_directive = f'::image{{src="assets/harbour.jpg" alt="A harbour" credit="{credit}"}}'
 
 
+@given('a Story picture with the caption "{caption}" credited "{credit}"')
+def picture_with_caption(context, caption, credit):
+    context.picture_directive = f'::image{{src="assets/harbour.jpg" alt="A harbour" caption="{caption}" credit="{credit}"}}'
+
+
+@given('a Story picture written over several lines with the credit "{credit}"')
+def picture_over_lines(context, credit):
+    context.picture_directive = f'::image{{\n  src="assets/harbour.jpg"\n  credit="{credit}"\n  alt="A harbour"\n}}'
+
+
 @when("the picture is rendered on the page")
 def render_picture(context):
     with tempfile.TemporaryDirectory() as tmp:
@@ -43,6 +53,17 @@ def credit_on_page(context, expected):
     assert match and match.group(1) == expected.replace("&", "&amp;"), context.page_html
 
 
+@then("there is no credit under the picture")
+def no_credit_on_page(context):
+    assert "papyrus-image-credit" not in context.page_html and "Generated" not in context.page_html, context.page_html
+
+
+@then('the figure caption is exactly "{expected}"')
+def caption_only(context, expected):
+    match = re.search(r"<figcaption>(.*?)</figcaption>", context.page_html)
+    assert match and match.group(1) == expected, context.page_html
+
+
 @when("the Markdown copy of the Story is made")
 def make_twin(context):
     entry = SimpleNamespace(title="Harbour", author_details=None, date=None, updated=None, summary_text="")
@@ -52,6 +73,16 @@ def make_twin(context):
 @when("the Markdown copy of the home page is made")
 def make_home_twin(context):
     context.twin = home_markdown("Home", "A home page.", "---\ntitle: Home\n---\n" + context.picture_directive + "\n")
+
+
+@then("the picture in the Markdown copy has no credit")
+def no_credit_in_twin(context):
+    assert "credit" not in context.twin, context.twin
+
+
+@then("the Markdown copy still has the picture's source and alt text")
+def twin_still_valid(context):
+    assert 'src="assets/harbour.jpg"' in context.twin and 'alt="A harbour"' in context.twin and "::image{" in context.twin and context.twin.rstrip().endswith("}"), context.twin
 
 
 @then('the picture in the Markdown copy is credited "{expected}"')
