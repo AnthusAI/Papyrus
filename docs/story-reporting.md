@@ -312,8 +312,15 @@ scanned: indexes and 25-key batched gets only).
 `link-concept` (never created, never fuzzy). `concepts search` finds accepted concepts for free text by meaning: the text is embedded once (`text-embedding-3-small`, the
 same provider as `references suggest-links`) and only `concept_card` and `ontology_concept_profile` vectors are queried; popularity never affects the order. A typed
 exact (then prefix) concept name or alias comes first, labelled `name match`; the rest are `meaning`. Each result shows the similarity, whether the concept has a public wiki
-page, how many published stories and accepted References carry it (information only), and a flag for likely duplicates (the same normalized name, or concept cards at least
-0.92 alike). It says plainly when the index has no concept vectors or is missing some accepted concepts, and prints the `knowledge-vector-index --action sync` command that
+page (a published `wiki_page` Item whose `entityKey` is the bare slug, the part of the node key after `--`, read from the published-item summaries when the type index is empty;
+the same check `stories link-concept` and `check-links` use), how many published stories and accepted References carry it (information only), and duplicate flags in three
+tiers: `same name` (equal once case and punctuation are ignored, or the same words in any order), `likely duplicate` (concept cards at least 0.90 alike) and `possible
+duplicate`, a suggestion for a person to check (cards at least 0.60 alike and a shared word of 4+ letters; the two "contextual integrity" cards are only 0.66 alike).
+
+**Free-text search needs an embedding key and is not validated against live data.** It embeds the query with `OPENAI_API_KEY`, which must be set and valid in the shell. The
+signed-in editor lane has no embedding key (unlike `references search`, which embeds on the server through the `searchReferences` query), so there the command stops with
+that explanation instead of a raw HTTP 401. A server-side lane (a new query field next to `searchReferences`) is a follow-up. Name matches, `--list`, `concepts related` and
+`suggest-links` need no key. It says plainly when the index has no concept vectors or is missing some accepted concepts, and prints the `knowledge-vector-index --action sync` command that
 repairs it. `--list` prints every accepted concept alphabetically. Agent tools (read only, closed argument lists): `papyrus_suggest_links`, `papyrus_related_concepts`,
 `papyrus_search_concepts` (Tactus `tactus_tools.py` and `story_signals_mcp.py`). The story checklist has a **Related content** step (`related_content`, not required) that
 points here. Code: `src/papyrus_content/link_suggestions.py`, `concept_search.py`; specs: `features_backend/suggest-links.feature`.

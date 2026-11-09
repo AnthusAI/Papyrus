@@ -9,6 +9,7 @@
   "src/papyrus_content/automations.py": 1,
   "src/papyrus_content/categories_commands.py": 39,
   "src/papyrus_content/cli.py": 12,
+  "src/papyrus_content/concept_tags.py": 1,
   "src/papyrus_content/concept_tags_commands.py": 1,
   "src/papyrus_content/convert_bodies_commands.py": 1,
   "src/papyrus_content/edition_planning.py": 12,

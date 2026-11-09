@@ -74,6 +74,8 @@ def stories_suggest_links(flags: list[str]) -> None:
         return
     print(f"stories\tsuggest-links\t{result['story']['lineageId']}\t{result['story']['title']}\t{len(result['concepts'])} concept(s) scanned; "
           f"{result['linkedStories']} story link(s) and {result['linkedReferences']} Reference link(s) already exist")
+    if result["concepts"]:
+        print("stories\tsuggest-links\tconcepts: " + "; ".join(f"{c['name']} ({'wiki page' if c.get('publicPage') else 'no wiki page'}; {c['path']})" for c in result["concepts"]))
     if result.get("note"):
         print(f"stories\tsuggest-links\t{result['note']}")
     for kind in kinds:
@@ -107,6 +109,8 @@ def relations_search(flags: list[str]) -> None:
     client, _ = create_authoring_client()
     provider = None if list_all else default_provider()
     result = search_concepts(client, provider, query, limit=_limit(options, "limit", 10), list_all=list_all)
+    if result.get("embeddingKeyProblem") and not result["results"]:
+        raise ValueError(result["indexNote"])
     if options.get("json"):
         print(json.dumps({"ok": True, **result}, indent=2))
         return

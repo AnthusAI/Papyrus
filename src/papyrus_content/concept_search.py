@@ -5,7 +5,7 @@ The order is semantic relevance and nothing else: a typed exact (then prefix) na
 shown for information and never ranks anything. Only accepted concepts count (rejected, suggested, generated and bookkeeping kinds are dropped).
 
 The query is embedded once and the index is asked for concept vectors only. Likely duplicates (the same normalized name, or concept cards closer than
-``DUPLICATE_COSINE``) are flagged, and an empty or stale concept index is reported with the command that rebuilds it.
+``LIKELY_COSINE`` / ``POSSIBLE_COSINE``) are flagged, and an empty or stale concept index is reported with the command that rebuilds it.
 """
 
 from __future__ import annotations
@@ -21,7 +21,9 @@ from .link_suggestions import Graph, _lineage, _requests
 from .reference_suggestions import CONCEPT_VECTOR_KINDS, S3_VECTORS_MAX_TOP_K
 from .section_concepts import concept_label, current_concept_nodes, name_part
 
-DUPLICATE_COSINE = 0.92   # concept cards at least this similar are flagged as likely duplicates (the same idea filed twice under different ids)
+LIKELY_COSINE = 0.90      # concept cards at least this alike: "likely duplicate"
+POSSIBLE_COSINE = 0.60    # at least this alike AND a shared word of 4+ letters in the names: "possible duplicate" (a suggestion; real pairs such as the two "contextual integrity" cards are only 0.66 alike)
+DUPLICATE_COSINE = POSSIBLE_COSINE
 CARD_PREFIX = "concept_card-"
 REINDEX_COMMAND = ("AWS_PROFILE=<profile> PYTHONPATH=src python -m papyrus_newsroom knowledge-vector-index --action sync"
                    "   # writes a concept_card vector for every accepted concept (concept cards are on by default)")
@@ -38,8 +40,29 @@ def default_provider() -> Any | None:
     return S3VectorsProvider(vector_index_arn=arn, region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")) if arn else None
 
 
+EMBEDDING_KEY_HELP = ("Search by meaning needs an embedding key: OPENAI_API_KEY must be set in this shell and valid. The signed-in editor lane has no embedding key "
+                      "(unlike `papyrus references search`, which embeds on the server through the searchReferences query); a server-side lane for concept search "
+                      "(a query field next to searchReferences) is a follow-up. Name matches below still work.")
+
+
+def embedding_failure(error: Exception) -> str:
+    text = str(error)
+    if "401" in text or "OPENAI_API_KEY" in text or "Unauthorized" in text:
+        return EMBEDDING_KEY_HELP + f" ({text})"
+    return f"Search by meaning failed: {text}"
+
+
 def normalized(text: Any) -> str:
     return re.sub(r"[^a-z0-9]", "", str(text or "").lower())
+
+
+def name_words(text: Any) -> frozenset[str]:
+    return frozenset(word for word in re.split(r"[^a-z0-9]+", str(text or "").lower()) if word)
+
+
+def same_name(left: Any, right: Any) -> bool:
+    """Equal once case, spaces and punctuation are ignored, or the same set of words in any order."""
+    return normalized(left) == normalized(right) or (bool(name_words(left)) and name_words(left) == name_words(right))
 
 
 def accepted_concepts(catalogue: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -100,11 +123,13 @@ def index_health(provider: Any, nodes: list[dict[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _flag_duplicates(entries: list[dict[str, Any]], by_name: dict[str, list[dict[str, Any]]], provider: Any, nodes: dict[str, dict[str, Any]]) -> None:
+def _flag_duplicates(entries: list[dict[str, Any]], nodes_all: list[dict[str, Any]], provider: Any, nodes: dict[str, dict[str, Any]]) -> None:
+    """Three tiers on each result: ``same name`` (any accepted concept with an equal name), ``likely duplicate`` (concept cards at least ``LIKELY_COSINE`` alike) and
+    ``possible duplicate`` (at least ``POSSIBLE_COSINE`` alike and a shared word of 4+ letters in the names: a suggestion for a person to check)."""
     for entry in entries:
         node = nodes[entry["lineageId"]]
-        twins = [other for other in by_name.get(normalized(node.get("displayName")), []) if _lineage(other) != entry["lineageId"]]
-        entry["duplicates"] = [{"nodeKey": other.get("nodeKey"), "name": concept_label(other), "why": "same name"} for other in twins]
+        entry["duplicates"] = [{"nodeKey": other.get("nodeKey"), "name": concept_label(other), "why": "same name"}
+                               for other in nodes_all if _lineage(other) != entry["lineageId"] and same_name(node.get("displayName"), other.get("displayName"))]
     getter = getattr(provider, "get_vector", None)
     if getter is None:
         return
@@ -115,11 +140,16 @@ def _flag_duplicates(entries: list[dict[str, Any]], by_name: dict[str, list[dict
             if not left or not right:
                 continue
             score = cosine(left, right)
-            if score < DUPLICATE_COSINE:
+            shared = {word for word in name_words(entry["name"]) & name_words(other["name"]) if len(word) >= 4}
+            if score >= LIKELY_COSINE:
+                why = f"likely duplicate: concept cards {score:.2f} alike"
+            elif score >= POSSIBLE_COSINE and shared:
+                why = f"possible duplicate (a suggestion): concept cards {score:.2f} alike and both say {', '.join(sorted(shared))}"
+            else:
                 continue
             for mine, theirs in ((entry, other), (other, entry)):
                 if not any(item["nodeKey"] == theirs["nodeKey"] for item in mine["duplicates"]):
-                    mine["duplicates"].append({"nodeKey": theirs["nodeKey"], "name": theirs["name"], "why": f"concept cards {score:.2f} alike (flagged from {DUPLICATE_COSINE})"})
+                    mine["duplicates"].append({"nodeKey": theirs["nodeKey"], "name": theirs["name"], "why": why})
 
 
 def search_concepts(client: Any, provider: Any | None, query: str | None, *, limit: int = 10, list_all: bool = False) -> dict[str, Any]:
@@ -128,7 +158,7 @@ def search_concepts(client: Any, provider: Any | None, query: str | None, *, lim
     before = _requests(client)
     nodes = accepted_concepts(current_concept_nodes(client))
     by_lineage = {_lineage(node): node for node in nodes}
-    result: dict[str, Any] = {"query": query, "mode": "list" if list_all else "search", "acceptedConcepts": len(nodes), "results": [], "duplicateCosine": DUPLICATE_COSINE}
+    result: dict[str, Any] = {"query": query, "mode": "list" if list_all else "search", "acceptedConcepts": len(nodes), "results": [], "duplicateCosine": {"likely": LIKELY_COSINE, "possible": POSSIBLE_COSINE}}
     pages = concept_page_keys(client)
     if list_all:
         picked = [{"lineageId": _lineage(node), "reason": "listed", "similarity": None} for node in sorted(nodes, key=lambda node: concept_label(node).lower())]
@@ -145,8 +175,9 @@ def search_concepts(client: Any, provider: Any | None, query: str | None, *, lim
             try:
                 vector = provider.embed_text(query)
                 matches = provider.query_by_vector(vector, S3_VECTORS_MAX_TOP_K, {"vectorKind": {"$in": list(CONCEPT_VECTOR_KINDS)}})
-            except Exception as error:   # the network or the key; the name matches are still good
-                result["indexNote"] = f"Search by meaning failed: {error}"
+            except Exception as error:   # the key or the network; the name matches are still good
+                result["indexNote"] = embedding_failure(error)
+                result["embeddingKeyProblem"] = result["indexNote"].startswith(EMBEDDING_KEY_HELP[:30])
             best: dict[str, float] = {}
             for match in matches:
                 metadata = match.get("metadata") or {}
@@ -172,10 +203,7 @@ def search_concepts(client: Any, provider: Any | None, query: str | None, *, lim
         graph.load_concepts([entry["lineageId"] for entry in entries])   # two batched reads for the informational counts
         for entry in entries:
             entry["stories"], entry["references"] = graph.document_frequency(entry["lineageId"])
-    by_name: dict[str, list[dict[str, Any]]] = {}
-    for node in nodes:
-        by_name.setdefault(normalized(node.get("displayName")), []).append(node)
-    _flag_duplicates(entries, by_name, None if list_all else provider, by_lineage)
+    _flag_duplicates(entries, nodes, None if list_all else provider, by_lineage)
     result["results"] = entries
     result["requests"] = _requests(client) - before
     return result

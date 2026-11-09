@@ -17,7 +17,7 @@ for entry in (HERE.parents[2] / "src", HERE.parents[2], HERE):
 from test_link_suggestions import site  # noqa: E402
 from papyrus_content import link_suggestions_commands  # noqa: E402
 from papyrus_content.concept_search import DUPLICATE_COSINE, search_concepts  # noqa: E402
-from papyrus_content.link_suggestions import _lineage  # noqa: E402
+from papyrus_content.link_suggestions import _lineage, related_concepts, suggest_links  # noqa: E402
 from papyrus_content.story_signals_mcp import call_story_signal_tool, story_signal_tools  # noqa: E402
 
 
@@ -93,7 +93,7 @@ class SearchTests(unittest.TestCase):
         flagged = [entry for entry in result["results"] if entry.get("duplicates")]
         self.assertEqual({entry["lineageId"] for entry in flagged}, {"voice", "voice2"})
         self.assertIn("same name", {d["why"] for entry in flagged for d in entry["duplicates"]})
-        self.assertEqual(result["duplicateCosine"], DUPLICATE_COSINE)
+        self.assertEqual(result["duplicateCosine"], {"likely": 0.90, "possible": DUPLICATE_COSINE})
         close = search_concepts(site(), FakeIndex(query=(1.0, 0.0, 0.0)), "something", limit=5)
         self.assertFalse(any(entry.get("duplicates") for entry in close["results"]))
 
@@ -150,6 +150,77 @@ class CommandAndToolTests(unittest.TestCase):
         self.assertIs(story_signal_tools()["papyrus_search_concepts"][1]["additionalProperties"], False)
         with self.assertRaises(ValueError):
             call_story_signal_tool("papyrus_search_concepts", {"query": "x", "state": "accepted"}, site())
+
+
+def add_nodes(client, *pairs):
+    for key, name in pairs:
+        client.tables["SemanticNode"][f"{key}-v1"] = {"id": f"{key}-v1", "lineageId": key, "nodeKey": f"editor_concept--{key}", "displayName": name, "aliases": [], "versionState": "current",
+                                                      "status": "accepted", "nodeKind": None}
+
+
+class WikiPageTests(unittest.TestCase):
+    def wiki_row(self, slug, indexed):
+        row = {"id": f"published-wiki-{slug}", "sourceItemId": f"wiki-{slug}", "itemLineageId": f"wiki-{slug}", "type": "wiki_page", "status": "published", "slug": slug, "section": "wiki",
+               "title": slug, "publishedAt": "2026-11-07T00:00:00Z", "metadata": json.dumps({"frontMatterYaml": f"title: {slug}\nentityKey: {slug}\nkind: editor-concept\n"})}
+        if indexed:
+            row["typeStatus"] = "wiki_page#published"
+        return row
+
+    def check(self, indexed):
+        client = site()
+        client.tables["PublishedItem"]["published-wiki-privacy"] = self.wiki_row("privacy", indexed)   # entityKey is the bare slug; the node key is editor_concept--privacy
+        result = search_concepts(client, FakeIndex(), "Privacy", limit=5)
+        pages = {entry["name"]: entry["publicPage"] for entry in result["results"]}
+        self.assertTrue(pages["Privacy"])
+        self.assertFalse(any(value for name, value in pages.items() if name != "Privacy"))
+        self.assertTrue(related_concepts(client, "privacy")["concept"]["publicPage"])
+        suggested = suggest_links(client, "s0")
+        self.assertEqual({c["name"]: c["publicPage"] for c in suggested["concepts"]}["Privacy"], True)
+
+    def test_a_page_found_by_the_published_index_counts(self):
+        self.check(indexed=True)
+
+    def test_a_page_found_only_in_the_published_summaries_counts(self):
+        self.check(indexed=False)   # the live index returned no rows although the pages are published
+
+
+class DuplicateTierTests(unittest.TestCase):
+    def run_pair(self, left, right, cosine):
+        client = site()
+        add_nodes(client, ("left", left), ("right", right))
+        index = FakeIndex(present=["left", "right"], query=(1.0, 0.0, 0.0))
+        index.VECTORS = {"left": [1.0, 0.0, 0.0], "right": [cosine, (1 - cosine * cosine) ** 0.5, 0.0]}
+        result = search_concepts(client, index, "zzz", limit=5)
+        return {entry["lineageId"]: entry.get("duplicates") for entry in result["results"]}.get("left") or []
+
+    def test_the_known_pairs(self):
+        self.assertEqual(self.run_pair("Contextual integrity", "contextual integrity", 0.66)[0]["why"], "same name")
+        self.assertEqual(self.run_pair("Re-identification", "Reidentification", 0.5)[0]["why"], "same name")
+        self.assertEqual(self.run_pair("Training data", "Data training", 0.5)[0]["why"], "same name")
+        possible = self.run_pair("Prompt injection", "Prompt injection attacks", 0.66)
+        self.assertTrue(possible[0]["why"].startswith("possible duplicate (a suggestion)"), possible)
+
+    def test_likely_needs_a_close_card_and_possible_needs_a_shared_word(self):
+        self.assertTrue(self.run_pair("Sandbox", "Isolation boundary", 0.95)[0]["why"].startswith("likely duplicate"))
+        self.assertEqual(self.run_pair("Sandbox", "Isolation boundary", 0.66), [])     # alike, but no shared word of 4+ letters
+        self.assertEqual(self.run_pair("Prompt injection", "Prompt design", 0.5), [])   # shared word, cards too far apart
+
+
+class MissingKeyTests(unittest.TestCase):
+    def test_a_401_says_what_is_needed_and_the_command_fails_with_it(self):
+        class Broken(FakeIndex):
+            def embed_text(self, text):
+                raise RuntimeError("HTTP Error 401: Unauthorized")
+
+        result = search_concepts(site(), Broken(), "no such name")
+        self.assertTrue(result["embeddingKeyProblem"])
+        for phrase in ("OPENAI_API_KEY", "signed-in editor lane has no embedding key", "references search", "follow-up"):
+            self.assertIn(phrase, result["indexNote"])
+        with mock.patch.object(link_suggestions_commands, "create_authoring_client", return_value=(site(), {})), \
+                mock.patch("papyrus_content.concept_search.default_provider", return_value=Broken()):
+            with self.assertRaises(ValueError) as caught:
+                link_suggestions_commands.relations_search(["no such name"])
+        self.assertIn("OPENAI_API_KEY", str(caught.exception))
 
 
 if __name__ == "__main__":

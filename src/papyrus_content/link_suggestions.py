@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .concept_link_predicates import CONCEPT_KIND, CONCEPT_LINK_PREDICATES, MENTIONS
+from .concept_tags import concept_page_keys, has_public_page, resolve_concept_exact
 from .reference_links import SEE_ALSO
 from .section_concepts import concept_label
 
@@ -269,7 +270,6 @@ class Graph:
 
 def related_concepts(client: Any, concept: str, *, limit: int = 15) -> dict[str, Any]:
     """The concepts near one concept (read only). The concept is found by the same exact resolver as ``stories link-concept``; it is never created or guessed."""
-    from .concept_tags import concept_page_keys, has_public_page, resolve_concept_exact
     from .section_concepts import current_concept_nodes
 
     before = _requests(client)
@@ -280,6 +280,9 @@ def related_concepts(client: Any, concept: str, *, limit: int = 15) -> dict[str,
     node = resolve_concept_exact(catalogue, concept)
     graph = Graph(client)
     related = graph.related([node], limit=limit)[_lineage(node)]
+    pages = concept_page_keys(client)
+    for entry in related:
+        entry["publicPage"] = has_public_page(entry, pages)
     return {"concept": {"lineageId": _lineage(node), "nodeKey": node.get("nodeKey"), "name": concept_label(node), "publicPage": has_public_page(node, concept_page_keys(client))},
             "carriers": dict(zip(("stories", "references"), graph.document_frequency(_lineage(node)))), "related": related, "requests": _requests(client) - before}
 
@@ -339,7 +342,7 @@ def suggest_links(client: Any, story_ref: str, *, kinds: tuple[str, ...] = ("art
     scan = set(own)
     contributions: dict[str, dict[str, dict[str, Any]]] = {}   # concept lineage -> {"name", "weight", "path"}
     for lineage_id, entry in own.items():
-        contributions[lineage_id] = {"name": concept_label(entry["node"]), "weight": entry["weight"], "path": "direct"}
+        contributions[lineage_id] = {"name": concept_label(entry["node"]), "nodeKey": entry["node"].get("nodeKey"), "weight": entry["weight"], "path": "direct"}
     for source, found in neighbours.items():
         for neighbour in found:
             other = neighbour["lineageId"]
@@ -348,11 +351,13 @@ def suggest_links(client: Any, story_ref: str, *, kinds: tuple[str, ...] = ("art
             current = contributions.get(other)
             weight = neighbour["weight"] * own[source]["weight"] if neighbour["reason"] == "cooccurrence" else neighbour["weight"]
             if current is None or weight > current["weight"]:
-                contributions[other] = {"name": neighbour["name"], "weight": weight, "path": f"via {concept_label(own[source]['node'])}, then {neighbour['name']}"}
+                contributions[other] = {"name": neighbour["name"], "nodeKey": neighbour.get("nodeKey"), "weight": weight, "path": f"via {concept_label(own[source]['node'])}, then {neighbour['name']}"}
             scan.add(other)
     graph.load_concepts(sorted(scan))
     total = graph.total_documents()
-    result["concepts"] = [{"lineageId": key, "name": value["name"], "weight": round(value["weight"], 3), "path": value["path"]} for key, value in contributions.items()]
+    pages = concept_page_keys(client)
+    result["concepts"] = [{"lineageId": key, "name": value["name"], "nodeKey": value.get("nodeKey"), "publicPage": has_public_page({"nodeKey": value.get("nodeKey")}, pages),
+                           "weight": round(value["weight"], 3), "path": value["path"]} for key, value in contributions.items()]
     scores: dict[str, dict[str, Any]] = {}
     for concept_lineage, info in contributions.items():
         idf = _idf(graph, concept_lineage, total)
