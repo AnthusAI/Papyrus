@@ -41,7 +41,7 @@ class SiteRelations:
 
     based_on: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     concepts: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
-    #: ``{item id: item ids}`` of the published Stories each published Story is related to (``related_to`` between two Stories, read in both directions).
+    #: ``{item id: item ids}`` of the published Stories each published Story is related to (``see_also`` between two Stories, read in both directions).
     related: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     def digest_input(self) -> list:
@@ -133,11 +133,11 @@ def read_site_relations(client: Any, stories: Iterable[tuple[str, str | None, st
 
 
 ITEM_KIND = "item"
-RELATED_TO = "related_to"
+SEE_ALSO = "see_also"  # the one story-to-story relation: symmetric, written by `papyrus stories link-story`
 
 
 def _related_stories(client: Any, published: Mapping[str, tuple[str, str]], outgoing: Mapping[str, list[dict[str, Any]]]) -> dict[str, tuple[str, ...]]:
-    """``related_to`` between two published Stories, symmetric: the rows from each Story (already read) and the rows that point at it (one more index query per 25 Stories)."""
+    """``see_also`` between two published Stories, symmetric: the rows from each Story (already read) and the rows that point at it (one more index query per 25 Stories)."""
     pairs: dict[str, dict[str, None]] = {}
 
     def link(lineage: str, other: str) -> None:
@@ -147,7 +147,7 @@ def _related_stories(client: Any, published: Mapping[str, tuple[str, str]], outg
 
     for lineage in published:
         for relation in outgoing.get(f"item#{lineage}#current") or []:
-            if relation.get("predicate") == RELATED_TO and relation.get("objectKind") == ITEM_KIND and relation.get("relationState") in (None, "current"):
+            if relation.get("predicate") == SEE_ALSO and relation.get("objectKind") == ITEM_KIND and relation.get("relationState") in (None, "current"):
                 link(lineage, str(relation.get("objectLineageId") or ""))
     keys = [f"item#{lineage}#current" for lineage in published]
     if hasattr(client, "index_many"):
@@ -156,7 +156,7 @@ def _related_stories(client: Any, published: Mapping[str, tuple[str, str]], outg
         incoming = {key: list(client.list_semantic_relations_by_object_state(key)) for key in keys}
     for lineage in published:
         for relation in incoming.get(f"item#{lineage}#current") or []:
-            if relation.get("predicate") == RELATED_TO and relation.get("subjectKind") == ITEM_KIND and relation.get("relationState") in (None, "current"):
+            if relation.get("predicate") == SEE_ALSO and relation.get("subjectKind") == ITEM_KIND and relation.get("relationState") in (None, "current"):
                 link(lineage, str(relation.get("subjectLineageId") or ""))
     return {item: tuple(others) for item, others in pairs.items()}
 

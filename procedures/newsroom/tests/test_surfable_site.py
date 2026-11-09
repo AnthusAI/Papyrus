@@ -183,7 +183,7 @@ def test_a_concept_slug_is_what_follows_the_double_dash():
 # ------------------------------------------------------------------ related Stories
 
 def story_link(subject: str, other: str) -> dict:
-    return relation(subject, "related_to", "item", other, f"item-{other}", subjectKind="item", objectStateKey=f"item#{other}#current")
+    return relation(subject, "see_also", "item", other, f"item-{other}", subjectKind="item", objectStateKey=f"item#{other}#current")
 
 
 def test_related_stories_are_read_in_both_directions_and_only_when_published():
