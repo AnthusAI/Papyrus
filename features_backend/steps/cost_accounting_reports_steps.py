@@ -185,9 +185,9 @@ def step_owner_error(context):
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
-@given("a site backend with no PAPYRUS_COST_TAGS, PAPYRUS_SITE_ID or PROSPECTUS_USAGE_QUEUE_URL")
+@given("a site backend built without PAPYRUS_COST_TAG_WAVE, so its functions have no PAPYRUS_SITE_ID or PROSPECTUS_USAGE_QUEUE_URL")
 def step_no_usage_environment(context):
-    context.cleared = ("PAPYRUS_COST_TAGS", "PAPYRUS_SITE_ID", "PROSPECTUS_USAGE_QUEUE_URL")
+    context.cleared = ("PAPYRUS_COST_TAG_WAVE", "PAPYRUS_SITE_ID", "PROSPECTUS_USAGE_QUEUE_URL")
 
 
 @when("the editorial-checks and knowledge-query functions start and flush")
