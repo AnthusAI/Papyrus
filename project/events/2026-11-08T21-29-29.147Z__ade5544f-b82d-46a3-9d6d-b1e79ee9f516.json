@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ade5544f-b82d-46a3-9d6d-b1e79ee9f516",
+  "issue_id": "PPY-37f2ecb6-f3b3-4702-970d-132d0a7b4e5e",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:29:29.147Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Design partner's three new sites: launch as dedicated now, move to the shared tier after M7",
+        "to": "Launch the design partner's three sites as shared-tier tenants once M7 is done"
+      },
+      "priority": {
+        "from": 1,
+        "to": 0
+      }
+    }
+  }
+}

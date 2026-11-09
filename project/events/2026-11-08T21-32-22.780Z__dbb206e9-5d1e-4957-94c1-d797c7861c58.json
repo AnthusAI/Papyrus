@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "dbb206e9-5d1e-4957-94c1-d797c7861c58",
+  "issue_id": "PPY-8891e288-4eb7-4f50-b468-ed7b7b6059f8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:32:22.780Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "CDN spike part 2: CloudFront multi-tenant distributions for custom domains: certificates, quotas, per-tenant metrics, price",
+    "description": "(being written)",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-3b3cc320-6ca0-4fd7-adc4-3be1a2b5f201",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -14,10 +14,6 @@
   ],
   "dependencies": [
     {
-      "target": "PPY-48659296-6f90-4549-85f6-4599a2e31371",
-      "type": "blocked-by"
-    },
-    {
       "target": "PPY-a36a7a7d-a40d-467b-b3da-9348565fbc9e",
       "type": "blocked-by"
     },
@@ -32,6 +28,10 @@
     {
       "target": "PPY-6cb44bde-fb62-4382-8798-031ae9f44fee",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e511893a-f11c-4ba1-9534-cbbb9ca666d5",
+      "type": "blocked-by"
     }
   ],
   "comments": [
@@ -44,7 +44,7 @@
     }
   ],
   "created_at": "2026-11-08T18:46:27.274241Z",
-  "updated_at": "2026-11-08T21:19:02.253443Z",
+  "updated_at": "2026-11-08T21:27:52.392361Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,10 +1,10 @@
 {
   "id": "PPY-37f2ecb6-f3b3-4702-970d-132d0a7b4e5e",
-  "title": "Design partner's three new sites: launch as dedicated now, move to the shared tier after M7",
-  "description": "Outcome: The design partner launches three sites soon; the shared tier cannot take outside tenants before M7 (data-driven provisioning) and M8 (external review). Recommendation: launch them now as dedicated sites with today's process (a reviewed Prospectus product entry and a deploy per site is an accepted exception to decision A until the shared tier exists), tagged and reporting through cost accounting from day one (PPY-25e0d7), so they are the real-world test Ryan asked for; then move each to the shared tier with the TI runbook once M7 is done. Alternative (not recommended): wait for M7. Needs Ryan's confirmation and the partner's consent to the later move.\n\nTouches (verified at origin/develop 23fabe1d): each new site's repository and infra/site.json (Account UUID, tags), Prospectus accounts/papyrus-sites.json (three entries), the TI runbook (PPY-e51189) for the later move.\n\nAcceptance (Gherkin feature file: none (decision and launch); cost reports use features_backend/cost-accounting-reports.feature):\nScenario: The partner's sites report real cost from launch\n    Given the three sites launched dedicated with tags and token reports\n    When a week has passed\n    Then Prospectus's ledger shows each site's cost by category and day\n\nDependencies: blocked by PPY-25e0d7. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-259a3f.\n\nTesting: The cost-ledger check after one week.\nRollout: Now (dedicated); shared-tier move after M7.\nRisk and mitigation: Risk: three more dedicated sites to migrate later. Mitigation: they start on current Papyrus with their fixed tenant set, so the move is a copy, not an adoption.\n\nReleasable on its own: not applicable (decision).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "title": "Launch the design partner's three sites as shared-tier tenants once M7 is done",
+  "description": "Outcome: Ryan (2026-11-08, correction): the design partner's three new sites launch on the SHARED tier after M7; there is no dedicated launch beforehand. Their launch date is therefore the M7 date, which is why the critical-path plan (PPY-e38a2d) exists. Readiness checklist (M7's exit criteria, all true on production before the first partner site is created): (1) isolation enforced on the shared stack and the adversarial suite green on the release (PPY-bdc4ee, PPY-f7ce77) with security gate 1 signed off (PPY-3ff465); (2) Threat Intelligence cut over to the shared stack and serving correctly (PPY-e51189); (3) a site is created by a data change only: Prospectus deployment created by API (PPY-966ef5), Papyrus provisioning workflow (PPY-70a429), starter template (PPY-3aa10f); (4) provisioning security review passed (PPY-1da916); (5) shared sign-in works with the shared Google client on newsroom.p.apyr.us (PPY-fdbbd7); (6) each site reachable at <site>.p.apyr.us, and at its custom domain if the partner brings one (PPY-82de58, PPY-966722); (7) lifecycle events and the read-only rule wired (PPY-6cb44b, PPY-d7274f); export and deletion work (PPY-e882ee, PPY-62f10d); (8) metering and spend ceilings live, with the partner's usage attributed per site through cost accounting (PPY-3fd951, PPY-889ab5, PPY-49d059, PPY-25e0d7); (9) runbooks rehearsed (PPY-7438d9). Then: create the partner's Account and three deployments, the partner's admins sign in, onboarding, launch.\n\nTouches (verified at origin/develop 23fabe1d): Prospectus Account and three deployments (data), Tenant/TenantDomain rows via provisioning, the partner's DNS for custom domains if any.\n\nAcceptance (Gherkin feature file: features_backend/tenant-provisioning.feature (the paid sign-up scenario, run for each partner site)):\nScenario: A partner site goes live by a data change only\n    Given every item of the readiness checklist is done on production\n    When the partner's deployment \"<site>\" is created in Prospectus\n    Then the site is provisioned, its admins sign in with Google on newsroom.p.apyr.us, and it serves at <site>.p.apyr.us with no code change or deploy\n\nDependencies: blocked by PPY-25e0d7. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-259a3f.\n\nTesting: The readiness checklist with evidence on this issue; the provisioning scenario per site.\nRollout: After M7, one site first, then the other two.\nRisk and mitigation: Risk: schedule pressure tempts launching before isolation is proven. Mitigation: the checklist is the gate; the critical-path plan is where time is saved, never the gate.\n\nReleasable on its own: not applicable (launch).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "task",
   "status": "open",
-  "priority": 1,
+  "priority": 0,
   "assignee": null,
   "creator": null,
   "parent": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
@@ -20,11 +20,15 @@
     {
       "target": "PPY-259a3f97-6488-4b7e-b739-cc34491989e7",
       "type": "relates-to"
+    },
+    {
+      "target": "PPY-dad077d6-3bf9-470d-8535-37cb0bcbf88e",
+      "type": "blocked-by"
     }
   ],
   "comments": [],
   "created_at": "2026-11-08T21:17:57.791487Z",
-  "updated_at": "2026-11-08T21:18:01.109106Z",
+  "updated_at": "2026-11-08T21:29:29.304420Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "b0d4c03c-69f8-4ffe-bbb2-aacbf8c4c3ed",
+  "issue_id": "PPY-7bc5b7b2-bb65-4763-9007-b69856124955",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:32:24.991Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: The brand pack format (role colours light and dark, font from an allow-list, logo, wordmark, image-style slot) as a versioned JSON schema and a validator: WCAG AA contrast for every text/fill pair in both themes, lightness difference for colour-safe pairs, font allow-list. Vectors in a shared JSON file so the newsroom's TypeScript twin can reuse them later. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) brand-pack-validator, branch feature/<this issue id>-brand-pack-validator from origin/develop (spikes: branch spike/<this issue id>-brand-pack-validator, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): new src/papyrus_content/brand_pack/ (schema.json, validate.py, tests), scripts/fixtures/brand-pack-vectors.json.\n\nAcceptance (Gherkin feature file: features_backend/brand-pack-validator.feature):\nScenario: A low-contrast pack is refused naming the pair\n    Given a pack whose body text fails contrast in dark mode\n    When it is validated\n    Then it is refused naming the failing pair\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-88a883.\n\nTesting: poetry run pytest src/papyrus_content/brand_pack; poetry run behave features_backend/brand-pack-validator.feature.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

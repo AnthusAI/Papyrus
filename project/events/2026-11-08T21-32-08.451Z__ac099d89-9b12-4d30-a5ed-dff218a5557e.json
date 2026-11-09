@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "ac099d89-9b12-4d30-a5ed-dff218a5557e",
+  "issue_id": "PPY-ee1e0260-a035-4348-bf0d-c4e4647a5a3b",
+  "event_type": "issue_deleted",
+  "occurred_at": "2026-11-08T21:32:08.451Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "SiteConfig part 1: JSON schema of the shared-tier settings and the projection.json converter (Python)",
+    "issue_type": "sub-task",
+    "status": "open"
+  }
+}

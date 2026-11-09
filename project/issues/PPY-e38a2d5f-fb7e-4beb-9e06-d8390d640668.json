@@ -1,0 +1,23 @@
+{
+  "id": "PPY-e38a2d5f-fb7e-4beb-9e06-d8390d640668",
+  "title": "Critical path to M7: the execution plan for launching the design partner's sites on the shared tier",
+  "description": "(written by the plan script; see the comments for the dispatch list and owner questions)",
+  "type": "epic",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T21:29:25.459870Z",
+  "updated_at": "2026-11-08T21:29:27.177019Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

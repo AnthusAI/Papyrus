@@ -1,7 +1,7 @@
 {
   "id": "PPY-baa75de7-d23f-44cb-baba-3ce6beb5600a",
   "title": "No guest reads through AppSync on the shared stack",
-  "description": "Outcome: PublishedItem, PublishedMediaAsset, PublishedEdition, PublishedEditionItem, PublishedCategorySet and PublishedCategory allow guest read (allow.guest().to([\"read\"])). On a shared API any visitor could list every tenant's published rows and run up AppSync cost. Shared-tier public reads come only from the static projection in S3 through CloudFront; the reader API (reader-steering) uses its own function. The guest rules are dropped on the shared stack only (the Pretext reader on dedicated sites still uses them).\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts (six Published* models), amplify/backend site config (tenancy mode), docs/public-surface.md.\n\nAcceptance (Gherkin feature file: features_backend/shared-stack-no-guest-api.feature):\nScenario: A guest cannot list published rows on the shared stack\n    Given the shared stack\n    When an unauthenticated identity lists PublishedItem\n    Then the call is denied\n\nDependencies: blocked by PPY-06ae68. Blocks PPY-bdc4ee. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Adversarial suite; schema parity test asserts no guest rule when tenancy mode is shared.\nRollout: Shared stack only.\nRisk and mitigation: Risk: a static page island quietly depended on guest AppSync. Mitigation: grep of web assets and the projection's islands before the change; browser test of a tenant site with the network panel.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: removes guest read on six models (shared stack).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "description": "Outcome: PublishedItem, PublishedMediaAsset, PublishedEdition, PublishedEditionItem, PublishedCategorySet and PublishedCategory allow guest read (allow.guest().to([\"read\"])). On a shared API any visitor could list every tenant's published rows and run up AppSync cost. Shared-tier public reads come only from the static projection in S3 through CloudFront; the reader API (reader-steering) uses its own function. The guest rules are dropped on the shared stack only (the Pretext reader on dedicated sites still uses them).\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts (six Published* models), amplify/backend site config (tenancy mode), docs/public-surface.md.\n\nAcceptance (Gherkin feature file: features_backend/shared-stack-no-guest-api.feature):\nScenario: A guest cannot list published rows on the shared stack\n    Given the shared stack\n    When an unauthenticated identity lists PublishedItem\n    Then the call is denied\n\nDependencies: blocked by PPY-46635e, PPY-06ae68. Blocks PPY-bdc4ee. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Adversarial suite; schema parity test asserts no guest rule when tenancy mode is shared.\nRollout: Shared stack only.\nRisk and mitigation: Risk: a static page island quietly depended on guest AppSync. Mitigation: grep of web assets and the projection's islands before the change; browser test of a tenant site with the network panel.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: removes guest read on six models (shared stack).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "task",
   "status": "open",
   "priority": 1,
@@ -16,11 +16,15 @@
     {
       "target": "PPY-06ae6834-b447-4617-8cef-0331791e056e",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-46635e53-2ba7-4791-ab0a-47180a1ba82b",
+      "type": "blocked-by"
     }
   ],
   "comments": [],
   "created_at": "2026-11-08T18:46:19.049017Z",
-  "updated_at": "2026-11-08T18:46:52.423820Z",
+  "updated_at": "2026-11-08T21:27:53.396533Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
