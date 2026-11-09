@@ -1,6 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Reference edge for a Papyrus site that serves its S3 projection and the CMS on one host (papyrus-edge-<site>). Default behavior serves the site S3 projection bucket through OAC; /newsroom*, /_next/* and /api/* go to the CMS Amplify app main branch. The distribution has no CustomErrorResponses, because those apply to every behavior and would replace the CMS /api/* errors with the 404 page; the default behavior's origin-response function serves the 404 page instead.
 Parameters:
+  CostDeployment:
+    Type: String
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}$"
+    Description: >-
+      The site ID, tagged as anthus:deployment. Resources are tagged account "owner": Prospectus charges whichever Account
+      holds the papyrus-<site> entitlement (Prospectus docs/COST_ACCOUNTING.md).
   CertificateArn:
     Type: String
     Default: ''
@@ -126,6 +132,11 @@ Resources:
   NotFoundPageFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: owner }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:deployment", Value: !Ref CostDeployment }
+        - { Key: "anthus:cost-key", Value: !Sub "owner/papyrus/${CostDeployment}" }
       Description: Origin-response function of the default behavior only. Turns an S3 miss (403 or 404) into the site's own 404.html with status 404.
       Runtime: nodejs22.x
       Handler: index.handler
@@ -198,6 +209,11 @@ Resources:
   SiteDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: owner }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:deployment", Value: !Ref CostDeployment }
+        - { Key: "anthus:cost-key", Value: !Sub "owner/papyrus/${CostDeployment}" }
       DistributionConfig:
         Enabled: true
         Comment: S3 projection, newsroom on /newsroom

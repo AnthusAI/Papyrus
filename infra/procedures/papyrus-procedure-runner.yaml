@@ -37,12 +37,20 @@ Resources:
   RunnerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-procedure-runner
       RetentionInDays: 30
 
   RunnerDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       MessageRetentionPeriod: 1209600
 
   RunnerRole:
@@ -104,6 +112,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: RunnerLogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-procedure-runner
       PackageType: Image
       Code:

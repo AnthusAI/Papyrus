@@ -1,6 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: papyrus-edge-threat-intelligence CloudFront distributions in front of the Threat Intelligence Amplify app, main distribution caches public reader pages per the origin Cache-Control (PPY-79e668)
 Parameters:
+  CostDeployment:
+    Type: String
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}$"
+    Description: >-
+      The site ID, tagged as anthus:deployment. Resources are tagged account "owner": Prospectus charges whichever Account
+      holds the papyrus-<site> entitlement (Prospectus docs/COST_ACCOUNTING.md).
   CertificateArn:
     Type: String
 Resources:
@@ -40,6 +46,11 @@ Resources:
   CmsMainDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: owner }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:deployment", Value: !Ref CostDeployment }
+        - { Key: "anthus:cost-key", Value: !Sub "owner/papyrus/${CostDeployment}" }
       DistributionConfig:
         Enabled: true
         Comment: threat-intelligence.anth.us (main)
@@ -100,6 +111,11 @@ Resources:
   CmsStagingDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: owner }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:deployment", Value: !Ref CostDeployment }
+        - { Key: "anthus:cost-key", Value: !Sub "owner/papyrus/${CostDeployment}" }
       DistributionConfig:
         Enabled: true
         Comment: threat-intelligence-staging.anth.us (staging)

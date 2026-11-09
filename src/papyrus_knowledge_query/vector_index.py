@@ -2064,6 +2064,8 @@ def _embed_request(texts: list[str]) -> list[list[float]]:
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         raise RuntimeError(f"embeddings request failed: HTTP {error.code}: {_error_message(error)}") from error
+    from .services import _record_embedding_usage
+    _record_embedding_usage(payload)
     return [item["embedding"] for item in sorted(payload["data"], key=lambda entry: entry["index"])]
 
 
