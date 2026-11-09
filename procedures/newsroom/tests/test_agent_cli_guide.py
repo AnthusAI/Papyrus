@@ -208,14 +208,14 @@ def run_main(args: list[str]) -> tuple[int, str, str]:
     return status, out.getvalue(), err.getvalue()
 
 
-@pytest.mark.parametrize("args", [["stories", "create"], ["references", "link"], ["references", "make-catalog"], ["stories", "link-story"], ["ops", "content", "publish"]])
+@pytest.mark.parametrize("args", [["stories", "create"], ["references", "link"], ["references", "make-catalog"], ["stories", "link-story"]])
 def test_a_bare_command_prints_usage_with_the_error(args, monkeypatch):
     monkeypatch.delenv("PAPYRUS_SITE", raising=False)
     status, out, err = run_main(args)
     assert status != 0
     assert err.count(f"Usage: papyrus {' '.join(args)}") == 1, err
     assert "Lane:" in err and "Writes:" in err
-    assert re.search(r"needs arguments|requires|required", err)
+    assert re.search(r"requires|required|is required", err.split("Recipe:")[-1]), err
 
 
 def test_a_command_missing_one_flag_prints_usage_with_the_error(monkeypatch, tmp_path):

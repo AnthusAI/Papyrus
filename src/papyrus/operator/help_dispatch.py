@@ -254,7 +254,7 @@ def _leaf_path(args: list[str]) -> list[str] | None:
 
 
 def bare_invocation_error(args: list[str]) -> str | None:
-    """A message when `args` is a command that cannot work without arguments, named with nothing after it (usage is printed with it)."""
+    """A message when `args` is a command that cannot work without arguments, named with nothing after it."""
     path = _leaf_path(args)
     if path is None or len(path) < 2 or len(args) != len(path):
         return None
@@ -266,13 +266,17 @@ def bare_invocation_error(args: list[str]) -> str | None:
     return f"papyrus {' '.join(path)} needs arguments."
 
 
-def print_usage_for_error(args: list[str], error: BaseException) -> None:
-    """Print the failed command's usage to standard error ahead of the error when the error is about missing or wrong arguments."""
-    if not REQUIRED_ARGUMENT_ERROR.search(str(error)):
+_USAGE_SHOWN: list[tuple[str, ...]] = []
+
+
+def print_usage_for_error(args: list[str], error: BaseException, *, force: bool = False) -> None:
+    """Print the command's usage to standard error (once per run) when it is about to fail, or has failed, for missing or wrong arguments."""
+    if not force and not REQUIRED_ARGUMENT_ERROR.search(str(error)):
         return
     path = _leaf_path(args)
-    if path is None:
+    if path is None or tuple(path) in _USAGE_SHOWN:
         return
     text = _command_text(path)
     if text:
+        _USAGE_SHOWN.append(tuple(path))
         print(text, file=sys.stderr)

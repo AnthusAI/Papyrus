@@ -39,7 +39,7 @@ Feature: An agent can use the Papyrus CLI without guessing
     When an agent runs "papyrus stories create" with no site and no arguments
     Then the command failed
     And the printed error has the usage of "papyrus stories create" before the error
-    And the printed error contains "needs arguments"
+    And the printed error contains "--title is required"
 
   Scenario: Every command in the guide exists and every flag it uses is in its usage
     When the guide's fenced commands are checked against the CLI

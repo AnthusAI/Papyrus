@@ -309,8 +309,9 @@ def main(argv: list[str] | None = None) -> int:
 
 def _run_printing_usage_on_error(argv: list[str] | None) -> int:
     """Run the command; when it fails for missing or wrong arguments, print its usage ahead of the error (a bare command shows its usage)."""
-    from papyrus.operator.help_dispatch import print_usage_for_error
+    from papyrus.operator.help_dispatch import _USAGE_SHOWN, print_usage_for_error
 
+    _USAGE_SHOWN.clear()
     args = list(argv if argv is not None else sys.argv[1:])
     try:
         return _run_with_arguments(args)
@@ -332,11 +333,11 @@ def _run_with_arguments(argv: list[str] | None) -> int:
     help_status = answer_help(args)
     if help_status is not None:
         return help_status
-    from papyrus.operator.help_dispatch import bare_invocation_error
+    from papyrus.operator.help_dispatch import bare_invocation_error, print_usage_for_error
 
-    bare = bare_invocation_error(args)
-    if bare:
-        raise ValueError(bare)   # `_run_printing_usage_on_error` prints the usage first
+    if bare_invocation_error(args):
+        # A command that cannot work without arguments, run with none: show how to use it, then let it report its own specific error.
+        print_usage_for_error(args, ValueError("requires arguments"), force=True)
     if args[0] == "--version":
         from papyrus import __version__
 
