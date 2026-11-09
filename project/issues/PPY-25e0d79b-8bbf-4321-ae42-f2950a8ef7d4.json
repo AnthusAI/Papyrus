@@ -3,7 +3,7 @@
   "title": "Report Papyrus cost through Prospectus cost accounting on our sites and the design partner's three sites",
   "description": "Outcome: Ryan (2026-11-08): BUILD cost accounting (Prospectus docs/COST_ACCOUNTING.md, epic kanbus-bb0b6c) and test it on our own sites and on the design partner's three new sites, which launch directly as shared-tier tenants at M7 (never dedicated). Papyrus's part, following the Prospectus attribution convention: app = papyrus, deployment = site id, the Account UUID per site; model tokens as namespaced kinds (openai.tokens.input, openai.tokens.output, jev.tokens, ...) with no dollars; usage batched off the request path to the Prospectus SQS queue through the shared sender library; every AWS resource tagged anthus:app, anthus:account (or 'shared' on the shared stack, split by reported usage) and anthus:deployment, by a CDK aspect in amplify/site-backend.ts, with CI failing an untagged taggable resource. Dedicated sites need only the tags plus model token reports; the shared stack also reports per-tenant usage of shared resources (PPY-49d059). This replaces calling the quota usage route directly, which is live for Babulus only today.\n\nProspectus status (2026-11-08, develop a329ee1): the package @anthus/cost-accounting is merged (kanbus-543ced, kanbus-40dc2a): applyCostTags/assertCostTags for CDK (adds anthus:account, anthus:app, anthus:deployment, anthus:cost-key) and a TypeScript UsageSender (record is synchronous, flush before a Lambda invocation ends, one queue per product, prospectus-usage-<product>, unknown item kinds refused). The private cost ledger and quota on real cost are merged (kanbus-6efec6, kanbus-c7be53); the per-product usage queues and scheduled drain are merged behind a flag that is off (kanbus-71ff98: queue policy and each app's send permission need Ryan's approval). The matching Prospectus issue for this task is kanbus-1f0c86; the shared tier's single papyrus queue is kanbus-f45f7f. Gaps for Papyrus: there is no Python sender yet (content-actions and the model-calling modules are Python): write a small Python twin against the same message format and test vectors, or ask Prospectus to publish one (kanbus-40dc2a says it will); vendor the package tarball as with @anthus/prospectus-accounts-client; Amplify Gen 2 stacks apply the CDK helper in amplify/site-backend.ts. Order: PPY-f98e05 tags first (Cost Explorer attribution works from day one), then token reports once the queue flag is on.\n\nTouches (verified at origin/develop 23fabe1d): amplify/site-backend.ts (tagging aspect), src/papyrus_content/model_cost.py and the model-calling modules, new src/papyrus_content/metering.py using the Prospectus sender library (Python twin if the library is TypeScript only), each site's infra/site.json (Account UUID), CI check for tags.\n\nAcceptance (Gherkin feature file: features_backend/cost-accounting-reports.feature):\nScenario: A model call on a dedicated site reaches the cost ledger once\n    Given a design-partner site with its Account UUID and deployment id\n    When an editorial check makes two model calls and the batch is retried\n    Then the Prospectus queue receives the token items once, attributed to app papyrus, that Account and that deployment\n\nScenario: An untagged resource fails CI\n    Given a stack with a table missing anthus:account\n    When CI synthesises it\n    Then the build fails naming the resource\n\nDependencies: blocked by nothing. Blocks PPY-8a3c6a, PPY-37f2ec. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-ea3f08.\n\nTesting: Unit tests of batching; synth test for tags; compare the ledger with Cost Explorer for one site for a week.\nRollout: Our own dedicated sites first (one site under test, then the batch), then the shared stack, so the design partner's sites are attributed per deployment from their first day at M7 (kanbus-f45f7f).\nRisk and mitigation: Risk: the sender library is not ready when the design partner launches. Mitigation: tags first (Cost Explorer works from day one on dedicated stacks), token reports when the library lands.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -18,9 +18,31 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "fb603e82-afe4-4c97-a82b-ae816592b6d1",
+      "author": "home",
+      "text": "Matches Prospectus kanbus-1f0c86. Ryan (2026-11-09): no owner configuration in Papyrus. Per-site stacks are tagged account \"owner\" with deployment = site ID; Prospectus charges whichever Account holds the papyrus-<site> entitlement and records overhead when none does. Shared stacks are tagged \"shared\". Built on branch feature/cost-accounting: vendored @anthus/cost-accounting (Prospectus develop 69114f9), tags on every CDK stack and every CloudFormation template under infra/ (Anth.us left unchanged), CI check scripts/test-cost-tags.ts, Python sender src/papyrus_cost_usage, usage from editorial-checks (jev.tokens) and knowledge-query (openai.tokens.input), sqs:SendMessage on each site's own queue. Open with Prospectus: which customer Account the Lambda resolvers name in usage, since they never see a verified Account. The sender roles to register are in the Prospectus session's notes.",
+      "created_at": "2026-11-09T04:30:15.397822Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "10287910-64ee-41ab-8996-94727ef35f0b",
+      "author": "home",
+      "text": "Matches Prospectus kanbus-1f0c86. Ryan (2026-11-09): no owner configuration in Papyrus. Per-site stacks are tagged account \"owner\" with deployment = site ID; Prospectus charges whichever Account holds the papyrus-<site> entitlement and records overhead when none does. Shared stacks are tagged \"shared\". Built on branch feature/cost-accounting: vendored @anthus/cost-accounting (Prospectus develop 69114f9), tags on every CDK stack and every CloudFormation template under infra/ (Anth.us left unchanged), CI check scripts/test-cost-tags.ts, Python sender src/papyrus_cost_usage, usage from editorial-checks (jev.tokens) and knowledge-query (openai.tokens.input), sqs:SendMessage on each site's own queue. Open with Prospectus: which customer Account the Lambda resolvers name in usage, since they never see a verified Account.",
+      "created_at": "2026-11-09T04:30:20.951895Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "85962885-d7d5-4486-96c6-c974e719b7bb",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1327 (branch feature/PPY-25e0d7-cost-accounting), not merged, not released. Usage reports as account \"owner\" (Prospectus #149). Verified locally: scripts/test-cost-tags.ts, test_cost_usage.py (14), cost-accounting-reports.feature (6), editorial/knowledge features (330), typecheck, lint, pilot guard. IAM (sqs:SendMessage on each site's own queue for editorial-checks and knowledge-query roles) awaits Ryan's approval; role ARNs sent to Prospectus for queue registration.",
+      "created_at": "2026-11-09T04:42:17.197551Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T21:17:57.288541Z",
-  "updated_at": "2026-11-09T00:29:55.526796Z",
+  "updated_at": "2026-11-09T04:42:17.198149Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

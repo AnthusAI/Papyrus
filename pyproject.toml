@@ -58,6 +58,7 @@ packages = [
     { include = "papyrus", from = "src" },
     { include = "papyrus_newsroom", from = "src" },
     { include = "papyrus_knowledge_query", from = "src" },
+    { include = "papyrus_cost_usage", from = "src" },
     { include = "papyrus_content", from = "src" },
     { include = "papyrus_web", from = "src" },
 ]

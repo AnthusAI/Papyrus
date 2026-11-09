@@ -64,6 +64,10 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -105,11 +109,19 @@ Resources:
   FailureQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
   SubmissionRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -187,12 +199,20 @@ Resources:
   SubmissionLogs:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: !Sub /aws/lambda/papyrus-email-${MonitorId}
       RetentionInDays: 30
   SubmissionFunction:
     Type: AWS::Lambda::Function
     DependsOn: SubmissionLogs
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: !Sub papyrus-email-${MonitorId}
       Runtime: python3.12
       Architectures: [arm64]

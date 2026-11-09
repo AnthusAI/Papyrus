@@ -38,7 +38,7 @@ export const editorialChecks = defineFunction(
       code: pythonLambdaCode(
         {
           functionDir: "editorial-checks",
-          modules: ["papyrus_content"],
+          modules: ["papyrus_content", "papyrus_cost_usage"],
           requirements: editorialChecksRequirements,
           noDeps: true,
           checkoutExtras: installRequirements,
@@ -51,6 +51,8 @@ export const editorialChecks = defineFunction(
             "mkdir -p /asset-output/papyrus_content",
             "cp amplify/functions/editorial-checks/handler.py /asset-output/handler.py",
             "cp -R src/papyrus_content/. /asset-output/papyrus_content/",
+            "mkdir -p /asset-output/papyrus_cost_usage",
+            "cp -R src/papyrus_cost_usage/. /asset-output/papyrus_cost_usage/",
             "python3 -m pip install -r amplify/functions/editorial-checks/requirements.txt -t /asset-output --no-cache-dir",
           ].join(" && "),
         ],
