@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c71a0ba7-8578-43ec-8fc3-afb81850daee",
+  "title": "capture-video-posters should refresh the page it captured for",
+  "description": "papyrus stories capture-video-posters stores the posters but the page keeps showing the flat placeholder until someone separately runs 'papyrus ops content update-live --story LINEAGE' (publish answers 'unchanged (published version N)' and does not reproject). Found 2026-11-09 on the first real ::video story. Make capture-video-posters finish with the story's update-live (or at least print the exact command), and make publish for an unchanged version say how to refresh. Gherkin: 'Capturing posters makes the page show them' and 'Publishing an unchanged version points to update-live'.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T04:36:04.371969Z",
+  "updated_at": "2026-11-09T04:36:04.372228Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
