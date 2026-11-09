@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from ..edge_invalidation import InvalidationCapped
+from .body_cache import BodyCache
 from .lease import ProjectionLease
 from .item_state import (
     ITEM_STATE_PREFIX,
@@ -146,6 +147,9 @@ class ProjectionContext:
         types = tuple(getattr(self.projector, "projectable_types", ()))
         if types and hasattr(self.source, "extra_types"):
             self.source.extra_types = types
+        if self.keep_state and hasattr(self.source, "body_cache") and self.source.body_cache is None:
+            # Kept beside the item states, so only a context that keeps state in its store keeps bodies there (never a local full build).
+            self.source.body_cache = BodyCache(self.writer)
         attach = getattr(self.projector, "attach_store", None)
         if attach is not None:
             attach(self.writer)
@@ -157,9 +161,23 @@ def _leased(function):
     @functools.wraps(function)
     def wrapper(context: ProjectionContext, *args, **kwargs):
         with context.leased():
-            return function(context, *args, **kwargs)
+            try:
+                return function(context, *args, **kwargs)
+            finally:
+                _flush_body_cache(context)
 
     return wrapper
+
+
+def _flush_body_cache(context: ProjectionContext) -> None:
+    """Write the bodies this projection read for the first time, still under the lease (``body_cache.py``). Never fails the projection."""
+    cache = getattr(context.source, "body_cache", None)
+    if cache is None:
+        return
+    try:
+        cache.flush()
+    except Exception as error:  # noqa: BLE001 - the pages are written; a cache that was not saved only makes the next projection slower
+        LOGGER.warning("the body cache was not saved: %s: %s", type(error).__name__, error)
 
 
 def _page_order(keys) -> list[str]:
@@ -179,29 +197,52 @@ def _marked(context: ProjectionContext, key: str, body: bytes, version: int | No
     return with_source_version(key, body, version) if getattr(context.writer, "source_markers", False) else body
 
 
+def _put_pages(context: ProjectionContext, report: ProjectionReport, pages: list[tuple[str, bytes, int | None, str | None]]) -> None:
+    """Write ``(key, body, version, inputs)`` in this order, or, on a store that can (S3), all at once.
+
+    A store with ``put_many`` and ``head_many`` (``S3PageWriter``) first reads what it holds for these keys, in parallel. A page whose stored
+    bytes are already the bytes rendered, with the same version and inputs digest, is not written again; one whose bytes are the same but
+    whose digest is not gets its digest written, so a later reconcile does not see it as stale. Neither is named in ``report.written``, so
+    neither is purged at the edge: only pages whose bytes changed are (``report.unchanged`` lists the rest). The writes themselves run in
+    parallel. Other stores (a local directory, the tests' recording store) are written key by key, as before.
+    """
+    put_many = getattr(context.writer, "put_many", None)
+    if put_many is None or not pages:
+        for key, body, version, inputs in pages:
+            context.renew_lease()
+            context.writer.put(key, body, version=version, inputs=inputs)
+            report.written.append(key)
+        return
+    context.renew_lease()
+    held = _head_many(context.writer, [key for key, _body, _version, _inputs in pages])
+    writes: list[tuple[str, bytes, int | None, str | None]] = []
+    for key, body, version, inputs in pages:
+        stored = held.get(key)
+        same_bytes = stored is not None and stored.etag == body_etag(body)
+        if same_bytes and stored.version == version and stored.inputs == inputs:
+            report.unchanged.append(key)
+            continue
+        writes.append((key, body, version, inputs))
+        (report.unchanged if same_bytes else report.written).append(key)
+    context.renew_lease()
+    put_many(writes)
+    context.renew_lease()
+
+
 def _write_item_pages(
     context: ProjectionContext, report: ProjectionReport, pages: dict[str, bytes], versions: dict[str, int | None]
 ) -> None:
-    for key in _page_order(pages):
-        context.renew_lease()
-        context.writer.put(key, _marked(context, key, pages[key], versions.get(key)), version=versions.get(key))
-        report.written.append(key)
+    _put_pages(context, report, [(key, _marked(context, key, pages[key], versions.get(key)), versions.get(key), None) for key in _page_order(pages)])
 
 
 def _write_listing_pages(
     context: ProjectionContext, report: ProjectionReport, pages: dict[str, bytes], inputs: dict[str, str]
 ) -> None:
-    for key in _page_order(pages):
-        context.renew_lease()
-        context.writer.put(key, pages[key], inputs=inputs.get(key))
-        report.written.append(key)
+    _put_pages(context, report, [(key, pages[key], None, inputs.get(key)) for key in _page_order(pages)])
 
 
 def _write_static(context: ProjectionContext, report: ProjectionReport, pages: dict[str, bytes]) -> None:
-    for key in sorted(pages):
-        context.renew_lease()
-        context.writer.put(key, pages[key])
-        report.written.append(key)
+    _put_pages(context, report, [(key, pages[key], None, None) for key in sorted(pages)])
 
 
 def _delete_pages(context: ProjectionContext, report: ProjectionReport, keys) -> None:
@@ -721,9 +762,14 @@ def project_item_pages(
     report = ProjectionReport()
     projector = context.projector
     stored = {entry.key: entry.etag for entry in context.writer.list()}
-    items = context.source.all_published_items()
-    summaries = tuple(item.summary for item in items)
-    site = SiteIndex(items=summaries, load_item=context.source.load_item, story_stars=context.source.story_stars(summaries))
+    indexed_items = getattr(context.source, "indexed_items", None)
+    if indexed_items is not None:
+        # The listing data and the kept bodies: no whole-table read of the published rows, and no read per Story whose body is kept.
+        site, items = indexed_items()
+    else:
+        items = context.source.all_published_items()
+        summaries = tuple(item.summary for item in items)
+        site = SiteIndex(items=summaries, load_item=context.source.load_item, story_stars=context.source.story_stars(summaries))
     for item in items:
         if item.summary.item_id == except_item_id:
             continue

@@ -74,13 +74,16 @@ def byline_markdown(authors, origin: str | None = None) -> str:
     return ", ".join(names)
 
 
-def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None) -> str:
+def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None, byline: str | None = None) -> str:
+    """``byline`` is a site hook's complete byline text; it replaces the "By <authors>" line."""
     body = canonicalize_image_credits(body_of(source_text))
     lines = []
     if not _opens_with_heading(body):
         lines += [f"# {entry.title}", ""]
     facts = []
-    if entry.author_details:
+    if byline:
+        facts.append(byline)
+    elif entry.author_details:
         facts.append("By " + byline_markdown(entry.author_details, origin))
     if entry.date:
         facts.append(f"Published {entry.date}")

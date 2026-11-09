@@ -332,6 +332,7 @@ error (prefix helpers with `_`):
 | `page_finish(html, page)` | the finished page as text, the page | the text that is written; the last step, after `head_extra`, `body_class` and `page_body` |
 | `page_inputs(site)` | a `HookSite` | JSON-able data every page also renders from (a table of URLs it rewrites links with); every page is rendered again when it changes |
 | `redirects(site)` | a `HookSite` | exact redirects `{"/old/": "/new/"}` derived from the items, on top of the items' `aliases`; `redirects.exact` of `projection.json` wins over it, and a path that is a page is never redirected |
+| `byline(entry)` | an entry | the complete byline text (`"By various bots and Ryan Porter"`, plain text, escaped by core), or `None` for the default. It replaces the linked author names in the item page's byline (`components.itemByline`) and the "By ..." line of the Markdown twin, so the page and its twin agree; it reads only the entry |
 | `block(name, attributes, page)` | the name of an `::include{kind="block"}`, its other attributes (without `kind`, `name`, `depends`), the page | the markup of the block (see "Authored page files") |
 
 `card` may also take `variant` (the `card` attribute of an `::include` listing, otherwise `None`) and `index` (the card's place in its list, from 0) as parameters of those names; a hook without `variant` rejects an include that names one.

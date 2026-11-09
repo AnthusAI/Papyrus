@@ -1546,9 +1546,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
             "wiki_footer": wiki.footer_html(entry, front, self.standard, date_format, form, {str(e.get("key")) for e in index.get("entities") or []}, self.policy.path),
         }
 
+    def _hook_byline(self, entry: StandardEntry) -> str | None:
+        return self.hooks.byline(entry) if self.hooks.byline is not None else None
+
     def _item_twin(self, entry: StandardEntry, text: str, canonical: str | None) -> str:
         notes = tuple(wiki.notes(entry.data, self.standard.identity.date_format, self.policy.path)) if wiki.is_wiki_entry(entry, self.standard) else ()
-        return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes, self.environment.origin)
+        return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes, self.environment.origin, self._hook_byline(entry))
 
     def _chrome(self, page: StandardPage) -> SiteChrome:
         base = self._settings.chrome
@@ -1827,7 +1830,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             entry = page.entry
             extras = []
             if entry is not None and self.standard.item_byline:
-                extras.append(components.byline(entry, self.standard.identity.date_format))
+                extras.append(components.byline(entry, self.standard.identity.date_format, self._hook_byline(entry)))
             if entry is not None and entry.tags and self.standard.listings.tags:
                 extras.append(components.tag_list(entry.tags, lambda tag: self.policy.path(f"/{self.policy.tag_base(slugify_tag(tag))}/")))
             actions = self._page_actions(page)

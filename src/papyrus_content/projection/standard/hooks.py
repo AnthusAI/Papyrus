@@ -19,6 +19,11 @@ do nothing. Anything that needs more than a slot is a signal to add a core optio
                                     ``page.page_actions``, the page-actions markup (empty when off), for a body that places it itself;
                                     ``page.article_actions()`` returns the same markup and is the call a ``main`` or ``page_body`` hook makes.
 
+``byline(entry) -> str | None``     the complete byline text of an item ("By various bots and Ryan Porter"), plain text that core escapes; core shows it
+                                    in place of the linked author names in the item page's byline (when ``components.itemByline`` is on) and in the
+                                    Markdown twin's "By ..." line. ``None``, or no hook, keeps the author names (and their links). It reads only
+                                    the entry, so it makes no page depend on other entries.
+
 ``derive(summary) -> dict``         fields computed from an item's summary (a tier, a week); they appear as ``entry.derived``,
                                     are part of every fingerprint, and are how a site's row or card component is chosen
 ``page`` is a :class:`papyrus_content.projection.standard.page.StandardPage`.
@@ -69,7 +74,7 @@ from .knowledge_lookup import KnowledgeLookup
 
 HOOK_NAMES = (
     "masthead", "footer", "card", "head_extra", "body_class", "item_decorator", "main", "page_body", "derive",
-    "item_filter", "source", "item_transform", "image_pipeline", "page_finish", "block", "page_inputs", "redirects", "page_head",
+    "item_filter", "source", "item_transform", "image_pipeline", "page_finish", "block", "page_inputs", "redirects", "page_head", "byline",
 )
 
 
@@ -93,6 +98,7 @@ class Hooks:
     page_inputs: object = None
     redirects: object = None
     page_head: object = None
+    byline: object = None
     fingerprint: str = ""
     depends_on: tuple[str, ...] | dict | None = None
 

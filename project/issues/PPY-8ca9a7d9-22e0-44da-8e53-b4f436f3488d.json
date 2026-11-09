@@ -26,13 +26,13 @@
     {
       "id": "a6c1aa58-3ebb-48ed-b7ac-ac469b3e2f35",
       "author": "home",
-      "text": "Add the design partner's three sites: dedicated now, shared after M7 (PPY-37f2ec).",
+      "text": "The design partner's three sites are not in this list: they launch directly on the shared tier at M7 (PPY-37f2ec), never dedicated.",
       "created_at": "2026-11-08T21:19:03.628308Z",
       "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T18:46:24.890310Z",
-  "updated_at": "2026-11-08T21:19:03.628577Z",
+  "updated_at": "2026-11-09T00:29:56.265290Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -4,12 +4,14 @@ import json
 import os
 from typing import Any
 
+from papyrus_content import request_meter
 from papyrus_content.edge_invalidation import distribution_ids_from_environment, invalidate_revalidated_paths
 from papyrus_content.graphql_authoring import create_authoring_client
 from papyrus_content.markus_renderer.body_features import install_body_features
 from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
 from papyrus_content.projection.lease import ProjectionLeaseHeld
+from papyrus_content.projection.publish_jobs import DONE, FAILED, QUEUED, RUNNING, publish_jobs_from_environment
 from papyrus_content.projection.engine import project, project_all, project_item_pages
 from papyrus_content.page_refresh.operations import BY_NAME as PAGE_REFRESH_OPERATIONS, run_operation as run_page_refresh, validate as validate_page_refresh
 from papyrus_content.page_refresh.budget import DRY_RUN_ABOVE, budget_from_environment
@@ -103,6 +105,14 @@ def derive_markus_action(arguments: dict) -> dict:
 
 PROJECTION_TASK_KEY = "projectionTask"
 HOME_PAGE_SNAPSHOT_WORKERS = 8
+# A publish answered before its pages are built (PPY-3acc8d): how long a build waits for a busy site before it leaves its story queued for the
+# lease holder (and Lambda's retry) instead of blocking for the default two minutes; and how long a publish that projects inline waits, so its
+# answer comes back inside the 30 seconds AppSync allows (a held lease then schedules the build).
+QUEUED_LEASE_WAIT_SECONDS = 10.0
+INLINE_LEASE_WAIT_SECONDS = 20.0
+# Draining stops this long before the function's own timeout; what is left is handed to a fresh invocation.
+DRAIN_RESERVE_SECONDS = 45.0
+ITEM_PAGES_JOB = "__item-pages__"   # the follow-up that renders every item page: one queued run covers every publish before it
 
 
 class ProjectionTaskFailed(Exception):
@@ -171,6 +181,7 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     if published_item_id:
         task[PUBLISHED_TASK_KEY] = {"publishedItemId": published_item_id}
     context = projection_context(client)
+    shorten_lease_wait(context, INLINE_LEASE_WAIT_SECONDS)
     try:
         report = project(context, item_id, unpublished=unpublished)
     except Exception as error:  # noqa: BLE001 - a projection failure never fails the save
@@ -198,10 +209,28 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
         response["edgePurged"] = False
         response["invalidationCapped"] = report.invalidation_capped
     if report.follow_up_item_pages:
-        schedule_projection_task({"task": "item-pages", "exceptItemId": item_id}, "follow-up")
+        schedule_item_pages(item_id)
     if report.ok and published_item_id:
         announce_published(item_id, published_item_id)
     return response
+
+
+def shorten_lease_wait(context, seconds: float) -> None:
+    lease = getattr(context, "lease", None)
+    if isinstance(getattr(lease, "wait_seconds", None), (int, float)):
+        lease.wait_seconds = min(lease.wait_seconds, seconds)
+
+
+def schedule_item_pages(except_item_id: str | None) -> None:
+    """Schedule the follow-up that renders every item page again, unless one is already queued: that run reads the site when it starts, so it covers this change too."""
+    jobs = publish_jobs_from_environment()
+    if jobs is not None:
+        job, joined = jobs.request(ITEM_PAGES_JOB, None)
+        if joined:
+            return
+        schedule_projection_task({"task": "item-pages", "exceptItemId": except_item_id, "jobId": job["jobId"]}, "follow-up")
+        return
+    schedule_projection_task({"task": "item-pages", "exceptItemId": except_item_id}, "follow-up")
 
 
 def invalidation_outcome(context, report) -> dict:
@@ -291,6 +320,7 @@ def run_deploy_render_task(client) -> dict:
     if targeted_invalidation(os.environ):
         context.invalidate = None  # the default, "targeted": a deploy never purges; pages age out with the HTML lifetime (PPY-2745c1)
     report = deploy_render(context)
+    after_release(publish_jobs_from_environment())   # publishes that arrived during the render were queued; build them now
     print(drift_metric_line(report))
     if report.render.unpurged:
         schedule_unpurged_invalidation(report.render.unpurged)
@@ -323,24 +353,178 @@ def run_home_page_snapshot_task(client, task: dict | None = None) -> dict:
     return {"ok": True, **report}
 
 
-def run_projection_task(task: dict) -> dict:
+def run_projection_task(task: dict, lambda_context=None) -> dict:
     """An asynchronous projection task. Raising makes Lambda retry it, then send the event to the dead letter queue."""
     try:
-        return _run_projection_task(task)
+        return _run_projection_task(task, lambda_context)
     except ProjectionLeaseHeld as held:  # another projection of this publication outlasted the wait: retry later
         raise ProjectionTaskFailed(str(held)) from held
 
 
-def _run_projection_task(task: dict) -> dict:
+def _deadline_of(lambda_context) -> float:
+    """The time (``time.monotonic``) by which draining must stop, from the invocation's remaining time; an hour when there is none (a test)."""
+    import time
+
+    remaining = getattr(lambda_context, "get_remaining_time_in_millis", None)
+    seconds = remaining() / 1000.0 if callable(remaining) else 3600.0
+    return time.monotonic() + seconds - DRAIN_RESERVE_SECONDS
+
+
+def build_item_job(client, context, jobs, item_id: str, job_id: str | None, *, unpublished: bool = False, published: dict | None = None):
+    """Build one item's pages under the lease the caller holds, with its job record kept up to date. Returns the report."""
+    request_meter.add_units(1)   # the build budget grows with the Stories built in this invocation, never with the size of the site
+    if jobs is not None:
+        jobs.take(item_id)
+        job_id = jobs.start(item_id, job_id)
+        published = published or jobs.announcement(item_id)
+    try:
+        report = project(context, item_id, unpublished=unpublished)
+    except Exception as error:
+        if jobs is not None and job_id:
+            jobs.finish(item_id, job_id, ok=False, outcome={"error": f"{type(error).__name__}: {error}"[:1000]})
+        raise
+    if report.unpurged:
+        schedule_unpurged_invalidation(report.unpurged)
+    if report.follow_up_item_pages:
+        schedule_item_pages(item_id)
+    if jobs is not None and job_id:
+        outcome = {"paths": [*report.written, *report.deleted], "itemPaths": list(report.item_paths), "unchanged": len(report.unchanged), "invalidation": invalidation_outcome(context, report)}
+        url = public_item_url(os.environ, report.item_paths)
+        if url:
+            outcome["url"] = url
+        if not report.ok:
+            outcome["error"] = "; ".join(report.errors)
+        jobs.finish(item_id, job_id, ok=report.ok, outcome=outcome)
+    if report.ok and not unpublished and isinstance(published, dict):
+        # A real publish (the CLI marks it, as does the newsroom's retry): the page is live, so tell the newsletter.
+        announce_published(item_id, published.get("publishedItemId"))
+    return report
+
+
+def build_item_pages_job(client, context, jobs, job_id: str | None, except_item_id: str | None):
+    request_meter.add_units(1)
+    if jobs is not None:
+        jobs.take(ITEM_PAGES_JOB)
+        job_id = jobs.start(ITEM_PAGES_JOB, job_id)
+    try:
+        report = project_item_pages(context, except_item_id=except_item_id)
+    except Exception as error:
+        if jobs is not None:
+            jobs.finish(ITEM_PAGES_JOB, job_id, ok=False, outcome={"error": f"{type(error).__name__}: {error}"[:1000]})
+        raise
+    if jobs is not None:
+        jobs.finish(ITEM_PAGES_JOB, job_id, ok=report.ok, outcome={"written": len(report.written), **({"error": "; ".join(report.errors)} if not report.ok else {})})
+    return report
+
+
+def drain_queue(client, context, jobs, deadline: float, *, done: set[str]) -> list[str]:
+    """While this invocation holds the lease, build what is queued (publishes that found the site busy), until the deadline. Returns what it built."""
+    import time
+
+    if jobs is None:
+        return []
+    built: list[str] = []
+    while time.monotonic() < deadline:
+        waiting = sorted(jobs.queued_items() - done)
+        if not waiting:
+            break
+        item_id = waiting[0]
+        done.add(item_id)
+        fresh = projection_context(client)
+        fresh.lease = context.lease   # the hold this invocation already has (nested holds share it)
+        try:
+            if item_id == ITEM_PAGES_JOB:
+                build_item_pages_job(client, bulk_projection_context_from(fresh), jobs, None, None)
+            else:
+                build_item_job(client, fresh, jobs, item_id, None)
+            built.append(item_id)
+        except ProjectionLeaseHeld:
+            raise
+        except Exception as error:  # noqa: BLE001 - one story that fails must not stop the others; its job says why, and it is retried
+            print(json.dumps({"event": "papyrus_publish_drain_failed", "itemId": item_id, "error": f"{type(error).__name__}: {error}"[:500]}))
+            schedule_projection_task({"task": "item", "itemId": item_id}, f"drain: {error}")
+    return built
+
+
+def bulk_projection_context_from(context):
+    if targeted_invalidation(os.environ):
+        context.invalidate = None
+    return context
+
+
+def after_release(jobs) -> None:
+    """Something was queued while this invocation was finishing: hand it to a fresh invocation rather than leave it waiting for a retry."""
+    if jobs is None:
+        return
+    try:
+        if jobs.queued_items():
+            schedule_projection_task({"task": "drain"}, "queued publishes")
+    except Exception as error:  # noqa: BLE001 - the queued builds' own retries still run
+        print(json.dumps({"event": "papyrus_publish_drain_not_scheduled", "error": f"{type(error).__name__}: {error}"[:500]}))
+
+
+def run_queued_build(client, task: dict, lambda_context=None) -> dict:
+    """An ``item``, ``item-pages`` or ``drain`` task: take the lease (waiting a few seconds at most), build, build what else is queued, let go.
+
+    A build that finds the site busy leaves its story queued for whoever holds the lease and fails, so Lambda retries it once later; a retry
+    whose job a drain already finished does nothing."""
+    kind = task.get("task")
+    jobs = publish_jobs_from_environment()
+    item_id = ITEM_PAGES_JOB if kind == "item-pages" else task.get("itemId")
+    job_id = task.get("jobId")
+    if jobs is not None and item_id and job_id:
+        current = jobs.status(item_id)
+        if current is not None and current.get("jobId") == job_id and current.get("state") in (DONE, FAILED):
+            return {"ok": current.get("state") == DONE, "alreadyBuilt": True, "jobId": job_id, "state": current.get("state")}
+    context = bulk_projection_context(client) if kind == "item-pages" else projection_context(client)
+    if jobs is None:
+        # No lock table (a local run): no records, no queue; the engine takes the lease itself, as it always did.
+        if kind == "item-pages":
+            report = build_item_pages_job(client, context, None, None, task.get("exceptItemId"))
+        elif kind == "item":
+            report = build_item_job(client, context, None, item_id, None, unpublished=bool(task.get("unpublished")), published=task.get(PUBLISHED_TASK_KEY))
+        else:
+            return {"ok": True, "drained": []}
+        if not report.ok:
+            raise ProjectionTaskFailed("; ".join(report.errors))
+        return {"ok": True, "paths": [*report.written, *report.deleted]}
+    shorten_lease_wait(context, QUEUED_LEASE_WAIT_SECONDS)
+    deadline = _deadline_of(lambda_context)
+    report = None
+    built: list[str] = []
+    try:
+        with context.leased():
+            done: set[str] = set()
+            if kind == "item-pages":
+                report = build_item_pages_job(client, context, jobs, job_id, task.get("exceptItemId"))
+                done.add(ITEM_PAGES_JOB)
+            elif kind == "item":
+                report = build_item_job(client, context, jobs, item_id, job_id, unpublished=bool(task.get("unpublished")), published=task.get(PUBLISHED_TASK_KEY))
+                done.add(item_id)
+            built = drain_queue(client, context, jobs, deadline, done=done)
+    except ProjectionLeaseHeld:
+        if jobs is not None and item_id:
+            jobs.enqueue(item_id)   # whoever holds the lease builds it before letting go; this task's retry is the backstop
+            if job_id:
+                jobs.touch(item_id, job_id)
+        if kind == "drain":
+            return {"ok": True, "busy": True}
+        raise
+    after_release(jobs)
+    if report is None:
+        return {"ok": True, "drained": built}
+    if not report.ok:
+        raise ProjectionTaskFailed("; ".join(report.errors))
+    return {"ok": True, "paths": [*report.written, *report.deleted], "drained": built}
+
+
+def _run_projection_task(task: dict, lambda_context=None) -> dict:
     client, _claims = create_authoring_client()
-    if task.get("task") == "item-pages":
-        report = project_item_pages(bulk_projection_context(client), except_item_id=task.get("exceptItemId"))
-    elif task.get("task") == "item":
-        report = project(projection_context(client), task["itemId"], unpublished=bool(task.get("unpublished")))
-        if report.follow_up_item_pages:
-            schedule_projection_task({"task": "item-pages", "exceptItemId": task["itemId"]}, "follow-up")
-    elif task.get("task") == "all":
+    if task.get("task") in ("item", "item-pages", "drain"):
+        return run_queued_build(client, task, lambda_context)
+    if task.get("task") == "all":
         report = project_all(bulk_projection_context(client))
+        after_release(publish_jobs_from_environment())
     elif task.get("task") == "deploy-render":
         return run_deploy_render_task(client)
     elif task.get("task") == READER_SNAPSHOT_TASK:
@@ -368,10 +552,6 @@ def _run_projection_task(task: dict) -> dict:
         schedule_unpurged_invalidation(report.unpurged)
     if not report.ok:
         raise ProjectionTaskFailed("; ".join(report.errors))
-    published = task.get(PUBLISHED_TASK_KEY)
-    if task.get("task") == "item" and not task.get("unpublished") and isinstance(published, dict):
-        # A real publish (the CLI marks it, as does the newsroom's retry): the page is live, so tell the newsletter.
-        announce_published(task["itemId"], published.get("publishedItemId"))
     return {"ok": True, "paths": [*report.written, *report.deleted]}
 
 
@@ -499,7 +679,63 @@ def site_triggers_for(client, item_id: str) -> dict:
     return triggers
 
 
+def job_answer(job: dict | None) -> dict:
+    """What a caller is told about a build: its job id and state, and once it ended, its outcome (pages, the page's URL, the edge purge, an error)."""
+    if not job:
+        return {"state": "unknown"}
+    found = {key: job[key] for key in ("jobId", "state", "version", "requestedAt", "startedAt", "finishedAt", "stale") if key in job}
+    found.update(job.get("outcome") or {})
+    return found
+
+
+def projection_status_action(arguments: dict) -> dict:
+    """``publishItem`` with ``{"id", "jobStatus": true}``: where the build of this story's pages stands. Reads one record; changes nothing."""
+    if not projection_configured():
+        return {"ok": True, "projection": {"state": "not-applicable"}}
+    jobs = publish_jobs_from_environment()
+    if jobs is None:
+        return {"ok": True, "projection": {"state": "unknown", "reason": "this site keeps no build records (no projection lock table)"}}
+    client, _claims = create_authoring_client()
+    candidate = client.get_record("Item", arguments["id"]) or {}
+    job = jobs.status(arguments["id"])
+    answer = job_answer(job)
+    if job is not None and job.get("state") in (QUEUED, RUNNING) and not job.get("stale"):
+        answer["queued"] = arguments["id"] in jobs.queued_items() if job.get("state") == QUEUED else False
+    return {"ok": True, "itemId": arguments["id"], "lineageId": candidate.get("lineageId"), "projection": answer}
+
+
+def start_projection_job(client, item_id: str, *, version: int | None, published_item_id: str | None) -> dict:
+    """Start building a published story's pages in the background, or join the build already queued or running for it. Returns what the caller is told."""
+    context = projection_context(client)
+    item_paths: list[str] = []
+    row = context.source.published_row(item_id)
+    if row is not None:
+        from papyrus_content.projection.source import summary_from_row
+
+        item_paths = list(context.projector.item_page_paths(summary_from_row(row)))
+    answer: dict = {"projected": None, "scheduled": True, "itemPaths": item_paths, "live": False}
+    url = public_item_url(os.environ, item_paths)
+    if url:
+        answer["url"] = url
+    task = {"task": "item", "itemId": item_id, "unpublished": False}
+    if published_item_id:
+        task[PUBLISHED_TASK_KEY] = {"publishedItemId": published_item_id}
+    jobs = publish_jobs_from_environment()
+    if jobs is None:
+        answer["projection"] = {"state": "scheduled" if schedule_projection_task(task, "publish") else "not-scheduled"}
+        return answer
+    job, joined = jobs.request(item_id, version, announce={"publishedItemId": published_item_id} if published_item_id else None)
+    if not joined:
+        if not schedule_projection_task({**task, "jobId": job["jobId"]}, "publish"):
+            jobs.finish(item_id, job["jobId"], ok=False, outcome={"error": "the build could not be started"})
+            job = jobs.status(item_id)
+    answer["projection"] = {**job_answer(job), "joined": joined}
+    return answer
+
+
 def publish_item_action(arguments: dict, actor: str, approved_by: str | None = None) -> dict:
+    if arguments.get("jobStatus"):
+        return projection_status_action(arguments)
     client, _claims = create_authoring_client()
     candidate = client.get_record("Item", arguments["id"]) or {}
     live = client.get_record("PublishedItem", published_item_id_for(candidate.get("lineageId") or arguments["id"]))
@@ -516,9 +752,12 @@ def publish_item_action(arguments: dict, actor: str, approved_by: str | None = N
         response["typeChangedFrom"] = live["type"]
     if result.changed:
         response.update(site_triggers_for(client, arguments["id"]))
-    response.update(
-        project_item_action(client, arguments["id"], unpublished=False, published_item_id=result.published_item_id if result.changed else None)
-    )
+    published_item_id = result.published_item_id if result.changed else None
+    if arguments.get("async") is True and projection_configured():
+        # The CLI asks for this (PPY-3acc8d): the data is saved now and the pages are built in the background; it asks for the job's status.
+        response.update(start_projection_job(client, arguments["id"], version=result.version_number, published_item_id=published_item_id))
+        return response
+    response.update(project_item_action(client, arguments["id"], unpublished=False, published_item_id=published_item_id))
     return response
 
 
@@ -609,9 +848,29 @@ def create_story_from_reference_action(arguments: dict, actor: str) -> dict:
     return {"ok": True, **result}
 
 
-def handler(event, context):
+SWEEP_TASKS = frozenset({"all", "deploy-render", PAGE_REFRESH_RERENDER_TASK})   # whole-site renders: their reads are a named sweep, never over budget
+
+
+def metered_caller(event: dict) -> tuple[str, bool]:
+    """The request meter's name for one invocation (``lambda:content-actions:<field or task>``), and whether it is a whole-site sweep."""
     if PROJECTION_TASK_KEY in event:
-        return run_projection_task(event[PROJECTION_TASK_KEY])
+        name = str((event.get(PROJECTION_TASK_KEY) or {}).get("task") or "task")
+        return f"lambda:content-actions:{name}", name in SWEEP_TASKS
+    if "refreshSitePages" in event:
+        return "lambda:content-actions:refreshSitePages", False
+    return f"lambda:content-actions:{event.get('fieldName') or 'unknown'}", False
+
+
+def handler(event, context=None):
+    """One metered run per invocation: its AppSync requests are counted and summarised in one ``papyrus_request_summary`` log line (docs/request-meter.md)."""
+    caller, sweep = metered_caller(event)
+    with request_meter.run(caller, emit="log", sweep=sweep):
+        return _handle(event, context)
+
+
+def _handle(event, context=None):
+    if PROJECTION_TASK_KEY in event:
+        return run_projection_task(event[PROJECTION_TASK_KEY], context)
     if "refreshSitePages" in event:   # a direct invocation by an operator's profile: the operator lane needs no CloudFront rights of its own
         return refresh_site_pages_action(event["refreshSitePages"], str(event.get("who") or "operator"))
     field = event["fieldName"]

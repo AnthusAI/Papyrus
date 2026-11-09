@@ -61,6 +61,8 @@ class ProjectionReport:
     follow_up_item_pages: bool = False
     rounds: int = 1
     skipped: list[str] = field(default_factory=list)
+    #: Pages rendered again whose stored bytes were already these (a store that can tell, S3): not purged, and not written unless only the digest changed.
+    unchanged: list[str] = field(default_factory=list)
     #: Items whose content could not be rendered (a deploy-time render only): ``{itemId, slug, error}``. Their pages are left as they are.
     unrenderable: list[dict] = field(default_factory=list)
 
@@ -72,6 +74,7 @@ class ProjectionReport:
         return {
             "ok": self.ok,
             "written": len(self.written),
+            "unchanged": len(self.unchanged),
             "deleted": len(self.deleted),
             "redirectsWritten": self.redirects_written,
             "redirectsDeleted": self.redirects_deleted,

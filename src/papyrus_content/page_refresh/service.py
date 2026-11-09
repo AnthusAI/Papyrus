@@ -134,8 +134,10 @@ class RefreshService:
             return result
         report = run_rerender(context, scope, item_id)
         written = [key for key in report.written if not key.startswith(STATE_PREFIX)]
-        rendered = {"ok": report.ok, "written": written, "count": len(written), "deleted": list(report.deleted), "errors": list(report.errors)}
-        pages = [key for key in [*written, *report.deleted] if key.endswith(PAGE_SUFFIXES)]
+        rendered = {"ok": report.ok, "written": written, "count": len(written), "unchanged": len(report.unchanged), "deleted": list(report.deleted), "errors": list(report.errors)}
+        # An editor's explicit re-render purges every page it rendered, including pages whose stored bytes were already current: the edge may
+        # still hold an older copy, and these paths were counted and approved by the guard above. Only a publish skips unchanged pages (PPY-3acc8d).
+        pages = [key for key in dict.fromkeys([*written, *report.unchanged, *report.deleted]) if key.endswith(PAGE_SUFFIXES)]
         result = self._finish("site_rerender_pages", target, paths_for_page_keys(pages, url_style_of(projector)) if invalidate else [], dry_run=False, invalidate=invalidate, confirm=True, force_paths=force_paths)
         result["rendered"] = rendered
         result["ok"] = bool(rendered["ok"] and result["invalidation"]["ok"])
