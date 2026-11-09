@@ -26,6 +26,13 @@ TOOLS_TABLE: dict[str, tuple[str, dict, str]] = {
                      "Shows one Story's layout signals and who rated it and when."),
     "stories_set_stars": ("staff", _closed({"storyLineageId": _STR, "stars": _INT, "dryRun": {"type": "boolean"}}, ("storyLineageId", "stars")),
                           "Sets the editor's rating of a Story, 1 to 5 (0 clears it), through the newsroom's setItemStars, which re-renders the listings whose order changed."),
+    # No field names a relation: the one official type (story_links.STORY_LINK_RELATION) is written by the code, and additionalProperties is false.
+    "papyrus_link_stories": ("staff", _closed({
+        "story": {"type": "string", "description": "lineage id or slug of the story that gets the See also block"},
+        "see_also_stories": {"type": "array", "items": _STR, "minItems": 1, "description": "lineage ids or slugs of the stories it goes with"},
+        "note": _STR, "dryRun": {"type": "boolean"}}, ("story", "see_also_stories")),
+        "Links a story to other stories for its See also block. Every one must be an existing story and none the story itself; a link that exists in either direction is left alone. "
+        "Returns each target's title, type, stage, outcome (write, exists or dry run) and a warning when it is not published yet (the public block shows published stories only)."),
 }
 
 
@@ -37,7 +44,8 @@ def story_signal_descriptions() -> dict[str, str]:
     return {name: text for name, (_, _, text) in TOOLS_TABLE.items()}
 
 
-def call_story_signal_tool(name: str, arguments: dict[str, Any], client) -> dict:
+def call_story_signal_tool(name: str, arguments: dict[str, Any], client, actor: str | None = None) -> dict:
+    """``actor`` is the signed-in person the server names for a write (papyrus_link_stories); an argument can never supply it."""
     args = arguments or {}
     if name == "stories_list":
         rows, total = list_stories(client, stage=args.get("stage"), section=args.get("section"), story_type=args.get("type"), stars=args.get("stars"),
@@ -52,4 +60,13 @@ def call_story_signal_tool(name: str, arguments: dict[str, Any], client) -> dict
         return signals(current_story_version(client, args["storyLineageId"]), args.get("bucket") or DEFAULT_STORY_BUCKET, utc_today())
     if name == "stories_set_stars":
         return set_story_stars(client, args["storyLineageId"], validated_stars(args["stars"], "stars"), apply=not args.get("dryRun"))
+    if name == "papyrus_link_stories":
+        from .story_links import link_story_set, resolve_link_targets
+
+        unknown = set(args) - {"story", "see_also_stories", "note", "dryRun"}
+        if unknown:
+            raise ValueError(f"Unknown argument(s) for papyrus_link_stories: {', '.join(sorted(unknown))}. There is no relation to choose.")
+        story, others = resolve_link_targets(client, args["story"], list(args["see_also_stories"]))
+        rows = link_story_set(client, story, others, actor=actor, provenance="derived", note=args.get("note") or None, apply=not args.get("dryRun"))
+        return {"story": story.get("lineageId") or story["id"], "dryRun": bool(args.get("dryRun")), "links": rows}
     raise ValueError(f"Unknown story tool {name}.")
