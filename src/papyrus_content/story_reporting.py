@@ -267,8 +267,9 @@ def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], ear
 
 
 def create_story(client, *, title: str, section_key: str | None, stage: str = "idea", summary: str | None = None,
-                 actor: str, now: str | None = None) -> dict[str, Any]:
-    """Records a new story (the first Item of a new lineage) at the idea, assignment or reporting stage."""
+                 actor: str, now: str | None = None, item_type: str | None = None) -> dict[str, Any]:
+    """Records a new story (the first Item of a new lineage) at the idea, assignment or reporting stage. ``item_type`` is the Story type (``article``, ``post``,
+    ...); without one the site's default applies, else the story is ``untyped`` and cannot be published until a type is chosen."""
     from .content_item_lifecycle import build_new_content_item_version, content_item_lineage_id_for_first_work
     from .records import apply_record_changes, build_record_changes
 
@@ -284,7 +285,8 @@ def create_story(client, *, title: str, section_key: str | None, stage: str = "i
     now = now or utc_now_iso()
     lineage_id = content_item_lineage_id_for_first_work(title=title, first_assignment_id=f"story-create-{now}")
     item = build_new_content_item_version(
-        lineage_id=lineage_id, title=title, summary=summary or title, section_key=section_key, stage=stage, actor_label=actor, now=now
+        lineage_id=lineage_id, title=title, summary=summary or title, section_key=section_key, stage=stage, actor_label=actor, now=now,
+        item_type=item_type,
     )
     apply_record_changes(client, build_record_changes(client, [{"modelName": "Item", "expected": item}]))
     from .story_checklist import ensure_for_new_story
