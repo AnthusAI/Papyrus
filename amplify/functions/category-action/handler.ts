@@ -38,6 +38,7 @@ import { isStoryItemType } from "../../../lib/content-item-lifecycle";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
 import { createConceptLink, createReferenceLink, decideReferenceLink, describeEditorConcept, ensureEditorConcept, type ReferenceLinkStore } from "./reference-links";
 import { applyKnowledgeReview, type KnowledgeReviewStore } from "./knowledge-review";
+import { setStoryReferenceRole } from "./story-reference-role";
 import { editOriginOfIdentity } from "../shared/edit-origin";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
@@ -71,12 +72,14 @@ type CreateReferenceLinkHandler = Schema["createReferenceLink"]["functionHandler
 type DescribeConceptHandler = Schema["describeConcept"]["functionHandler"];
 type CreateEditorConceptHandler = Schema["createEditorConcept"]["functionHandler"];
 type DecideReferenceLinkHandler = Schema["decideReferenceLink"]["functionHandler"];
+type SetStoryReferenceRoleHandler = Schema["setStoryReferenceRole"]["functionHandler"];
 type CreateConceptLinkHandler = Schema["createConceptLink"]["functionHandler"];
 type ApplyKnowledgeReviewHandler = Schema["applyKnowledgeReview"]["functionHandler"];
 type CategoryActionEvent =
   | Parameters<LinkMessageHashtagsHandler>[0]
   | Parameters<CreateReferenceLinkHandler>[0]
   | Parameters<DecideReferenceLinkHandler>[0]
+  | Parameters<SetStoryReferenceRoleHandler>[0]
   | Parameters<CreateConceptLinkHandler>[0]
   | Parameters<ApplyKnowledgeReviewHandler>[0]
   | Parameters<DescribeConceptHandler>[0]
@@ -163,6 +166,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "createConceptLink") return createConceptLinkAction(event as Parameters<CreateConceptLinkHandler>[0]);
   if (fieldName === "applyKnowledgeReview") return applyKnowledgeReviewAction(event as Parameters<ApplyKnowledgeReviewHandler>[0]);
   if (fieldName === "decideReferenceLink") return decideReferenceLinkAction(event as Parameters<DecideReferenceLinkHandler>[0]);
+  if (fieldName === "setStoryReferenceRole") return setStoryReferenceRoleAction(event as Parameters<SetStoryReferenceRoleHandler>[0]);
   if (fieldName === "linkMessageHashtags") return linkMessageHashtagsAction(event as Parameters<LinkMessageHashtagsHandler>[0]);
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
@@ -1001,6 +1005,36 @@ async function decideReferenceLinkAction(event: Parameters<DecideReferenceLinkHa
     now: new Date().toISOString(),
     origin: editOriginOfIdentity(event.identity),
   });
+}
+
+/** An editor changes a Story source's role (consulted to cited) on a model their token may not update: see story-reference-role.ts. */
+async function setStoryReferenceRoleAction(event: Parameters<SetStoryReferenceRoleHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to change a Story's source.");
+  const claims = (event.identity as { claims?: Record<string, unknown> } | null | undefined)?.claims ?? {};
+  const client = await getDataClient();
+  return setStoryReferenceRole(
+    {
+      getRelation: async (id) => {
+        const response = await client.models.SemanticRelation.get({ id });
+        assertNoDataErrors(response.errors, "get SemanticRelation");
+        return (response.data as any) ?? null;
+      },
+      updateRelation: async (patch) => {
+        await requireDataResult(client.models.SemanticRelation.update(patch as any), "update Story source SemanticRelation");
+      },
+    },
+    {
+      relationId: normalizeRequiredString(event.arguments.relationId, "relationId"),
+      role: normalizeRequiredString(event.arguments.role, "role"),
+      callerGroups: claimGroups(claims["cognito:groups"]),
+      citationKey: normalizeOptionalString(event.arguments.citationKey),
+      note: normalizeOptionalString(event.arguments.note),
+      actor: getIdentityLabel(event) ?? callerSub,
+      now: new Date().toISOString(),
+      origin: editOriginOfIdentity(event.identity),
+    },
+  );
 }
 
 async function createConceptLinkAction(event: Parameters<CreateConceptLinkHandler>[0]) {

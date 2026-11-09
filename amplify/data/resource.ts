@@ -661,6 +661,27 @@ const schema = a.schema({
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(functionHandler("categoryAction", categoryAction)),
 
+  StoryReferenceRoleResult: a.customType({
+    ok: a.boolean().required(),
+    relationId: a.string().required(),
+    role: a.string().required(),
+    previousRole: a.string(),
+    citationKey: a.string(),
+  }),
+
+  /** An editor changes a Story source's role (consulted, cited, based_on). SemanticRelation stays append-only for the groups; this route changes only that one kind of row (story-reference-role.ts). */
+  setStoryReferenceRole: a
+    .mutation()
+    .arguments({
+      relationId: a.id().required(),
+      role: a.string().required(),
+      citationKey: a.string(),
+      note: a.string(),
+    })
+    .returns(a.ref("StoryReferenceRoleResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
   suggestReferenceLinks: a
     .mutation()
     .arguments({ input: a.json().required() })
