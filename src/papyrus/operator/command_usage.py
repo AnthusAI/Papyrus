@@ -201,12 +201,12 @@ _ENTRIES = dict([
   # ---- ops relations / corpora -----------------------------------------------------------------------------------
   _e("ops relations import-types", "Import the relation-type vocabulary. Applies immediately: there is no --dry-run.", "[--config FILE]", "operator", "writes", ""),
   _e("ops relations backfill", "Backfill concept relations.", "[--config FILE] [--dry-run]", "operator", _DRY, ""),
+  _e("knowledge concepts migrate-concept-tags", "Operator: move legacy related_to concept tags to tagged_with. Dry run by default.", "[--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]", "operator", "unknown", ""),
+  _e("ops relations migrate-concept-tags", "Operator: move legacy related_to concept tags to tagged_with. Dry run by default.", "[--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]", "operator", "unknown", ""),
   _e("ops relations related", "Same as `papyrus knowledge concepts related`.", "--concept NAME|#HASHTAG|NODEKEY [--limit N] [--json]", "both", "reads", "find"),
   _e("ops relations search", "Same as `papyrus knowledge concepts search`.", "\"free text\" [--limit N] [--json] | --list", "both", "reads", "find"),
   _e("ops corpora status", "Show a corpus's local and cloud state.", "--corpus-key KEY [--config STEERING.yml] [--force] [--json]", "operator", "reads", ""),
   # ---- items ------------------------------------------------------------------------------------------------------
-  _e("knowledge concepts migrate-concept-tags", "Operator: move legacy related_to concept tags to tagged_with. Dry run by default.", "[--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]", "operator", "unknown", ""),
-  _e("ops relations migrate-concept-tags", "Operator: move legacy related_to concept tags to tagged_with. Dry run by default.", "[--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]", "operator", "unknown", ""),
   _e("items link-references", "Operator backfill: link each Story to the References it used.", "--site KEY [--role consulted|cited|based_on] [--json] [--dry-run]", "operator", _DRY, ""),
   # ---- editorial --------------------------------------------------------------------------------------------------
   _e("editorial check-version", "Run the editorial rules on a saved version and store the result with it.", "--item LINEAGE-vN [--json]", "both", "writes", "checks"),

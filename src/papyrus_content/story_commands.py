@@ -123,8 +123,10 @@ def stories_save_version(flags: list[str]) -> None:
             row for version in story_versions(client, lineage_id)
             for row in client.list_by_index("mediaAssetsByItemAndSortKey", version["id"])
         ]
-        image_plan = plan_story_images(body, Path(images_dir), slug=latest["slug"], existing=existing_assets(stored))
+        image_plan = plan_story_images(body, Path(images_dir), slug=latest["slug"], existing=existing_assets(stored), front_matter=front_matter)
         body = image_plan.body
+        if image_plan.front_matter is not None:
+            front_matter = image_plan.front_matter
     header = f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t"
     plan_output: list[str] = []
     if image_plan is not None:
