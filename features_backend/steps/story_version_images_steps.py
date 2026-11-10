@@ -164,6 +164,16 @@ def step_markdown(context, first, second):
     context.body_text = body_with(f"![First]({first})\n\n![Second]({second})")
 
 
+@given('the front matter names the card picture "{image}"')
+def step_front_image(context, image):
+    context.front_text = f"title: Hello\nimage: {image}\n"
+
+
+@given('the front matter names the card pair "{image}" and "{dark}"')
+def step_front_pair(context, image, dark):
+    context.front_text = f"title: Hello\nimage: {image}\nimageDark: {dark}\n"
+
+
 @given("the CLI uses the IAM lane")
 def step_iam(context):
     context.lane = "iam"
@@ -198,6 +208,11 @@ def run_save(context, dry_run: bool = False) -> None:
     body_path = Path(context.tmp) / "body.md"
     body_path.write_text(context.body_text, encoding="utf-8")
     flags = ["--story", LINEAGE, "--body-file", str(body_path), "--reason", "pictures", "--images", str(context.folder), "--no-check"]
+    front_text = getattr(context, "front_text", None)
+    if front_text is not None:
+        front_path = Path(context.tmp) / "front.yml"
+        front_path.write_text(front_text, encoding="utf-8")
+        flags += ["--front-matter-file", str(front_path)]
     if context.lane == "iam":
         flags += ["--author-label", "t"]   # signed in, the session names the author
     if dry_run:
@@ -300,6 +315,23 @@ def step_replace_picture(context, name, width, height):
 def step_text_markdown(context, first, second):
     text = new_version(context)["bodyMarkus"]
     assert f"![First]({first})" in text and f"![Second]({second})" in text, text
+
+
+def saved_front_matter(context) -> dict:
+    import yaml
+
+    return yaml.safe_load(json.loads(new_version(context)["metadata"])["frontMatterYaml"])
+
+
+@then('the saved front matter has the card picture "{image}"')
+def step_saved_front_image(context, image):
+    assert saved_front_matter(context)["image"] == image, saved_front_matter(context)
+
+
+@then('the saved front matter has the card pair "{image}" and "{dark}"')
+def step_saved_front_pair(context, image, dark):
+    saved = saved_front_matter(context)
+    assert (saved["image"], saved["imageDark"]) == (image, dark), saved
 
 
 @then('the new version has media rows for "{first}" and "{second}"')

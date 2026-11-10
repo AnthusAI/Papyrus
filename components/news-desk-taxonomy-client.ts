@@ -68,7 +68,7 @@ import {
   type ConversationViewer,
 } from "../lib/conversation";
 import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "../lib/post-message";
-import { isStoryItemType, legacyStageKeysToLoad, storyItemTypeFilter, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { isStoryItemType, legacyStageKeysToLoad, boardStoryFilter, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { collectFilteredPage } from "../lib/story-stage-paging";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
@@ -2629,7 +2629,7 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
 const CONTENT_ITEMS_BY_STAGE_QUERY = `
   query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $filter: ModelItemFilterInput, $limit: Int, $nextToken: String) {
     listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, filter: $filter, limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating }
+      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating versionState }
       nextToken
     }
   }
@@ -2666,7 +2666,7 @@ export async function loadNewsroomContentItemStagePage(
   const page = await collectFilteredPage<ContentItemVersionRecord>(async (token, scanLimit) => {
     const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
       query: CONTENT_ITEMS_BY_STAGE_QUERY,
-      variables: { stage, sortDirection: "DESC", filter: storyItemTypeFilter(), limit: Math.max(limit, scanLimit), nextToken: token },
+      variables: { stage, sortDirection: "DESC", filter: boardStoryFilter(), limit: Math.max(limit, scanLimit), nextToken: token },
       authMode: USER_POOL_AUTH_MODE,
     });
     assertNoGraphQLErrors(response.errors);
@@ -2680,7 +2680,7 @@ export async function loadNewsroomContentItemStagePage(
 const CONTENT_ITEMS_CHANGED_SINCE_QUERY = `
   query ListItemsChangedSince($stage: String!, $updatedAt: ModelStringKeyConditionInput, $sortDirection: ModelSortDirection, $filter: ModelItemFilterInput, $limit: Int, $nextToken: String) {
     listItemsByStageAndUpdatedAt(stage: $stage, updatedAt: $updatedAt, sortDirection: $sortDirection, filter: $filter, limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating }
+      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating versionState }
       nextToken
     }
   }
@@ -2705,7 +2705,7 @@ export async function loadNewsroomContentItemsChangedSince(stage: string, since:
   do {
     const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
       query: CONTENT_ITEMS_CHANGED_SINCE_QUERY,
-      variables: { stage, updatedAt: { ge: since }, sortDirection: "DESC", filter: storyItemTypeFilter(), limit: CONTENT_ITEM_COLUMN_PAGE_LIMIT, nextToken },
+      variables: { stage, updatedAt: { ge: since }, sortDirection: "DESC", filter: boardStoryFilter(), limit: CONTENT_ITEM_COLUMN_PAGE_LIMIT, nextToken },
       authMode: USER_POOL_AUTH_MODE,
     });
     assertNoGraphQLErrors(response.errors);

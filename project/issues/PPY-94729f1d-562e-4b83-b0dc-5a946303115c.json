@@ -1,0 +1,31 @@
+{
+  "id": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+  "title": "One row per story in the stage indexes (head-stage index)",
+  "description": "A story is stored as one Item row per version, and a saved version keeps the stage it was written in, so the stage index (listItemsByStageAndUpdatedAt) holds superseded versions: on Machines on Machines 456 of the 580 rows in the Published partition are superseded, and 26 board cards showed an old version (10 published stories in Copywriting). Design: docs/plans/story-head-stage-index.md. Recommendation: a sparse headStageKey attribute plus one new GSI (listItemsByHeadStageAndUpdatedAt) that only the head row of a lineage carries, set and cleared in the writes that already flip versionState (no extra writes per save). PR #1361 (versionState ne superseded filter) is the stop-gap. Each child marked deploy:backend needs Ryan's approval to deploy, per site. Ryan decides on the design before any implementation.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "data-model",
+    "needs-ryan-decision"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "f9657c4a-f404-40f5-bf1f-7b997b05a7f3",
+      "author": "home",
+      "text": "Design PR: https://github.com/AnthusAI/Papyrus/pull/1362 (branch docs/story-head-index, docs/plans/story-head-stage-index.md). Awaiting Ryan's decision; nothing implemented.",
+      "created_at": "2026-11-10T02:40:59.349009Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-10T02:37:37.936180Z",
+  "updated_at": "2026-11-10T02:40:59.349214Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
