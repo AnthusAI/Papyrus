@@ -38,6 +38,15 @@ export function storyItemTypeFilter(): Record<string, unknown> {
   return { and: SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })) };
 }
 
+/**
+ * The filter for the board's stage columns: story types, and never a superseded version. A saved version keeps the stage it was written in, so a Story
+ * published long ago still has a superseded row in Copywriting; the Published column loads only its newest page, and that row would stand in for the Story
+ * in the wrong column. The newest row of a Story is current or a draft.
+ */
+export function boardStoryFilter(): Record<string, unknown> {
+  return { and: [...SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })), { versionState: { ne: "superseded" } }] };
+}
+
 export const PUBLISHED_STAGE_KEY = "published";
 
 /** Stage keys written before the story stages were simplified, read as the stage that replaced them. */
@@ -105,6 +114,8 @@ export type ContentItemVersionRecord = {
   versionCreatedBy?: string | null;
   /** An editor's private 1-5 rating of the Story. Absent (undefined) when this record was not read from the Item row, so the rating is unknown; null is unrated. */
   starRating?: number | null;
+  /** current, draft or superseded. Read by the board's stage queries; absent on records built elsewhere. */
+  versionState?: string | null;
 };
 
 export function latestVersionPerContentItem(
