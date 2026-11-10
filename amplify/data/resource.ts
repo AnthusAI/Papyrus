@@ -75,6 +75,7 @@ const schema = a.schema({
   UserRoleAssignment: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       userProfileId: a.id().required(),
       userSub: a.string(),
       email: a.email(),
@@ -1374,6 +1375,7 @@ const schema = a.schema({
   Assignment: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       assignmentTypeKey: a.string().required(),
       queueKey: a.string().required(),
       queueStatusKey: a.string().required(),
@@ -1426,6 +1428,7 @@ const schema = a.schema({
   AssignmentEvent: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       assignmentId: a.id().required(),
       assignmentTypeKey: a.string().required(),
       queueKey: a.string().required(),
@@ -1449,6 +1452,7 @@ const schema = a.schema({
   ProcedureDefinition: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       procedureKey: a.string().required(),
       title: a.string().required(),
       category: a.string().required(),
@@ -1474,6 +1478,7 @@ const schema = a.schema({
   ProcedureVersion: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       procedureId: a.id().required(),
       procedureKey: a.string().required(),
       versionNumber: a.integer().required(),
@@ -1501,6 +1506,7 @@ const schema = a.schema({
   ProcedureRun: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       procedureId: a.id().required(),
       procedureKey: a.string().required(),
       procedureVersionId: a.id().required(),
@@ -1536,6 +1542,7 @@ const schema = a.schema({
   Automation: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       title: a.string().required(),
       description: a.string(),
       enabled: a.boolean().required(),
@@ -1557,6 +1564,7 @@ const schema = a.schema({
   ReviewRequest: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       subject: a.json().required(),
       mode: a.string().required(),
       reason: a.string().required(),
@@ -1580,6 +1588,7 @@ const schema = a.schema({
   ReviewReadMark: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       requestId: a.string().required(),
       userKey: a.string().required(),
       readAt: a.datetime().required(),
@@ -1592,6 +1601,7 @@ const schema = a.schema({
   StoryVariation: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       storyLineageId: a.id().required(),
       variationNumber: a.integer().required(),
       status: a.string().required(),
@@ -1626,6 +1636,7 @@ const schema = a.schema({
   ReviewRecipientRule: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       scope: a.string().required(),
       key: a.string(),
       roles: a.string().array(),
@@ -1673,6 +1684,7 @@ const schema = a.schema({
   KnowledgeCorpus: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       name: a.string().required(),
       role: a.string().required(),
       itemCount: a.integer(),
@@ -1691,6 +1703,7 @@ const schema = a.schema({
   KnowledgeImportRun: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       corpusId: a.id().required(),
       importKind: a.string().required(),
       corpusImportKindKey: a.string(),
@@ -1719,6 +1732,7 @@ const schema = a.schema({
   KnowledgeRawPayload: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       ownerType: a.string().required(),
       ownerId: a.id().required(),
       payloadKind: a.string().required(),
@@ -1740,6 +1754,7 @@ const schema = a.schema({
   CurationDelegationRecord: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       grantorSub: a.string().required(),
       recordJson: a.string().required(),
       createdAt: a.datetime().required(),
@@ -1753,6 +1768,7 @@ const schema = a.schema({
   KnowledgeArtifact: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       corpusId: a.id().required(),
       artifactKind: a.string().required(),
       artifactId: a.string().required(),
@@ -1773,6 +1789,7 @@ const schema = a.schema({
   CategorySet: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       lineageId: a.id().required(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
@@ -1803,6 +1820,7 @@ const schema = a.schema({
   Category: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       lineageId: a.id().required(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
@@ -1845,6 +1863,7 @@ const schema = a.schema({
   CategoryKeyword: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       categorySetId: a.id().required(),
       corpusId: a.id().required(),
       categoryKey: a.string().required(),
@@ -1874,6 +1893,7 @@ const schema = a.schema({
   LexicalSteeringRule: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       ruleKind: a.string().required(),
       term: a.string().required(),
       normalizedTerm: a.string().required(),
@@ -1903,6 +1923,7 @@ const schema = a.schema({
   SteeringProposal: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       categorySetId: a.id(),
       corpusId: a.id().required(),
       importRunId: a.id(),
@@ -1941,6 +1962,7 @@ const schema = a.schema({
   SteeringDecision: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       proposalId: a.id().required(),
       categorySetId: a.id(),
       action: a.string().required(),
@@ -1961,6 +1983,7 @@ const schema = a.schema({
   Reference: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       lineageId: a.id().required(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
@@ -2077,6 +2100,7 @@ const schema = a.schema({
   ReferenceAttachment: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       referenceId: a.id().required(),
       referenceLineageId: a.id().required(),
       referenceVersionNumber: a.integer(),
@@ -2107,6 +2131,7 @@ const schema = a.schema({
   SemanticNode: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       lineageId: a.id().required(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
@@ -2152,6 +2177,7 @@ const schema = a.schema({
   Message: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       messageKind: a.string().required(),
       messageDomain: a.string().required(),
       status: a.string().required(),
@@ -2210,6 +2236,7 @@ const schema = a.schema({
   MessageThread: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       threadKind: a.string().required(),
       status: a.string().required(),
       title: a.string().required(),
@@ -2250,6 +2277,7 @@ const schema = a.schema({
   ModelAttachment: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       ownerKind: a.string().required(),
       ownerId: a.id().required(),
       ownerLineageId: a.id(),
@@ -2282,6 +2310,7 @@ const schema = a.schema({
   SemanticRelationType: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       key: a.string().required(),
       label: a.string().required(),
       inverseLabel: a.string(),
@@ -2310,6 +2339,7 @@ const schema = a.schema({
   SemanticRelation: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       relationState: a.string().required(),
       predicate: a.string().required(),
       relationTypeId: a.id(),
@@ -2426,6 +2456,7 @@ const schema = a.schema({
   Tag: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       slug: a.string().required(),
       label: a.string().required(),
       type: a.string(),
@@ -2443,6 +2474,7 @@ const schema = a.schema({
   ItemTag: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       itemId: a.id().required(),
       tagId: a.id().required(),
       itemType: a.string().required(),
@@ -2497,6 +2529,7 @@ const schema = a.schema({
   Edition: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       lineageId: a.id().required(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
@@ -2556,6 +2589,7 @@ const schema = a.schema({
   EditionItem: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       editionId: a.id().required(),
       editionLineageId: a.id(),
       itemId: a.id().required(),
@@ -2660,6 +2694,7 @@ const schema = a.schema({
   PublishedEdition: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       sourceEditionId: a.id().required(),
       editionLineageId: a.id().required(),
       versionNumber: a.integer().required(),
@@ -2686,6 +2721,7 @@ const schema = a.schema({
   PublishedEditionItem: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       publishedEditionId: a.id().required(),
       publishedItemId: a.id().required(),
       sourceEditionItemId: a.id().required(),
@@ -2711,6 +2747,7 @@ const schema = a.schema({
   PublishedCategorySet: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       sourceCategorySetId: a.id().required(),
       categorySetLineageId: a.id().required(),
       versionNumber: a.integer().required(),
@@ -2737,6 +2774,7 @@ const schema = a.schema({
   PublishedCategory: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       sourceCategoryId: a.id().required(),
       publishedCategorySetId: a.id().required(),
       categoryLineageId: a.id().required(),

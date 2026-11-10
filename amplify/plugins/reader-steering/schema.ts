@@ -15,6 +15,7 @@ export function readerSteeringSchemaDefinitions() {
     ReaderProfile: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         siteSubject: a.string().required(),
         readerId: a.string().required(),
         handle: a.string(),
@@ -27,6 +28,7 @@ export function readerSteeringSchemaDefinitions() {
     ReaderHandle: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         readerId: a.string().required(),
       })
       .disableOperations(["subscriptions"])
@@ -34,6 +36,7 @@ export function readerSteeringSchemaDefinitions() {
     ReaderVote: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         subjectKey: a.string().required(),
         subjectType: a.string(),
         readerId: a.string().required(),
@@ -46,6 +49,7 @@ export function readerSteeringSchemaDefinitions() {
     ReaderFlag: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         subjectKey: a.string().required(),
         subjectType: a.string().required(),
         readerId: a.string().required(),
@@ -61,6 +65,7 @@ export function readerSteeringSchemaDefinitions() {
     ReaderComment: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         subjectKey: a.string().required(),
         readerId: a.string().required(),
         body: a.string().required(),
@@ -81,6 +86,7 @@ export function readerSteeringSchemaDefinitions() {
     ReaderSubmission: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         canonicalUrl: a.string().required(),
         domain: a.string().required(),
         title: a.string().required(),
@@ -111,6 +117,7 @@ export function readerSteeringSchemaDefinitions() {
     ReaderReport: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         targetType: a.string().required(),
         target: a.string().required(),
         reporterReaderId: a.string().required(),
@@ -125,6 +132,7 @@ export function readerSteeringSchemaDefinitions() {
     ModerationAction: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         by: a.string().required(),
         actorSub: a.string().required(),
         action: a.string().required(),

@@ -24,6 +24,8 @@ from .tenancy import (
     tenant_scoped_index,
     tenant_scoped_record_id,
     tenant_scoped_value,
+    TENANT_FIELD_MODELS,
+    tenant_field_stamped_payload,
     tenant_stamped_payload,
     validate_tenant_id,
 )
@@ -762,6 +764,7 @@ _UNDEFINED_MEDIUM_INPUT = re.compile(r"field name '(?:" + "|".join(MEDIUM_REFERE
 # anyway is sent again without it (a validation error means it never ran).
 _UNDEFINED_HEAD_STAGE_KEY_INPUT = re.compile(r"field name '" + HEAD_STAGE_KEY_FIELD + r"'")
 _HEAD_STAGE_KEY_SUPPORT: dict[str, bool] = {}
+_TENANT_FIELD_SUPPORT: dict[tuple[str, str], bool] = {}
 _HEAD_STAGE_KEY_NOTICE_SHOWN: set[str] = set()
 
 
@@ -974,6 +977,17 @@ class PapyrusGraphQLAuthoringClient:
             if not _HEAD_STAGE_KEY_SUPPORT[self.endpoint]:
                 self._note_no_head_stage_key()
         return _HEAD_STAGE_KEY_SUPPORT[self.endpoint]
+
+    def has_tenant_field(self, model_name: str) -> bool:
+        """Whether this site's ``model_name`` type has ``tenantId`` (the deploy that adds it). Asked once per endpoint and model per process; a site that
+        cannot be asked is assumed not to have it, so a write is never refused for a field the site lacks."""
+        key = (self.endpoint, model_name)
+        if key not in _TENANT_FIELD_SUPPORT:
+            try:
+                _TENANT_FIELD_SUPPORT[key] = "tenantId" in self.graphql_type_field_names(model_name)
+            except Exception:   # noqa: BLE001 - introspection off or a stand-in transport: write as before
+                _TENANT_FIELD_SUPPORT[key] = False
+        return _TENANT_FIELD_SUPPORT[key]
 
     def _note_no_head_stage_key(self) -> None:
         _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = False
@@ -1258,6 +1272,8 @@ class PapyrusGraphQLAuthoringClient:
         if model_name == "Item" and HEAD_STAGE_KEY_FIELD in input_payload and not self.has_head_stage_key():
             input_payload = {key: value for key, value in input_payload.items() if key != HEAD_STAGE_KEY_FIELD}
         stamped = tenant_stamped_payload(model_name, self.tenant_id, input_payload)
+        if self.tenant_id and model_name in TENANT_FIELD_MODELS and self.has_tenant_field(model_name):
+            stamped = tenant_field_stamped_payload(model_name, self.tenant_id, stamped)
         return strip_unsupported_payload_fields(model_name, add_operational_index_fields(model_name, stamped))
 
     def create_record(self, model_name: str, input_payload: dict[str, Any]) -> None:
