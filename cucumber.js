@@ -181,6 +181,11 @@ module.exports = {
     require: ["features/step_definitions/alexa-*.steps.js"],
     format: ["summary"],
   },
+  storySectionPicker: {
+    paths: ["features/newsroom-story-section-picker.feature"],
+    require: ["features/step_definitions/story-section-picker.steps.js"],
+    format: ["summary"],
+  },
   storyTypeEditor: {
     paths: ["features/newsroom-story-type-editor.feature"],
     require: ["features/step_definitions/story-type-editor.steps.js"],

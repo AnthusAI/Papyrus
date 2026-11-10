@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
-import { newsroomDeskOptions } from "../lib/newsroom-sections";
+import { newsroomDeskPickerOptions } from "../lib/newsroom-sections";
+import { useNewsroomDeskSections } from "./use-newsroom-desk-sections";
 import { StoryReportingTrailView } from "./story-reporting-trail";
 import { loadStoryReportingTrail } from "./story-reporting-trail-client";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -160,7 +161,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const latestVersionNumber = latestVersion?.number ?? null;
   const [changeReason, setChangeReason] = useState("");
   const citedKeys = useMemo(() => Object.values(((bodyIr as { papyrus?: { citations?: Record<string, string[]> } } | null)?.papyrus?.citations) ?? {}).flat(), [bodyIr]);
-  const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
+  const { sections: deskSections, loading: deskSectionsLoading, error: deskSectionsError } = useNewsroomDeskSections();
+  const deskOptions = useMemo(() => newsroomDeskPickerOptions(deskSections, editor?.section), [deskSections, editor?.section]);
   const [reloadToken, setReloadToken] = useState(0);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [imageUploading, setImageUploading] = useState(false);
@@ -831,7 +833,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
                       ) : null)}
                     </SelectContent>
                   </Select>
-                  {editor.section.trim() && !deskOptions.some(option => option.value === editor.section) ? <small className="newsroom-desk-legacy-value">Old section value: {editor.section.trim()}</small> : null}
+                  {deskSectionsLoading ? <small data-newsroom-article-section-status role="status">Loading the site's sections…</small> : null}
+                  {deskSectionsError ? <small data-newsroom-article-section-status role="status">Could not load the site's sections: {deskSectionsError}</small> : null}
                 </label>
                 <label className="space-y-1 text-sm font-medium">
                   <span>Slug</span>
