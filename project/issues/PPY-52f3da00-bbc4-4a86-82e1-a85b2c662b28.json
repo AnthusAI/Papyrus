@@ -3,7 +3,7 @@
   "title": "Console reads the head-stage index (board columns and refresh)",
   "description": "components/news-desk-taxonomy-client.ts: loadNewsroomContentItemStagePage and loadNewsroomContentItemsChangedSince query listItemsByHeadStageAndUpdatedAt (tenant-scoped key) instead of listItemsByStageAndUpdatedAt with the superseded filter. lib/board-refresh.ts applyChangedVersions drops every loaded row whose lineage appears among the changed rows (a lineage has one head, so a changed head replaces whatever was shown for it); latestVersionPerContentItem stays only as a defence against a duplicate head. Ships after the backfill has run on the site (the release is a front-end bump). Acceptance: the board scenarios pass; on MoM every column reads exactly its heads (no filter, no extra pages); 0 cards show a non-head version.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,9 +17,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d20f8021-09e2-46d7-9da3-897837cf325b",
+      "author": "home",
+      "text": "Implemented behind SiteBrand.storyHeadStageIndex (set per site after papyrus stories head-index reports nothing to write); falls back to the stage index when the backend lacks the index; refresh replaces by lineage on the head index. Branch feat/console-loading. Shared stacks stay on the old path until the console knows its tenant prefix.",
+      "created_at": "2026-11-10T17:08:27.733518Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-10T02:38:57.738471Z",
-  "updated_at": "2026-11-10T02:39:03.764726Z",
+  "updated_at": "2026-11-10T17:08:27.733969Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
