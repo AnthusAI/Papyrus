@@ -27,6 +27,7 @@ import { IdeaDecision } from "./idea-decision";
 import { SeededFromReferenceNote } from "./seeded-from-reference-note";
 import { CoverImagePicker, type PickedImage } from "./cover-image-picker";
 import { StoryHeadlineImage } from "./story-headline-image";
+import { StoryPreviewHeading } from "./story-preview-heading";
 import { headlineImageState, readHeadlineImage, type MediaIndex } from "../lib/story-headline-image";
 import { accessTokenFromAmplify, createLiveStockImageClient } from "../lib/stock-images/client";
 import { createDemoStockImageClient } from "../lib/stock-images/demo-client";
@@ -186,6 +187,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
       .then((article) => {
         if (cancelled) return;
         setEditor(stateFromArticle(article));
+        setBodyIr(null);   // the Preview never carries another version's body over while this one is checked
         setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
         setSavedStars(article.starRating ?? null);
@@ -1025,12 +1027,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               data-newsroom-article-preview-column
             >
               <div className="relative rounded-xl border border-border bg-card p-4" data-newsroom-article-preview ref={previewRef}>
-                {(readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) || readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)) ? (
-                  <div className="newsroom-article-summary" data-newsroom-article-summary>
-                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) ? <p className="newsroom-article-subtitle">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)}</p> : null}
-                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY) ? <p className="newsroom-article-blurb">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)}</p> : null}
-                  </div>
-                ) : null}
+                <StoryPreviewHeading frontMatterYaml={editor.frontMatterYaml} slug={editor.slug} />
                 {invalid && bodyIr ? (
                   <p className="mb-2 text-xs text-muted-foreground">Showing the last valid version.</p>
                 ) : null}

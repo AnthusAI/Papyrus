@@ -29,6 +29,7 @@
     "test:tenancy-mode": "tsx scripts/test-tenancy-mode.ts && poetry run pytest -q src/papyrus_content/tenancy_test.py && poetry run behave features_backend/tenancy-mode.feature",
     "test:schema-parity": "tsx scripts/test-schema-parity.ts",
     "test:reference-link-resolvers": "tsx --test scripts/test-reference-links.ts && cucumber-js --profile referenceLinkResolvers",
+    "test:story-preview-heading": "tsx --test scripts/test-story-preview-heading.ts && cucumber-js --profile storyPreviewHeading",
     "test:story-detail-headline-image": "tsx --test scripts/test-story-headline-image.ts && cucumber-js --profile storyDetailHeadlineImage",
     "test:cover-image-picker": "tsx --test scripts/test-stock-images.ts && cucumber-js --profile coverImagePicker && poetry run pytest -q procedures/newsroom/tests/test_stock_cover_credit.py",
     "test:message-hashtags": "tsx --test scripts/test-message-hashtags.ts && cucumber-js --profile messageHashtags",
