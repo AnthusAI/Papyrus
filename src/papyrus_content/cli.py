@@ -384,6 +384,7 @@ PORTED_COMMANDS = frozenset(
         "stories:fire-triggers",
         "stories:assign-research",
         "stories:repair-versions",
+        "stories:head-index",
         "stories:repair-image-paths",
         "stories:set-slug",
         "stories:set-type",
@@ -930,6 +931,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_repair_versions
 
         stories_repair_versions(flags)
+    elif route == "stories:head-index":
+        from .story_commands import stories_head_index
+
+        stories_head_index(flags)
     elif route == "stories:move":
         from .story_commands import stories_move
 

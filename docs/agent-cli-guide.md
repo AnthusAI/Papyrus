@@ -329,6 +329,19 @@ papyrus stories step --story LINEAGE --step copy_edit --state done --note "Check
 - `check-links` lists links and tags that are not the official shape (`legacy: migrate`, `concept has no public page`, `state not current`). Read only; fixing is out of scope.
 - `stories next` prints each procedure step with its state, then what is next. There is no `stories checklist`: the checklist is `next` (read) and `step` (write). A skipped or not-applicable step needs `--reason`; a review step needs `--note` with the findings; use honest notes.
 
+### Check the stage head index (operators)
+**Lane:** both. **Version:** the release after 5.101.0. **Writes:** only with `--apply`; a dry run otherwise.
+
+```sh
+papyrus stories head-index
+papyrus stories head-index --stage published
+papyrus stories head-index --apply --rate 5
+```
+
+- Each Story has one row in the head stage index (`headStageKey`, docs/plans/story-head-stage-index.md). `head-index` reads the old stage index once, prints one `set` or `remove` line per row it would change, `muddled` lines for Stories with more than one live version (fix those with `stories repair-versions --story LINEAGE`), and a summary: `rows read`, `stories`, `heads to set`, `keys to remove`, `already right`, `muddled`, `no head`, `superseded with key`.
+- Unlike most commands it is a **dry run unless `--apply`**. A dry run with `heads to set 0` and `keys to remove 0` is the health check. `--apply` writes only rows that differ, keeps each row's own `updatedAt`, never writes a superseded version, and writes at most `--rate` a second (default 5); a second run writes nothing.
+- On a site whose data API has no `headStageKey` yet the dry run counts every Story as needing it and `--apply` refuses: the site needs the backend deploy that adds the index first, and that deploy and the `--apply` run each need Ryan's approval.
+
 ## Ideas
 <!-- guide:ideas -->
 

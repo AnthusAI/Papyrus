@@ -22,8 +22,42 @@ INDEX_MODELS = {
     "assignmentsByItemLineageAndCreatedAt": "Assignment",
     "itemsByParent": "Item",
     "itemsByStage": "Item",
+    "itemsByHeadStage": "Item",
+    "itemHeadFieldsByStage": "Item",
+    "itemHeadFieldsWithKeyByStage": "Item",
     "publishedItemsByTypeStatus": "PublishedItem",
 }
+
+
+#: Every fake made since the last reset: features_backend/environment.py checks the head stage key invariant on each after every scenario.
+INSTANCES: list["FakeAuthoringClient"] = []
+
+
+def head_stage_key_violations(client: "FakeAuthoringClient") -> list[str]:
+    """The story lineages written through this fake that break the head stage key rule (docs/plans/story-head-stage-index.md): a lineage has at
+    most one row carrying ``headStageKey``, that row is not superseded and the key names its stage (after any tenant prefix), and a lineage in
+    which the scenario created or saved a row, and that has a row not superseded with a stage, has exactly one head."""
+    items = client.tables.get("Item", {})
+    written = {call[2] for call in client.calls if call[1] == "Item" and call[0] in ("create", "upsert", "update")}
+    created = {call[2] for call in client.calls if call[1] == "Item" and call[0] in ("create", "upsert")}
+    lineages = {str(items[row_id].get("lineageId") or row_id) for row_id in written if row_id in items}
+    # A lineage that only had rows seeded before the head stage key existed and was then only updated (a metadata change) may have no head yet:
+    # the backfill gives it one. A lineage this scenario created or saved a row in must have one.
+    strict = {str(items[row_id].get("lineageId") or row_id) for row_id in created if row_id in items}
+    problems = []
+    for lineage in sorted(lineages):
+        rows = [row for row in items.values() if str(row.get("lineageId") or row["id"]) == lineage]
+        heads = [row for row in rows if row.get("headStageKey")]
+        if len(heads) > 1:
+            problems.append(f"{lineage}: {len(heads)} rows carry headStageKey ({', '.join(row['id'] for row in heads)})")
+        for row in heads:
+            if row.get("versionState") == "superseded":
+                problems.append(f"{lineage}: superseded row {row['id']} carries headStageKey {row['headStageKey']!r}")
+            elif str(row["headStageKey"]).rsplit("#", 1)[-1] != row.get("stage"):
+                problems.append(f"{lineage}: {row['id']} has headStageKey {row['headStageKey']!r} but stage {row.get('stage')!r}")
+        if not heads and lineage in strict and any(row.get("stage") and row.get("versionState") != "superseded" for row in rows):
+            problems.append(f"{lineage}: no row carries headStageKey, though {', '.join(row['id'] for row in rows if row.get('stage') and row.get('versionState') != 'superseded')} is not superseded")
+    return problems
 
 
 class FakeAuthoringClient:
@@ -32,6 +66,7 @@ class FakeAuthoringClient:
         records: dict[str, list[dict[str, Any]]] | None = None,
         attachments: dict[str, list[dict[str, Any]]] | None = None,
     ) -> None:
+        INSTANCES.append(self)
         self.updates: list[tuple[str, dict[str, Any]]] = []
         self.tables: dict[str, dict[str, dict[str, Any]]] = {}
         self.calls: list[tuple[str, str, Any]] = []

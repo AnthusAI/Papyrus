@@ -116,7 +116,19 @@ export type ContentItemVersionRecord = {
   starRating?: number | null;
   /** current, draft or superseded. Read by the board's stage queries; absent on records built elsewhere. */
   versionState?: string | null;
+  /** The row's stage while it is the head of its lineage, else absent (contentItemHeadStageKey). Indexed by listItemsByHeadStageAndUpdatedAt. */
+  headStageKey?: string | null;
 };
+
+/**
+ * The head stage key a row should carry (docs/plans/story-head-stage-index.md): its stage while it is the head of its lineage (any version state
+ * but superseded: a story whose only row is a draft is still on the board), else null. A row with no stage is in no stage index. The same rule is
+ * head_stage_key in src/papyrus_content/content_item_lifecycle.py; the authoring client adds the tenant prefix on a tenant backend.
+ */
+export function contentItemHeadStageKey(row: { stage?: string | null; versionState?: string | null }): string | null {
+  if (row.versionState === "superseded") return null;
+  return row.stage ? row.stage : null;
+}
 
 export function latestVersionPerContentItem(
   versions: readonly ContentItemVersionRecord[],
