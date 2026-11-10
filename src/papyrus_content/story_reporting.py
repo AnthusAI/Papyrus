@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
-from .content_item_lifecycle import CONTENT_ITEM_STAGES, require_content_item_stage
+from .content_item_lifecycle import CONTENT_ITEM_STAGES, head_stage_fields, require_content_item_stage
 from .machine_writes import apply_stamp
 from .ids import hash_short, safe_id
 from .item_stars import carry_item_stars
@@ -114,8 +114,15 @@ def plan_version_repair(client, lineage_id: str) -> list[dict[str, Any]]:
             "previousVersionId": ordered[index - 1]["id"] if index else None,
         }
         changes = {key: value for key, value in wanted.items() if row.get(key) != value}
-        if changes:
-            updates.append({"id": row["id"], **changes})
+        # The head stage key follows the version state: the one current row carries its stage, every other row none. The row that stays
+        # current is written too when its key is missing or wrong, so a repaired story is in the head stage index exactly once.
+        key = head_stage_fields({**row, **changes})["headStageKey"]
+        stored = str(row.get("headStageKey") or "").rsplit("#", 1)[-1] or None
+        if changes or key != stored:
+            update = {"id": row["id"], **changes, "headStageKey": key}
+            if row.get("updatedAt"):
+                update["updatedAt"] = row["updatedAt"]   # a repair is not a change of the story: no card jumps to the top
+            updates.append(update)
     return updates
 
 
@@ -216,6 +223,7 @@ def save_story_version(
     }
     if stage:
         record["stage"] = require_content_item_stage(stage)
+    record.update(head_stage_fields(record))   # the new version is the head; the rows superseded below leave the head stage index
     carry_item_stars(latest, record)   # the editors' rating of the Story belongs to the Story, not to one version
     client.create_record("Item", compact_dict(record))
     for row in (media_rows(record_id) if media_rows else []):
@@ -223,8 +231,18 @@ def save_story_version(
     _carry_media_forward(client, record_id, envelope, versions)
     for row in versions:
         if row.get("versionState") == "current" or row["id"] == latest["id"]:
-            client.update_record("Item", {"id": row["id"], "versionState": "superseded"})
+            client.update_record("Item", superseding_update(row))
     return record
+
+
+def superseding_update(row: dict[str, Any]) -> dict[str, Any]:
+    """The one update that supersedes a version: its state, its head stage key cleared (it leaves the head stage index), and its own ``updatedAt``
+    passed back so the update does not stamp it as freshly changed (AppSync sets ``updatedAt`` to now when the input has none, and the old stage
+    index sorts by it)."""
+    update = {"id": row["id"], "versionState": "superseded", **head_stage_fields(row, head=False)}
+    if row.get("updatedAt"):
+        update["updatedAt"] = row["updatedAt"]
+    return update
 
 
 def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], earlier_versions: list[dict[str, Any]]) -> None:
@@ -324,7 +342,7 @@ def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason:
     moves = [move for move in metadata.get(STAGE_MOVES_KEY) or [] if isinstance(move, dict)]
     moves.append({"at": now, "from": previous, "to": stage, "by": actor, "reason": reason})
     metadata[STAGE_MOVES_KEY] = moves[-MAX_STAGE_MOVES:]
-    client.update_record("Item", {"id": latest["id"], "stage": stage, "updatedAt": now, "metadata": to_aws_json(metadata)})
+    client.update_record("Item", {"id": latest["id"], "stage": stage, **head_stage_fields({**latest, "stage": stage}), "updatedAt": now, "metadata": to_aws_json(metadata)})
     from .story_checklist import sync_quietly
 
     sync_quietly(client, lineage_id)   # a change: the checklist catches up with the template and the evidence

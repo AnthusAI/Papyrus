@@ -3,11 +3,13 @@ from __future__ import annotations
 import contextlib
 import json
 import re
+import sys
 import http.client
 import urllib.parse
 from typing import Any, Callable
 
 from . import request_meter
+from .content_item_lifecycle import HEAD_STAGE_KEY_FIELD
 from .env import graphql_endpoint, graphql_timeout_seconds, site_tenant_id
 from .guest_auth import refuse_guest_auth
 from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, graphql_request_headers
@@ -431,9 +433,15 @@ PUBLISHED_STORY_LIST_FIELDS = (
 )
 
 STORY_SECTION_LINK_FIELDS = "id tenantId lineageId versionState stage status type section sectionStatus"
+HEAD_INDEX_ROW_FIELDS = "id tenantId lineageId versionNumber versionState versionCreatedAt stage type updatedAt"
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "itemsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": STORY_SECTION_LINK_FIELDS},
+    # One row per story: only the head row of a lineage carries headStageKey (docs/plans/story-head-stage-index.md). Tenant-prefixed (tenancy.py).
+    "itemsByHeadStage": {"field": "listItemsByHeadStageAndUpdatedAt", "partitionKey": "headStageKey", "fields": STORY_SECTION_LINK_FIELDS},
+    # The rows of one old stage partition with what `stories head-index` needs to pick each lineage's head (the WithKey form once the site has it).
+    "itemHeadFieldsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": HEAD_INDEX_ROW_FIELDS},
+    "itemHeadFieldsWithKeyByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": f"{HEAD_INDEX_ROW_FIELDS} headStageKey"},
     "itemsBySectionStatus": {"field": "listItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": STORY_SECTION_LINK_FIELDS},
     "messageThreadsByAnchor": {"field": "listMessageThreadsByAnchorAndUpdatedAt", "partitionKey": "primaryAnchorKey", "fields": MESSAGE_THREAD_FIELDS},
     "publishedItemsBySectionStatus": {"field": "listPublishedItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": PUBLISHED_STORY_LIST_FIELDS},
@@ -749,6 +757,20 @@ MEDIUM_REFERENCE_FIELDS = ("medium", "evidenceLevel", "playlistUrl", "mediumFeed
 _UNDEFINED_MEDIUM_INPUT = re.compile(r"field name '(?:" + "|".join(MEDIUM_REFERENCE_FIELDS) + r")'")
 
 
+# The head stage key (docs/plans/story-head-stage-index.md) is newer than some deployed sites, and one CLI install serves them all: a site whose Item
+# type has no headStageKey is written without it. Checked once per endpoint per process (graphql_type_field_names), and a write the schema refuses
+# anyway is sent again without it (a validation error means it never ran).
+_UNDEFINED_HEAD_STAGE_KEY_INPUT = re.compile(r"field name '" + HEAD_STAGE_KEY_FIELD + r"'")
+_HEAD_STAGE_KEY_SUPPORT: dict[str, bool] = {}
+_HEAD_STAGE_KEY_NOTICE_SHOWN: set[str] = set()
+
+
+def _without_head_stage_key(variables: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not variables or not isinstance(variables.get("input"), dict) or HEAD_STAGE_KEY_FIELD not in variables["input"]:
+        return variables
+    return {**variables, "input": {key: value for key, value in variables["input"].items() if key != HEAD_STAGE_KEY_FIELD}}
+
+
 def _without_medium_fields(variables: dict[str, Any] | None) -> dict[str, Any] | None:
     if not variables or not isinstance(variables.get("input"), dict):
         return variables
@@ -793,6 +815,9 @@ class PapyrusGraphQLAuthoringClient:
         try:
             return self._send_graphql(query, variables)
         except GraphQLRequestError as error:
+            if _UNDEFINED_HEAD_STAGE_KEY_INPUT.search(str(error)) and _without_head_stage_key(variables) is not variables:
+                self._note_no_head_stage_key()   # the request never ran (a validation error), so sending it again cannot repeat a write
+                return self.graphql(query, _without_head_stage_key(variables))
             if not getattr(self, "_schema_lacks_medium_fields", False) and _UNDEFINED_MEDIUM_INPUT.search(str(error)):
                 self._schema_lacks_medium_fields = True   # the request never ran (a validation error), so sending it again cannot repeat a write
                 return self.graphql(query, variables)
@@ -938,6 +963,27 @@ class PapyrusGraphQLAuthoringClient:
         fields = graphql_type.get("fields") or []
         return sorted(str(field.get("name")) for field in fields if field.get("name"))
 
+    def has_head_stage_key(self) -> bool:
+        """Whether this site's Item type has ``headStageKey`` (the deploy that adds the head stage index). Asked once per endpoint per process; a
+        site that cannot be asked is assumed to have it, and a write it refuses is sent again without the field."""
+        if self.endpoint not in _HEAD_STAGE_KEY_SUPPORT:
+            try:
+                _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = HEAD_STAGE_KEY_FIELD in self.graphql_type_field_names("Item")
+            except Exception:   # noqa: BLE001 - a site that cannot answer (introspection off, a stand-in transport) is assumed to have it
+                _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = True
+            if not _HEAD_STAGE_KEY_SUPPORT[self.endpoint]:
+                self._note_no_head_stage_key()
+        return _HEAD_STAGE_KEY_SUPPORT[self.endpoint]
+
+    def _note_no_head_stage_key(self) -> None:
+        _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = False
+        if self.endpoint in _HEAD_STAGE_KEY_NOTICE_SHOWN:
+            return
+        _HEAD_STAGE_KEY_NOTICE_SHOWN.add(self.endpoint)
+        host = self._parsed_endpoint.netloc or self.endpoint
+        print(f"papyrus: the data API at {host} has no {HEAD_STAGE_KEY_FIELD} yet (the deploy that adds the head stage index); stories are written "
+              "without it. After that deploy, `papyrus stories head-index --apply` fills it in.", file=sys.stderr)
+
     def list_records(self, model_name: str, *, page_size: int = 100) -> list[dict[str, Any]]:
         """EVERY row of the model: a whole-table read that costs one request per ``page_size`` rows (100). Outside a named sweep (`request_meter.sweep`)
         it is logged and counted as an unbounded list; read through an index (`list_by_index`, `index_many`) instead."""
@@ -1017,6 +1063,8 @@ class PapyrusGraphQLAuthoringClient:
     def update_record_unscoped(self, model_name: str, input_payload: dict[str, Any]) -> None:
         if model_name not in MUTATIONS:
             raise ValueError(f"Unsupported model for update: {model_name}")
+        if model_name == "Item" and HEAD_STAGE_KEY_FIELD in input_payload and not self.has_head_stage_key():
+            input_payload = {key: value for key, value in input_payload.items() if key != HEAD_STAGE_KEY_FIELD}
         self.graphql(MUTATIONS[model_name]["update"], {"input": input_payload})
 
     def get_records_by_id(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -1207,6 +1255,8 @@ class PapyrusGraphQLAuthoringClient:
             raise TenantError(f"{model_name} {record_id} does not exist in tenant {self.tenant_id}.")
 
     def _prepared_payload(self, model_name: str, input_payload: dict[str, Any]) -> dict[str, Any]:
+        if model_name == "Item" and HEAD_STAGE_KEY_FIELD in input_payload and not self.has_head_stage_key():
+            input_payload = {key: value for key, value in input_payload.items() if key != HEAD_STAGE_KEY_FIELD}
         stamped = tenant_stamped_payload(model_name, self.tenant_id, input_payload)
         return strip_unsupported_payload_fields(model_name, add_operational_index_fields(model_name, stamped))
 

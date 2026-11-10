@@ -22,6 +22,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from .content_item_lifecycle import head_stage_fields
 from .record_helpers import to_aws_json
 
 MACHINE_WRITE_KEY = "machineWrite"
@@ -181,7 +182,7 @@ def apply_undo(client: Any, plan: UndoPlan, *, by: str = UNDO_ACTOR, now: str | 
         metadata[MACHINE_WRITE_KEY] = stamp
         client.update_record(
             "Item",
-            {"id": item.item_id, "stage": RETIRED_STAGE, "versionCreatedAt": now, "versionCreatedBy": by, "changeReason": f"undo of {plan.run_id}", "metadata": to_aws_json(metadata)},
+            {"id": item.item_id, "stage": RETIRED_STAGE, **head_stage_fields({**row, "stage": RETIRED_STAGE}), "versionCreatedAt": now, "versionCreatedBy": by, "changeReason": f"undo of {plan.run_id}", "metadata": to_aws_json(metadata)},
         )
         done["retired"] += 1
     return done
@@ -226,7 +227,7 @@ def apply_restore(client: Any, plan: RestorePlan, *, by: str = UNDO_ACTOR, now: 
         client.update_record(
             "Item",
             {
-                "id": item_id, "stage": _restored_stage(previous), "versionCreatedAt": now, "versionCreatedBy": by,
+                "id": item_id, "stage": _restored_stage(previous), **head_stage_fields({**row, "stage": _restored_stage(previous)}), "versionCreatedAt": now, "versionCreatedBy": by,
                 "changeReason": f"restored after the undo of {plan.run_id}", "metadata": to_aws_json(metadata),
             },
         )

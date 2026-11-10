@@ -196,6 +196,33 @@ def stories_repair_versions(flags: list[str]) -> None:
     print(f"stories\trepair-versions\t{lineage_id}\t{len(updates)} record(s) {'updated' if apply else 'would change (dry run)'}")
 
 
+def stories_head_index(flags: list[str]) -> None:
+    """papyrus stories head-index [--apply] [--dry-run] [--stage <stage> ...] [--rate <writes per second>]
+
+    Fills in, and checks, the head stage key on the site's story rows (docs/plans/story-head-stage-index.md): only the head row of each story
+    carries headStageKey, so the head stage index holds one row per story. Reads the old stage index once, stage by stage, picks each story's head
+    (the row marked current, else the one not superseded; the newest when a muddled story has several), sets the key on the head where it is
+    missing or wrong and removes it from any other row that is not superseded. A superseded row is never written. Only rows that differ are
+    written, each with its own updatedAt (no card jumps to the top of its column), at most --rate a second (default 5).
+
+    A DRY RUN unless --apply: it prints one line per row it would change, the muddled stories to fix with `stories repair-versions`, and a summary
+    (stories, heads to set, keys to remove, already right, muddled, no head, superseded with key). A dry run that reports 0 heads to set and 0 keys
+    to remove is the health check. Run it again after --apply: it writes nothing. On a site whose data API has no headStageKey yet the dry run
+    counts every head as needing it and --apply refuses (it needs the deploy that adds the head stage index)."""
+    from .story_head_index import DEFAULT_RATE, run_head_index
+
+    options = parse_options(flags)
+    apply = parse_boolean_option(options.get("apply"), default=False, label="--apply")
+    if apply and parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run"):
+        raise ValueError("Pass --apply or --dry-run, not both.")
+    rate = float(options.get("rate") or DEFAULT_RATE)
+    if rate <= 0 or rate > 25:
+        raise ValueError("--rate must be more than 0 and at most 25 writes a second.")
+    stages = tuple(parse_repeated_option(flags, "stage")) or None
+    client, _ = create_authoring_client()
+    run_head_index(client, apply=apply, stages=stages, rate=rate)
+
+
 def stories_repair_image_paths(flags: list[str]) -> None:
     """papyrus stories repair-image-paths --story <lineage> [--write] [--bucket <bucket>] [--identity-pool-id <id>]
 

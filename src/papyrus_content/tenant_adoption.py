@@ -24,7 +24,7 @@ from .tenancy import (
 ADOPTION_MODEL_ORDER = ("NewsroomSection", "Item", "PublishedItem", "MediaAsset", "PublishedMediaAsset")
 SAMPLE_SIZE = 5
 STAMPED_FIELDS_BY_MODEL = {
-    "Item": ("typeStatus", "sectionStatus", "slug"),
+    "Item": ("typeStatus", "sectionStatus", "headStageKey", "slug"),
     "PublishedItem": ("typeStatus", "sectionStatus", "slug"),
     "MediaAsset": (),
     "PublishedMediaAsset": (),
