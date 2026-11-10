@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { compareLedgers, parseLedger } from "./lib/gsi-ledger.ts";
+import { compareLedgers, parseLedger } from "./lib/gsi-ledger";
 
 const FIXTURES = join(process.cwd(), "features_backend/fixtures/gsi-ledger");
 const fixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8");

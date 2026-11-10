@@ -2,7 +2,7 @@
 // Usage: tsx scripts/check-gsi-ledger.ts [--base FILE] [--current FILE]
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { compareLedgers, parseLedger } from "./lib/gsi-ledger.ts";
+import { compareLedgers, parseLedger } from "./lib/gsi-ledger";
 
 const args = process.argv.slice(2);
 const option = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
