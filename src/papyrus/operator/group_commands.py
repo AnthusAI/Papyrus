@@ -48,7 +48,7 @@ COMMAND_USAGE = {
   ("content", "refresh"): "--path PATH [--path PATH ...] | --story LINEAGE | --indexes  [--run] [--force-paths N] [--dry-run] [--json]  (purge pages at the edge now: both URL forms and the Markdown twin; never the whole site; over 5 paths is a dry run until --run; cap 25 paths unless --force-paths N)",
   ("content", "update-live"): "--story LINEAGE [--run] [--force-paths N] [--verify-seconds N] [--dry-run] [--json]  (re-project one Story, purge exactly its pages and the index pages that list it, check the live page shows the new version)",
   ("content", "inspect-page"): "--path PATH | --story LINEAGE [--fix] [--run] [--force-paths N] [--json]  (read only unless --fix: the record, the stored page and what the edge serves, with one verdict)",
-  ("content", "rerender"): "--story LINEAGE | --indexes | --all  [--no-invalidate] [--dry-run] [--json]  (rebuild pages from the deployed hooks, then purge what was written)",
+  ("content", "rerender"): "--story LINEAGE | --indexes [--under /PREFIX/ ...] | --all  [--no-invalidate] [--dry-run] [--json]  (rebuild pages from the deployed hooks, then purge what was written)",
   ("stories", "list"): "[--stage STAGE] [--section ID|SLUG|NAME] [--limit N]  (read only; prints the lineage ids stories show takes)",
   ("stories", "show"): "--story LINEAGE  (read only; prints its References by lineage id, which references show accepts, and its related stories)",
   ("assignments", "show"): "--assignment ID  (read only; status, type, section, Story and events)",
