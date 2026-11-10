@@ -79,6 +79,8 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 /* The loading skeleton is the loaded editor's size block for block: the toolbar wraps onto more rows as the panel narrows (a container query,
    because the panel's width, not the window's, decides), and the three fields stack when it is narrow. */
 [data-skeleton-toolbar]{height:44px}[data-skeleton-stars]{height:59px}[data-skeleton-fields]{height:254px}[data-skeleton-preview]{height:min(28rem,55dvh)}
+/* The headline image block is one fixed height in every state (loading, none, processing, missing, loaded), and the skeleton reserves it. */
+[data-story-headline-frame],[data-skeleton-headline]{height:11rem}
 @container (max-width:719px){[data-skeleton-toolbar]{height:80px}[data-skeleton-fields]{height:274px}}
 @container (max-width:399px){[data-skeleton-toolbar]{height:116px}}
 .organizer-board-body .kb-issue-detail a:not(.organizer-header-button){display:block;min-height:44px;text-decoration:underline;padding:12px 0}

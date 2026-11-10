@@ -588,6 +588,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         <div aria-label="Loading article" aria-busy="true" className="space-y-4" data-newsroom-article-skeleton role="status">
           <div className="rounded-md bg-muted" data-skeleton-toolbar />
           {!isNew ? <div className="max-w-md rounded-md bg-muted" data-skeleton-stars /> : null}
+          <div className="rounded-md bg-muted" data-skeleton-headline />
           <div className="grid gap-6">
             <div className="rounded-md bg-muted" data-skeleton-fields />
             <div className="h-10 w-72 max-w-full rounded-md bg-muted" data-skeleton-tabs />
