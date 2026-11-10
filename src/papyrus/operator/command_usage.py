@@ -120,7 +120,7 @@ _ENTRIES = dict([
      "both", _DRY, "write-story"),
   _e("stories save-version", "Save the body and front matter as a new version (never publishes).",
      "--story LINEAGE --body-file FILE --reason TEXT [--front-matter-file FILE] [--author-label NAME] [--stage STAGE | --advance] [--outline] [--no-check] "
-     "[--images DIR [--bucket B] [--identity-pool-id ID]] [--dry-run]  (signed in the author is the person; --author-label is required on the operator lane)",
+     "[--images DIR [--bucket B] [--identity-pool-id ID] [--require-dark-figures]] [--dry-run]  (signed in the author is the person; --author-label is required on the operator lane; a figure with no dark picture prints a figure-light-only warning, and --require-dark-figures or PAPYRUS_REQUIRE_DARK_FIGURES=1 refuses it)",
      "both", _DRY, "write-story"),
   _e("stories move", "Move a Story to a board stage. --stage published changes only the board stage and publishes no page.",
      "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]", "both", _DRY, "write-story"),
@@ -233,6 +233,14 @@ _ENTRIES = dict([
   _e("links", "Print the console link of a Story (one version, or the drawer), Reference, Concept, Assignment or review item. Hand the editor these links.",
      "[--story LINEAGE|SLUG [--version N|VERSION_ID]] [--reference REFERENCE_ID|LINEAGE] [--concept NAME|NODEKEY] [--assignment ID] [--review ID] [--console-url URL] [--json]", "both", "reads", "write-story"),
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
+  # ---- figures (local: nothing here reaches a site) ---------------------------------------------------------------
+  _e("figures render", "Check a figure and render its light and dark pictures (always both) with the site's design system. Needs Playwright and Chromium or Chrome.",
+     "FOLDER... (--design-system DIR | --neutral-default) [--out DIR] [--check-only] [--json]  "
+     "(FOLDER holds figure.svg and figure.json; writes SLUG.png, SLUG.dark.png and SLUG.figure.json next to it, or into --out for one figure; --check-only writes nothing; "
+     "--neutral-default is the unbranded default for a site with no design system: say so; exits 1 when any figure has a problem)", "both", "local", "figures"),
+  _e("figures directive", "Print the ::image{} line for a figure's Story, from its figure.json.", "FOLDER", "both", "reads", "figures"),
+  _e("figures rules", "Print the general figure rules every site follows (light and dark are both mandatory).", "", "both", "reads", "figures"),
+  _e("figures primitives", "Print the shape library (glyphs, arrowhead, patterns) every figure can use.", "", "both", "reads", "figures"),
 ])
 
 _ENTRIES.update(dict([
@@ -323,6 +331,7 @@ GROUP_SUMMARIES = {
   "ops site": "Site copy (operator).",
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
+GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 
 
 def _legacy(path: list[str]) -> Usage | None:

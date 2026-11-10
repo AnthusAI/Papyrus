@@ -31,6 +31,7 @@ Operator groups:
   items         Stories as a whole (items link-references)
   home-page     Public data of the home page (home-page snapshot)
   images        Pictures for Stories: stock search, generation, review, apply and undo (images <command>)
+  figures       Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it (figures render|directive|rules|primitives)
   editorial     Editorial context and quality loop commands
   publication   Create the backend's canonical publication (publication init)
   site          Site repository operations (site google-secrets set|check)
