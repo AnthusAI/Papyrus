@@ -388,7 +388,7 @@ def stores():
     return {"hn": fx.FakeViewStore(), "ttab": fx.FakeViewStore(fx.ttab_rows(APP_DISTINCTIVE)),
             "huggingface": fx.FakeViewStore(fx.ttab_rows(fx.APP_PAPYRUS, monitor="huggingface")),
             "p-apyr-us-email": fx.FakeViewStore([]),
-            **{paper: fx.FakeViewStore([]) for paper in ("papers-arxiv-ai", "papers-arxiv-security", "papers-huggingface")}}
+            **{paper: fx.FakeViewStore([]) for paper in ("papers-arxiv-ai", "papers-arxiv-security", "papers-huggingface", "feed-metr")}}
 
 
 def site_overview(endpoint, groups=("editor",), scope="publication"):
