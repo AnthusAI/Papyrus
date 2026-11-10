@@ -43,26 +43,26 @@ Feature: The CLI hands an editor the console link of the item it worked on
   Scenario: An unknown console address fails clearly and builds nothing
     Given the person is signed in to a site that publishes no console address
     And no console address is given
-    When the person runs "papyrus links --review rr-1"
+    When the person runs the links command "papyrus links --review rr-1"
     Then the command fails saying the console address is unknown and how to give it
     And no link is printed
 
   Scenario: The flag beats the environment, which beats what the site publishes
     Given the signed-in site publishes the console address "https://newsroom.site.example.test/newsroom"
     And the environment names the console address "https://env.example.test/newsroom"
-    When the person runs "papyrus links --review rr-1 --console-url https://flag.example.test"
+    When the person runs the links command "papyrus links --review rr-1 --console-url https://flag.example.test"
     Then the link printed is "https://flag.example.test/needs-me/rr-1"
-    When the person runs "papyrus links --review rr-1"
+    When the person runs the links command "papyrus links --review rr-1"
     Then the link printed is "https://env.example.test/newsroom/needs-me/rr-1"
 
   Scenario: The signed-in site's published console address is used
     Given the signed-in site publishes the console address "https://newsroom.site.example.test/newsroom"
     And no console address is given
-    When the person runs "papyrus links --review rr-1"
+    When the person runs the links command "papyrus links --review rr-1"
     Then the link printed is "https://newsroom.site.example.test/newsroom/needs-me/rr-1"
 
   Scenario Outline: A console address that is not a plain https address is refused
-    When the person runs "papyrus links --review rr-1 --console-url <address>"
+    When the person runs the links command "papyrus links --review rr-1 --console-url <address>"
     Then the command fails saying it is not a console address
 
     Examples:
@@ -78,26 +78,26 @@ Feature: The CLI hands an editor the console link of the item it worked on
 
   Scenario: A story is found by slug and linked to its current version
     Given the site has the story "item-story" with the slug "my-story" at versions 1 and 2, version 2 current
-    When the person runs "papyrus links --story my-story"
+    When the person runs the links command "papyrus links --story my-story"
     Then the "story" link is "https://newsroom.news.example.test/newsroom/articles/item-story-v2"
     And the "story-board" link is "https://newsroom.news.example.test/newsroom/articles?open=contentItem%3Aitem-story"
 
   Scenario: A story version is chosen by number or by id
     Given the site has the story "item-story" with the slug "my-story" at versions 1 and 2, version 2 current
-    When the person runs "papyrus links --story item-story --version 1"
+    When the person runs the links command "papyrus links --story item-story --version 1"
     Then the "story" link is "https://newsroom.news.example.test/newsroom/articles/item-story"
-    When the person runs "papyrus links --story item-story --version item-story-v2"
+    When the person runs the links command "papyrus links --story item-story --version item-story-v2"
     Then the "story" link is "https://newsroom.news.example.test/newsroom/articles/item-story-v2"
 
   Scenario: A version that does not exist is an error, not a dead link
     Given the site has the story "item-story" with the slug "my-story" at versions 1 and 2, version 2 current
-    When the person runs "papyrus links --story item-story --version 9"
+    When the person runs the links command "papyrus links --story item-story --version 9"
     Then the command fails saying the story has no version 9
     And no link is printed
 
   Scenario: A story that does not exist is an error, not a dead link
     Given the site has the story "item-story" with the slug "my-story" at versions 1 and 2, version 2 current
-    When the person runs "papyrus links --story nothing-here"
+    When the person runs the links command "papyrus links --story nothing-here"
     Then the command fails saying no story was found
     And no link is printed
 
@@ -105,17 +105,17 @@ Feature: The CLI hands an editor the console link of the item it worked on
     Given the site has the Reference "reference-a-v1" in lineage "reference-a"
     And the site has the concept "Voice cloning" with the node key "concept--voice-cloning" and the lineage "semantic-node-voice-cloning"
     And the site has the Assignment "assignment-1"
-    When the person runs "papyrus links --reference reference-a-v1 --concept concept--voice-cloning --assignment assignment-1"
+    When the person runs the links command "papyrus links --reference reference-a-v1 --concept concept--voice-cloning --assignment assignment-1"
     Then the link printed is "https://newsroom.news.example.test/newsroom/references/reference-a"
     And the link printed is "https://newsroom.news.example.test/newsroom/concepts?node=semantic-node-voice-cloning"
     And the link printed is "https://newsroom.news.example.test/newsroom/assignments/assignment-1"
 
   Scenario: Naming nothing is an error that shows the usage
-    When the person runs "papyrus links"
+    When the person runs the links command "papyrus links"
     Then the command fails saying at least one item must be named
 
   Scenario: The links can be printed as JSON
-    When the person runs "papyrus links --review rr-1 --json"
+    When the person runs the links command "papyrus links --review rr-1 --json"
     Then the JSON names the console and one "review" link with its address
 
   Scenario Outline: The commands that print an item also print its console link

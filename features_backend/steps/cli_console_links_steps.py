@@ -134,7 +134,7 @@ def _parsed(world) -> dict[str, str]:
     return found
 
 
-@when('the person runs "{command}"')
+@when('the person runs the links command "{command}"')
 def person_runs(context, command):
     import shlex
 
