@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { newsroomDeskOptions } from "../lib/newsroom-sections";
 import { StoryReportingTrailView } from "./story-reporting-trail";
-import { loadStoryReportingTrail } from "./story-reporting-trail-client";
+import { loadNewestStoryVersion } from "./story-reporting-trail-client";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -366,8 +366,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   useEffect(() => {
     if (!lineageId || isNew) { setLatestVersion(null); return; }
     let cancelled = false;
-    loadStoryReportingTrail(lineageId, activeArticleId)
-      .then(trail => { if (!cancelled) { const newest = trail.versions[0]; setLatestVersion(newest ? { id: newest.id, number: newest.versionNumber } : null); } })
+    loadNewestStoryVersion(lineageId)
+      .then(newest => { if (!cancelled) setLatestVersion(newest ? { id: newest.id, number: newest.versionNumber } : null); })
       .catch(() => { if (!cancelled) setLatestVersion(null); });
     return () => { cancelled = true; };
   }, [activeArticleId, isNew, lineageId, reloadToken]);

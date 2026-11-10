@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "445a816a-3e67-47c2-bb16-8fb8f6765704",
+  "issue_id": "PPY-af795b8b-7cf6-413a-ae50-0163855ab93f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T17:08:32.830Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Console loading audit: what each newsroom surface reads, and paging design",
+    "description": "Ryan 2026-11-10: is the newsroom UI loading every story every time? Audit of every console surface (what loads, how much, how often), ranked by cost, with a paging/lazy-loading design and schema implications: docs/plans/console-loading-audit.md. First slices: board columns on the head stage index behind SiteBrand.storyHeadStageIndex (PPY-52f3da); opening a story no longer scans the SemanticRelation table (editor reads the newest version with one indexed row; trail reads References by subject state). Follow-ups listed in the doc's Order section.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

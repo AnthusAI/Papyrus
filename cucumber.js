@@ -60,6 +60,16 @@ module.exports = {
     require: ["features/step_definitions/board-refresh.steps.js"],
     format: ["summary"],
   },
+  boardHeadIndex: {
+    paths: ["features/newsroom-board-head-index.feature"],
+    require: ["features/step_definitions/board-head-index.steps.js"],
+    format: ["summary"],
+  },
+  storyOpenReads: {
+    paths: ["features/story-open-reads.feature"],
+    require: ["features/step_definitions/story-open-reads.steps.js"],
+    format: ["summary"],
+  },
   boardStoryTypes: {
     paths: ["features/newsroom-board-story-types.feature"],
     require: ["features/step_definitions/board-story-types.steps.js"],
