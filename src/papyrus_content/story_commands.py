@@ -197,12 +197,13 @@ def stories_repair_image_paths(flags: list[str]) -> None:
 
     Brings the pictures of a story saved with `save-version --images` before the one-key rule (a tenant site stored them at
     media/<tenant>/assets/<slug>/<file>) to media/assets/<slug>/<file>, the key the renditions are made and looked up under.
-    Objects are copied inside the bucket, not uploaded again, and the story's MediaAsset rows are pointed at the new keys; the old
-    objects stay. Dry run unless --write is given (the usual --dry-run default does not apply: this command only plans until told).
+    Objects are copied inside the bucket, not uploaded again (a row whose object is already at media/<srcPath> is only re-pointed), and the story's
+    MediaAsset and PublishedMediaAsset rows are pointed at the new keys; objects are never deleted. Dry run unless --write is given (the usual --dry-run default does not apply: this command only plans until told).
     Writing to the bucket needs the same access `save-version --images` does (the editor's temporary credentials when signed in).
     The copies make the bucket announce new objects, which is what makes the renditions; `papyrus ops content renditions --source
     assets/<slug>/<file>` asks for them again."""
-    from .story_image_repair import apply_image_path_repair, plan_image_path_repair, plan_lines, story_media_rows
+    from .story_image_repair import apply_image_path_repair, plan_image_path_repair, plan_lines, story_media_rows, story_published_media_rows
+    from .story_images import open_media_store
 
     options = parse_options(flags)
     if options.get("apply") is not None or options.get("dry-run") is not None:
@@ -210,18 +211,25 @@ def stories_repair_image_paths(flags: list[str]) -> None:
     write = parse_boolean_option(options.get("write"), default=False, label="--write")
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
-    plan = plan_image_path_repair(story_media_rows(client, lineage_id))
+    store = None
+    try:
+        store = open_media_store(normalize_string(options.get("bucket")), normalize_string(options.get("identity-pool-id")))
+    except Exception as error:   # a plan can still be printed without the bucket; --write cannot
+        if write:
+            raise
+        print(f"stories\trepair-image-paths\t{lineage_id}\tnote\tthe bucket was not checked: {error}")
+    plan = plan_image_path_repair(
+        story_media_rows(client, lineage_id), story_published_media_rows(client, lineage_id), exists=store.exists if store else None
+    )
     for line in plan_lines(lineage_id, plan):
         print(line)
     if not plan.needed:
         print(f"stories\trepair-image-paths\t{lineage_id}\tnothing to repair\t{plan.already_canonical} picture row(s) already at media/<srcPath>")
         return
     if not write:
-        print(f"stories\trepair-image-paths\t{lineage_id}\tdry run\t{len(plan.copies)} object(s) to copy, {len(plan.row_updates)} row(s) to update; pass --write to do it")
+        copies = len(plan.copies) - len(plan.repoint_only)
+        print(f"stories\trepair-image-paths\t{lineage_id}\tdry run\t{copies} object(s) to copy, {len(plan.row_updates)} media row(s) and {len(plan.published_row_updates)} published media row(s) to update; pass --write to do it")
         return
-    from .story_images import open_media_store
-
-    store = open_media_store(normalize_string(options.get("bucket")), normalize_string(options.get("identity-pool-id")))
     results = apply_image_path_repair(client, store, plan)
     for kind, subject, outcome in results:
         print(f"stories\trepair-image-paths\t{lineage_id}\t{kind}-{outcome}\t{subject}")
