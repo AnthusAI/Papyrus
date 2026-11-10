@@ -35,6 +35,7 @@ def _leaves(names) -> Tree:
 def route_tree() -> Tree:
     from papyrus.operator.group_commands import PROCEDURES_COMMANDS, REPORTING_COMMANDS, RESEARCH_COMMANDS, SECTIONS_COMMANDS
     from papyrus_content.figures.cli import route_tree as figures_route_tree
+    from papyrus_content.guidelines.cli import route_tree as guidelines_route_tree
     from papyrus_content.images.cli import route_tree as images_route_tree
 
     knowledge_names = ported_commands("knowledge")
@@ -67,6 +68,7 @@ def route_tree() -> Tree:
         "editorial": _leaves({*ported_commands("editorial"), "context"}),
         "monitors": {},
         "images": images_route_tree(),
+        "guidelines": guidelines_route_tree(),
         "figures": figures_route_tree(),
     }
     for group in CONTENT_GROUPS:
