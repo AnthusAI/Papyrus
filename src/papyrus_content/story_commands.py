@@ -268,7 +268,7 @@ def stories_link_reference(flags: list[str]) -> None:
 
 
 def stories_link_story(flags: list[str]) -> None:
-    """papyrus stories link-story --story <lineage|slug> (--to <lineage|slug> [--to ...] | --reference <reference id> [--reference ...]) [--note <text>] [--author-label <name>] [--dry-run] [--json]
+    """papyrus stories link-story --story <lineage|slug> (--to <lineage|slug> [--to ...] | --reference <reference id> [--reference ...]) [--note <text>] [--author-label <name>] [--no-rerender] [--dry-run] [--json]
 
     Links a story to one or more other stories (an article to related articles, a larger story to several posts) for its See also block. There is
     one relation, `see_also`, and it cannot be chosen: no relation name is accepted (`--relation see_also` is tolerated, anything else is refused).
@@ -280,7 +280,10 @@ def stories_link_story(flags: list[str]) -> None:
 
     ``--reference REFERENCE_ID`` (repeatable, with or without --to) links the story to an accepted Reference with the same `see_also` ("read this source too";
     directional, story to Reference). Every Reference must exist and be accepted, or nothing at all is written: only accepted References are shown on the
-    page, and there is no override. A line per Reference gives its title, host and curation status."""
+    page, and there is no override. A line per Reference gives its title, host and curation status.
+
+    After a real write that created a link, the published stories whose page changed (both ends of a story link, the story of a Reference link) are re-rendered
+    at once with no purge (`rerender  LINEAGE  no purge  ok`; visible within about five minutes). A failure is a warning, never a failed command; --no-rerender skips it."""
     from .operator_errors import OperatorError
     from .story_links import STORY_LINK_RELATION, check_official_relation, link_story_set, resolve_link_targets
     from .user_auth_mode import user_auth_requested
@@ -338,8 +341,14 @@ def stories_link_story(flags: list[str]) -> None:
     note = normalize_string(options.get("note"))
     rows = link_story_set(client, story, others, actor=author, note=note, apply=apply, on_row=show)
     reference_rows = link_reference_set(client, story, references, actor=author, note=note, apply=apply, on_row=show_reference)
+    from .story_rerender import announce, progress_line, rerender_after_write
+
+    wrote = [row for row in rows if row["outcome"] == "write"]
+    changed = [lineage_id, *(row["lineageId"] for row in wrote)] if wrote or any(row["outcome"] == "write" for row in reference_rows) else []
+    done = rerender_after_write(client, changed, enabled=apply and not parse_boolean_option(options.get("no-rerender"), default=False, label="--no-rerender"), progress=progress_line)
     if as_json:
-        print(json.dumps({"ok": True, "story": lineage_id, "dryRun": not apply, "links": rows, "referenceLinks": reference_rows}, indent=2))
+        print(json.dumps({"ok": True, "story": lineage_id, "dryRun": not apply, "links": rows, "referenceLinks": reference_rows, "rerendered": done["rerendered"]}, indent=2))
+    announce(done, quiet=as_json)
 
 
 

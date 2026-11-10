@@ -246,6 +246,18 @@ class PublishItemTests(unittest.TestCase):
 
 
 class PublishCommandTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # With no deployed outputs, a signed-in session file on the machine (or one another test left in HOME) makes the command ask the
+        # server whether the site projects. These tests are about the command, so they run with no session, as a clean CI machine has.
+        import os
+        import tempfile
+
+        state = tempfile.TemporaryDirectory()
+        self.addCleanup(state.cleanup)
+        patcher = mock.patch.dict(os.environ, {"PAPYRUS_CLI_STATE_DIR": state.name})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def run_command(self, command, client, flags):
         output = io.StringIO()
         with mock.patch("papyrus_content.publish_commands.create_authoring_client", return_value=(client, {})):
