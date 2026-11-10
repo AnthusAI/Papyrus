@@ -59,6 +59,9 @@ from .entity_review import (
     reject_patches,
     rename_patches,
 )
+from .entity_add import DISAMBIGUATION_LINEAGE, DISAMBIGUATION_NAME, add_plan, disambiguation_plan
+from .entity_duplicates import find_duplicate_pairs
+from .entity_merge import merge_plan
 from .entity_retype import retype_plan
 from .keys import kind_key
 from .page_answer import page_label, page_order_key
@@ -260,6 +263,7 @@ def _print_plan(label: str, plan: PublishPlan, changes: list[dict], apply: bool,
                     "changes": {f"{model}:{action}": count for (model, action), count in sorted(actions.items())},
                     "warnings": plan.warnings,
                     "dropped": [dropped.to_dict() for dropped in plan.dropped],
+                    "duplicates": [{"done": done, "why": why} for done, why in plan.duplicates],
                 },
                 indent=2,
                 sort_keys=True,
@@ -273,6 +277,8 @@ def _print_plan(label: str, plan: PublishPlan, changes: list[dict], apply: bool,
         print(f"knowledge\t{label}\tchanges\t{model}\t{action}\t{count}")
     for dropped in plan.dropped:
         print(f"knowledge\t{label}\tdropped\t{dropped.kind}\t{dropped.name}\t{dropped.reason}")
+    for done, why in plan.duplicates:
+        print(f"knowledge\t{label}\tduplicate\t{done}\t{why}")
     for warning in plan.warnings[:20]:
         print(f"knowledge\t{label}\twarning\t{warning}")
     if len(plan.warnings) > 20:
@@ -876,6 +882,19 @@ def knowledge_entities_link(flags: list[str]) -> None:
     link(flags)
 
 
+def _migration_changes(client: Any, records: list[dict], patches: list[dict]) -> list[dict]:
+    """The changes a migration makes: its records against what is stored, and its partial updates."""
+    return [
+        build_record_change_from_current(record["modelName"], record["expected"], client.get_record(record["modelName"], record["expected"]["id"]))
+        for record in records
+    ] + [{"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"} for patch in patches]
+
+
+def _print_changes(name: str, changes: list[dict]) -> None:
+    for (model, action), count in sorted(Counter((change["modelName"], change["action"]) for change in changes).items()):
+        print(f"knowledge\tentities\t{name}\tchanges\t{model}\t{action}\t{count}")
+
+
 def knowledge_entities_retype(flags: list[str]) -> None:
     options = parse_options(flags)
     identifier = normalize_string(options.get("key"))
@@ -892,14 +911,107 @@ def knowledge_entities_retype(flags: list[str]) -> None:
         raise ValueError(str(error)) from error
     dry_run = options.get("dry-run") is True
     print(f"knowledge\tentities\tretype\t{node['nodeKey']} -> {new_key}\t{node.get('status')}\t{'dry-run' if dry_run else 'apply'}\t{_actor_label(actor)}")
-    changes = [
-        build_record_change_from_current(record["modelName"], record["expected"], client.get_record(record["modelName"], record["expected"]["id"]))
-        for record in records
-    ] + [{"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"} for patch in patches]
-    for (model, action), count in sorted(Counter((change["modelName"], change["action"]) for change in changes).items()):
-        print(f"knowledge\tentities\tretype\tchanges\t{model}\t{action}\t{count}")
+    changes = _migration_changes(client, records, patches)
+    _print_changes("retype", changes)
     if not dry_run:
         apply_record_changes(client, changes)
+
+
+def knowledge_entities_merge(flags: list[str]) -> None:
+    """papyrus knowledge entities merge --from KEY --into KEY --actor ai|human [--actor-name N] [--dry-run]
+
+    Merge a duplicate entity (--from) into the entity that stays (--into): the duplicate is superseded, its name and aliases become aliases of the survivor, and
+    its item mentions and relations move to the survivor (``entity_merge.py``). Needs AWS credentials (``--auth iam``), like ``retype``. Afterwards: ``entities registry``,
+    ``snapshot``, then ``wiki sync --retire`` takes the duplicate's page down."""
+    options = parse_options(flags)
+    duplicate_id, survivor_id = normalize_string(options.get("from")), normalize_string(options.get("into"))
+    if not duplicate_id or not survivor_id:
+        raise ValueError("knowledge entities merge requires --from <the duplicate's node key, id or lineage id> and --into <the entity that stays>.")
+    actor = actor_from_options(options, today(), command="knowledge entities merge")
+    client = authoring_client(options)
+    rows = client.list_records("SemanticNode")
+    try:
+        duplicate, survivor = find_node(rows, duplicate_id), find_node(rows, survivor_id)
+        records, patches = merge_plan(duplicate, survivor, rows, relations_of_nodes(client, [duplicate, survivor]), actor=actor, now=utc_now())
+    except EntityReviewError as error:
+        raise ValueError(str(error)) from error
+    dry_run = options.get("dry-run") is True
+    print(f"knowledge\tentities\tmerge\t{duplicate['nodeKey']} -> {survivor['nodeKey']}\t{survivor.get('status')}\t{'dry-run' if dry_run else 'apply'}\t{_actor_label(actor)}")
+    changes = _migration_changes(client, records, patches)
+    _print_changes("merge", changes)
+    print(f"knowledge\tentities\tmerge\tnext\tentities registry, snapshot, then `knowledge wiki sync --retire` takes the page of {duplicate['nodeKey']} down")
+    if not dry_run:
+        apply_record_changes(client, changes)
+
+
+def knowledge_entities_duplicates(flags: list[str]) -> None:
+    """papyrus knowledge entities duplicates [--kind KIND] [--json]
+
+    Read only. The pairs of accepted entities in which one duplicates the other by the duplicate rules (``entity_duplicates.py``), each with the rule, what the rule
+    says to do (resolve or propose) and the merge command that would join them. The report a person reads before a cleanup."""
+    options = parse_options(flags)
+    kind = kind_key(normalize_string(options.get("kind")) or "")
+    pairs = [
+        (hit, node)
+        for hit, node in find_duplicate_pairs(authoring_client(options).list_records("SemanticNode"))
+        if not kind or kind_key(node.get("nodeKind") or "") == kind
+    ]
+    if options.get("json"):
+        print(json.dumps([{"duplicate": node["nodeKey"], "into": hit.key, "rule": hit.rule, "action": hit.action, "why": hit.sentence()} for hit, node in pairs], indent=2, sort_keys=True))
+        return
+    for hit, node in pairs:
+        print(f"knowledge\tentities\tduplicates\t{node['nodeKey']}\t{hit.key}\t{hit.rule}\t{hit.action}\tmerge --from {node['nodeKey']} --into {hit.key}")
+    print(f"knowledge\tentities\tduplicates\t{len(pairs)} pairs")
+
+
+def _alias_values(flags: list[str]) -> list[str]:
+    """Every ``--alias NAME`` in the flags, in order (``parse_options`` keeps only the last of a repeated flag)."""
+    return [flags[index + 1] for index, flag in enumerate(flags[:-1]) if flag == "--alias" and not flags[index + 1].startswith("--")]
+
+
+def knowledge_entities_add(flags: list[str]) -> None:
+    """papyrus knowledge entities add --kind KIND --name NAME [--alias A ...] --actor ai|human [--actor-name N] [--corpus-key K | --corpus-id ID] [--dry-run]
+
+    Create the accepted entity (or find it), add every alias, and tag the standard Disambiguation concept on it and on the entities it shares a name with when the
+    name is ambiguous across kinds (``entity_add.py``). Refuses a name that duplicates an accepted entity (``entity_duplicates.py``). Needs AWS credentials (``--auth iam``)."""
+    options = parse_options(flags)
+    kind, name = normalize_string(options.get("kind")), normalize_string(options.get("name"))
+    if not kind or kind is True or not name or name is True:
+        raise ValueError("knowledge entities add requires --kind <kind> and --name <name> (and --alias <name> once for each other name).")
+    actor = actor_from_options(options, today(), command="knowledge entities add")
+    corpus_id = normalize_string(options.get("corpus-id")) or (knowledge_corpus_id({"key": options["corpus-key"]}) if normalize_string(options.get("corpus-key")) else None)
+    client = authoring_client(options)
+    rows = client.list_records("SemanticNode")
+    try:
+        plan = add_plan(kind, name, _alias_values(flags), rows, actor=actor, now=utc_now(), corpus_id=corpus_id)
+    except EntityReviewError as error:
+        raise ValueError(str(error)) from error
+    dry_run = options.get("dry-run") is True
+    tags = disambiguation_plan(plan)
+    print(f"knowledge\tentities\tadd\t{plan.node['nodeKey']}\t{'created' if plan.created else 'found'}\t{plan.node.get('status')}\t{'dry-run' if dry_run else 'apply'}\t{_actor_label(actor)}")
+    changes = _migration_changes(client, plan.records, plan.patches)
+    _print_changes("add", changes)
+    for ambiguity in plan.ambiguities:
+        print(f"knowledge\tentities\tadd\tambiguous\t{ambiguity.name}\talso " + ", ".join(str(other.get("nodeKey")) for other in ambiguity.others))
+    for lineage, _concept, note in tags:
+        print(f"knowledge\tentities\tadd\ttag\t{DISAMBIGUATION_NAME}\t{lineage}\t{note}")
+    if dry_run:
+        return
+    apply_record_changes(client, changes)
+    if tags:
+        _tag_disambiguation(client, rows, tags)
+
+
+def _tag_disambiguation(client: Any, rows: list[dict], tags: list[tuple[str, str, str]]) -> None:
+    """Make the Disambiguation concept if the site has none, then the concept link from each entity to it, with the words that say what is ambiguous."""
+    from ..signed_in_concepts import create_concept_link, create_editor_concept  # noqa: PLC0415
+
+    exists = any(row.get("lineageId") == DISAMBIGUATION_LINEAGE and row.get("versionState", "current") == "current" and row.get("status") != "rejected" for row in rows)
+    if not exists:
+        create_editor_concept(client, DISAMBIGUATION_NAME, DISAMBIGUATION_NAME)
+    for subject, concept, note in tags:
+        answer = create_concept_link(client, subject=subject, object_=concept, note=note)
+        print(f"knowledge\tentities\tadd\ttagged\t{subject}\t{answer.get('outcome')}\t{answer.get('relationId')}")
 
 
 def knowledge_entities_registry(flags: list[str]) -> None:
@@ -1121,6 +1233,9 @@ KNOWLEDGE_COMMANDS = {
     "entities-page": knowledge_entities_page,
     "entities-link": knowledge_entities_link,
     "entities-retype": knowledge_entities_retype,
+    "entities-add": knowledge_entities_add,
+    "entities-merge": knowledge_entities_merge,
+    "entities-duplicates": knowledge_entities_duplicates,
     "entities-registry": knowledge_entities_registry,
     "extract-entities": knowledge_extract_entities,
     "topic-config": knowledge_topic_config,

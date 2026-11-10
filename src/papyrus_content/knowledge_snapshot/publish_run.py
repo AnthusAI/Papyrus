@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..categories_commands import with_version_fields
 from ..categories_steering import semantic_relation_record
@@ -34,6 +34,9 @@ from .keys import contains_email, entity_key, kind_key, name_identity
 from .model import KIND_REFERENCE_DOCUMENT, LINK_EXTRACTOR, LINK_FRONT_MATTER, PublishedItem
 from .page_answer import PAGE_FIELD, PageAnswer, decode_page_answer
 from .run_input import ClusterRun, TypedItem
+
+if TYPE_CHECKING:  # the duplicate check imports this module (through the registry), so it is imported where it is used
+    from .entity_duplicates import DuplicateFinder, DuplicateHit
 
 ACTOR = "Papyrus knowledge publish-run"
 FRONT_MATTER_IMPORT_RUN = "knowledge-front-matter"
@@ -77,6 +80,9 @@ class PublishPlan:
     record_matches: dict[str, list[dict]] = field(default_factory=dict)
     #: Extractor candidates the candidate filter kept from becoming nodes, with the reason (``candidate_filter.py``).
     dropped: list[Dropped] = field(default_factory=list)
+    #: Extractor candidates that duplicate an accepted entity (``entity_duplicates.py``): ``(what was done, sentence)``. A resolved one was linked to the entity
+    #: and its name added as an alias; a proposed one made no node and no link, and a proposal was filed for a person.
+    duplicates: list[tuple[str, str]] = field(default_factory=list)
 
     def count(self, name: str, amount: int = 1) -> None:
         self.counts[name] = self.counts.get(name, 0) + amount
@@ -307,6 +313,53 @@ def relation_record(subject: Mapping[str, Any], predicate: str, target: Mapping[
     )
 
 
+def _settle_duplicate(
+    hit: "DuplicateHit",
+    entity: Any,
+    index: NodeIndex,
+    plan: PublishPlan,
+    proposed: set[str],
+    aliased: set[tuple[str, str]],
+    *,
+    corpus_id: str | None,
+    import_run_id: str,
+    now: str,
+) -> dict | None:
+    """What the duplicate check does with a candidate that duplicates an accepted entity: the entity to link the mention to (after adding the candidate's
+    name to it as an alias), or ``None`` when a proposal was filed for a person instead (or none could be, and the report says why)."""
+    from .entity_duplicates import RESOLVE, duplicate_proposal  # noqa: PLC0415
+    from .entity_review import EntityReviewError, alias_patches  # noqa: PLC0415
+
+    node = index.by_key(hit.key) or dict(hit.node)
+    if hit.action == RESOLVE:
+        try:
+            patches = alias_patches(node, entity.text, index.rows(), actor=Actor(ACTOR_AI, RESOLUTION_ACTOR_NAME, now[:10]), now=now)
+        except EntityReviewError:
+            patches = None  # another entity of the kind holds the name, or the entity cannot take it: a person decides
+        if patches is not None:
+            pair = (str(node.get("lineageId")), name_identity(entity.text))
+            if patches and pair not in aliased:
+                aliased.add(pair)
+                plan.patches.extend(patches)
+                node["aliases"] = patches[0]["expected"]["aliases"]
+                index.add(node)  # the name is the entity's from here on: the next mention of it resolves by name
+                plan.count("duplicatesAliased")
+            plan.duplicates.append(("resolved", hit.sentence()))
+            plan.count("duplicatesResolved")
+            return node
+    record = None
+    if corpus_id:
+        record = duplicate_proposal(hit, entity.kind, None, corpus_id=corpus_id, import_run_id=import_run_id, now=now)
+        if record["id"] not in proposed:
+            proposed.add(record["id"])
+            plan.records.append({"modelName": "SteeringProposal", "expected": record, "createOnly": True})
+    else:
+        plan.warnings.append(f"{entity.text!r} looks like {hit.key} but no --corpus-key or --corpus-id says where to file the proposal; no entity was made for it")
+    plan.duplicates.append(("proposed" if record else "held", hit.sentence()))
+    plan.count("duplicatesProposed")
+    return None
+
+
 def page_answer_of(entity: Any, run_id: str) -> PageAnswer | None:
     """The extractor's page answer of a proposed entity, when it gave a whole one (a resolved entity, or an older output file, has none)."""
     if entity.state != "proposed" or entity.page_score is None or entity.page_answer is None or entity.page_documents is None:
@@ -326,8 +379,11 @@ def plan_extractor(
     now: str,
     confirm_resolved: bool = False,
     candidate_filter: CandidateFilter | None = None,
+    duplicates: "DuplicateFinder | None" = None,
 ) -> None:
     by_id = {item.item_id: item for item in items}
+    proposed: set[str] = set()  # duplicate proposals planned by this run
+    aliased: set[tuple[str, str]] = set()  # (entity lineage, name identity) pairs whose alias this run has planned
     import_run_id = f"typed-entities-run-{safe_id(run_id)}"
     planned: set[tuple[str, str]] = set()
     planned_relations: set[str] = set()
@@ -358,6 +414,13 @@ def plan_extractor(
                 existing = node is not None
             if node is None and candidate_filter is not None and not candidate_filter.check(entity.kind, entity.text):
                 continue  # a candidate that would be a new node and is a common word, a stop word or of an undeclared kind: no node, no link
+            if node is None and duplicates is not None:
+                hit = duplicates.find(entity.kind, entity.text)
+                if hit is not None:
+                    node = _settle_duplicate(hit, entity, index, plan, proposed, aliased, corpus_id=corpus_id, import_run_id=import_run_id, now=now)
+                    if node is None:
+                        continue  # a person decides: no node, no link
+                    existing = True
             answer = page_answer_of(entity, run_id)
             if node is None:
                 node = new_node_row(
@@ -438,6 +501,12 @@ def plan_clusters(
         plan.count("clustersContinued" if current is not None else "clustersNew")
 
 
+def _duplicate_finder(node_rows: list[dict]) -> "DuplicateFinder":
+    from .entity_duplicates import DuplicateFinder  # noqa: PLC0415
+
+    return DuplicateFinder(node_rows)
+
+
 def plan_publish_run(
     *,
     items: list[PublishedItem],
@@ -457,6 +526,7 @@ def plan_publish_run(
     record_rows_for: Callable[[list], list[dict]] | None = None,
     ledger: Any = None,
     candidate_filter: CandidateFilter | None = None,
+    check_duplicates: bool = True,
 ) -> PublishPlan:
     """``records`` are monitor records (``monitor_records.py``) and ``record_rows`` the current relation rows of the records' links: together
     they add the structured entities and relations of the records (``monitor_import.py``). With a ``ledger`` (``monitor_ledger.py``) only the
@@ -484,6 +554,7 @@ def plan_publish_run(
             plan_extractor(
                 run.entities, [*items, *(reference_documents or [])], index, confirmed, run.run_id, plan,
                 corpus_id=corpus_id, now=now, confirm_resolved=confirm_resolved, candidate_filter=candidate_filter,
+                duplicates=_duplicate_finder(node_rows) if check_duplicates else None,
             )
         if run.clusters:
             if not corpus_id:
