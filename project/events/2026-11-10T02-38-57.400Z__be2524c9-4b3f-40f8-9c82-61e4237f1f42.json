@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "be2524c9-4b3f-40f8-9c82-61e4237f1f42",
+  "issue_id": "PPY-ad0997c7-5156-4fde-b5a7-32bbde51a28f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T02:38:57.400Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Schema: headStageKey on Item and the listItemsByHeadStageAndUpdatedAt index",
+    "description": "amplify/data/schema.ts and amplify/data/resource.ts: add headStageKey: a.string() to Item and ONE secondary index index(\"headStageKey\").sortKeys([\"updatedAt\"]).queryField(\"listItemsByHeadStageAndUpdatedAt\") (projection ALL; the index holds one row per lineage). Add headStageKey to TENANT_SCOPED_INDEX_FIELDS (src/papyrus_content/tenancy.py) so a tenant backend stores tenant#stage, and the itemsByHeadStage alias to INDEX_DEFINITIONS in graphql_authoring.py. This is the only GSI change in its deploy (one GSI per deploy per table). Ships in the same release as the dual-write task. Deploys: 1 backend deploy per site (7), each needs Ryan's approval; MoM first, then the other six in one batch. Acceptance: deploy succeeds on MoM; the new index exists and is empty; nothing else changes for readers.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+    "labels": [
+      "deploy:backend",
+      "needs-ryan-approval",
+      "schema"
+    ]
+  }
+}

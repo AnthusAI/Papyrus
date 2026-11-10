@@ -1,0 +1,32 @@
+{
+  "id": "PPY-fe0b1604-bb73-4767-93ad-c3aac13842ea",
+  "title": "Dual-write: every Item writer keeps headStageKey on the head row only",
+  "description": "One helper (content_item_lifecycle.head_stage_fields) returns {headStageKey: stage} for the row being made head and {headStageKey: None} for the row being superseded; every writer that sets stage or versionState uses it in the write it already makes: publishing.save_item (create), publishing.publish_item (head and the sibling supersede loop), publishing.unpublish_item, story_reporting.save_story_version (create and supersede), story_reporting.move_story_stage, repair_story_versions, content_item_lifecycle create/assignment, assignments_workflow Item upserts, copywriting, story_triggers, editor_review, story_selection, story_commands, seed_edition, markus_import. No extra write and no extra read per save. The authoring client checks once per process that the site's Item type has headStageKey (graphql_type_field_names) and drops the field when it does not, so a new CLI still works against a site not yet deployed. A test-only invariant (fake client) asserts after every backend scenario that each lineage has at most one row with headStageKey and that it equals that row's stage. Acceptance: Gherkin writer scenarios pass; invariant hook on; writes per save unchanged (asserted by the request meter).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+  "labels": [
+    "deploy:backend",
+    "needs-ryan-approval"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-e7da0051-47ee-4d13-99d6-7c38c156b790",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ad0997c7-5156-4fde-b5a7-32bbde51a28f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-10T02:38:57.515774Z",
+  "updated_at": "2026-11-10T02:39:03.411135Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
