@@ -155,6 +155,16 @@ module.exports = {
     require: ["features/step_definitions/cover-image-picker.steps.js"],
     format: ["summary"],
   },
+  storyDetailHeadlineImage: {
+    paths: ["features/story-detail-headline-image.feature"],
+    require: ["features/step_definitions/story-detail-headline-image.steps.js"],
+    format: ["summary"],
+  },
+  storyPreviewHeading: {
+    paths: ["features/story-preview-heading.feature"],
+    require: ["features/step_definitions/story-preview-heading.steps.js"],
+    format: ["summary"],
+  },
   messageHashtags: {
     paths: ["features/message-hashtags.feature"],
     require: ["features/step_definitions/message-hashtags.steps.js"],

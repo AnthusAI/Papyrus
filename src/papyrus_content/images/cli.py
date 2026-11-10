@@ -1,4 +1,4 @@
-"""``papyrus images ...``: a thin adapter over the operation table. It turns flags into the operation's input, runs ``execute`` and prints the
+"""``papyrus images ...`` and ``papyrus guidelines ...``: a thin adapter over the operation table (the group is the operation's ``group``). It turns flags into the operation's input, runs ``execute`` and prints the
 envelope as JSON. Which flags exist comes from ``cli_generated.COMMANDS`` (generated from the table), so nothing about an operation is written here.
 
 Exit code: 0 when the operation succeeded, 2 for any error envelope (the operator-facing code the other commands use). The JSON says which error.
@@ -18,18 +18,22 @@ ACTOR_KIND_VARIABLE = "PAPYRUS_ACTOR_KIND"   # "agent" for procedures, automatio
 ERROR_EXIT_CODE = 2
 
 
-def route_tree() -> dict:
-    """The words under ``papyrus images`` as nested dicts, a leaf being {} (the shape ``papyrus --help`` walks)."""
+def commands_of(group: str) -> list[dict]:
+    return [entry for entry in COMMANDS if entry["group"] == group]
+
+
+def route_tree(group: str = "images") -> dict:
+    """The words under ``papyrus <group>`` as nested dicts, a leaf being {} (the shape ``papyrus --help`` walks)."""
     tree: dict = {}
-    for entry in COMMANDS:
+    for entry in commands_of(group):
         node = tree
         for word in entry["words"]:
             node = node.setdefault(word, {})
     return tree
 
 
-def usage_for(words: list[str]) -> str | None:
-    for entry in COMMANDS:
+def usage_for(words: list[str], group: str = "images") -> str | None:
+    for entry in commands_of(group):
         if entry["words"] == words:
             return f"Usage: {entry['usage']}\n  {entry['summary']}"
     return None
@@ -110,7 +114,7 @@ def parse(spec: dict, tokens: list[str]) -> tuple[dict, bool]:
             else:
                 values[entry["field"]] = _convert(entry, raw)
         else:
-            raise _BadFlags(f"{flag} is not a flag of papyrus images {' '.join(spec['words'])}.", flag)
+            raise _BadFlags(f"{flag} is not a flag of papyrus {spec['group']} {' '.join(spec['words'])}.", flag)
     if len(positional) > len(spec["positional"]):
         raise _BadFlags(f"Unexpected argument {positional[len(spec['positional'])]!r}.", "arguments")
     for field, raw in zip(spec["positional"], positional):
@@ -118,9 +122,12 @@ def parse(spec: dict, tokens: list[str]) -> tuple[dict, bool]:
     return {**base, **values}, dry_run
 
 
-def command(argv: list[str], *, handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None,
-            stdout: TextIO | None = None) -> int:
-    """Run ``papyrus images <argv>`` and print the JSON envelope. ``handlers`` and ``environ`` are for tests and later front ends."""
+def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None,
+            stdout: TextIO | None = None, previews: Mapping[str, str] | None = None) -> int:
+    """Run ``papyrus <group> <argv>`` and print the JSON envelope. ``handlers`` and ``environ`` are for tests and later front ends.
+
+    ``previews`` maps a write operation to the read operation its ``--dry-run`` runs, so a dry run shows what would change instead of echoing the input.
+    """
     out = stdout or sys.stdout
     environ = os.environ if environ is None else environ
 
@@ -129,13 +136,13 @@ def command(argv: list[str], *, handlers: dict[str, Handler] | None = None, envi
         return 0 if envelope["ok"] else ERROR_EXIT_CODE
 
     spec, used = None, 0
-    for entry in COMMANDS:
+    for entry in commands_of(group):
         size = len(entry["words"])
         if argv[:size] == entry["words"] and size > used:
             spec, used = entry, size
     if spec is None:
-        asked = "papyrus images " + " ".join(argv[:3])
-        return finish(error_envelope("images", "unknown_operation", f"There is no image command: {asked.strip()}.", details={"command": asked.strip()}))
+        asked = f"papyrus {group} " + " ".join(argv[:3])
+        return finish(error_envelope(group, "unknown_operation", f"There is no {group} command: {asked.strip()}.", details={"command": asked.strip()}))
     try:
         arguments, dry_run = parse(spec, argv[used:])
     except _BadFlags as bad:
@@ -144,6 +151,13 @@ def command(argv: list[str], *, handlers: dict[str, Handler] | None = None, envi
     if dry_run:
         # Check the input and the caller exactly as a real call would, then stop before the handler: nothing is sent, nothing is spent.
         envelope = execute(spec["op"], arguments, caller, handlers={spec["op"]: _dry_run_handler})
+        preview = (previews or {}).get(spec["op"])
+        if preview and envelope["ok"]:
+            asked = {name: arguments[name] for name in ("kind", "section", "document") if name in arguments}
+            shown = execute(preview, asked, caller, handlers)
+            if not shown["ok"]:
+                return finish(shown)
+            envelope["result"]["preview"] = {"op": preview, **shown["result"]}
         return finish(envelope)
     return finish(execute(spec["op"], arguments, caller, handlers))
 

@@ -1,4 +1,4 @@
-"""An in-memory backend for the guideline store tests and specs. It serves only the two indexes the store reads and fails on anything else, so a
+"""An in-memory backend for the guideline store tests and specs. It serves only the indexes the store and the operations read (the two below and the publication's corpus) and fails on anything else, so a
 test proves that no read lists or scans a table. No network, no AWS."""
 from __future__ import annotations
 
@@ -7,8 +7,10 @@ from typing import Any
 
 
 class FakeBackend:
-    def __init__(self, *, tenant_id: str | None = None):
+    def __init__(self, *, tenant_id: str | None = None, publication: str = "example"):
         self.tenant_id = tenant_id
+        self.endpoint = None
+        self.corpora = [{"id": f"knowledge-corpus-{publication}", "name": publication.title(), "role": "canonical"}]
         self.items: list[dict] = []
         self.attachments: list[dict] = []
         self.bodies: dict[str, bytes] = {}
@@ -18,6 +20,8 @@ class FakeBackend:
     # the index queries the store may make
     def list_by_index(self, index: str, key: str, **_: Any) -> list[dict]:
         self.reads.append((index, key))
+        if index == "knowledgeCorporaByRoleAndName":
+            return copy.deepcopy(self.corpora)
         if index == "itemBySlug":
             return copy.deepcopy([row for row in self.items if row.get("slug") == key])
         if index == "modelAttachmentsByOwnerRoleAndSortKey":
