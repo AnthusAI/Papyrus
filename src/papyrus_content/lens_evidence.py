@@ -35,6 +35,7 @@ from .projection.standard.markdown import body_of, item_markdown
 from .projection.standard.share_preview import SharePreview, item_share_preview
 from .projection.standard.urls import UrlPolicy
 from .projection.stored import parse_front_matter
+from .share_image_check import Fetch, assess_share_image
 
 SETTINGS_FILE = "projection.json"
 
@@ -50,8 +51,8 @@ NOT_RUN = {
     "P15": "needs this site's own history of Stories", "A6": "needs the decision model", "A7": "needs the decision model", "A12": "after publishing",
     "A14": "a person decides", "S3": "needs the decision model", "S8": "needs the rest of the site", "S9": "needs the decision model",
     "S10": "needs the decision model", "S11": "needs the decision model", "S12": "after publishing", "S13": "Papyrus has no view of what search engines have indexed",
-    "S14": "a person decides", "C4": "needs the picture file", "C8": "needs the decision model", "C9": "needs the decision model",
-    "C10": "needs the decision model", "C11": "drawn in the final review", "C12": "after publishing", "C13": "a person decides",
+    "S14": "a person decides", "C8": "needs the decision model", "C9": "needs the decision model",
+    "C10": "needs the decision model", "C11": "drawn in the final review", "C12": "after publishing: fetch the live page and compare its og:image and twitter:image (docs/agent-cli-guide.md)", "C13": "a person decides",
 }
 
 
@@ -240,8 +241,8 @@ def digest(text: str) -> str:
 class Facts:
     """Everything derived from the Story once, so no check recomputes it."""
 
-    def __init__(self, story: LensStory, site: LensSite | None) -> None:
-        self.story, self.site = story, site
+    def __init__(self, story: LensStory, site: LensSite | None, fetch_image: Fetch | None = None) -> None:
+        self.story, self.site, self.fetch_image = story, site, fetch_image
         self.known = site is not None
         self.standard = site.standard if site else standard_settings_from_mapping({"site": {"name": "This site"}})
         self.environment = site.environment if site else SiteEnvironment(production=True, origin=None)
@@ -764,6 +765,20 @@ def check_c3(facts: Facts) -> dict[str, Any]:
     return finding("C3", PASS, words[source], source=source)
 
 
+def check_c4(facts: Facts) -> dict[str, Any]:
+    """Fetch the picture the share card will name. A built address is not a pass; anything not looked at is not verified."""
+    if not facts.known:
+        return _unknown_site("C4")
+    image = facts.preview.head.image
+    picture = facts.head.og_image(image)
+    if image and picture is None:
+        return _no_origin("C4")
+    verdict = assess_share_image(picture, facts.fetch_image)
+    state = {"ok": PASS, "warning": CONCERN, "not_verified": NOT_ASSESSABLE}[verdict.result]
+    message = verdict.message + (" Record this in the social review note: " + verdict.tested if state != PASS else "")
+    return finding("C4", state, message, **verdict.evidence)
+
+
 def check_c5(facts: Facts) -> dict[str, Any]:
     head = facts.preview.head
     if facts.preview.image_source == "none":
@@ -793,12 +808,12 @@ def check_c7(facts: Facts) -> dict[str, Any]:
 # --- running ---------------------------------------------------------------------------------------------------------------------------
 
 #: The checks that need the Story's page under this site's settings; with none, they are not assessable and the rest still run.
-PAGE_CHECKS = ("A1", "A2", "A3", "A4", "S2", "C2", "S4", "S5", "S6", "S7", "C1", "C3", "C5", "C7")
+PAGE_CHECKS = ("A1", "A2", "A3", "A4", "S2", "C2", "S4", "S5", "S6", "S7", "C1", "C3", "C4", "C5", "C7")
 
 
-def run_checks(story: LensStory, site: LensSite | None, *, lens: str | None = None) -> list[dict[str, Any]]:
-    """Every deterministic finding for one Story version, in the order of the lenses; ``lens`` limits them to one lens (a key or a step)."""
-    facts = Facts(story, site)
+def run_checks(story: LensStory, site: LensSite | None, *, lens: str | None = None, fetch_image: Fetch | None = None) -> list[dict[str, Any]]:
+    """Every deterministic finding for one Story version, in the order of the lenses; ``lens`` limits them to one lens (a key or a step). ``fetch_image`` fetches the share picture (C4); without it C4 says not verified."""
+    facts = Facts(story, site, fetch_image)
     found = [check_p1(facts), check_p2(facts), *check_p6(facts), *check_p7(facts), check_p8(facts), *check_p10(facts), check_p16(facts), check_p17(facts), check_p18(facts), check_a5(facts), check_a15(facts), check_a8(facts),
              check_a11(facts), check_a13(facts), check_s1(facts)]
     if facts.entry is None:
@@ -806,7 +821,7 @@ def run_checks(story: LensStory, site: LensSite | None, *, lens: str | None = No
         found += [finding(key, NOT_ASSESSABLE, reason) for key in PAGE_CHECKS]
     else:
         found += [*check_agents(facts), *check_s2(facts), check_s4(facts), check_s5(facts), check_s6(facts), check_s7(facts), check_c1(facts), check_c3(facts),
-                  check_c5(facts), check_c7(facts)]
+                  check_c4(facts), check_c5(facts), check_c7(facts)]
     by_key = {row["check"]: row for row in found}
     wanted = lenses.lens_named(lens) if lens else None
     out = []

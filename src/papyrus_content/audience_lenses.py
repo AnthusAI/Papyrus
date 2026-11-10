@@ -170,7 +170,7 @@ SOCIAL = Lens(
         _c("C1", "The preview resolves: the page and picture addresses can be built", AUTO, WARN, "the resolved addresses", (), built=True),
         _c("C2", "The description is the Story's own, not the site fallback", AUTO, WARN, "which source the description came from", (_CW,), mirrors=("S2",), built=True),
         _c("C3", "The Story has its own picture, or is knowingly using the site's", AUTO, INFO, "where the picture came from", (_ED,), built=True),
-        _c("C4", "The picture file exists and its size and shape are known", AUTO, WARN, "the path, size and ratio", (_ED,)),
+        _c("C4", "The share picture file exists, is a JPEG or PNG and its size and shape are known", AUTO, WARN, "the address, status, Content-Type, format, size and ratio", (_ED,), built=True),
         _c("C5", "The picture has a description for the share card", AUTO, WARN, "the description used, or that none is emitted", (_CW,), built=True),
         _c("C6", "A third-party picture is credited", AUTO, ERROR, "as P10", (_CW, _ED), mirrors=("P10",), built=True),
         _c("C7", "Every name, number and quotation in the title and description is in the Story", AUTO, WARN, "the terms not found", (_CW,), built=True),
@@ -181,7 +181,7 @@ SOCIAL = Lens(
         _c("C10", "The preview is not a teaser that withholds the point", JEV, INFO, "the choice and its probability", (_CW,),
            question="Which best describes the description: informs, teases, withholds?"),
         _c("C11", "A drawn approximation of the card is shown to the approver", AUTO, INFO, "the approximation and its inputs"),
-        _c("C12", "After publishing: the live tags equal the predicted ones", AUTO, WARN, "the fetch results"),
+        _c("C12", "After publishing: the live og:image and twitter:image equal the tested picture and it can be fetched", AUTO, WARN, "the fetch results"),
         _c("C13", "The picture is tasteful, on brand and relevant", HUMAN, None, "the person's findings note", (_ED,)),
     ),
 )
