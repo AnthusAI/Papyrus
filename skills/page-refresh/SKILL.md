@@ -16,7 +16,7 @@ For anything else, pick the smallest operation that covers the edit, and look be
 | One or a few pages look old | `site_refresh_pages` (`paths`) | `refresh --path /articles/my-story/` |
 | A Story was edited: its page, and the home page, list and section pages that show it | `site_refresh_story` (`storyLineageId`) | `refresh --story LINEAGE` |
 | The index pages look old (a ranking or a card changed) | `site_refresh_indexes` | `refresh --indexes` |
-| A template or hook change is deployed but existing pages still have the old markup | `site_rerender_pages` (`scope`: `story`, `indexes` or `all`) | `rerender --story LINEAGE`, `--indexes` or `--all` |
+| A template or hook change is deployed but existing pages still have the old markup | `site_rerender_pages` (`scope`: `story`, `indexes` or `all`) | `rerender --story LINEAGE`, `--indexes` (optionally `--under /PREFIX/`, repeatable, to rebuild only the index pages under that URL path) or `--all` |
 
 Rules:
 

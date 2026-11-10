@@ -142,6 +142,12 @@ def test_transactional():
     assert "<a href=\"https://example.com\" style" in plain.html
 
 
+def test_transactional_reason_replaces_the_signup_footer_and_is_escaped():
+    mail = render_transactional(subject="x", markus="Hi", theme=THEME, site_name="S", site_url=SITE, reason="You get these as an admin of <S>.")
+    assert "You get these as an admin of &lt;S&gt;." in mail.html and "You get these as an admin of <S>." in mail.text
+    assert "someone entered this address" not in mail.html and "someone entered this address" not in mail.text
+
+
 def test_theme_from_config_and_validation():
     t = theme_from_config({"accent": "#111", "text": "#222", "background": "#333", "logoUrl": "https://example.com/l.png"}, "S")
     assert t.surface == "#ffffff" and t.logo_url == "https://example.com/l.png" and t.site_name == "S"

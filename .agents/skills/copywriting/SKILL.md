@@ -11,7 +11,7 @@ Stories live in the publication's newsroom backend, not in Git. Resolve the
 publication and the story lineage from its configuration and live records (an
 item version id is not a lineage). Read the story's current version, its linked
 References (`papyrus stories show --story LINEAGE`), and any reporting packets.
-Do not substitute assumptions for missing reporting.
+Do not substitute assumptions for missing reporting. Name the site when several are signed in (`papyrus --site SITE_HOST <group> <command>`). Use only documented commands and never invent a command, flag or relation name. A post has no byline: never write "By ..." or an invented author into a post.
 
 The order of the steps for a Story, and what comes next, is defined once in [docs/story-procedure.md](../../../docs/story-procedure.md); run `papyrus stories next --story LINEAGE` to see it. Every Story has a checklist made from it: record a step you skip or find not applicable with `papyrus stories step --story LINEAGE --step KEY --state skipped|not_applicable --reason "why" --agent NAME` (a skip without a reason is refused), and a review step is done only with a findings note. An open required step blocks publishing.
 
@@ -96,3 +96,22 @@ versions are kept. Attribute your work as "AI" and never invent human authorship
   **Never publish as a side effect of writing or editing.** Publishing is a
   person's decision, or a site's explicit automatic-publish setting.
 - Read back the result: `papyrus stories versions --story LINEAGE`.
+
+## Associate before publish
+
+After the draft and the copy edit, the Story needs its Concepts and related associations. The full procedure, with decision rules, is in the reporting skill (`../reporting/SKILL.md`, "Associations"). In short:
+
+```bash
+papyrus knowledge concepts search "main subject of the story" --limit 10     # or: --list; names only if no vector index
+papyrus stories link-concept --story LINEAGE --concept "Name" --note "why" --dry-run
+papyrus stories suggest-links --story LINEAGE --limit 8
+papyrus stories link-story --story LINEAGE --to OTHER_LINEAGE --reference REFERENCE_ID --note "why" --dry-run
+papyrus stories check-links --story LINEAGE
+papyrus stories step --story LINEAGE --step concepts --state done --note "Tagged A, B. Left out C (too broad)." --agent "AI"
+papyrus stories step --story LINEAGE --step related_content --state skipped --reason "specific reason" --agent "AI"
+```
+
+- Relations are `tagged_with` (Concept tag, exact existing Concepts only, never created) and `see_also` (read this too, Story or accepted Reference). Sources you relied on are evidence (`link-reference` with `consulted`/`cited`), not see-also. `related_to` is legacy: never write it.
+- Tag the Story first: `suggest-links` starts from the Story's Concepts and returns nothing without them.
+- Do not purge anything; a link shows on the page within about five minutes.
+- The checklist steps "Associate with relevant Concepts" (`concepts`) and "Add related associations" (`related_content`) are closed with a findings note (what you added and what you left out, and why) or skipped with a reason. A step skipped without a reason is refused. Run `papyrus stories next --story LINEAGE` for the keys on your build.

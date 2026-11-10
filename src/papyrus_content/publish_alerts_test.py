@@ -22,9 +22,16 @@ from procedures.newsroom.tests.fake_client import FakeAuthoringClient
 from papyrus_content import publish_alerts
 from procedures.newsroom.tests.no_lock_parameter import NoLockParameter
 from papyrus_content.projection_trigger import item_task
-from papyrus_content.publish_alerts import NEWSLETTER_FUNCTION_ENV, announce_published, lineage_of
+from papyrus_content.publish_alerts import (
+    NEWSLETTER_FUNCTION_ENV,
+    NOTIFICATIONS_FUNCTION_ENV,
+    announce_published,
+    lineage_of,
+    story_event_id,
+)
 
 NEWSLETTER = "papyrus-newsletter-example"
+NOTIFICATIONS = "papyrus-notifications-example"
 ITEM = "item-articles-hello"
 PUBLISHED = "published-item-articles-hello"
 
@@ -52,6 +59,38 @@ def test_the_event_names_the_item_and_its_lineage() -> None:
     outcome = announce_published(ITEM, PUBLISHED, environment={NEWSLETTER_FUNCTION_ENV: NEWSLETTER}, invoke=lambda name, payload: calls.append((name, payload)))
     assert outcome["ok"] is True
     assert calls == [(NEWSLETTER, {"task": "item-published", "itemId": ITEM, "lineageId": "item-articles-hello", "publishedItemId": PUBLISHED})]
+
+
+def test_the_notifications_function_gets_its_own_task_with_an_event_id_from_the_lineage() -> None:
+    calls: list[Any] = []
+    environment = {NOTIFICATIONS_FUNCTION_ENV: NOTIFICATIONS}
+    outcome = announce_published(ITEM, PUBLISHED, environment=environment, invoke=lambda name, payload: calls.append((name, payload)))
+    assert outcome["ok"] is True
+    assert calls == [
+        (NOTIFICATIONS, {"task": "story-published", "itemId": ITEM, "lineageId": ITEM, "eventId": story_event_id(ITEM), "publishedItemId": PUBLISHED})
+    ]
+    assert story_event_id("lin-1") == "story.published:lin-1"
+
+
+def test_both_plugins_are_told_and_one_failing_does_not_stop_the_other(capsys: pytest.CaptureFixture[str]) -> None:
+    calls: list[str] = []
+    environment = {NEWSLETTER_FUNCTION_ENV: NEWSLETTER, NOTIFICATIONS_FUNCTION_ENV: NOTIFICATIONS}
+
+    def newsletter_refuses(name: str, payload: dict[str, Any]) -> None:
+        calls.append(name)
+        if name == NEWSLETTER:
+            raise RuntimeError("AccessDenied")
+
+    outcome = announce_published(ITEM, PUBLISHED, environment=environment, invoke=newsletter_refuses)
+    assert calls == [NEWSLETTER, NOTIFICATIONS]
+    assert outcome == {"ok": False, "error": "RuntimeError"}
+    assert "item_published_announce_failed" in capsys.readouterr().out
+
+
+def test_a_blank_notifications_variable_is_a_no_op() -> None:
+    calls: list[Any] = []
+    assert announce_published(ITEM, PUBLISHED, environment={NOTIFICATIONS_FUNCTION_ENV: "  "}, invoke=lambda *_: calls.append(1))["skipped"]
+    assert calls == []
 
 
 def test_every_failure_is_swallowed_and_logged(capsys: pytest.CaptureFixture[str]) -> None:
@@ -110,7 +149,7 @@ def test_the_cli_passes_changed_through_to_the_task() -> None:
 class Backend:
     """The content-actions handler over a fake content API; the Lambda client records what it is asked to invoke."""
 
-    def __init__(self, *, projection: bool, newsletter: bool = True, rejects_writes: bool = False) -> None:
+    def __init__(self, *, projection: bool, newsletter: bool = True, rejects_writes: bool = False, notifications: bool = False) -> None:
         specification = importlib.util.spec_from_file_location("content_actions_alerts_handler", Path(HANDLER_PATH))
         self.module = importlib.util.module_from_spec(specification)
         specification.loader.exec_module(self.module)
@@ -119,6 +158,8 @@ class Backend:
         self.environment = dict(PUBLICATION_ENVIRONMENT) if projection else {}
         if newsletter:
             self.environment[NEWSLETTER_FUNCTION_ENV] = NEWSLETTER
+        if notifications:
+            self.environment[NOTIFICATIONS_FUNCTION_ENV] = NOTIFICATIONS
 
     def _patched(self):
         clients = {"s3": self.s3, "cloudfront": self.cloudfront, "sqs": self.sqs, "lambda": self.lam, "ssm": NoLockParameter()}
@@ -144,6 +185,9 @@ class Backend:
 
     def announcements(self) -> list[dict[str, Any]]:
         return [call["Payload"] for call in self.lam.invocations if call["FunctionName"] == NEWSLETTER]
+
+    def notification_announcements(self) -> list[dict[str, Any]]:
+        return [call["Payload"] for call in self.lam.invocations if call["FunctionName"] == NOTIFICATIONS]
 
     def retries(self) -> list[dict[str, Any]]:
         return [call["Payload"]["projectionTask"] for call in self.lam.invocations if "projectionTask" in call["Payload"]]

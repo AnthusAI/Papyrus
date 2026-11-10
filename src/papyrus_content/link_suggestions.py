@@ -301,18 +301,30 @@ def _idf(graph: Graph, lineage: str, total: int) -> float:
 
 
 def suggest_links(client: Any, story_ref: str, *, kinds: tuple[str, ...] = ("articles", "posts", "references"), limit: int = 5, min_score: float = 0.0,
-                  include_linked: bool = False, now: datetime | None = None) -> dict[str, Any]:
-    """Ranked candidates to link from a story (read only): other published articles and posts, and accepted References, that share its concepts directly or through a related concept."""
+                  include_linked: bool = False, now: datetime | None = None, seeds: list[tuple[dict[str, Any], float]] | None = None,
+                  owner_kind: str = "item") -> dict[str, Any]:
+    """Ranked candidates to link from a story (read only): other published articles and posts, and accepted References, that share its concepts directly or through a related concept.
+
+    ``seeds`` are extra ``(accepted concept row, weight)`` starting points that the item does not carry yet (``stories suggest-associations`` derives them from its
+    text), so an untagged item still gets a ranked list. ``owner_kind="reference"`` makes ``story_ref`` a Reference lineage id instead of a story."""
     from .story_links import resolve_story
 
     before = _requests(client)
-    story = resolve_story(client, story_ref)
+    if owner_kind == "reference":
+        from .story_reporting import current_reference
+
+        story = current_reference(client, story_ref)
+        if story is None:
+            raise ValueError(f"Reference not found: {story_ref}")
+    else:
+        story = resolve_story(client, story_ref)
     lineage = _lineage(story)
     graph = Graph(client)
-    rows = _index_many(client, SUBJECT_STATE, [f"item#{lineage}#current"]).get(f"item#{lineage}#current", [])
-    incoming = _index_many(client, OBJECT_STATE, [f"item#{lineage}#current"]).get(f"item#{lineage}#current", [])
+    state_key = f"{owner_kind}#{lineage}#current"
+    rows = _index_many(client, SUBJECT_STATE, [state_key]).get(state_key, [])
+    incoming = _index_many(client, OBJECT_STATE, [state_key]).get(state_key, [])
     concept_ids: dict[str, tuple[str, float]] = {}   # node row id -> (lineage, weight)
-    linked_stories, linked_references = {lineage}, set()
+    linked_stories, linked_references = ({lineage}, set()) if owner_kind == "item" else (set(), {lineage})
     for row in rows:
         if row.get("relationState") not in (None, "current"):
             continue
@@ -332,8 +344,11 @@ def suggest_links(client: Any, story_ref: str, *, kinds: tuple[str, ...] = ("art
     own: dict[str, dict[str, Any]] = {}   # concept lineage -> {"node", "weight"}
     for node_id, node in accepted.items():
         own[_lineage(node)] = {"node": node, "weight": concept_ids[node_id][1]}
+    for seed_node, weight in seeds or []:
+        if own.get(_lineage(seed_node), {}).get("weight", 0.0) < weight:
+            own[_lineage(seed_node)] = {"node": seed_node, "weight": weight}
     result: dict[str, Any] = {"story": {"lineageId": lineage, "title": story.get("headline") or story.get("title") or lineage}, "concepts": [], "candidates": {kind: [] for kind in kinds},
-                              "linkedStories": len(linked_stories) - 1, "linkedReferences": len(linked_references)}
+                              "linkedStories": len(linked_stories) - (owner_kind == "item"), "linkedReferences": len(linked_references) - (owner_kind == "reference")}
     if not own:
         result["note"] = "The story has no accepted concepts, so there is nothing to start from. Tag it with `papyrus stories link-concept` first."
         result["requests"] = _requests(client) - before
@@ -388,7 +403,8 @@ def suggest_links(client: Any, story_ref: str, *, kinds: tuple[str, ...] = ("art
         kind = "articles" if summary.get("type") == "article" else "posts"
         if kind in kinds:
             built = finish(kind, owner, entry, summary.get("title") or owner, summary.get("type"), summary.get("publishedAt"), {})
-            built["command"] = f"papyrus stories link-story --story {lineage} --to {built['id']}"
+            built["command"] = (f"papyrus stories link-story --story {lineage} --to {built['id']}" if owner_kind == "item"
+                                else f"papyrus stories link-story --story {built['id']} --reference {lineage}")
             result["candidates"][kind].append(built)
     if "references" in kinds:
         ranked = sorted(((owner, entry) for owner, entry in scores.items() if owner.startswith("reference:")), key=lambda pair: -pair[1]["score"])
@@ -400,7 +416,7 @@ def suggest_links(client: Any, story_ref: str, *, kinds: tuple[str, ...] = ("art
                 continue
             host = _host(row.get("sourceUri"))
             built = finish("references", owner, entry, row.get("title") or owner, host or "reference", row.get("sourcePublishedAt") or row.get("createdAt"), {"host": host})
-            built["command"] = f"papyrus stories link-story --story {lineage} --reference {built['id']}"
+            built["command"] = f"papyrus stories link-story --story {lineage} --reference {built['id']}" if owner_kind == "item" else ""
             result["candidates"]["references"].append(built)
     for kind in kinds:
         ordered = sorted(result["candidates"][kind], key=lambda item: -item["score"])

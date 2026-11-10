@@ -266,6 +266,8 @@ papyrus stories link-concept --story <lineage-or-slug> --concept <name|#hashtag|
 papyrus references link-concept --reference <id> --concept <name|#hashtag|nodeKey> [--concept ...] [--note TEXT] [--dry-run] [--json]
 ```
 
+**The pages update at once, without a purge.** After a real write that created a link, `link-story` and `link-concept` (stories) ask the site to re-render exactly the published stories whose page changed (both ends of a story link; the story of a Reference or concept link; a Reference has no public page) with `papyrus ops content rerender --story LINEAGE --no-invalidate` behind the scenes. Nothing is purged: the HTML lifetime is five minutes, so the link shows within about five minutes. Each story prints `rerender  LINEAGE  no purge  ok`, then `visible on the site within about five minutes; nothing was purged`. A dry run, a repeat that wrote nothing and unpublished stories re-render nothing; `--no-rerender` skips it. At most 20 stories are re-rendered per command; the rest are listed as exact commands. A failed or timed-out re-render is a warning on stderr naming the stories and the manual command (a timeout may still have completed on the server); the link stays and the command succeeds. The server has no batch path, so the stories are re-rendered one after another and one call can take about a minute; a progress line `rerendering LINEAGE (about a minute)...` is printed on stderr before each, and the wait follows `PAPYRUS_GRAPHQL_TIMEOUT_SECONDS` (30 seconds signed in, 120 on the operator lane, when it is unset), so raise it for a command with several targets or pass `--no-rerender` and re-render later. The agent tools `papyrus_link_stories` and `papyrus_link_concepts` do the same and return a `rerendered` list (and `rerenderWarnings` on a failure).
+
 These are rigid on purpose, because an outside agent uses them. No option or field chooses a predicate, a state or a new concept (`--predicate`, `--relation`,
 `--state` and `--create` are refused). A concept is never created: it must already be an accepted SemanticNode, found by exact node key, exact hashtag (the part after
 `--`) or exact name or alias, ignoring case, never fuzzily. An unknown name is an error listing the closest accepted concepts; a name several kinds share
@@ -292,6 +294,7 @@ person or model judges a short ranked list. Two hops: first the **related concep
 
 ```bash
 papyrus stories suggest-links --story <lineage-or-slug> [--kinds articles,posts,references] [--limit N] [--min-score S] [--include-linked] [--json]
+papyrus stories suggest-associations (--story <lineage-or-slug> | --reference <id>) [--kinds articles,posts,references] [--limit N] [--json]
 papyrus knowledge concepts related --concept <name|#hashtag|nodeKey> [--limit N] [--json]
 papyrus knowledge concepts search "free text" [--limit N] [--json]      # or: --list
 ```
@@ -324,6 +327,17 @@ that explanation instead of a raw HTTP 401. A server-side lane (a new query fiel
 repairs it. `--list` prints every accepted concept alphabetically. Agent tools (read only, closed argument lists): `papyrus_suggest_links`, `papyrus_related_concepts`,
 `papyrus_search_concepts` (Tactus `tactus_tools.py` and `story_signals_mcp.py`). The story checklist has a **Related content** step (`related_content`, not required) that
 points here. Code: `src/papyrus_content/link_suggestions.py`, `concept_search.py`; specs: `features_backend/suggest-links.feature`.
+
+**`suggest-associations` (no search phrases to invent).** `suggest-links` needs concepts the story already carries. `papyrus stories suggest-associations --story X` (or
+`--reference X`) builds one query from the item itself (title, summary, the first ~300 words of the body) and (1) finds the accepted concepts that text names: the
+concept's name, aliases and `#hashtag`, matched as whole words (a short name is never found inside a longer word; a name of three letters or fewer keeps its letter case),
+ranked by rarity and position (title over summary over body); no model, no embedding key, so it works in the signed-in editor lane. When the shell has `OPENAI_API_KEY` and a
+vector index, the concepts nearest the text by meaning are added, otherwise one `NOTE` line says it matched by name only (a server-side concept query is still the follow-up above).
+(2) The top concepts seed the `suggest-links` graph pass (weight 0.4 to 0.8, below a curated tag), so related articles, posts and References are ranked even for an untagged
+item. Every concept and candidate prints its exact `link-concept` / `link-story` command; a concept the item already carries is marked `already tagged`. For a Reference the
+related stories carry `papyrus stories link-story --story <candidate> --reference <id>`, and its own text comes from the curation card and stored text (title alone if those
+cannot be read). Read only: it never writes a relation (it does not use `references suggest-links`). Code: `src/papyrus_content/association_suggestions.py`; specs:
+`features_backend/suggest-associations.feature`.
 
 ## Notes: people write Messages, agents write agent notes
 

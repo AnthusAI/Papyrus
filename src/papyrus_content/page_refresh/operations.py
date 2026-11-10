@@ -94,12 +94,13 @@ OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "site_rerender_pages",
-        "rerender (--story LINEAGE | --indexes | --all) [--no-invalidate] [--dry-run] [--json]",
+        "rerender (--story LINEAGE | --indexes [--under /PREFIX/ ...] | --all) [--no-invalidate] [--dry-run] [--json]",
         "Rebuild pages from the hooks and templates the site has deployed now, without a content change, then purge the pages it wrote.",
         _closed(
             {
                 "scope": {"type": "string", "enum": list(RERENDER_SCOPES), "description": "story: one Story's pages; indexes: every list page; all: every page of the site."},
                 "storyLineageId": {"type": "string", "minLength": 1, "description": "The Story's lineage id; only with scope story."},
+                "under": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "description": "Only with scope indexes: rebuild just the index pages whose URL path starts with one of these prefixes, for example /posts/. Matched on the URL path alone. A prefix that matches no index page is an error."},
                 "invalidate": {"type": "boolean", "description": "Purge the pages written (default true)."},
                 "dryRun": _DRY_RUN,
                 "confirm": _CONFIRM,
@@ -107,7 +108,7 @@ OPERATIONS: tuple[Operation, ...] = (
             },
             ("scope",),
         ),
-        lambda service, args: service.rerender(args["scope"], lineage=args.get("storyLineageId"), invalidate=args.get("invalidate", True) is not False, **_guard_args(args)),
+        lambda service, args: service.rerender(args["scope"], lineage=args.get("storyLineageId"), invalidate=args.get("invalidate", True) is not False, under=args.get("under"), **_guard_args(args)),
     ),
 )
 BY_NAME = {operation.name: operation for operation in OPERATIONS}

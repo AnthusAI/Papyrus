@@ -11,8 +11,8 @@ export const NEWSLETTER_SUBSCRIBE_MAXIMUM_BODY_BYTES = 8192;
 export const NEWSLETTER_CONFIRM_MAXIMUM_BODY_BYTES = 4096;
 export const NEWSLETTER_USER_AGENT_CHARACTERS = 300;
 export const NEWSLETTER_TOKEN = /^[A-Za-z0-9._-]{1,2048}$/;
-const MAXIMUM_LISTS = 20;
-const LIST_ID = /^[a-z][a-z0-9-]{0,39}$/;
+export const MAXIMUM_LISTS = 20;
+export const LIST_ID = /^[a-z][a-z0-9-]{0,39}$/;
 
 export type NewsletterEvent = { action: string } & Record<string, unknown>;
 export interface NewsletterResult {
@@ -30,9 +30,9 @@ export interface NewsletterApiOptions {
   nowInSeconds?: number;
 }
 
-const NO_STORE = { "cache-control": "no-store" };
+export const NO_STORE = { "cache-control": "no-store" };
 
-function failure(status: number, error: string, message: string): NextResponse {
+export function failure(status: number, error: string, message: string): NextResponse {
   return NextResponse.json({ error, message }, { status, headers: NO_STORE });
 }
 
@@ -89,7 +89,7 @@ export function clientAddress(headers: Pick<Headers, "get">): string {
   return isIP(forwarded) ? forwarded : "unknown";
 }
 
-async function readBody(request: NextRequest, maximum: number, contentTypes: string[] | null): Promise<{ text: string } | { response: NextResponse }> {
+export async function readBody(request: NextRequest, maximum: number, contentTypes: string[] | null): Promise<{ text: string } | { response: NextResponse }> {
   const contentType = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
   if (contentTypes !== null && !contentTypes.includes(contentType)) return { response: failure(415, "unsupported_media_type", `Send ${(contentTypes ?? []).join(" or ")}.`) };
   const declared = Number(request.headers.get("content-length") ?? "0");
@@ -99,7 +99,7 @@ async function readBody(request: NextRequest, maximum: number, contentTypes: str
   return { text };
 }
 
-function listIds(raw: unknown): string[] {
+export function listIds(raw: unknown): string[] {
   const entries = typeof raw === "string" ? raw.slice(0, 1000).split(",") : Array.isArray(raw) ? raw : [];
   return entries
     .filter((entry): entry is string => typeof entry === "string")
@@ -108,7 +108,7 @@ function listIds(raw: unknown): string[] {
     .slice(0, MAXIMUM_LISTS);
 }
 
-function limited(value: unknown, maximum: number): string {
+export function limited(value: unknown, maximum: number): string {
   return typeof value === "string" ? value.slice(0, maximum) : "";
 }
 
@@ -125,7 +125,7 @@ async function optionalSiteSubject(request: NextRequest, options: NewsletterApiO
   }
 }
 
-function siteOriginOrResponse(request: NextRequest, environment: Record<string, string | undefined>): { origin: string } | { response: NextResponse } {
+export function siteOriginOrResponse(request: NextRequest, environment: Record<string, string | undefined>): { origin: string } | { response: NextResponse } {
   try {
     return { origin: publicSiteOrigin(request, environment) };
   } catch (error) {
@@ -242,24 +242,24 @@ function call(options: NewsletterApiOptions, functionName: string, event: Newsle
  * Next answers HEAD by running the route's GET export, but leaves `request.method` as "HEAD". A check for `=== "GET"` therefore
  * sends a mail scanner's HEAD down the POST path. Every read-only branch asks this instead, so HEAD redirects exactly like GET.
  */
-function isReadRequest(request: Pick<NextRequest, "method">): boolean {
+export function isReadRequest(request: Pick<NextRequest, "method">): boolean {
   return request.method === "GET" || request.method === "HEAD";
 }
 
-function textResponse(body: string, status: number): NextResponse {
+export function textResponse(body: string, status: number): NextResponse {
   return new NextResponse(body, { status, headers: { ...NO_STORE, "content-type": "text/plain; charset=utf-8" } });
 }
 
-function manageTokenFrom(...values: Array<string | null>): string {
+export function manageTokenFrom(...values: Array<string | null>): string {
   const found = values.find((value) => value !== null && value !== "") ?? "";
   return NEWSLETTER_TOKEN.test(found) ? found : "";
 }
 
-function listParameter(value: string | null): string {
+export function listParameter(value: string | null): string {
   return value !== null && LIST_ID.test(value) ? value : "";
 }
 
-function idsOf(lists: unknown): string[] {
+export function idsOf(lists: unknown): string[] {
   return (Array.isArray(lists) ? (lists as Array<{ id?: unknown }>) : []).flatMap((entry) => (typeof entry.id === "string" && LIST_ID.test(entry.id) ? [entry.id] : []));
 }
 

@@ -28,7 +28,7 @@ STAGES_AT_OR_AFTER_COPYWRITING = ("copywriting", "illustration", "typesetting", 
 STAGES_WITHOUT_NEXT_STEP = ("spiked", "held", "published")
 
 #: The version of this template. Raise it whenever a step is added, removed or changes its status, so each checklist item records the template it came from.
-TEMPLATE_VERSION = 3
+TEMPLATE_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -65,10 +65,6 @@ STEPS: tuple[Step, ...] = (
     Step("copy_edit", "copywriting", "Copywriter with Humanus", "Copy-edit the draft",
          "papyrus editorial check-version --item <current version id>", LIVE, False,
          "A finished editorial check of the current version with no error-level violation."),
-    Step("related_content", "copywriting", "Editor or reviewing agent", "Link related content",
-         "papyrus stories suggest-links --story {story}", LIVE, True,
-         "Read only: ranked related articles, posts and References from the Story's concepts. Link the good ones with stories link-story (and link-concept for a missing concept); "
-         "record the ones skipped with a reason. Mark it done or skipped with stories step --step related_content.", True),
     Step("editor_review", "copywriting", "Editor agent", "Editor review", "", OFF, False,
          "Off: needs the editor_review.tac procedure, which no site has on."),
     Step("review_people", "copywriting", "Editor or reviewing agent", "Reviewed for readers",
@@ -83,6 +79,16 @@ STEPS: tuple[Step, ...] = (
     Step("review_social", "copywriting", "Editor or reviewing agent", "Reviewed for social previews",
          "papyrus stories step --story {story} --step review_social --state done --note <findings>", LIVE, False,
          "Social previews (link cards). Findings are recorded by hand for now (PPY-59c772df).", True),
+    Step("concepts", "copywriting", "Editor or reviewing agent", "Associate with relevant Concepts",
+         "papyrus stories link-concept --story {story} --concept \"Name\" --note <why>", LIVE, False,
+         "Tag the Story with the existing accepted Concepts it is about (stories link-concept: exact names, never creates one). No Story command creates a Concept: make a missing one from a Reference "
+         "(references link --reference <id> --concept NAME --create) or in the newsroom. Then mark this step done with a findings note that names the Concepts added and any considered and left out "
+         "(papyrus stories step --story {story} --step concepts --state done --note <findings>), or skipped with a reason.", True),
+    Step("related_content", "copywriting", "Editor or reviewing agent", "Add related associations",
+         "papyrus stories suggest-links --story {story}", LIVE, False,
+         "Read only: ranked related articles, posts and References from the Story's concepts, other than what the Story already links or cites. Add the good ones as see-also associations "
+         "(stories link-story --story <lineage> --to <lineage>, and --reference <id> for a Reference). Then mark this step done with a findings note that says what was linked and what was left out and why "
+         "(papyrus stories step --story {story} --step related_content --state done --note <findings>), or skipped with a reason.", True),
     Step("illustration", "illustration", "Editor", "Illustrate", "", NOT_BUILT, True, "Not built yet."),
     Step("typesetting", "typesetting", "Editor", "Typeset", "", NOT_BUILT, True, "Not built yet."),
     Step("publish", "published", "A person", "Publish the Story", "papyrus ops content publish --id <item id>", LIVE, False,
