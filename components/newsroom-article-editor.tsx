@@ -26,6 +26,8 @@ import { isGeneratedIdeaFrontMatter, stageForIdeaDecision, writeIdeaDecision, ty
 import { IdeaDecision } from "./idea-decision";
 import { SeededFromReferenceNote } from "./seeded-from-reference-note";
 import { CoverImagePicker, type PickedImage } from "./cover-image-picker";
+import { StoryHeadlineImage } from "./story-headline-image";
+import { headlineImageState, readHeadlineImage, type MediaIndex } from "../lib/story-headline-image";
 import { accessTokenFromAmplify, createLiveStockImageClient } from "../lib/stock-images/client";
 import { createDemoStockImageClient } from "../lib/stock-images/demo-client";
 import { bodyWithCover, coverDirective, coverRecord, creditLine, frontMatterWithCover, replaceableCoverSources } from "../lib/stock-images/cover";
@@ -163,6 +165,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
   const [reloadToken, setReloadToken] = useState(0);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [mediaIndex, setMediaIndex] = useState<MediaIndex>({ loaded: false, failed: false, assets: [] });
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageNotice, setImageNotice] = useState<string | null>(null);
@@ -204,6 +207,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   useEffect(() => {
     if (blocked || savedItemId === null) return;
     let cancelled = false;
+    setMediaIndex({ loaded: false, failed: false, assets: [] });
     mediaBackend
       .listMediaAssets(savedItemId)
       .then(async (assets) => {
@@ -220,8 +224,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         if (cancelled) return;
         const loaded = Object.fromEntries(entries.filter((entry) => entry !== null));
         setImageUrls((current) => ({ ...loaded, ...current }));
+        setMediaIndex({ loaded: true, failed: false, assets });
       })
-      .catch(() => undefined);
+      .catch(() => { if (!cancelled) setMediaIndex({ loaded: true, failed: true, assets: [] }); });
     return () => {
       cancelled = true;
     };
@@ -737,6 +742,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               />
             </div>
           ) : null}
+
+          <StoryHeadlineImage state={headlineImageState(readHeadlineImage(editor.frontMatterYaml, editor.bodyMarkus), mediaIndex, imageUrls)} />
 
           <div className="grid gap-6">
             <div
