@@ -362,3 +362,13 @@ def template_unchanged(context):
 
     assert TEMPLATE_VERSION == 4
     assert [step.key for step in STEPS][:7] == ["choose", "direction", "research", "outline", "draft", "fact_check", "copy_edit"]
+
+
+@then('the guide task "{task}" has a required section "{heading}" that names the exact version and the unavailable case')
+def guide_section(context, task, heading):
+    from papyrus_content.agent_guide import sections
+
+    [body] = [text for name, _heading, text in sections() if name == task]
+    assert f"### {heading} (required)" in body, body[:200]
+    for phrase in ("required step", "exact VERSION id", "unavailable", "Never guess"):
+        assert phrase in body, phrase

@@ -149,3 +149,6 @@ Feature: The CLI hands an editor the console link of the item it worked on
     Then the "draft" step note says to share a review link with the exact version
     And the "copy_edit" step note says to share a review link
     And the template version and the step keys are unchanged
+
+  Scenario: The agent guide makes the link a required step of story work
+    Then the guide task "write-story" has a required section "Show the editor the console link" that names the exact version and the unavailable case

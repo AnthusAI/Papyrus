@@ -205,6 +205,8 @@ _ENTRIES = dict([
   _e("ops relations search", "Same as `papyrus knowledge concepts search`.", "\"free text\" [--limit N] [--json] | --list", "both", "reads", "find"),
   _e("ops corpora status", "Show a corpus's local and cloud state.", "--corpus-key KEY [--config STEERING.yml] [--force] [--json]", "operator", "reads", ""),
   # ---- items ------------------------------------------------------------------------------------------------------
+  _e("knowledge concepts migrate-concept-tags", "Operator: move legacy related_to concept tags to tagged_with. Dry run by default.", "[--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]", "operator", "unknown", ""),
+  _e("ops relations migrate-concept-tags", "Operator: move legacy related_to concept tags to tagged_with. Dry run by default.", "[--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]", "operator", "unknown", ""),
   _e("items link-references", "Operator backfill: link each Story to the References it used.", "--site KEY [--role consulted|cited|based_on] [--json] [--dry-run]", "operator", _DRY, ""),
   # ---- editorial --------------------------------------------------------------------------------------------------
   _e("editorial check-version", "Run the editorial rules on a saved version and store the result with it.", "--item LINEAGE-vN [--json]", "both", "writes", "checks"),
@@ -217,6 +219,8 @@ _ENTRIES = dict([
   _e("whoami", "Renew and print every signed-in site's session as JSON (or one site's).", "[SITE_HOST]", "editor", "reads", "orientation"),
   _e("auth", "Inspect the selected session without opening a browser: `auth status`.", "status", "editor", "reads", "orientation"),
   _e("doctor", "Check the install, the sign-in and the site connection.", "[options]", "both", "reads", "orientation"),
+  _e("links", "Print the console link of a Story (one version, or the drawer), Reference, Concept, Assignment or review item. Hand the editor these links.",
+     "[--story LINEAGE|SLUG [--version N|VERSION_ID]] [--reference REFERENCE_ID|LINEAGE] [--concept NAME|NODEKEY] [--assignment ID] [--review ID] [--console-url URL] [--json]", "both", "reads", "write-story"),
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
 ])
 
