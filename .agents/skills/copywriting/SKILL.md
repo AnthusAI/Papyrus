@@ -55,6 +55,9 @@ These hold for every publication. The site's policies add its own rules on top.
   glossary give them. Old names in older articles are not a source.
 - **Label illustrative figures, composites and pilot results as such.** Keep
   opinion apart from evidence. Don't promise what hasn't shipped.
+- **A diagram, chart or illustration is its own piece of work.** When the Story would be clearer with one,
+  follow the [figures skill](../figures/SKILL.md): it draws in the site's design system, always in light and
+  dark, and needs a person's approval before the figure is saved into the Story. Don't draw one by hand in the body.
 - **No speed bragging and no hype.** Describe the problem, the mechanism and the
   honest limits.
 - **A generated image has no credit line at all; leave credit off.** A real third-party credit
