@@ -16,9 +16,9 @@ This skill is the same for every Papyrus site and names no brand. Everything tha
 
 ## 1. Find the site's design system
 
-Name the site (`papyrus --site SITE_HOST ...`) and find its design system: a folder holding `mapping.json`, the tokens and fonts it names, and optionally worked examples under `examples/NAME/` (each a `figure.svg` and `figure.json`). Today that folder comes from the site's repository or from the person; reading it from the site's backend, beside its mission and policy, is planned and will not change these steps. Read its `mapping.json` (canvas sizes, role names), and open the example closest to what you will draw: copy its structure, not its content.
+Sign in to the site (`papyrus login SITE_HOST`) and run `papyrus design-system show`. A site's design system is backend data, kept beside its mission and policy: a folder's worth of files (`mapping.json`, the tokens and fonts it names, and worked examples under `examples/NAME/`, each a `figure.svg` and `figure.json`). `show` prints its version, the figure roles, the fonts and the worked examples. Pull it to a folder with `papyrus design-system pull ./design-system`, read its `mapping.json` (canvas sizes, role names), and open the example closest to what you will draw: copy its structure, not its content. `papyrus figures render` uses the signed-in site's design system when you give it no `--design-system`; a folder you pass with `--design-system DIR` overrides it.
 
-If you cannot find one, stop and say: "This site has no design system I can read. I can draw with the neutral unbranded default, or you can point me to one." Then do what the person answers. Record which one you used in the Story's agent note.
+If `show` says the site has none (or you cannot sign in), stop and say: "This site has no design system I can read. I can draw with the neutral unbranded default, or you can point me to one." Then do what the person answers. Record which one you used in the Story's agent note. A site's repository publishes its design system with `papyrus design-system push` at deploy; you do not push one yourself unless a person asks you to.
 
 ## 2. Decide whether to draw
 
@@ -42,13 +42,13 @@ Stay within the density limits (rules section 9). Try removing each shape, line 
 ## 5. Check and look
 
 ```sh
-papyrus figures render ./figures/SLUG --design-system ./design-system --check-only
+papyrus figures render ./figures/SLUG --check-only
 ```
 
 Fix every `PROBLEM` and read every `note`. A problem in either theme fails the figure, so a mark that reads in light and vanishes in dark is caught. When it says `ok`, render for real:
 
 ```sh
-papyrus figures render ./figures/SLUG --design-system ./design-system --out ./pictures
+papyrus figures render ./figures/SLUG --out ./pictures
 ```
 
 The checker cannot tell whether a figure makes sense. Open **both** pictures and look at them at phone width (343px): can you read every word in each, does it still make sense with the color removed, do the rings and marks avoid the letters, is the point obvious in a few seconds? If not, redraw. Do not publish a figure you have not looked at in both themes.
@@ -63,7 +63,7 @@ Show the person both pictures and say what they are: the acceptance criteria, th
 papyrus figures directive ./figures/SLUG
 ```
 
-Put the printed `::image{}` line where the figure belongs in the draft. Put `SLUG.png`, `SLUG.dark.png` and `SLUG.figure.json` in the pictures folder and save with `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures --reason "..."`. `save-version` pairs the dark file automatically, and prints a `figure-light-only` warning if you forgot it (a site may refuse the save instead): fix that rather than ignoring it. Show the editor the console link of the saved version, as the other steps do. Never publish without the person's confirmation.
+Put the printed `::image{}` line where the figure belongs in the draft. Put `SLUG.png`, `SLUG.dark.png` and `SLUG.figure.json` in the pictures folder and save with `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures --reason "..."`. `save-version` pairs the dark file automatically, and prints a `figure-light-only` warning if you forgot it (a site can set `requireDarkFigures` so that the save is refused instead): fix that rather than ignoring it. Show the editor the console link of the saved version, as the other steps do. Never publish without the person's confirmation.
 
 ## What you must not do
 

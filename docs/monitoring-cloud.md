@@ -20,7 +20,7 @@ when set, a second search over that longer window asks only for precedential dec
 Board can designate a decision precedential months after it issues). A TTAB item also lists the decision's other
 addresses (the TTABVUE PDF, the Reading Room's double-slash path), and intake reuses a Reference stored under
 any of them rather than creating a second one for the same decision. Each source type only
-accepts a `sourceUrl` on its own host (a `feed` on any host in `FEED_HOSTS`). `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
+accepts a `sourceUrl` on its own host (a `feed` on any host in `FEED_HOSTS`: `rss.arxiv.org`, `export.arxiv.org`, `metr.org`). `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
 Cyclotron per publication) or `direct` (deliver every collected item to every configured publication,
 recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTAB monitor with
 `seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400` and
@@ -381,7 +381,7 @@ intake, one Reference. The source id is the same function of the id for both (`2
 config and no code. Safety is that of the Hacker News reader, with one larger limit:
 
 - **https only**, no credentials in the address, and the host must be in `FEED_HOSTS` in `src/papyrus_content/monitoring_feed.py`
-  (today `rss.arxiv.org` and `export.arxiv.org`). Adding a host is one line there, and the deploy ships it; a `sourceUrl` on any other
+  (today `rss.arxiv.org`, `export.arxiv.org` and `metr.org`). Adding a host is one line there, and the deploy ships it; a `sourceUrl` on any other
   host is refused when the config loads. A feed address may carry a query (the arXiv API's Atom feeds do), unlike the other types.
 - **Size.** 8 MB, not the 2 MB of the Hacker News feed: arXiv's combined daily feed for `cs.AI+cs.LG+cs.CL+cs.MA+stat.ML` was
   3.59 MB (1,661 entries) on 2026-11-03.
@@ -470,6 +470,40 @@ Monitoring page's `MONITOR_IDS` (`monitoring_view.py`), so the page lists them a
 **What the decision sees.** `values.source` is `feed` or `huggingface-papers`, and the abstract is the decision's summary until
 enrichment has a summary of its own: `text` is the title, the address and the abstract, with no fetch of the paper. See "Enrich
 before decide" for why enrichment still runs for these items today and how it behaves for an arXiv address.
+
+**METR** (`metr.org`, shown as "METR"). `https://metr.org/feed.xml` is an RSS 2.0 channel that the general reader takes as is, with no
+host rule. Read offline on 2026-11-10 (4.2 MB, so inside the 8 MB limit): 102 items, each with a title, link, `guid`, `pubDate` and the
+whole post in `content:encoded` (no `<description>`, no authors, no categories). 67 are `/blog/`, 17 `/notes/`, 9 `/evaluations/` and
+nine others; none lacks a title or link. Things to know when reading its items: the `guid` is not always the `link` (an `/evaluations/` post
+has a `/blog/` guid, which is the source id; the link is the canonical URL), nine posts link off the post pages (a PDF, `vivaria.metr.org`,
+GitHub, arXiv, `/fsp`, public-comment dockets), and the abstract is the post's HTML, cut at 20,000 characters (48 of the 102 posts are longer). A monitor is:
+
+```json
+{"pk": "MONITOR#feed-metr", "sk": "CONFIG", "sourceType": "feed", "enabled": true, "intervalSeconds": 21600,
+ "sourceUrl": "https://metr.org/feed.xml"}
+```
+
+```bash
+TABLE=$(aws ssm get-parameter --name /papyrus/monitoring/table-name --query Parameter.Value --output text)
+python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id feed-metr --source-type feed \
+    --source-url https://metr.org/feed.xml --interval-seconds 21600
+```
+
+**What the abstract can cost.** `content:encoded` is stored as the item's `details.abstract`, but `parse_feed` cuts it to 20,000 characters
+before the item is built, so nothing larger is ever written (the largest post in the feed is about 800 KB of source; a test feeds an
+800 KB post and checks the stored abstract is 20,000 characters). The text is the post's HTML, tags included, cut mid-sentence when long.
+
+**What a deploy needs.** The monitor is complete in the repository: the collect schedule `papyrus-monitoring-feed-metr-collect`
+(`rate(6 hours)`) and the route schedule `papyrus-monitoring-feed-metr-route` (hourly at minute 14, a minute no other schedule in the
+template uses) are in `infra/monitoring/papyrus-monitoring.yaml` (`FeedMetrCollectSchedule`, `FeedMetrRouteSchedule`), and `feed-metr` is in
+`MONITOR_IDS` in `monitoring_view.py`. The stack to deploy is `papyrus-monitoring` (the collector and router code carry the `metr.org`
+host, the template carries the schedules). Nobody deploys it by hand: merging the release to `main` runs
+`.github/workflows/stack-deploy.yml`, which builds the zips and creates, checks and executes the change set through GitHub OIDC; the pull
+request shows the same change set as a read-only dry run in its job summary (`infra/pipeline/README.md`). The change set should add the
+two schedules and the code updates, and nothing else; read it before merging. Until it runs, the schedules do not
+exist and the `metr.org` host is refused. After the deploy, a person (not CI) seeds the table: the `seed_config.py` command above, then
+`seed_router_config.py --table "$TABLE" --monitor-id feed-metr --file router.json` for the publications (`decisions: cyclotron`, or `hold`
+while a site has no Cyclotron).
 
 **Gherkin.** `monitoring-paper-feeds`. Recorded responses are in `procedures/newsroom/tests/fixtures/feeds`.
 

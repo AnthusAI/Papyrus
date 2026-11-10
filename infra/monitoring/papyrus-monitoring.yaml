@@ -586,6 +586,24 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt ScheduleDeadLetterQueue.Arn
 
+  FeedMetrCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-feed-metr-collect
+      Description: Run the collector for the METR feed; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"feed-metr"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
   WebCollectSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
@@ -2618,6 +2636,24 @@ Resources:
         Arn: !GetAtt RouterFunction.Arn
         RoleArn: !GetAtt RouterScheduleRole.Arn
         Input: '{"monitorId":"papers-huggingface"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  FeedMetrRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-feed-metr-route
+      Description: Run the router for the METR feed hourly at minute 14; it routes in the mode stored in the table.
+      ScheduleExpression: cron(14 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"feed-metr"}'
         RetryPolicy:
           MaximumEventAgeInSeconds: 600
           MaximumRetryAttempts: 1

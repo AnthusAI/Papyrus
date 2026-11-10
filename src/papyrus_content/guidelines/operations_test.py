@@ -77,7 +77,7 @@ def test_the_kind_is_any_registered_kind_not_a_fixed_pair():
     for item in GUIDELINES:
         assert "enum" not in item.input["properties"]["kind"]
     envelope = execute("guidelines_get", {"kind": "poetry"}, Caller(), with_client(FakeBackend(publication="ours"), None))
-    assert envelope["error"]["code"] == "unknown_kind" and envelope["error"]["details"]["kinds"] == ["image", "video", "writing"]
+    assert envelope["error"]["code"] == "unknown_kind" and {"image", "video", "writing"} <= set(envelope["error"]["details"]["kinds"])
 
 
 def test_the_command_spec_the_mcp_tools_and_the_typescript_client_are_generated_from_the_same_entries():

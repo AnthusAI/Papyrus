@@ -120,7 +120,7 @@ _ENTRIES = dict([
      "both", _DRY, "write-story"),
   _e("stories save-version", "Save the body and front matter as a new version (never publishes).",
      "--story LINEAGE --body-file FILE --reason TEXT [--front-matter-file FILE] [--author-label NAME] [--stage STAGE | --advance] [--outline] [--no-check] "
-     "[--images DIR [--bucket B] [--identity-pool-id ID] [--require-dark-figures]] [--dry-run]  (signed in the author is the person; --author-label is required on the operator lane; a figure with no dark picture prints a figure-light-only warning, and --require-dark-figures or PAPYRUS_REQUIRE_DARK_FIGURES=1 refuses it)",
+     "[--images DIR [--bucket B] [--identity-pool-id ID] [--require-dark-figures]] [--dry-run]  (signed in the author is the person; --author-label is required on the operator lane; a figure with no dark picture prints a figure-light-only warning, and the site's requireDarkFigures setting (design-system), --require-dark-figures or PAPYRUS_REQUIRE_DARK_FIGURES=1 refuses it; PAPYRUS_REQUIRE_DARK_FIGURES=0 overrides the setting)",
      "both", _DRY, "write-story"),
   _e("stories move", "Move a Story to a board stage. --stage published changes only the board stage and publishes no page.",
      "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]", "both", _DRY, "write-story"),
@@ -245,14 +245,25 @@ _ENTRIES = dict([
      "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
      "--kind KIND [--section KEY] [--input-file PATH]", "editor", "reads", "guidelines"),
-  # ---- figures (local: nothing here reaches a site) ---------------------------------------------------------------
+  # ---- figures (render reads the site's design system and writes local files only) -------------------------------------
   _e("figures render", "Check a figure and render its light and dark pictures (always both) with the site's design system. Needs Playwright and Chromium or Chrome.",
-     "FOLDER... (--design-system DIR | --neutral-default) [--out DIR] [--check-only] [--json]  "
-     "(FOLDER holds figure.svg and figure.json; writes SLUG.png, SLUG.dark.png and SLUG.figure.json next to it, or into --out for one figure; --check-only writes nothing; "
-     "--neutral-default is the unbranded default for a site with no design system: say so; exits 1 when any figure has a problem)", "both", "local", "figures"),
+     "FOLDER... [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json]  "
+     "(FOLDER holds figure.svg and figure.json; with neither flag it reads the design system the signed-in site stores, `design-system show`, and stops when there is none; "
+     "--design-system DIR overrides it with a folder; --neutral-default is the unbranded default for a site with no design system: say so; "
+     "writes SLUG.png, SLUG.dark.png and SLUG.figure.json next to the figure, or into --out for one figure; --check-only writes nothing; exits 1 when any figure has a problem)",
+     "both", "local", "figures"),
   _e("figures directive", "Print the ::image{} line for a figure's Story, from its figure.json.", "FOLDER", "both", "reads", "figures"),
   _e("figures rules", "Print the general figure rules every site follows (light and dark are both mandatory).", "", "both", "reads", "figures"),
   _e("figures primitives", "Print the shape library (glyphs, arrowhead, patterns) every figure can use.", "", "both", "reads", "figures"),
+  # ---- design-system (the site's tokens, fonts, mapping and worked examples, kept in the backend) ----------------------
+  _e("design-system show", "Show the design system the signed-in site stores: its version, roles, fonts, worked examples and figure settings (or that it has none).",
+     "[--version N] [--json]", "both", "reads", "figures"),
+  _e("design-system pull", "Write the stored design system into a folder, exactly as it was pushed (text verbatim, fonts as files, settings.json when set).",
+     "DIR [--version N] [--force]  (DIR must be new or empty unless --force; the folder works as `figures render --design-system DIR`)", "both", "local", "figures"),
+  _e("design-system push", "Publish a design system folder as the site's next design system version (a site repository does this at deploy). Checks it first; an unchanged folder makes no version.",
+     "DIR --reason TEXT [--author-label NAME] [--dry-run]  (DIR holds mapping.json, its tokens file, the fonts it names, examples/NAME/figure.svg + figure.json, and an optional "
+     "settings.json such as {\"requireDarkFigures\": true}; a folder with no settings.json keeps the site's settings; signed in the author is the person; "
+     "--author-label is required on the operator lane)", "both", _DRY, "figures"),
 ])
 
 _ENTRIES.update(dict([
@@ -344,6 +355,7 @@ GROUP_SUMMARIES = {
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
 GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history."
+GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 
 

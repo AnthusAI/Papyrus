@@ -5,9 +5,9 @@ Feature: Figures are drawn once, rendered in light and dark, and checked the sam
   for its checks (type size on a phone, text at the margin or hanging off its shape, contrast, overlapping labels, thin lines), and writes a
   light picture and a dark picture at twice the canvas size. Light and dark are both mandatory: there is no way to ask for one theme, a
   problem in either theme fails the figure, and `stories save-version` warns when a figure is saved with only a light picture (a site or an
-  editor can make that a refusal instead). The general rules and the shape library belong to Papyrus and name no brand. Everything that
+  editor can make that a refusal instead, and a site does so with its requireDarkFigures setting). The general rules and the shape library belong to Papyrus and name no brand. Everything that
   belongs to one site, its colors, fonts, role mapping and worked examples, is that site's design system, which is read through one loading
-  seam: a folder today and the site's backend later. A site with no design system gets a stated, unbranded default or a question, and
+  seam: a folder, or the site's backend (see design-system-records.feature). A site with no design system gets a stated, unbranded default or a question, and
   never an invented brand. The checks and the rendering run on the machine that calls them and reach no site and no AWS account.
 
   Scenario: The rules say outright that light and dark are both mandatory
@@ -32,6 +32,7 @@ Feature: Figures are drawn once, rendered in light and dark, and checked the sam
     Then the command failed
     And the printed error contains "never invent a brand"
     And the printed error contains "--neutral-default"
+    And the printed error contains "--design-system DIR"
     And no picture was written
 
   Scenario: A site with no design system can use the stated neutral default

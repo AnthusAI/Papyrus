@@ -67,7 +67,7 @@ Feature: Guidelines are read and saved through the site's data API door
     When an admin saves video guidelines naming "none" as the version they replace
     Then an editor reading the video guidelines gets the saved document
     When an editor reads guidelines of the kind "poetry"
-    Then the door answers that the kind is unknown and lists "image", "video" and "writing"
+    Then the door answers that the kind is unknown and the known kinds include "image", "video" and "writing"
 
   Scenario: A section's guidelines are resolved over the publication's with the source of every field
     Given a door onto a publication with saved writing guidelines

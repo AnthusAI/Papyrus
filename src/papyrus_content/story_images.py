@@ -80,11 +80,27 @@ def light_only_figure_lines(plan: "StoryImagePlan") -> list[str]:
     ]
 
 
-def light_only_figure_error(plan: "StoryImagePlan") -> str:
+_TRUE, _FALSE = {"1", "true", "yes", "on"}, {"0", "false", "no", "off"}
+
+
+def dark_figures_required(flag: bool, environment: str | None, site_setting: Callable[[], bool]) -> tuple[bool, str]:
+    """Whether a figure with no dark picture is refused, and why. The flag and the environment variable are overrides: the flag refuses, the variable refuses
+    (``1``) or allows (``0``), and only when neither says anything is the site's ``requireDarkFigures`` setting read (``site_setting`` is called then, once)."""
+    value = (environment or "").strip().lower()
+    if flag:
+        return True, "--require-dark-figures"
+    if value in _TRUE:
+        return True, REQUIRE_DARK_FIGURES_VARIABLE
+    if value in _FALSE:
+        return False, REQUIRE_DARK_FIGURES_VARIABLE
+    return (True, "this site's requireDarkFigures setting") if site_setting() else (False, "")
+
+
+def light_only_figure_error(plan: "StoryImagePlan", why: str = "--require-dark-figures or PAPYRUS_REQUIRE_DARK_FIGURES") -> str:
     names = ", ".join(plan.light_only_figures)
     return (
         f"Refusing to save: {names} {'is a figure' if len(plan.light_only_figures) == 1 else 'are figures'} with no dark picture, and dark pictures are required "
-        "(--require-dark-figures or PAPYRUS_REQUIRE_DARK_FIGURES). Run `papyrus figures render` and put SLUG.dark.png next to SLUG.png in the --images folder."
+        f"({why}). Run `papyrus figures render` and put SLUG.dark.png next to SLUG.png in the --images folder."
     )
 
 

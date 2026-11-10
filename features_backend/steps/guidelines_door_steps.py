@@ -226,9 +226,9 @@ def step_unknown_kind(context, kind):
     context.answer = read(context.backend, kind=kind)
 
 
-@then('the door answers that the kind is unknown and lists "{a}", "{b}" and "{c}"')
+@then('the door answers that the kind is unknown and the known kinds include "{a}", "{b}" and "{c}"')
 def step_lists_kinds(context, a, b, c):
-    assert context.answer["error"]["code"] == "unknown_kind" and context.answer["error"]["details"]["kinds"] == [a, b, c]
+    assert context.answer["error"]["code"] == "unknown_kind" and {a, b, c} <= set(context.answer["error"]["details"]["kinds"])
 
 
 @given('a section "{section}" with its own tone and audience')
@@ -349,7 +349,7 @@ def step_real(context):
     context.status, context.answer = run(context.backend, context.files, save_args(context, context.document))
 
 
-@then('the writing guidelines are at version 2 and say the audience is "{audience}"')
+@then('the saved writing guidelines are at version 2 with the audience "{audience}"')
 def step_v2(context, audience):
     assert context.status == 0 and context.answer["result"]["versionNumber"] == 2
     assert read(context.backend)["result"]["document"]["audience"] == audience

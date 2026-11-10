@@ -9,7 +9,7 @@ Feature: papyrus guidelines reads and saves any kind of guidelines from the comm
     When an admin runs save with a changed audience and --dry-run
     Then the answer is a dry run that previews the audience change and nothing new is stored
     When the admin runs the same save without --dry-run
-    Then the writing guidelines are at version 2 and say the audience is "Engineers"
+    Then the saved writing guidelines are at version 2 with the audience "Engineers"
 
   Scenario: papyrus guidelines diff shows the change and saves nothing
     Given a command line onto a publication with saved writing guidelines
