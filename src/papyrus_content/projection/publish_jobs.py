@@ -208,11 +208,11 @@ class PublishJobs:
 def publish_jobs_from_environment(environ: Mapping[str, str] | None = None, *, table: Any = None) -> PublishJobs | None:
     """The jobs of this site's bucket in the lock table, or None where there is no lock table (a local run): then a publish builds as before."""
     from .lease import lock_table_from_environment
-    from .runtime import SITE_BUCKET_ENV
+    from .runtime import SITE_BUCKET_ENV, store_name
 
     environment = os.environ if environ is None else environ
     bucket = (environment.get(SITE_BUCKET_ENV) or "").strip()
     found = table if table is not None else (lock_table_from_environment(environment) if bucket else None)
     if not bucket or found is None:
         return None
-    return PublishJobs(found, bucket)
+    return PublishJobs(found, store_name(environment))

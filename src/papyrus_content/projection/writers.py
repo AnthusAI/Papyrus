@@ -41,6 +41,33 @@ CONTENT_TYPES_BY_SUFFIX = {
 }
 
 
+class OutputPrefixError(ValueError):
+    """A key a prefixed writer refuses: it would land outside the writer's output prefix."""
+
+
+def normalize_output_prefix(prefix: str | None) -> str:
+    """``""`` (no prefix: the site owns its whole bucket) or a relative folder ending in ``/`` ("sites/alpha/")."""
+    text = (prefix or "").strip()
+    if not text:
+        return ""
+    if text.startswith("/"):
+        raise OutputPrefixError(f"The output prefix {prefix!r} must be relative to the bucket; it starts with '/'.")
+    segments = text.rstrip("/").split("/")
+    if any(segment in ("", ".", "..") for segment in segments):
+        raise OutputPrefixError(f"The output prefix {prefix!r} has an empty, '.' or '..' folder name.")
+    return "/".join(segments) + "/"
+
+
+def prefixed_key(output_prefix: str, key: str) -> str:
+    """The stored key of a site key. With no prefix the key is returned untouched; with one, a key that is absolute or climbs out of the
+    prefix (``..``) is refused, so nothing a prefixed writer writes, reads or deletes is outside its folder."""
+    if not output_prefix:
+        return key
+    if key.startswith("/") or ".." in key.split("/"):
+        raise OutputPrefixError(f"The key {key!r} is outside the output prefix {output_prefix!r}; a prefixed writer only touches keys under its prefix.")
+    return output_prefix + key
+
+
 def content_type_for(key: str) -> str:
     known = CONTENT_TYPES_BY_SUFFIX.get(PurePosixPath(key).suffix.lower())
     if known is not None:
@@ -99,24 +126,25 @@ class PageWriter(Protocol):
 class LocalDirectoryWriter:
     """A directory as a site store; version and inputs metadata live in memory, beside the files."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, output_prefix: str = "") -> None:
         self._root = Path(root)
+        self._output_prefix = normalize_output_prefix(output_prefix)
         self._metadata: dict[str, tuple[int | None, str | None]] = {}
 
     def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None:
-        target = self._root / key
+        target = self._root / prefixed_key(self._output_prefix, key)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
         self._metadata[key] = (version, inputs)
 
     def delete(self, key: str) -> None:
-        target = self._root / key
+        target = self._root / prefixed_key(self._output_prefix, key)
         if target.is_file():
             target.unlink()
         self._metadata.pop(key, None)
 
     def get(self, key: str) -> bytes | None:
-        target = self._root / key
+        target = self._root / prefixed_key(self._output_prefix, key)
         return target.read_bytes() if target.is_file() else None
 
     def head(self, key: str) -> StoredObject | None:
@@ -132,14 +160,15 @@ class LocalDirectoryWriter:
             for path in sorted(self._root.rglob("*"))
             if path.is_file()
         ]
-        return [self.head(key) for key in found if key.startswith(prefix)]
+        under = [key[len(self._output_prefix) :] for key in found if key.startswith(self._output_prefix)]
+        return [self.head(key) for key in under if key.startswith(prefix)]
 
 
 class S3PageWriter:
     source_markers = True   # item pages end with the papyrus-source-version marker (page_refresh/marker.py)
 
     def __init__(
-        self, bucket: str, s3_client: Any = None, html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS
+        self, bucket: str, s3_client: Any = None, html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS, output_prefix: str = ""
     ) -> None:
         if s3_client is None:
             import boto3
@@ -147,6 +176,7 @@ class S3PageWriter:
 
             s3_client = boto3.client("s3", config=Config(max_pool_connections=S3_MAX_POOL_CONNECTIONS))
         self._bucket = bucket
+        self._output_prefix = normalize_output_prefix(output_prefix)   # "" for a site that owns its bucket; keys are then untouched
         self._s3 = s3_client
         self._html_s_maxage_seconds = html_s_maxage_seconds
 
@@ -167,7 +197,7 @@ class S3PageWriter:
 
     def head(self, key: str) -> StoredObject | None:
         try:
-            return self._stored_object(key, self._s3.head_object(Bucket=self._bucket, Key=key))
+            return self._stored_object(key, self._s3.head_object(Bucket=self._bucket, Key=prefixed_key(self._output_prefix, key)))
         except Exception as error:  # noqa: BLE001 - only "not found" is an expected absence
             if self._error_code(error) in ("404", "NoSuchKey", "NotFound"):
                 return None
@@ -175,7 +205,7 @@ class S3PageWriter:
 
     def get(self, key: str) -> bytes | None:
         try:
-            return self._s3.get_object(Bucket=self._bucket, Key=key)["Body"].read()
+            return self._s3.get_object(Bucket=self._bucket, Key=prefixed_key(self._output_prefix, key))["Body"].read()
         except Exception as error:  # noqa: BLE001 - only "not found" is an expected absence
             if self._error_code(error) in ("NoSuchKey", "404", "NotFound"):
                 return None
@@ -185,12 +215,12 @@ class S3PageWriter:
         objects: list[StoredObject] = []
         token: str | None = None
         while True:
-            arguments: dict[str, Any] = {"Bucket": self._bucket, "Prefix": prefix}
+            arguments: dict[str, Any] = {"Bucket": self._bucket, "Prefix": self._output_prefix + prefix}
             if token:
                 arguments["ContinuationToken"] = token
             page = self._s3.list_objects_v2(**arguments)
             objects.extend(
-                StoredObject(key=entry["Key"], etag=str(entry.get("ETag", "")).strip('"') or None)
+                StoredObject(key=entry["Key"][len(self._output_prefix) :], etag=str(entry.get("ETag", "")).strip('"') or None)
                 for entry in page.get("Contents", [])
             )
             if not page.get("IsTruncated"):
@@ -215,7 +245,7 @@ class S3PageWriter:
         }
 
     def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None:
-        arguments: dict[str, Any] = {"Bucket": self._bucket, "Key": key, "Body": body, **self._headers_for(key)}
+        arguments: dict[str, Any] = {"Bucket": self._bucket, "Key": prefixed_key(self._output_prefix, key), "Body": body, **self._headers_for(key)}
         metadata: dict[str, str] = {}
         if version is not None:
             metadata[VERSION_METADATA_KEY] = str(version)
@@ -237,7 +267,7 @@ class S3PageWriter:
                     future.result()
 
     def delete(self, key: str) -> None:
-        self._s3.delete_object(Bucket=self._bucket, Key=key)
+        self._s3.delete_object(Bucket=self._bucket, Key=prefixed_key(self._output_prefix, key))
 
 
 def request_paths_for_key(key: str) -> tuple[str, ...]:
