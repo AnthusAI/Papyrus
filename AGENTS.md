@@ -4,6 +4,7 @@ Operating manual for any coding agent (Codex, Cursor, Claude Code) or person wor
 
 ## Read this first
 
+- **Using the `papyrus` CLI (agents included):** read [docs/agent-cli-guide.md](docs/agent-cli-guide.md) or run `papyrus guide` (`papyrus guide --list` lists the tasks). It has task-first recipes with exact syntax, the two lanes, which commands write by default, and a troubleshooting table. `papyrus <group> <command> --help` prints a command's real usage. Never guess a flag or invent a relation name.
 - This is the **engine**. Site repositories (Shipped-web, Distinctive-web, Pilobol.us, and so on) hold only site settings; fix the engine here, release it, bump the pin there.
 - Work in a **git worktree**, branched from `origin/develop`. The shared checkout `~/Projects/Papyrus` is used by several sessions: never switch its branch and **never `git stash`**.
 - Every task lives on the **Kanbus board** (project key `PPY`). Create or update the issue before coding.

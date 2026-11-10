@@ -12,6 +12,8 @@ description: >
 
 # Editorial copy-edit cycle
 
+> **CLI syntax:** the exact `papyrus` commands for this work, with the flags each takes, are in [docs/agent-cli-guide.md](../../../docs/agent-cli-guide.md) (or run `papyrus guide`). `papyrus <group> <command> --help` prints a command's real usage, its lane and whether it writes. Do not guess a flag.
+
 Articles live in the site's **newsroom backend** (AppSync and DynamoDB in AWS),
 not in Git. A site repository holds settings only. If a site repository still
 has a content folder or submodule, it is stale: editing it changes nothing on
