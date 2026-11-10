@@ -9,14 +9,19 @@ import type { HeadlineImageState } from "../lib/story-headline-image";
  * rounded corners, no outlines. Every state says something: no picture, still loading or processing, missing or unreadable.
  */
 export function StoryHeadlineImage({ state }: { state: HeadlineImageState }) {
+  return <div data-story-headline-frame><StoryHeadlineImageState state={state} /></div>;
+}
+
+function StoryHeadlineImageState({ state }: { state: HeadlineImageState }) {
   const [broken, setBroken] = useState<string | null>(null);
-  const shell = "flex items-start gap-2 rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-control)]/60 p-3 text-sm";
+  // Every state fills the same fixed height (data-story-headline-image in newsroom-organizer.css, shared with the loading skeleton), so the editor never changes height.
+  const shell = "flex h-full items-start gap-2 overflow-hidden rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-control)]/60 p-3 text-sm";
   if (state.status === "ready" && broken !== state.url) {
     return (
-      <figure className="space-y-1.5" data-story-headline-image="ready">
+      <figure className="flex h-full flex-col gap-1.5" data-story-headline-image="ready">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img alt={state.alt} className="aspect-[16/9] w-full rounded-[var(--feed-radius-md,16px)] bg-muted object-cover" onError={() => setBroken(state.url)} src={state.url} />
-        <figcaption className="text-xs text-muted-foreground">Headline image ({state.ref.key}). {state.alt ? `Alt text: ${state.alt}` : "No alt text is set."}</figcaption>
+        <img alt={state.alt} className="min-h-0 w-full flex-1 rounded-[var(--feed-radius-md,16px)] bg-muted object-cover" onError={() => setBroken(state.url)} src={state.url} />
+        <figcaption className="truncate text-xs text-muted-foreground">Headline image ({state.ref.key}). {state.alt ? `Alt text: ${state.alt}` : "No alt text is set."}</figcaption>
       </figure>
     );
   }
