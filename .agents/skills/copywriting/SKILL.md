@@ -61,7 +61,8 @@ These hold for every publication. The site's policies add its own rules on top.
 - **No speed bragging and no hype.** Describe the problem, the mechanism and the
   honest limits.
 - **A generated image has no credit line at all; leave credit off.** A real third-party credit
-  is written as the source gives it.
+  is written as the source gives it. A local picture with no credit counts as ours and passes the
+  credit check; only remote, stock-cover and Reference pictures need a credit.
 - A story based on a Reference has its own text: never seed it from the
   Reference's captured text (the copy guard refuses runs of 12 or more shared words).
 

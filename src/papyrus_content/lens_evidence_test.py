@@ -55,6 +55,39 @@ def test_a_check_that_could_not_run_carries_the_reason_and_no_severity_problem()
     assert found["state"] == "not_assessable" and "cannot read this site's settings" in found["message"]
 
 
+COVER = "title: Board refuses\nsummary: The board refused it.\ndate: 2026-03-03\nauthor: Dana Reyes\nimage: /assets/h.jpg\ncoverImage:\n  source: wikimedia-commons\n  srcPath: assets/h.jpg\n"
+SEEDED = "title: Board refuses\nsummary: The board refused it.\ndate: 2026-03-03\nauthor: Dana Reyes\nseededImage:\n  url: /assets/seed.jpg\n"
+
+
+def credit_states(body: str, front: str | None = None) -> tuple[str, str]:
+    found = findings(body, live_site(), front)
+    return found["P10"]["state"], found["C6"]["state"]
+
+
+def test_a_local_picture_with_no_credit_and_no_third_party_origin_is_ours():
+    assert credit_states('::image{src="/assets/own.jpg" alt="A harbour"}\n\nWords.\n') == ("pass", "pass")
+
+
+def test_a_local_picture_with_a_credit_passes():
+    assert credit_states('::image{src="/assets/own.jpg" alt="A harbour" credit="Image: A, CC0"}\n\nWords.\n') == ("pass", "pass")
+
+
+def test_a_credit_that_only_says_a_machine_made_it_still_passes():
+    assert credit_states('::image{src="/assets/own.jpg" alt="A harbour" credit="Generated."}\n\nWords.\n') == ("pass", "pass")
+
+
+def test_a_remote_picture_with_no_credit_fails():
+    assert credit_states('::image{src="https://p.example.test/x.jpg" alt="A harbour"}\n\nWords.\n') == ("problem", "problem")
+
+
+def test_a_stock_cover_picture_with_no_credit_fails():
+    assert credit_states('::image{src="/assets/h.jpg" alt="A harbour"}\n\nWords.\n', COVER) == ("problem", "problem")
+
+
+def test_a_reference_picture_with_no_credit_fails():
+    assert credit_states('::image{src="/assets/seed.jpg" alt="A harbour"}\n\nWords.\n', SEEDED) == ("problem", "problem")
+
+
 def test_counts_are_per_lens_step_and_mirrors_count_in_each():
     counts = evidence.summarize(list(findings("::image{src=\"a.png\"}\n", live_site()).values()))
     assert set(counts) == set(lenses.LENS_STEP_KEYS)
