@@ -282,7 +282,7 @@ papyrus stories save-version --story LINEAGE --body-file body.md --front-matter-
 papyrus stories save-version --story LINEAGE --body-file body.md --front-matter-file front.yaml --reason "First draft"
 ```
 
-Front matter keys: `title`, `dek`, `blurb`, `author` (a human's name, only if a person worked on it), `drafting: {by: AI}` (without it the byline drops "various bots"), `imageAlt`, `citations:` with a key for every `[@key]` in the body, `image:` for the card picture. Quote date values. Signed in, the author is the person who signed in; `--author-label` is ignored (the operator lane requires it). A figure from `papyrus figures render` saved with `--images` but without its `.dark.png` prints a `figure-light-only` warning; `--require-dark-figures` (or `PAPYRUS_REQUIRE_DARK_FIGURES=1`) refuses it instead. `--stage STAGE` or `--advance` also moves the Story. It prints `stories save-version console story URL`: **show the editor that link** (the exact version) after every save, before asking for approval (see "Show the editor the console link").
+Front matter keys: `title`, `dek`, `blurb`, `author` (a human's name, only if a person worked on it), `drafting: {by: AI}` (without it the byline drops "various bots"), `imageAlt`, `citations:` with a key for every `[@key]` in the body, `image:` for the card picture. Quote date values. Signed in, the author is the person who signed in; `--author-label` is ignored (the operator lane requires it). A figure from `papyrus figures render` saved with `--images` but without its `.dark.png` prints a `figure-light-only` warning; the site's `requireDarkFigures` setting (`papyrus design-system`), `--require-dark-figures` or `PAPYRUS_REQUIRE_DARK_FIGURES=1` refuses it instead (`PAPYRUS_REQUIRE_DARK_FIGURES=0` overrides the setting). `--stage STAGE` or `--advance` also moves the Story. It prints `stories save-version console story URL`: **show the editor that link** (the exact version) after every save, before asking for approval (see "Show the editor the console link").
 
 ### Move a Story on the board
 **Lane:** both. **Version:** 5.100.0.
@@ -392,24 +392,44 @@ papyrus stories head-index --apply --rate 5
 <!-- guide:figures -->
 
 ### Render a figure in light and dark
-**Lane:** both (it is local; nothing reaches a site). **Version:** the release after 5.101.0. Writes only the local picture files.
+**Lane:** both (it reads the signed-in site's design system and writes only local picture files). **Version:** the release after 5.101.0.
 
 A figure is a folder with `figure.svg` (colors as `{role}` names, type as `t-<role>` classes) and `figure.json` (the acceptance criteria, alt text and credit). The skill `.agents/skills/figures` says when to draw, how to choose a form, and how to get approval; the rules are `papyrus figures rules` and the shape library `papyrus figures primitives`. Both light and dark are mandatory: `render` always writes both from the one source.
 
 ```sh
 papyrus figures rules
 papyrus figures primitives
-papyrus figures render ./search-nobody-sees --design-system ./design-system --check-only
+papyrus figures render ./search-nobody-sees --check-only
+papyrus figures render ./search-nobody-sees --out ./pictures
 papyrus figures render ./search-nobody-sees --design-system ./design-system --out ./pictures
 papyrus figures render ./search-nobody-sees --neutral-default --json
 papyrus figures directive ./search-nobody-sees
 ```
 
-- `--design-system DIR` is the site's design system folder: `mapping.json` (roles, canvas, fonts, tokens inline or `tokens_file`), the font files it names, and optional `examples/NAME/figure.svg` + `figure.json`. Today it is a folder you were given or checked out; reading it from the site's backend is a later slice. **A site with no design system:** pass `--neutral-default` (unbranded grays, this machine's own sans-serif, no logos) and tell the person you did. Never invent a brand. With neither flag the command refuses.
+- With no `--design-system` and no `--neutral-default`, `render` draws with the design system the **signed-in site stores** (see "Read and publish the site's design system" below) and prints a `figures: using the site's stored design system` line on stderr. `--design-system DIR` overrides it with a folder: `mapping.json` (roles, canvas, fonts, tokens inline or `tokens_file`), the font files it names, and optional `examples/NAME/figure.svg` + `figure.json`. **A site with no design system:** pass `--neutral-default` (unbranded grays, this machine's own sans-serif, no logos) and tell the person you did. Never invent a brand. If the site stores none or cannot be read, the command refuses and says why; it does not fall back.
 - It prints `SLUG: PROBLEM: ...` and `SLUG: note: ...` lines and `SLUG: ok` or `SLUG: FAILED`, and exits 1 when any figure fails. A problem in either theme fails the figure. `--json` prints the same as data. `--check-only` writes nothing.
 - On success it writes `SLUG.png` (light), `SLUG.dark.png` (dark) and `SLUG.figure.json` (marks the pictures as a figure) next to the source, or into `--out` (one figure only). The pictures are twice the canvas size with the fonts in the pixels.
 - It needs `pip install playwright` and either `playwright install chromium` or Google Chrome. Without them the command says so and stops; nothing else in the CLI needs it.
 - `directive` prints the `::image{}` line for the Story from `figure.json`; put it in the body and save with `stories save-version --images ./pictures` (see "Save a version"). The checker cannot judge whether the figure makes sense: look at both pictures, and get a person's approval before setting `approved_by`.
+
+### Read and publish the site's design system
+**Lane:** both. `show` and `pull` read (`pull` writes only the local folder); `push` writes a new design system version unless `--dry-run`. **Version:** the release after 5.101.0.
+
+A site's tokens, fonts, role mapping and worked examples are backend data, kept beside its mission and policy. An agent that can sign in to the site reads them; the site's repository publishes them at deploy.
+
+```sh
+papyrus design-system show
+papyrus design-system show --version 2 --json
+papyrus design-system pull ./design-system
+papyrus design-system pull ./design-system --force
+papyrus design-system push ./design-system --reason "New display font" --dry-run
+papyrus design-system push ./design-system --reason "New display font"
+```
+
+- `show` prints the version, who saved it and why, the figure and type roles, the fonts, the worked examples and the site's figure settings, or says the site has no design system (then use `--neutral-default` and say so, or ask for one). `--version N` reads an older version; `--json` prints it as data.
+- `pull DIR` writes the stored files back exactly as they were pushed (text verbatim, fonts as files, `settings.json` when set). `DIR` must be new or empty unless `--force`. The folder works as `figures render --design-system DIR`.
+- `push DIR --reason TEXT` checks the folder first (every role present, a light and a dark value for every color, the fonts it names exist) and refuses one that cannot draw. An unchanged folder makes no version. A folder holds `mapping.json`, its tokens file, the fonts, `examples/NAME/figure.svg` + `figure.json`, and an optional `settings.json` such as `{"requireDarkFigures": true}`; a folder with no `settings.json` keeps the site's settings. Signed in, the author is the person; on the operator lane `--author-label` is required. `--dry-run` lists what would be stored and writes nothing. This is the command a site repository runs as part of its deploy.
+- The site setting `requireDarkFigures` makes `stories save-version` refuse a figure with no dark picture (see "Save a version"). The editorial context pack points at the design system when the site has one.
 
 ## Ideas
 <!-- guide:ideas -->

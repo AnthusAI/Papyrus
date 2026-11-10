@@ -20,7 +20,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT / "procedures" / "newsroom" / "tests"
         sys.path.insert(0, str(entry))
 
 from papyrus import cli  # noqa: E402
-from papyrus_content.figures import checks  # noqa: E402
+from papyrus_content.figures import checks, records  # noqa: E402
 from papyrus_content.figures.design_system import load_design_system  # noqa: E402
 from papyrus_content.figures.neutral import MAPPING, neutral_design_system  # noqa: E402
 from papyrus_content.figures.renderer import RendererUnavailable, open_browser  # noqa: E402
@@ -44,6 +44,20 @@ def _work(context) -> Path:
     return context.figures_work
 
 
+def _site_opener(context):
+    """What `figures render` and `design-system` open as the signed-in site. A scenario that stores a design system sets ``context.ds_store``; one that cannot
+    reach the site sets ``context.site_error``. With neither there is no site, so no scenario reaches a real one."""
+    def open_records():
+        context.site_reads = getattr(context, "site_reads", 0) + 1
+        if getattr(context, "site_error", None):
+            raise RuntimeError(context.site_error)
+        if getattr(context, "ds_store", None) is None:
+            raise RuntimeError("no site in this scenario")
+        return context.ds_store
+
+    return open_records
+
+
 def _run(context, line: str, working_folder: Path | None = None) -> None:
     arguments = shlex.split(line)[1:]
     out, err = io.StringIO(), io.StringIO()
@@ -52,7 +66,8 @@ def _run(context, line: str, working_folder: Path | None = None) -> None:
     try:
         if working_folder is not None:
             os.chdir(working_folder)
-        with patch.dict(os.environ, environment, clear=True), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        with patch.dict(os.environ, environment, clear=True), patch.object(records, "open_records", _site_opener(context)), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             try:
                 context.status = cli.main(arguments)
             except SystemExit as stop:
@@ -247,6 +262,17 @@ def photograph_light_only(context, name):
     _pictures(context, name, dark=False, figure=False)
 
 
+def _site_records(context):
+    """The design-system records a Story save reads the site's settings from: the scenario's store, or a site that cannot be read."""
+    def factory(_client):
+        if getattr(context, "site_error", None):
+            raise RuntimeError(context.site_error)
+        return context.ds_store
+
+    return patch("papyrus_content.figures.records.DesignSystemRecords", factory) if getattr(context, "ds_store", None) is not None or getattr(context, "site_error", None) \
+        else contextlib.nullcontext()
+
+
 def _save(context, flags: list[str], environment: dict[str, str]) -> None:
     from fake_client import FakeAuthoringClient
     from papyrus_content import story_commands
@@ -260,7 +286,7 @@ def _save(context, flags: list[str], environment: dict[str, str]) -> None:
     (work / "body.md").write_text('::image{src="chart.png" alt="A chart" layout="inline"}\n')
     out = io.StringIO()
     context.save_error = None
-    with contextlib.redirect_stdout(out), patch.dict(os.environ, environment), \
+    with contextlib.redirect_stdout(out), patch.dict(os.environ, environment), _site_records(context), \
             patch.object(story_commands, "create_authoring_client", return_value=(client, {})), \
             patch("papyrus_content.user_auth_mode.user_auth_requested", return_value=False):
         try:
@@ -284,6 +310,22 @@ def save_requiring(context):
 @when("a story version is saved with those pictures as a dry run, with PAPYRUS_REQUIRE_DARK_FIGURES set")
 def save_with_environment(context):
     _save(context, [], {"PAPYRUS_REQUIRE_DARK_FIGURES": "1"})
+
+
+@when('a story version is saved with those pictures as a dry run, with PAPYRUS_REQUIRE_DARK_FIGURES set to "{value}"')
+def save_with_environment_value(context, value):
+    _save(context, [], {"PAPYRUS_REQUIRE_DARK_FIGURES": value})
+
+
+@then("the refusal names this site's requireDarkFigures setting")
+def refusal_names_setting(context):
+    assert context.save_error and "this site's requireDarkFigures setting" in context.save_error, context.save_error
+
+
+@then("the save was refused saying the site's requireDarkFigures setting could not be read")
+def refusal_unreadable(context):
+    assert context.save_error and "Could not read the site's requireDarkFigures setting" in context.save_error, context.save_error
+    assert context.save_output == ""
 
 
 @then("the save went ahead")
