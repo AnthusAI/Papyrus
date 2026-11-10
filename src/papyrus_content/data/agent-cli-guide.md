@@ -282,7 +282,7 @@ papyrus stories save-version --story LINEAGE --body-file body.md --front-matter-
 papyrus stories save-version --story LINEAGE --body-file body.md --front-matter-file front.yaml --reason "First draft"
 ```
 
-Front matter keys: `title`, `dek`, `blurb`, `author` (a human's name, only if a person worked on it), `drafting: {by: AI}` (without it the byline drops "various bots"), `imageAlt`, `citations:` with a key for every `[@key]` in the body, `image:` for the card picture. Quote date values. Signed in, the author is the person who signed in; `--author-label` is ignored (the operator lane requires it). `--stage STAGE` or `--advance` also moves the Story. It prints `stories save-version console story URL`: **show the editor that link** (the exact version) after every save, before asking for approval (see "Show the editor the console link").
+Front matter keys: `title`, `dek`, `blurb`, `author` (a human's name, only if a person worked on it), `drafting: {by: AI}` (without it the byline drops "various bots"), `imageAlt`, `citations:` with a key for every `[@key]` in the body, `image:` for the card picture. Quote date values. Signed in, the author is the person who signed in; `--author-label` is ignored (the operator lane requires it). A figure from `papyrus figures render` saved with `--images` but without its `.dark.png` prints a `figure-light-only` warning; `--require-dark-figures` (or `PAPYRUS_REQUIRE_DARK_FIGURES=1`) refuses it instead. `--stage STAGE` or `--advance` also moves the Story. It prints `stories save-version console story URL`: **show the editor that link** (the exact version) after every save, before asking for approval (see "Show the editor the console link").
 
 ### Move a Story on the board
 **Lane:** both. **Version:** 5.100.0.
@@ -387,6 +387,29 @@ papyrus stories head-index --apply --rate 5
 - Each Story has one row in the head stage index (`headStageKey`, docs/plans/story-head-stage-index.md). `head-index` reads the old stage index once, prints one `set` or `remove` line per row it would change, `muddled` lines for Stories with more than one live version (fix those with `stories repair-versions --story LINEAGE`), and a summary: `rows read`, `stories`, `heads to set`, `keys to remove`, `already right`, `muddled`, `no head`, `superseded with key`.
 - Unlike most commands it is a **dry run unless `--apply`**. A dry run with `heads to set 0` and `keys to remove 0` is the health check. `--apply` writes only rows that differ, keeps each row's own `updatedAt`, never writes a superseded version, and writes at most `--rate` a second (default 5); a second run writes nothing.
 - On a site whose data API has no `headStageKey` yet the dry run counts every Story as needing it and `--apply` refuses: the site needs the backend deploy that adds the index first, and that deploy and the `--apply` run each need Ryan's approval.
+
+## Draw a figure
+<!-- guide:figures -->
+
+### Render a figure in light and dark
+**Lane:** both (it is local; nothing reaches a site). **Version:** the release after 5.101.0. Writes only the local picture files.
+
+A figure is a folder with `figure.svg` (colors as `{role}` names, type as `t-<role>` classes) and `figure.json` (the acceptance criteria, alt text and credit). The skill `.agents/skills/figures` says when to draw, how to choose a form, and how to get approval; the rules are `papyrus figures rules` and the shape library `papyrus figures primitives`. Both light and dark are mandatory: `render` always writes both from the one source.
+
+```sh
+papyrus figures rules
+papyrus figures primitives
+papyrus figures render ./search-nobody-sees --design-system ./design-system --check-only
+papyrus figures render ./search-nobody-sees --design-system ./design-system --out ./pictures
+papyrus figures render ./search-nobody-sees --neutral-default --json
+papyrus figures directive ./search-nobody-sees
+```
+
+- `--design-system DIR` is the site's design system folder: `mapping.json` (roles, canvas, fonts, tokens inline or `tokens_file`), the font files it names, and optional `examples/NAME/figure.svg` + `figure.json`. Today it is a folder you were given or checked out; reading it from the site's backend is a later slice. **A site with no design system:** pass `--neutral-default` (unbranded grays, this machine's own sans-serif, no logos) and tell the person you did. Never invent a brand. With neither flag the command refuses.
+- It prints `SLUG: PROBLEM: ...` and `SLUG: note: ...` lines and `SLUG: ok` or `SLUG: FAILED`, and exits 1 when any figure fails. A problem in either theme fails the figure. `--json` prints the same as data. `--check-only` writes nothing.
+- On success it writes `SLUG.png` (light), `SLUG.dark.png` (dark) and `SLUG.figure.json` (marks the pictures as a figure) next to the source, or into `--out` (one figure only). The pictures are twice the canvas size with the fonts in the pixels.
+- It needs `pip install playwright` and either `playwright install chromium` or Google Chrome. Without them the command says so and stops; nothing else in the CLI needs it.
+- `directive` prints the `::image{}` line for the Story from `figure.json`; put it in the body and save with `stories save-version --images ./pictures` (see "Save a version"). The checker cannot judge whether the figure makes sense: look at both pictures, and get a person's approval before setting `approved_by`.
 
 ## Ideas
 <!-- guide:ideas -->

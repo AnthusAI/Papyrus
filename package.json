@@ -107,6 +107,7 @@
     "test:reference-feed": "tsx scripts/test-newsroom-all-pages.ts && tsx scripts/test-reference-feed-ranking.ts && tsx --test scripts/test-reference-predictions.ts && tsx scripts/test-reference-feed-pages.ts && tsx --test scripts/test-reference-feed-search.ts && tsx scripts/test-reference-feed.ts && tsx scripts/test-reference-sync.ts && cucumber-js --profile referenceFeed && cucumber-js --profile referenceSearch && cucumber-js --profile referenceQuality && cucumber-js --profile referenceMediumFilter && tsx scripts/test-capture-state.ts && cucumber-js --profile referenceCaptureNeeded",
     "export:reference-feed-fixture": "python3 scripts/export-reference-feed-fixture.py",
     "capture:reference-feed": "node scripts/capture-reference-feed-shots.mjs",
+    "test:figures": "poetry run pytest -q src/papyrus_content/figures procedures/newsroom/tests/test_figure_dark_picture.py && poetry run behave features_backend/figures.feature",
     "test:console-links": "tsx scripts/test-cli-site-document.ts && poetry run behave features_backend/cli-console-links.feature && poetry run pytest -q src/papyrus_content/console_links_test.py",
     "test:cli-login-discovery": "tsx scripts/test-cli-login-discovery.ts && tsx scripts/test-cli-site-document.ts && cucumber-js --profile cliLoginDiscovery",
     "test:cli-federation-client": "tsx scripts/test-cli-federation-client.ts",

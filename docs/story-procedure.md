@@ -20,7 +20,7 @@ One definition of how a Story moves through the newsroom. The command line reads
 | review_social | copywriting | Editor or reviewing agent | the same, with `--step review_social` | live, by hand |
 | concepts | copywriting | Editor or reviewing agent | `papyrus stories link-concept --story LINEAGE --concept NAME --note WHY`, then `papyrus stories step --story LINEAGE --step concepts --state done --note FINDINGS` | live, by hand, required |
 | related_content | copywriting | Editor or reviewing agent | `papyrus stories suggest-links --story LINEAGE`, link the good ones with `stories link-story`, then `--step related_content --state done --note FINDINGS` | live, by hand, required |
-| illustration | illustration | Editor | none yet | not built, optional |
+| illustration | illustration | Editor, or an agent following the [figures skill](../.agents/skills/figures/SKILL.md) | `papyrus figures render` and `figures directive`, then `stories save-version --images` | live for figures (light and dark, a person approves); other pictures by hand, optional |
 | typesetting | typesetting | Editor | none yet | not built, optional |
 | publish | published | A person | `papyrus ops content publish --id ITEM_ID` | live |
 
