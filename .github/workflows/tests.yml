@@ -92,6 +92,8 @@ jobs:
       - run: node scripts/test-email-reference-handoff.cjs
       - run: npm run test:assignment-data-access
       - run: npm run test:public-forms
+      # One new index per table per release (features_backend/gsi-ledger.feature): compares schema.ts with the last release tag.
+      - run: npx tsx scripts/check-gsi-ledger.ts
       - run: npm run test:alexa
       - uses: actions/cache@v4
         with:
