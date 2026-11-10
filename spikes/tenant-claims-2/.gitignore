@@ -1,0 +1,5 @@
+node_modules/
+amplify_outputs.json
+.env.spike
+.spike-results/
+.amplify/
