@@ -28,20 +28,11 @@ export const DEFAULT_LOCK_WAIT_SECONDS = 1800;
 export const DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS = 1;
 /** The TypeSafe key the sites already share (the editorial gate and the relevance sweeps read it too); a site may name its own. */
 export const DEFAULT_DECISION_KEY_PARAMETER = "/papyrus/shared/typesafe-api-key";
-/** How many monitored items the optional monitor-stories step writes up per execution when `monitorStories` does not say. */
-export const DEFAULT_MONITOR_STORIES_LIMIT = 3;
-export const MAX_MONITOR_STORIES_LIMIT = 20;
 /** The trend window is whole weeks, one to four: the snapshot counts weekly and keeps eight weeks. */
 /** The sources `papyrus knowledge corpus export --monitor-sources` understands. */
 export const MONITOR_SOURCES = ["huggingface", "routed"] as const;
 
 const VALID_VCPU = [1, 2, 4, 8, 16];
-
-/** The `monitorStories` block of the `knowledgeRun` block, as written. */
-export type MonitorStoriesSettings = {
-  /** Stories drafted per execution, 1 to 20; default 3. */
-  limit?: number;
-};
 
 /**
  * The `referenceDocuments` block of the `knowledgeRun` block, as written: the site's References with extracted text become corpus documents
@@ -99,15 +90,10 @@ export type KnowledgeRunSettings = {
   monitorSuggestions?: number;
   /** How many days older than the execution's start the published snapshot's asOf may be for the trend-drafts step to use it; default 1. */
   trendSnapshotMaxAgeDays?: number;
-  /**
-   * Opt in to the monitor-stories step (docs/knowledge-cloud-run.md): after trend-drafts it writes a cited story draft for each of the top `limit`
-   * items the site's monitors found, any source, ranked by the relevance Cyclotron's verdict, and files them as draft Proposals. Absent means no step.
-   */
-  monitorStories?: MonitorStoriesSettings;
   /** Opt in to Reference documents: the corpus's References with extracted text join the corpus as documents (never monitor records). */
   referenceDocuments?: ReferenceDocumentsSettings;
   /**
-   * Hosts the AI drafts (trend-drafts and monitor-stories) must never cite, such as a competing publication. A host matches itself and its subdomains.
+   * Hosts the AI drafts (trend-drafts) must never cite, such as a competing publication. A host matches itself and its subdomains.
    * The site lists hosts explicitly: Papyrus does not classify hosts by kind (docs/idea-pipeline.md#excluded-source-hosts).
    */
   excludedSourceHosts?: string[];
@@ -150,7 +136,6 @@ export type KnowledgeRunConfig = {
   monitorSources?: string[];
   monitorWeeks?: number;
   monitorSuggestions: number;
-  monitorStories?: { limit: number };
   /** Set only when the site opted in and `enabled` is true. `prefix` is the only part of the bucket the task role may touch. */
   referenceDocuments?: { mediaBucket: string; extractor: string; prefix: string };
   excludedSourceHosts?: string[];
@@ -201,16 +186,6 @@ function optionalInteger(value: unknown, field: string, min: number, max: number
   return value as number;
 }
 
-function optionalMonitorStories(value: unknown): MonitorStoriesSettings | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "object" || value === null || Array.isArray(value)) fail("monitorStories", "must be an object such as {\"limit\": 3}");
-  const record = value as Record<string, unknown>;
-  for (const key of Object.keys(record)) {
-    if (key !== "limit") fail(`monitorStories.${key}`, "is not a known field (known: limit)");
-  }
-  return { limit: optionalInteger(record.limit, "monitorStories.limit", 1, MAX_MONITOR_STORIES_LIMIT) };
-}
-
 const EXTRACTOR_PATTERN = /^[a-z][a-z0-9-]{0,30}$/;
 export const DEFAULT_REFERENCE_EXTRACTOR = "markitdown";
 
@@ -254,7 +229,7 @@ function rejectUnknownKeys(record: Record<string, unknown>, allowed: string[], p
 export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("", "must be an object");
   const record = raw as Record<string, unknown>;
-  // trendWindowDays and trendCooldownDays are retired (the command chooses the window and the repeat rule from the data): still accepted, ignored.
+  // trendWindowDays and trendCooldownDays are retired (the command chooses the window and the repeat rule from the data), and so is monitorStories (the monitoring router drafts monitor stories daily for every publication): still accepted, ignored.
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "corpusKey", "settingsDirectory", "reuseImageRepository", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
@@ -334,7 +309,6 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     monitorSources,
     monitorWeeks: optionalInteger(record.monitorWeeks, "monitorWeeks", 1, 260),
     monitorSuggestions: optionalInteger(record.monitorSuggestions, "monitorSuggestions", 0, 20),
-    monitorStories: optionalMonitorStories(record.monitorStories),
     referenceDocuments: optionalReferenceDocuments(record.referenceDocuments),
     excludedSourceHosts: optionalHosts(record.excludedSourceHosts),
     trendSnapshotMaxAgeDays: optionalInteger(record.trendSnapshotMaxAgeDays, "trendSnapshotMaxAgeDays", 0, 7),
@@ -408,7 +382,6 @@ export function resolveKnowledgeRunConfig(
     monitorSources: settings.monitorSources,
     monitorWeeks: settings.monitorWeeks,
     monitorSuggestions: settings.monitorSuggestions ?? 0,
-    monitorStories: settings.monitorStories ? { limit: settings.monitorStories.limit ?? DEFAULT_MONITOR_STORIES_LIMIT } : undefined,
     ...(settings.referenceDocuments?.enabled
       ? {
           referenceDocuments: {

@@ -59,9 +59,6 @@
     "monitorSources": [
       "routed"
     ],
-    "monitorStories": {
-      "limit": 3
-    },
     "referenceDocuments": {
       "enabled": true,
       "mediaBucket": "amplify-d260vp72hqglnc-ma-papyrusmediabucket0dab24-uow8zgyn0ttn",

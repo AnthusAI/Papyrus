@@ -47,7 +47,7 @@ const statementsOf = (built: { template: Template }, sid: string): any =>
   policyStatements(built.template, "JobTaskRoleDefaultPolicy").find((statement) => statement.Sid === sid);
 
 // The example opts in to monitor stories; the base stack here is the template without that optional step (it is tested below and per example).
-const { stack, template, config } = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; });
+const { stack, template, config } = knowledgeStack((site) => { });
 const everything = JSON.stringify(template.toJSON());
 const stages = [...KNOWLEDGE_STAGE_NAMES];
 
@@ -132,41 +132,18 @@ assert.ok(
 );
 assert.ok(!everything.includes("sk-"), "no key anywhere in the template");
 
-// The optional monitor-stories step: absent unless the site opts in with knowledgeRun.monitorStories, then off by default, after trend-drafts, never failing the run.
-assert.equal(definition.States["monitor-stories"], undefined, "no monitorStories block: no step");
+// The retired monitor-stories step (the monitoring router drafts monitor stories daily): never in the state machine, the parameters or the task environment.
+assert.equal(definition.States["monitor-stories"], undefined);
 assert.equal(definition.States["Run-monitor-stories"], undefined);
-assert.equal(trendParameters.MonitorStoriesEnabled, undefined, "no monitorStories block: the template has no extra parameter");
+assert.equal(trendParameters.MonitorStoriesEnabled, undefined);
 assert.ok(!("MONITOR_STORIES_LIMIT" in Object.fromEntries(
   (Object.values(template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
 )));
 {
-  const withStories = knowledgeStack((site) => { site.knowledgeRun.monitorStories = { limit: 2 }; });
-  const storiesDefinition = definitionOf(withStories.template);
-  const storiesParameters = withStories.template.toJSON().Parameters;
-  assert.equal(storiesParameters.MonitorStoriesEnabled.Default, "false");
-  assert.deepEqual(storiesParameters.MonitorStoriesEnabled.AllowedValues, ["true", "false"]);
-  assert.equal(storiesDefinition.States["trend-drafts"].Next, "Run-monitor-stories", "the step comes after trend-drafts");
-  assert.deepEqual(storiesDefinition.States["trend-drafts"].Catch, [{ ErrorEquals: ["States.ALL"], Next: "Run-monitor-stories" }]);
-  assert.equal(storiesDefinition.States["Run-trend-drafts"].Default, "Run-monitor-stories", "trend drafts off: straight on to the next optional step");
-  const storiesGate = storiesDefinition.States["Run-monitor-stories"];
-  assert.equal(storiesGate.Type, "Choice");
-  assert.equal(storiesGate.Choices.length, 1);
-  assert.equal(storiesGate.Choices[0].Next, "monitor-stories");
-  assert.equal(storiesGate.Default, "Done", "disabled: the run ends as before");
-  assert.match(storiesGate.Choices[0].Condition, /^\{% '.*' = 'true' %\}$/);
-  const storiesState = storiesDefinition.States["monitor-stories"];
-  assert.deepEqual(storiesState.Arguments.Overrides.ContainerOverrides[0].Command, ["python", "/opt/papyrus-jobs/monitor_stories.py"]);
-  assert.equal(storiesState.Next, "Done");
-  assert.deepEqual(storiesState.Catch, [{ ErrorEquals: ["States.ALL"], Next: "Done" }], "a failure is swallowed, not a Fail state");
-  assert.equal(storiesState.Retry[0].MaxAttempts, 0);
-  assert.equal(storiesDefinition.States["Failed-monitor-stories"], undefined);
-  assert.ok(storiesState.Arguments.Overrides.ContainerOverrides[0].Environment.some((entry: any) => entry.Name === "MONITOR_STORIES_ENDPOINT"), "the endpoint reaches the step");
-  const storiesEnvironment = Object.fromEntries(
-    (Object.values(withStories.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
-  );
-  assert.equal(storiesEnvironment.MONITOR_STORIES_LIMIT, "2");
-  assert.equal(storiesEnvironment.KNOWLEDGE_LEDGER_TABLE !== undefined, true, "the step finds the ledger table it writes its cost row to");
-  assert.equal(knowledgeStack((site) => { site.knowledgeRun.monitorStories = {}; }).config.monitorStories?.limit, 3, "the default is three a run");
+  // A site file that still carries the retired block parses and changes nothing.
+  const withRetired = knowledgeStack((site) => { site.knowledgeRun.monitorStories = { limit: 2 }; });
+  assert.equal(withRetired.template.toJSON().Parameters.MonitorStoriesEnabled, undefined);
+  assert.equal(definitionOf(withRetired.template).States["monitor-stories"], undefined);
 }
 
 // Execution input contract: JSONata expressions over the execution context, per stage.
@@ -513,10 +490,6 @@ rejects((block) => { block.monitorSources = []; }, /knowledgeRun\.monitorSources
 rejects((block) => { block.monitorSources = ["rss"]; }, /knowledgeRun\.monitorSources names an unsupported source "rss"/);
 rejects((block) => { block.monitorSuggestions = 21; }, /knowledgeRun\.monitorSuggestions must be an integer from 0 to 20/);
 rejects((block) => { block.trendSnapshotMaxAgeDays = 8; }, /knowledgeRun\.trendSnapshotMaxAgeDays must be an integer from 0 to 7/);
-rejects((block) => { block.monitorStories = { limit: 0 }; }, /knowledgeRun\.monitorStories\.limit must be an integer from 1 to 20/);
-rejects((block) => { block.monitorStories = { limit: 21 }; }, /knowledgeRun\.monitorStories\.limit must be an integer from 1 to 20/);
-rejects((block) => { block.monitorStories = { sources: ["hn"] }; }, /knowledgeRun\.monitorStories\.sources is not a known field/);
-rejects((block) => { block.monitorStories = 3; }, /knowledgeRun\.monitorStories must be an object/);
 rejects((block) => { block.excludedSourceHosts = "ipwatchdog.com"; }, /knowledgeRun\.excludedSourceHosts must be an array of lowercase host names/);
 rejects((block) => { block.excludedSourceHosts = ["https://ipwatchdog.com/"]; }, /knowledgeRun\.excludedSourceHosts must be an array of lowercase host names/);
 rejects((block) => { block.monitorWeeks = 0; }, /knowledgeRun\.monitorWeeks must be an integer from 1 to 260/);
@@ -534,7 +507,7 @@ const environmentOf = (built: { template: Template }): Record<string, string> =>
 assert.ok(!("KNOWLEDGE_CORPUS_KEY" in staticEnvironment), "Shipped names no corpus key: the tasks find the corpus by the siteId, as before");
 assert.equal(config.corpusKey, undefined);
 assert.equal(staticEnvironment.KNOWLEDGE_APPSYNC_API_ID, "6sw6454pozbgvdgm233gqkxsxu", "the stage can seed config/amplify_outputs.json from the API id");
-const withCorpusKey = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; });
+const withCorpusKey = knowledgeStack((site) => { site.knowledgeRun.corpusKey = "ai-ml-research"; });
 const corpusEnvironment = environmentOf(withCorpusKey);
 assert.equal(withCorpusKey.config.corpusKey, "ai-ml-research");
 assert.equal(corpusEnvironment.KNOWLEDGE_CORPUS_KEY, "ai-ml-research");
@@ -545,7 +518,7 @@ assert.deepEqual(
   "a corpus key adds one variable and changes nothing else",
 );
 assert.equal(withCorpusKey.stack.stackName, stack.stackName);
-const withoutCorpusKey = environmentOf(knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; delete site.knowledgeRun.corpusKey; }));
+const withoutCorpusKey = environmentOf(knowledgeStack((site) => { delete site.knowledgeRun.corpusKey; }));
 assert.deepEqual(withoutCorpusKey, staticEnvironment, "Shipped's task environment is what it was");
 {
   const base = knowledgeStack();
@@ -555,8 +528,8 @@ assert.deepEqual(withoutCorpusKey, staticEnvironment, "Shipped's task environmen
 // Reference documents: opt-in. Without the block nothing changes; with it the tasks get the bucket and the task role may read one prefix of it.
 {
   const MEDIA = "media-bucket-for-test";
-  const optIn = (site: any) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; site.knowledgeRun.referenceDocuments = { enabled: true, mediaBucket: MEDIA }; };
-  const off = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; });
+  const optIn = (site: any) => { site.knowledgeRun.corpusKey = "ai-ml-research"; site.knowledgeRun.referenceDocuments = { enabled: true, mediaBucket: MEDIA }; };
+  const off = knowledgeStack((site) => { site.knowledgeRun.corpusKey = "ai-ml-research"; });
   const on = knowledgeStack(optIn);
   assert.equal(off.config.referenceDocuments, undefined);
   assert.ok(!("KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET" in environmentOf(off)), "no block: no variable");
@@ -581,9 +554,9 @@ assert.deepEqual(withoutCorpusKey, staticEnvironment, "Shipped's task environmen
   assert.deepEqual(list.Action, "s3:ListBucket");
   assert.deepEqual(list.Resource, `arn:aws:s3:::${MEDIA}`);
   assert.deepEqual(list.Condition, { StringLike: { "s3:prefix": ["corpora/ai-ml-research/extracted/markitdown/raw/*"] } }, "listing is limited to the same prefix");
-  const noKey = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; delete site.knowledgeRun.corpusKey; site.knowledgeRun.referenceDocuments = { enabled: true, mediaBucket: MEDIA, extractor: "pdf-text" }; });
+  const noKey = knowledgeStack((site) => { delete site.knowledgeRun.corpusKey; site.knowledgeRun.referenceDocuments = { enabled: true, mediaBucket: MEDIA, extractor: "pdf-text" }; });
   assert.equal(noKey.config.referenceDocuments?.prefix, "corpora/shipped/extracted/pdf-text/raw/", "without a corpus key the siteId names the corpus");
-  const disabled = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; site.knowledgeRun.referenceDocuments = { enabled: false, mediaBucket: MEDIA }; });
+  const disabled = knowledgeStack((site) => { site.knowledgeRun.corpusKey = "ai-ml-research"; site.knowledgeRun.referenceDocuments = { enabled: false, mediaBucket: MEDIA }; });
   assert.deepEqual(disabled.template.toJSON(), off.template.toJSON(), "enabled false leaves the template untouched");
   rejects((block) => { block.referenceDocuments = []; }, /knowledgeRun\.referenceDocuments must be an object/);
   rejects((block) => { block.referenceDocuments = { enabled: true }; }, /knowledgeRun\.referenceDocuments\.mediaBucket must be a non-empty string/);
@@ -615,12 +588,12 @@ for (const siteId of ["shipped", "p-apyr-us"]) {
 // Every site's example config carries a daily, staggered knowledge run that files routed records and monitor-story drafts.
 const SHIPPED_KEY = "/papyrus/shipped/openai-api-key";
 const SHIPPED_ALARM = "/papyrus/shipped/knowledge-run/alarm-email";
-const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: string; distribution?: string; noMonitorStories?: boolean; excludedSourceHosts?: string[]; referenceDocuments?: string }> = {
+const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: string; distribution?: string; excludedSourceHosts?: string[]; referenceDocuments?: string }> = {
   shipped: { hour: 5, key: SHIPPED_KEY },
   "anth-us": { hour: 6, key: SHIPPED_KEY },
   "threat-intelligence": { hour: 7, key: "/amplify/shared/d12wnrx15qbcc2/OPENAI_API_KEY" },
   // Distinctive's own TTAB automation drafts its monitor decisions, so it keeps trend drafts and leaves monitor stories off; a rival publication is never cited.
-  distinctive: { hour: 8, key: "/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY", noMonitorStories: true, excludedSourceHosts: ["ipwatchdog.com"] },
+  distinctive: { hour: 8, key: "/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY", excludedSourceHosts: ["ipwatchdog.com"] },
   "pilobol-us": { hour: 9, key: SHIPPED_KEY },
   "p-apyr-us": { hour: 10, key: "/papyrus/p-apyr-us/openai-api-key", corpusKey: "ai-ml-research", distribution: "E2EM0JLBC2W9WW" },
   dataparade: { hour: 11, key: "/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY", corpusKey: "data-parade" },
@@ -636,7 +609,6 @@ for (const [siteId, expected] of Object.entries(siteExpectations)) {
   seenHours.add(expected.hour);
   assert.ok(resolved.monitorSources?.includes("routed"), `${siteId} counts routed monitor records`);
   assert.equal(resolved.monitorWeeks, undefined, `${siteId} sets no monitorWeeks: all history counts`);
-  assert.deepEqual(resolved.monitorStories, expected.noMonitorStories ? undefined : { limit: 3 });
   assert.deepEqual(resolved.excludedSourceHosts, expected.excludedSourceHosts);
   assert.equal(resolved.openAiKeyParameter, expected.key);
   assert.equal(resolved.alarmEmailParameter, SHIPPED_ALARM);

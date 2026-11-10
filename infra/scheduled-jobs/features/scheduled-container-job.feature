@@ -50,26 +50,15 @@ Feature: Scheduled container jobs
     And when it is enabled and the step fails or times out, the execution still ends in Done
     And the failure is in the task log and no Fail state, alarm or rollback follows from it
 
-  Scenario: a site that does not opt in gets no monitor-stories step
-    Given the site's knowledgeRun block has no monitorStories setting
+  Scenario: the knowledge run has no monitor-stories step
+    Given any site's knowledgeRun block
     Then the state machine has no monitor-stories task and no Run-monitor-stories choice
     And the stack has no MonitorStoriesEnabled parameter and the task has no MONITOR_STORIES_LIMIT setting
-    And the template is otherwise what it was before the step existed
+    And the monitoring router's daily monitor-stories task is the only thing that drafts monitor stories
 
-  Scenario: a site that opts in with monitorStories gets an optional step after trend-drafts
-    Given the site's knowledgeRun block says monitorStories is {"limit": 2}
-    Then the stack has a MonitorStoriesEnabled parameter that is "false" by default
-    And trend-drafts continues into the Run-monitor-stories choice, also when trend-drafts is switched off
-    And when MonitorStoriesEnabled is "true", one more task, monitor-stories, runs the job script baked into the image with the AppSync endpoint of trend-drafts
-    And the task gets MONITOR_STORIES_LIMIT 2, and 3 when the block gives no limit
-    And the script calls "papyrus ideas monitor-stories --store items" with IAM authentication and writes its own ledger row with its cost
-    And it publishes nothing, it files private story_draft Proposals and raises one soft review request
-
-  Scenario: monitor stories are off until switched on and never fail the run
-    Given the stack parameter MonitorStoriesEnabled is "false", its default
-    Then the execution goes from the trend drafts straight to Done and no monitor-stories task starts
-    And when it is enabled and the step fails or times out, the execution still ends in Done
-    And the failure is in the task log and the ledger row, and no Fail state, alarm or rollback follows from it
+  Scenario: a retired monitorStories setting is still accepted and ignored
+    Given a site file whose knowledgeRun block still says monitorStories is {"limit": 3}
+    Then the block parses, the setting changes nothing in the stack, and no other unknown field is accepted any more than before
 
   Scenario: a site's committed run settings ship with the stack and nowhere else
     Given the site's knowledgeRun block names a settingsDirectory beside its site file, holding a vocabulary.yml and a stop-words.txt
@@ -84,11 +73,8 @@ Feature: Scheduled container jobs
 
   Scenario: a site can list source hosts its AI drafts never cite
     Given the site's knowledgeRun block says excludedSourceHosts is ["ipwatchdog.com"]
-    Then the task environment has KNOWLEDGE_EXCLUDED_SOURCE_HOSTS "ipwatchdog.com" and the trend-drafts and monitor-stories steps pass it to their commands as --exclude-host
+    Then the task environment has KNOWLEDGE_EXCLUDED_SOURCE_HOSTS "ipwatchdog.com" and the trend-drafts step passes it to their commands as --exclude-host
     And a site without the setting gets no such variable, and a value that is not a list of bare lowercase host names is refused with the field named
-
-  Scenario: the monitorStories setting is validated
-    Then a limit below 1 or above 20, a limit that is not a whole number, an unknown field and a value that is not an object are all refused with the field named
 
   Scenario: a failing stage ends the execution in a Fail state
     Then each stage catches every error into its own Fail state

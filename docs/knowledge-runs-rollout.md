@@ -17,7 +17,7 @@ Checked read-only against account 712236451410 (`AWS_PROFILE=papyrus-production`
 | `machines-on-machines` | `papyrus-scheduled-job-knowledge-run-machines-on-machines` | `cron(0 12 * * ? *)` | `knowledge-corpus-ai-ml-research` (shared with `p-apyr-us`; copied 2026-11-01): about 6,864 | `/papyrus/shipped/openai-api-key (shared with Shipped)` | requirements-publication.txt 5.69.0 | Prepared, not deployed (`corpusKey` `ai-ml-research`; plugin `home-page`) |
 | `dataparade` | `papyrus-scheduled-job-knowledge-run-dataparade` | `cron(0 11 * * ? *)` | `knowledge-corpus-data-parade`: 181 (none routed) | `/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY` | requirements-publication.txt 5.42.1 | Ready (`corpusKey` `data-parade`); no routed records yet |
 
-Every block has `monitorSources: ["routed"]`, no `monitorWeeks` (all history counts), `monitorStories: {"limit": 3}` and `alarmEmailParameter: /papyrus/shipped/knowledge-run/alarm-email` (one mailbox for every alarm; each new SNS subscription still has to be confirmed once from it). Each stack is 41 resources (42 in a `cdk synth` template, which adds `CDKMetadata`), the same as Shipped's, except that every stack after Shipped's sets `knowledgeRun.reuseImageRepository: true`: the account has one `papyrus-scheduled-jobs/knowledge-run` ECR repository (Shipped's stack created it), so a second stack that tried to create it would fail change-set validation. Such a stack imports the repository by name and has 40 resources. `machines-on-machines` sets it; the other five sites' example configs need it too before they deploy. `conceptKinds` and `beatsConfig` are left to the default vocabulary the first run seeds; add them when a site writes its own `vocabulary.yml`.
+Every block has `monitorSources: ["routed"]`, no `monitorWeeks` (all history counts) and `alarmEmailParameter: /papyrus/shipped/knowledge-run/alarm-email` (one mailbox for every alarm; each new SNS subscription still has to be confirmed once from it). Each stack is 41 resources (42 in a `cdk synth` template, which adds `CDKMetadata`), the same as Shipped's, except that every stack after Shipped's sets `knowledgeRun.reuseImageRepository: true`: the account has one `papyrus-scheduled-jobs/knowledge-run` ECR repository (Shipped's stack created it), so a second stack that tried to create it would fail change-set validation. Such a stack imports the repository by name and has 40 resources. `machines-on-machines` sets it; the other five sites' example configs need it too before they deploy. `conceptKinds` and `beatsConfig` are left to the default vocabulary the first run seeds; add them when a site writes its own `vocabulary.yml`.
 
 ## Pins
 
@@ -60,8 +60,7 @@ npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-shipped
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-shipped \
   --parameters KnowledgeRun-shipped:TrendDraftsEnabled=true \
   --parameters KnowledgeRun-shipped:TrendDraftsEndpoint=https://imnmexcbrzcddk2g4vl6hsn7ie.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-shipped:TrendDraftsSnapshotUrl=https://shipped.anth.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-shipped:MonitorStoriesEnabled=true
+  --parameters KnowledgeRun-shipped:TrendDraftsSnapshotUrl=https://shipped.anth.us/_data/knowledge/index.json
 ```
 
 ### anth-us
@@ -72,8 +71,7 @@ npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-anth-us
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-anth-us \
   --parameters KnowledgeRun-anth-us:TrendDraftsEnabled=true \
   --parameters KnowledgeRun-anth-us:TrendDraftsEndpoint=https://2m5fh2nqlnfxlfg2mxepp7tdbm.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-anth-us:TrendDraftsSnapshotUrl=https://anth.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-anth-us:MonitorStoriesEnabled=true
+  --parameters KnowledgeRun-anth-us:TrendDraftsSnapshotUrl=https://anth.us/_data/knowledge/index.json
 ```
 
 ### threat-intelligence
@@ -84,8 +82,7 @@ npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-threat-intellig
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-threat-intelligence \
   --parameters KnowledgeRun-threat-intelligence:TrendDraftsEnabled=true \
   --parameters KnowledgeRun-threat-intelligence:TrendDraftsEndpoint=https://2neu5y2cjrbnbkord2mdaetysi.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-threat-intelligence:TrendDraftsSnapshotUrl=https://threat-intelligence.anth.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-threat-intelligence:MonitorStoriesEnabled=true
+  --parameters KnowledgeRun-threat-intelligence:TrendDraftsSnapshotUrl=https://threat-intelligence.anth.us/_data/knowledge/index.json
 ```
 
 ### distinctive
@@ -96,8 +93,7 @@ npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-distinctive
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-distinctive \
   --parameters KnowledgeRun-distinctive:TrendDraftsEnabled=true \
   --parameters KnowledgeRun-distinctive:TrendDraftsEndpoint=https://lzc75j6qdjboblirpdtsalilnq.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-distinctive:TrendDraftsSnapshotUrl=https://distinctive-mark.com/_data/knowledge/index.json \
-  --parameters KnowledgeRun-distinctive:MonitorStoriesEnabled=true
+  --parameters KnowledgeRun-distinctive:TrendDraftsSnapshotUrl=https://distinctive-mark.com/_data/knowledge/index.json
 ```
 
 ### pilobol-us
@@ -108,8 +104,7 @@ npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-pilobol-us
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-pilobol-us \
   --parameters KnowledgeRun-pilobol-us:TrendDraftsEnabled=true \
   --parameters KnowledgeRun-pilobol-us:TrendDraftsEndpoint=https://sivqwif4onbdnoh3fm3nrl437q.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-pilobol-us:TrendDraftsSnapshotUrl=https://pilobol.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-pilobol-us:MonitorStoriesEnabled=true
+  --parameters KnowledgeRun-pilobol-us:TrendDraftsSnapshotUrl=https://pilobol.us/_data/knowledge/index.json
 ```
 
 ### p-apyr-us
@@ -120,8 +115,7 @@ npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-p-apyr-us
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-p-apyr-us \
   --parameters KnowledgeRun-p-apyr-us:TrendDraftsEnabled=true \
   --parameters KnowledgeRun-p-apyr-us:TrendDraftsEndpoint=https://632qpvm7w5emhb2zo2vomc5rae.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-p-apyr-us:TrendDraftsSnapshotUrl=https://read.p.apyr.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-p-apyr-us:MonitorStoriesEnabled=true
+  --parameters KnowledgeRun-p-apyr-us:TrendDraftsSnapshotUrl=https://read.p.apyr.us/_data/knowledge/index.json
 ```
 
 ### machines-on-machines
@@ -134,8 +128,7 @@ npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-machines-on-mac
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-machines-on-machines \
   --parameters KnowledgeRun-machines-on-machines:TrendDraftsEnabled=true \
   --parameters KnowledgeRun-machines-on-machines:TrendDraftsEndpoint=https://vuagbw3fmvalta762m4zsacxce.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-machines-on-machines:TrendDraftsSnapshotUrl=https://machines-on-machines.anth.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-machines-on-machines:MonitorStoriesEnabled=true
+  --parameters KnowledgeRun-machines-on-machines:TrendDraftsSnapshotUrl=https://machines-on-machines.anth.us/_data/knowledge/index.json
 ```
 
 ### dataparade
@@ -146,11 +139,10 @@ npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-dataparade
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-dataparade \
   --parameters KnowledgeRun-dataparade:TrendDraftsEnabled=true \
   --parameters KnowledgeRun-dataparade:TrendDraftsEndpoint=https://lncgpg57sndelgnygygdoilm7i.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-dataparade:TrendDraftsSnapshotUrl=https://dataparade.anth.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-dataparade:MonitorStoriesEnabled=true
+  --parameters KnowledgeRun-dataparade:TrendDraftsSnapshotUrl=https://dataparade.anth.us/_data/knowledge/index.json
 ```
 
-For a site whose `infra/site.json` lives in its own repo, point `SITE` at that file instead once it carries the same `knowledgeRun` block. Shipped is a redeploy of the existing stack: the new `MonitorStoriesEnabled` parameter defaults to `false`, so the command above turns it on in the same change set.
+For a site whose `infra/site.json` lives in its own repo, point `SITE` at that file instead once it carries the same `knowledgeRun` block. The retired `MonitorStoriesEnabled` stack parameter is gone: a deploy that still passes `--parameters KnowledgeRun-<site>:MonitorStoriesEnabled=...` is refused, so drop it. Monitor stories are drafted by the monitoring router's daily task for every publication ([monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily)), not by the knowledge run.
 
 ## The first run of a site waits for a person
 
@@ -165,11 +157,11 @@ aws stepfunctions start-execution --state-machine-arn $ARN \
   --name manual-$(date -u +%Y%m%dT%H%M%S) --input '{"publication":"<site>"}'
 ```
 
-Use the `siteId` for `<site>` (`shipped`, `anth-us`, `threat-intelligence`, `distinctive`, `pilobol-us`, `p-apyr-us`, `machines-on-machines`, `dataparade`). Run one by hand after each deploy and read the ledger and the `monitor-stories` log before leaving the schedule on.
+Use the `siteId` for `<site>` (`shipped`, `anth-us`, `threat-intelligence`, `distinctive`, `pilobol-us`, `p-apyr-us`, `machines-on-machines`, `dataparade`). Run one by hand after each deploy and read the ledger before leaving the schedule on.
 
 ## Order
 
 1. Image: build one from develop; check the backends have `listStoryDrafts`.
-2. Shipped: deploy and watch the 05:00 run (routed records in `corpus-sync`, ideas in the `monitor-stories` log).
+2. Shipped: deploy and watch the 05:00 run (routed records in `corpus-sync`).
 3. Ready sites, in schedule order: `threat-intelligence`, `p-apyr-us`, `machines-on-machines`, `dataparade`, `pilobol-us` (a no-op until the router delivers).
 4. After their pins are bumped: `anth-us`, then `distinctive` (and its router entry).
