@@ -180,7 +180,7 @@ class CommandTests(unittest.TestCase):
         site = Site()
         out, err, failure = self.link(site, concepts_cmd("stories_link_concept"), "--story", "big", "--concept", "#voice-cloning", "--concept", "#unpublished")
         self.assertIsNone(failure, err)
-        lines = [line.split("\t") for line in out.splitlines()]
+        lines = [line.split("\t") for line in out.splitlines() if line.startswith("stories\t")]   # not the re-render lines
         self.assertEqual([line[-2:] for line in lines], [["public page", "write"], ["no public page", "write"]])
         self.assertIn("no public wiki page", err)
         self.assertEqual({json.loads(row["metadata"])["addedBy"] for row in site.tables["SemanticRelation"].values()}, {"Grace Editor"})
