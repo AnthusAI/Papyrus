@@ -33,7 +33,7 @@ for (const vectorCase of vectors.cases) {
       if (step.op === "link") {
         await createReferenceLink(store, { subjectLineageId: step.a, objectKind: "reference", objectLineageId: step.b, predicate: step.predicate, note: step.note, callerSub: step.actor, now: step.now });
       } else if (step.op === "concept") {
-        await createReferenceLink(store, { subjectLineageId: step.reference, objectKind: "semanticNode", objectLineageId: vectors.node.lineageId, predicate: "related_to", callerSub: step.actor, now: step.now });
+        await createReferenceLink(store, { subjectLineageId: step.reference, objectKind: "semanticNode", objectLineageId: vectors.node.lineageId, predicate: "tagged_with", callerSub: step.actor, now: step.now });
       } else if (step.op === "suggest") {
         relations.set(step.seedRow.id, { ...step.seedRow, metadata: JSON.stringify(step.seedRow.metadata) });
       } else {
@@ -62,7 +62,7 @@ test("bad input is refused in words", async () => {
   await assert.rejects(createReferenceLink(store, { ...base, objectLineageId: "reference-a" }), /cannot be linked to itself/);
   await assert.rejects(createReferenceLink(store, { ...base, objectLineageId: "nope" }), /Reference not found/);
   await assert.rejects(createReferenceLink(store, { ...base, objectKind: "semanticNode", objectLineageId: "nope" }), /Concept not found/);
-  await assert.rejects(createReferenceLink(store, { ...base, objectKind: "semanticNode", objectLineageId: vectors.node.lineageId, predicate: "cites" }), /related_to/);
+  await assert.rejects(createReferenceLink(store, { ...base, objectKind: "semanticNode", objectLineageId: vectors.node.lineageId, predicate: "cites" }), /tagged_with/);
   await assert.rejects(decideReferenceLink(store, { relationId: "missing", decision: "accept", callerSub: "sub-1", now: base.now }), /not found/);
   await assert.rejects(decideReferenceLink(store, { relationId: "missing", decision: "maybe", callerSub: "sub-1", now: base.now }), /accept or reject/);
 });
@@ -123,7 +123,24 @@ test("typing a new hashtag makes the concept with its name, the editor concept k
   const [row] = [...world.relations.values()];
   const metadata = JSON.parse(row.metadata as string);
   assert.equal(result.outcome, "created");
-  assert.deepEqual({ state: row.relationState, predicate: row.predicate, object: row.objectLineageId, provenance: metadata.provenance, by: metadata.addedBy, decision: metadata.decision }, { state: "current", predicate: "related_to", object: lineage, provenance: "human", by: "editor-1", decision: "accepted" });
+  assert.deepEqual({ state: row.relationState, predicate: row.predicate, object: row.objectLineageId, provenance: metadata.provenance, by: metadata.addedBy, decision: metadata.decision }, { state: "current", predicate: "tagged_with", object: lineage, provenance: "human", by: "editor-1", decision: "accepted" });
+});
+
+test("a client that still sends related_to for a concept writes the same tagged_with row, and a legacy row for the pair is updated in place", async () => {
+  const world = conceptStore();
+  const base = { subjectLineageId: vectors.references[0], objectKind: "semanticNode", objectLineageId: vectors.node.lineageId, callerSub: "editor-1", now: "2026-11-02T12:00:00Z" };
+  world.nodes.set(vectors.node.lineageId, vectors.node);
+  const made = await createReferenceLink(world.store, { ...base, predicate: "related_to" });
+  assert.equal(world.relations.get(made.relationId)?.predicate, "tagged_with");
+  assert.equal(made.relationId, referenceLinkRelationId("tagged_with", vectors.references[0], vectors.node.lineageId));
+  await assert.rejects(createReferenceLink(world.store, { ...base, objectKind: "reference", objectLineageId: vectors.references[1], predicate: "tagged_with" }), /tags a Reference with a concept/);
+  const legacy = conceptStore();
+  legacy.nodes.set(vectors.node.lineageId, vectors.node);
+  const legacyId = referenceLinkRelationId("related_to", vectors.references[0], vectors.node.lineageId);
+  legacy.relations.set(legacyId, { id: legacyId, predicate: "related_to", relationState: "suggested", metadata: JSON.stringify({ kind: "reference.concept", provenance: "suggested" }) } as ReferenceLinkRow);
+  const kept = await createReferenceLink(legacy.store, { ...base, predicate: "tagged_with" });
+  assert.equal(kept.relationId, legacyId);
+  assert.equal(legacy.relations.size, 1);
 });
 
 test("a double tap, or the same name typed later, makes one concept and one link", async () => {

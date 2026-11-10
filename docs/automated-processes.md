@@ -102,7 +102,7 @@ A process that cannot fill a line says so in that line.
 - **Trigger.** The moment a Reference's summary vector is stored, new or rewritten because its text changed (the vector pass of the daily monitor-stories run queues one check). Never a schedule; never an accept, reject, vote or star.
 - **Inputs.** The Reference's summary vector and the publication's vector index; the site's own decided suggestions for the cut-off.
 - **Decision.** Which indexed References and concepts are close enough to suggest, cut where the site's decided suggestions say (`suggestion_calibration`).
-- **May write.** Suggested links (`related_to`, with the close-match score), one check record per Reference in the router's table, and the index's vectors; the saved place of the vector pass.
+- **May write.** Suggested links (`related_to` to another Reference, `tagged_with` to a concept, with the close-match score), one check record per Reference in the router's table, and the index's vectors; the saved place of the vector pass.
 - **Must never.** Repeat the check for text it already checked; walk the corpus to find work; decide a link (a suggestion is only a suggestion, and the card shows two of them); index rejected or archived References as live.
 - **Seen and reversed.** Suggested links on the card and in the Related section, each with Accept and Reject; the decision is recorded and trained on.
 - **Records.** One `{"suggestOnce": ...}` log line per check, the check record row, and the daily line's `suggestionsQueued`.

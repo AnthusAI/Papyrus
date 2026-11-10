@@ -45,7 +45,7 @@ A link between two concepts, with the words that say how they relate, is `papyru
 Two layers carry them into every agent's pack, first in the section block:
 
 - **`section_concepts`** (core): one card for each core concept with its name, aliases, kind, description, why the section cares (the editor's note) and its current links to other concepts, grouped by predicate, links an editor accepted first with the note the editor wrote on the link. A core concept that no longer resolves or was rejected is a warning, not a card. Empty when the section has none. When the core layers are over budget, the machine-suggested links on the cards go first and are recorded as dropped; the links an editor accepted stay whole.
-- **`concept_references`** (a ring): accepted References tagged with (`related_to`) or mentioning (`mentions`) a core concept, best first by the Reference ranking, one line each labelled with the concept. The Story's own References are left out. The budget bounds it.
+- **`concept_references`** (a ring): accepted References tagged with (`tagged_with`, or the older `related_to`) or mentioning (`mentions`) a core concept, best first by the Reference ranking, one line each labelled with the concept. The Story's own References are left out. The budget bounds it.
 
 A person's list always outranks the automatic suggestions of concepts.
 

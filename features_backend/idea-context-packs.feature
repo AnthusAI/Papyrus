@@ -69,7 +69,7 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
     When the pack ideas are drafted
     Then one idea is filed at the idea stage with a based_on link for each cited Reference
     And the idea records the context-pack origin and the pack evidence
-    And the idea is linked to the concept with a derived related_to edge
+    And the idea is linked to the concept with a derived tagged_with edge
     And the idea body ends with an Evidence section
 
   Scenario: An idea that cites one Reference is dropped and the pack goes on

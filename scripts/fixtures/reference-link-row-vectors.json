@@ -127,10 +127,10 @@
     },
     {
       "expectedRows": {
-        "reference-link-related_to-ad05b70a14d57a07": {
+        "reference-link-tagged_with-ad05b70a14d57a07": {
           "classifierId": null,
           "confidence": null,
-          "id": "reference-link-related_to-ad05b70a14d57a07",
+          "id": "reference-link-tagged_with-ad05b70a14d57a07",
           "importedAt": "2026-11-01T12:00:00Z",
           "metadata": {
             "addedAt": "2026-11-01T12:00:00Z",
@@ -153,13 +153,13 @@
           "objectSubjectStateKey": "semanticNode#node-voice#current#reference",
           "objectVersionKey": "semanticNode#node-voice-v1",
           "objectVersionNumber": 1,
-          "predicate": "related_to",
-          "predicateObjectStateKey": "related_to#semanticNode#node-voice#current",
+          "predicate": "tagged_with",
+          "predicateObjectStateKey": "tagged_with#semanticNode#node-voice#current",
           "rank": 1,
-          "relationDomain": "generic",
+          "relationDomain": "editorial",
           "relationState": "current",
-          "relationTypeId": "semantic-relation-type-related-to",
-          "relationTypeKey": "related_to",
+          "relationTypeId": "semantic-relation-type-tagged-with",
+          "relationTypeKey": "tagged_with",
           "reviewRecommended": false,
           "score": 1,
           "subjectId": "reference-a-v1",

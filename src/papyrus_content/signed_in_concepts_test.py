@@ -93,7 +93,7 @@ def test_a_reference_is_linked_to_a_concept_and_a_dry_run_sends_nothing():
     out = run(references_link, ["--reference", "ref-1", "--concept", "boxing", "--note", "The sibling problem"], site)
     assert site.calls == [("createReferenceLink", {
         "subjectLineageId": "ref-1", "objectKind": "semanticNode", "objectLineageId": "semantic-node-editor_concept--confinement-problem",
-        "predicate": "related_to", "note": "The sibling problem"})]
+        "predicate": "tagged_with", "note": "The sibling problem"})]
     assert "created\trel-1" in out
 
 
@@ -123,7 +123,8 @@ def test_a_reference_link_needs_one_target_a_known_predicate_and_a_concept_that_
         (["--reference", "ref-1"], "exactly one of"),
         (["--reference", "ref-1", "--to-reference", "ref-2", "--concept", "boxing"], "exactly one of"),
         (["--reference", "ref-1", "--to-reference", "ref-2", "--predicate", "likes"], "--predicate must be"),
-        (["--reference", "ref-1", "--concept", "boxing", "--predicate", "cites"], "related_to"),
+        (["--reference", "ref-1", "--concept", "boxing", "--predicate", "cites"], "tagged_with"),
+        (["--reference", "ref-1", "--to-reference", "ref-2", "--predicate", "tagged_with"], "tags a Reference with a concept"),
         (["--reference", "ref-1", "--concept", "Spam", "--create"], "was rejected"),
         (["--apply", "--reference", "ref-1", "--to-reference", "ref-2"], "no longer accepts --apply"),
     ):

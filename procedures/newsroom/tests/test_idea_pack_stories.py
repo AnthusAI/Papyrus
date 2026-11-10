@@ -118,7 +118,7 @@ def test_a_valid_response_files_ideas_with_based_on_links_evidence_and_concept_e
     assert based_on == set(result.filed[0]["citedReferences"]) and len(based_on) == 2
     assert "## Evidence" in first["bodyMarkus"] and "#voice-cloning" in first["bodyMarkus"] and "accepted References linked to" in first["bodyMarkus"]
     edges = [row for row in client.tables["SemanticRelation"].values() if row["objectKind"] == "semanticNode"]
-    assert len(edges) == 1 and edges[0]["subjectKind"] == "item" and edges[0]["predicate"] == "related_to" and edges[0]["relationState"] == "current"
+    assert len(edges) == 1 and edges[0]["subjectKind"] == "item" and edges[0]["predicate"] == "tagged_with" and edges[0]["relationState"] == "current"
     assert json.loads(edges[0]["metadata"])["provenance"] == "derived"
 
 
