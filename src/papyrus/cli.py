@@ -152,7 +152,7 @@ def _map_references(command: str, flags: list[str]) -> int:
     if command == "capture-thumbnails":
         from papyrus_content.references_thumbnails import command as thumbnails_command
         return thumbnails_command(flags)
-    if command in {"list", "show", "register"}:
+    if command in {"list", "show", "text", "register"}:
         return dispatch_operator_command("references", command, flags)
     newsroom_reference_commands = {
         "curate-recent",
