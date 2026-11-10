@@ -679,13 +679,14 @@ def stories_checklist_backfill(flags: list[str]) -> None:
     print(f"stories\tchecklist-backfill\t{'write' if apply else 'dry run'}\t" + "\t".join(f"{name} {value}" for name, value in counts.items()))
 
 def stories_lens_check(flags: list[str]) -> None:
-    """papyrus stories lens-check --story <lineage> [--lens people|agents|search|social] [--static <web directory>] [--json]
+    """papyrus stories lens-check --story <lineage> [--lens people|agents|search|social] [--static <web directory>] [--no-network] [--json]
 
     Read only; it writes nothing. Runs the checks of the four review lenses that code can run on the Story's current version and prints each finding
     with its state (Looks fine, Needs a look, Problem, Could not check), plain words and where to look. Four problems must be fixed before a lens
     step can close as done: an image with no alt text, a third-party image with no credit, a video with no title or no credit and a Markdown copy that differs from the source.
     --static names the site's web directory (it holds projection.json; default PAPYRUS_SITE_STATIC_DIR); without it the checks that need the site's
-    settings say they could not be checked (docs/four-lens-review.md)."""
+    settings say they could not be checked (docs/four-lens-review.md). The social lens fetches the planned share picture (status, type, format, size);
+    --no-network skips that fetch and the check reports the picture as not verified."""
     from .audience_lenses import LENS_VERSION, STATE_LABELS
     from .lens_evidence import blockers, load_site, not_run, run_checks, story_from_row, summarize
     from .story_reporting import current_story_version
@@ -698,7 +699,9 @@ def stories_lens_check(flags: list[str]) -> None:
     client, _ = create_authoring_client()
     story = story_from_row(current_story_version(client, lineage_id))
     site = load_site(static)
-    findings = run_checks(story, site, lens=lens)
+    from .share_image_check import fetch_over_http
+
+    findings = run_checks(story, site, lens=lens, fetch_image=None if options.get("no-network") else fetch_over_http)
     counts, problems, skipped = summarize(findings), blockers(findings), not_run(lens)
     if options.get("json"):
         print(json.dumps({"ok": True, "story": lineage_id, "versionId": story.version_id, "versionNumber": story.version_number, "lensVersion": LENS_VERSION,

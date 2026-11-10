@@ -86,7 +86,10 @@ STEPS: tuple[Step, ...] = (
          "Search crawlers. Findings are recorded by hand for now (PPY-59c772df).", True, versioned=True),
     Step("review_social", "copywriting", "Editor or reviewing agent", "Reviewed for social previews",
          "papyrus stories step --story {story} --step review_social --state done --note <findings>", LIVE, False,
-         "Social previews (link cards). Findings are recorded by hand for now (PPY-59c772df).", True, versioned=True),
+         "Social previews (link cards). Run `papyrus stories lens-check --story {story} --lens social --static web`: it fetches the planned og:image (absolute HTTPS, status, Content-Type, format, size, shape). "
+         "A WebP or AVIF, a small or oddly shaped picture, a missing, invalid or unreachable one is a warning or not verified, never a pass; make a JPEG or PNG share rendition and keep the modern format for the page. "
+         "Also read title, description and picture together for relevance, legibility, alt text and misleading context. The findings note records the tested URL, format, dimensions and result, and any platform uncertainty "
+         "(no result is proof a platform shows the card). After publishing, fetch the live page and check its og:image and twitter:image and the public picture; report CDN or platform cache staleness separately.", True, versioned=True),
     Step("concepts", "copywriting", "Editor or reviewing agent", "Associate with relevant Concepts",
          "papyrus stories link-concept --story {story} --concept \"Name\" --note <why>", LIVE, False,
          "Tag the Story with the existing accepted Concepts it is about (stories link-concept: exact names, never creates one). No Story command creates a Concept: make a missing one from a Reference "
