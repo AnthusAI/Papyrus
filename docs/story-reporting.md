@@ -258,13 +258,29 @@ A story or a Reference is tagged with a concept by one edge: `tagged_with` (labe
 `accepted`, `relationState` `current`, metadata `kind` `item.concept` (stories) or `reference.concept` (References), `provenance` `human` (a signed-in person) or
 `derived` (an agent), `addedBy`, `addedAt` and an optional `note`. The writers are `link_item_concept` and `link_concept` in `reference_links.py`; the row id is
 deterministic (it includes the predicate), so a repeat is the same row. `mentions` stays for concepts the enrichment found in text. `related_to` was the tag's name
-before 2026-11-09: rows under it still exist (the console, the suggestion pipeline and the idea pack builder still write them), so every reader accepts both
-(`CONCEPT_TAG_PREDICATES`; the one place to rename again), and the audit lists the old ones as "legacy: migrate". The migration is not built.
+before 2026-11-09. Every writer (the console and the CLI through `createReferenceLink`, the vector suggestions, the idea pack builder) now writes `tagged_with`; `related_to` stays
+for two References and for two concepts. Rows written under the old name are still read (`CONCEPT_TAG_PREDICATES` in Python and `lib/reference-links.ts`), the audit lists them as
+"legacy: migrate", and a tag writer does not add a second row beside a legacy one (a rejected legacy tag stays rejected).
+
+`papyrus relations migrate-concept-tags [--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]` moves them (operator lane, IAM: editors cannot update relations).
+**A dry run is the default** and writes nothing: it prints the counts by subject kind (story or Reference), state and provenance, and a sample. With `--apply`, for each legacy
+`related_to` edge from a story or a Reference to a concept, in the states `current`, `suggested` and `rejected`, it writes the equivalent `tagged_with` row (same ends, state,
+score, classifier, and the whole metadata: provenance, who added and decided it and when, the decision, reason, note and explanation, plus `migratedFromRelationId`), then
+retires the old row: `relationState` `superseded`, its state keys rewritten (readers query `...#current`, `...#suggested`, `...#rejected`, so it is out of every reader's view),
+and `supersededBy` and `supersededAt` in its metadata. Nothing is deleted. A rejected tag becomes a rejected `tagged_with` row, so the rejection is kept. It is idempotent and
+resumable: a retired row is no longer found, and a pair whose `tagged_with` row exists (an interrupted run, or a tag made after the rename) only has its legacy row retired.
+Two `related_to` kinds never move: Reference to Reference and concept to concept. The legacy rows are found with the `semanticRelationsByObjectState` index (three keys per concept,
+25 to a request) after the one read of the concept list; no relation table scan. `--corpus-key` / `--site` keep the References of `knowledge-corpus-<key>`; stories are
+always included; `--limit` takes at most N edges. A report is written to `.papyrus-runs/concept-tag-migration-<time>/migration-report.json`. After a run,
+`check-links --legacy-only` prints only the legacy tags and their count (zero when done), and a `superseded` row is never reported. Production steps:
+[concept tag migration runbook](concept-tag-migration-runbook.md).
 
 ```bash
 papyrus stories link-concept --story <lineage-or-slug> --concept <name|#hashtag|nodeKey> [--concept ...] [--note TEXT] [--dry-run] [--json]
 papyrus references link-concept --reference <id> --concept <name|#hashtag|nodeKey> [--concept ...] [--note TEXT] [--dry-run] [--json]
 ```
+
+**The pages update at once, without a purge.** After a real write that created a link, `link-story` and `link-concept` (stories) ask the site to re-render exactly the published stories whose page changed (both ends of a story link; the story of a Reference or concept link; a Reference has no public page) with `papyrus ops content rerender --story LINEAGE --no-invalidate` behind the scenes. Nothing is purged: the HTML lifetime is five minutes, so the link shows within about five minutes. Each story prints `rerender  LINEAGE  no purge  ok`, then `visible on the site within about five minutes; nothing was purged`. A dry run, a repeat that wrote nothing and unpublished stories re-render nothing; `--no-rerender` skips it. At most 20 stories are re-rendered per command; the rest are listed as exact commands. A failed or timed-out re-render is a warning on stderr naming the stories and the manual command (a timeout may still have completed on the server); the link stays and the command succeeds. The server has no batch path, so the stories are re-rendered one after another and one call can take about a minute; a progress line `rerendering LINEAGE (about a minute)...` is printed on stderr before each, and the wait follows `PAPYRUS_GRAPHQL_TIMEOUT_SECONDS` (30 seconds signed in, 120 on the operator lane, when it is unset), so raise it for a command with several targets or pass `--no-rerender` and re-render later. The agent tools `papyrus_link_stories` and `papyrus_link_concepts` do the same and return a `rerendered` list (and `rerenderWarnings` on a failure).
 
 These are rigid on purpose, because an outside agent uses them. No option or field chooses a predicate, a state or a new concept (`--predicate`, `--relation`,
 `--state` and `--create` are refused). A concept is never created: it must already be an accepted SemanticNode, found by exact node key, exact hashtag (the part after
@@ -276,14 +292,66 @@ wiki page (a published wiki page whose `entityKey` is the concept's slug, the pa
 story page links a concept only once a page exists. Who added it comes from the sign-in as for `link-reference` (`human`); on the IAM lane `--author-label` is required
 (`derived`). The agent tool is `papyrus_link_concepts(target_kind, target, concepts[], author_label, note?)` (Tactus, `tactus_tools.py`; `target_kind` is `story` or
 `reference`) and the MCP-shaped entry of the same name in `story_signals_mcp.py`. The older `papyrus references link --concept` (editors; it can create a concept and
-writes `related_to` through the site's `createReferenceLink`) is not the agent route.
+writes `tagged_with` through the site's `createReferenceLink`, which also accepts `related_to` for a concept and writes `tagged_with`) is not the agent route.
 
 `papyrus stories check-links [--story ...] [--json]` and `papyrus references check-links (--reference ID | --corpus-id ID) [--json]` are read only audits. They list every
 story-to-story, story-to-concept and Reference-to-concept relation that is not the official shape: a wrong predicate or kind, a state that is not `current`, a concept that
-is missing, not accepted or without a public page, a story target that is not published, a legacy `related_to` tag, and duplicate pairs. `mentions` to an accepted
+is missing, not accepted or without a public page, a story target that is not published, a legacy `related_to` tag (`--legacy-only` lists only those and counts them; a `superseded` row is not reported), and duplicate pairs. `mentions` to an accepted
 concept is an accepted shape. Fixing is out of scope. Cost: the stories audit reads the published-story summaries once, then three index reads per story (25 keys to a
 request) and one batched concept read; the References audit reads the corpus's accepted References through `referencesByCurationStatusKey` and the same three index reads
 per Reference (827 References: about 100 relation requests), with no table scan. Specs: `features_backend/concept-tags.feature`.
+
+## Suggesting related content
+
+Ryan, 2026-11-09: linking a story to related articles, posts and References starts from the story's concepts and is computed from the graph, with no model call, so a
+person or model judges a short ranked list. Two hops: first the **related concepts**, then the **carriers** of those concepts.
+
+```bash
+papyrus stories suggest-links --story <lineage-or-slug> [--kinds articles,posts,references] [--limit N] [--min-score S] [--include-linked] [--json]
+papyrus stories suggest-associations (--story <lineage-or-slug> | --reference <id>) [--kinds articles,posts,references] [--limit N] [--json]
+papyrus knowledge concepts related --concept <name|#hashtag|nodeKey> [--limit N] [--json]
+papyrus knowledge concepts search "free text" [--limit N] [--json]      # or: --list
+```
+
+`suggest-links` is read only. The story's own concepts weigh 1.0 when curated (`tagged_with`, or the older `related_to`) and 0.4 when only an accepted `mentions`. Related
+concepts add: a confirmed concept link (`related_to`, `same_as`, `alias_of` between two concepts, with the explanation a person wrote) about 0.5, a concept that appears
+together with one of the story's on the newest 60 published stories and accepted References that carry it about 0.3 times a lift-based strength (so hubs do not dominate;
+at least 2 shared carriers and lift 1.5). Then every published article, post and accepted Reference that carries any of those concepts is scored: the sum of the concept's
+weight times its rarity (`ln((N+1)/(df+1))`), a mention counting 0.6 of a tag, with up to 10% more for recent content. A concept carried by more than 25% of the published
+stories counts at a low weight. Left out: the story itself, stories already linked by `see_also` in either direction, References already linked by `uses_evidence` (any role)
+or a `see_also` edge from the story, unpublished stories, References that are not accepted, and concepts that are not accepted. Output is grouped **See also**
+(articles), **Posts** and **Related findings** (References), top 5 each by default: score, title, type, date or host, the shared concepts by readable name, the path
+(`direct` or `via A, then B`), and the exact ready command (`papyrus stories link-story --story <lineage> --to <lineage>` or `--reference <id>`). A story with no accepted
+concept says so; tag it first with `link-concept`. The last line is the request count (about 20 to 35 for one story on the live Machines on Machines site; no table is
+scanned: indexes and 25-key batched gets only).
+
+`concepts related` lists the concepts near one concept with the reason (`confirmed`, `alias`, `linked`, `cooccurrence`), found with the same exact resolver as
+`link-concept` (never created, never fuzzy). `concepts search` finds accepted concepts for free text by meaning: the text is embedded once (`text-embedding-3-small`, the
+same provider as `references suggest-links`) and only `concept_card` and `ontology_concept_profile` vectors are queried; popularity never affects the order. A typed
+exact (then prefix) concept name or alias comes first, labelled `name match`; the rest are `meaning`. Each result shows the similarity, whether the concept has a public wiki
+page (a published `wiki_page` Item whose `entityKey` is the bare slug, the part of the node key after `--`, read from the published-item summaries when the type index is empty;
+the same check `stories link-concept` and `check-links` use), how many published stories and accepted References carry it (information only), and duplicate flags in three
+tiers: `same name` (equal once case and punctuation are ignored, or the same words in any order), `likely duplicate` (concept cards at least 0.90 alike) and `possible
+duplicate`, a suggestion for a person to check (cards at least 0.60 alike and a shared word of 4+ letters; the two "contextual integrity" cards are only 0.66 alike).
+
+**Free-text search needs an embedding key and is not validated against live data.** It embeds the query with `OPENAI_API_KEY`, which must be set and valid in the shell. The
+signed-in editor lane has no embedding key (unlike `references search`, which embeds on the server through the `searchReferences` query), so there the command stops with
+that explanation instead of a raw HTTP 401. A server-side lane (a new query field next to `searchReferences`) is a follow-up. Name matches, `--list`, `concepts related` and
+`suggest-links` need no key. It says plainly when the index has no concept vectors or is missing some accepted concepts, and prints the `knowledge-vector-index --action sync` command that
+repairs it. `--list` prints every accepted concept alphabetically. Agent tools (read only, closed argument lists): `papyrus_suggest_links`, `papyrus_related_concepts`,
+`papyrus_search_concepts` (Tactus `tactus_tools.py` and `story_signals_mcp.py`). The story checklist has a **Related content** step (`related_content`, not required) that
+points here. Code: `src/papyrus_content/link_suggestions.py`, `concept_search.py`; specs: `features_backend/suggest-links.feature`.
+
+**`suggest-associations` (no search phrases to invent).** `suggest-links` needs concepts the story already carries. `papyrus stories suggest-associations --story X` (or
+`--reference X`) builds one query from the item itself (title, summary, the first ~300 words of the body) and (1) finds the accepted concepts that text names: the
+concept's name, aliases and `#hashtag`, matched as whole words (a short name is never found inside a longer word; a name of three letters or fewer keeps its letter case),
+ranked by rarity and position (title over summary over body); no model, no embedding key, so it works in the signed-in editor lane. When the shell has `OPENAI_API_KEY` and a
+vector index, the concepts nearest the text by meaning are added, otherwise one `NOTE` line says it matched by name only (a server-side concept query is still the follow-up above).
+(2) The top concepts seed the `suggest-links` graph pass (weight 0.4 to 0.8, below a curated tag), so related articles, posts and References are ranked even for an untagged
+item. Every concept and candidate prints its exact `link-concept` / `link-story` command; a concept the item already carries is marked `already tagged`. For a Reference the
+related stories carry `papyrus stories link-story --story <candidate> --reference <id>`, and its own text comes from the curation card and stored text (title alone if those
+cannot be read). Read only: it never writes a relation (it does not use `references suggest-links`). Code: `src/papyrus_content/association_suggestions.py`; specs:
+`features_backend/suggest-associations.feature`.
 
 ## Notes: people write Messages, agents write agent notes
 

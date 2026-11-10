@@ -20,6 +20,7 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { parse } from "yaml";
 import { assertCostTags, checkCostTags } from "../amplify/vendor/anthus-cost-accounting/tags";
 import { siteCostAttribution, usageQueueUrlFor } from "../amplify/cost-attribution";
+import { costTagWave, planCostTagWaves, STACK_OPERATION_RESOURCE_LIMIT, WAVE_RESOURCE_BUDGET } from "../amplify/cost-tag-waves";
 import { parseSiteConfig } from "../infra/amplify-app-shell/lib/site-config";
 import { KnowledgeRunStack } from "../infra/scheduled-jobs/lib/knowledge-pipeline";
 import { resolveKnowledgeRunConfig } from "../infra/scheduled-jobs/lib/knowledge-run-config";
@@ -45,45 +46,101 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
   assert.throws(() => assertCostTags(Template.fromStack(stack).toJSON()), /Ledger[A-Z0-9]+ \(AWS::DynamoDB::Table\): anthus:app, anthus:account, anthus:cost-key/);
 }
 
-// Scenario: cost accounting is opt-in; on, the backend build needs its site ID and configures no Account.
+// Scenario: the backend tags itself only when backend-deploy asks for a wave, and takes its site ID from site.json.
 {
-  assert.equal(siteCostAttribution({}), null);
-  assert.equal(siteCostAttribution({ PAPYRUS_SITE_ID: "dataparade" }), null, "a site ID alone does not opt in");
-  for (const value of ["", "ON", "true", "1", "off", " on"]) assert.equal(siteCostAttribution({ PAPYRUS_COST_TAGS: value, PAPYRUS_SITE_ID: "dataparade" }), null, JSON.stringify(value));
-  assert.throws(() => siteCostAttribution({ PAPYRUS_COST_TAGS: "on" }), /needs PAPYRUS_SITE_ID .*Refusing to synthesize an untagged backend/);
-  assert.deepEqual(siteCostAttribution({ PAPYRUS_COST_TAGS: "on", PAPYRUS_SITE_ID: "dataparade" }), { account: "owner", app: "papyrus", deployment: "dataparade" });
+  const noSite = fs.mkdtempSync(path.join(os.tmpdir(), "papyrus-no-site-"));
+  const withSite = fs.mkdtempSync(path.join(os.tmpdir(), "papyrus-site-"));
+  try {
+    fs.mkdirSync(path.join(withSite, "infra"));
+    fs.writeFileSync(path.join(withSite, "infra", "site.json"), JSON.stringify({ siteId: "dataparade" }));
+    assert.equal(siteCostAttribution({}, withSite), null, "no wave, no cost accounting");
+    assert.equal(siteCostAttribution({ PAPYRUS_SITE_ID: "dataparade" }, noSite), null, "a site ID alone does not tag");
+    assert.equal(siteCostAttribution({ PAPYRUS_COST_TAGS: "on", PAPYRUS_SITE_ID: "dataparade" }, noSite), null, "the old switch does nothing");
+    assert.deepEqual(siteCostAttribution({ PAPYRUS_COST_TAG_WAVE: "1" }, withSite), { account: "owner", app: "papyrus", deployment: "dataparade", wave: 1 });
+    assert.deepEqual(siteCostAttribution({ PAPYRUS_COST_TAG_WAVE: "all", PAPYRUS_SITE_ID: "dataparade" }, withSite), { account: "owner", app: "papyrus", deployment: "dataparade", wave: Infinity });
+    assert.deepEqual(siteCostAttribution({ PAPYRUS_COST_TAG_WAVE: "2", PAPYRUS_SITE_ID: "sandbox-site" }, noSite), { account: "owner", app: "papyrus", deployment: "sandbox-site", wave: 2 });
+    assert.throws(() => siteCostAttribution({ PAPYRUS_COST_TAG_WAVE: "1", PAPYRUS_SITE_ID: "shipped" }, withSite), /PAPYRUS_SITE_ID is shipped but infra\/site.json says dataparade/);
+    assert.throws(() => siteCostAttribution({ PAPYRUS_COST_TAG_WAVE: "1" }, noSite), /needs its site ID .*Refusing to synthesize an untagged backend/);
+    for (const value of ["0", "on", "-1", "1.5", "ALL"]) assert.throws(() => costTagWave({ PAPYRUS_COST_TAG_WAVE: value }), /wave number from 1 or "all"/, value);
+  } finally {
+    fs.rmSync(noSite, { recursive: true, force: true });
+    fs.rmSync(withSite, { recursive: true, force: true });
+  }
 }
 
-// Scenario: a site that has not opted in synthesizes a backend with no cost tags and no usage environment.
+// Scenario: no wave's operation goes over the budget, counting the parent stacks each wave updates.
 {
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), "papyrus-cost-off-"));
-  try {
-    const environment = { ...process.env };
-    delete environment.PAPYRUS_COST_TAGS;
-    delete environment.PAPYRUS_SITE_ID;
-    const run = spawnSync(process.execPath, ["--import", "tsx", path.join(repo, "scripts/synth-site-backend.mts"), out], { cwd: repo, encoding: "utf8", env: environment });
-    assert.equal(run.status, 0, run.stderr || run.stdout);
-    const templates = fs.readdirSync(out).filter((file) => file.endsWith(".template.json"));
-    assert.ok(templates.length > 5, `expected the backend's nested stacks, got ${templates.join(", ")}`);
-    for (const file of templates) {
-      const text = fs.readFileSync(path.join(out, file), "utf8");
-      assert.ok(!text.includes("anthus:"), `${file} has an anthus: tag`);
-      assert.ok(!text.includes("SendUsageToOwnProspectusQueue"), `${file} grants usage sends`);
-      for (const resource of Object.values<any>(JSON.parse(text).Resources ?? {})) {
-        // Tags on a table are what made 5.99.0 update every table at once: a site that has not opted in has none.
-        // (Amplify's own tags, such as amplify:app-id and created-by, are the pre-cost-accounting ones and stay.)
-        if (resource.Type === "AWS::DynamoDB::Table") {
-          const keys = (resource.Properties?.Tags ?? []).map((tag: any) => tag.Key);
-          assert.deepEqual(keys.filter((key: string) => key.startsWith("anthus:")), [], `${file} has a table with an anthus: tag`);
-        }
-        const variables = resource.Properties?.Environment?.Variables ?? {};
-        assert.equal(variables.PAPYRUS_SITE_ID, undefined, file);
-        assert.equal(variables.PROSPECTUS_USAGE_QUEUE_URL, undefined, file);
-      }
+  const units = [
+    { id: "root", parentId: null, resources: 40 },
+    { id: "root/data", parentId: "root", resources: 160 },
+    ...Array.from({ length: 30 }, (_, i) => ({ id: `root/data/model${String(i).padStart(2, "0")}`, parentId: "root/data", resources: 90 })),
+    { id: "root/function", parentId: "root", resources: 300, first: true },
+  ];
+  const plan = planCostTagWaves(units);
+  assert.deepEqual(plan.waves.flat().sort(), units.map((unit) => unit.id).sort(), "every stack is in exactly one wave");
+  assert.equal(plan.waves[0][0], "root/function", "the usage senders' stack goes first");
+  for (const cost of plan.costs) assert.ok(cost <= WAVE_RESOURCE_BUDGET, `wave cost ${cost}`);
+  // A later wave of models also pays for the data stack and the root above them: 40 + 160 + 90 per model.
+  const last = plan.waves[plan.waves.length - 1];
+  assert.ok(!last.includes("root") && !last.includes("root/data"));
+  assert.equal(plan.costs[plan.costs.length - 1], 40 + 160 + 90 * last.length);
+  assert.ok(plan.waves.length >= 2, `${plan.waves.length} waves`);
+  // A stack bigger than the budget gets a wave of its own; one past CloudFormation's limit cannot be planned.
+  const big = planCostTagWaves([{ id: "root", parentId: null, resources: 10 }, { id: "root/huge", parentId: "root", resources: 2000 }, { id: "root/small", parentId: "root", resources: 5 }]);
+  assert.deepEqual(big.waves, [["root"], ["root/huge"], ["root/small"]]);
+  assert.throws(() => planCostTagWaves([{ id: "root", parentId: null, resources: STACK_OPERATION_RESOURCE_LIMIT + 1 }]), /over CloudFormation's 2500/);
+}
+
+const synthBackend = (out: string, extra: Record<string, string>) => {
+  const environment: NodeJS.ProcessEnv = { ...process.env, ...extra };
+  for (const key of ["PAPYRUS_COST_TAGS", "PAPYRUS_SITE_ID", "PAPYRUS_COST_TAG_WAVE", "PAPYRUS_COST_TAG_PLAN_FILE"]) if (!(key in extra)) delete environment[key];
+  const run = spawnSync(process.execPath, ["--import", "tsx", path.join(repo, "scripts/synth-site-backend.mts"), out], { cwd: repo, encoding: "utf8", env: environment });
+  assert.equal(run.status, 0, run.stderr || run.stdout);
+  const files = fs.readdirSync(out).filter((file) => file.endsWith(".template.json"));
+  assert.ok(files.length > 5, `expected the backend's nested stacks, got ${files.join(", ")}`);
+  return Object.fromEntries(files.map((file) => [file, JSON.parse(fs.readFileSync(path.join(out, file), "utf8"))]));
+};
+const waveOutput = (templates: Record<string, any>) =>
+  Object.values<any>(templates).flatMap((template) => Object.entries<any>(template.Outputs ?? {})).find(([key]) => key === "PapyrusCostTagWave")?.[1]?.Value;
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "papyrus-cost-"));
+process.on("exit", () => fs.rmSync(scratch, { recursive: true, force: true }));
+
+// Scenario: a build that does not ask for a wave (a plain ampx pipeline-deploy) synthesizes the backend it had before.
+const offTemplates = synthBackend(path.join(scratch, "off"), {});
+{
+  assert.equal(waveOutput(offTemplates), undefined, "no wave output without a wave");
+  for (const [file, template] of Object.entries<any>(offTemplates)) {
+    const text = JSON.stringify(template);
+    assert.ok(!text.includes("anthus:"), `${file} has an anthus: tag`);
+    assert.ok(!text.includes("SendUsageToOwnProspectusQueue"), `${file} grants usage sends`);
+    for (const resource of Object.values<any>(template.Resources ?? {})) {
+      const variables = resource.Properties?.Environment?.Variables ?? {};
+      assert.equal(variables.PAPYRUS_SITE_ID, undefined, file);
+      assert.equal(variables.PROSPECTUS_USAGE_QUEUE_URL, undefined, file);
     }
-  } finally {
-    fs.rmSync(out, { recursive: true, force: true });
   }
+}
+
+// Scenario: the first wave's operation is under CloudFormation's limit, and the plan counts it as the templates do.
+{
+  const planFile = path.join(scratch, "plan-1.json");
+  const waveOne = synthBackend(path.join(scratch, "wave-1"), { PAPYRUS_COST_TAG_WAVE: "1", PAPYRUS_SITE_ID: "dataparade", PAPYRUS_COST_TAG_PLAN_FILE: planFile });
+  const plan = JSON.parse(fs.readFileSync(planFile, "utf8"));
+  assert.ok(plan.waves.length > 1, "a whole backend takes more than one wave");
+  assert.equal(waveOutput(waveOne), `1/${plan.waves.length}`);
+  const changed = Object.keys(waveOne).filter((file) => JSON.stringify(waveOne[file]) !== JSON.stringify(offTemplates[file]));
+  // Wave 1 changes only its own stacks and their parents: the stacks the plan counted.
+  const parents = (id: string): string[] => { const parts = id.split("/"); return parts.map((_, i) => parts.slice(0, i + 1).join("/")); };
+  const counted = new Set<string>(plan.waves[0].flatMap((id: string) => parents(id)).map((id: string) => plan.templates[id]).filter(Boolean));
+  const outside = changed.filter((file) => !counted.has(file));
+  assert.deepEqual(outside, [], "wave 1 changes stacks the plan did not count");
+  const changedResources = changed.reduce((sum, file) => sum + Object.keys(waveOne[file].Resources ?? {}).length + 1, 0);
+  assert.ok(changedResources <= STACK_OPERATION_RESOURCE_LIMIT, `wave 1 updates ${changedResources} resources`);
+  assert.ok(changedResources <= plan.costs[0], `wave 1 updates ${changedResources} resources but the plan counted ${plan.costs[0]}`);
+  assert.ok(changed.length < Object.keys(waveOne).length, "wave 1 leaves some stacks alone");
+  for (const cost of plan.costs) assert.ok(cost <= WAVE_RESOURCE_BUDGET, `a wave costs ${cost}`);
+  // The usage senders are wired in the first pass, so their roles carry the site's tags from the start.
+  assert.ok(JSON.stringify(waveOne).includes("SendUsageToOwnProspectusQueue"));
 }
 
 // Scenario: each site's app shell and private chat stack are tagged with its site ID. The harness lives in the
@@ -109,16 +166,13 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
   assert.equal(tagsOf(lease, table)["anthus:cost-key"], "shared/papyrus/");
 }
 
-// Scenario: every stack of the site backend is tagged, and the model-calling functions may send only to their own queue.
+// Scenario: once every wave is deployed, every stack of the site backend is tagged, and the model-calling functions may
+// send only to their own queue.
 {
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), "papyrus-cost-tags-"));
-  try {
-    const run = spawnSync(process.execPath, ["--import", "tsx", path.join(repo, "scripts/synth-site-backend.mts"), out], {
-      cwd: repo,
-      encoding: "utf8",
-      env: { ...process.env, PAPYRUS_COST_TAGS: "on", PAPYRUS_SITE_ID: "dataparade" },
-    });
-    assert.equal(run.status, 0, run.stderr || run.stdout);
+  const out = path.join(scratch, "all");
+  {
+    const all = synthBackend(out, { PAPYRUS_COST_TAG_WAVE: "all", PAPYRUS_SITE_ID: "dataparade" });
+    assert.equal(waveOutput(all), "complete");
     const templates = fs.readdirSync(out).filter((file) => file.endsWith(".template.json"));
     assert.ok(templates.length > 5, `expected the backend's nested stacks, got ${templates.join(", ")}`);
     const senders: string[] = [];
@@ -153,8 +207,6 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
     }
     assert.equal(senders.length, 2, `the editorial-checks and knowledge-query functions send usage; found ${senders.join(", ")}`);
     assert.equal(sendStatements, 2, "each sender's role may send to its own site's queue only");
-  } finally {
-    fs.rmSync(out, { recursive: true, force: true });
   }
 }
 

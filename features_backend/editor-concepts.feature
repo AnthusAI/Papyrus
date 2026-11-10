@@ -24,7 +24,7 @@ Feature: A concept an editor invents by typing its hashtag is a real concept eve
   Scenario: Typing a new hashtag makes the concept and a confirmed human link in one step
     When an editor types the hashtag "#Fake Website Networks" on a Reference
     Then a concept "fake website networks" of the kind editor concept exists with the key "editor_concept--fake-website-networks", accepted, with who made it and when and no description
-    And the Reference has one current related_to link to it, made by a person and confirmed
+    And the Reference has one current tagged_with link to it, made by a person and confirmed
 
   Scenario: Typing the same name again, in any case, tags with the same concept
     When an editor types the hashtags "#fake-website-networks" and "FAKE website NETWORKS" on a Reference

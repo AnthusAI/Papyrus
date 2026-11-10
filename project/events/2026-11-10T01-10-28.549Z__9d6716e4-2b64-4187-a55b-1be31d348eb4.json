@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9d6716e4-2b64-4187-a55b-1be31d348eb4",
+  "issue_id": "PPY-dc320c7d-20ce-4a00-806c-5c9cb3c61697",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T01:10:28.549Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cards hotlink third-party images instead of a stored copy",
+    "description": "Found while scanning Machines on Machines index cards (2026-11-09): some cards use an image URL on someone else's host as the front-matter image: arXiv teasers, Guardian (i.guim.co.uk), Springer, Wikimedia (upload.wikimedia.org), 21no.de, archive.aec.at. Fragility: the picture disappears or changes when the third party moves, renames, hotlink-blocks or removes it; a reader's browser contacts the third party when a card scrolls into view (privacy, no way for us to cache or resize it); no responsive renditions, no Night version. Rights question: showing a copy we do not store may still need a licence or credit, and storing a copy needs the right to copy it (third-party images are always credited, generated ones are not). To decide: which sources may be copied (licence, fair use, press kit), whether the capture step (references capture-thumbnails style) should store a copy at media/assets/... for these cards, and what a card shows when no stored copy is allowed (placeholder art). Not fixed here; the card-image rendition fix (fix/card-image-src) only covers pictures we store.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

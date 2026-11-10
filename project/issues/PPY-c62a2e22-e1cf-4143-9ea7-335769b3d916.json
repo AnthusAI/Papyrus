@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c62a2e22-e1cf-4143-9ea7-335769b3d916",
+  "title": "Index cards show no cover when the original file is missing",
+  "description": "Machines on Machines 2026-11-09: four stories' cards were coverless while the article page showed the picture. Cause 1: save-version --images renumbered a changed picture (chart.png to chart-2.png) and rewrote the body but left the front-matter image on the old path, which the site never held (it predates media.originals, and an unchanged re-upload sends no bucket event). Cause 2: cards drew the front-matter path itself, so a missing original meant no cover. Fix branch fix/card-image-src: save-version moves front-matter card pictures with the body; every page img that names a stored picture uses the rendition the article page uses. Related: PPY-dc320c7d (hotlinked images).",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-10T01:10:43.326486Z",
+  "updated_at": "2026-11-10T01:10:43.326515Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

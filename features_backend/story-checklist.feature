@@ -13,14 +13,14 @@ Feature: The editorial checklist of a Story
     Given an empty newsroom
     When I run "stories create" with "--title Brand-new-Story"
     Then the procedure command succeeded
-    And the Story has 11 checklist items
+    And the Story has 13 checklist items
     And the checklist item "choose" is "open"
     And the checklist item "review_people" is "open"
     And the checklist item "review_reader_agents" is "open"
     And the checklist item "review_search" is "open"
     And the checklist item "review_social" is "open"
     And the checklist item "publish" is "open"
-    And every checklist item records template version 2
+    And every checklist item records template version 4
 
   Scenario: Steps that are off or not built have no item
     Given an empty newsroom
@@ -169,7 +169,7 @@ Feature: The editorial checklist of a Story
     And the Story's checklist exists
     When I run "stories step" with "--story story-1 --step outline --state skipped --reason 'Written by hand'"
     And I run "stories step" with "--story story-1 --step direction --state not_applicable --reason 'From a Reference'"
-    Then the Story card progress reads "2/11 · 1 skipped"
+    Then the Story card progress reads "2/13 · 1 skipped"
     And the Story summary lists "research" among the required steps still open
 
   Scenario: Publishing is refused while a required step is open
@@ -197,7 +197,7 @@ Feature: The editorial checklist of a Story
     Given a Story at the "copywriting" stage
     When the Story is published by an editor
     Then publishing was refused saying "Reviewed for readers"
-    And the Story has 11 checklist items
+    And the Story has 13 checklist items
 
   Scenario: Pages that are not Stories have no checklist and are not held
     Given a Story at the "copywriting" stage
@@ -211,7 +211,7 @@ Feature: The editorial checklist of a Story
     When I run "stories next" with "--story story-1"
     Then the procedure output has an "item" line for "choose" showing "done"
     And the procedure output has an "item" line for "outline" showing "open"
-    And the procedure output mentions "1/11"
+    And the procedure output mentions "1/13"
 
   Scenario: Stories next says so when a Story has no checklist yet and writes nothing
     Given a Story at the "reporting" stage

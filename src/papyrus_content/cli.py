@@ -365,6 +365,10 @@ PORTED_COMMANDS = frozenset(
         "stories:versions",
         "stories:link-reference",
         "stories:link-story",
+        "stories:suggest-links",
+        "stories:suggest-associations",
+        "relations:related",
+        "relations:search",
         "stories:note",
         "stories:agent-note",
         "stories:show",
@@ -382,6 +386,7 @@ PORTED_COMMANDS = frozenset(
         "stories:repair-versions",
         "stories:repair-image-paths",
         "stories:set-slug",
+        "stories:set-type",
         "stories:set-stars",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
@@ -446,6 +451,7 @@ PORTED_COMMANDS = frozenset(
         "newsroom:purge-planning",
         "relations:import-types",
         "relations:backfill",
+        "relations:migrate-concept-tags",
         "ontology:preflight",
         "ontology:rank",
         "ontology:status",
@@ -869,6 +875,11 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         getattr(concept_tags_commands, route.replace(":", "_").replace("-", "_"))(flags)
     elif route == "stories:link-story":
         stories_link_story(flags)
+    elif route in ("stories:suggest-links", "stories:suggest-associations", "relations:related", "relations:search"):
+        from . import link_suggestions_commands
+
+        {"stories:suggest-links": link_suggestions_commands.stories_suggest_links, "stories:suggest-associations": link_suggestions_commands.stories_suggest_associations, "relations:related": link_suggestions_commands.relations_related,
+         "relations:search": link_suggestions_commands.relations_search}[route](flags)
     elif route == "stories:note":
         stories_note(flags)
     elif route == "stories:agent-note":
@@ -931,6 +942,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_assign_research
 
         stories_assign_research(flags)
+    elif route == "stories:set-type":
+        from .story_commands import stories_set_type
+
+        stories_set_type(flags)
     elif route == "stories:create":
         from .story_commands import stories_create
 
@@ -1039,6 +1054,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         relations_import_types(flags)
     elif route == "relations:backfill":
         relations_backfill(flags)
+    elif route == "relations:migrate-concept-tags":
+        from .relations_commands import relations_migrate_concept_tags
+
+        relations_migrate_concept_tags(flags)
     elif route.startswith("ontology:"):
         from .ontology_enrichment import (
             ontology_associate,

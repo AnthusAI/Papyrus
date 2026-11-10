@@ -18,9 +18,13 @@ One definition of how a Story moves through the newsroom. The command line reads
 | review_reader_agents | copywriting | Editor or reviewing agent | the same, with `--step review_reader_agents` | live, by hand |
 | review_search | copywriting | Editor or reviewing agent | the same, with `--step review_search` | live, by hand |
 | review_social | copywriting | Editor or reviewing agent | the same, with `--step review_social` | live, by hand |
+| concepts | copywriting | Editor or reviewing agent | `papyrus stories link-concept --story LINEAGE --concept NAME --note WHY`, then `papyrus stories step --story LINEAGE --step concepts --state done --note FINDINGS` | live, by hand, required |
+| related_content | copywriting | Editor or reviewing agent | `papyrus stories suggest-links --story LINEAGE`, link the good ones with `stories link-story`, then `--step related_content --state done --note FINDINGS` | live, by hand, required |
 | illustration | illustration | Editor | none yet | not built, optional |
 | typesetting | typesetting | Editor | none yet | not built, optional |
 | publish | published | A person | `papyrus ops content publish --id ITEM_ID` | live |
+
+The `concepts` and `related_content` steps come after the four review lenses and before publishing (template version 4). Both are required like the reviews: done with a findings note (the Concepts added and those left out; what was linked and what was left out and why), skipped with a reason, or not applicable with a reason. No Story command creates a Concept: make a missing one from a Reference (`references link --reference ID --concept NAME --create`) or in the newsroom.
 
 The illustration and typesetting steps are described in [story-illustration-typesetting.md](story-illustration-typesetting.md).
 

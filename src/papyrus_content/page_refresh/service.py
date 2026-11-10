@@ -27,7 +27,7 @@ from ..edge_invalidation import FREE_PATHS_PER_MONTH, USD_PER_PATH_AFTER_FREE, i
 from .budget import DRY_RUN_ABOVE, Budget
 from ..projection.model import SiteIndex
 from ..publishing import published_item_id_for
-from .paths import InvalidPagePath, expand_site_paths, forms_of_path, paths_for_page_keys
+from .paths import InvalidPagePath, expand_site_paths, forms_of_path, keys_under, normalize_prefixes, paths_for_page_keys
 
 STATE_PREFIX = "_state/"
 RERENDER_SCOPES = ("story", "indexes", "all")
@@ -110,11 +110,17 @@ class RefreshService:
         result["pages"] = {"indexes": keys}
         return result
 
-    def rerender(self, scope: str, *, lineage: str | None = None, invalidate: bool = True, dry_run: bool = False, confirm: bool = False, force_paths: int | None = None) -> dict[str, Any]:
+    def rerender(self, scope: str, *, lineage: str | None = None, invalidate: bool = True, dry_run: bool = False, confirm: bool = False, force_paths: int | None = None, under: Sequence[str] | None = None) -> dict[str, Any]:
         if scope not in RERENDER_SCOPES:
             raise RefreshError("invalid_input", f"scope must be one of {', '.join(RERENDER_SCOPES)}.")
         if (scope == "story") != bool(lineage):
             raise RefreshError("invalid_input", "scope story needs a Story lineage id, and no other scope takes one.")
+        if under and scope != "indexes":
+            raise RefreshError("invalid_input", "--under (under) limits a re-render of the index pages: use it with --indexes.")
+        try:
+            prefixes = normalize_prefixes(under) if under else []
+        except InvalidPagePath as error:
+            raise RefreshError("invalid_input", str(error)) from error
         context = self._projection()
         context.invalidate = None   # this operation purges, below, with exact paths; the engine's own purge turns a big run into /*
         site = context.source.site_index()
@@ -126,13 +132,19 @@ class RefreshService:
             item_id = summary.item_id
             target.update({"storyLineageId": lineage, "itemId": item_id})
         planned = planned_rerender_keys(projector, site, scope, item_id)
+        if prefixes:
+            every = planned
+            planned = keys_under(every, prefixes, url_style_of(projector))
+            if not planned:
+                raise RefreshError("no_pages_match", f"No index page has a URL path starting with {', '.join(prefixes)}. This site has {len(every)} index page files; the first are: {', '.join('/' + key for key in every[:8])}.")
+            target["under"] = prefixes
         planned_paths = paths_for_page_keys(planned, url_style_of(projector)) if invalidate else []
         verdict = self._guard(planned_paths, dry_run=dry_run, confirm=confirm, force_paths=force_paths, requested=invalidate)
         if verdict["dry"] or verdict["refusal"]:
             result = self._finish("site_rerender_pages", target, planned_paths, dry_run=dry_run, invalidate=invalidate, confirm=confirm, force_paths=force_paths, verdict=verdict)
             result["rendered"] = {"ok": True, "dryRun": True, "wouldWrite": planned, "count": len(planned), "errors": []}
             return result
-        report = run_rerender(context, scope, item_id)
+        report = run_rerender(context, scope, item_id, only=planned if prefixes else None)
         written = [key for key in report.written if not key.startswith(STATE_PREFIX)]
         rendered = {"ok": report.ok, "written": written, "count": len(written), "unchanged": len(report.unchanged), "deleted": list(report.deleted), "errors": list(report.errors)}
         # An editor's explicit re-render purges every page it rendered, including pages whose stored bytes were already current: the edge may
@@ -418,11 +430,11 @@ def planned_rerender_keys(projector: Any, site: SiteIndex, scope: str, item_id: 
     return sorted({*items, *projector.listing_inputs(site), *indexes})
 
 
-def run_rerender(context: Any, scope: str, item_id: str | None):
+def run_rerender(context: Any, scope: str, item_id: str | None, only: Sequence[str] | None = None):
     from ..projection.engine import project, project_all, project_listings
 
     if scope == "story":
         return project(context, item_id)
     if scope == "indexes":
-        return project_listings(context)
+        return project_listings(context, only=only)
     return project_all(context)

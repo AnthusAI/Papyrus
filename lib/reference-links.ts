@@ -61,6 +61,7 @@ export type RelationRow = {
 
 export const RELATED_PREDICATE_WORDS: Record<string, { outgoing: string; incoming: string }> = {
   related_to: { outgoing: "relates to", incoming: "relates to" },
+  tagged_with: { outgoing: "relates to", incoming: "relates to" },   // a concept tag reads as before the rename (related_to)
   cites: { outgoing: "cites", incoming: "cited by" },
   supports: { outgoing: "supports", incoming: "supported by" },
   contradicts: { outgoing: "contradicts", incoming: "contradicted by" },

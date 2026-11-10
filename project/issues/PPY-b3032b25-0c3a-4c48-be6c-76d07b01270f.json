@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b3032b25-0c3a-4c48-be6c-76d07b01270f",
+  "title": "Editor-session rough edges from the Lamar Roman case: Reference intake, story type, vector lanes",
+  "description": "Found 2026-11-09 by the editing session filing four References and a post (all on Papyrus 5.100.0). (1) papyrus stories create has no --type; no stories set-type; new stories are the site default or 'untyped' (cannot publish): add --type article|post and a rigid stories set-type. (2) references prepare-catalog needs a local steering config (unusable signed in); create-from-catalog rejects the id field make-catalog writes; the user-session corpus key is ai-ml-research, not knowledge-corpus-ai-ml-research: make make-catalog output accepted as is, make prepare-catalog unnecessary or signed-in, fix docs. (3) 3 of 4 creates timed out with unknown outcome until PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300: raise the default or report may-have-completed with a safe re-run. (4) references suggest-links fails for editors with Missing PAPYRUS_S3_VECTOR_INDEX_ARN, and free-text knowledge concepts search needs a local embedding key: add a server-side lane next to searchReferences for concept search and suggest-links. (5) knowledge entities list returns about 100 generated entities and has no search (knowledge concepts search/--list in PR #1341 addresses it for operators). (6) references list has no --stars/--min-stars/--sort rank (stories list has them). (7) No source kind (Reference.type, PPY-0cd359) and no same-story/same-document grouping command; only references link with related_to|cites|supports|contradicts. (8) references link --create makes concepts with the legacy related_to; migrate to tagged_with. (9) ideas digest groups by section and label, not by concept clusters or Reference links; whether stars feed it is unverified.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T21:30:22.931050Z",
+  "updated_at": "2026-11-09T21:30:22.931409Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

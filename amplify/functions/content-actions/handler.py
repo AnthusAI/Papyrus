@@ -293,11 +293,13 @@ def refresh_site_pages_action(arguments: dict, who: str = "content-actions") -> 
         if not inputs.get("confirm") and checked["invalidation"]["count"] > DRY_RUN_ABOVE:
             return {**checked, "needsRun": True, "hint": "This was a dry run: more than 5 paths need a second, explicit call. Repeat the same request with --run (confirm: true) to do it."}
         task = {"task": PAGE_REFRESH_RERENDER_TASK, "scope": inputs["scope"], "invalidate": inputs.get("invalidate", True), "forcePaths": inputs.get("forcePaths"), "who": who}
+        if inputs.get("under"):
+            task["under"] = list(inputs["under"])
         if not schedule_projection_task(task, "page refresh"):
             return {"ok": False, "operation": name, "error": {"code": "not_scheduled", "message": "The re-render could not be scheduled; nothing was written."}}
         return {
             "ok": True, "operation": name, "dryRun": False, "target": {"scope": inputs["scope"]}, "scheduled": True,
-            "rendered": {"ok": None, "scheduled": True, "count": 0, "errors": []},
+            "rendered": {"ok": None, "scheduled": True, "requested": (checked.get("rendered") or {}).get("count", 0), "errors": []},
             "invalidation": {"ok": True, "status": "scheduled" if inputs.get("invalidate", True) is not False else "not-requested", "paths": checked["invalidation"]["paths"], "count": checked["invalidation"]["count"], "requests": [], "cost": checked["invalidation"]["cost"]},
         }
     return run_page_refresh(name, inputs, service)
@@ -537,7 +539,7 @@ def _run_projection_task(task: dict, lambda_context=None) -> dict:
             raise ProjectionTaskFailed("; ".join(result["errors"]))
         return result
     elif task.get("task") == PAGE_REFRESH_RERENDER_TASK:
-        result = refresh_service(client, task.get("who") or "scheduled").rerender(task["scope"], lineage=task.get("storyLineageId"), invalidate=task.get("invalidate", True) is not False, confirm=True, force_paths=task.get("forcePaths"))
+        result = refresh_service(client, task.get("who") or "scheduled").rerender(task["scope"], lineage=task.get("storyLineageId"), invalidate=task.get("invalidate", True) is not False, confirm=True, force_paths=task.get("forcePaths"), under=task.get("under"))
         if not result["ok"]:
             raise ProjectionTaskFailed(json.dumps({"rendered": result.get("rendered"), "invalidation": {key: result["invalidation"].get(key) for key in ("status", "error")}}))
         return result

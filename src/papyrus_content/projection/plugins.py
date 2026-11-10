@@ -20,6 +20,7 @@ PLUGIN_ASSET_DIRECTORY = Path(__file__).parent / "plugin_assets"
 PLUGIN_STATIC_ASSETS: dict[str, dict[str, str]] = {
     "alexa": {},  # no files: its privacy and terms pages are projected by standard/alexa_pages.py (mirrors ALEXA_STATIC_ASSETS)
     "home-page": {},  # ships no static files; listed so PAPYRUS_PLUGINS=home-page is a known name
+    "notifications": {},  # ships no static files yet; reader pages come with a later Caducus release
     "reader-steering": {"_plugins/papyrus-reader@1.js": "papyrus-reader.js", "_plugins/papyrus-reader@1.css": "papyrus-reader.css"},
     "newsletter": {"_plugins/papyrus-newsletter@1.js": "papyrus-newsletter.js", "_plugins/papyrus-newsletter-pages@1.js": "papyrus-newsletter-pages.js"},
     "signup": {"_plugins/papyrus-signup@1.js": "papyrus-signup.js"},

@@ -152,10 +152,9 @@ export type AmplifyAppShellSiteConfig = {
    */
   autoDeploy: boolean;
   /**
-   * Prospectus cost accounting (docs/cost-accounting.md). Default false: the site's stacks and Amplify backend get no
-   * anthus: cost tags, because tagging touches every DynamoDB table and CloudFormation refuses an update that large.
-   * True tags the app shell and private chat stacks and sets the branch variables PAPYRUS_COST_TAGS=on and
-   * PAPYRUS_SITE_ID, which switch the site backend's tags and usage senders on.
+   * Prospectus cost accounting (docs/cost-accounting.md) on the app shell and private chat stacks. Default true: every
+   * resource gets the anthus: cost tags. The site backend tags itself in waves (papyrus-infra backend-deploy) and reads
+   * its site ID from this file, so nothing here switches it.
    */
   costAccounting: boolean;
   ci?: CiGateConfig;
@@ -729,7 +728,7 @@ export function parseSiteConfig(raw: unknown, environment: Record<string, string
   const autoDeploy = record.autoDeploy ?? true;
   if (typeof autoDeploy !== "boolean") fail("autoDeploy", "must be a boolean");
 
-  const costAccounting = record.costAccounting ?? false;
+  const costAccounting = record.costAccounting ?? true;
   if (typeof costAccounting !== "boolean") fail("costAccounting", "must be a boolean");
 
   const ci = parseCi(record.ci, autoDeploy as boolean);
