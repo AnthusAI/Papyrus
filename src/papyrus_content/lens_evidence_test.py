@@ -80,3 +80,14 @@ def test_a_story_whose_page_the_site_does_not_declare_still_gets_the_text_checks
     odd["section"] = "elsewhere"
     found = {each["check"]: each for each in evidence.run_checks(evidence.story_from_row(odd), site)}
     assert found["P7"]["state"] == "problem" and found["S5"]["state"] == "not_assessable" and "no page of its own" in found["S5"]["message"]
+
+
+def test_a_dek_that_differs_from_the_blurb_is_not_a_concern():
+    front = "title: Board refuses\ndek: Directors said the price was too low.\nblurb: The board refused the offer, saying the price was too low.\n"
+    assert findings("The board refused it.", front=front)["P2"]["state"] == "pass"
+
+
+def test_a_dek_that_is_a_copy_of_the_blurb_is_a_concern_whatever_the_spacing_and_case():
+    front = "title: Board refuses\ndeck: The board refused it.\nblurb: the board  refused it.\n"
+    found = findings("The board refused it.", front=front)["P2"]
+    assert found["state"] == "concern" and "copy of the blurb" in found["message"]

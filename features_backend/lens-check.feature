@@ -587,3 +587,32 @@ Feature: papyrus stories lens-check reports what code can check about a Story fo
     When the lens checks run
     Then the finding "C4" says "Record this in the social review note: Share picture https://example.test/assets/share.webp"
     And the finding "C4" says "912x572"
+
+  Scenario: A dek that differs from the blurb is expected and raises nothing
+    Given a Story with the front matter
+      """
+      title: Board refuses the merger
+      dek: Directors said the price undervalued the company.
+      blurb: Acme Corp's board refused Beta Ltd's merger offer on Tuesday, saying the price undervalued the company.
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    When the lens checks run
+    Then the finding "P2" is a "pass"
+
+  Scenario: A dek that is a verbatim copy of the blurb is a concern
+    Given a Story with the front matter
+      """
+      title: Board refuses the merger
+      dek: The board refused the merger on Tuesday.
+      blurb: The board refused the merger on Tuesday.
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    When the lens checks run
+    Then the finding "P2" is a "concern"
+    And the finding "P2" says "copy of the blurb"

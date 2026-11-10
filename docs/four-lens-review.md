@@ -67,7 +67,7 @@ Audience: people reading or skimming the page.
 | Check | What it asks | Method | Severity | Evidence | Runs in lens-check |
 | --- | --- | --- | --- | --- | --- |
 | P1 | The headline is present, is not a placeholder and is not another Story's headline | checked by code | warn | the title, and the other Story if duplicated | yes |
-| P2 | The Story has a dek (the summary line under the headline) | checked by code | warn | which field was used, or that the page will use the first paragraph | yes |
+| P2 | The Story has a dek (the summary line under the headline) | checked by code | warn | which field was used, that the page will use the first paragraph, or that the dek is a verbatim copy of the blurb (a dek that merely differs from the blurb is expected) | yes |
 | P3 | The dek adds something the headline does not | judged by Jev | info | the question, the answer and its probability | not yet |
 | P4 | The headline does not promise what the Story does not deliver | judged by Jev | warn | the question, the answer and the sentence compared | not yet |
 | P5 | The opening paragraph works as an opening | judged by Jev | info | the question and the answer | not yet |

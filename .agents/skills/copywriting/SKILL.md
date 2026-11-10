@@ -43,6 +43,12 @@ These hold for every publication. The site's policies add its own rules on top.
   the measurement, or the failure case the publication's mission asks for. If the
   evidence for that is missing, stop and say what is missing; don't write around
   it.
+- **The dek and the blurb are different on purpose.** The blurb is a short
+  summary for index pages and cards, written to stand alone because it appears
+  out of context. The dek (subtitle) is read on the article page as part of the
+  article, so it must read smoothly with the headline and the opening paragraph
+  and must not repeat them. Write both, differently; never paste one into the
+  other (an identical copy is a defect). Worked example: `papyrus guide write-story`.
 - **Tense is a claim.** Write about the publisher's own systems in the past tense
   for history ("we ran", "we measured"). Use the future tense for offers ("we'll
   run this for you"). Use the present tense only for what you verified is true

@@ -333,10 +333,20 @@ def check_p1(facts: Facts) -> dict[str, Any]:
     return finding("P1", PASS, f"The headline is \"{short(title)}\".", title=title, notChecked=not_checked)
 
 
+def _same_words(first: str, second: str) -> bool:
+    return " ".join(first.split()).casefold() == " ".join(second.split()).casefold()
+
+
 def check_p2(facts: Facts) -> dict[str, Any]:
     names = (facts.standard.summary_fields or SUMMARY_FIELD_NAMES)
     used = next((name for name in names if str(facts.front_matter.get(name) or "").strip()), None)
     if used:
+        # The blurb and the dek are meant to differ (the blurb stands alone on cards; the dek reads with the headline and opening), so a
+        # difference is never a concern. Only a dek that is a verbatim copy of the blurb is.
+        dek = next((str(facts.front_matter[name]) for name in ("dek", "deck") if str(facts.front_matter.get(name) or "").strip()), "")
+        blurb = str(facts.front_matter.get("blurb") or "")
+        if dek and blurb and _same_words(dek, blurb):
+            return finding("P2", CONCERN, "The dek is a copy of the blurb. They are meant to differ: the blurb stands alone on index pages and cards, the dek reads with the headline and the opening paragraph.", field=used, text=short(dek, 300))
         return finding("P2", PASS, f"The dek comes from \"{used}\".", field=used, text=short(str(facts.front_matter[used]), 300))
     return finding("P2", CONCERN, "The Story has no dek. The page will use its first paragraph as the description.", field=None, opening=short(facts.opening))
 
