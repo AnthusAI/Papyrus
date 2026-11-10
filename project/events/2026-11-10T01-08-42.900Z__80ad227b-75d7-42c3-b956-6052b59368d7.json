@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "80ad227b-75d7-42c3-b956-6052b59368d7",
+  "issue_id": "PPY-d70702b8-966b-497f-9bbf-bb69002d1da8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T01:08:42.900Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Console routes missing for links: checklist anchor, concept page on fresh load of /concepts/<id>, drawer for unloaded/renamed boards",
+    "description": "Found while writing docs/console-links.md. (1) The story checklist is a panel in the board drawer with no hash or query of its own. (2) /newsroom/concepts/<id> shows the concept index on a first load because parseRouteSelection reads the segment as a category; only ?node= works. (3) ?open=contentItem:<lineage> is silent when the story's column is not loaded (published/spiked load when opened), and the /articles to renamed-board redirect drops the query. Also: publish the board path segment so the CLI can link renamed boards.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

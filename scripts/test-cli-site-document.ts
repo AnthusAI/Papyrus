@@ -10,7 +10,7 @@ const OUTPUTS: SiteOutputs = {
   auth: { identity_pool_id: "us-east-1:00000000-0000-4000-8000-000000000000" },
 };
 
-async function serve(environment: { PAPYRUS_TENANT_ID?: string; PAPYRUS_ENGINE_VERSION?: string }, outputs: SiteOutputs | null = null) {
+async function serve(environment: Parameters<typeof handleSiteDocument>[0] & object, outputs: SiteOutputs | null = null) {
   const response = handleSiteDocument(environment, () => outputs);
   return { status: response.status, cache: response.headers.get("cache-control"), body: await response.json() as Record<string, unknown> };
 }
@@ -64,6 +64,24 @@ const behaviours: Record<string, () => Promise<unknown>> = {
     const result = await serve({ PAPYRUS_ENGINE_VERSION: "5.81.0" }, { storage: { bucket_name: "Not A Bucket!" }, auth: { identity_pool_id: "pool" } });
     assert.deepEqual(result.body, { papyrus_version: "5.81.0" });
     return result;
+  },
+  async console_url_is_the_console_origin_plus_the_newsroom_path() {
+    const own = await serve({ PAPYRUS_SITE_ORIGIN: "https://news.example.test", PAPYRUS_CONSOLE_ORIGIN: "https://newsroom.news.example.test", newsroomBasePath: "/newsroom" });
+    assert.deepEqual(own.body, { console_url: "https://newsroom.news.example.test/newsroom" });
+    const same = await serve({ PAPYRUS_SITE_ORIGIN: "https://news.example.test", newsroomBasePath: "/newsroom" });
+    assert.deepEqual(same.body, { console_url: "https://news.example.test/newsroom" }, "without a console host the console is on the site's own host");
+    const root = await serve({ PAPYRUS_CONSOLE_ORIGIN: "https://newsroom.example.test", newsroomBasePath: "" });
+    assert.deepEqual(root.body, { console_url: "https://newsroom.example.test" }, "a console-only host mounts the newsroom at its root");
+    return own;
+  },
+  async console_url_is_left_out_when_the_origin_is_unknown_or_unsafe() {
+    for (const environment of [{ newsroomBasePath: "/newsroom" }, { PAPYRUS_SITE_ORIGIN: "http://news.example.test", newsroomBasePath: "/newsroom" },
+      { PAPYRUS_SITE_ORIGIN: "https://news.example.test/path?x=1", newsroomBasePath: "/newsroom" }, { PAPYRUS_SITE_ORIGIN: "https://user@news.example.test", newsroomBasePath: "/newsroom" },
+      { PAPYRUS_SITE_ORIGIN: "https://news.example.test", newsroomBasePath: "/news room" }]) {
+      const result = await serve(environment);
+      assert.ok(!("console_url" in result.body), JSON.stringify(environment));
+    }
+    return {};
   },
   async unreadable_outputs_do_not_fail() {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "site-document-"));

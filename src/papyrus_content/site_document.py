@@ -2,8 +2,8 @@
 
 The sign-in file (`papyrus-cli.json`, read by `cli_user_auth.discover`) is strict: an unknown field makes every installed CLI
 refuse the site. This second public file carries the rest, so it can grow without breaking anyone: the site's tenant id (only
-when the site has one), the Papyrus version it runs, and the media bucket and identity pool a signed-in editor uploads
-pictures with (`stories save-version --images`). A site that has not been upgraded serves no such file, and nothing
+when the site has one), the Papyrus version it runs, the media bucket and identity pool a signed-in editor uploads
+pictures with (`stories save-version --images`), and the console's own address (`console_url`, for `papyrus links`). A site that has not been upgraded serves no such file, and nothing
 fails because of that. Everything here is public and is never a credential; the tenant scopes requests and authorizes nothing.
 """
 from __future__ import annotations
@@ -54,6 +54,15 @@ def parse(raw: bytes) -> dict | None:
         value = data.get(name)
         if isinstance(value, str) and pattern.match(value):
             found[name] = value
+    # Where the newsroom console is, so a link to one item can be built without guessing (`papyrus links`). A value that is not an https
+    # address is left out, so a bad value never becomes a link.
+    console = data.get('console_url')
+    if isinstance(console, str):
+        from .console_links import ConsoleLinkError, normalize_console_url
+        try:
+            found['console_url'] = normalize_console_url(console)
+        except ConsoleLinkError:
+            pass
     return found
 
 

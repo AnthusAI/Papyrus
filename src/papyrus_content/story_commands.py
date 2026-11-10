@@ -8,6 +8,7 @@ import re
 import sys
 from pathlib import Path
 
+from .console_links import print_console_rows, story_links
 from .audience_lenses import lens_lines, lens_payload, lens_step_states
 from .graphql_authoring import create_authoring_client
 from .newsroom_process import assess, next_lines, print_next_lines, print_reminder, reminder_assessment, step_lines, story_facts, warn_skipped
@@ -155,6 +156,7 @@ def stories_save_version(flags: list[str]) -> None:
     for line in [*plan_output, *upload_output]:
         print(line)
     print(f"stories\tsave-version\tsaved\t{record['id']}")
+    print_console_rows("stories", "save-version", lambda base: story_links(base, lineage_id, record["id"], f"editor page of the version just saved (version {next_number})"))
     if options.get("outline"):
         mark_story_outline(client, record, actor=author)
         print(f"stories\tsave-version\toutline\t{record['id']}")
@@ -469,6 +471,7 @@ def stories_show(flags: list[str]) -> None:
     from .story_signals import signals
 
     if versions:
+        print_console_rows("stories", "show", lambda base: story_links(base, lineage_id, latest["id"], f"editor page of the current version (version {latest.get('versionNumber')})"))
         signal = signals(latest, normalize_string(options.get("bucket")) or DEFAULT_STORY_BUCKET, utc_today())
         print("\t".join(["stories", "show", "signals", f"type {signal['type']}", f"section {signal['section']}", f"bucket {signal['bucket']}",
                          f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
@@ -815,6 +818,7 @@ def stories_create(flags: list[str]) -> None:
         print("stories\tcreate\twarning\tthis story has no type and cannot be published until it has one: run papyrus stories set-type --story <lineage> --type post|article")
     print(f"stories\tcreate\tcreated\t{item['id']}")
     print(f"stories\tcreate\tlineage\t{lineage_id}")
+    print_console_rows("stories", "create", lambda base: story_links(base, lineage_id, item["id"], "editor page of the first version"))
     for reference_id in reference_ids:
         linked = link_reference_to_story(client, lineage_id, reference_id, role="based_on", actor=actor)
         print(f"stories\tcreate\tbased on\t{linked['referenceLineageId']}")

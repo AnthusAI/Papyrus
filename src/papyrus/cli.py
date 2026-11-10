@@ -330,6 +330,10 @@ def _run_with_arguments(argv: list[str] | None) -> int:
         from papyrus_content.cli_doctor import run as doctor_run
         return doctor_run(args[1:])
 
+    if args[0] == "links":
+        from papyrus_content.console_links import links_command
+        return links_command(args[1:])
+
     if args[0] in {"login", "logout", "whoami", "auth"}:
         from papyrus_content.cli_user_auth import command as auth_command
         return auth_command(args)
