@@ -6,6 +6,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
+from .content_item_lifecycle import HEAD_STAGE_KEY_FIELD, head_stage_fields
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, strip_unsupported_payload_fields
 from .ids import hash_short
 from .model_attachments import expand_private_payload_records, upload_attachment_body
@@ -147,6 +148,11 @@ def build_record_change_from_current(
                 next_expected.pop(key, None)
     if current and model_name in APPEND_ONLY_EXISTING_NOOP_MODELS:
         return {"modelName": model_name, "expected": current, "current": current, "action": "noop"}
+    if model_name == "Item":
+        # The head stage key follows the row's stage and version state (docs/plans/story-head-stage-index.md); it rides on the write this change makes.
+        next_expected.update(head_stage_fields({**(current or {}), **next_expected}))
+        if not current and next_expected.get(HEAD_STAGE_KEY_FIELD) is None:
+            next_expected.pop(HEAD_STAGE_KEY_FIELD)
     action = "create" if not current else ("noop" if records_equal_for_model(model_name, current, next_expected) else "update")
     return {
         "modelName": model_name,
@@ -158,6 +164,8 @@ def build_record_change_from_current(
 
 def records_equal_for_model(model_name: str, current: dict[str, Any], expected: dict[str, Any]) -> bool:
     ignored = {"updatedAt", "createdAt", "importedAt", "versionCreatedAt"}
+    if model_name == "Item":
+        ignored.add(HEAD_STAGE_KEY_FIELD)   # derived; a row read from a site without the field must not look changed (the backfill writes it)
     if model_name == "Reference":
         ignored |= {"newsroomFeedKey", "curationStatusUpdatedAt", *KEPT_FEED_FIELDS}
     keys = {key for key in {*current.keys(), *expected.keys()} if key not in ignored}

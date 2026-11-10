@@ -5,6 +5,7 @@ from .commands.references import (
   run_references_list,
   run_references_register,
   run_references_show,
+  run_references_text,
 )
 from .config import load_operator_config
 from .errors import OperatorError
@@ -14,6 +15,7 @@ from .help_text import TOP_LEVEL_HELP, print_group_help
 OPERATOR_COMMANDS = {
   ("references", "list"),
   ("references", "show"),
+  ("references", "text"),
   ("references", "register"),
   ("assignments", "list"),
 }
@@ -38,6 +40,8 @@ def dispatch_operator_command(group: str, command: str | None, flags: list[str])
     return run_references_list(config, flags)
   if group == "references" and command == "show":
     return run_references_show(config, flags)
+  if group == "references" and command == "text":
+    return run_references_text(config, flags)
   if group == "references" and command == "register":
     return run_references_register(config, flags)
   if group == "assignments" and command == "list":

@@ -22,12 +22,14 @@ TENANT_MEDIA_PREFIX_TEMPLATE = "media/{tenant_id}/"
 TENANT_MODELS = frozenset(
     {"Item", "PublishedItem", "MediaAsset", "PublishedMediaAsset", "NewsroomSection"}
 )
-TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus")
+TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus", "headStageKey")
 TENANT_SLUG_FIELD = "tenantSlug"
 TENANT_SLUG_MODELS = frozenset({"Item", "PublishedItem"})
 TENANT_SCOPED_RECORD_ID_MODELS = frozenset({"NewsroomSection"})
 STORED_RECORD_ID_FIELD = "storedId"
 TENANT_INDEX_REDIRECTS = {"itemBySlug": "itemByTenantSlug"}
+#: Indexes whose partition key is stored tenant-prefixed (a field in TENANT_SCOPED_INDEX_FIELDS): a query names the tenant's own partition.
+TENANT_PREFIXED_INDEXES = frozenset({"itemsByHeadStage"})
 
 
 class TenantError(ValueError):
@@ -135,6 +137,8 @@ def rows_for_tenant(model_name: str, tenant_id: str | None, rows: Iterable[dict[
 
 
 def tenant_scoped_index(tenant_id: str | None, index_name: str, key_value: str) -> tuple[str, str]:
+    if tenant_id and index_name in TENANT_PREFIXED_INDEXES:
+        return index_name, tenant_scoped_value(tenant_id, key_value)
     if not tenant_id or index_name not in TENANT_INDEX_REDIRECTS:
         return index_name, key_value
     return TENANT_INDEX_REDIRECTS[index_name], tenant_scoped_value(tenant_id, key_value)

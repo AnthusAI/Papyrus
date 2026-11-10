@@ -196,6 +196,33 @@ def stories_repair_versions(flags: list[str]) -> None:
     print(f"stories\trepair-versions\t{lineage_id}\t{len(updates)} record(s) {'updated' if apply else 'would change (dry run)'}")
 
 
+def stories_head_index(flags: list[str]) -> None:
+    """papyrus stories head-index [--apply] [--dry-run] [--stage <stage> ...] [--rate <writes per second>]
+
+    Fills in, and checks, the head stage key on the site's story rows (docs/plans/story-head-stage-index.md): only the head row of each story
+    carries headStageKey, so the head stage index holds one row per story. Reads the old stage index once, stage by stage, picks each story's head
+    (the row marked current, else the one not superseded; the newest when a muddled story has several), sets the key on the head where it is
+    missing or wrong and removes it from any other row that is not superseded. A superseded row is never written. Only rows that differ are
+    written, each with its own updatedAt (no card jumps to the top of its column), at most --rate a second (default 5).
+
+    A DRY RUN unless --apply: it prints one line per row it would change, the muddled stories to fix with `stories repair-versions`, and a summary
+    (stories, heads to set, keys to remove, already right, muddled, no head, superseded with key). A dry run that reports 0 heads to set and 0 keys
+    to remove is the health check. Run it again after --apply: it writes nothing. On a site whose data API has no headStageKey yet the dry run
+    counts every head as needing it and --apply refuses (it needs the deploy that adds the head stage index)."""
+    from .story_head_index import DEFAULT_RATE, run_head_index
+
+    options = parse_options(flags)
+    apply = parse_boolean_option(options.get("apply"), default=False, label="--apply")
+    if apply and parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run"):
+        raise ValueError("Pass --apply or --dry-run, not both.")
+    rate = float(options.get("rate") or DEFAULT_RATE)
+    if rate <= 0 or rate > 25:
+        raise ValueError("--rate must be more than 0 and at most 25 writes a second.")
+    stages = tuple(parse_repeated_option(flags, "stage")) or None
+    client, _ = create_authoring_client()
+    run_head_index(client, apply=apply, stages=stages, rate=rate)
+
+
 def stories_repair_image_paths(flags: list[str]) -> None:
     """papyrus stories repair-image-paths --story <lineage> [--write] [--bucket <bucket>] [--identity-pool-id <id>]
 
@@ -517,7 +544,9 @@ def stories_list(flags: list[str]) -> None:
     """papyrus stories list [--stage <stage>] [--section <id|slug|name>] [--type article|post] [--stars N | --min-stars N | --max-stars N]
     [--sort updated|stars|rank] [--bucket day|week|none] [--limit N]
 
-    Read only. One line per Story: stories, list, lineage id (the id `stories show --story` takes), stage, section, title, then the signals the layouts use:
+    Read only. Every Story of the stage (or of every board stage), one line each, whether it is still a draft or already published: the same Stories the Stories
+    board shows (a replaced, superseded version is never a Story of its own). The last line is `stories list N of TOTAL`: --limit N (default 50) prints the
+    first N, so a TOTAL above N means more exist; raise --limit to see them. One line per Story: stories, list, lineage id (the id `stories show --story` takes), stage, section, title, then the signals the layouts use:
     stars (the effective quality rating, 0 unrated), source (editor|none), votes, bucket (the rolling window, week:0 is the last seven days), type, words,
     published (last-published date). Without --stage it lists every board stage except spiked and held. --sort updated (default) is newest change first;
     --sort stars is rated high to low, unrated last; --sort rank is what the Articles and Posts page shows first (newest bucket first, rated Stories first
@@ -817,8 +846,10 @@ def stories_create(flags: list[str]) -> None:
     story_type = chosen_story_type(options)
     if not apply:
         print(f"stories\tcreate\t{title}\tstage {stage}\ttype {story_type or 'site default'}\tdry run")
+        if reference_ids:
+            print(f"stories\tcreate\tbased on\t{len(reference_ids)} reference(s) would be attached: {', '.join(reference_ids)}")
         if options.get("with-assignment"):
-            print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened")
+            print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened (the Story's --type is not the Assignment's type)")
         return
     client, _ = create_authoring_client()
     item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor, item_type=story_type)
@@ -829,17 +860,44 @@ def stories_create(flags: list[str]) -> None:
     print(f"stories\tcreate\tcreated\t{item['id']}")
     print(f"stories\tcreate\tlineage\t{lineage_id}")
     print_console_rows("stories", "create", lambda base: story_links(base, lineage_id, item["id"], "editor page of the first version"))
+    attached, unattached = [], []
     for reference_id in reference_ids:
-        linked = link_reference_to_story(client, lineage_id, reference_id, role="based_on", actor=actor)
+        # The story record is passed in: the lineage index is eventually consistent and may not show a story created a moment ago.
+        try:
+            linked = link_reference_to_story(client, lineage_id, reference_id, role="based_on", actor=actor, story=item)
+        except Exception as error:  # noqa: BLE001 - one bad Reference must not drop the others or the assignment
+            unattached.append((reference_id, str(error).splitlines()[0] if str(error) else type(error).__name__))
+            print(f"stories\tcreate\tnot attached\t{reference_id}\t{unattached[-1][1]}")
+            continue
+        attached.append(linked["referenceLineageId"])
         print(f"stories\tcreate\tbased on\t{linked['referenceLineageId']}")
     from .story_triggers import deliver_from_environment
 
     deliver_from_environment(client, lineage_id)   # a story created at a stage has entered it
+    failure = None
     if options.get("with-assignment"):
         from .assignments_workflow import create_reporting_assignment
 
-        create_reporting_assignment(client, {**options, "content-item": lineage_id, "summary": summary})
+        # The Story's --type (article, post) is not the Assignment's type: this command only opens a reporting.candidate.
+        assignment_options = {k: v for k, v in options.items() if k != "type"}
+        try:
+            create_reporting_assignment(client, {**assignment_options, "type": "reporting.candidate", "content-item": lineage_id, "summary": summary})
+        except Exception as error:  # noqa: BLE001 - the Story and its References already exist; say so and exit non-zero
+            failure = str(error).splitlines()[0] if str(error) else type(error).__name__
     print_reminder(client, lineage_id)
+    if failure is not None or unattached:
+        parts = [f"Story created (lineage {lineage_id}), references attached: {len(attached)}"]
+        if unattached:
+            parts.append("not attached: " + "; ".join(f"{ref} ({why})" for ref, why in unattached))
+        if failure is not None:
+            parts.append(f"assignment NOT created: {failure}")
+        print("stories\tcreate\tsummary\t" + ", ".join(parts), file=sys.stderr)
+        if failure is not None:
+            print(f"stories\tcreate\tretry\tpapyrus assignments create-reporting --title {json.dumps(title)} --content-item {lineage_id}"
+                  + (f" --section {section_key}" if section_key else ""), file=sys.stderr)
+        if unattached:
+            print(f"stories\tcreate\tretry\tpapyrus stories link-reference --story {lineage_id} --reference <id>", file=sys.stderr)
+        raise SystemExit(1)
 
 
 PUBLISHED_STAGE_WARNING = (

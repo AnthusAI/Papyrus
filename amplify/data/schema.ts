@@ -2353,6 +2353,9 @@ const definitions = {
       starRatedBy: a.string(),
       /** The Item this one is a child of: a checklist step (type sub-task) names its Story's lineage here (docs/story-procedure.md). */
       parentLineageId: a.id(),
+      /** Only the head row of a lineage carries this: its stage (tenant-prefixed on a tenant backend), so the head stage index holds one row per
+       *  story; a superseded version has none (docs/plans/story-head-stage-index.md). */
+      headStageKey: a.string(),
       tags: a.hasMany("ItemTag", "itemId"),
       mediaAssets: a.hasMany("MediaAsset", "itemId"),
       ...(includeEditions ? { editionItems: a.hasMany("EditionItem", "itemId") } : {}),
@@ -2365,6 +2368,7 @@ const definitions = {
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listItemsBySectionStatusAndPublishedAt"),
       index("versionState").sortKeys(["updatedAt"]).queryField("listItemsByVersionStateAndUpdatedAt"),
       index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt"),
+      index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt"),
       index("parentLineageId").sortKeys(["sortTitle"]).queryField("listItemsByParentAndOrder"),
     ])
     .authorization((allow) => [

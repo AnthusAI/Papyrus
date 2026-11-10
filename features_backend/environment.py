@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import shutil
+import sys
 from pathlib import Path
 
 REQUIRES_CYCLOTRON_TAG = "requires-cyclotron"
@@ -26,7 +27,26 @@ def after_all(context):
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+def _fake_client_modules():
+    """The shared in-memory fake, under every name the step files import it by (`fake_client`, `procedures.newsroom.tests.fake_client`)."""
+    return [module for name, module in list(sys.modules.items()) if name.endswith("fake_client") and hasattr(module, "head_stage_key_violations")]
+
+
+def _check_head_stage_keys(scenario) -> None:
+    """After every backend scenario: each story lineage written through the shared fake has at most one head row, and it carries its stage
+    (features_backend/story-head-stage-index.feature). A writer that sets a stage or a version state without the head stage key fails here."""
+    problems = []
+    for module in _fake_client_modules():
+        for client in module.INSTANCES:
+            problems += module.head_stage_key_violations(client)
+        module.INSTANCES.clear()
+    if problems and scenario.status != "failed":
+        raise AssertionError("head stage key invariant broken in '" + scenario.name + "':\n  " + "\n  ".join(problems))
+
+
 def before_scenario(context, scenario):
+    for module in _fake_client_modules():
+        module.INSTANCES.clear()
     from papyrus_content import cli_user_auth
 
     context.real_site_enrolls = cli_user_auth.site_enrolls
@@ -57,6 +77,14 @@ def before_scenario(context, scenario):
 
 def after_scenario(context, scenario):
     from unittest import mock
+
+    try:
+        _check_head_stage_keys(scenario)
+    finally:
+        _after_scenario_cleanup(context, scenario, mock)
+
+
+def _after_scenario_cleanup(context, scenario, mock):
 
     from papyrus_content import cli_user_auth
 

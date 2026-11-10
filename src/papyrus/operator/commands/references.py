@@ -47,6 +47,63 @@ def run_references_show(config: OperatorConfig, flags: list[str]) -> int:
   return 0
 
 
+def run_references_text(config: OperatorConfig, flags: list[str]) -> int:
+  import json as _json
+
+  from papyrus_content.reference_text_read import DEFAULT_LIMIT, NoCapturedText, read_reference_text
+
+  options, positionals = parse_operator_flags(flags)
+  reference_id = str(options.get("reference") or "").strip() or (positionals[0] if positionals else "")
+  if not reference_id or reference_id is True:
+    raise OperatorError("papyrus references text requires --reference ID|LINEAGE")
+
+  def number(name: str, default: int) -> int:
+    raw = options.get(name)
+    if raw is None:
+      return default
+    try:
+      return int(str(raw))
+    except ValueError:
+      raise OperatorError(f"--{name} must be a whole number.") from None
+
+  offset, limit = number("offset", 0), number("limit", DEFAULT_LIMIT)
+  active_config = _with_overrides(config, options)
+  backend = create_backend(active_config)
+  if not hasattr(backend, "_ensure_auth"):
+    raise OperatorError("papyrus references text reads a site's stored text: use --backend cloud.")
+  backend._ensure_auth()
+  from papyrus_content.graphql_authoring import create_authoring_client
+
+  client, _ = create_authoring_client()
+  try:
+    result = read_reference_text(client, reference_id, offset=offset, limit=limit)
+  except NoCapturedText as missing:
+    if options.get("json"):
+      print(_json.dumps({**missing.details, "text": None, "error": "no captured text"}, indent=2))
+    else:
+      print(f"reference: {missing.details['referenceId']}\nurl: {missing.details['url']}\ncapture: {missing.details['captureStatus']}"
+            + (f" ({missing.details['captureReason']})" if missing.details.get("captureReason") else "") + "\nNo captured text is stored for this Reference.")
+    return 1
+  except ValueError as error:
+    raise OperatorError(str(error)) from None
+  if options.get("json"):
+    print(_json.dumps(result, indent=2))
+    return 0
+  print(f"reference: {result['referenceId']}")
+  print(f"url: {result['url']}")
+  print(f"source: {result['source']}" + (f" ({result['sourceKind']})" if result.get("sourceKind") else ""))
+  print(f"captured-at: {result['capturedAt'] or 'unknown'}")
+  print(f"total-characters: {result['totalCharacters']}")
+  print(f"offset: {result['offset']}  returned: {result['returnedCharacters']}")
+  print(f"truncated: {'yes (the page was larger than the reader takes and was cut)' if result['truncated'] else 'no'}")
+  for flag in result["flags"]:
+    print(f"note: {flag}")
+  print(f"next: {'--offset ' + str(result['nextOffset']) if result['nextOffset'] is not None else 'end of text'}")
+  print("---")
+  print(result["text"])
+  return 0
+
+
 def run_assignments_list(config: OperatorConfig, flags: list[str]) -> int:
   options, _ = parse_operator_flags(flags)
   backend_name = str(options.get("backend") or config.backend)

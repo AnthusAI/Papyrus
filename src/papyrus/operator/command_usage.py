@@ -53,6 +53,7 @@ WRITES_TEXT = {
   "dry-run": "yes, by default. Pass --dry-run to preview without writing.",
   "local": "nothing on a site; it writes only the local file named in its usage.",
   "writes": "yes, immediately. This command has NO --dry-run: do not run it to see what it does.",
+  "apply": "only with --apply; without it, a dry run that writes nothing.",
   "unknown": "not stated for this command. If the usage shows no --dry-run, assume it writes immediately.",
 }
 
@@ -68,6 +69,8 @@ _ENTRIES = dict([
   _e("references list", "List References, newest first (no stars filter: use `references search` or `stories list --min-stars`).",
      "[--status pending|accepted|rejected] [--order newest] [--limit N] [--corpus-key KEY] [--backend local|cloud]", "both", "reads", "find"),
   _e("references show", "Show one Reference by record id (`...-v1`) or lineage id.", "REFERENCE_ID [--backend local|cloud]", "both", "reads", "find"),
+  _e("references text", "Read the captured text of a Reference (what the newsroom stored), a slice at a time, with its total length and whether the capture was cut.",
+     "--reference ID|LINEAGE [--offset N] [--limit N] [--json]  (default --limit 20000 characters; --limit 0 reads to the end; exits 1 when nothing was captured)", "both", "reads", "find"),
   _e("references search", "Find References by words and meaning, rated or not, accepted or not.",
      "\"plain words\" [--show unrated|rated|all] [--limit N] [--cursor CURSOR] [--site HOST] [--json]", "editor", "reads", "find"),
   _e("references register", "Register a Reference in the local pod only (a developer's Kanbus pod; it does not touch a site).",
@@ -106,7 +109,7 @@ _ENTRIES = dict([
   _e("references queue-predictions", "Queue a Cyclotron prediction for every pending Reference that has none.", "(--site KEY | --corpus-key KEY[,KEY...]) [--dry-run]", "operator", _DRY, ""),
   _e("references list-predictions", "List Cyclotron predictions for a corpus's References.", "--corpus-key KEY [--status STATUS] [--limit N] [--category-set ID] [--config STEERING.yml]", "operator", "reads", ""),
   # ---- stories ----------------------------------------------------------------------------------------------------
-  _e("stories list", "List Stories; the first column is the lineage id every other `stories` command takes.",
+  _e("stories list", "List the Stories (each one's newest version, drafts included) of a stage, newest change first; the first column is the lineage id every other `stories` command takes.",
      "[--stage STAGE] [--section ID|SLUG|NAME] [--type article|post] [--stars N | --min-stars N | --max-stars N] [--sort updated|stars|rank] [--bucket day|week|none] [--limit N]",
      "both", "reads", "find"),
   _e("stories show", "Show one Story: headline, signals, stage moves, its References and notes.",
@@ -153,6 +156,8 @@ _ENTRIES = dict([
   _e("stories fire-triggers", "Deliver the stage-entry triggers for the Story's current stage and version.", "--story LINEAGE", "operator", "writes", ""),
   _e("stories checklist-backfill", "Add the procedure checklist to Stories that lack one.", "[--dry-run] [--stage STAGE ...] [--page-size N]", "operator", _DRY, ""),
   _e("stories repair-versions", "Repair a Story's version records.", "--story LINEAGE [--dry-run]", "operator", _DRY, ""),
+  _e("stories head-index", "Fill in and check the head stage key (one row per Story in the head stage index). A dry run unless --apply.",
+     "[--apply] [--dry-run] [--stage STAGE ...] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
   _e("stories repair-image-paths", "Repair image paths in a Story's versions. Read only unless you pass --write.", "--story LINEAGE [--write] [--bucket B] [--identity-pool-id ID]", "operator", "reads", ""),
   # ---- knowledge --------------------------------------------------------------------------------------------------
   _e("knowledge concepts search", "Find accepted concepts by meaning (name matches first, duplicates flagged). Free text needs OPENAI_API_KEY in this shell.",
@@ -283,7 +288,7 @@ def _drafted(path: str) -> Usage | None:
 
 
 GROUP_ORDER = {
-  "references": ["search", "list", "show", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
+  "references": ["search", "list", "show", "text", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "next", "step", "versions", "note", "agent-note"],
   "knowledge": ["concepts", "entities", "query"],

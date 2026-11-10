@@ -88,6 +88,17 @@ papyrus references show REFERENCE_ID
 
 `list` prints `backend=cloud corpusKey=KEY`, then `kind status id title corpus url` rows. `--status` is `pending`, `accepted` or `rejected`; `--order` defaults to `newest`. There is **no stars filter** on `references list` (use `references search`, or `stories list --min-stars`). `show` takes the record id (`...-v1`) or the lineage id.
 
+### Read a Reference's captured text
+**Lane:** both. **Version:** next release after 5.101 (PR for `references text`). Read only.
+
+```sh
+papyrus references text --reference LINEAGE_OR_ID --limit 5000
+papyrus references text --reference LINEAGE_OR_ID --offset 5000 --limit 5000
+papyrus references text --reference LINEAGE_OR_ID --limit 0 --json
+```
+
+Prints `reference`, `url`, `source` (how it was captured, or `edited by editor`), `captured-at`, `total-characters`, `offset` and `returned`, `truncated`, any `note:` completeness warnings, `next: --offset N` (or `end of text`), then `---` and the text slice. **Read the captured text instead of fetching the page again.** The default slice is 20000 characters; `--limit 0` reads to the end; `--json` prints the same facts with `text`, `nextOffset` and `flags`. `truncated: yes` means the capture itself was cut: the reader takes about 400 KB of a page's HTML (PDFs up to 8 MB, a larger one fails as `too_large`), so a very long filing or a script-heavy page can arrive incomplete. When it is `yes`, or a `note:` says the text stops mid-sentence, do not rely on the end of the text: use the SEC JSON endpoints below, or ask for the page to be pasted. Exit status 1 and `No captured text is stored` mean nothing was captured (a block page, a 403, or the router has not run yet: wait about five minutes after filing).
+
 ### List and read Stories
 **Lane:** both. **Version:** any. Read only.
 
@@ -98,7 +109,7 @@ papyrus stories show --story LINEAGE
 papyrus stories versions --story LINEAGE
 ```
 
-`list` prints `stories list LINEAGE stage section title stars source votes bucket type words published`. The first column is the lineage id every other `stories` command takes. `type` is `article`, `post` or `untyped`. `show` prints the headline, a `signals` line, each stage move, its References by lineage id and its agent notes; `--json` prints the Story and its related Stories only.
+`list` prints every Story of the stage, drafts included (the Stories board shows the same ones), one line per Story, newest change first, then `stories list N of TOTAL`: `--limit` (default 50) prints the first N, so when TOTAL is larger than N, raise `--limit`. Each line is `stories list LINEAGE stage section title stars source votes bucket type words published`. The first column is the lineage id every other `stories` command takes. `type` is `article`, `post` or `untyped`. `show` prints the headline, a `signals` line, each stage move, its References by lineage id and its agent notes; `--json` prints the Story and its related Stories only.
 
 ### Concepts
 **Lane:** both. **Version:** 5.101+ for `search` and `related` (PR #1341); `entities list` any. Read only.
@@ -162,6 +173,8 @@ papyrus references list --status pending --limit 10
 - If a source reports `timed out`, run the identical command again.
 - Each Reference id looks like `reference-knowledge-corpus-ai-ml-research-url-<64 hex>-v1`. Within about five minutes the router captures the text and writes the summary and the prediction.
 - `--ingestion-rationale TEXT` supplies one rationale for every item that has none (an item's own `ingestion_rationale` wins). Every item still needs a `title`: `Every source needs a title and ingestion rationale.` is the error when either is missing.
+- Capture can fail quietly: a site that refuses the request (`blocked`, `http_4xx`) leaves no text and no summary, and a script-heavy page can be cut. Check with `papyrus references text --reference ID` before you rely on a Reference.
+- **SEC filings (sec.gov):** EDGAR refuses anonymous automated requests (`Your Request Originates from an Undeclared Automated Tool`). Its rule is a declared `User-Agent` that names the requester and a contact. Never invent an address and never put a real one in a file you commit. Ask the person for a contact, or use the one configured for the site. Prefer the SEC's structured endpoints for deal terms and financials: `https://data.sec.gov/submissions/CIK##########.json` (the filing list) and `https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json` (reported values), sent with that declared `User-Agent`, over reading a 300,000-character 10-K page. A filing page captured by the router is cut at about 400 KB of HTML, before the notes to the financial statements.
 - Do **not** use `references prepare-catalog` signed in: it needs a local steering config and prints `Unknown --corpus-key: ai-ml-research`.
 
 ## Tag and link
@@ -236,7 +249,7 @@ papyrus stories create --title "Headline" --section security --stage reporting -
 papyrus stories create --title "Headline" --section security --stage reporting --summary "One sentence." --reference REFERENCE_ID
 ```
 
-Prints `stories create created ITEM_ID`, `stories create lineage LINEAGE`, `stories create console ...` rows (show the editor that link: see below) and one `based on` line per Reference, then the reminder of the next procedure step. **Run it once**: each run makes a new Story. The dry run prints one line and does not check that the `--reference` ids exist. `--stage` is `idea`, `assignment` or `reporting` (default `idea`); `--section` takes a section id, slug or name.
+Prints `stories create created ITEM_ID`, `stories create lineage LINEAGE`, `stories create console ...` rows (show the editor that link: see below) and one `based on` line per Reference, then the reminder of the next procedure step. **Run it once**: each run makes a new Story. With `--with-assignment` it also opens a `reporting.candidate` Assignment (the Story's `--type` is never the Assignment's type). The `--reference` ids are attached first, so a failed Assignment never drops them; if the Assignment fails the command exits non-zero and prints `Story created (lineage ...), references attached: N, assignment NOT created: REASON` with the command to retry. The dry run prints one line and does not check that the `--reference` ids exist. `--stage` is `idea`, `assignment` or `reporting` (default `idea`); `--section` takes a section id, slug or name.
 
 ### Set the Story type (post or article)
 **Lane:** editor. **Status:** not built. `stories create` has no `--type` and there is no `stories set-type` (board story PPY-b3032b). A Story with type `untyped` cannot be published. Interim route: open the newsroom story editor and choose the type, or start the Story from the Create Story button on the Reference card. Check the result with `papyrus stories show --story LINEAGE` (the `signals` line shows `type`).
@@ -348,6 +361,19 @@ papyrus stories step --story LINEAGE --step copy_edit --state done --note "Check
 - `check-version` runs the editorial rules on a saved version and stores the result with it. `lens-check` prints `finding LENS RULE STATE ...` rows; four problems must be fixed before a lens step can close (image without alt text, third-party image without credit, video without title or credit, Markdown copy that differs from the source). `--static` is the site's web directory (default `PAPYRUS_SITE_STATIC_DIR`).
 - `check-links` lists links and tags that are not the official shape (`legacy: migrate`, `concept has no public page`, `state not current`). Read only; fixing is out of scope.
 - `stories next` prints each procedure step with its state, then what is next. There is no `stories checklist`: the checklist is `next` (read) and `step` (write). A skipped or not-applicable step needs `--reason`; a review step needs `--note` with the findings; use honest notes.
+
+### Check the stage head index (operators)
+**Lane:** both. **Version:** the release after 5.101.0. **Writes:** only with `--apply`; a dry run otherwise.
+
+```sh
+papyrus stories head-index
+papyrus stories head-index --stage published
+papyrus stories head-index --apply --rate 5
+```
+
+- Each Story has one row in the head stage index (`headStageKey`, docs/plans/story-head-stage-index.md). `head-index` reads the old stage index once, prints one `set` or `remove` line per row it would change, `muddled` lines for Stories with more than one live version (fix those with `stories repair-versions --story LINEAGE`), and a summary: `rows read`, `stories`, `heads to set`, `keys to remove`, `already right`, `muddled`, `no head`, `superseded with key`.
+- Unlike most commands it is a **dry run unless `--apply`**. A dry run with `heads to set 0` and `keys to remove 0` is the health check. `--apply` writes only rows that differ, keeps each row's own `updatedAt`, never writes a superseded version, and writes at most `--rate` a second (default 5); a second run writes nothing.
+- On a site whose data API has no `headStageKey` yet the dry run counts every Story as needing it and `--apply` refuses: the site needs the backend deploy that adds the index first, and that deploy and the `--apply` run each need Ryan's approval.
 
 ## Ideas
 <!-- guide:ideas -->

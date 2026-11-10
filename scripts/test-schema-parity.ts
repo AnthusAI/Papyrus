@@ -9,7 +9,7 @@ const MODEL_NAMES = [
   "Assignment", "KnowledgeRawPayload", "CurationDelegationRecord", "ModelAttachment", "MediaAsset", "PublishedMediaAsset", "NewsroomSection", "Automation", "ProcedureRun", "ReviewRequest", "ReviewReadMark", "ReviewRecipientRule",
 ];
 const REQUIRED_FIELDS: Record<string, string[]> = {
-  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
+  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "headStageKey"],
   PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
   Message: ["editedAt", "deletedAt", "deletedBySub"],
   MediaAsset: ["tenantId"],
@@ -24,6 +24,10 @@ const REQUIRED_INDEXES = [
   'index("starFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByStarFeedAndArrival")',
   'index("mediumFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByMediumFeedAndArrival")',
   'index("contentNeededKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByContentNeededAndArrival")',
+  // One row per story (features_backend/story-head-stage-index.feature): only the head row of a lineage carries headStageKey.
+  'index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt")',
+  // The old stage index stays until every reader has moved (docs/plans/story-head-stage-index.md, step 7).
+  'index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt")',
 ];
 
 function extractFieldNames(source: string, modelName: string): Set<string> {
