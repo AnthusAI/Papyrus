@@ -143,8 +143,8 @@ def test_relations_with_an_unaccepted_end_are_skipped():
     assert patches == [] and model.sent == []
 
 
-def cluster(uid="cl-1", status="proposed"):
-    summary = json.dumps({"kind": "papyrus-knowledge-cluster@1", "clusterUid": uid, "topTerms": ["tts", "speech"]})
+def cluster(uid="cl-1", status="proposed", run=None, as_of=None):
+    summary = json.dumps({"kind": "papyrus-knowledge-cluster@1", "clusterUid": uid, "topTerms": ["tts", "speech"], **({"runId": run, "runAsOf": as_of} if run else {})})
     return {"id": f"p-{uid}", "proposalKind": "topic_cluster", "status": status, "summary": summary, "evidenceItemIds": ["a", "b", "c", "d"], "graphEntityId": uid}
 
 
@@ -159,6 +159,13 @@ def test_a_new_cluster_is_named_only_when_member_titles_are_quoted():
     bad._transport = lambda *_a: {"output_text": json.dumps({"verdicts": [{"id": "c0", "verdict": "accept", "evidence": ["Qwen3-TTS", "made up"], "name": "TTS", "reason": "r"}]})}
     patches, decisions = r.review_clusters([cluster()], titles_of, bad, ACTOR, now=NOW)
     assert patches == [] and decisions[0].verdict == r.UNSURE
+
+
+def test_only_the_latest_runs_clusters_are_offered_because_the_snapshot_publishes_no_others():
+    proposals = [cluster("old", run="aaa", as_of="2026-11-09"), cluster("later-today", run="bbb", as_of="2026-11-10"), cluster("latest", run="ccc", as_of="2026-11-10")]
+    assert set(entry["proposal"]["graphEntityId"] for entry in r.cluster_candidates(proposals, lambda ids: ["x"] * 4).values()) == {"latest"}
+    assert r.latest_cluster_run([cluster()]) is None
+    assert len(r.cluster_candidates([cluster()], lambda ids: ["x"] * 4)) == 1  # records without a run id are still judged
 
 
 def test_accepted_clusters_are_not_reviewed_again():

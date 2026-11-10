@@ -50,3 +50,11 @@ Feature: The AI review accepts a concept only on evidence about it, and spends i
     When the review runs over those candidates
     Then the review log says it needed 3 calls for entities, 1 for clusters and 1 for relations
     And the review log says it used 1 call for each of entities, clusters and relations
+
+  Scenario: Only the latest run's clusters are offered for review
+    Given the topic model proposed clusters in two runs, an earlier one and the latest
+    And the earlier run's clusters are still waiting as proposed
+    When the clusters are reviewed
+    Then only the latest run's clusters are sent to the reviewer, and the earlier run's are not
+    And the call budget for clusters counts only the latest run's clusters
+    # The snapshot publishes the latest run's clusters only, so naming an earlier run's cluster would never reach a reader
