@@ -19,7 +19,7 @@ Tree = dict[str, "Tree"]
 
 CONTENT_GROUPS = ("stories", "editions", "batch", "messages", "reader", "proposals", "ideas", "cyclotron", "items", "home-page",
                   "automations", "reviews", "videos")
-LEAF_GROUPS = ("doctor", "login", "logout", "whoami", "auth", "help", "guide")
+LEAF_GROUPS = ("doctor", "links", "login", "logout", "whoami", "auth", "help", "guide")
 REFERENCE_EXTRAS = ("list", "show", "register", "search", "capture-transcripts", "repair-titles", "capture-thumbnails",
                     "curate-recent", "summaries", "summarize", "summarize-batch", "summary-cleanup-legacy", "quality", "title-subtitle")
 ASSIGNMENT_EXTRAS = ("list", "run-story-cycle", "story-cycle-output", "build-assignment-agent-context")
@@ -155,6 +155,10 @@ def _command_text(path: list[str]) -> str:
     if entry is not None:
         return entry.render()
 
+    if path == ["links"]:
+        from papyrus_content.console_links import LINKS_USAGE
+
+        return LINKS_USAGE
     lines = [f"Usage: papyrus {' '.join(path)} [options]"]
     if len(path) == 1 and _top_level_line(path[0]):
         lines.append(f"  {_top_level_line(path[0])}")

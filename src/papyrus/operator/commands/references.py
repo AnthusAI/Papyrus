@@ -37,6 +37,13 @@ def run_references_show(config: OperatorConfig, flags: list[str]) -> int:
   corpus_key = normalize_corpus_key(str(options["corpus-key"])) if options.get("corpus-key") else None
   row = backend.show_reference(positionals[0], corpus_key)
   print_reference_detail(row)
+  if active_config.backend == "cloud" and not active_config.fixture_root and (row.extra.get("lineageId") or row.identifier):
+    from papyrus_content.console_links import ConsoleLinkError, reference_url, resolve_console_url
+
+    try:
+      print(f"console: {reference_url(resolve_console_url(), str(row.extra.get('lineageId') or row.identifier))}")
+    except ConsoleLinkError as error:
+      print(f"console: unavailable ({error})")
   return 0
 
 
