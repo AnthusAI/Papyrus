@@ -196,6 +196,9 @@ assert.ok(!JSON.stringify(template.toJSON()).match(/"(open|click|Open|Click)"/),
 // IAM: sending only from the configured address through this site's identity and set; the operators and key parameters only.
 const policies = JSON.stringify(template.findResources("AWS::IAM::Policy"));
 assert.match(policies, /ses:SendEmail/);
+// The SES v2 GetAccount API is authorised by ses:GetAccount; sesv2:GetAccount does not exist and the email function was denied (found 2026-11-10 on Machines on Machines).
+assert.match(policies, /"ses:GetAccount"/);
+assert.doesNotMatch(policies, /sesv2:/);
 assert.match(policies, /"ses:FromAddress":"notifications@example.com"/);
 assert.match(policies, /identity\/example.com/);
 assert.match(policies, /configuration-set\/papyrus-example/);

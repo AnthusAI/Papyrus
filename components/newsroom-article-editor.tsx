@@ -26,6 +26,9 @@ import { isGeneratedIdeaFrontMatter, stageForIdeaDecision, writeIdeaDecision, ty
 import { IdeaDecision } from "./idea-decision";
 import { SeededFromReferenceNote } from "./seeded-from-reference-note";
 import { CoverImagePicker, type PickedImage } from "./cover-image-picker";
+import { StoryHeadlineImage } from "./story-headline-image";
+import { StoryPreviewHeading } from "./story-preview-heading";
+import { headlineImageState, readHeadlineImage, type MediaIndex } from "../lib/story-headline-image";
 import { accessTokenFromAmplify, createLiveStockImageClient } from "../lib/stock-images/client";
 import { createDemoStockImageClient } from "../lib/stock-images/demo-client";
 import { bodyWithCover, coverDirective, coverRecord, creditLine, frontMatterWithCover, replaceableCoverSources } from "../lib/stock-images/cover";
@@ -163,6 +166,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
   const [reloadToken, setReloadToken] = useState(0);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [mediaIndex, setMediaIndex] = useState<MediaIndex>({ loaded: false, failed: false, assets: [] });
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageNotice, setImageNotice] = useState<string | null>(null);
@@ -183,6 +187,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
       .then((article) => {
         if (cancelled) return;
         setEditor(stateFromArticle(article));
+        setBodyIr(null);   // the Preview never carries another version's body over while this one is checked
         setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
         setSavedStars(article.starRating ?? null);
@@ -204,6 +209,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   useEffect(() => {
     if (blocked || savedItemId === null) return;
     let cancelled = false;
+    setMediaIndex({ loaded: false, failed: false, assets: [] });
     mediaBackend
       .listMediaAssets(savedItemId)
       .then(async (assets) => {
@@ -220,8 +226,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         if (cancelled) return;
         const loaded = Object.fromEntries(entries.filter((entry) => entry !== null));
         setImageUrls((current) => ({ ...loaded, ...current }));
+        setMediaIndex({ loaded: true, failed: false, assets });
       })
-      .catch(() => undefined);
+      .catch(() => { if (!cancelled) setMediaIndex({ loaded: true, failed: true, assets: [] }); });
     return () => {
       cancelled = true;
     };
@@ -583,6 +590,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         <div aria-label="Loading article" aria-busy="true" className="space-y-4" data-newsroom-article-skeleton role="status">
           <div className="rounded-md bg-muted" data-skeleton-toolbar />
           {!isNew ? <div className="max-w-md rounded-md bg-muted" data-skeleton-stars /> : null}
+          <div className="rounded-md bg-muted" data-skeleton-headline />
           <div className="grid gap-6">
             <div className="rounded-md bg-muted" data-skeleton-fields />
             <div className="h-10 w-72 max-w-full rounded-md bg-muted" data-skeleton-tabs />
@@ -737,6 +745,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               />
             </div>
           ) : null}
+
+          <StoryHeadlineImage state={headlineImageState(readHeadlineImage(editor.frontMatterYaml, editor.bodyMarkus), mediaIndex, imageUrls)} />
 
           <div className="grid gap-6">
             <div
@@ -1017,12 +1027,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               data-newsroom-article-preview-column
             >
               <div className="relative rounded-xl border border-border bg-card p-4" data-newsroom-article-preview ref={previewRef}>
-                {(readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) || readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)) ? (
-                  <div className="newsroom-article-summary" data-newsroom-article-summary>
-                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) ? <p className="newsroom-article-subtitle">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)}</p> : null}
-                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY) ? <p className="newsroom-article-blurb">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)}</p> : null}
-                  </div>
-                ) : null}
+                <StoryPreviewHeading frontMatterYaml={editor.frontMatterYaml} slug={editor.slug} />
                 {invalid && bodyIr ? (
                   <p className="mb-2 text-xs text-muted-foreground">Showing the last valid version.</p>
                 ) : null}

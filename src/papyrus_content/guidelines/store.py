@@ -110,7 +110,7 @@ class GuidelineStore:
     # --- writes -------------------------------------------------------------------------------------------------------------------------------------
 
     def save(self, kind: str, document: Any, *, section: str | None = None, expected_current_version_id: str | None = None, actor: str, reason: str,
-             now: str | None = None, assets: dict[str, bytes] | None = None) -> dict:
+             now: str | None = None, assets: dict[str, bytes] | None = None, saved_by: dict | None = None) -> dict:
         """Save a document as the lineage's next version. ``{changed, reference}``.
 
         ``assets`` are binary files the document names (file name -> bytes), stored beside it as ModelAttachments of the same version. The caller puts
@@ -118,6 +118,8 @@ class GuidelineStore:
 
         The first save names ``none``; a later one names the Item id it replaces and is refused as stale when that is no longer current. A document equal to
         the current one makes no version. The file is written before the row, so a failure never leaves a version with nothing to read.
+        ``saved_by`` (``{sub, kind, requestId}``) is recorded in the row's ``metadata`` when the door or the command line gives it: it is how a repeated request is
+        recognised and how history says whether a person or an agent saved a version. Nothing else goes in ``metadata``.
         """
         spec = kind_spec(kind)
         scope = "section" if section else "publication"
@@ -138,7 +140,7 @@ class GuidelineStore:
             return {"changed": False, "reference": reference(current)}
         stamp = now or _now()
         record = next_record(spec.name, section, versions, content_hash, actor=actor, reason=reason, now=stamp,
-                             tenant_slug=getattr(self.client, "tenant_slug", None))
+                             tenant_slug=getattr(self.client, "tenant_slug", None), saved_by=saved_by)
         self._put_document(record, document, stamp)
         for name, body in (assets or {}).items():
             self._put_asset(record, name, body, stamp)
@@ -173,8 +175,20 @@ def reference(row: dict) -> dict:
     return {"itemId": row["id"], "slug": row.get("slug"), "versionNumber": int(row.get("versionNumber") or 1), "contentHash": row.get("contentHash")}
 
 
+def saved_by_of(row: dict) -> dict:
+    """The ``savedBy`` note of a catalog row ({} when the version was saved without one)."""
+    metadata = row.get("metadata")
+    if isinstance(metadata, str) and metadata.strip():
+        try:
+            metadata = json.loads(metadata)
+        except ValueError:
+            return {}
+    saved = metadata.get("savedBy") if isinstance(metadata, dict) else None
+    return saved if isinstance(saved, dict) else {}
+
+
 def next_record(kind: str, section: str | None, versions: list[dict], content_hash: str, *, actor: str, reason: str, now: str,
-                tenant_slug: str | None = None) -> dict:
+                tenant_slug: str | None = None, saved_by: dict | None = None) -> dict:
     """The catalog row for the next version. Catalog fields only: the text is the S3 document."""
     slug = slug_for(kind, section)
     latest = versions[0] if versions else None
@@ -183,7 +197,7 @@ def next_record(kind: str, section: str | None, versions: list[dict], content_ha
     record = {
         "id": f"item-{slug}-v{number}", "lineageId": f"item-{slug}", "versionNumber": number, "versionState": "current", "versionCreatedAt": now,
         "versionCreatedBy": actor, "changeReason": reason, "type": "doctrine", "status": "private", "typeStatus": "doctrine#private", "slug": slug,
-        "title": title, "headline": title, "body": [], "bodyMarkus": "", "metadata": to_aws_json({}), "contentHash": content_hash, "updatedAt": now,
+        "title": title, "headline": title, "body": [], "bodyMarkus": "", "metadata": to_aws_json({"savedBy": saved_by} if saved_by else {}), "contentHash": content_hash, "updatedAt": now,
     }
     if section:
         record["section"] = section

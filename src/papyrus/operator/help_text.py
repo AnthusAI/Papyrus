@@ -31,6 +31,7 @@ Operator groups:
   items         Stories as a whole (items link-references)
   home-page     Public data of the home page (home-page snapshot)
   images        Pictures for Stories: stock search, generation, review, apply and undo (images <command>)
+  guidelines    Writing, image and video guidelines for the site or a section (guidelines show|resolve|diff|save|history)
   figures       Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it (figures render|directive|rules|primitives)
   design-system The site's design system for figures, kept in the backend (design-system show|pull|push)
   editorial     Editorial context and quality loop commands

@@ -233,6 +233,18 @@ _ENTRIES = dict([
   _e("links", "Print the console link of a Story (one version, or the drawer), Reference, Concept, Assignment or review item. Hand the editor these links.",
      "[--story LINEAGE|SLUG [--version N|VERSION_ID]] [--reference REFERENCE_ID|LINEAGE] [--concept NAME|NODEKEY] [--assignment ID] [--review ID] [--console-url URL] [--json]", "both", "reads", "write-story"),
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
+  # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
+  _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
+     "--kind KIND [--section KEY] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines resolve", "Print the effective guidelines for the site, or a section laid over it, with where every field came from.",
+     "--kind KIND [--section KEY] [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines diff", "Show what saving a document would change, field by field and for binding rules; saves nothing.",
+     "--kind KIND [--section KEY] --file PATH [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines save", "Save a document as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
+     "--kind KIND [--section KEY] --file PATH --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
+     "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
+  _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
+     "--kind KIND [--section KEY] [--input-file PATH]", "editor", "reads", "guidelines"),
   # ---- figures (render reads the site's design system and writes local files only) -------------------------------------
   _e("figures render", "Check a figure and render its light and dark pictures (always both) with the site's design system. Needs Playwright and Chromium or Chrome.",
      "FOLDER... [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json]  "
@@ -342,6 +354,7 @@ GROUP_SUMMARIES = {
   "ops site": "Site copy (operator).",
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
+GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 
