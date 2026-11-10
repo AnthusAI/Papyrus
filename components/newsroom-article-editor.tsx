@@ -833,8 +833,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
                       ) : null)}
                     </SelectContent>
                   </Select>
-                  {deskSectionsLoading ? <small data-newsroom-article-section-status role="status">Loading the site&apos;s sections…</small> : null}
-                  {deskSectionsError ? <small data-newsroom-article-section-status role="status">Could not load the site&apos;s sections: {deskSectionsError}</small> : null}
+                  <small data-newsroom-article-section-status role="status" className="block min-h-5">
+                    {deskSectionsLoading ? "Loading the site's sections…" : deskSectionsError ? `Could not load the site's sections: ${deskSectionsError}` : ""}
+                  </small>
                 </label>
                 <label className="space-y-1 text-sm font-medium">
                   <span>Slug</span>
