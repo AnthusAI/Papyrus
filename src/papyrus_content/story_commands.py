@@ -517,7 +517,9 @@ def stories_list(flags: list[str]) -> None:
     """papyrus stories list [--stage <stage>] [--section <id|slug|name>] [--type article|post] [--stars N | --min-stars N | --max-stars N]
     [--sort updated|stars|rank] [--bucket day|week|none] [--limit N]
 
-    Read only. One line per Story: stories, list, lineage id (the id `stories show --story` takes), stage, section, title, then the signals the layouts use:
+    Read only. Every Story of the stage (or of every board stage), one line each, whether it is still a draft or already published: the same Stories the Stories
+    board shows (a replaced, superseded version is never a Story of its own). The last line is `stories list N of TOTAL`: --limit N (default 50) prints the
+    first N, so a TOTAL above N means more exist; raise --limit to see them. One line per Story: stories, list, lineage id (the id `stories show --story` takes), stage, section, title, then the signals the layouts use:
     stars (the effective quality rating, 0 unrated), source (editor|none), votes, bucket (the rolling window, week:0 is the last seven days), type, words,
     published (last-published date). Without --stage it lists every board stage except spiked and held. --sort updated (default) is newest change first;
     --sort stars is rated high to low, unrated last; --sort rank is what the Articles and Posts page shows first (newest bucket first, rated Stories first

@@ -108,7 +108,7 @@ _ENTRIES = dict([
   _e("references queue-predictions", "Queue a Cyclotron prediction for every pending Reference that has none.", "(--site KEY | --corpus-key KEY[,KEY...]) [--dry-run]", "operator", _DRY, ""),
   _e("references list-predictions", "List Cyclotron predictions for a corpus's References.", "--corpus-key KEY [--status STATUS] [--limit N] [--category-set ID] [--config STEERING.yml]", "operator", "reads", ""),
   # ---- stories ----------------------------------------------------------------------------------------------------
-  _e("stories list", "List Stories; the first column is the lineage id every other `stories` command takes.",
+  _e("stories list", "List the Stories (each one's newest version, drafts included) of a stage, newest change first; the first column is the lineage id every other `stories` command takes.",
      "[--stage STAGE] [--section ID|SLUG|NAME] [--type article|post] [--stars N | --min-stars N | --max-stars N] [--sort updated|stars|rank] [--bucket day|week|none] [--limit N]",
      "both", "reads", "find"),
   _e("stories show", "Show one Story: headline, signals, stage moves, its References and notes.",

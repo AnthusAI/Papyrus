@@ -3,7 +3,7 @@
   "title": "Dual-write: every Item writer keeps headStageKey on the head row only",
   "description": "One helper (content_item_lifecycle.head_stage_fields) returns {headStageKey: stage} for the row being made head and {headStageKey: None} for the row being superseded; every writer that sets stage or versionState uses it in the write it already makes: publishing.save_item (create), publishing.publish_item (head and the sibling supersede loop), publishing.unpublish_item, story_reporting.save_story_version (create and supersede), story_reporting.move_story_stage, repair_story_versions, content_item_lifecycle create/assignment, assignments_workflow Item upserts, copywriting, story_triggers, editor_review, story_selection, story_commands, seed_edition, markus_import. No extra write and no extra read per save. The authoring client checks once per process that the site's Item type has headStageKey (graphql_type_field_names) and drops the field when it does not, so a new CLI still works against a site not yet deployed. A test-only invariant (fake client) asserts after every backend scenario that each lineage has at most one row with headStageKey and that it equals that row's stage. Acceptance: Gherkin writer scenarios pass; invariant hook on; writes per save unchanged (asserted by the request meter).",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -22,9 +22,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a6522849-bf57-42f1-b201-59d0a2ff92c8",
+      "author": "home",
+      "text": "Dual-write in https://github.com/AnthusAI/Papyrus/pull/1364: head_stage_key/head_stage_fields (Python), contentItemHeadStageKey (TS). Key present when the row is not superseded (current, draft or none) and has a stage: on MoM 15 of 259 stories have only a draft row. Supersede clears the key and passes the row's own updatedAt (finding confirmed: 180 of 629 superseded rows on MoM have updatedAt within 10 s of the next version's creation). Invariant runs after every backend scenario. The CLI leaves the field out on sites without it (checks once, says so once). CI green.",
+      "created_at": "2026-11-10T03:44:47.687289Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-10T02:38:57.515774Z",
-  "updated_at": "2026-11-10T02:39:03.411135Z",
+  "updated_at": "2026-11-10T03:44:47.687484Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
