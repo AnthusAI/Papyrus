@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import re
 import sys
 import http.client
@@ -764,7 +765,7 @@ _UNDEFINED_MEDIUM_INPUT = re.compile(r"field name '(?:" + "|".join(MEDIUM_REFERE
 # anyway is sent again without it (a validation error means it never ran).
 _UNDEFINED_HEAD_STAGE_KEY_INPUT = re.compile(r"field name '" + HEAD_STAGE_KEY_FIELD + r"'")
 _HEAD_STAGE_KEY_SUPPORT: dict[str, bool] = {}
-_TENANT_FIELD_SUPPORT: dict[tuple[str, str], bool] = {}
+TENANT_FIELD_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_FIELD"
 _HEAD_STAGE_KEY_NOTICE_SHOWN: set[str] = set()
 
 
@@ -979,15 +980,10 @@ class PapyrusGraphQLAuthoringClient:
         return _HEAD_STAGE_KEY_SUPPORT[self.endpoint]
 
     def has_tenant_field(self, model_name: str) -> bool:
-        """Whether this site's ``model_name`` type has ``tenantId`` (the deploy that adds it). Asked once per endpoint and model per process; a site that
-        cannot be asked is assumed not to have it, so a write is never refused for a field the site lacks."""
-        key = (self.endpoint, model_name)
-        if key not in _TENANT_FIELD_SUPPORT:
-            try:
-                _TENANT_FIELD_SUPPORT[key] = "tenantId" in self.graphql_type_field_names(model_name)
-            except Exception:   # noqa: BLE001 - introspection off or a stand-in transport: write as before
-                _TENANT_FIELD_SUPPORT[key] = False
-        return _TENANT_FIELD_SUPPORT[key]
+        """Whether this site's API has ``tenantId`` on its tenant-owned models: the deploy that adds it sets ``PAPYRUS_TENANT_FIELD`` (1/true).
+        No schema query is made (introspection is not granted to the workers or the router), and unset means off, so a write is never refused
+        for a field the site lacks."""
+        return os.environ.get(TENANT_FIELD_ENVIRONMENT_VARIABLE, "").strip().lower() in {"1", "true", "yes"}
 
     def _note_no_head_stage_key(self) -> None:
         _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = False

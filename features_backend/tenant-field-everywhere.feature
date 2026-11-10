@@ -16,7 +16,7 @@ Feature: Every tenant-owned model carries an optional tenantId
     Then the row has no tenantId and the call succeeds
 
   Scenario: A site that has not yet deployed the field is written without it
-    Given a client for tenant "alpha" on a site whose data API has no tenantId yet
+    Given a client for tenant "alpha" on a site whose deploy has not set the tenantId flag
     When it creates a Message, an Assignment and a Reference
     Then no row has a tenantId and every call succeeds
 

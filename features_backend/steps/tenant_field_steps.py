@@ -20,7 +20,12 @@ MODELS = ("Message", "Assignment", "Reference")
 
 
 def make_client(context, tenant, with_field=True):
-    graphql_authoring._TENANT_FIELD_SUPPORT.clear()
+    import os
+
+    if with_field:
+        os.environ[graphql_authoring.TENANT_FIELD_ENVIRONMENT_VARIABLE] = "1"
+    else:
+        os.environ.pop(graphql_authoring.TENANT_FIELD_ENVIRONMENT_VARIABLE, None)
     context.field_backend = IntrospectableBackend(with_tenant_field=with_field)
     context.field_client = tenant_client(context.field_backend, tenant)
 
@@ -30,7 +35,7 @@ def client_for_tenant(context, tenant):
     make_client(context, tenant)
 
 
-@given('a client for tenant "{tenant}" on a site whose data API has no tenantId yet')
+@given('a client for tenant "{tenant}" on a site whose deploy has not set the tenantId flag')
 def client_without_field(context, tenant):
     make_client(context, tenant, with_field=False)
 
