@@ -13,9 +13,17 @@
     "needs-ryan-decision"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f9657c4a-f404-40f5-bf1f-7b997b05a7f3",
+      "author": "home",
+      "text": "Design PR: https://github.com/AnthusAI/Papyrus/pull/1362 (branch docs/story-head-index, docs/plans/story-head-stage-index.md). Awaiting Ryan's decision; nothing implemented.",
+      "created_at": "2026-11-10T02:40:59.349009Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-10T02:37:37.936180Z",
-  "updated_at": "2026-11-10T02:37:37.936225Z",
+  "updated_at": "2026-11-10T02:40:59.349214Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
