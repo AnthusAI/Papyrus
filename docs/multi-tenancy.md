@@ -46,6 +46,8 @@ Why there is no tenant folder in the key: the folder was added so that two tenan
 
 Before this rule `stories save-version --images` stored tenant pictures at `media/<tenant>/assets/...` (PPY-a96347). Their renditions were made under the tenant folder, the projector looked for none, and a publish failed with missing renditions; the command the error suggested pointed at an object that did not exist. Existing objects are not moved by a deploy. `papyrus stories repair-image-paths --story <lineage> [--write]` copies a story's pictures to `media/<srcPath>` inside the bucket (no new upload) and points its rows at them; see [story-reporting.md](story-reporting.md#saving-a-draft-with-its-pictures). `papyrus ops content renditions --source <srcPath>` signed in asks the site's image function to make renditions again, and names the old tenant key if that is where the object is.
 
+The write path used to undo that rule for the rows: the tenant stamp rewrote every `MediaAsset` and `PublishedMediaAsset` `storagePath` to `media/<tenant>/<srcPath>` while the object sat at `media/<srcPath>`, so the console preview signed a key with no object (PPY-5978b4). The stamp no longer touches `storagePath`. `stories repair-image-paths` also re-points rows (media and published media) whose object is already at `media/<srcPath>`, copying and deleting nothing; the dry run lists each row.
+
 `content import-markus --tenant` and `content copy-backend --stamp-tenant` still place objects under `media/<tenant>/...` and keep their `storagePath` rows to match; a site that makes renditions from those objects needs the same repair per story (the command works from the rows, not from how they were saved).
 
 ## Adopting data written before tenant scoping

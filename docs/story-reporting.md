@@ -91,7 +91,7 @@ published. Repair them without uploading anything again:
 
 ```bash
 papyrus stories repair-image-paths --story <lineage>           # prints what it would do; writes nothing
-papyrus stories repair-image-paths --story <lineage> --write   # copies inside the bucket, then points the media rows at the new keys
+papyrus stories repair-image-paths --story <lineage> --write   # copies inside the bucket (only what is missing), then points the media and published media rows at the one key
 ```
 
 It reads every version's `MediaAsset` rows, copies each object whose key is not `media/<srcPath>` to that key inside the

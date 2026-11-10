@@ -257,6 +257,8 @@ class PublishCommandTests(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, {"PAPYRUS_CLI_STATE_DIR": state.name})
         patcher.start()
         self.addCleanup(patcher.stop)
+        # Some commands set PAPYRUS_GRAPHQL_AUTH=user for the rest of the process; another test's leftover must not make this one signed in.
+        os.environ.pop("PAPYRUS_GRAPHQL_AUTH", None)
 
     def run_command(self, command, client, flags):
         output = io.StringIO()
