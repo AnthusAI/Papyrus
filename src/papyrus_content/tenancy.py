@@ -25,7 +25,6 @@ TENANT_MODELS = frozenset(
 TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus")
 TENANT_SLUG_FIELD = "tenantSlug"
 TENANT_SLUG_MODELS = frozenset({"Item", "PublishedItem"})
-TENANT_MEDIA_PATH_MODELS = frozenset({"MediaAsset", "PublishedMediaAsset"})
 TENANT_SCOPED_RECORD_ID_MODELS = frozenset({"NewsroomSection"})
 STORED_RECORD_ID_FIELD = "storedId"
 TENANT_INDEX_REDIRECTS = {"itemBySlug": "itemByTenantSlug"}
@@ -120,8 +119,8 @@ def tenant_stamped_payload(model_name: str, tenant_id: str | None, payload: dict
             stamped[field_name] = tenant_scoped_value(tenant_id, stamped[field_name])
     if model_name in TENANT_SLUG_MODELS and isinstance(stamped.get("slug"), str):
         stamped[TENANT_SLUG_FIELD] = tenant_scoped_value(tenant_id, stamped["slug"])
-    if model_name in TENANT_MEDIA_PATH_MODELS and isinstance(stamped.get("storagePath"), str):
-        stamped["storagePath"] = tenant_media_path(tenant_id, stamped["storagePath"])
+    # storagePath is never stamped: a picture's object is media/<srcPath> on every site (renditions.media_key_for_source),
+    # and a row that names another key points at nothing (PPY-5978b4).
     return stamped
 
 

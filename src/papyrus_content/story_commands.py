@@ -8,6 +8,7 @@ import re
 import sys
 from pathlib import Path
 
+from .console_links import print_console_rows, story_links
 from .audience_lenses import lens_lines, lens_payload, lens_step_states
 from .graphql_authoring import create_authoring_client
 from .newsroom_process import assess, next_lines, print_next_lines, print_reminder, reminder_assessment, step_lines, story_facts, warn_skipped
@@ -157,6 +158,7 @@ def stories_save_version(flags: list[str]) -> None:
     for line in [*plan_output, *upload_output]:
         print(line)
     print(f"stories\tsave-version\tsaved\t{record['id']}")
+    print_console_rows("stories", "save-version", lambda base: story_links(base, lineage_id, record["id"], f"editor page of the version just saved (version {next_number})"))
     if options.get("outline"):
         mark_story_outline(client, record, actor=author)
         print(f"stories\tsave-version\toutline\t{record['id']}")
@@ -199,12 +201,13 @@ def stories_repair_image_paths(flags: list[str]) -> None:
 
     Brings the pictures of a story saved with `save-version --images` before the one-key rule (a tenant site stored them at
     media/<tenant>/assets/<slug>/<file>) to media/assets/<slug>/<file>, the key the renditions are made and looked up under.
-    Objects are copied inside the bucket, not uploaded again, and the story's MediaAsset rows are pointed at the new keys; the old
-    objects stay. Dry run unless --write is given (the usual --dry-run default does not apply: this command only plans until told).
+    Objects are copied inside the bucket, not uploaded again (a row whose object is already at media/<srcPath> is only re-pointed), and the story's
+    MediaAsset and PublishedMediaAsset rows are pointed at the new keys; objects are never deleted. Dry run unless --write is given (the usual --dry-run default does not apply: this command only plans until told).
     Writing to the bucket needs the same access `save-version --images` does (the editor's temporary credentials when signed in).
     The copies make the bucket announce new objects, which is what makes the renditions; `papyrus ops content renditions --source
     assets/<slug>/<file>` asks for them again."""
-    from .story_image_repair import apply_image_path_repair, plan_image_path_repair, plan_lines, story_media_rows
+    from .story_image_repair import apply_image_path_repair, plan_image_path_repair, plan_lines, story_media_rows, story_published_media_rows
+    from .story_images import open_media_store
 
     options = parse_options(flags)
     if options.get("apply") is not None or options.get("dry-run") is not None:
@@ -212,18 +215,25 @@ def stories_repair_image_paths(flags: list[str]) -> None:
     write = parse_boolean_option(options.get("write"), default=False, label="--write")
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
-    plan = plan_image_path_repair(story_media_rows(client, lineage_id))
+    store = None
+    try:
+        store = open_media_store(normalize_string(options.get("bucket")), normalize_string(options.get("identity-pool-id")))
+    except Exception as error:   # a plan can still be printed without the bucket; --write cannot
+        if write:
+            raise
+        print(f"stories\trepair-image-paths\t{lineage_id}\tnote\tthe bucket was not checked: {error}")
+    plan = plan_image_path_repair(
+        story_media_rows(client, lineage_id), story_published_media_rows(client, lineage_id), exists=store.exists if store else None
+    )
     for line in plan_lines(lineage_id, plan):
         print(line)
     if not plan.needed:
         print(f"stories\trepair-image-paths\t{lineage_id}\tnothing to repair\t{plan.already_canonical} picture row(s) already at media/<srcPath>")
         return
     if not write:
-        print(f"stories\trepair-image-paths\t{lineage_id}\tdry run\t{len(plan.copies)} object(s) to copy, {len(plan.row_updates)} row(s) to update; pass --write to do it")
+        copies = len(plan.copies) - len(plan.repoint_only)
+        print(f"stories\trepair-image-paths\t{lineage_id}\tdry run\t{copies} object(s) to copy, {len(plan.row_updates)} media row(s) and {len(plan.published_row_updates)} published media row(s) to update; pass --write to do it")
         return
-    from .story_images import open_media_store
-
-    store = open_media_store(normalize_string(options.get("bucket")), normalize_string(options.get("identity-pool-id")))
     results = apply_image_path_repair(client, store, plan)
     for kind, subject, outcome in results:
         print(f"stories\trepair-image-paths\t{lineage_id}\t{kind}-{outcome}\t{subject}")
@@ -471,6 +481,7 @@ def stories_show(flags: list[str]) -> None:
     from .story_signals import signals
 
     if versions:
+        print_console_rows("stories", "show", lambda base: story_links(base, lineage_id, latest["id"], f"editor page of the current version (version {latest.get('versionNumber')})"))
         signal = signals(latest, normalize_string(options.get("bucket")) or DEFAULT_STORY_BUCKET, utc_today())
         print("\t".join(["stories", "show", "signals", f"type {signal['type']}", f"section {signal['section']}", f"bucket {signal['bucket']}",
                          f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
@@ -506,7 +517,9 @@ def stories_list(flags: list[str]) -> None:
     """papyrus stories list [--stage <stage>] [--section <id|slug|name>] [--type article|post] [--stars N | --min-stars N | --max-stars N]
     [--sort updated|stars|rank] [--bucket day|week|none] [--limit N]
 
-    Read only. One line per Story: stories, list, lineage id (the id `stories show --story` takes), stage, section, title, then the signals the layouts use:
+    Read only. Every Story of the stage (or of every board stage), one line each, whether it is still a draft or already published: the same Stories the Stories
+    board shows (a replaced, superseded version is never a Story of its own). The last line is `stories list N of TOTAL`: --limit N (default 50) prints the
+    first N, so a TOTAL above N means more exist; raise --limit to see them. One line per Story: stories, list, lineage id (the id `stories show --story` takes), stage, section, title, then the signals the layouts use:
     stars (the effective quality rating, 0 unrated), source (editor|none), votes, bucket (the rolling window, week:0 is the last seven days), type, words,
     published (last-published date). Without --stage it lists every board stage except spiked and held. --sort updated (default) is newest change first;
     --sort stars is rated high to low, unrated last; --sort rank is what the Articles and Posts page shows first (newest bucket first, rated Stories first
@@ -817,6 +830,7 @@ def stories_create(flags: list[str]) -> None:
         print("stories\tcreate\twarning\tthis story has no type and cannot be published until it has one: run papyrus stories set-type --story <lineage> --type post|article")
     print(f"stories\tcreate\tcreated\t{item['id']}")
     print(f"stories\tcreate\tlineage\t{lineage_id}")
+    print_console_rows("stories", "create", lambda base: story_links(base, lineage_id, item["id"], "editor page of the first version"))
     for reference_id in reference_ids:
         linked = link_reference_to_story(client, lineage_id, reference_id, role="based_on", actor=actor)
         print(f"stories\tcreate\tbased on\t{linked['referenceLineageId']}")

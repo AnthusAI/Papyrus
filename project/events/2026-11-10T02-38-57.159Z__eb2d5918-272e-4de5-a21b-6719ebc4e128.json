@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "eb2d5918-272e-4de5-a21b-6719ebc4e128",
+  "issue_id": "PPY-2f3d947a-d99a-4c3b-8e19-01d9520da080",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-10T02:38:57.159Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "test",
+        "to": "PR #1361 (branch fix/board-stage-published) adds filter versionState ne superseded to the two console stage queries in components/news-desk-taxonomy-client.ts. It fixes the 26 wrong Machines on Machines cards now, with no backend or schema change, at the cost of reading about 4.7x more rows in the Published column (456 superseded of 580). Removed by the cleanup task once the head-stage index is read. Acceptance: on MoM, no card shows a version that is not the head of its lineage; the Gherkin scenario in the PR passes; a site bump ships it (front end only)."
+      }
+    }
+  }
+}

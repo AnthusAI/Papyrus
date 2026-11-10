@@ -1,0 +1,27 @@
+{
+  "id": "PPY-52f3da00-bbc4-4a86-82e1-a85b2c662b28",
+  "title": "Console reads the head-stage index (board columns and refresh)",
+  "description": "components/news-desk-taxonomy-client.ts: loadNewsroomContentItemStagePage and loadNewsroomContentItemsChangedSince query listItemsByHeadStageAndUpdatedAt (tenant-scoped key) instead of listItemsByStageAndUpdatedAt with the superseded filter. lib/board-refresh.ts applyChangedVersions drops every loaded row whose lineage appears among the changed rows (a lineage has one head, so a changed head replaces whatever was shown for it); latestVersionPerContentItem stays only as a defence against a duplicate head. Ships after the backfill has run on the site (the release is a front-end bump). Acceptance: the board scenarios pass; on MoM every column reads exactly its heads (no filter, no extra pages); 0 cards show a non-head version.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+  "labels": [
+    "deploy:frontend"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-35a38560-4b74-47da-bbe7-c6b34995e69e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-10T02:38:57.738471Z",
+  "updated_at": "2026-11-10T02:39:03.764726Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

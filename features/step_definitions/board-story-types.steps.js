@@ -31,3 +31,8 @@ Then("a stage with no stories at all ends without looping", function () { passed
 Then("wiki pages, doctrine and pages are not stories", function () { passed(this, "types"); });
 Then("an article, a post, a newsletter issue, a story with no type and any other type are stories, and the query excludes only the system types", function () { passed(this, "types"); });
 Then("the guide, the post, the newsletter issue and the untyped story are cards and the wiki page is not", { timeout: 120_000 }, async function () { this.result = await run("new_type"); passed(this, "new_type"); });
+
+Given("a Story written in Copywriting and later published, whose newest version is not in the first page of the Published column", function () { this.result = ""; });
+When("the Stories board loads the Copywriting column", { timeout: 120_000 }, async function () { this.result = await run("superseded"); });
+Then("the superseded Copywriting version is not loaded and the Story is not a Copywriting card", function () { passed(this, "superseded"); });
+Then("the board asks for story types that are not superseded", function () { passed(this, "superseded"); });

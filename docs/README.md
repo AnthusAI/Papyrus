@@ -130,6 +130,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 ## CLI and API
 
 - [operator-cli.md](operator-cli.md): one `papyrus` command over local pod and cloud backends.
+- [console-links.md](console-links.md): console addresses of a Story, Reference, Concept, Assignment and review item, and `papyrus links`.
 - [cli-login.md](cli-login.md): native Google CLI session, secure storage, renewal and required provider configuration.
 - [idea-pipeline.md](idea-pipeline.md): `papyrus ideas digest|synthesize`, private story ideas from a site's recent references (v0).
 - [python-cli-and-testing.md](python-cli-and-testing.md): Poetry setup, CLI recipes, sandbox seeding and BDD suites.

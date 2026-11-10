@@ -35,6 +35,7 @@ Operator groups:
   publication   Create the backend's canonical publication (publication init)
   site          Site repository operations (site google-secrets set|check)
   batch         Batch registration and enrichment
+  links         Console addresses of a Story, Reference, Concept, Assignment or review item (links --story|--reference|--concept|--assignment|--review)
   login         Google newsroom sign-in using a configured native OAuth client
   logout        Remove the local user session and attempt provider revocation
   whoami        Renew and identify the selected newsroom user
