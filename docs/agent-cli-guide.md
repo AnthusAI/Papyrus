@@ -431,6 +431,33 @@ papyrus design-system push ./design-system --reason "New display font"
 - `push DIR --reason TEXT` checks the folder first (every role present, a light and a dark value for every color, the fonts it names exist) and refuses one that cannot draw. An unchanged folder makes no version. A folder holds `mapping.json`, its tokens file, the fonts, `examples/NAME/figure.svg` + `figure.json`, and an optional `settings.json` such as `{"requireDarkFigures": true}`; a folder with no `settings.json` keeps the site's settings. Signed in, the author is the person; on the operator lane `--author-label` is required. `--dry-run` lists what would be stored and writes nothing. This is the command a site repository runs as part of its deploy.
 - The site setting `requireDarkFigures` makes `stories save-version` refuse a figure with no dark picture (see "Save a version"). The editorial context pack points at the design system when the site has one.
 
+## Guidelines
+<!-- guide:guidelines -->
+
+### Read, change and save a site's guidelines
+**Lane:** editor (signed in with `papyrus login`). **Version:** the release after 5.101.0 that carries the guidelines door; a site gets it with its data API deploy, so `papyrus guidelines show` on a site not yet deployed answers `service_unavailable`. `show`, `resolve`, `diff` and `history` only read. `save` writes immediately unless you pass `--dry-run`, and only an admin may save.
+
+A site keeps its guidelines as versioned documents: one per **kind** (`writing`, `image`, `video`) for the publication, and optionally one per section laid over it. An unknown kind is refused with the list of the kinds the site knows. Text lives in S3; every save makes a new version and the old ones stay.
+
+```sh
+papyrus guidelines show --kind writing
+papyrus guidelines show --kind writing --section security
+papyrus guidelines resolve --kind writing --section security
+papyrus guidelines history --kind writing
+papyrus guidelines diff --kind writing --file ./writing.yml
+papyrus guidelines save --kind writing --file ./writing.yml --reason "Narrowed the audience" --expected-current-version-id item-editorial-doctrine-writing-v1 --dry-run
+papyrus guidelines save --kind writing --file ./writing.yml --reason "Narrowed the audience" --expected-current-version-id item-editorial-doctrine-writing-v1
+papyrus guidelines save --kind video --file ./video.yml --reason "First video guidelines" --expected-current-version-id none
+```
+
+- `show` prints the stored document and its `expectedCurrentVersionId`: pass that to `save` as `--expected-current-version-id`. A kind with nothing stored yet answers `not_found` with `expectedCurrentVersionId: none` in `details`: pass `none` for the first save. `--version N` reads an older version.
+- `resolve` prints the effective document and `fieldSources` (which layer gave each field: the publication, the section, or locked by the publication) and `layers` (each layer's version and hash). A section with no document of its own resolves to the publication's. A site with no document of that kind resolves to nothing with the warning `<kind>_guidelines_missing`; that is not an error. Image guidelines are resolved for a Story and a use, with `papyrus images profile resolve`.
+- `diff` and `save --dry-run` compare the file with what is stored, field by field, and list the binding-rule changes (`constraintChanges`); they save nothing. A dry run of `save` prints `result.preview` with the same diff.
+- `save` takes the document whole (JSON or YAML) from `--file`; the document is validated and every problem is listed by field in `details.problems`. A document equal to the current one makes no version (`unchanged: true`). `--expected-current-version-id` must name the version you read: if someone saved since, the answer is `stale_version`; read again and apply your change to the new version.
+- **Binding rules** (`constraints`) belong to the publication. Adding, changing or removing one needs an admin who is a person: with `PAPYRUS_ACTOR_KIND=agent` the answer is `human_required` and nothing is saved, even in an admin's session. An editor's `save` is `not_authorized`.
+- `history` lists the versions newest first with who saved each, whether a person or an agent, when, and why.
+- `--kind image` runs the image profile operations (`papyrus images profile ...` keeps working); a section image document is not stored yet.
+
 ## Ideas
 <!-- guide:ideas -->
 
