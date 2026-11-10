@@ -53,6 +53,7 @@ COMMAND_USAGE = {
   ("stories", "show"): "--story LINEAGE  (read only; prints its References by lineage id, which references show accepts, and its related stories)",
   ("assignments", "show"): "--assignment ID  (read only; status, type, section, Story and events)",
   ("stories", "move"): "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]  (board stage only: --stage published publishes no page; use ops content publish)",
+  ("stories", "set-type"): "--story LINEAGE|SLUG --type TYPE [--dry-run]  (sets the Story type the site uses, for example post or article; a new version, never a rewrite of history)",
   ("stories", "link-story"): "--story LINEAGE|SLUG (--to LINEAGE|SLUG [--to ...] | --reference REFERENCE_ID [--reference ...]) [--note TEXT] [--dry-run] [--json]  (links stories, or accepted References, for the See also block; either direction counts as the same link, so repeating writes nothing)",
   ("stories", "link-concept"): "--story LINEAGE|SLUG --concept NAME|#HASHTAG|NODEKEY [--concept ...] [--note TEXT] [--dry-run] [--json]  (tags a story with existing accepted concepts, exact match only; never creates one)",
   ("stories", "suggest-links"): "--story LINEAGE|SLUG [--kinds articles,posts,references] [--limit N] [--min-score S] [--json]  (read only; ranked related articles, posts and References from the story's concepts, with the shared concepts and the ready link command)",
