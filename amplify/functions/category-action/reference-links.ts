@@ -8,6 +8,8 @@ export const ITEM_CONCEPT_KIND = "item.concept";
 export const CONCEPT_LINK_KIND = "concept.link";
 export const REFERENCE_LINK_FEED_KEY = "reference-links";
 export const RELATED_TO = "related_to";
+/** Tagging a Reference or a story with a concept (renamed from `related_to` on 2026-11-09; stored `related_to` tag rows are read until `papyrus relations migrate-concept-tags` has run). */
+export const TAGGED_WITH = "tagged_with";
 export const REFERENCE_LINK_PREDICATES = ["related_to", "cites", "supports", "contradicts"] as const;
 export const SYMMETRIC_PREDICATES: readonly string[] = [RELATED_TO];
 export const LINK_DECISIONS = { accept: "accepted", reject: "rejected" } as const;
@@ -16,6 +18,7 @@ const STATE_FOR_DECISION = { accepted: "current", rejected: "rejected" } as cons
 
 const RELATION_TYPE_FIELDS: Record<string, { relationTypeId: string; relationTypeKey: string; relationDomain: string }> = {
   related_to: { relationTypeId: "semantic-relation-type-related-to", relationTypeKey: "related_to", relationDomain: "generic" },
+  tagged_with: { relationTypeId: "semantic-relation-type-tagged-with", relationTypeKey: "tagged_with", relationDomain: "editorial" },
   cites: { relationTypeId: "semantic-relation-type-cites", relationTypeKey: "cites", relationDomain: "evidence" },
   supports: { relationTypeId: "semantic-relation-type-supports", relationTypeKey: "supports", relationDomain: "evidence" },
   contradicts: { relationTypeId: "semantic-relation-type-contradicts", relationTypeKey: "contradicts", relationDomain: "evidence" },
@@ -192,12 +195,13 @@ export async function createReferenceLink(
   store: ReferenceLinkStore,
   input: { subjectLineageId: string; objectKind: string; objectLineageId: string; predicate: string; note?: string | null; newConceptName?: string | null; newConceptDisplayName?: string | null; callerSub: string; now: string; origin?: string | null },
 ): Promise<ReferenceLinkResult> {
-  if (!(REFERENCE_LINK_PREDICATES as readonly string[]).includes(input.predicate)) {
+  if (!(REFERENCE_LINK_PREDICATES as readonly string[]).includes(input.predicate) && input.predicate !== TAGGED_WITH) {
     throw new Error(`predicate must be one of ${REFERENCE_LINK_PREDICATES.join(", ")}.`);
   }
   if (input.objectKind !== "reference" && input.objectKind !== "semanticNode") throw new Error("objectKind must be reference or semanticNode.");
   const subjectReference = await store.getCurrentReference(input.subjectLineageId);
   if (!subjectReference) throw new Error(`Reference not found: ${input.subjectLineageId}`);
+  let predicate = input.predicate;
   let first = referenceEdge(subjectReference, input.subjectLineageId);
   let second: Edge;
   let kind: string;
@@ -206,18 +210,31 @@ export async function createReferenceLink(
     if (!objectReference) throw new Error(`Reference not found: ${input.objectLineageId}`);
     second = referenceEdge(objectReference, input.objectLineageId);
     if (first.lineageId === second.lineageId) throw new Error("A reference cannot be linked to itself.");
-    if (SYMMETRIC_PREDICATES.includes(input.predicate) && second.lineageId < first.lineageId) [first, second] = [second, first];
+    if (predicate === TAGGED_WITH) throw new Error("tagged_with tags a Reference with a concept; between two References use related_to, cites, supports or contradicts.");
+    if (SYMMETRIC_PREDICATES.includes(predicate) && second.lineageId < first.lineageId) [first, second] = [second, first];
     kind = REFERENCE_LINK_KIND;
   } else {
-    if (input.predicate !== RELATED_TO) throw new Error("A concept is linked with the related_to predicate.");
+    // A Reference is tagged with a concept with `tagged_with`; a client that still sends `related_to` for it means the same, and the row is written as `tagged_with`.
+    if (input.predicate !== TAGGED_WITH && input.predicate !== RELATED_TO) throw new Error("A concept is linked with the tagged_with predicate.");
+    predicate = TAGGED_WITH;
     const node = input.newConceptName ? await ensureEditorConcept(store, input.newConceptName, input.callerSub, input.now, { displayName: input.newConceptDisplayName, origin: input.origin }) : await store.getSemanticNode(input.objectLineageId);
     if (!node) throw new Error(`Concept not found: ${input.objectLineageId}`);
     second = { kind: "semanticNode", id: node.id, lineageId: node.lineageId ?? node.id, versionNumber: node.versionNumber ?? null };
     kind = REFERENCE_CONCEPT_KIND;
   }
-  const relationId = referenceLinkRelationId(input.predicate, first.lineageId, second.lineageId);
-  const existing = await store.getRelation(relationId);
-  const row = buildHumanEdgeRow({ relationId, kind, predicate: input.predicate, subject: first, object: second, existing, actor: input.callerSub, note: optionalText(input.note), now: input.now, origin: input.origin });
+  let relationId = referenceLinkRelationId(predicate, first.lineageId, second.lineageId);
+  let existing = await store.getRelation(relationId);
+  if (kind === REFERENCE_CONCEPT_KIND && !existing) {
+    // The same pair under the old name, not migrated yet: update that row in place rather than write a second row beside it (the migration moves it later).
+    const legacyId = referenceLinkRelationId(RELATED_TO, first.lineageId, second.lineageId);
+    const legacy = await store.getRelation(legacyId);
+    if (legacy && legacy.relationState !== "superseded") {
+      relationId = legacyId;
+      existing = legacy;
+      predicate = RELATED_TO;
+    }
+  }
+  const row = buildHumanEdgeRow({ relationId, kind, predicate, subject: first, object: second, existing, actor: input.callerSub, note: optionalText(input.note), now: input.now, origin: input.origin });
   await store.putRelation(row, existing !== null);
   return { ok: true, relationId, relationState: "current", outcome: existing ? "updated" : "created", decision: null };
 }

@@ -258,8 +258,22 @@ A story or a Reference is tagged with a concept by one edge: `tagged_with` (labe
 `accepted`, `relationState` `current`, metadata `kind` `item.concept` (stories) or `reference.concept` (References), `provenance` `human` (a signed-in person) or
 `derived` (an agent), `addedBy`, `addedAt` and an optional `note`. The writers are `link_item_concept` and `link_concept` in `reference_links.py`; the row id is
 deterministic (it includes the predicate), so a repeat is the same row. `mentions` stays for concepts the enrichment found in text. `related_to` was the tag's name
-before 2026-11-09: rows under it still exist (the console, the suggestion pipeline and the idea pack builder still write them), so every reader accepts both
-(`CONCEPT_TAG_PREDICATES`; the one place to rename again), and the audit lists the old ones as "legacy: migrate". The migration is not built.
+before 2026-11-09. Every writer (the console and the CLI through `createReferenceLink`, the vector suggestions, the idea pack builder) now writes `tagged_with`; `related_to` stays
+for two References and for two concepts. Rows written under the old name are still read (`CONCEPT_TAG_PREDICATES` in Python and `lib/reference-links.ts`), the audit lists them as
+"legacy: migrate", and a tag writer does not add a second row beside a legacy one (a rejected legacy tag stays rejected).
+
+`papyrus relations migrate-concept-tags [--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]` moves them (operator lane, IAM: editors cannot update relations).
+**A dry run is the default** and writes nothing: it prints the counts by subject kind (story or Reference), state and provenance, and a sample. With `--apply`, for each legacy
+`related_to` edge from a story or a Reference to a concept, in the states `current`, `suggested` and `rejected`, it writes the equivalent `tagged_with` row (same ends, state,
+score, classifier, and the whole metadata: provenance, who added and decided it and when, the decision, reason, note and explanation, plus `migratedFromRelationId`), then
+retires the old row: `relationState` `superseded`, its state keys rewritten (readers query `...#current`, `...#suggested`, `...#rejected`, so it is out of every reader's view),
+and `supersededBy` and `supersededAt` in its metadata. Nothing is deleted. A rejected tag becomes a rejected `tagged_with` row, so the rejection is kept. It is idempotent and
+resumable: a retired row is no longer found, and a pair whose `tagged_with` row exists (an interrupted run, or a tag made after the rename) only has its legacy row retired.
+Two `related_to` kinds never move: Reference to Reference and concept to concept. The legacy rows are found with the `semanticRelationsByObjectState` index (three keys per concept,
+25 to a request) after the one read of the concept list; no relation table scan. `--corpus-key` / `--site` keep the References of `knowledge-corpus-<key>`; stories are
+always included; `--limit` takes at most N edges. A report is written to `.papyrus-runs/concept-tag-migration-<time>/migration-report.json`. After a run,
+`check-links --legacy-only` prints only the legacy tags and their count (zero when done), and a `superseded` row is never reported. Production steps:
+[concept tag migration runbook](concept-tag-migration-runbook.md).
 
 ```bash
 papyrus stories link-concept --story <lineage-or-slug> --concept <name|#hashtag|nodeKey> [--concept ...] [--note TEXT] [--dry-run] [--json]
@@ -278,11 +292,11 @@ wiki page (a published wiki page whose `entityKey` is the concept's slug, the pa
 story page links a concept only once a page exists. Who added it comes from the sign-in as for `link-reference` (`human`); on the IAM lane `--author-label` is required
 (`derived`). The agent tool is `papyrus_link_concepts(target_kind, target, concepts[], author_label, note?)` (Tactus, `tactus_tools.py`; `target_kind` is `story` or
 `reference`) and the MCP-shaped entry of the same name in `story_signals_mcp.py`. The older `papyrus references link --concept` (editors; it can create a concept and
-writes `related_to` through the site's `createReferenceLink`) is not the agent route.
+writes `tagged_with` through the site's `createReferenceLink`, which also accepts `related_to` for a concept and writes `tagged_with`) is not the agent route.
 
 `papyrus stories check-links [--story ...] [--json]` and `papyrus references check-links (--reference ID | --corpus-id ID) [--json]` are read only audits. They list every
 story-to-story, story-to-concept and Reference-to-concept relation that is not the official shape: a wrong predicate or kind, a state that is not `current`, a concept that
-is missing, not accepted or without a public page, a story target that is not published, a legacy `related_to` tag, and duplicate pairs. `mentions` to an accepted
+is missing, not accepted or without a public page, a story target that is not published, a legacy `related_to` tag (`--legacy-only` lists only those and counts them; a `superseded` row is not reported), and duplicate pairs. `mentions` to an accepted
 concept is an accepted shape. Fixing is out of scope. Cost: the stories audit reads the published-story summaries once, then three index reads per story (25 keys to a
 request) and one batched concept read; the References audit reads the corpus's accepted References through `referencesByCurationStatusKey` and the same three index reads
 per Reference (827 References: about 100 relation requests), with no table scan. Specs: `features_backend/concept-tags.feature`.

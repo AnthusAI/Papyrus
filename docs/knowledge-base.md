@@ -32,6 +32,10 @@ Accepted topics are a versioned tree: a `CategorySet` with parent and child `Cat
 
 `knowledgeQuery` searches accepted references and the graph and returns a context pack for a model: semantic search, lookup by anchor, and budgeted graph expansion. Only accepted references count as evidence. Research and reporting procedures call it as `knowledge_search`. See [internal-knowledge-research.md](internal-knowledge-research.md).
 
+## Concept tags are `tagged_with`
+
+A story or a Reference is tagged with a concept by a `tagged_with` relation (renamed from `related_to` on 2026-11-09; `related_to` stays for two References and for two concepts). Concept statistics, the concept pages, "Linked by editors", the knowledge query, the context packs and the wiki read both names until `papyrus relations migrate-concept-tags` has moved the stored rows (the old rows become `superseded`, not deleted). See [Tagging with concepts](story-reporting.md#tagging-with-concepts).
+
 ## Trending concepts report (Beta)
 
 A report ranks concepts by popularity, by trend over a time window, or by PageRank, from the mentions in accepted references. It is run from the command line. It is Beta: it is a private analytics report for editors and is not shown to readers.
