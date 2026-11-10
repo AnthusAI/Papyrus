@@ -489,9 +489,21 @@ python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id feed-metr 
     --source-url https://metr.org/feed.xml --interval-seconds 21600
 ```
 
-Seeding the config is not the whole of a new monitor: it also needs a collect and a route schedule in `papyrus-monitoring.yaml`
-(copy the `papers-arxiv-security` pair, with its own route minute), `feed-metr` in `MONITOR_IDS` in `monitoring_view.py`, and a
-`seed_router_config.py --monitor-id feed-metr --file router.json` for its publications.
+**What the abstract can cost.** `content:encoded` is stored as the item's `details.abstract`, but `parse_feed` cuts it to 20,000 characters
+before the item is built, so nothing larger is ever written (the largest post in the feed is about 800 KB of source; a test feeds an
+800 KB post and checks the stored abstract is 20,000 characters). The text is the post's HTML, tags included, cut mid-sentence when long.
+
+**What a deploy needs.** The monitor is complete in the repository: the collect schedule `papyrus-monitoring-feed-metr-collect`
+(`rate(6 hours)`) and the route schedule `papyrus-monitoring-feed-metr-route` (hourly at minute 14, a minute no other schedule in the
+template uses) are in `infra/monitoring/papyrus-monitoring.yaml` (`FeedMetrCollectSchedule`, `FeedMetrRouteSchedule`), and `feed-metr` is in
+`MONITOR_IDS` in `monitoring_view.py`. The stack to deploy is `papyrus-monitoring` (the collector and router code carry the `metr.org`
+host, the template carries the schedules). Nobody deploys it by hand: merging the release to `main` runs
+`.github/workflows/stack-deploy.yml`, which builds the zips and creates, checks and executes the change set through GitHub OIDC; the pull
+request shows the same change set as a read-only dry run in its job summary (`infra/pipeline/README.md`). The change set should add the
+two schedules and the code updates, and nothing else; read it before merging. Until it runs, the schedules do not
+exist and the `metr.org` host is refused. After the deploy, a person (not CI) seeds the table: the `seed_config.py` command above, then
+`seed_router_config.py --table "$TABLE" --monitor-id feed-metr --file router.json` for the publications (`decisions: cyclotron`, or `hold`
+while a site has no Cyclotron).
 
 **Gherkin.** `monitoring-paper-feeds`. Recorded responses are in `procedures/newsroom/tests/fixtures/feeds`.
 

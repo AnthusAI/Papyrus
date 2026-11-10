@@ -396,6 +396,22 @@ def test_a_metr_item_without_title_or_link_is_left_out_and_the_channel_is_not_an
     assert len(feed.parse_feed(body.encode(), METR_FEED)) == 5
 
 
+def long_metr_feed() -> bytes:
+    return read("metr-rss.xml").decode().replace("</channel>", "<item><title>Long</title><link>https://metr.org/blog/long/</link>"
+        "<guid>https://metr.org/blog/long/</guid><content:encoded><![CDATA[" + "x" * 800_000 + "]]></content:encoded></item></channel>").encode()
+
+
+def test_a_long_metr_post_is_cut_to_the_abstract_limit_before_it_is_stored():
+    table = FakeTable()
+    table.put_item(feed_config(METR_FEED))
+
+    run(table, "papers", lambda url: long_metr_feed())
+
+    row = next(r for r in table.by_prefix("DISC#") if r["canonicalUrl"] == "https://metr.org/blog/long/")
+    assert len(row["details"]["abstract"]) == feed.MAX_ABSTRACT_CHARACTERS == 20_000
+    assert all(len(json.dumps(r, default=str)) < 100_000 for r in table.by_prefix("DISC#"))
+
+
 # --- collection of a feed --------------------------------------------------------------------------
 
 def test_a_feed_monitor_collects_papers_and_dedupes_on_the_next_pass():

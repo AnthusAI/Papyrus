@@ -312,10 +312,30 @@ def step_stack_template(context):
     context.template_blocks = {match.group(1): match.group(0) for match in re.finditer(r"^  (\w+Schedule):\n(?:(?:    .*|)\n)*", text, re.M)}
 
 
-@then("papers-arxiv-ai, papers-arxiv-security and papers-huggingface each have a schedule running the collector every 6 hours and a schedule running the router hourly, each naming its monitor")
+@then("papers-arxiv-ai, papers-arxiv-security, papers-huggingface and feed-metr each have a schedule running the collector every 6 hours and a schedule running the router hourly, each naming its monitor")
 def step_paper_schedules(context):
-    for name, monitor_id in (("PapersArxivAi", "papers-arxiv-ai"), ("PapersArxivSecurity", "papers-arxiv-security"), ("PapersHuggingface", "papers-huggingface")):
+    for name, monitor_id in (("PapersArxivAi", "papers-arxiv-ai"), ("PapersArxivSecurity", "papers-arxiv-security"), ("PapersHuggingface", "papers-huggingface"), ("FeedMetr", "feed-metr")):
         collect, route = context.template_blocks[f"{name}CollectSchedule"], context.template_blocks[f"{name}RouteSchedule"]
         assert "rate(6 hours)" in collect and "CollectorFunction.Arn" in collect and f'"monitorId":"{monitor_id}"' in collect
         assert re.search(r"cron\(\d+ \* \* \* \? \*\)", route) and "RouterFunction.Arn" in route and f'"monitorId":"{monitor_id}"' in route
 
+
+
+@then("no paper monitor routes in the same minute as another monitor")
+def step_distinct_minutes(context):
+    hourly = {name: re.search(r"cron\((\d+) \* \* \* \? \*\)", block) for name, block in context.template_blocks.items() if "RouterFunction.Arn" in block}
+    minutes = {name: match.group(1) for name, match in hourly.items() if match}
+    for paper in ("PapersArxivAi", "PapersArxivSecurity", "PapersHuggingface", "FeedMetr"):
+        others = [m for name, m in minutes.items() if name != f"{paper}RouteSchedule"]
+        assert minutes[f"{paper}RouteSchedule"] not in others, paper
+
+
+@given("the feed holds a post whose content is far longer than the abstract limit")
+def step_long_post(context):
+    context.feed_body = tf.long_metr_feed()
+
+
+@then("the stored abstract is cut at the limit")
+def step_cut(context):
+    row = next(r for r in feed_discoveries(context).values() if r["canonicalUrl"] == "https://metr.org/blog/long/")
+    assert len(row["details"]["abstract"]) == 20_000
