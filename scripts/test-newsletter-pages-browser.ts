@@ -60,6 +60,9 @@ async function chrome(page: Page, scheme: "light" | "dark", heading: string, nam
   assert.equal(await page.locator('link[rel="stylesheet"][href="/css/site-theme.css"]').count(), 1);
   assert.equal(await page.locator('meta[name="robots"]').getAttribute("content"), "noindex, nofollow");
   assert.equal(await page.locator('meta[name="referrer"]').getAttribute("content"), "same-origin");
+  // The heading can be on screen (rendered by the page's script) before the theme stylesheet has loaded; paint is only
+  // checked once every stylesheet link has a parsed sheet, so a slow stylesheet cannot read as a transparent body.
+  await page.waitForFunction(() => [...document.querySelectorAll('link[rel="stylesheet"]')].every((link) => (link as HTMLLinkElement).sheet !== null));
   const painted = await page.evaluate(() => ({
     body: getComputedStyle(document.body).backgroundColor,
     main: getComputedStyle(document.querySelector("main")!).backgroundColor,
