@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "197a4bcb-fd27-4bf8-aab6-cb5fd3cca6cd",
+  "issue_id": "PPY-35a38560-4b74-47da-bbe7-c6b34995e69e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T02:38:57.628Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Backfill command: papyrus stories head-index (dry run, idempotent, per site)",
+    "description": "papyrus stories head-index [--dry-run] [--stage S] [--rate N]: reads the old stage index partition by partition (the one-time migration read, inside a named request_meter sweep), groups rows by lineage, picks the head with the existing _current_of rule (the row marked current; the most recently created if a muddled lineage has several), and writes headStageKey on the head and removes it from any other row. It writes only what differs (re-running writes nothing), passes the row's own updatedAt so no card jumps to the top, writes at a capped rate (default 5 per second), prints one line per change and a summary (lineages, heads set, keys removed, muddled lineages, already correct), and doubles as the verify command (dry run with zero changes = healthy). Per site, through the signed-in papyrus CLI. MoM: about 830 story rows read, one write per lineage that has a stage. Acceptance: dry run on MoM reviewed by Ryan; apply; second dry run reports zero changes; then the same for the other six sites.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+    "labels": [
+      "production-data-write",
+      "needs-ryan-approval"
+    ]
+  }
+}

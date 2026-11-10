@@ -49,6 +49,8 @@ those stored paths. What counts as a picture:
 
 - an `::image{src="..."}` line, or a Markdown `![...](...)`, whose `src` is a relative path that resolves to a file inside the folder (web addresses, absolute paths, and paths the folder does not hold are left alone; the latter are listed as `image-unresolved`);
 - its dark version, if any: a file named like the light one with `.dark` before the extension (`figure.png`, `figure.dark.png`), or the file named by `srcDark="..."`. It is uploaded too and the `::image{}` line gets an explicit `srcDark` with the stored path. `srcDark="none"` keeps pairing off. A Markdown `![]()` has no `srcDark`, so its dark file is uploaded but only an `::image{}` line can show it.
+- the card pictures in the front matter (`image`, `cover`, `ogImage`, `thumbnail` and their Night counterparts `imageDark`, `coverDark`, `thumbnailDark`): a file name found in the folder is uploaded and replaced by its stored path, and a stored path whose picture was numbered (`assets/<slug>/chart.png` became `chart-2.png` because the folder now holds a different `chart.png`) is moved to the new path, so the card and the social image name the file that was just uploaded. A web address and a rendition path are left alone. A dry run lists each move as `front-matter`. Spec: `features_backend/story-version-images.feature`.
+- on the site, a card, a hero or any `<img>` whose address is a stored picture with renditions shows the rendition the article page shows (`features_backend/card-rendition-images.feature`), so a card never depends on the original file being in the site store; the social image tags keep the picture as written.
 
 Everything is checked before any write: at most 10 MB per file; a PNG, JPEG, GIF, WebP, AVIF or SVG picture; and a dark
 version whose width-to-height ratio is within 0.5% of the light one's. A rejection names each bad file and saves
@@ -89,7 +91,7 @@ published. Repair them without uploading anything again:
 
 ```bash
 papyrus stories repair-image-paths --story <lineage>           # prints what it would do; writes nothing
-papyrus stories repair-image-paths --story <lineage> --write   # copies inside the bucket, then points the media rows at the new keys
+papyrus stories repair-image-paths --story <lineage> --write   # copies inside the bucket (only what is missing), then points the media and published media rows at the one key
 ```
 
 It reads every version's `MediaAsset` rows, copies each object whose key is not `media/<srcPath>` to that key inside the

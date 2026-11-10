@@ -28,6 +28,10 @@ The `concepts` and `related_content` steps come after the four review lenses and
 
 The illustration and typesetting steps are described in [story-illustration-typesetting.md](story-illustration-typesetting.md).
 
+## Share a review link
+
+The `draft` and `copy_edit` steps carry one more duty: after each save, show the editor the console link of the exact version (the `console` row of `stories save-version`, or `papyrus links --story LINEAGE --version N`), before asking for approval to publish. It is a description, not a step: the template keys and `TEMPLATE_VERSION` are unchanged. See [console-links.md](console-links.md).
+
 ## Two decisions
 
 - The outline comes after the research. The editor writes it once the reporter's packet exists, and saves it with `--outline` so the draft step can tell the outline from the draft.

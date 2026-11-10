@@ -25,6 +25,7 @@ from typing import Any, Callable, Iterable
 from .markus_import import IMAGE_CONTENT_TYPES, media_id_for
 from .markus_renderer.content_markup import _ATTR_RE, _IMAGE_DIRECTIVE_RE
 from .record_helpers import to_aws_json
+from .projection.stored import FRONT_MATTER_IMAGE_KEYS
 from .renditions import media_key_for_source
 
 #: The editor's limit (``MAX_IMAGE_BYTES``).
@@ -127,6 +128,8 @@ class StoryImagePlan:
     images: list[PlannedStoryImage] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)  # local-looking references not found under the directory
     notes: list[str] = field(default_factory=list)
+    front_matter: str | None = None  # the front matter with its card pictures moved to the stored paths (None: not given or nothing to move)
+    front_matter_edits: list[tuple[str, str, str]] = field(default_factory=list)  # (key, was, now) of each card picture moved
 
     def media_rows(self, item_id: str) -> list[dict[str, Any]]:
         return [image.media_row(item_id) for image in self.images]
@@ -240,6 +243,7 @@ def plan_story_images(
     *,
     slug: str,
     existing: dict[str, str] | None = None,
+    front_matter: str | None = None,
 ) -> StoryImagePlan:
     """Plan the uploads for ``body`` and rewrite its image references. Raises ValueError naming every bad file.
 
@@ -247,6 +251,11 @@ def plan_story_images(
     (which numbers a name against the item's existing ``srcPath``s) a file never takes a path that holds different content:
     it gets ``-2``, ``-3``. Unlike the editor a re-run is idempotent: a file whose content is already stored under its name
     keeps that exact ``srcPath`` (even if the slug has since changed), so the S3 key and the stored body reference stay put.
+
+    ``front_matter`` is the YAML the version will carry. Its card pictures (``image``, ``cover``, ``ogImage``, ``thumbnail`` and their
+    Night counterparts) follow the body: a file name found under ``images_dir`` is uploaded and becomes its stored path, and a stored
+    path whose picture was numbered away (``chart.png`` -> ``chart-2.png``) becomes the new path. Without that the card and the social
+    image keep naming an older file, which the site may not hold at all. Web addresses and renditions are left alone.
     """
     existing = existing or {}
     root = Path(images_dir)
@@ -337,10 +346,48 @@ def plan_story_images(
             rewritten = _rewrite_markdown(text, root, add_pair, plan)
         pieces.append(rewritten)
     pieces.append(body[cursor:])
+    if front_matter:
+        plan.front_matter = _follow_front_matter(front_matter, root, add, plan)
     if problems:
         raise ValueError("\n".join(problems))
     plan.body = "".join(pieces)
     return plan
+
+
+_FRONT_MATTER_IMAGE_LINE = re.compile(
+    r"^(?P<key>" + "|".join(FRONT_MATTER_IMAGE_KEYS) + r")(?P<colon>[ \t]*:[ \t]*)(?P<quote>[\"']?)(?P<value>[^\"'\n#]+?)(?P=quote)(?P<tail>[ \t]*(?:#.*)?)$",
+    re.M,
+)
+
+
+def _follow_front_matter(text: str, root: Path, add: Callable, plan: StoryImagePlan) -> str | None:
+    """``text`` with each card picture moved to the stored path of the picture it names; None when nothing moved."""
+    planned_before = list(plan.images)
+
+    def moved(match: re.Match) -> str:
+        value = match.group("value").strip()
+        if "://" in value or value.startswith("//") or "/responsive/" in value:
+            return match.group(0)
+        key = match.group("key")
+        local = _resolve_under(root, value) if _is_local_reference(value) else None
+        if local is not None:
+            image = add(value, local, "dark" if key.endswith("Dark") else "light")
+            target = image.src_path if image is not None else None
+        else:
+            lead = "/" if value.startswith("/") else ""
+            stored = value.lstrip("/")
+            stored = stored[len("media/"):] if stored.startswith("media/assets/") else stored
+            same_name = [image for image in planned_before if _stem_key(image.src_path) == _stem_key(stored) and image.src_path != stored]
+            if not stored.startswith("assets/") or len({image.src_path for image in same_name}) != 1:
+                return match.group(0)
+            target = lead + same_name[0].src_path
+        if target is None or target == value:
+            return match.group(0)
+        plan.front_matter_edits.append((key, value, target))
+        return f"{key}{match.group('colon')}{match.group('quote')}{target}{match.group('quote')}{match.group('tail')}"
+
+    rewritten = _FRONT_MATTER_IMAGE_LINE.sub(moved, text)
+    return rewritten if plan.front_matter_edits else None
 
 
 def _check_aspect(light: PlannedStoryImage, dark: PlannedStoryImage, problems: list[str]) -> None:
@@ -501,6 +548,7 @@ def plan_lines(plan: StoryImagePlan, item_id: str) -> list[str]:
             )
             + pairing
         )
+    lines += [f"stories\tsave-version\tfront-matter\t{key}\t{was}\t{now}" for key, was, now in plan.front_matter_edits]
     lines += [f"stories\tsave-version\timage-unresolved\t{ref}\tnot found under --images; left unchanged" for ref in plan.unresolved]
     lines += [f"stories\tsave-version\timage-note\t{note}" for note in plan.notes]
     return lines

@@ -95,6 +95,7 @@ versions are kept. Attribute your work as "AI" and never invent human authorship
 - Keep the assigned stage and unpublished status unless separately authorized.
   **Never publish as a side effect of writing or editing.** Publishing is a
   person's decision, or a site's explicit automatic-publish setting.
+- **Required, after every save-version and before you ask anyone to approve a publish: show the editor the console link of the version you just saved.** `stories save-version` prints it as a `console ... story <url>` row (the exact VERSION id link; the `story-board` row means only "latest"). The editor reviews the draft in the web console, not on a production page. If the row says `unavailable` (the console address is unknown) say so and give `papyrus links --story LINEAGE --version N --console-url ...` once they supply it; never guess an address, and say plainly if you did not open the link. Details: [docs/console-links.md](../../../docs/console-links.md).
 - Read back the result: `papyrus stories versions --story LINEAGE`.
 
 ## Associate before publish

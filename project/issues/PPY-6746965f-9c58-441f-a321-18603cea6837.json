@@ -1,0 +1,20 @@
+{
+  "id": "PPY-6746965f-9c58-441f-a321-18603cea6837",
+  "title": "Capture: detect block pages that answer 200 and retry blocked/429 with a declared User-Agent",
+  "description": "link_exploration treats 401/403/407/429/999 as 'blocked' (final, never retried; only timeout/connection/http_5xx/dns are transient) and fetches with User-Agent 'Papyrus-Ideas/0.1 (+https://github.com/AnthusAI/Papyrus)'. A block page served with HTTP 200 (challenge, 'Access Denied', captcha) is stored as completed text and summarized; no signature check exists (none found in a 120-Reference MoM sample, but nothing would catch one). Add a block-page signature check to completeness signals (typed reason 'blocked_page'), retry 429 with backoff and Retry-After, and surface capture.reason in references show and process-status. Biblicus url-text path (create-from-catalog process-fetch-url-text) instead sends a spoofed Chrome User-Agent with 2 retries on 408/425/429/5xx; decide one policy. Do not put any real contact address in the repo.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-10T03:29:25.448378Z",
+  "updated_at": "2026-11-10T03:29:25.448409Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

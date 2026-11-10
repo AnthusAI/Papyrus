@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { SYSTEM_ITEM_TYPES, isStoryItemType, storyItemTypeFilter, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { SYSTEM_ITEM_TYPES, boardStoryFilter, isStoryItemType, storyItemTypeFilter, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { projectContentItemBoard } from "../lib/newsroom-board";
 import { collectFilteredPage, type FilteredPage } from "../lib/story-stage-paging";
 
@@ -11,9 +11,9 @@ function fakePartition(rows: ContentItemVersionRecord[]) {
     const end = Math.min(start + scanLimit, rows.length);
     requests.push(end - start);
     // The query filter is `type ne <system type>` for every system type; the fake applies it after the read, as DynamoDB does.
-    const filter = storyItemTypeFilter() as { and: Array<{ type: { ne: string } }> };
-    const excluded = new Set(filter.and.map(clause => clause.type.ne));
-    return { items: rows.slice(start, end).filter(row => !excluded.has(row.type)), nextToken: end < rows.length ? String(end) : null };
+    const clauses = (boardStoryFilter() as { and: Array<{ type?: { ne: string }; versionState?: { ne: string } }> }).and;
+    const matches = (row: ContentItemVersionRecord) => clauses.every(clause => (!clause.type || row.type !== clause.type.ne) && (!clause.versionState || row.versionState !== clause.versionState.ne));
+    return { items: rows.slice(start, end).filter(matches), nextToken: end < rows.length ? String(end) : null };
   };
   return { fetchPage, requests };
 }
@@ -59,6 +59,19 @@ const runs: Record<string, () => Promise<void>> = {
     assert.equal(issues.length, 4, "the records loaded count is stories only");
     assert.equal(issues.filter(issue => issue.nativeStatus === "copywriting").length, 3);
     assert.equal(issues.filter(issue => issue.nativeStatus === "published").length, 1);
+  },
+  async superseded() {
+    // Story 1 was written in Copywriting (v5), then published (v12). Superseded versions keep the stage they were saved in, and the Published column holds only
+    // its newest page, so v12 may not be loaded. The board asks for rows that are not superseded, so v5 never stands in for the Story.
+    assert.deepEqual(boardStoryFilter(), { and: [...SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })), { versionState: { ne: "superseded" } }] }, "the board filter is the story types and not superseded");
+    const row = (id: string, versionNumber: number, stage: string, versionState: string): ContentItemVersionRecord => (
+      { id: `${id}-v${versionNumber}`, lineageId: id, versionNumber, stage, type: "article", status: stage === "published" ? "published" : "draft", title: id, slug: id, updatedAt: "2026-11-08", versionState }
+    );
+    const copywriting = fakePartition([row("story-1", 5, "copywriting", "superseded"), row("story-2", 3, "copywriting", "current")]);
+    const loaded = (await collectFilteredPage(copywriting.fetchPage, { wanted: 25 })).items;
+    assert.deepEqual(loaded.map(entry => entry.id), ["story-2-v3"], "the superseded copy in Copywriting is not loaded");
+    const issues = projectContentItemBoard({ contentItemVersions: loaded });
+    assert.deepEqual(issues.map(issue => issue.nativeId), ["story-2"], "a Story whose newest version is in an unloaded Published page is not a Copywriting card");
   },
   async paging() {
     // A column of 25 articles sits behind 1,362 newer wiki pages: the first requests return no matches at all but still carry a token.
