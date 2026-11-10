@@ -284,6 +284,28 @@ papyrus stories save-version --story LINEAGE --body-file body.md --front-matter-
 
 Front matter keys: `title`, `dek`, `blurb`, `author` (a human's name, only if a person worked on it), `drafting: {by: AI}` (without it the byline drops "various bots"), `imageAlt`, `citations:` with a key for every `[@key]` in the body, `image:` for the card picture. Quote date values. Signed in, the author is the person who signed in; `--author-label` is ignored (the operator lane requires it). A figure from `papyrus figures render` saved with `--images` but without its `.dark.png` prints a `figure-light-only` warning; the site's `requireDarkFigures` setting (`papyrus design-system`), `--require-dark-figures` or `PAPYRUS_REQUIRE_DARK_FIGURES=1` refuses it instead (`PAPYRUS_REQUIRE_DARK_FIGURES=0` overrides the setting). `--stage STAGE` or `--advance` also moves the Story. It prints `stories save-version console story URL`: **show the editor that link** (the exact version) after every save, before asking for approval (see "Show the editor the console link").
 
+### Write the dek and the blurb differently
+The `dek` and the `blurb` are **intentionally different** fields. Write both, and never copy one into the other.
+
+- **`blurb`**: a short summary for index pages and cards. It appears out of context, so it must **stand alone**: a reader who has not seen the headline or the article should still understand it.
+- **`dek`** (the subtitle): read on the article page **as part of the article**, under the headline and above the opening paragraph. It must read smoothly with the headline and the opening, and must not repeat either.
+
+Before and after, for a Story headed "Board refuses the merger":
+
+```yaml
+# Wrong: one sentence pasted into both fields
+dek: The board of Acme Corp refused the merger with Beta Ltd on Tuesday.
+blurb: The board of Acme Corp refused the merger with Beta Ltd on Tuesday.
+
+# Right: the blurb stands alone, the dek continues from the headline
+dek: Directors said the price undervalued the company, and a second offer is already being discussed.
+blurb: Acme Corp's board refused Beta Ltd's merger offer on Tuesday, saying the price undervalued the company.
+```
+
+The dek leaves out "Acme Corp's board" because the headline has just said it; the blurb needs it because it may be the only text a reader sees.
+
+**A difference between the dek and the blurb is expected. A reviewer or proofreader must not report it as an inconsistency or an error.** The one defect is an identical copy: `papyrus stories lens-check` raises a concern on check P2 when the dek and the blurb are word for word the same.
+
 ### Move a Story on the board
 **Lane:** both. **Version:** 5.100.0.
 

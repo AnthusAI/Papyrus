@@ -58,6 +58,14 @@ article editor.
   them. A 401 `token_invalidated` means the key was revoked. Say so, and tell the
   person which `.env` needs a new key. Test both before the pass, not forty
   minutes in: run one `check` and one `suggest` on a short draft first.
+- **The dek and the blurb differ on purpose.** The blurb is a short summary for
+  index pages and cards and must stand alone; the dek (subtitle) is read on the
+  article page with the headline and the opening paragraph, so it must read
+  smoothly with them. Do not report a difference in wording, length or content
+  between the dek and the blurb as an inconsistency, a possible error or a
+  mismatch, and do not "harmonise" one to match the other. Report them only when
+  they are identical copies (that is a defect), or when the blurb cannot stand
+  alone or the dek does not read with the headline.
 - Know the article's section: section policies replace publication controls with
   the same key.
 
