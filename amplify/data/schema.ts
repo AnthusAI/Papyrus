@@ -2719,6 +2719,14 @@ function functionGrants(allow: any) {
   ];
 }
 
+/**
+ * Pick a rule set by tenancy mode (docs/multi-tenancy.md). Not used yet: a later change passes the shared
+ * stack's rules (no guest reads, no global group rules) through here so dedicated sites keep today's.
+ */
+export function rulesForTenancyMode<T>(mode: "dedicated" | "shared", rules: { dedicated: T; shared: T }): T {
+  return mode === "shared" ? rules.shared : rules.dedicated;
+}
+
 export const schema = a.schema(baseDefinitions).authorization(functionGrants);
 
 /** The deployed schema of a site that enables plugins: the base definitions plus what each plugin contributes (docs/plugins.md). */

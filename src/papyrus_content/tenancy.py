@@ -14,6 +14,7 @@ import re
 from typing import Any, Iterable
 
 TENANT_ID_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_ID"
+TENANCY_MODE_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANCY_MODE"
 TENANT_KEY_SEPARATOR = "#"
 TENANT_ITEM_ID_SEPARATOR = "."
 TENANT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
@@ -30,6 +31,11 @@ STORED_RECORD_ID_FIELD = "storedId"
 TENANT_INDEX_REDIRECTS = {"itemBySlug": "itemByTenantSlug"}
 #: Indexes whose partition key is stored tenant-prefixed (a field in TENANT_SCOPED_INDEX_FIELDS): a query names the tenant's own partition.
 TENANT_PREFIXED_INDEXES = frozenset({"itemsByHeadStage"})
+
+
+def is_shared_stack() -> bool:
+    """True on a shared stack. The only reader of ``PAPYRUS_TENANCY_MODE``; unset means a dedicated stack."""
+    return (os.environ.get(TENANCY_MODE_ENVIRONMENT_VARIABLE) or "").strip().lower() == "shared"
 
 
 class TenantError(ValueError):

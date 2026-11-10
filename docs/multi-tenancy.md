@@ -6,6 +6,12 @@ A signed-in editor does not set the tenant by hand: the site publishes its own t
 
 The key helpers live in `papyrus_content.tenancy`; `PapyrusGraphQLAuthoringClient(tenant_id=...)` applies them at the client boundary so callers never build tenant keys themselves.
 
+## Tenancy mode
+
+A backend is either `dedicated` (one stack per site, the default and what every site is today) or `shared` (one stack serving several tenants). Set it in the site backend config: `tenancy: { mode: "shared" }`. A site with no `tenancy` setting synthesises exactly the template it always did: `dedicated` adds nothing to any function, and an unset `PAPYRUS_TENANCY_MODE` means dedicated.
+
+On `shared`, `amplify/site-backend.ts` sets `PAPYRUS_TENANCY_MODE=shared` on every function. Code never reads the variable itself; it asks `papyrus_content.tenancy.is_shared_stack()` in Python or `isSharedStack()` in `lib/tenant-keys.ts`. `scripts/test-tenancy-mode.ts` fails if any other file names the variable. `rulesForTenancyMode` in `amplify/data/schema.ts` is the helper the shared stack will use to vary access rules by mode; nothing uses it yet. Tests: `npm run test:tenancy-mode`.
+
 ## What the tenant models carry
 
 Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows get a `tenantId`. The index values that would be global (`typeStatus`, `sectionStatus`, slug lookups) are prefixed with `<tenant>#`, media rows are listed, read, updated and deleted by their own tenant only (see [story pictures](#story-pictures-and-the-one-key-rule) for the key), and a tenant client lists, reads, updates and deletes only its own rows.
