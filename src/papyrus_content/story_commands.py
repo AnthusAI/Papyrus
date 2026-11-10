@@ -590,22 +590,33 @@ def stories_set_stars(flags: list[str]) -> None:
 def stories_next(flags: list[str]) -> None:
     """papyrus stories next --story <lineage> [--json]
 
-    Read only. Prints each step of the Story procedure with its state, then what comes next and any skipped steps (docs/story-procedure.md), then one
-    `lens` line for each of the four review steps that is not done (docs/four-lens-review.md)."""
+    Read only. One answer about what remains (docs/story-procedure.md). The Story's stored checklist decides each step's state; the records only add a
+    `hint` where they differ. Lines, tab-separated: `status` (complete, ready, blocked or stale; the number still to do; why), a `step` line per step
+    (state done, skipped, not_applicable, not_done or stale), a `version` line per checklist step (the Story version it was recorded against and
+    `current` or `STALE: recorded against vN, story is now vM`), `hint`, the stored `item` and `note` lines and the `checklist progress` line, then
+    a `remaining` line per step still to do (in order), `next` (the first), `skipped` and one `lens` line per review step not current. A review lens
+    or the copy edit recorded done against an earlier version is stale and remains until it is recorded again for the current version."""
     options = parse_options(flags)
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
-    assessment = assess(story_facts(client, lineage_id))
+    facts = story_facts(client, lineage_id)
+    from .newsroom_process import hint_lines, remaining_lines, resolve, status_lines, version_lines
     from .story_checklist import checklist_lines, progress_text, read_steps, steps_for_display, summary_of
 
-    stored = steps_for_display(read_steps(client, lineage_id), lineage_id)   # one index read by Story lineage
-    states = lens_step_states(client, lineage_id)
+    raw = read_steps(client, lineage_id)   # one index read by Story lineage
+    assessment = resolve(assess(facts), raw, facts)   # the stored checklist decides; the records only hint
+    stored = steps_for_display(raw, lineage_id)
+    stale_count = len(assessment["stale"])
+    states = {row["key"]: row["state"] for row in assessment["steps"] if row["source"] == "checklist"}   # the lens steps as resolved, stale included
     if options.get("json"):
         print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
-                          "checklist": stored, "progress": progress_text(summary_of(stored)) if stored else None}, indent=2))
+                          "currentVersion": facts["versionNumber"], "checklist": stored,
+                          "progress": progress_text(summary_of(stored), stale_count) if stored else None}, indent=2))
         return
     print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
-    for line in step_lines(assessment) + checklist_lines(stored) + next_lines(assessment) + lens_lines(states, lineage=lineage_id):
+    lines = (status_lines(assessment) + step_lines(assessment) + version_lines(assessment) + hint_lines(assessment) + checklist_lines(stored, stale_count)
+             + remaining_lines(assessment) + next_lines(assessment) + lens_lines(states, lineage=lineage_id))
+    for line in lines:
         print(line)
 
 
@@ -614,7 +625,8 @@ def stories_step(flags: list[str]) -> None:
 
     Marks one step of the Story's checklist and records who did it and when. A skipped or not-applicable step needs --reason; a review step needs --note
     (the findings) to be done; only a person reopens a step (--state open). With --note and no --state it adds a note to the step and changes nothing
-    else: notes accumulate (who, when, text), can be added to any step in any state, and are never edited or deleted. --agent NAME says an agent made the change; without it the actor is a person."""
+    else: notes accumulate (who, when, text), can be added to any step in any state, and are never edited or deleted. The change records the Story version it was made against;
+    a done review or copy edit reads STALE in `stories next` once the Story has a newer version, until you record it again. --agent NAME says an agent made the change; without it the actor is a person."""
     from .story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, set_step
 
     options = parse_options(flags)
