@@ -2069,6 +2069,7 @@ const schema = a.schema({
       index("starFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByStarFeedAndArrival"),
       index("mediumFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByMediumFeedAndArrival"),
       index("contentNeededKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByContentNeededAndArrival"),
+      index("publicFeedKey").sortKeys(["publicOrderKey"]).queryField("listReferencesByPublicFeed"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
