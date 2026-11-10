@@ -1,0 +1,143 @@
+{
+  "theme": null,
+  "site": {
+    "name": "Distinctive Mark",
+    "tagline": "Trademark News & Analysis",
+    "description": "Commentary on TTAB decisions, USPTO practice, and the business of marks.",
+    "productionUrl": "https://distinctive-mark.com",
+    "summaryFields": [
+      "dek",
+      "description",
+      "summary"
+    ]
+  },
+  "urls": {
+    "style": "directory",
+    "sections": {
+      "rulings": {
+        "label": "TTAB Rulings",
+        "description": "Every Trademark Trial and Appeal Board decision we track, with analysis of the notable ones.",
+        "pageSize": 100000,
+        "listEmpty": true,
+        "archive": {
+          "by": "month",
+          "base": "archive",
+          "description": "Trademark Trial and Appeal Board decisions tracked this month, week by week."
+        }
+      },
+      "commentary": {
+        "label": "Commentary",
+        "description": "Doctrine, practice and the business of marks.",
+        "pageSize": 100000,
+        "listEmpty": true
+      },
+      "guides": {
+        "label": "Before You File",
+        "description": "Plain-language guides for business owners choosing, filing and protecting a trademark in the United States.",
+        "pageSize": 100000,
+        "listEmpty": true,
+        "feed": false
+      },
+      "wire": {
+        "label": "The Wire",
+        "description": "Trademark news from the USPTO, the courts and the press, linked at the source, with a line on why it matters.",
+        "pages": false,
+        "linkField": "sourceUrl",
+        "pageSize": 100000,
+        "listEmpty": true,
+        "feed": false
+      },
+      "docket": {
+        "base": "docket",
+        "label": "The Docket",
+        "description": "Every issue of The Docket, the weekly email.",
+        "feed": false,
+        "listEmpty": true
+      }
+    }
+  },
+  "listings": {
+    "tags": false,
+    "homeCount": 12,
+    "types": [
+      "article",
+      "newsletter_issue"
+    ]
+  },
+  "pages": [
+    {
+      "id": "subscribe",
+      "path": "subscribe",
+      "title": "Subscribe to The Docket",
+      "description": "The Docket: the week’s TTAB decisions, read for you. Free, every Monday.",
+      "dependsOn": [
+        "rulings"
+      ]
+    },
+    {
+      "id": "contact",
+      "path": "contact",
+      "title": "Contact us",
+      "description": "Request a consultation with our sponsoring attorney, or send the editors a correction, a tip or a question.",
+      "dependsOn": []
+    }
+  ],
+  "seo": {
+    "jsonLdTypes": {
+      "rulings": "NewsArticle"
+    },
+    "publisherName": "Distinctive Mark",
+    "breadcrumbs": false,
+    "defaultImage": "/assets/share-card.png",
+    "imageSize": [
+      1200,
+      630
+    ]
+  },
+  "feeds": {
+    "formats": [
+      "rss",
+      "atom"
+    ],
+    "count": 30
+  },
+  "sitemap": {
+    "style": "single",
+    "lastmod": true
+  },
+  "fonts": {
+    "stylesheet": "https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+  },
+  "icons": {
+    "icon": "/assets/icon.svg",
+    "appleTouch": "/assets/apple-touch-icon.png"
+  },
+  "redirects": {
+    "exact": {
+      "/favicon.ico": "/assets/favicon.ico"
+    }
+  },
+  "components": {
+    "breadcrumbs": false
+  },
+  "chrome": {
+    "body_class": "ds-body",
+    "stylesheets": [
+      "css/site-theme.css"
+    ],
+    "scripts": [
+      "assets/distinctive.js"
+    ],
+    "title_template": "{title} — {site}™",
+    "same_title_template": "{site}™ — Trademark News &amp; Analysis"
+  },
+  "pageActions": {
+    "enabled": true,
+    "ai": [
+      "chatgpt",
+      "claude",
+      "perplexity"
+    ]
+  },
+  "hooks": "hooks.py"
+}

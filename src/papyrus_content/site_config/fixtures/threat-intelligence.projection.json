@@ -1,0 +1,108 @@
+{
+  "theme": null,
+  "site": {
+    "name": "Threat Intelligence",
+    "publisher": "Anthus AI Solutions",
+    "tagline": "Practical advice for staying secure as the threat landscape shifts.",
+    "description": "Practical advice for staying secure as the threat landscape shifts.",
+    "productionUrl": "https://threat-intelligence.anth.us",
+    "language": "en",
+    "componentsCss": false
+  },
+  "urls": {
+    "style": "directory",
+    "sections": {
+      "AI": {
+        "base": "ai",
+        "label": "AI"
+      },
+      "AWS": {
+        "base": "aws",
+        "label": "AWS"
+      },
+      "Azure": {
+        "base": "azure",
+        "label": "Azure"
+      },
+      "Gaming": {
+        "base": "gaming",
+        "label": "Gaming"
+      },
+      "Mission": {
+        "base": "mission",
+        "label": "Mission"
+      },
+      "Newsroom": {
+        "base": "inside-the-newsroom",
+        "label": "Newsroom"
+      }
+    }
+  },
+  "nav": {
+    "links": [
+      {
+        "label": "Posts",
+        "href": "/"
+      }
+    ]
+  },
+  "seo": {
+    "publisherName": "Anthus AI Solutions",
+    "jsonLdTypes": {
+      "AI": "Article",
+      "AWS": "Article",
+      "Azure": "Article",
+      "Gaming": "Article",
+      "Mission": "Article",
+      "Newsroom": "Article"
+    }
+  },
+  "fonts": {
+    "stylesheet": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
+  },
+  "icons": {
+    "icon": "/assets/icon.png",
+    "iconType": "image/png"
+  },
+  "listings": {
+    "pageSize": 100,
+    "homeCount": 100,
+    "tags": false
+  },
+  "sitemap": {
+    "style": "single",
+    "lastmod": true
+  },
+  "feeds": {
+    "formats": [
+      "rss",
+      "atom"
+    ],
+    "count": 30,
+    "title": "Threat Intelligence"
+  },
+  "components": {
+    "breadcrumbs": false
+  },
+  "pageActions": {
+    "enabled": false
+  },
+  "redirects": {
+    "exact": {
+      "/settings": "/",
+      "/settings/": "/",
+      "/icon.png": "/assets/icon.png",
+      "/icon-light.png": "/assets/icon-light.png"
+    }
+  },
+  "chrome": {
+    "stylesheets": [
+      "css/site-theme.css"
+    ],
+    "scripts": [
+      "assets/theme.js"
+    ],
+    "title_template": "{title} | {site}"
+  },
+  "hooks": "hooks.py"
+}

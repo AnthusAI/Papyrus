@@ -1,0 +1,285 @@
+{
+  "theme": null,
+  "site": {
+    "name": "Shipped",
+    "tagline": "New arrivals in machine learning.",
+    "description": "Open-weights releases, decision models in production and the products built on them, tracked from the moment they land.",
+    "productionUrl": "https://shipped.anth.us"
+  },
+  "urls": {
+    "style": "directory",
+    "sections": {
+      "shipped": {
+        "label": "In use",
+        "description": "Products and features you can use today.",
+        "listEmpty": true
+      },
+      "open-weights": {
+        "label": "Open weights",
+        "description": "Open-weights model releases and what people are doing with them.",
+        "listEmpty": true
+      },
+      "decisions": {
+        "label": "Decisions in the wild",
+        "description": "Decision models used in real deployments.",
+        "listEmpty": true
+      },
+      "stories": {
+        "base": "stories",
+        "label": "Stories",
+        "description": "AI-drafted, editor-approved stories about what moved on the map.",
+        "feed": true,
+        "listEmpty": true
+      },
+      "roundup": {
+        "base": "roundup",
+        "label": "The Weekly",
+        "description": "Every issue of The Weekly: what moved on the map, concepts born that week, and what is new in the wild.",
+        "feed": false,
+        "listEmpty": true
+      },
+      "wiki": {
+        "label": "Wiki",
+        "description": "What Shipped has accepted about the makers, models, platforms and tasks in its coverage, with the trend and the coverage behind each.",
+        "feed": false,
+        "sort": "order",
+        "pageSize": 50,
+        "listEmpty": true
+      }
+    }
+  },
+  "nav": {
+    "links": [
+      {
+        "label": "Front",
+        "href": "/"
+      },
+      {
+        "label": "Map",
+        "href": "/map/"
+      },
+      {
+        "label": "Proposals",
+        "href": "/proposals/"
+      },
+      {
+        "label": "New",
+        "href": "/new/"
+      },
+      {
+        "label": "Wiki",
+        "href": "/wiki/"
+      },
+      {
+        "label": "The Weekly",
+        "href": "/roundup/"
+      },
+      {
+        "label": "Submit",
+        "href": "/submit/"
+      },
+      {
+        "label": "Sign in",
+        "href": "/sign-in/"
+      }
+    ],
+    "brandHtml": "<span class=\"brand-lockup\"><span class=\"brand-word\">Shipped</span><span class=\"brand-barcode\" data-brand-barcode></span></span>"
+  },
+  "listings": {
+    "types": [
+      "article",
+      "newsletter_issue",
+      "wiki_page"
+    ],
+    "homeCount": 12
+  },
+  "feeds": {
+    "formats": [
+      "rss",
+      "atom"
+    ],
+    "count": 30
+  },
+  "sitemap": {
+    "style": "single",
+    "lastmod": true
+  },
+  "chrome": {
+    "ga_measurement_id": "G-31SC26SDGX",
+    "consent_mode": {
+      "privacy_policy_url": "/policies/#privacy"
+    },
+    "stylesheets": [
+      "css/site-theme.css",
+      "assets/shipped-components.css",
+      "assets/shipped-forms-roundup.css",
+      "assets/shipped-story.css",
+      "assets/shipped-proposals.css",
+      "assets/shipped-item-topic.css",
+      "assets/shipped-desk.css",
+      "assets/shipped-newsletter.css",
+      "assets/shipped-wiki.css",
+      "assets/shipped-reader.css",
+      "assets/shipped-front.css",
+      "assets/shipped-concept.css",
+      "assets/shipped-signal.css",
+      "assets/shipped-map.css",
+      "assets/shipped-logotype.css",
+      "assets/shipped-underrated.css",
+      "assets/shipped-stories.css",
+      "assets/shipped-story-links.css"
+    ]
+  },
+  "fonts": {
+    "stylesheet": "https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+  },
+  "icons": {
+    "icon": "/assets/icons/shipped-icon.svg",
+    "iconType": "image/svg+xml",
+    "appleTouch": "/assets/icons/shipped-icon-180.png",
+    "manifest": "/assets/icons/shipped.webmanifest",
+    "themeColor": "#C6F432",
+    "themeColorDark": "#C6F432"
+  },
+  "pages": [
+    {
+      "id": "home",
+      "path": "",
+      "title": "Shipped: new arrivals in machine learning",
+      "description": "Open-weights releases, decision models in production and the products built on them, tracked from the moment they land.",
+      "source": "pages/home.md"
+    },
+    {
+      "id": "new",
+      "path": "new",
+      "title": "New",
+      "description": "The newest signals on the map.",
+      "source": "pages/new.md"
+    },
+    {
+      "id": "rising",
+      "path": "rising",
+      "title": "Rising",
+      "description": "Items gaining the most upvotes in the last 6 hours.",
+      "source": "pages/rising.md"
+    },
+    {
+      "id": "map",
+      "path": "map",
+      "title": "The map",
+      "description": "How the field is taking shape: every model we track as a periodic table, how concepts connect, and how clusters change week to week.",
+      "source": "pages/map.md"
+    },
+    {
+      "id": "proposals",
+      "path": "proposals",
+      "title": "Proposals",
+      "description": "AI proposes. Readers vote. Editors decide. Draft stories, new concepts and changes to the map, open to every signed-in reader.",
+      "source": "pages/proposals.md"
+    },
+    {
+      "id": "submit",
+      "path": "submit",
+      "title": "Add something in the wild",
+      "description": "Link to the thing itself. New signals start as Announced until someone has checked that anyone can use them.",
+      "source": "pages/submit.md"
+    },
+    {
+      "id": "sample-roundup",
+      "path": "sample/roundup",
+      "title": "The Weekly (placeholder issue)",
+      "description": "A placeholder issue that previews The Weekly design.",
+      "source": "pages/roundup.md",
+      "sitemap": false,
+      "noindex": true
+    },
+    {
+      "id": "sign-in",
+      "path": "sign-in",
+      "title": "Sign in",
+      "description": "Reader sign-in for Shipped opens soon.",
+      "source": "pages/sign-in.md"
+    },
+    {
+      "id": "sample-voice-agents",
+      "path": "sample/voice-agents",
+      "title": "Voice agents (placeholder topic)",
+      "description": "A placeholder topic page that previews the Shipped topic design.",
+      "source": "pages/topic-voice-agents.md",
+      "sitemap": false,
+      "noindex": true
+    },
+    {
+      "id": "topic-decision-models",
+      "path": "topics/decision-models",
+      "title": "Decision models in the wild",
+      "description": "Decision models in the wild: guard and moderation classifiers, judge and reward models, routers. Scored by editors, with sources and release dates.",
+      "source": "pages/topic-decision-models.md"
+    },
+    {
+      "id": "topic-open-tts",
+      "path": "topics/open-tts",
+      "title": "Open-weights TTS in the wild",
+      "description": "Open-weights text-to-speech and voice-cloning models from the last year, with the licence of each stated, scored by editors with sources.",
+      "source": "pages/topic-open-tts.md"
+    }
+  ],
+  "footer": {
+    "text": "Published by Anthus AI Solutions.",
+    "columns": [
+      {
+        "title": "Privacy",
+        "links": [
+          {
+            "label": "Privacy policy",
+            "href": "/policies/#privacy"
+          },
+          {
+            "label": "Cookie settings",
+            "href": "#cookie-settings"
+          }
+        ]
+      }
+    ]
+  },
+  "hooks": "hooks.py",
+  "agents": {
+    "llmsFullMaxItems": 1000,
+    "llmsFullMaxBytes": 2000000
+  },
+  "seo": {
+    "defaultImage": "https://shipped.anth.us/assets/social/shipped-default.png",
+    "defaultImageAlt": "Shipped: new arrivals in machine learning.",
+    "jsonLdTypes": {
+      "wiki_page": "WebPage"
+    }
+  },
+  "forms": {
+    "suggest-edit": {
+      "title": "Suggest an edit",
+      "endpoint": "https://2bjhiug5jrsiwpwvuwwnfwmyhe0ulzhe.lambda-url.us-east-1.on.aws/",
+      "submitLabel": "Send suggestion",
+      "fields": [
+        {
+          "name": "message",
+          "label": "What should change?",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "name": "email",
+          "label": "Your email (optional)",
+          "type": "email"
+        }
+      ]
+    }
+  },
+  "wiki": {
+    "suggestForm": "suggest-edit"
+  },
+  "redirects": {
+    "exact": {
+      "/vapor/": "/new/"
+    }
+  }
+}
