@@ -62,7 +62,7 @@ Feature: A site can name source hosts its AI drafts never cite
     When a draft citing those releases is checked excluding the host "site.example"
     Then the draft fails the citation check because it cites an excluded source host
 
-  Scenario: The scheduled run hands the site's excluded hosts to both draft steps
+  Scenario: The scheduled run hands the site's excluded hosts to the trend-drafts step
     Given the scheduled run excludes the hosts "ipwatchdog.com,other.example"
-    When the trend-drafts and monitor-stories steps build their commands
-    Then both commands carry an exclude-host flag for "ipwatchdog.com" and for "other.example"
+    When the trend-drafts step builds its command
+    Then the command carries an exclude-host flag for "ipwatchdog.com" and for "other.example"

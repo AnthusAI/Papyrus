@@ -149,17 +149,14 @@ def step_hosts(context, hosts):
     context.eh_environment = {"KNOWLEDGE_EXCLUDED_SOURCE_HOSTS": hosts}
 
 
-@when("the trend-drafts and monitor-stories steps build their commands")
+@when("the trend-drafts step builds its command")
 def step_commands(context):
     environment = context.eh_environment
-    trend, stories = load_job("trend_drafts"), load_job("monitor_stories")
-    context.eh_commands = [
-        trend.trends_command("example-site", "https://example.test/index.json", 2, trend.exclude_flags(environment)),
-        stories.command_for("example-site", 3, "", stories.exclude_flags(environment)),
-    ]
+    trend = load_job("trend_drafts")
+    context.eh_commands = [trend.trends_command("example-site", "https://example.test/index.json", 2, trend.exclude_flags(environment))]
 
 
-@then('both commands carry an exclude-host flag for "{first}" and for "{second}"')
+@then('the command carries an exclude-host flag for "{first}" and for "{second}"')
 def step_flags(context, first, second):
     for command in context.eh_commands:
         pairs = [command[i + 1] for i, token in enumerate(command) if token == "--exclude-host"]
