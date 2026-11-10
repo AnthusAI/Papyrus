@@ -27,6 +27,7 @@ AI_FEED = "https://rss.arxiv.org/rss/cs.AI+cs.LG+cs.CL+cs.MA+stat.ML"
 SECURITY_FEED = "https://rss.arxiv.org/rss/cs.CR"
 ATOM_FEED = "https://export.arxiv.org/api/query?search_query=cat:cs.CR&max_results=2"
 PAPERS = "https://huggingface.co/api/daily_papers"
+METR_FEED = "https://metr.org/feed.xml"
 
 
 def read(name) -> bytes:
@@ -358,6 +359,41 @@ def test_a_rate_limited_page_is_waited_out_or_resumed_next_pass():
 
     assert result["new"] == 1 and any("rate_limited" in e["message"] for e in result["errors"])
     assert table.get_item({"pk": "MONITOR#papers-huggingface", "sk": "STATE"})["Item"]["resume"]
+
+
+# --- METR (RSS 2.0 with full-content `content:encoded`, no description) ----------------------------
+
+def test_the_metr_feed_is_read_by_the_general_reader():
+    assert feed.FEED_HOSTS["metr.org"] == "METR" and feed.check_feed_url(METR_FEED) == METR_FEED
+    items = feed.parse_feed(read("metr-rss.xml"), METR_FEED)
+
+    assert [i.title for i in items][:2] == ['Review of the "Risks from automated R&D" section in Anthropic\'s Risk Report (August 2026)',
+                                           "Implementing and Evaluating a Basic Per-Action Monitor for Safer Evals"]
+    assert len(items) == 5 and len({i.source_id for i in items}) == 5
+    first = items[0]
+    assert first.canonical_url == first.source_item_url == "https://metr.org/blog/2026-11-05-rd-section-anthropic-risk-report-august-2026-review/"
+    assert first.published_at == "2026-11-05T08:00:00Z" and first.details["publishedAt"] == first.published_at
+    assert first.details["abstract"].startswith("<p>Redaction summary")      # the post's content:encoded, as the feed gives it
+    assert "authors" not in first.details and "categories" not in first.details
+
+
+def test_a_metr_entry_is_keyed_on_its_guid_and_addressed_by_its_link():
+    items = by_id(feed.parse_feed(read("metr-rss.xml"), METR_FEED))
+    evaluation = next(i for i in items.values() if i.title == "GPT-5.1-Codex-Max Evaluation Results")
+
+    assert evaluation.canonical_url == "https://metr.org/evaluations/gpt-5-1-codex-max-report/"     # /evaluations/ link, /blog/ guid
+    assert evaluation.source_id.startswith("https___metr_org_blog_2025-11-19-gpt-5-1-codex-max-repo-")
+    paper = next(i for i in items.values() if i.title.startswith("HCAST"))
+    assert paper.canonical_url == "https://arxiv.org/abs/2503.17354"                              # a post that points off the site
+    root_page = next(i for i in items.values() if i.title == "Frontier AI Safety Policies")
+    assert root_page.canonical_url == "https://metr.org/fsp"                                       # a site-root link
+
+
+def test_a_metr_item_without_title_or_link_is_left_out_and_the_channel_is_not_an_entry():
+    body = read("metr-rss.xml").decode().replace("</channel>", "<item><title>No link</title><guid>x</guid></item>"
+                                                  "<item><link>https://metr.org/blog/y/</link><guid>y</guid></item></channel>")
+
+    assert len(feed.parse_feed(body.encode(), METR_FEED)) == 5
 
 
 # --- collection of a feed --------------------------------------------------------------------------

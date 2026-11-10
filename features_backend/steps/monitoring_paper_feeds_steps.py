@@ -57,6 +57,16 @@ def step_atom(context):
     feed_monitor(context, tf.ATOM_FEED)
 
 
+@given("a feed monitor for the METR RSS feed")
+def step_metr(context):
+    feed_monitor(context, tf.METR_FEED)
+
+
+@given("the feed holds a blog post, a note, an evaluation, a post that links to a paper and a post that links to a page on the site")
+def step_metr_body(context):
+    context.feed_body = tf.read("metr-rss.xml")
+
+
 @given("a feed monitor whose address is on a host outside the allowed list")
 def step_outside(context):
     feed_monitor(context, "https://papers.example.test/rss.xml", tf.read("arxiv-ai-rss.xml"))
@@ -147,6 +157,32 @@ def step_waits(context):
 def step_unversioned(context):
     row = feed_discoveries(context)["2611_03558"]
     assert row["canonicalUrl"] == "https://arxiv.org/abs/2611.03558" and row["details"]["abstract"].startswith("We consider")
+
+
+@then("five items are recorded and the pass is complete")
+def step_five(context):
+    assert context.result["status"] == "complete" and context.result["new"] == 5, context.result
+    assert len(feed_discoveries(context)) == 5
+
+
+@then("each item's canonical URL is the feed entry's link, even when the link is on another site or not under blog")
+def step_metr_urls(context):
+    urls = {r["canonicalUrl"] for r in feed_discoveries(context).values()}
+    assert urls == {"https://metr.org/blog/2026-11-05-rd-section-anthropic-risk-report-august-2026-review/",
+                    "https://metr.org/notes/2026-09-27-implementing-a-basic-blocking-action-monitor/",
+                    "https://metr.org/evaluations/gpt-5-1-codex-max-report/",
+                    "https://arxiv.org/abs/2503.17354", "https://metr.org/fsp"}
+
+
+@then("each item carries its title, publication date and the post's content as its abstract")
+def step_metr_details(context):
+    for row in feed_discoveries(context).values():
+        assert row["details"]["title"] and row["details"]["publishedAt"] and "abstract" in row["details"], row
+
+
+@then("an item's source id comes from the entry's guid")
+def step_metr_ids(context):
+    assert all(sid.startswith("https___metr_org_blog_") or sid.startswith("https___metr_org_notes_") for sid in feed_discoveries(context))
 
 
 @then("the new papers and the cross-listed paper are recorded")

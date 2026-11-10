@@ -30,6 +30,15 @@ Feature: Paper monitors read research feeds and Hugging Face daily papers into o
     Then the new papers and the cross-listed paper are recorded
     And neither revision is recorded
 
+  Scenario: A research organisation's blog feed is read without a description
+    Given a feed monitor for the METR RSS feed
+    And the feed holds a blog post, a note, an evaluation, a post that links to a paper and a post that links to a page on the site
+    When the feed monitor collects
+    Then five items are recorded and the pass is complete
+    And each item's canonical URL is the feed entry's link, even when the link is on another site or not under blog
+    And each item carries its title, publication date and the post's content as its abstract
+    And an item's source id comes from the entry's guid
+
   Scenario: A feed address on a host outside the allowed list is refused
     Given a feed monitor whose address is on a host outside the allowed list
     When the feed monitor collects
