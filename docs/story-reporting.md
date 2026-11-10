@@ -294,6 +294,7 @@ person or model judges a short ranked list. Two hops: first the **related concep
 
 ```bash
 papyrus stories suggest-links --story <lineage-or-slug> [--kinds articles,posts,references] [--limit N] [--min-score S] [--include-linked] [--json]
+papyrus stories suggest-associations (--story <lineage-or-slug> | --reference <id>) [--kinds articles,posts,references] [--limit N] [--json]
 papyrus knowledge concepts related --concept <name|#hashtag|nodeKey> [--limit N] [--json]
 papyrus knowledge concepts search "free text" [--limit N] [--json]      # or: --list
 ```
@@ -326,6 +327,17 @@ that explanation instead of a raw HTTP 401. A server-side lane (a new query fiel
 repairs it. `--list` prints every accepted concept alphabetically. Agent tools (read only, closed argument lists): `papyrus_suggest_links`, `papyrus_related_concepts`,
 `papyrus_search_concepts` (Tactus `tactus_tools.py` and `story_signals_mcp.py`). The story checklist has a **Related content** step (`related_content`, not required) that
 points here. Code: `src/papyrus_content/link_suggestions.py`, `concept_search.py`; specs: `features_backend/suggest-links.feature`.
+
+**`suggest-associations` (no search phrases to invent).** `suggest-links` needs concepts the story already carries. `papyrus stories suggest-associations --story X` (or
+`--reference X`) builds one query from the item itself (title, summary, the first ~300 words of the body) and (1) finds the accepted concepts that text names: the
+concept's name, aliases and `#hashtag`, matched as whole words (a short name is never found inside a longer word; a name of three letters or fewer keeps its letter case),
+ranked by rarity and position (title over summary over body); no model, no embedding key, so it works in the signed-in editor lane. When the shell has `OPENAI_API_KEY` and a
+vector index, the concepts nearest the text by meaning are added, otherwise one `NOTE` line says it matched by name only (a server-side concept query is still the follow-up above).
+(2) The top concepts seed the `suggest-links` graph pass (weight 0.4 to 0.8, below a curated tag), so related articles, posts and References are ranked even for an untagged
+item. Every concept and candidate prints its exact `link-concept` / `link-story` command; a concept the item already carries is marked `already tagged`. For a Reference the
+related stories carry `papyrus stories link-story --story <candidate> --reference <id>`, and its own text comes from the curation card and stored text (title alone if those
+cannot be read). Read only: it never writes a relation (it does not use `references suggest-links`). Code: `src/papyrus_content/association_suggestions.py`; specs:
+`features_backend/suggest-associations.feature`.
 
 ## Notes: people write Messages, agents write agent notes
 
