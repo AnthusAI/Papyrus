@@ -22,6 +22,19 @@ or read, so you rarely need `links` by itself:
 Say the links in your final report. A Story you edited gets its `story` link (the exact version you saved); a Story you only
 reported on gets its `story-board` link (always the latest version, with the checklist).
 
+## Required step for agents
+
+**Required step: show the editor the console link.** Whenever you create a Story, save a version of one, or materially change one (or file or curate a Reference or Concept) for the editor, show the editor the console link to that exact item before you ask for anything, and certainly before you ask to publish. They review the draft in the web console, not on a production page. Use the `console` row that `stories create`, `stories save-version` and `stories show` print, or `papyrus links ...`. Link the exact VERSION (the `story` row) for a draft you wrote; use the `story-board` (drawer) row only to mean "the latest". If the row says `unavailable`, or you have not opened the link, say so plainly; never guess an address or call a link tested when it was not.
+
+Copy-paste, after a save:
+
+```bash
+papyrus stories save-version --story LINEAGE --body-file draft.md --reason "what changed" --author-label "AI"
+# prints: stories<TAB>save-version<TAB>console<TAB>story<TAB>https://.../articles/<VERSION ID>
+# Tell the editor: "Draft v3 is ready to review: https://.../articles/<VERSION ID> (link built from the saved version id; not opened)."
+papyrus links --concept "Voice cloning" --reference REFERENCE_ID   # for other items you filed or curated
+```
+
 ## Where the console is
 
 The CLI never guesses the console address. It takes the first of: `--console-url`, `PAPYRUS_CONSOLE_URL`, then `console_url` from the

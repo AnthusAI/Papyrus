@@ -318,3 +318,47 @@ def row_unavailable(context):
 @then("the command succeeded")
 def succeeded(context):
     assert _world(context).failure is None, _world(context).failure
+
+
+@then('the "story" console row is the editor page of the version just saved')
+def row_is_version(context):
+    rows = [line.split("\t") for line in _world(context).out.splitlines() if "\tconsole\t" in line and "\tstory\t" in line]
+    assert rows and rows[0][4].endswith("/articles/item-story-v3"), rows
+
+
+@then('the "story" console row has no "open=" drawer query')
+def row_has_no_drawer(context):
+    rows = [line.split("\t") for line in _world(context).out.splitlines() if "\tconsole\t" in line and "\tstory\t" in line]
+    assert rows and "open=" not in rows[0][4], rows
+
+
+@then('a "console" row for the "story-board" link ends with "{ending}"')
+def board_row(context, ending):
+    rows = [line.split("\t") for line in _world(context).out.splitlines() if "\tconsole\t" in line]
+    assert any(row[3] == "story-board" and row[4].endswith(ending) for row in rows), rows
+
+
+def _note(key):
+    from papyrus_content.newsroom_process import STEP_BY_KEY
+
+    note = STEP_BY_KEY[key].note
+    assert "Share a review link" in note and "console" in note, note
+    return note
+
+
+@then('the "{key}" step note says to share a review link with the exact version')
+def step_note_exact(context, key):
+    assert "exact version" in _note(key)
+
+
+@then('the "{key}" step note says to share a review link')
+def step_note(context, key):
+    _note(key)
+
+
+@then("the template version and the step keys are unchanged")
+def template_unchanged(context):
+    from papyrus_content.newsroom_process import STEPS, TEMPLATE_VERSION
+
+    assert TEMPLATE_VERSION == 4
+    assert [step.key for step in STEPS][:7] == ["choose", "direction", "research", "outline", "draft", "fact_check", "copy_edit"]

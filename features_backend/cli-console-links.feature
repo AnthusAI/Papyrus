@@ -138,3 +138,14 @@ Feature: The CLI hands an editor the console link of the item it worked on
     When the person runs the "stories show" command
     Then the output has a "console" row saying it is unavailable
     And the command succeeded
+
+  Scenario: A draft save names the exact version, never only the lineage
+    When the person runs the "stories save-version" command
+    Then the "story" console row is the editor page of the version just saved
+    And the "story" console row has no "open=" drawer query
+    And a "console" row for the "story-board" link ends with "/newsroom/articles?open=contentItem%3Aitem-story"
+
+  Scenario: The draft and copy-edit steps tell the agent to share a review link
+    Then the "draft" step note says to share a review link with the exact version
+    And the "copy_edit" step note says to share a review link
+    And the template version and the step keys are unchanged

@@ -134,6 +134,8 @@ article editor.
 
 ## Save and publish
 
+**Required:** after each `save-version`, show the editor the console link of the version you saved (the `console ... story` row, or `papyrus links --story LINEAGE --version N`) before you ask to publish. Say so if the link is unavailable or unopened; never guess one. See [docs/console-links.md](../../../docs/console-links.md).
+
 - **Save** each edited article as a new version. The original version is kept,
   and the front matter carries over:
 
