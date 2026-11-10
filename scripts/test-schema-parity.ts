@@ -91,6 +91,61 @@ if (missingOperations.length) {
   console.error(`operations declared in ${SCHEMA_FILES[1]} but not deployed by ${SCHEMA_FILES[0]}: ${missingOperations.join(", ")}`);
 }
 console.log(`operations: ${deployedOperations.size} in schema.ts, ${typedOperations.size} in resource.ts`);
+
+// Every tenant-owned model carries an optional tenantId (features_backend/tenant-field-everywhere.feature, PPY-94d609); the global identity
+// models do not. Models declared by a function or plugin schema are shared by both files, so each declaration is read where it lives.
+const TENANT_FIELD_SOURCES = [
+  ...SCHEMA_FILES,
+  "amplify/functions/editorial-checks/schema.ts",
+  "amplify/functions/proposal-actions/schema.ts",
+  "amplify/plugins/reader-steering/schema.ts",
+  "amplify/plugins/signup/schema.ts",
+];
+const TENANT_FIELD_MODELS = [
+  "UserRoleAssignment", "Assignment", "AssignmentEvent", "ProcedureDefinition", "ProcedureVersion", "ProcedureRun", "Automation",
+  "ReviewRequest", "ReviewReadMark", "StoryVariation", "ReviewRecipientRule", "KnowledgeCorpus", "KnowledgeImportRun",
+  "KnowledgeRawPayload", "CurationDelegationRecord", "KnowledgeArtifact", "CategorySet", "Category", "CategoryKeyword",
+  "LexicalSteeringRule", "SteeringProposal", "SteeringDecision", "Reference", "ReferenceAttachment", "SemanticNode", "Message",
+  "MessageThread", "ModelAttachment", "SemanticRelationType", "SemanticRelation", "Tag", "ItemTag", "Edition", "EditionItem",
+  "PublishedEdition", "PublishedEditionItem", "PublishedCategorySet", "PublishedCategory", "EditorialPolicy",
+  "EditorialCheckSettings", "EditorialFeedback", "EditorialCheckRun", "Proposal", "ReaderProfile", "ReaderHandle", "ReaderVote",
+  "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction", "SignupEntry",
+];
+const GLOBAL_IDENTITY_MODELS = ["UserProfile", "UserIdentity", "PublicHandleClaim"];
+function modelDeclarations(modelName: string): { file: string; block: string }[] {
+  const found: { file: string; block: string }[] = [];
+  for (const file of TENANT_FIELD_SOURCES) {
+    const source = readFileSync(join(process.cwd(), file), "utf8");
+    const start = new RegExp(`^\\s*${modelName}: (?:a\\s*\\.model|modelWithoutSubscriptions|realtimeModel)\\(`, "m").exec(source);
+    if (!start) continue;
+    const rest = source.slice(start.index);
+    const end = rest.search(/^\s*\}\)/m);
+    found.push({ file, block: rest.slice(0, end === -1 ? rest.length : end) });
+  }
+  return found;
+}
+for (const modelName of TENANT_FIELD_MODELS) {
+  const declarations = modelDeclarations(modelName);
+  if (!declarations.length) {
+    failed = true;
+    console.error(`${modelName} is not declared in any schema file`);
+  }
+  for (const { file, block } of declarations) {
+    if (!/^\s+tenantId: a\.string\(\),/m.test(block)) {
+      failed = true;
+      console.error(`${modelName} has no optional tenantId in ${file}`);
+    }
+  }
+}
+for (const modelName of GLOBAL_IDENTITY_MODELS) {
+  for (const { file, block } of modelDeclarations(modelName)) {
+    if (/tenantId:/.test(block)) {
+      failed = true;
+      console.error(`${modelName} is a global identity model and must not carry tenantId (${file})`);
+    }
+  }
+}
+console.log(`tenantId: ${TENANT_FIELD_MODELS.length} tenant-owned models checked`);
 if (failed) {
   process.exit(1);
 }

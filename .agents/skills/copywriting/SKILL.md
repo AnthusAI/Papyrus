@@ -77,6 +77,10 @@ violations yourself. For anything you can't fix without new evidence, leave the
 finding and report it. Then follow
 `.agents/skills/editorial-copyedit-cycle/SKILL.md` for options a person chooses.
 
+## Social preview review (`review_social`)
+
+Run `papyrus stories lens-check --story LINEAGE --lens social --static web`. Check C4 fetches the planned share picture; read its finding, do not assume. A built address proves nothing about the file. A WebP, AVIF, small, oddly shaped, missing, invalid or unreachable picture is a warning or "Could not check" (not verified), never a pass: make a JPEG or PNG share rendition and keep modern formats for the page, and do not pad or upscale a small image without recording it. Read title, description and picture together for relevance, legibility, alt text and misleading context. Record the tested URL, format, dimensions and result in the `--note` of `stories step --step review_social`, saying what you verified directly and what you only infer about a platform. After publishing, fetch the live page, check `og:image` and `twitter:image` match the tested address and that the address fetches publicly; report CDN or platform preview-cache staleness separately. A separate share picture needs front matter `image` (`ogImage` is only a fallback after `image` and `cover`). Details: [docs/agent-cli-guide.md](../../../docs/agent-cli-guide.md).
+
 ## Save, record, hand off
 
 ```bash

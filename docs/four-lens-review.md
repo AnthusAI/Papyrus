@@ -143,7 +143,7 @@ Audience: people who see a link card before they click.
 | C1 | The preview resolves: the page and picture addresses can be built | checked by code | warn | the resolved addresses | yes |
 | C2 | The description is the Story's own, not the site fallback | checked by code | warn | which source the description came from | yes |
 | C3 | The Story has its own picture, or is knowingly using the site's | checked by code | info | where the picture came from | yes |
-| C4 | The picture file exists and its size and shape are known | checked by code | warn | the path, size and ratio | not yet |
+| C4 | The share picture file exists, is a JPEG or PNG and its size and shape are known | checked by code | warn | the address, status, Content-Type, format, size and ratio | yes |
 | C5 | The picture has a description for the share card | checked by code | warn | the description used, or that none is emitted | yes |
 | C6 | A third-party picture is credited | checked by code | error | as P10 | yes |
 | C7 | Every name, number and quotation in the title and description is in the Story | checked by code | warn | the terms not found | yes |
@@ -151,7 +151,7 @@ Audience: people who see a link card before they click.
 | C9 | The preview stands alone as information | judged by Jev | info | the answer | not yet |
 | C10 | The preview is not a teaser that withholds the point | judged by Jev | info | the choice and its probability | not yet |
 | C11 | A drawn approximation of the card is shown to the approver | checked by code | info | the approximation and its inputs | not yet |
-| C12 | After publishing: the live tags equal the predicted ones | checked by code | warn | the fetch results | not yet |
+| C12 | After publishing: the live og:image and twitter:image equal the tested picture and it can be fetched | checked by code | warn | the fetch results | not yet |
 | C13 | The picture is tasteful, on brand and relevant | a person decides | n/a | the person's findings note | not yet |
 
 <!-- lenses:end -->

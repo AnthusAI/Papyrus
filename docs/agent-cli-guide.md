@@ -216,6 +216,17 @@ Predicates: `related_to`, `cites`, `supports`, `contradicts`. There is no comman
 papyrus knowledge entities link --key CONCEPT_KEY --to OTHER_CONCEPT_KEY --note "Why they relate" --dry-run
 ```
 
+### Add an entity with its aliases, and merge a duplicate (operators)
+**Lane:** operator (`--auth iam`). **Version:** the release after 5.100. **Writes:** yes; `--dry-run` previews.
+
+```sh
+papyrus knowledge entities add --kind organization --name "National Transportation Safety Board" --alias NTSB --alias "The NTSB" --actor ai --dry-run
+papyrus knowledge entities duplicates --kind person
+papyrus knowledge entities merge --from person--musk --into person--elon-musk --actor ai --dry-run
+```
+
+`add` creates the accepted entity or finds it, adds every `--alias`, and refuses a name that duplicates an accepted entity of the kind (it names the entity to use). When a name is also the name of an entity of another kind, or of a concept, the command tags the entity and the ones it shares the name with with the **Disambiguation** concept, in code, so do not tag by hand. `duplicates` only reads: it lists the pairs the duplicate rules catch and the `merge` command for each. `merge` supersedes the duplicate (`--from`), keeps its name and aliases on the entity that stays (`--into`) and moves its item mentions and relations; afterwards run `knowledge entities registry`, `knowledge snapshot`, then `knowledge wiki sync --retire` to take its page down. The knowledge run also asks the duplicate rules before it makes or accepts an entity: a candidate that is only another spelling is linked to the entity it duplicates and its name becomes an alias; one that only looks like a duplicate is held back with a proposal for a person.
+
 ### Link a Story to its References and to other Stories
 **Lane:** both. **Version:** 5.100.0. **Writes:** yes; `--dry-run` previews.
 
@@ -358,9 +369,11 @@ papyrus stories next --story LINEAGE
 papyrus stories step --story LINEAGE --step copy_edit --state done --note "Checked against the house rules" --agent "editor agent" --dry-run
 ```
 
-- `check-version` runs the editorial rules on a saved version and stores the result with it. `lens-check` prints `finding LENS RULE STATE ...` rows; four problems must be fixed before a lens step can close (image without alt text, third-party image without credit, video without title or credit, Markdown copy that differs from the source). `--static` is the site's web directory (default `PAPYRUS_SITE_STATIC_DIR`).
+- `check-version` runs the editorial rules on a saved version and stores the result with it. `lens-check` prints `finding LENS RULE STATE ...` rows; four problems must be fixed before a lens step can close (image without alt text, third-party image without credit, video without title or credit, Markdown copy that differs from the source). `--static` is the site's web directory (default `PAPYRUS_SITE_STATIC_DIR`); `--no-network` skips the share-picture fetch.
+- Social review (`--lens social`, step `review_social`): `lens-check` fetches the Story's planned share picture (check C4) and reports its absolute HTTPS address, status, Content-Type, format, size and shape. A built address is never a pass. JPEG or PNG at least 600x315 passes; WebP, AVIF or GIF, a small or oddly shaped picture, a missing, invalid or non-image picture, or a Content-Type that does not match the file is a warning; a picture that could not be requested (no network, `--no-network`, site without a public address) is `Could not check`, which means not verified. For cross-platform use make a JPEG or PNG share rendition (about 1200x630) and keep WebP/AVIF for the page; do not pad or upscale a small image without saying so in the note. Then read title, description and picture together for relevance, legibility, alt text and misleading context. The `--note` of `stories step --step review_social` must record the tested URL, format, dimensions, result, and any platform uncertainty (a passing check says the file looks compatible, not that a platform displayed it). The share picture comes from front matter `image`, then `cover`, then `ogImage`, then `thumbnail`, so `ogImage` is only a fallback and a different share picture needs `image` itself, which also becomes the card picture.
+- After publishing, fetch the live page and check that `og:image` and `twitter:image` are the tested address, then fetch that address publicly (status 200, image Content-Type). Report a stale CDN or a platform's own preview cache separately; do not assume a platform shows the card.
 - `check-links` lists links and tags that are not the official shape (`legacy: migrate`, `concept has no public page`, `state not current`). Read only; fixing is out of scope.
-- `stories next` prints each procedure step with its state, then what is next. There is no `stories checklist`: the checklist is `next` (read) and `step` (write). A skipped or not-applicable step needs `--reason`; a review step needs `--note` with the findings; use honest notes.
+- `stories next` is the one answer about what remains: a `status` line (`complete`, `ready`, `blocked` or `stale`, and how many steps remain), a `step` line per step, a `version` line per checklist step, and a `remaining` line per step still to do, in order (`next` is the first). The Story's stored checklist decides each state; the records only add a `hint`. A review lens or the copy edit recorded against an earlier version reads `STALE: recorded against vN, story is now vM` and remains until you record it again for the current version. `13/13` and `status complete` mean nothing remains. `--json` has the same fields. There is no `stories checklist`: the checklist is `next` (read) and `step` (write). A skipped or not-applicable step needs `--reason`; a review step needs `--note` with the findings; use honest notes.
 
 ### Check the stage head index (operators)
 **Lane:** both. **Version:** the release after 5.101.0. **Writes:** only with `--apply`; a dry run otherwise.

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7af83b37-ed6c-4f79-8035-b4a58ce28701",
+  "issue_id": "PPY-dc96a635-ce34-42b7-95af-7f7b8db634a8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T14:29:22.364Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Catch duplicate entities before they are accepted; add entities add/merge",
+    "description": "MoM knowledge index has ~17 real duplicate pairs (NTSB, MCP, surnames beside full names). Build: (1) knowledge entities add --kind --name --alias --actor with standard disambiguation tagging, (2) knowledge entities merge --from --into --actor, (3) data-driven pre-accept duplicate check used by publish-run and the AI review accept path. Live cleanup is a documented procedure, not run here.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

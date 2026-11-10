@@ -22,6 +22,7 @@ from ..knowledge_snapshot.actors import Actor
 from .cost import usage_entry
 from ..knowledge_snapshot.cluster_records import CLUSTER_KIND, STATUS_PROPOSED, decode_metadata
 from ..knowledge_snapshot.cluster_review import accept_cluster_patches
+from ..knowledge_snapshot.entity_duplicates import DuplicateFinder, duplicate_proposal
 from ..knowledge_snapshot.entity_review import accept_patches, reject_patches
 from ..knowledge_snapshot.keys import slug
 from ..knowledge_snapshot.page_answer import page_order_key
@@ -48,6 +49,7 @@ ACCEPT, REJECT, UNSURE = "accept", "reject", "unsure"
 GATE_QUOTE_NOT_FOUND = "quote not in the snippets or does not name the thing"
 GATE_PASSING_MENTION = "named in passing, not about the thing"
 GATE_ABOUT_THE_THING = "quote names the thing and is about it"
+GATE_POSSIBLE_DUPLICATE = "possible duplicate of an accepted entity"
 
 VERDICT_FORMAT = {
     "type": "json_schema",
@@ -313,14 +315,21 @@ def review_entities(
     *,
     now: str,
     vocabulary: Mapping[str, str],
+    accepted: Iterable[Mapping[str, Any]] | None = None,
+    proposals: list[dict] | None = None,
 ) -> tuple[list[dict], list[Decision]]:
     """Patches and decisions for the nodes the extractor left ``generated``.
+
+    With ``accepted`` (the accepted entities) a node is not accepted when it duplicates one of them (``entity_duplicates.py``): the decision is ``unsure``
+    with the gate ``GATE_POSSIBLE_DUPLICATE``, the node stays ``generated``, and a ``merge-graph-entity`` proposal for a person is appended to ``proposals``.
+    A node accepted in this pass counts for the nodes after it.
 
     An ``accept`` counts only through the evidence gate (``entity_gate``): the quote is verbatim in a snippet and names the thing, it says more than
     the name, and the model says it is *about* the thing and not a mention in passing. The decision records which of those it was."""
     candidates = entity_candidates(nodes, typed)
     patches: list[dict] = []
     decisions: list[Decision] = []
+    finder = DuplicateFinder(accepted) if accepted is not None else None
     for group in batches(list(candidates)):
         if model.exhausted():
             break
@@ -344,9 +353,18 @@ def review_entities(
             decision = Decision("entity", label, verdict["verdict"], verdict["reason"], list(verdict["evidence"]))
             if verdict["verdict"] == ACCEPT:
                 decision.gate = entity_gate(verdict, snippets, node_names(node))
-                if decision.gate == GATE_ABOUT_THE_THING:
+                hit = finder.find(str(node["nodeKind"]), str(node["displayName"]), own_lineage=str(node.get("lineageId") or node["id"])) if finder is not None else None
+                if decision.gate == GATE_ABOUT_THE_THING and hit is not None:
+                    decision.gate = GATE_POSSIBLE_DUPLICATE
+                    decision.verdict = UNSURE
+                    decision.reason = f"{hit.sentence()}: {decision.reason}"
+                    if proposals is not None and node.get("corpusId"):
+                        proposals.append(duplicate_proposal(hit, str(node["nodeKind"]), node, corpus_id=str(node["corpusId"]), import_run_id="ai-review", now=now))
+                elif decision.gate == GATE_ABOUT_THE_THING:
                     patches += accept_patches(node, mentions_of(node), actor=actor, now=now)
                     decision.applied = True
+                    if finder is not None:
+                        finder.add({**node, "status": "accepted"})
                 else:
                     decision.verdict = UNSURE
                     decision.reason = f"{decision.gate}: {decision.reason}"
@@ -546,6 +564,15 @@ def fair_shares(needs: Mapping[str, int], budget: int) -> dict[str, int]:
 
 def record_changes(patches: Iterable[Mapping[str, Any]]) -> list[dict]:
     return [{"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"} for patch in patches]
+
+
+def proposal_changes(proposals: Iterable[Mapping[str, Any]], get_record: Callable[[str, str], Any]) -> list[dict]:
+    """Create changes for the duplicate proposals that do not exist yet. One that exists is left as it is, so a person's decision on it stays and a rerun files nothing."""
+    changes: dict[str, dict] = {}
+    for proposal in proposals:
+        if proposal["id"] not in changes and get_record("SteeringProposal", proposal["id"]) is None:
+            changes[proposal["id"]] = {"modelName": "SteeringProposal", "expected": dict(proposal), "current": None, "action": "create"}
+    return list(changes.values())
 
 
 def summary_of(decisions: list[Decision]) -> dict[str, int]:

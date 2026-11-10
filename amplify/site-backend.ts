@@ -17,7 +17,7 @@ import { planRenditions } from "./publication/renditions-settings";
 import { addProjectionLeaseAccess } from "./publication/projection-lease";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
-import { assertValidMonitoringConfig, assertValidPublicationConfig } from "./site-backend-config";
+import { assertValidMonitoringConfig, assertValidPublicationConfig, assertValidTenancyConfig, resolveTenancyMode, tenancyFunctionEnvironment } from "./site-backend-config";
 import { revalidateSecretReadStatement } from "./revalidate-secret-policy";
 import {
   revalidateDistributionEnvironment,
@@ -123,6 +123,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const publication = resolveSitePublication(site, activeBrand?.renderer?.kind);
   if (publication !== undefined) assertValidPublicationConfig(publication);
   assertValidMonitoringConfig(site.monitoring);
+  assertValidTenancyConfig(site.tenancy);
+  const tenancyMode = resolveTenancyMode(site.tenancy);
   const emailMonitorId = site.monitoring?.emailMonitorId ?? "hn";
   const publicationPlan = planS3ProjectionBackend(publication);
   const renditionsPlan = planRenditions(publication, process.cwd());
@@ -164,6 +166,13 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     slackDelivery,
     storage,
   });
+
+  // Tenancy mode reaches every function; dedicated adds nothing, so an existing site's template is unchanged.
+  for (const resource of Object.values(backend) as Array<{ resources?: { lambda?: unknown }; addEnvironment?: unknown }>) {
+    const lambda = resource?.resources?.lambda;
+    if (!(lambda instanceof LambdaFunction)) continue;
+    for (const [name, value] of Object.entries(tenancyFunctionEnvironment(tenancyMode))) lambda.addEnvironment(name, value);
+  }
 
   enablePointInTimeRecoveryOnDataTables(backend.data.resources.cfnResources.amplifyDynamoDbTables);
 

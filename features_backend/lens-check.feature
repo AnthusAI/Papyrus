@@ -481,3 +481,109 @@ Feature: papyrus stories lens-check reports what code can check about a Story fo
       """
     When I run "stories lens-check" with "--story story-1"
     Then the command read only the Story's own versions
+
+  # The share picture (check C4). A built address is not proof of a file: the check fetches the picture it would name in og:image, reads what came
+  # back, and says what it saw. It never claims what a platform will do; WebP and AVIF are a compatibility risk, not a proven failure.
+  Scenario Outline: The share picture is fetched and judged by what came back
+    Given the site is live with a public address
+    And a Story with the front matter
+      """
+      title: Board refuses
+      summary: The board refused the merger on March 3.
+      date: 2026-03-03
+      author: Dana Reyes
+      image: /assets/share.img
+      imageAlt: A harbour at dusk
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    And the share picture answers with status <status>, type "<type>" and a <format> of <width> by <height> pixels
+    When the lens checks run
+    Then the finding "C4" is a "<state>"
+    And the finding "C4" says "<words>"
+
+    Examples:
+      | status | type       | format | width | height | state   | words                                  |
+      | 200    | image/jpeg | jpeg   | 1200  | 630    | pass    | https://example.test/assets/share.img  |
+      | 200    | image/png  | png    | 1200  | 630    | pass    | 1200x630                               |
+      | 200    | image/webp | webp   | 912   | 572    | concern | JPEG or PNG                            |
+      | 200    | image/jpeg | jpeg   | 300   | 157    | concern | smaller                                |
+      | 200    | image/jpeg | png    | 1200  | 630    | concern | does not match                         |
+      | 404    | image/jpeg | jpeg   | 1200  | 630    | concern | status 404                             |
+
+  Scenario: A share picture that cannot be requested is not verified, not passed
+    Given the site is live with a public address
+    And a Story with the front matter
+      """
+      title: Board refuses
+      image: /assets/share.jpg
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    And the share picture cannot be requested
+    When the lens checks run
+    Then the finding "C1" is a "pass"
+    And the finding "C4" is a "not_assessable"
+    And the finding "C4" says "not verified"
+
+  Scenario: Without a fetch the picture is not verified even though its address can be built
+    Given the site is live with a public address
+    And a Story with the front matter
+      """
+      title: Board refuses
+      image: /assets/share.jpg
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    When the lens checks run
+    Then the finding "C1" is a "pass"
+    And the finding "C4" is a "not_assessable"
+
+  Scenario: A Story with no picture and a site with no default is flagged
+    Given the site is live with a public address
+    And a Story with this body
+      """
+      The board refused the merger.
+      """
+    And the share picture answers with status 200, type "image/jpeg" and a jpeg of 1200 by 630 pixels
+    When the lens checks run
+    Then the finding "C4" is a "concern"
+    And the finding "C4" says "no picture"
+
+  Scenario: A picture that is not at an absolute HTTPS address is flagged
+    Given the site is live with a public address
+    And a Story with the front matter
+      """
+      title: Board refuses
+      image: http://cdn.example.test/share.jpg
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    And the share picture answers with status 200, type "image/jpeg" and a jpeg of 1200 by 630 pixels
+    When the lens checks run
+    Then the finding "C4" is a "concern"
+    And the finding "C4" says "absolute HTTPS"
+
+  Scenario: The finding carries the line for the social review note
+    Given the site is live with a public address
+    And a Story with the front matter
+      """
+      title: Board refuses
+      image: /assets/share.webp
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    And the share picture answers with status 200, type "image/webp" and a webp of 912 by 572 pixels
+    When the lens checks run
+    Then the finding "C4" says "Record this in the social review note: Share picture https://example.test/assets/share.webp"
+    And the finding "C4" says "912x572"
