@@ -87,6 +87,49 @@ def stories_suggest_links(flags: list[str]) -> None:
     print(f"\nstories\tsuggest-links\t{result['requests']} request(s)")
 
 
+def stories_suggest_associations(flags: list[str]) -> None:
+    """papyrus stories suggest-associations (--story LINEAGE|SLUG | --reference ID) [--kinds articles,posts,references] [--limit N] [--json]
+
+    Read only; writes nothing, needs no embedding key. Builds one query from the item (title, summary, first ~300 words of the body) and finds the accepted concepts
+    its text names (name, alias or #hashtag, whole words only; ranked by rarity and position), plus the concepts nearest by meaning when this shell has an embedding
+    key and a vector index (otherwise one line says it was name-only). Those concepts seed the `stories suggest-links` pass, so related articles, posts and
+    References are ranked even for an untagged item. Every concept and candidate carries the exact command that links it."""
+    from .association_suggestions import suggest_associations
+
+    options = parse_options(flags)
+    story, reference = normalize_string(options.get("story")), normalize_string(options.get("reference"))
+    if bool(story and story is not True) == bool(reference and reference is not True):
+        raise ValueError("Give exactly one of --story (a lineage id or slug) or --reference (a Reference id).")
+    raw_kinds = normalize_string(options.get("kinds"))
+    kinds = tuple(dict.fromkeys(part.strip() for part in str(raw_kinds).split(",") if part.strip())) if raw_kinds and raw_kinds is not True else KINDS
+    for kind in kinds:
+        if kind not in KINDS:
+            raise ValueError(f"--kinds takes {', '.join(KINDS)}; {kind!r} is not one.")
+    client, _ = create_authoring_client()
+    result = suggest_associations(client, "item" if story else "reference", str(story or reference), kinds=kinds, limit=_limit(options, "limit", 5))
+    if options.get("json"):
+        print(json.dumps({"ok": True, **result}, indent=2))
+        return
+    head = result["item"]
+    print(f"stories\tsuggest-associations\t{head['kind']}\t{head['lineageId']}\t{head['title']}")
+    for note in result["notes"]:
+        print(f"stories\tsuggest-associations\tNOTE\t{note}")
+    print(f"\nConcepts ({len(result['concepts'])})")
+    for index, entry in enumerate(result["concepts"], 1):
+        how = entry["reason"] + (f" in {', '.join(entry['where'])}" if entry["where"] else "") + (f" as '{entry['matched']}'" if entry["matched"] else "")
+        print(f"  {index}. {entry['score']:.2f}\t{entry['name']}\t{how}\t{'wiki page' if entry['publicPage'] else 'no wiki page'}" + ("\talready tagged" if entry["alreadyTagged"] else ""))
+        if entry["command"]:
+            print(f"     {entry['command']}")
+    for kind in kinds:
+        items = result["candidates"].get(kind) or []
+        print(f"\n{KIND_LABELS[kind]} ({kind}): {len(items)}")
+        for index, item in enumerate(items, 1):
+            print(f"  {index}. {item['score']:.2f}\t{item['title']}\t{item['type']}\t{item['date'] or '-'}\tshared: {', '.join(item['shared'])}\tpath: {item['path']}")
+            if item["command"]:
+                print(f"     {item['command']}")
+    print(f"\nstories\tsuggest-associations\t{result['requests']} request(s)")
+
+
 def relations_search(flags: list[str]) -> None:
     """papyrus knowledge concepts search "free text" [--limit N] [--json]   |   papyrus knowledge concepts search --list [--json]
 
