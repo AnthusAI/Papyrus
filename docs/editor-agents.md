@@ -39,7 +39,7 @@ papyrus stories save-version --story <lineage> --body-file draft.md --reason "ad
 papyrus stories versions --story <lineage>
 ```
 
-Signed in, the version names you and `--author-label` is optional (an operator on AWS credentials must give it). Older versions are listed in the story's Reporting trail and open read-only. In the newsroom article editor, an older version cannot be saved or published; publishing publishes the latest version. Each stage move and note is also recorded in the trail. See [story-reporting.md](story-reporting.md) and [content-item-lifecycle.md](content-item-lifecycle.md).
+After every save, show the editor the console link of the version you saved (the `console` row, or `papyrus links --story <lineage> --version N`) before asking for approval; see [console-links.md](console-links.md). Signed in, the version names you and `--author-label` is optional (an operator on AWS credentials must give it). Older versions are listed in the story's Reporting trail and open read-only. In the newsroom article editor, an older version cannot be saved or published; publishing publishes the latest version. Each stage move and note is also recorded in the trail. See [story-reporting.md](story-reporting.md) and [content-item-lifecycle.md](content-item-lifecycle.md).
 
 ## The operator CLI and the API (Live)
 

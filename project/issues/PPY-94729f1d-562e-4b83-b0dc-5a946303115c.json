@@ -20,10 +20,17 @@
       "text": "Design PR: https://github.com/AnthusAI/Papyrus/pull/1362 (branch docs/story-head-index, docs/plans/story-head-stage-index.md). Awaiting Ryan's decision; nothing implemented.",
       "created_at": "2026-11-10T02:40:59.349009Z",
       "comment_type": "default"
+    },
+    {
+      "id": "f59e08b3-d44b-45bf-ad66-b9d7e181684a",
+      "author": "home",
+      "text": "Ryan approved option (a) (sparse headStageKey). Steps 1-4 implemented in PR https://github.com/AnthusAI/Papyrus/pull/1364 (branch feat/story-head-index): specs, schema (one new GSI), dual-write in every writer, papyrus stories head-index (dry run unless --apply). Not merged, not deployed, no production writes. MoM dry run (read only, 2026-11-09): rows read 888, stories 259, heads to set 259, muddled 0, no head 0.",
+      "created_at": "2026-11-10T03:26:28.505221Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-10T02:37:37.936180Z",
-  "updated_at": "2026-11-10T02:40:59.349214Z",
+  "updated_at": "2026-11-10T03:26:28.505709Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

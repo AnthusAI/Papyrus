@@ -107,7 +107,7 @@ _ENTRIES = dict([
   _e("references queue-predictions", "Queue a Cyclotron prediction for every pending Reference that has none.", "(--site KEY | --corpus-key KEY[,KEY...]) [--dry-run]", "operator", _DRY, ""),
   _e("references list-predictions", "List Cyclotron predictions for a corpus's References.", "--corpus-key KEY [--status STATUS] [--limit N] [--category-set ID] [--config STEERING.yml]", "operator", "reads", ""),
   # ---- stories ----------------------------------------------------------------------------------------------------
-  _e("stories list", "List Stories; the first column is the lineage id every other `stories` command takes.",
+  _e("stories list", "List the Stories (each one's newest version, drafts included) of a stage, newest change first; the first column is the lineage id every other `stories` command takes.",
      "[--stage STAGE] [--section ID|SLUG|NAME] [--type article|post] [--stars N | --min-stars N | --max-stars N] [--sort updated|stars|rank] [--bucket day|week|none] [--limit N]",
      "both", "reads", "find"),
   _e("stories show", "Show one Story: headline, signals, stage moves, its References and notes.",
@@ -222,6 +222,8 @@ _ENTRIES = dict([
   _e("whoami", "Renew and print every signed-in site's session as JSON (or one site's).", "[SITE_HOST]", "editor", "reads", "orientation"),
   _e("auth", "Inspect the selected session without opening a browser: `auth status`.", "status", "editor", "reads", "orientation"),
   _e("doctor", "Check the install, the sign-in and the site connection.", "[options]", "both", "reads", "orientation"),
+  _e("links", "Print the console link of a Story (one version, or the drawer), Reference, Concept, Assignment or review item. Hand the editor these links.",
+     "[--story LINEAGE|SLUG [--version N|VERSION_ID]] [--reference REFERENCE_ID|LINEAGE] [--concept NAME|NODEKEY] [--assignment ID] [--review ID] [--console-url URL] [--json]", "both", "reads", "write-story"),
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
 ])
 

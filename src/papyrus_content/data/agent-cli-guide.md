@@ -98,7 +98,7 @@ papyrus stories show --story LINEAGE
 papyrus stories versions --story LINEAGE
 ```
 
-`list` prints `stories list LINEAGE stage section title stars source votes bucket type words published`. The first column is the lineage id every other `stories` command takes. `type` is `article`, `post` or `untyped`. `show` prints the headline, a `signals` line, each stage move, its References by lineage id and its agent notes; `--json` prints the Story and its related Stories only.
+`list` prints every Story of the stage, drafts included (the Stories board shows the same ones), one line per Story, newest change first, then `stories list N of TOTAL`: `--limit` (default 50) prints the first N, so when TOTAL is larger than N, raise `--limit`. Each line is `stories list LINEAGE stage section title stars source votes bucket type words published`. The first column is the lineage id every other `stories` command takes. `type` is `article`, `post` or `untyped`. `show` prints the headline, a `signals` line, each stage move, its References by lineage id and its agent notes; `--json` prints the Story and its related Stories only.
 
 ### Concepts
 **Lane:** both. **Version:** 5.101+ for `search` and `related` (PR #1341); `entities list` any. Read only.
@@ -236,7 +236,7 @@ papyrus stories create --title "Headline" --section security --stage reporting -
 papyrus stories create --title "Headline" --section security --stage reporting --summary "One sentence." --reference REFERENCE_ID
 ```
 
-Prints `stories create created ITEM_ID`, `stories create lineage LINEAGE` and one `based on` line per Reference, then the reminder of the next procedure step. **Run it once**: each run makes a new Story. The dry run prints one line and does not check that the `--reference` ids exist. `--stage` is `idea`, `assignment` or `reporting` (default `idea`); `--section` takes a section id, slug or name.
+Prints `stories create created ITEM_ID`, `stories create lineage LINEAGE`, `stories create console ...` rows (show the editor that link: see below) and one `based on` line per Reference, then the reminder of the next procedure step. **Run it once**: each run makes a new Story. The dry run prints one line and does not check that the `--reference` ids exist. `--stage` is `idea`, `assignment` or `reporting` (default `idea`); `--section` takes a section id, slug or name.
 
 ### Set the Story type (post or article)
 **Lane:** editor. **Status:** not built. `stories create` has no `--type` and there is no `stories set-type` (board story PPY-b3032b). A Story with type `untyped` cannot be published. Interim route: open the newsroom story editor and choose the type, or start the Story from the Create Story button on the Reference card. Check the result with `papyrus stories show --story LINEAGE` (the `signals` line shows `type`).
@@ -258,7 +258,7 @@ papyrus stories save-version --story LINEAGE --body-file body.md --front-matter-
 papyrus stories save-version --story LINEAGE --body-file body.md --front-matter-file front.yaml --reason "First draft"
 ```
 
-Front matter keys: `title`, `dek`, `blurb`, `author` (a human's name, only if a person worked on it), `drafting: {by: AI}` (without it the byline drops "various bots"), `imageAlt`, `citations:` with a key for every `[@key]` in the body, `image:` for the card picture. Quote date values. Signed in, the author is the person who signed in; `--author-label` is ignored (the operator lane requires it). `--stage STAGE` or `--advance` also moves the Story.
+Front matter keys: `title`, `dek`, `blurb`, `author` (a human's name, only if a person worked on it), `drafting: {by: AI}` (without it the byline drops "various bots"), `imageAlt`, `citations:` with a key for every `[@key]` in the body, `image:` for the card picture. Quote date values. Signed in, the author is the person who signed in; `--author-label` is ignored (the operator lane requires it). `--stage STAGE` or `--advance` also moves the Story. It prints `stories save-version console story URL`: **show the editor that link** (the exact version) after every save, before asking for approval (see "Show the editor the console link").
 
 ### Move a Story on the board
 **Lane:** both. **Version:** 5.100.0.
@@ -269,6 +269,26 @@ papyrus stories set-slug --story LINEAGE --slug real-address --dry-run
 ```
 
 `--stage published` changes only the board stage and prints a warning: **no page is published**. A Story with a placeholder slug such as `draft-security-47ecad5db5f6b10b` is refused at publish until `set-slug` gives it a real address.
+
+### Show the editor the console link (required)
+**Lane:** both. **Version:** 5.101.0 and later for `papyrus links` and the `console` rows; the console address must be known. Read only.
+
+**This is a required step.** Whenever you create a Story, save a version of one, or materially change one (or file or curate a Reference or Concept) for the editor, show the editor the console link to that exact item before you ask for anything, and certainly before you ask to publish. They review the draft in the web console, not on a production page.
+
+```sh
+papyrus stories save-version --story LINEAGE --body-file body.md --reason "First draft"
+# prints: stories  save-version  console  story        https://.../articles/LINEAGE-v3      (the exact version you saved)
+#         stories  save-version  console  story-board  https://.../articles?open=contentItem%3ALINEAGE  (latest, with the checklist)
+papyrus links --story LINEAGE --version 3 --reference REFERENCE_ID --concept "Concept name"
+```
+
+Tell the editor, for example: `Draft v3 is ready to review: <story link> (built from the saved version id; I have not opened it).` Rules:
+
+- Give the `story` link (the exact VERSION id) for a draft you wrote. Give the `story-board` (drawer, lineage) link only to mean "the latest version".
+- `stories create`, `stories save-version` and `stories show` print the rows; `references show` prints a `console:` line. For a Concept, an Assignment or a review item run `papyrus links` (`--concept`, `--assignment`, `--review`). Every id is checked against the site first.
+- If the row says `unavailable`, the site has not published its console address: say so, and ask for it; pass it with `--console-url` or `PAPYRUS_CONSOLE_URL`. Never guess an address, and never write a link by hand.
+- Say honestly whether you opened the link. A link built from an id is not a link you tested.
+- The checklist has no address of its own: it is a panel in the drawer. Addresses, and what each does with a wrong id: `docs/console-links.md`.
 
 ## Publish and make it visible
 <!-- guide:publish -->
