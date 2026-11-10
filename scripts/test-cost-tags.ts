@@ -20,6 +20,7 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { parse } from "yaml";
 import { assertCostTags, checkCostTags } from "../amplify/vendor/anthus-cost-accounting/tags";
 import { siteCostAttribution, usageQueueUrlFor } from "../amplify/cost-attribution";
+import { checkoutBundleInputsHash, packageRoot } from "../amplify/functions/shared/python-bundle";
 import { costTagWave, planCostTagWaves, STACK_OPERATION_RESOURCE_LIMIT, WAVE_RESOURCE_BUDGET } from "../amplify/cost-tag-waves";
 import { parseSiteConfig } from "../infra/amplify-app-shell/lib/site-config";
 import { KnowledgeRunStack } from "../infra/scheduled-jobs/lib/knowledge-pipeline";
@@ -89,6 +90,21 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
   const big = planCostTagWaves([{ id: "root", parentId: null, resources: 10 }, { id: "root/huge", parentId: "root", resources: 2000 }, { id: "root/small", parentId: "root", resources: 5 }]);
   assert.deepEqual(big.waves, [["root"], ["root/huge"], ["root/small"]]);
   assert.throws(() => planCostTagWaves([{ id: "root", parentId: null, resources: STACK_OPERATION_RESOURCE_LIMIT + 1 }]), /over CloudFormation's 2500/);
+}
+
+// Scenario: a synthesized template does not move because some other file in the checkout did (tests run side by side and write there).
+{
+  const options = { functionDir: "reference-word-index", modules: ["papyrus_knowledge_query"] };
+  const before = checkoutBundleInputsHash(options);
+  const stray = path.join(packageRoot, ".amplify", `stray-${process.pid}.ts`);
+  fs.mkdirSync(path.dirname(stray), { recursive: true });
+  fs.writeFileSync(stray, "// written by another test while this one synthesizes\n");
+  try {
+    assert.equal(checkoutBundleInputsHash(options), before, "an unrelated file in the checkout changed a Python bundle's hash");
+  } finally {
+    fs.rmSync(stray, { force: true });
+  }
+  assert.notEqual(checkoutBundleInputsHash({ ...options, functionDir: "knowledge-query" }), before, "the hash names the function's own handler");
 }
 
 const synthBackend = (out: string, extra: Record<string, string>) => {
