@@ -98,7 +98,7 @@ papyrus stories show --story LINEAGE
 papyrus stories versions --story LINEAGE
 ```
 
-`list` prints `stories list LINEAGE stage section title stars source votes bucket type words published`. The first column is the lineage id every other `stories` command takes. `type` is `article`, `post` or `untyped`. `show` prints the headline, a `signals` line, each stage move, its References by lineage id and its agent notes; `--json` prints the Story and its related Stories only.
+`list` prints every Story of the stage, drafts included (the Stories board shows the same ones), one line per Story, newest change first, then `stories list N of TOTAL`: `--limit` (default 50) prints the first N, so when TOTAL is larger than N, raise `--limit`. Each line is `stories list LINEAGE stage section title stars source votes bucket type words published`. The first column is the lineage id every other `stories` command takes. `type` is `article`, `post` or `untyped`. `show` prints the headline, a `signals` line, each stage move, its References by lineage id and its agent notes; `--json` prints the Story and its related Stories only.
 
 ### Concepts
 **Lane:** both. **Version:** 5.101+ for `search` and `related` (PR #1341); `entities list` any. Read only.
