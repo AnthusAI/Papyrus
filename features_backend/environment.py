@@ -10,6 +10,7 @@ REQUIRES_CYCLOTRON_TAG = "requires-cyclotron"
 CYCLOTRON_MODULE = "decision_flywheel"
 OPERATOR_TAG = "operator"
 WORK_IN_PROGRESS_TAG = "wip"
+SANDBOX_TAG = "sandbox"
 CHECKLIST_GATE_TAG = "checklist-gate"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OPERATOR_FIXTURE_ROOT = REPO_ROOT / "features_backend" / "fixtures" / "operator-cli"
@@ -62,6 +63,9 @@ def before_scenario(context, scenario):
         mock.patch("papyrus_content.story_checklist.require_checklist_closed", lambda client, item: None).start()
     if WORK_IN_PROGRESS_TAG in scenario.effective_tags:
         scenario.skip("work in progress: waits for a task that has not landed")
+        return
+    if SANDBOX_TAG in scenario.effective_tags:
+        scenario.skip("needs an ampx sandbox with Google test users: run by hand (spikes/tenant-claims-1/README.md)")
         return
     if REQUIRES_CYCLOTRON_TAG in scenario.effective_tags and importlib.util.find_spec(CYCLOTRON_MODULE) is None:
         scenario.skip("decision_flywheel not installed (poetry install --with cyclotron)")
