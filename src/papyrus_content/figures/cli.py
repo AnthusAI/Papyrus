@@ -1,15 +1,19 @@
 """``papyrus figures ...``: render, check and describe figures. Everything here is local; nothing reaches a site.
 
-    papyrus figures render FOLDER... (--design-system DIR | --neutral-default) [--out DIR] [--check-only] [--json]
+    papyrus figures render FOLDER... [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json]
     papyrus figures directive FOLDER
     papyrus figures rules
     papyrus figures primitives
+
+With neither ``--design-system`` nor ``--neutral-default``, ``render`` uses the design system the signed-in site stores (``papyrus design-system show``); a folder
+given with ``--design-system`` overrides it. With none stored there is no default: it stops and says to use the neutral default or ask.
 
 Exit status: 0 when every figure passed, 1 when any had a problem. A usage error raises ``ValueError`` like the other commands.
 """
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from .checks import image_directive
@@ -47,8 +51,32 @@ def _split(tokens: list[str], value_flags: tuple[str, ...], switch_flags: tuple[
     return positional, options
 
 
+def no_design_system(reason: str = "") -> str:
+    return (
+        "No design system" + (f": {reason}" if reason else ".") + " A figure is never drawn in an invented house style. If the site has one, sign in to it (`papyrus login`) "
+        "and `figures render` uses it, or pass a folder with --design-system DIR (`papyrus design-system pull DIR` writes the site's). If the site has none, "
+        "pass --neutral-default for the unbranded default and say so in your note to the person; never invent a brand."
+    )
+
+
+def stored_design_system() -> DesignSystem:
+    """The design system the signed-in site stores. Raises ``ValueError`` saying what to do when it cannot be read or the site has none."""
+    from . import records
+
+    try:
+        stored = records.open_records().read()
+    except DesignSystemError as error:
+        raise ValueError(str(error)) from error
+    except Exception as error:  # noqa: BLE001 - not signed in, no endpoint, offline: the reason is shown, and nothing is guessed
+        raise ValueError(no_design_system(f"reading the site's design system failed ({error}).")) from error
+    if stored is None:
+        raise ValueError(no_design_system("the site stores none."))
+    print(f"figures: using the site's stored design system, {stored.document.get('publication') or 'this site'} version {stored.version}", file=sys.stderr)
+    return load_design_system(stored.source)
+
+
 def resolve_design_system(options: dict[str, str | bool]) -> DesignSystem:
-    """The design system the flags name. With neither flag there is none: a figure is never drawn in an invented house style."""
+    """The design system the flags name; with neither, the one the signed-in site stores. Never an invented one."""
     directory, neutral = options.get("--design-system"), bool(options.get("--neutral-default"))
     if directory and neutral:
         raise ValueError("Pass --design-system DIR or --neutral-default, not both.")
@@ -56,10 +84,7 @@ def resolve_design_system(options: dict[str, str | bool]) -> DesignSystem:
         return load_design_system(DirectorySource(str(directory)))
     if neutral:
         return neutral_design_system()
-    raise ValueError(
-        "No design system. Read the site's design system and pass its folder with --design-system DIR. If the site has none, "
-        "pass --neutral-default for the unbranded default and say so in your note to the person; never invent a brand."
-    )
+    return stored_design_system()
 
 
 def _print_result(result: FigureResult) -> None:

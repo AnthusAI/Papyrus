@@ -20,6 +20,7 @@ from papyrus_content.record_helpers import to_aws_json
 from .document import GuidelineError, digest, kind_spec, slug_for, validate_document
 
 ROLE = "doctrine_document"
+ASSET_ROLE = "doctrine_asset"   # binary files a document names (a design system's fonts): one ModelAttachment each, sortKey = the file's name in the document
 NO_DOCUMENT_GUARD = "none"   # expectedCurrentVersionId for the first save of a lineage
 
 
@@ -91,6 +92,17 @@ class GuidelineStore:
             return None
         return {"document": self._document_of(row), "reference": reference(row), "row": row}
 
+    def assets_of(self, row: dict) -> dict[str, dict]:
+        """The asset attachments of one version by file name: one index query, nothing downloaded."""
+        attachments = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"], limit=100)
+        return {a["sortKey"]: a for a in attachments if a.get("role") == ASSET_ROLE and str(a.get("status") or "active").lower() not in {"deleted", "aborted"}}
+
+    def get_asset(self, attachment: dict) -> bytes:
+        body = self.files.get(attachment)
+        if body is None:
+            raise GuidelineError("not_found", f"The file {attachment.get('sortKey')} could not be read.", {"attachmentId": attachment.get("id")})
+        return body
+
     def history(self, kind: str, section: str | None = None) -> list[dict]:
         return [{"itemId": r["id"], "versionNumber": int(r.get("versionNumber") or 0), "versionState": r.get("versionState"), "by": r.get("versionCreatedBy"),
                  "at": r.get("versionCreatedAt"), "reason": r.get("changeReason"), "contentHash": r.get("contentHash")} for r in self.versions(kind, section)]
@@ -98,8 +110,11 @@ class GuidelineStore:
     # --- writes -------------------------------------------------------------------------------------------------------------------------------------
 
     def save(self, kind: str, document: Any, *, section: str | None = None, expected_current_version_id: str | None = None, actor: str, reason: str,
-             now: str | None = None) -> dict:
+             now: str | None = None, assets: dict[str, bytes] | None = None) -> dict:
         """Save a document as the lineage's next version. ``{changed, reference}``.
+
+        ``assets`` are binary files the document names (file name -> bytes), stored beside it as ModelAttachments of the same version. The caller puts
+        their hashes in the document, so the content hash covers them.
 
         The first save names ``none``; a later one names the Item id it replaces and is refused as stale when that is no longer current. A document equal to
         the current one makes no version. The file is written before the row, so a failure never leaves a version with nothing to read.
@@ -125,6 +140,8 @@ class GuidelineStore:
         record = next_record(spec.name, section, versions, content_hash, actor=actor, reason=reason, now=stamp,
                              tenant_slug=getattr(self.client, "tenant_slug", None))
         self._put_document(record, document, stamp)
+        for name, body in (assets or {}).items():
+            self._put_asset(record, name, body, stamp)
         self.client.create_record("Item", record)
         for row in versions:
             if row.get("versionState") == "current":
@@ -138,6 +155,16 @@ class GuidelineStore:
             "ownerKind": "item", "ownerId": record["id"], "ownerLineageId": record["lineageId"], "ownerVersionNumber": record["versionNumber"],
             "ownerVersionKey": semantic_version_key("item", record["id"]), "role": ROLE, "sortKey": "document", "filename": "guidelines.json",
             "content": document, "now": now,
+        })
+        return self.files.put(entry["attachment"], entry["body"])
+
+    def _put_asset(self, record: dict, name: str, body: bytes, now: str) -> dict:
+        from papyrus_content.model_attachments import attachment_safe_id, build_model_payload_attachment, semantic_version_key
+
+        entry = build_model_payload_attachment({
+            "ownerKind": "item", "ownerId": record["id"], "ownerLineageId": record["lineageId"], "ownerVersionNumber": record["versionNumber"],
+            "ownerVersionKey": semantic_version_key("item", record["id"]), "role": ASSET_ROLE, "sortKey": name, "filename": attachment_safe_id(name),
+            "content": bytes(body), "mediaType": "application/octet-stream", "now": now,
         })
         return self.files.put(entry["attachment"], entry["body"])
 

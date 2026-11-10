@@ -86,14 +86,15 @@ def fresh_client() -> FakeAuthoringClient:
     return client
 
 
-def save_dry_run(tmp_path: Path, *flags: str, environment: dict | None = None):
+def save_dry_run(tmp_path: Path, *flags: str, environment: dict | None = None, records=None):
     out, failure = io.StringIO(), None
     body = tmp_path / "body.md"
     body.write_text(BODY)
     with contextlib.redirect_stdout(out), \
             mock.patch.dict(os.environ, environment or {}), \
             mock.patch.object(story_commands, "create_authoring_client", return_value=(fresh_client(), {})), \
-            mock.patch("papyrus_content.user_auth_mode.user_auth_requested", return_value=False):
+            mock.patch("papyrus_content.user_auth_mode.user_auth_requested", return_value=False), \
+            (mock.patch("papyrus_content.figures.records.DesignSystemRecords", records) if records else contextlib.nullcontext()):
         try:
             story_commands.stories_save_version(["--story", LINEAGE, "--body-file", str(body), "--reason", "r", "--author-label", "ops",
                                                  "--images", str(tmp_path / "pictures"), "--dry-run", *flags])
@@ -128,3 +129,70 @@ def test_a_complete_figure_saves_without_a_warning_even_when_dark_is_required(tm
     out, failure = save_dry_run(tmp_path, *flags)
     assert failure is None
     assert "figure-light-only" not in out
+
+
+# --- the site's requireDarkFigures setting (kept with its design system; PPY-74ef89) ------------------------------------------------------------------
+
+def site_records(tmp_path: Path, settings: dict | None):
+    """A DesignSystemRecords over an in-memory backend holding a pushed design system with the given settings (or none pushed)."""
+    from papyrus_content.figures.design_system import DirectorySource
+    from papyrus_content.figures.neutral import MAPPING, neutral_design_system
+    from papyrus_content.figures.records import DesignSystemRecords
+    from papyrus_content.guidelines.fakes import FakeBackend, FakeFiles
+
+    backend = FakeBackend()
+    store = DesignSystemRecords(backend, FakeFiles(backend))
+    if settings is not None:
+        folder = tmp_path / "design-system"
+        folder.mkdir(exist_ok=True)
+        (folder / "mapping.json").write_text(json.dumps({**MAPPING, "tokens": neutral_design_system().tokens}))
+        store.push(DirectorySource(folder), actor="Ada", reason="First", settings=settings)
+    return lambda _client: store
+
+
+def test_the_site_setting_refuses_a_light_only_figure(tmp_path):
+    make_figure(tmp_path / "pictures", dark=False)
+    out, failure = save_dry_run(tmp_path, records=site_records(tmp_path, {"requireDarkFigures": True}))
+    assert isinstance(failure, ValueError) and "chart.png" in str(failure) and "dark pictures are required" in str(failure)
+    assert "this site's requireDarkFigures setting" in str(failure) and out == ""
+
+
+@pytest.mark.parametrize("settings", [None, {}, {"requireDarkFigures": False}])
+def test_a_site_that_does_not_require_dark_figures_only_warns(tmp_path, settings):
+    make_figure(tmp_path / "pictures", dark=False)
+    out, failure = save_dry_run(tmp_path, records=site_records(tmp_path, settings))
+    assert failure is None and "figure-light-only" in out
+
+
+def test_the_environment_variable_overrides_the_site_setting_both_ways(tmp_path):
+    make_figure(tmp_path / "pictures", dark=False)
+    out, failure = save_dry_run(tmp_path, environment={"PAPYRUS_REQUIRE_DARK_FIGURES": "0"}, records=site_records(tmp_path, {"requireDarkFigures": True}))
+    assert failure is None and "figure-light-only" in out
+    _out, failure = save_dry_run(tmp_path, environment={"PAPYRUS_REQUIRE_DARK_FIGURES": "1"}, records=site_records(tmp_path, {"requireDarkFigures": False}))
+    assert isinstance(failure, ValueError) and "PAPYRUS_REQUIRE_DARK_FIGURES" in str(failure)
+
+
+def test_the_flag_overrides_the_site_setting(tmp_path):
+    make_figure(tmp_path / "pictures", dark=False)
+    _out, failure = save_dry_run(tmp_path, "--require-dark-figures", records=site_records(tmp_path, {"requireDarkFigures": False}))
+    assert isinstance(failure, ValueError) and "--require-dark-figures" in str(failure)
+
+
+def test_a_setting_that_cannot_be_read_is_not_guessed(tmp_path):
+    make_figure(tmp_path / "pictures", dark=False)
+
+    def broken(_client):
+        raise RuntimeError("index unavailable")
+
+    _out, failure = save_dry_run(tmp_path, records=broken)
+    assert isinstance(failure, ValueError) and "Could not read the site's requireDarkFigures setting" in str(failure) and "PAPYRUS_REQUIRE_DARK_FIGURES=0" in str(failure)
+
+
+def test_the_site_is_not_asked_when_every_figure_has_a_dark_picture(tmp_path):
+    make_figure(tmp_path / "pictures")
+
+    def never(_client):
+        raise AssertionError("the site setting was read")
+
+    out, failure = save_dry_run(tmp_path, records=never)
+    assert failure is None and "figure-light-only" not in out

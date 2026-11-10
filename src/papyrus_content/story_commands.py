@@ -70,11 +70,25 @@ def _version_author(options: dict, apply: bool, client) -> str:
     return author
 
 
+def _site_requires_dark_figures(client) -> bool:
+    """The site's ``requireDarkFigures`` setting (kept with its design system). Read only when a figure has no dark picture and nothing overrides it."""
+    from .figures.records import site_requires_dark_figures
+
+    try:
+        return site_requires_dark_figures(client)
+    except Exception as error:  # noqa: BLE001 - say why instead of saving a light-only figure on a guess
+        raise ValueError(
+            f"Could not read the site's requireDarkFigures setting ({error}). Set PAPYRUS_REQUIRE_DARK_FIGURES=1 to refuse light-only figures or "
+            "PAPYRUS_REQUIRE_DARK_FIGURES=0 to allow them, and run the command again."
+        ) from error
+
+
 def stories_save_version(flags: list[str]) -> None:
     """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> [--author-label <name>] [--stage <stage> | --advance] [--outline] [--no-check] [--images <dir> [--bucket <bucket>] [--identity-pool-id <id>] [--require-dark-figures]]
 
     A figure (a picture with a ``<name>.figure.json`` beside it, written by ``papyrus figures render``) saved with no dark picture prints
-    a ``figure-light-only`` warning; --require-dark-figures (or PAPYRUS_REQUIRE_DARK_FIGURES=1) refuses it instead, before anything is written.
+    a ``figure-light-only`` warning; the site's ``requireDarkFigures`` setting (``papyrus design-system``), --require-dark-figures or PAPYRUS_REQUIRE_DARK_FIGURES=1 refuses
+    it instead, before anything is written. The flag and the variable are overrides: PAPYRUS_REQUIRE_DARK_FIGURES=0 saves a light-only figure even where the site refuses it.
 
     Signed in, the version records the person who signed in (the label the session holds) as its author, as `link-reference` does;
     --author-label is ignored there (the backend does not verify a name, so the CLI never lets one be made up). On the IAM lane
@@ -118,7 +132,7 @@ def stories_save_version(flags: list[str]) -> None:
     next_number = int(latest.get("versionNumber") or 1) + 1
     image_plan = None
     if images_dir:
-        from .story_images import REQUIRE_DARK_FIGURES_VARIABLE, existing_assets, light_only_figure_error, plan_story_images
+        from .story_images import REQUIRE_DARK_FIGURES_VARIABLE, dark_figures_required, existing_assets, light_only_figure_error, plan_story_images
 
         stored = [
             row for version in story_versions(client, lineage_id)
@@ -126,8 +140,10 @@ def stories_save_version(flags: list[str]) -> None:
         ]
         image_plan = plan_story_images(body, Path(images_dir), slug=latest["slug"], existing=existing_assets(stored), front_matter=front_matter)
         body = image_plan.body
-        if image_plan.light_only_figures and (options.get("require-dark-figures") or os.environ.get(REQUIRE_DARK_FIGURES_VARIABLE, "").strip().lower() in {"1", "true", "yes", "on"}):
-            raise ValueError(light_only_figure_error(image_plan))
+        if image_plan.light_only_figures:
+            refuse, why = dark_figures_required(bool(options.get("require-dark-figures")), os.environ.get(REQUIRE_DARK_FIGURES_VARIABLE), lambda: _site_requires_dark_figures(client))
+            if refuse:
+                raise ValueError(light_only_figure_error(image_plan, why))
         if image_plan.front_matter is not None:
             front_matter = image_plan.front_matter
     header = f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t"

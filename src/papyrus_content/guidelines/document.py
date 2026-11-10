@@ -280,7 +280,16 @@ def _validate_image(document: Any, scope: str) -> list[Problem]:
     return [Problem(p.path, p.message, p.code) for p in validate_profile(document)]
 
 
+def _validate_design_system(document: Any, scope: str) -> list[Problem]:
+    from papyrus_content.figures.records import validate_design_system_document
+
+    return validate_design_system_document(document, scope)
+
+
 register_kind(KindSpec("writing", "writing", 1, WRITING_FIELDS))
 register_kind(KindSpec("video", "video", 1, VIDEO_FIELDS))
 # Image documents keep their own schema and resolver (images/visual_style.py); the store keeps them the same way as any other kind (PPY-c16829 wires it).
 register_kind(KindSpec("image", "visual-style", 2, validate=_validate_image, layers=False))
+# A site's design system for figures (PPY-74ef89): the mapping, tokens, worked examples and figure settings as text, its fonts as attached files. The site's alone: it
+# has no section layer, and its own module (figures/records.py) validates it and reads it back.
+register_kind(KindSpec("design-system", "design-system", 1, validate=_validate_design_system, layers=False))

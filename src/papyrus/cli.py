@@ -379,6 +379,12 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             return 0
         from papyrus_content.figures.cli import command as figures_command
         return figures_command(args[1:])
+    if group == "design-system":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.figures.design_system_cli import command as design_system_command
+        return design_system_command(args[1:])
     command = args[1] if len(args) > 1 else None
     flags = [*global_flags, *(args[2:] if len(args) > 2 else [])]
 

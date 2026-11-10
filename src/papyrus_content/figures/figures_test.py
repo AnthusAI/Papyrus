@@ -16,6 +16,17 @@ from papyrus_content.figures.design_system import DesignSystemError, DirectorySo
 from papyrus_content.figures.neutral import MAPPING, neutral_design_system
 from papyrus_content.figures.renderer import figure_document, open_browser, packaged_text, render_figure, RendererUnavailable
 
+@pytest.fixture(autouse=True)
+def no_site(monkeypatch):
+    """These tests never reach a site: with no flag the render command would read the signed-in site's design system, so it finds none here."""
+    from papyrus_content.figures import records
+
+    def unavailable():
+        raise RuntimeError("no site in this test")
+
+    monkeypatch.setattr(records, "open_records", unavailable)
+
+
 METADATA = {
     "slug": "plain", "kind": "diagram", "audience": "A lay reader", "shows": "One tile", "complements": "Adds a picture", "surrounding_text": "There is one tile.",
     "alt": "One tile", "caption": "A tile.", "credit": "Drafted by AI. Approved by {approved_by}.", "labelled_as": "none", "approved_by": None, "layout": "inline",
