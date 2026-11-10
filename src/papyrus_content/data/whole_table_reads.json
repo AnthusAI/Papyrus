@@ -27,7 +27,7 @@
   "src/papyrus_content/item_content_commands.py": 2,
   "src/papyrus_content/knowledge_cloud/stages.py": 4,
   "src/papyrus_content/knowledge_cloud/undo.py": 2,
-  "src/papyrus_content/knowledge_snapshot/commands.py": 15,
+  "src/papyrus_content/knowledge_snapshot/commands.py": 18,
   "src/papyrus_content/knowledge_snapshot/monitor_records.py": 1,
   "src/papyrus_content/knowledge_snapshot/reference_documents.py": 2,
   "src/papyrus_content/knowledge_wiki/commands.py": 3,

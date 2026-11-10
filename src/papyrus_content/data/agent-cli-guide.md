@@ -216,6 +216,17 @@ Predicates: `related_to`, `cites`, `supports`, `contradicts`. There is no comman
 papyrus knowledge entities link --key CONCEPT_KEY --to OTHER_CONCEPT_KEY --note "Why they relate" --dry-run
 ```
 
+### Add an entity with its aliases, and merge a duplicate (operators)
+**Lane:** operator (`--auth iam`). **Version:** the release after 5.100. **Writes:** yes; `--dry-run` previews.
+
+```sh
+papyrus knowledge entities add --kind organization --name "National Transportation Safety Board" --alias NTSB --alias "The NTSB" --actor ai --dry-run
+papyrus knowledge entities duplicates --kind person
+papyrus knowledge entities merge --from person--musk --into person--elon-musk --actor ai --dry-run
+```
+
+`add` creates the accepted entity or finds it, adds every `--alias`, and refuses a name that duplicates an accepted entity of the kind (it names the entity to use). When a name is also the name of an entity of another kind, or of a concept, the command tags the entity and the ones it shares the name with with the **Disambiguation** concept, in code, so do not tag by hand. `duplicates` only reads: it lists the pairs the duplicate rules catch and the `merge` command for each. `merge` supersedes the duplicate (`--from`), keeps its name and aliases on the entity that stays (`--into`) and moves its item mentions and relations; afterwards run `knowledge entities registry`, `knowledge snapshot`, then `knowledge wiki sync --retire` to take its page down. The knowledge run also asks the duplicate rules before it makes or accepts an entity: a candidate that is only another spelling is linked to the entity it duplicates and its name becomes an alias; one that only looks like a duplicate is held back with a proposal for a person.
+
 ### Link a Story to its References and to other Stories
 **Lane:** both. **Version:** 5.100.0. **Writes:** yes; `--dry-run` previews.
 

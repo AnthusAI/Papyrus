@@ -1,0 +1,20 @@
+{
+  "id": "PPY-dc96a635-ce34-42b7-95af-7f7b8db634a8",
+  "title": "Catch duplicate entities before they are accepted; add entities add/merge",
+  "description": "MoM knowledge index has ~17 real duplicate pairs (NTSB, MCP, surnames beside full names). Build: (1) knowledge entities add --kind --name --alias --actor with standard disambiguation tagging, (2) knowledge entities merge --from --into --actor, (3) data-driven pre-accept duplicate check used by publish-run and the AI review accept path. Live cleanup is a documented procedure, not run here.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-10T14:29:22.364184Z",
+  "updated_at": "2026-11-10T14:29:22.364429Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
