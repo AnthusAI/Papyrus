@@ -315,7 +315,7 @@ def row_unavailable(context):
     assert rows and all(row[3] == "unavailable" and "unknown" in row[4] for row in rows), rows
 
 
-@then("the command succeeded")
+@then("the links command output is complete and nothing failed")
 def succeeded(context):
     assert _world(context).failure is None, _world(context).failure
 

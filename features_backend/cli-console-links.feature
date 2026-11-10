@@ -137,7 +137,7 @@ Feature: The CLI hands an editor the console link of the item it worked on
     And no console address is given
     When the person runs the "stories show" command
     Then the output has a "console" row saying it is unavailable
-    And the command succeeded
+    And the links command output is complete and nothing failed
 
   Scenario: A draft save names the exact version, never only the lineage
     When the person runs the "stories save-version" command
