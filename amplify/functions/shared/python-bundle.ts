@@ -180,6 +180,28 @@ export function bundleFromCheckout(outputDir: string, options: PythonBundleOptio
 }
 
 /**
+ * What a checkout-mode bundle is made of, as a content hash: the function's handler and the `src/` modules it copies. Nothing else in the
+ * checkout reaches the asset, so nothing else may change its hash: the default (a fingerprint of the whole checkout) moves whenever any file
+ * under the root does, including files other processes write there while a template is being synthesized (`.amplify/generated`, built
+ * output, editor files), and a template that moved under a synth that changed nothing fails the cost tag waves' "changes only the stacks the plan counted" check.
+ */
+export function checkoutBundleInputsHash(options: Pick<PythonBundleOptions, "functionDir" | "modules">): string {
+  const hash = createHash("sha256");
+  const inputs = [
+    path.join(packageRoot, "amplify/functions", options.functionDir, "handler.py"),
+    ...options.modules.map((moduleName) => path.join(packageRoot, "src", moduleName)),
+  ];
+  for (const input of inputs) {
+    hash.update(`${path.relative(packageRoot, input)}\0`);
+    for (const filePath of listFilesRecursively(input)) {
+      hash.update(`${path.relative(input, filePath)}\0`);
+      hash.update(fs.readFileSync(filePath));
+    }
+  }
+  return hash.digest("hex");
+}
+
+/**
  * CDK Code for a Python Lambda. In package mode the asset hash is derived
  * from the pinned version and pip spec instead of hashing the package root.
  */
@@ -196,7 +218,9 @@ export function pythonLambdaCode(options: PythonBundleOptions, dockerCommand: st
         }
       : hasSiteFiles
         ? { assetHashType: AssetHashType.OUTPUT }
-        : {}),
+        : options.checkoutExtras
+          ? {}
+          : { assetHashType: AssetHashType.CUSTOM, assetHash: checkoutBundleInputsHash(options) }),
     bundling: {
       image: Runtime.PYTHON_3_12.bundlingImage ?? DockerImage.fromRegistry("public.ecr.aws/sam/build-python3.12"),
       local: {
