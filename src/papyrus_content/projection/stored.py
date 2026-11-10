@@ -38,6 +38,7 @@ def parse_front_matter(front_matter_yaml: str | None) -> dict:
 
 _CARD_IMAGE_KEYS = ("image", "cover", "ogImage", "thumbnail")
 _NIGHT_IMAGE_KEYS = ("imageDark", "coverDark", "thumbnailDark")
+FRONT_MATTER_IMAGE_KEYS = _CARD_IMAGE_KEYS + _NIGHT_IMAGE_KEYS
 _RENDITION_TAIL = re.compile(r"\d+\.\w+")
 
 

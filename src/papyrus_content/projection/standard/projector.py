@@ -55,7 +55,7 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 import inspect
 
-from . import alexa_pages, blocks, components, forum_pages, home_page_blocks, home_page_lists, includes, knowledge_blocks, newsletter_pages, page_twin
+from . import alexa_pages, blocks, card_images, components, forum_pages, home_page_blocks, home_page_lists, includes, knowledge_blocks, newsletter_pages, page_twin
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
@@ -1710,9 +1710,19 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 f'data-library="{components.esc(self.policy.path(MERMAID_LIBRARY_PATH))}"></script>\n'
             )
             html_text = html_text.replace("</body>", loader + "</body>", 1)
+        html_text = card_images.use_renditions(html_text, lambda: self._rendition_sources(page), self.policy.root)
         if self.hooks.page_finish is not None:
             html_text = self.hooks.page_finish(html_text, page)
         return html_text.encode("utf-8")
+
+    def _rendition_sources(self, page: StandardPage) -> dict[str, str]:
+        """``source -> file`` of the site's stored pictures with renditions, read once per version of the site."""
+        pipeline = self._pipeline()
+        if pipeline is None:
+            return {}
+        if page.site is None:
+            return card_images.hrefs_by_source(self._rendition_records(), pipeline)
+        return page.site.memo("rendition-sources", lambda: card_images.hrefs_by_source(page.site.rendition_records(), pipeline))
 
     def _body(self, page: StandardPage, parts: BodyParts) -> str:
         body = self._body_html(page, parts)
