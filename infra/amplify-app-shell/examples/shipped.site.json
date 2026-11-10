@@ -63,10 +63,7 @@
     ],
     "lockWaitSeconds": 1800,
     "monitorSources": ["huggingface", "routed"],
-    "monitorSuggestions": 5,
-    "monitorStories": {
-      "limit": 3
-    }
+    "monitorSuggestions": 5
   },
   "email": {
     "mode": "existing",

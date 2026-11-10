@@ -114,3 +114,30 @@ def step_log_needed(context, entities, clusters, relations):
 @then("the review log says it used 1 call for each of entities, clusters and relations")
 def step_log_used(context):
     assert context.budget["used"] == {"entities": 1, "clusters": 1, "relations": 1}, context.budget
+
+
+@given("the topic model proposed clusters in two runs, an earlier one and the latest")
+def step_two_runs(context):
+    from papyrus_content.knowledge_cloud.ai_review_test import cluster
+
+    context.cluster_proposals = [cluster("earlier", run="aaa", as_of="2026-11-09"), cluster("latest", run="bbb", as_of="2026-11-10")]
+
+
+@given("the earlier run's clusters are still waiting as proposed")
+def step_earlier_waiting(context):
+    assert all(row["status"] == "proposed" for row in context.cluster_proposals)
+
+
+@when("the clusters are reviewed")
+def step_clusters_reviewed(context):
+    context.offered = review.cluster_candidates(context.cluster_proposals, lambda ids: ["x"] * 4)
+
+
+@then("only the latest run's clusters are sent to the reviewer, and the earlier run's are not")
+def step_only_latest(context):
+    assert [entry["proposal"]["graphEntityId"] for entry in context.offered.values()] == ["latest"]
+
+
+@then("the call budget for clusters counts only the latest run's clusters")
+def step_budget_latest(context):
+    assert review.calls_needed(len(context.offered), review.CLUSTER_BATCH_SIZE) == 1

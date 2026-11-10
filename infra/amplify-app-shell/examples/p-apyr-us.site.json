@@ -56,9 +56,6 @@
     "monitorSources": [
       "routed"
     ],
-    "monitorStories": {
-      "limit": 3
-    },
     "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
     "openAiKeyParameter": "/papyrus/p-apyr-us/openai-api-key"
   },

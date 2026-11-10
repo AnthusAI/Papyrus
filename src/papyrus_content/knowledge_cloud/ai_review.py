@@ -461,12 +461,23 @@ def review_relations(
 CLUSTER_BATCH_SIZE = 8
 
 
+def latest_cluster_run(proposals: list[dict]) -> str | None:
+    """The id of the newest topic-model run that proposed clusters, by the same order the snapshot uses (the run's as-of day, then its id)."""
+    runs = [(metadata.get("runAsOf") or "", metadata["runId"]) for proposal in proposals
+            if proposal.get("proposalKind") == CLUSTER_KIND and (metadata := decode_metadata(proposal.get("summary"))) and metadata.get("runId")]
+    return max(runs)[1] if runs else None
+
+
 def cluster_candidates(proposals: list[dict], titles_of: Callable[[list[str]], list[str]]) -> dict[str, dict]:
-    """The new clusters with enough member titles to be judged."""
+    """The new clusters of the latest run with enough member titles to be judged. A cluster of an earlier run is not offered: the snapshot
+    publishes only the latest run's clusters, so accepting one would spend a model call on a topic no reader can see."""
     candidates: dict[str, dict] = {}
+    latest = latest_cluster_run(proposals)
     for index, proposal in enumerate(proposals):
         metadata = decode_metadata(proposal.get("summary"))
         if proposal.get("proposalKind") != CLUSTER_KIND or proposal.get("status") != STATUS_PROPOSED or metadata is None:
+            continue
+        if latest is not None and metadata.get("runId") != latest:
             continue
         titles = titles_of(list(proposal.get("evidenceItemIds") or []))[:15]
         if len(titles) >= MINIMUM_CLUSTER_TITLES:

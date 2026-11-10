@@ -1,0 +1,27 @@
+{
+  "id": "PPY-62bf8fbd-8236-45eb-a2c8-5d038815c413",
+  "title": "Extend the pre-accept duplicate check (PR #1375, entities) to ideas",
+  "description": "Request (Ryan, 2026-11-10). Machines on Machines has 70 ideas with near-duplicate pairs, for example two Binance-heist ideas and two coding-agent-benchmark ideas. PR #1375 added a pre-accept duplicate check for entities; extend the same check to ideas so a near-duplicate of an existing idea is caught before it is accepted or filed. Not implemented yet: this task only records the request.\n\nStart from: the learned duplicate cut for ideas (closed story 982584, src/papyrus_content/ideas, idea-duplicate-cut feature) and the entity check from #1375; decide whether the check runs when an idea is filed, when an editor moves it forward, or both, and what an editor sees (a link to the idea it repeats). Gherkin spec first. Keep it simple (no fixed caps, learn thresholds from data per the no-arbitrary-limits rule).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "labels": [
+    "ideas"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-10T15:14:03.541662Z",
+  "updated_at": "2026-11-10T15:14:09.042937Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude Code"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

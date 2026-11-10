@@ -13,14 +13,8 @@ export const TREND_DRAFTS_STAGE = "trend-drafts";
 /** The job script baked into the image (infra/knowledge-run/trend_drafts.py). It never exits non-zero. */
 export const TREND_DRAFTS_COMMAND = ["python", "/opt/papyrus-jobs/trend_drafts.py"];
 
-export const MONITOR_STORIES_STAGE = "monitor-stories";
-/** The job script baked into the image (infra/knowledge-run/monitor_stories.py). It never exits non-zero and writes its own ledger row. */
-export const MONITOR_STORIES_COMMAND = ["python", "/opt/papyrus-jobs/monitor_stories.py"];
-
 /** CloudFormation parameter values (tokens) that switch on and aim the optional trend-drafts step. */
 export type TrendDraftsOptions = { enabled: string; endpoint: string; snapshotUrl: string };
-/** CloudFormation parameter values (tokens) that switch on and aim the optional monitor-stories step. */
-export type MonitorStoriesOptions = { enabled: string; endpoint: string };
 
 export function knowledgeRunStackName(publication: string): string {
   return `papyrus-scheduled-job-${KNOWLEDGE_JOB_ID}-${publication}`;
@@ -31,7 +25,7 @@ export function knowledgeRunStackName(publication: string): string {
  * `papyrus knowledge cloud-run --stage <name>`, with the execution input read as
  * `{"publication": "<id>", "failStage": "<stage>"}` (both optional).
  */
-export function knowledgePipeline(config: KnowledgeRunConfig, trendDrafts?: TrendDraftsOptions, monitorStories?: MonitorStoriesOptions): PipelineDefinition {
+export function knowledgePipeline(config: KnowledgeRunConfig, trendDrafts?: TrendDraftsOptions): PipelineDefinition {
   const input = "$states.context.Execution.Input";
   return {
     stages: [
@@ -49,16 +43,6 @@ export function knowledgePipeline(config: KnowledgeRunConfig, trendDrafts?: Tren
         bestEffort: true,
         runIf: `'${trendDrafts.enabled}' = 'true'`,
         environment: { TREND_DRAFTS_ENDPOINT: trendDrafts.endpoint, TREND_DRAFTS_SNAPSHOT_URL: trendDrafts.snapshotUrl },
-      }] : []),
-      // Optional, after trend-drafts, and only for a site that opted in with `knowledgeRun.monitorStories`. A failure here never fails the run.
-      ...(monitorStories && config.monitorStories ? [{
-        name: MONITOR_STORIES_STAGE,
-        command: MONITOR_STORIES_COMMAND,
-        timeoutSeconds: 1800,
-        retry: { maxAttempts: 0 },
-        bestEffort: true,
-        runIf: `'${monitorStories.enabled}' = 'true'`,
-        environment: { MONITOR_STORIES_ENDPOINT: monitorStories.endpoint },
       }] : []),
     ],
     executionEnvironment: {
@@ -91,9 +75,7 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig, settingsArchive
     KNOWLEDGE_DECISION_KEY_PARAMETER: config.decisionKeyParameter,
     // Read by the optional trend-drafts step only (infra/knowledge-run/trend_drafts.py).
     TREND_DRAFTS_MAX_AGE_DAYS: String(config.trendSnapshotMaxAgeDays),
-    // Read by the optional monitor-stories step only (infra/knowledge-run/monitor_stories.py); set only when the site opted in.
-    ...(config.monitorStories ? { MONITOR_STORIES_LIMIT: String(config.monitorStories.limit) } : {}),
-    // Read by the trend-drafts and monitor-stories steps (infra/knowledge-run/*.py), which pass each host as --exclude-host; set only when the site lists hosts.
+    // Read by the trend-drafts step (infra/knowledge-run/trend_drafts.py), which passes each host as --exclude-host; set only when the site lists hosts.
     ...(config.excludedSourceHosts?.length ? { KNOWLEDGE_EXCLUDED_SOURCE_HOSTS: config.excludedSourceHosts.join(",") } : {}),
     PAPYRUS_SITE_BUCKET: config.siteBucket,
     PAPYRUS_EDGE_DISTRIBUTION_ID: config.edgeDistributionId,
@@ -241,23 +223,12 @@ export class KnowledgeRunStack extends Stack {
         description: "The published snapshot index, such as https://shipped.anth.us/_data/knowledge/index.json.",
       }).valueAsString,
     };
-    // Only a site that opted in with `knowledgeRun.monitorStories` gets the step and its parameter (any other stack's template is unchanged); the
-    // step is still off until the parameter says true. It reads the same AppSync endpoint as trend-drafts, so it has no endpoint parameter of its own.
-    const monitorStories = config.monitorStories
-      ? {
-          enabled: new CfnParameter(this, "MonitorStoriesEnabled", {
-            type: "String", default: "false", allowedValues: ["true", "false"],
-            description: "true: after trend-drafts, write a cited story draft for each of the top monitored items (private Proposals, nothing published). Needs TrendDraftsEndpoint.",
-          }).valueAsString,
-          endpoint: trendDrafts.endpoint,
-        }
-      : undefined;
     // Only a site that commits settings gets the asset (any other stack's template is unchanged). CDK zips the directory and uploads it at deploy.
     const settings = config.settingsDirectory ? new s3assets.Asset(this, "RunSettings", { path: config.settingsDirectory }) : undefined;
     this.job = new ScheduledContainerJob(this, "Job", {
       jobId: KNOWLEDGE_JOB_ID,
       publication: config.publication,
-      pipeline: knowledgePipeline(config, trendDrafts, monitorStories),
+      pipeline: knowledgePipeline(config, trendDrafts),
       imageTag,
       reuseImageRepository: config.reuseImageRepository,
       defaultSize: { vCpu: config.vCpu, memoryMiB: config.memoryMiB, ephemeralStorageGiB: config.ephemeralStorageGiB },

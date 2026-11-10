@@ -181,7 +181,7 @@ A process that cannot fill a line says so in that line.
 - **Fails.** Closed: any stage failure ends the run before projection.
 - **Cost and bound.** Fargate time and the AI review's call cap (`KNOWLEDGE_REVIEW_MAX_CALLS`, default 150 per run, shared fairly between entities, clusters and relations: see [knowledge cloud run](knowledge-cloud-run.md#the-ai-review)).
 - **Measured.** The run's own counts against the site's history. A quality measure of the topics themselves: **no spec**.
-- **Gherkin.** `knowledge-cloud-run`, `knowledge-run-any-site`, `knowledge-run-cost`, `knowledge-run-preview`, `knowledge-run-undo`, `knowledge-archive`, `knowledge-polish`, `knowledge-run-monitor-stories`. Details: [knowledge-cloud-run.md](knowledge-cloud-run.md), [knowledge-workstation-run.md](knowledge-workstation-run.md).
+- **Gherkin.** `knowledge-cloud-run`, `knowledge-run-any-site`, `knowledge-run-cost`, `knowledge-run-preview`, `knowledge-run-undo`, `knowledge-archive`, `knowledge-polish`. Details: [knowledge-cloud-run.md](knowledge-cloud-run.md), [knowledge-workstation-run.md](knowledge-workstation-run.md).
 
 ### 12. Concept writes (get or create)
 

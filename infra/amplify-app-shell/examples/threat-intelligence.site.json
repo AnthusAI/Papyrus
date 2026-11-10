@@ -42,9 +42,6 @@
     "monitorSources": [
       "routed"
     ],
-    "monitorStories": {
-      "limit": 3
-    },
     "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
     "openAiKeyParameter": "/amplify/shared/d12wnrx15qbcc2/OPENAI_API_KEY"
   },
