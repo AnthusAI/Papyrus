@@ -1,0 +1,56 @@
+"""An in-memory backend for the guideline store tests and specs. It serves only the two indexes the store reads and fails on anything else, so a
+test proves that no read lists or scans a table. No network, no AWS."""
+from __future__ import annotations
+
+import copy
+from typing import Any
+
+
+class FakeBackend:
+    def __init__(self, *, tenant_id: str | None = None):
+        self.tenant_id = tenant_id
+        self.items: list[dict] = []
+        self.attachments: list[dict] = []
+        self.bodies: dict[str, bytes] = {}
+        self.writes: list[tuple[str, str, dict]] = []
+        self.reads: list[tuple[str, str]] = []
+
+    # the index queries the store may make
+    def list_by_index(self, index: str, key: str, **_: Any) -> list[dict]:
+        self.reads.append((index, key))
+        if index == "itemBySlug":
+            return copy.deepcopy([row for row in self.items if row.get("slug") == key])
+        if index == "modelAttachmentsByOwnerRoleAndSortKey":
+            return copy.deepcopy([row for row in self.attachments if row.get("ownerId") == key])
+        raise AssertionError(f"unexpected index {index}")
+
+    def create_record(self, model: str, record: dict) -> None:
+        assert model == "Item"
+        self.writes.append(("create", model, copy.deepcopy(record)))
+        self.items.append({**copy.deepcopy(record), "tenantId": self.tenant_id})
+
+    def update_record(self, model: str, record: dict) -> None:
+        assert model == "Item"
+        self.writes.append(("update", model, copy.deepcopy(record)))
+        next(row for row in self.items if row["id"] == record["id"]).update(copy.deepcopy(record))
+
+    # any list or scan is a failure
+    def safe_list_records(self, model: str):
+        raise AssertionError(f"scanned {model}")
+
+    list_records = safe_list_records
+
+
+class FakeFiles:
+    """The S3 side: what the upload function does with an attachment (it creates the ModelAttachment row) and what a download returns."""
+
+    def __init__(self, backend: FakeBackend):
+        self.backend = backend
+
+    def put(self, attachment: dict, body: bytes) -> dict:
+        self.backend.attachments.append(copy.deepcopy(attachment))
+        self.backend.bodies[attachment["storagePath"]] = bytes(body)
+        return attachment
+
+    def get(self, attachment: dict) -> bytes | None:
+        return self.backend.bodies.get(attachment["storagePath"])
