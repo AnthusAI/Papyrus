@@ -817,8 +817,10 @@ def stories_create(flags: list[str]) -> None:
     story_type = chosen_story_type(options)
     if not apply:
         print(f"stories\tcreate\t{title}\tstage {stage}\ttype {story_type or 'site default'}\tdry run")
+        if reference_ids:
+            print(f"stories\tcreate\tbased on\t{len(reference_ids)} reference(s) would be attached: {', '.join(reference_ids)}")
         if options.get("with-assignment"):
-            print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened")
+            print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened (the Story's --type is not the Assignment's type)")
         return
     client, _ = create_authoring_client()
     item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor, item_type=story_type)
@@ -829,17 +831,44 @@ def stories_create(flags: list[str]) -> None:
     print(f"stories\tcreate\tcreated\t{item['id']}")
     print(f"stories\tcreate\tlineage\t{lineage_id}")
     print_console_rows("stories", "create", lambda base: story_links(base, lineage_id, item["id"], "editor page of the first version"))
+    attached, unattached = [], []
     for reference_id in reference_ids:
-        linked = link_reference_to_story(client, lineage_id, reference_id, role="based_on", actor=actor)
+        # The story record is passed in: the lineage index is eventually consistent and may not show a story created a moment ago.
+        try:
+            linked = link_reference_to_story(client, lineage_id, reference_id, role="based_on", actor=actor, story=item)
+        except Exception as error:  # noqa: BLE001 - one bad Reference must not drop the others or the assignment
+            unattached.append((reference_id, str(error).splitlines()[0] if str(error) else type(error).__name__))
+            print(f"stories\tcreate\tnot attached\t{reference_id}\t{unattached[-1][1]}")
+            continue
+        attached.append(linked["referenceLineageId"])
         print(f"stories\tcreate\tbased on\t{linked['referenceLineageId']}")
     from .story_triggers import deliver_from_environment
 
     deliver_from_environment(client, lineage_id)   # a story created at a stage has entered it
+    failure = None
     if options.get("with-assignment"):
         from .assignments_workflow import create_reporting_assignment
 
-        create_reporting_assignment(client, {**options, "content-item": lineage_id, "summary": summary})
+        # The Story's --type (article, post) is not the Assignment's type: this command only opens a reporting.candidate.
+        assignment_options = {k: v for k, v in options.items() if k != "type"}
+        try:
+            create_reporting_assignment(client, {**assignment_options, "type": "reporting.candidate", "content-item": lineage_id, "summary": summary})
+        except Exception as error:  # noqa: BLE001 - the Story and its References already exist; say so and exit non-zero
+            failure = str(error).splitlines()[0] if str(error) else type(error).__name__
     print_reminder(client, lineage_id)
+    if failure is not None or unattached:
+        parts = [f"Story created (lineage {lineage_id}), references attached: {len(attached)}"]
+        if unattached:
+            parts.append("not attached: " + "; ".join(f"{ref} ({why})" for ref, why in unattached))
+        if failure is not None:
+            parts.append(f"assignment NOT created: {failure}")
+        print("stories\tcreate\tsummary\t" + ", ".join(parts), file=sys.stderr)
+        if failure is not None:
+            print(f"stories\tcreate\tretry\tpapyrus assignments create-reporting --title {json.dumps(title)} --content-item {lineage_id}"
+                  + (f" --section {section_key}" if section_key else ""), file=sys.stderr)
+        if unattached:
+            print(f"stories\tcreate\tretry\tpapyrus stories link-reference --story {lineage_id} --reference <id>", file=sys.stderr)
+        raise SystemExit(1)
 
 
 PUBLISHED_STAGE_WARNING = (

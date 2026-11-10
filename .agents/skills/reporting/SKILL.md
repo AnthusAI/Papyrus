@@ -27,6 +27,8 @@ Use the installed `papyrus` CLI or the project's existing Python environment (`p
 
 Name the site when more than one is signed in: `papyrus --site SITE_HOST <group> <command>` (or `PAPYRUS_SITE`); the flag goes before the group. Use only commands in this skill or in `papyrus <group>` listings. If your CLI has `papyrus guide`, read it first. On older builds `--help` may print only a usage line: then `docs/operator-cli.md` and `docs/story-reporting.md` in the Papyrus repository are the reference. Never invent a command, flag or relation name; if one is missing, say so in the handoff.
 
+Read the captured text instead of re-fetching: `papyrus references text --reference LINEAGE --limit 5000` prints a slice with its total length and `truncated yes|no`. When `truncated` is yes (the router reads about 400 KB of a page's HTML), a `note:` says the text stops mid-sentence, or it says `No captured text is stored`, say so in your notes rather than quoting the missing part. For sec.gov, EDGAR needs a declared `User-Agent` with a contact: never invent an address; ask the person for one or use the configured one, and prefer `data.sec.gov` submissions and companyfacts JSON for deal terms.
+
 Find existing References by exact source URL in the selected publication. `stories link-reference --reference` takes a **Reference record id**: it loads that record and derives its lineage. `stories agent-note --reference` takes the **Reference lineage id**. Resolve both from records, never guess them.
 
 If a source needs registration, inspect current `papyrus references create-from-catalog` support and the publication's steering configuration. The supported intake is:
