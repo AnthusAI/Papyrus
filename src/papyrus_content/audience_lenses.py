@@ -271,7 +271,9 @@ def lens_lines(states: Mapping[str, str] | None = None, counts: Mapping[str, Map
         if (states or {}).get(lens.step) in ("done", "skipped", "not_applicable"):
             continue
         found = (counts or {}).get(lens.step)
-        if found:
+        if (states or {}).get(lens.step) == "stale":
+            summary = "STALE: recorded done against an earlier version of the Story"
+        elif found:
             summary = "\t".join(f"{label}: {found.get(state, 0)}" for state, label in STATE_LABELS)
         else:
             summary = "not checked yet"

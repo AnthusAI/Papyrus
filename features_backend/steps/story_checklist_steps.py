@@ -336,3 +336,135 @@ def read_layer(context):
 @then('the layer says "{text}"')
 def layer_says(context, text):
     assert text in context.layer, context.layer
+
+
+# --- stories next: one answer (features_backend/stories-next-one-answer.feature) -------------------------------------------------
+
+def output_lines(context) -> list[list[str]]:
+    return [line.split("\t") for line in context.output.splitlines()]
+
+
+def lines_of_kind(context, kind: str) -> list[list[str]]:
+    return [line for line in output_lines(context) if line[:1] == [kind]]
+
+
+@given("a new version of the Story is saved")
+def new_version(context):
+    client = client_of(context)
+    previous = latest_story_version(client, LINEAGE)
+    number = int(previous["versionNumber"]) + 1
+    client.update_record("Item", {"id": previous["id"], "versionState": "superseded", "headStageKey": None})
+    client.create_record("Item", {**previous, "id": f"{LINEAGE}-v{number}", "versionNumber": number, "versionState": "current",
+                                  "headStageKey": previous["stage"], "versionCreatedAt": f"2026-11-04T09:0{number}:00Z"})   # the new row is the head
+    context.world.version_number = number
+
+
+@given('the step "{key}" has no recorded version')
+def no_recorded_version(context, key):
+    client = client_of(context)
+    row = item(context, key)
+    stored = client.get_record("Item", row["itemId"])
+    meta = json.loads(stored["metadata"])
+    meta["checklist"]["entry"].pop("storyVersion", None)
+    client.update_record("Item", {"id": row["itemId"], "metadata": json.dumps(meta)})
+
+
+def close_every_step(context, *, except_keys=()):
+    with evidence_patches(context):
+        client = client_of(context)
+        checklist.sync_checklist(client, LINEAGE, now=AT)
+        for row in checklist.read_steps(client, LINEAGE):
+            if row["state"] == "done" or row["stepKey"] in except_keys:
+                continue
+            checklist.set_step(client, LINEAGE, row["stepKey"], "done", actor=EDITOR, note="Done.", now=AT)
+
+
+@given("every step of the Story is closed")
+def every_step_closed(context):
+    close_every_step(context)
+
+
+@given("every step of the Story is closed except publishing")
+def every_step_closed_but_publish(context):
+    close_every_step(context, except_keys=("publish",))
+
+
+@then('the procedure output has a "step" line for "{key}" showing "{state}"')
+def step_line(context, key, state):
+    assert any(line[1:3] == [key, state] for line in lines_of_kind(context, "step")), context.output
+
+
+@then("every step line agrees with its item line")
+def step_agrees_with_item(context):
+    items = {line[1]: line[2] for line in lines_of_kind(context, "item")}
+    wrong = [(line[1], line[2], items[line[1]]) for line in lines_of_kind(context, "step") if line[1] in items and line[2] != {"open": "not_done"}.get(items[line[1]], items[line[1]])]
+    assert not wrong, f"{wrong}\n{context.output}"
+
+
+@then('the procedure output has a "version" line for "{key}" saying "{text}"')
+def version_line(context, key, text):
+    assert any(line[1] == key and text in "\t".join(line[2:]) for line in lines_of_kind(context, "version")), context.output
+
+
+def has_kind_line(context, kind, key):
+    assert any(line[1] == key for line in lines_of_kind(context, kind)), context.output
+
+
+@then('the procedure output has a "remaining" line for "{key}"')
+def remaining_line(context, key):
+    has_kind_line(context, "remaining", key)
+
+
+@then('the procedure output has a "lens" line for "{key}"')
+def lens_line(context, key):
+    has_kind_line(context, "lens", key)
+
+
+@then('the procedure output has a "hint" line for "{key}"')
+def hint_line(context, key):
+    has_kind_line(context, "hint", key)
+
+
+@then('the procedure output has no "remaining" line for "{key}"')
+def no_remaining_for(context, key):
+    assert not any(line[1] == key for line in lines_of_kind(context, "remaining")), context.output
+
+
+@then('the procedure output has no "remaining" line')
+def no_remaining_line(context):
+    assert not lines_of_kind(context, "remaining"), context.output
+
+
+@then('the procedure output has no "lens" line')
+def no_lens_line(context):
+    assert not lines_of_kind(context, "lens"), context.output
+
+
+@then('the procedure output has a "status" line reading "{status}"')
+def status_line(context, status):
+    assert [line[1] for line in lines_of_kind(context, "status")] == [status], context.output
+
+
+@then('the "remaining" lines are in order "{keys}"')
+def remaining_order(context, keys):
+    assert [line[1] for line in lines_of_kind(context, "remaining")] == [key.strip() for key in keys.split(",")], context.output
+
+
+@then('the "status" line counts as many as there are "remaining" lines')
+def status_counts(context):
+    assert int(lines_of_kind(context, "status")[0][2]) == len(lines_of_kind(context, "remaining")), context.output
+
+
+@then('the JSON answer has the status "{status}" and lists "{key}" as stale')
+def json_answer(context, status, key):
+    answer = json.loads(context.output)
+    assert answer["status"] == status, answer["status"]
+    assert [row["key"] for row in answer["stale"]] == [key]
+    assert key in [row["key"] for row in answer["remaining"]]
+    row = next(row for row in answer["steps"] if row["key"] == key)
+    assert row["state"] == "stale" and row["recordedVersion"] == 1 and row["freshness"].startswith("STALE"), row
+
+
+@when("a finished check of the current version with no violation passes")
+def check_passes(context):
+    context.world.check_run = {"id": f"{LINEAGE}-v{context.world.version_number}", "lanes": {"humanus": {"status": "ran"}}, "findings": []}
