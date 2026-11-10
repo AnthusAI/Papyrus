@@ -5,6 +5,8 @@ description: Turn Papyrus reporting and References into reader-facing story copy
 
 # Copywriting
 
+> **CLI syntax:** the exact `papyrus` commands for this work, with the flags each takes, are in [docs/agent-cli-guide.md](../../../docs/agent-cli-guide.md) (or run `papyrus guide`). `papyrus <group> <command> --help` prints a command's real usage, its lane and whether it writes. Do not guess a flag.
+
 Stories live in the publication's newsroom backend, not in Git. Resolve the
 publication and the story lineage from its configuration and live records (an
 item version id is not a lineage). Read the story's current version, its linked
