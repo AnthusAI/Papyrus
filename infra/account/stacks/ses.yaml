@@ -1,9 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Papyrus account stack: the SES sending identity for a site's domain, with DKIM through
-  the Route 53 zone. RESERVED SLOT: disabled in infra/stacks.json until the
-  registrar delegates the domain to the zone. Moving SES out of the sandbox
-  is a request to AWS that a person makes.
+  Papyrus account stack: the SES sending identity for a site's domain, with Easy DKIM, a custom MAIL FROM
+  domain, SPF and a DMARC policy, all as records in the Route 53 zone. Creating the identity does not wait
+  for DNS: SES verifies by itself (it keeps checking for 72 hours) once the registrar delegates the domain to
+  the zone. Moving SES out of the sandbox is a request to AWS that a person makes.
 
 Parameters:
   DomainName:
@@ -11,6 +11,16 @@ Parameters:
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
     Description: Supplied by the pipeline from the DNS stack's zone.
+  MailFromSubdomain:
+    Type: String
+    Default: mail
+    AllowedPattern: "^[a-z0-9-]+$"
+    Description: The MAIL FROM domain is <this>.<DomainName>. Its MX and SPF records live in the zone.
+  DmarcPolicy:
+    Type: String
+    Default: none
+    AllowedValues: [none, quarantine, reject]
+    Description: Start with none (monitor only). No report address is set here, because an address must not be committed to Git.
 
 Resources:
   EmailIdentity:
@@ -19,6 +29,9 @@ Resources:
       EmailIdentity: !Ref DomainName
       DkimAttributes:
         SigningEnabled: true
+      MailFromAttributes:
+        MailFromDomain: !Sub "${MailFromSubdomain}.${DomainName}"
+        BehaviorOnMxFailure: USE_DEFAULT_VALUE
 
   DkimRecord1:
     Type: AWS::Route53::RecordSet
@@ -49,3 +62,33 @@ Resources:
       TTL: "1800"
       ResourceRecords:
         - !GetAtt EmailIdentity.DkimDNSTokenValue3
+
+  MailFromMx:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${MailFromSubdomain}.${DomainName}"
+      Type: MX
+      TTL: "1800"
+      ResourceRecords:
+        - !Sub "10 feedback-smtp.${AWS::Region}.amazonses.com"
+
+  MailFromSpf:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${MailFromSubdomain}.${DomainName}"
+      Type: TXT
+      TTL: "1800"
+      ResourceRecords:
+        - '"v=spf1 include:amazonses.com ~all"'
+
+  Dmarc:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "_dmarc.${DomainName}"
+      Type: TXT
+      TTL: "1800"
+      ResourceRecords:
+        - !Sub '"v=DMARC1; p=${DmarcPolicy}; adkim=r; aspf=r"'

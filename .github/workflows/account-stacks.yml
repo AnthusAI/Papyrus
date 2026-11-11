@@ -10,7 +10,8 @@
 #
 # What runs:
 #   pull request   cfn-lint (no AWS), then a read-only plan with <prefix>-github-plan (same-repository pull requests only)
-#   push to main   roles-check (does the account baseline stack differ from Git?) then, only if it does, the roles job waits in the protected
+#   push to main   (or a manual/scheduled dispatch on main, for example when the delegation watcher sees the registrar switch)
+#                  roles-check (does the account baseline stack differ from Git?) then, only if it does, the roles job waits in the protected
 #                  GitHub environment for a person and applies it with <prefix>-github-roles-apply; THEN the app stacks deploy with
 #                  <prefix>-github-deploy. Roles first, so a change the app stacks need (a permission) is never blocked by them.
 # No stored keys: GitHub OIDC only. The account id is a repository variable, never in Git.
@@ -43,7 +44,7 @@ on:
         type: string
         default: infra/stacks/*.yaml
       approval-environment:
-        description: GitHub environment with a required reviewer that guards changes to the baseline stack
+        description: GitHub environment the roles job runs in; the roles-apply role trusts exactly this environment. Create it with a deployment branch policy of main only and no required reviewers; add reviewers there only if a human gate is wanted
         required: false
         type: string
         default: pipeline-roles
@@ -118,10 +119,10 @@ jobs:
           python .papyrus-tool/infra/pipeline/stack_deploy.py plan --config "$CONFIG" --group roles
 
   # Does the account baseline stack differ from Git? Read-only. Runs first so a change to the roles (which may be what the app stacks need)
-  # is approved and applied BEFORE the app stacks deploy, and so a failing app stack can never block it.
+  # is applied BEFORE the app stacks deploy, and so a failing app stack can never block it.
   roles-check:
     needs: lint
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -160,7 +161,8 @@ jobs:
     if: needs.roles-check.outputs.roles_changed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    # A person approves this environment before the job starts; that click is the control.
+    # No person approves this by default: the environment has a main-only branch policy and no required reviewers. The control is the
+    # main-only trust, branch protection on main, the roles service role's narrow rights and the deployer's Replace/Remove refusal.
     environment: ${{ inputs.approval-environment }}
     concurrency:
       group: account-stacks-roles-${{ github.repository }}
@@ -195,8 +197,8 @@ jobs:
 
   deploy:
     needs: [lint, roles-check, roles]
-    # The roles job is skipped when the baseline is unchanged; deploy runs then, and after an approved apply. Not after a failed or refused one.
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.lint.result == 'success' && needs.roles-check.result == 'success' && (needs.roles.result == 'success' || needs.roles.result == 'skipped') }}
+    # The roles job is skipped when the baseline is unchanged; deploy runs then, and after a successful apply. Not after a failed one.
+    if: ${{ always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && needs.lint.result == 'success' && needs.roles-check.result == 'success' && (needs.roles.result == 'success' || needs.roles.result == 'skipped') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     concurrency:

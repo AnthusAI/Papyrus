@@ -31,7 +31,7 @@ Feature: A deployment's account is seeded once and then changed only from Git
   Scenario: Changing the account baseline waits for a person
     Given a merged change to the baseline stack
     When the workflow finds the live stack differs from Git
-    Then the roles job waits in the protected environment for a person to approve it
+    Then the roles job applies it in the main-only environment, with no person's approval, and the app stacks deploy after it
     And the ordinary deploy role is denied on that stack
 
   Scenario: A stack that waits for DNS delegation is disabled with a reason
