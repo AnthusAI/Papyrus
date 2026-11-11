@@ -69,9 +69,10 @@ class FakeBackend:
         self.sections: dict[str, dict] = {}
         self.writes: list[tuple[str, str, dict]] = []
         self.reads: list[tuple[str, str]] = []
-        self.attachments: list[dict] = []
-        self.bodies: dict[str, bytes] = {}
+        self.document_attachments: list[dict] = []
+        self.document_bodies: dict[str, bytes] = {}
         self.document_files = FakeFiles(self)
+        self.attachments: dict[str, dict] = {}
         if profile is not None:
             self.save_profile_version(profile, by="admin-account", reason="First profile.")
 
@@ -116,12 +117,21 @@ class FakeBackend:
         if index == "itemBySlug":
             return copy.deepcopy([row for row in self.items if row.get("slug") == key])
         if index == "modelAttachmentsByOwnerRoleAndSortKey":
-            return copy.deepcopy([row for row in self.attachments if row.get("ownerId") == key])
+            return copy.deepcopy([row for row in self.document_attachments if row.get("ownerId") == key])
         if index == "itemsByLineageAndVersion":
             return copy.deepcopy([row for row in self.items if row.get("lineageId") == key])
         raise AssertionError(f"unexpected index {index}")
 
+    def add_attachment(self, sha: str, *, role: str = "visual_example", media_type: str = "image/png", size: int = 200_000, filename: str | None = None, **fields: Any) -> str:
+        """An uploaded and completed picture, the way completeModelAttachmentUpload leaves it. Returns its attachment id."""
+        attachment_id = f"model-attachment-item-item-editorial-doctrine-visual-style-{role.replace('_', '-')}-{sha}"
+        self.attachments[attachment_id] = {"id": attachment_id, "ownerKind": "item", "ownerId": "item-editorial-doctrine-visual-style", "role": role, "sortKey": sha,
+                                           "filename": filename or f"{sha}.png", "mediaType": media_type, "byteSize": size, "sha256": sha, "status": "active", **fields}
+        return attachment_id
+
     def get_record(self, model: str, record_id: str) -> dict | None:
+        if model == "ModelAttachment":
+            return copy.deepcopy(self.attachments.get(record_id))
         return copy.deepcopy(self.sections.get(record_id)) if model == "NewsroomSection" else None
 
     def get_record_with_fields(self, model: str, record_id: str, extra_fields: str) -> dict | None:
@@ -149,10 +159,10 @@ class FakeFiles:
         self.downloads: list[str] = []
 
     def put(self, attachment: dict, body: bytes) -> dict:
-        self.backend.attachments.append(copy.deepcopy(attachment))
-        self.backend.bodies[attachment["storagePath"]] = bytes(body)
+        self.backend.document_attachments.append(copy.deepcopy(attachment))
+        self.backend.document_bodies[attachment["storagePath"]] = bytes(body)
         return attachment
 
     def get(self, attachment: dict) -> bytes | None:
         self.downloads.append(attachment["ownerId"])
-        return self.backend.bodies.get(attachment["storagePath"])
+        return self.backend.document_bodies.get(attachment["storagePath"])

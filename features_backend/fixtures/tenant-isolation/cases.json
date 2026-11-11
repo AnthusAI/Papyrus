@@ -1,10 +1,10 @@
 {
   "generatedBy": "scripts/generate-tenant-isolation-cases.ts",
   "summary": {
-    "models": 60,
+    "models": 63,
     "globalModels": 3,
-    "modelCases": 414,
-    "indexCases": 180,
+    "modelCases": 435,
+    "indexCases": 185,
     "subscriptionCases": 9,
     "operationCases": 123,
     "functionCases": 30,
@@ -3188,6 +3188,174 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "model:Tenant:get",
+      "kind": "model",
+      "subject": "Tenant",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s Tenant by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Tenant:list",
+      "kind": "model",
+      "subject": "Tenant",
+      "operation": "list",
+      "probe": "alpha lists Tenant rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:Tenant:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "Tenant",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists Tenant rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Tenant:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "Tenant",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a Tenant with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Tenant:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "Tenant",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own Tenant setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Tenant:update-foreign-row",
+      "kind": "model",
+      "subject": "Tenant",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s Tenant",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Tenant:delete-foreign-row",
+      "kind": "model",
+      "subject": "Tenant",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s Tenant",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantDomain:get",
+      "kind": "model",
+      "subject": "TenantDomain",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s TenantDomain by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantDomain:list",
+      "kind": "model",
+      "subject": "TenantDomain",
+      "operation": "list",
+      "probe": "alpha lists TenantDomain rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:TenantDomain:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "TenantDomain",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists TenantDomain rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantDomain:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "TenantDomain",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a TenantDomain with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantDomain:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "TenantDomain",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own TenantDomain setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantDomain:update-foreign-row",
+      "kind": "model",
+      "subject": "TenantDomain",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s TenantDomain",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantDomain:delete-foreign-row",
+      "kind": "model",
+      "subject": "TenantDomain",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s TenantDomain",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantMembership:get",
+      "kind": "model",
+      "subject": "TenantMembership",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s TenantMembership by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantMembership:list",
+      "kind": "model",
+      "subject": "TenantMembership",
+      "operation": "list",
+      "probe": "alpha lists TenantMembership rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:TenantMembership:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "TenantMembership",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists TenantMembership rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantMembership:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "TenantMembership",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a TenantMembership with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantMembership:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "TenantMembership",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own TenantMembership setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantMembership:update-foreign-row",
+      "kind": "model",
+      "subject": "TenantMembership",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s TenantMembership",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantMembership:delete-foreign-row",
+      "kind": "model",
+      "subject": "TenantMembership",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s TenantMembership",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "model:UserIdentity:get",
       "kind": "model",
       "subject": "UserIdentity",
@@ -4705,6 +4873,46 @@
       "subject": "listTagsByTypeAndLabel",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listTagsByTypeAndLabel on Tag with type at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listTenantsByAccount",
+      "kind": "index",
+      "subject": "listTenantsByAccount",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listTenantsByAccount on Tenant with accountId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listTenantsByStateKey",
+      "kind": "index",
+      "subject": "listTenantsByStateKey",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listTenantsByStateKey on Tenant with stateKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listTenantDomainsByTenant",
+      "kind": "index",
+      "subject": "listTenantDomainsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listTenantDomainsByTenant on TenantDomain with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listTenantMembershipsByTenant",
+      "kind": "index",
+      "subject": "listTenantMembershipsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listTenantMembershipsByTenant on TenantMembership with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listTenantMembershipsByUserSub",
+      "kind": "index",
+      "subject": "listTenantMembershipsByUserSub",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listTenantMembershipsByUserSub on TenantMembership with userSub at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -6955,6 +7163,11 @@
     },
     {
       "code": "index-not-tenant-prefixed",
+      "subject": "listTenantMembershipsByUserSub",
+      "note": "partition key userSub on TenantMembership is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
       "subject": "listUserRoleAssignmentsByProfileAndRole",
       "note": "partition key userProfileId on UserRoleAssignment is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
@@ -6997,6 +7210,11 @@
       "code": "index-not-tenant-prefixed",
       "subject": "tagBySlug",
       "note": "partition key slug on Tag is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "model-without-tenantId",
+      "subject": "Tenant",
+      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
     },
     {
       "code": "no-tenant-claim-rule",
@@ -7641,6 +7859,16 @@
     {
       "code": "tenantId-can-be-changed",
       "subject": "Tag",
+      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
+    },
+    {
+      "code": "tenantId-can-be-changed",
+      "subject": "TenantDomain",
+      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
+    },
+    {
+      "code": "tenantId-can-be-changed",
+      "subject": "TenantMembership",
       "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
     },
     {

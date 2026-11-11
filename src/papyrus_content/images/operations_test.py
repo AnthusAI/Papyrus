@@ -25,7 +25,7 @@ DESIGN_NAMES = {
     "image_profile_get", "image_profile_resolve", "image_profile_diff", "image_profile_save", "image_profile_history", "image_profile_example_add",
     "image_profile_example_remove", "image_capabilities", "image_brief_draft", "image_prompt_preview", "image_search", "image_generate", "image_round_get",
     "image_candidate_get", "image_list", "image_retry", "image_iterate", "image_select", "image_unapply", "image_review", "image_review_queue",
-    "image_apply", "image_discard", "image_figure_add",
+    "image_apply", "image_discard", "image_figure_add", "image_profile_init",
 }
 
 
@@ -241,7 +241,7 @@ def test_bad_arguments_return_invalid_input_the_same_way_from_both(argv, argumen
 
 
 def test_image_types_are_in_the_table():
-    assert len(NAMES) == 24
+    assert len(NAMES) == 25
     for name in ("image_profile_resolve", "image_brief_draft", "image_search", "image_generate", "image_prompt_preview", "image_apply", "image_profile_example_add"):
         assert "imageType" in BY_NAME[name].input["properties"], name
     assert "imageType" in BY_NAME["image_profile_example_add"].input["required"]
@@ -301,7 +301,7 @@ def test_the_routes_and_their_usage_come_from_the_generated_spec():
     assert set(tree) == {"profile", "capabilities", "brief", "prompt", "search", "generate", "round", "show", "list", "retry", "iterate", "select", "unapply",
                          "review", "review-queue", "apply", "discard", "figure"}
     assert set(tree["figure"]) == {"add"}
-    assert set(tree["profile"]) == {"get", "resolve", "diff", "save", "history", "example"} and set(tree["profile"]["example"]) == {"add", "remove"}
+    assert set(tree["profile"]) == {"get", "resolve", "diff", "save", "history", "init", "example"} and set(tree["profile"]["example"]) == {"add", "remove"}
     assert images_cli.usage_for(["generate"]).startswith("Usage: papyrus images generate (--story ID | --reference ID)")
     assert "[--dry-run]" in images_cli.usage_for(["generate"]) and "[--dry-run]" not in images_cli.usage_for(["round"])
 

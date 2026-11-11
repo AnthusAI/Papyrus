@@ -20,7 +20,7 @@ def test_the_profile_row_holds_only_catalog_fields_and_the_text_is_in_s3():
     backend = FakeBackend("ours", profile=profile_copy())
     row = backend.items[0]
     assert row["bodyMarkus"] == "" and "visualStyle" not in json.loads(row["metadata"])
-    assert json.loads(backend.bodies[backend.attachments[0]["storagePath"]])["identity"]["summary"].startswith("Flat")
+    assert json.loads(backend.document_bodies[backend.document_attachments[0]["storagePath"]])["identity"]["summary"].startswith("Flat")
 
 
 def test_an_old_inline_row_is_read_without_any_download():

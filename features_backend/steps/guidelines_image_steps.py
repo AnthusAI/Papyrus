@@ -57,8 +57,8 @@ def step_catalog_row(context):
     row = next(item for item in store.items if item["versionState"] == "current")
     assert row["slug"] == "editorial-doctrine-visual-style" and row["bodyMarkus"] == "", row
     assert "visualStyle" not in json.loads(row["metadata"] or "{}"), row["metadata"]
-    assert len(store.attachments) == 1 and store.attachments[0]["role"] == "doctrine_document" and store.attachments[0]["ownerId"] == row["id"]
-    assert json.loads(store.bodies[store.attachments[0]["storagePath"]])["identity"]["summary"] == "Flat and calm."
+    assert len(store.document_attachments) == 1 and store.document_attachments[0]["role"] == "doctrine_document" and store.document_attachments[0]["ownerId"] == row["id"]
+    assert json.loads(store.document_bodies[store.document_attachments[0]["storagePath"]])["identity"]["summary"] == "Flat and calm."
 
 
 @then("reading the profile returns the document that was saved")
@@ -83,7 +83,7 @@ def step_old_shape(context, name, text):
 @then("the old profile is read from its row with no file in S3")
 def step_old_row(context):
     store = ours(context)
-    assert store.attachments == [] and store.bodies == {}
+    assert store.document_attachments == [] and store.document_bodies == {}
     assert "visualStyle" in json.loads(store.items[0]["metadata"])
 
 
@@ -102,7 +102,7 @@ def step_version_in_s3(context, number):
     result = run_ours(context, "image_profile_get", {})["result"]
     assert result["versionNumber"] == number, result
     row = next(item for item in store.items if item["id"] == result["itemId"])
-    assert "visualStyle" not in json.loads(row["metadata"] or "{}") and len(store.attachments) == 1
+    assert "visualStyle" not in json.loads(row["metadata"] or "{}") and len(store.document_attachments) == 1
 
 
 @then("version {number:d} can still be read as the old shape")
@@ -160,7 +160,7 @@ def step_section_stored(context):
     store = ours(context)
     row = next(item for item in store.items if item.get("slug") == "desk-doctrine-security-visual-style")
     assert row["bodyMarkus"] == "" and row["section"] == "security"
-    assert [a for a in store.attachments if a["ownerId"] == row["id"] and a["role"] == "doctrine_document"]
+    assert [a for a in store.document_attachments if a["ownerId"] == row["id"] and a["role"] == "doctrine_document"]
 
 
 @then('the sources of the answer are only "{source}"')

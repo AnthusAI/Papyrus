@@ -46,7 +46,7 @@ def door(backend, name, identity, op, **arguments):
     if "input" in arguments and not isinstance(arguments["input"], str):
         arguments["input"] = json.dumps(arguments["input"])
     return handle({"info": {"fieldName": name}, "identity": identity, "arguments": {"op": op, **arguments}}, client_factory=lambda: backend,
-                  files_factory=lambda client: FakeFiles(backend))
+                  files_factory=lambda client: getattr(backend, "document_files", None) or FakeFiles(backend))
 
 
 def read(backend, identity=EDITOR, **input):
