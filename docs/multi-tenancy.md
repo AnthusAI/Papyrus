@@ -6,9 +6,29 @@ A signed-in editor does not set the tenant by hand: the site publishes its own t
 
 The key helpers live in `papyrus_content.tenancy`; `PapyrusGraphQLAuthoringClient(tenant_id=...)` applies them at the client boundary so callers never build tenant keys themselves.
 
+## Tenancy mode
+
+A backend is either `dedicated` (one stack per site, the default and what every site is today) or `shared` (one stack serving several tenants). Set it in the site backend config: `tenancy: { mode: "shared" }`. A site with no `tenancy` setting synthesises exactly the template it always did: `dedicated` adds nothing to any function, and an unset `PAPYRUS_TENANCY_MODE` means dedicated.
+
+On `shared`, `amplify/site-backend.ts` sets `PAPYRUS_TENANCY_MODE=shared` on every function. Code never reads the variable itself; it asks `papyrus_content.tenancy.is_shared_stack()` in Python or `isSharedStack()` in `lib/tenant-keys.ts`. `scripts/test-tenancy-mode.ts` fails if any other file names the variable. `rulesForTenancyMode` in `amplify/data/schema.ts` is the helper the shared stack will use to vary access rules by mode; nothing uses it yet. Tests: `npm run test:tenancy-mode`.
+
 ## What the tenant models carry
 
 Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows get a `tenantId`. The index values that would be global (`typeStatus`, `sectionStatus`, slug lookups) are prefixed with `<tenant>#`, media rows are listed, read, updated and deleted by their own tenant only (see [story pictures](#story-pictures-and-the-one-key-rule) for the key), and a tenant client lists, reads, updates and deletes only its own rows.
+
+## Tenant, membership and domain records
+
+Three models hold the tenants themselves (PPY-31c45c). They are new tables, each created with all its indexes in one deploy, and they sit in the optional model group `tenancy` (`OPTIONAL_MODEL_GROUPS`), so a dedicated site can leave them out of a first deploy with `excludeModelGroups: ["tenancy"]`. Nothing reads or writes them yet.
+
+| Model | Id | Fields | Indexes |
+| --- | --- | --- | --- |
+| `Tenant` | the site id (`validate_tenant_id`) | `accountId` (the Prospectus Account), `displayName`, `state` (`active`, `past_due`, `suspended`, `deleted_pending`, `deleted`), `stateKey` (`state#<state>`), `plan`, `entitlements`, `createdAt`, `stateChangedAt` | `accountId`, `stateKey` |
+| `TenantMembership` | `<tenant>#<userSub>` | `tenantId`, `userSub`, `userProfileId` (the stable person key; one person can have two subs), `role` (`admin`, `editor`, `curator`, `member`), `status`, `grantedBy`, `grantedAt` | `userSub` (the token Lambda), `tenantId` |
+| `TenantDomain` | the lowercase hostname | `tenantId`, `kind` (`subdomain`, `custom`), `status` (`pending_dns`, `pending_certificate`, `active`, `failed`, `removed`), `verification`, `certificateRef` | `tenantId` |
+
+Because a domain's id is its hostname, a hostname can belong to one tenant only: a second create fails on the key. `papyrus_content.tenant_records` holds the key shapes and the two lookups callers must share (`list_memberships_for_user` is one query on the `userSub` index, never a scan; `claim_domain` refuses a hostname already held).
+
+Access: the `admin` group (the platform operator) has full access; a tenant's admin may read its own rows through the `papyrus_tenant_admin` claim (`ownerDefinedIn("id")` on Tenant, `ownerDefinedIn("tenantId")` on the others). The claim is not issued yet (PPY-0bb0fd), so today only the operator group has any access. The claim rule is read-only, so it needs no field lock on `tenantId`. The tenant-claims and provisioning functions use IAM grants, which their own tasks add. The `userSub` index partition is a person, not a tenant: only the token Lambda (IAM) queries it.
 
 ## NewsroomSection ids
 

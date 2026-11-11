@@ -11,6 +11,7 @@ export function signupSchemaDefinitions() {
     SignupEntry: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         form: a.string().required(),
         value: a.string().required(),
         submittedAt: a.datetime().required(),

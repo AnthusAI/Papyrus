@@ -5,7 +5,7 @@ Before a Story is published it is looked at four ways: as people read it, as AI 
 ## What this is for
 
 - **The lens steps are mainly for agents.** An agent does them before a person reviews the Story, so obvious problems are fixed before any human time is spent. An agent may finish a lens step, and it is recorded by name. Only a person gives the final approval.
-- **A generated image has no credit line at all; leave credit off.** P10 and C6 pass for it: a credit that only says a machine made the picture is dropped and the picture counts as ours. A local picture with no credit and no record stays "cannot tell where it came from", because third-party pictures are often copied into our media. A picture at a web address, the stock cover record or a Reference's picture is third-party and must be credited; a real third-party credit is never rewritten.
+- **A generated image has no credit line at all; leave credit off.** P10 and C6 pass for it. A local picture with no credit that is not the stock cover record and not a Reference's picture counts as ours, so leaving credit off is the right way to mark a picture as ours. (`credit="Generated."` still works: it is dropped and the picture counts as ours, but it is no longer needed.) A picture at a web address, the stock cover record or a Reference's picture is third-party and must be credited; a real third-party credit is never rewritten.
 - **Three failures are errors.** A step cannot be closed as done while one stands: an image with no alt text, a third-party image with no credit, and a Markdown copy that differs from the Story's source. Closing a step despite one (as "done, accepted risk" with a reason) is a later piece of work; for now the checks report them clearly.
 - **The checklist and the final review matter even more for sites that publish without a person's approval.**
 - **No new gate.** Findings are advice. The checklist's own rule (an open step blocks publishing) is the gate.
@@ -67,7 +67,7 @@ Audience: people reading or skimming the page.
 | Check | What it asks | Method | Severity | Evidence | Runs in lens-check |
 | --- | --- | --- | --- | --- | --- |
 | P1 | The headline is present, is not a placeholder and is not another Story's headline | checked by code | warn | the title, and the other Story if duplicated | yes |
-| P2 | The Story has a dek (the summary line under the headline) | checked by code | warn | which field was used, or that the page will use the first paragraph | yes |
+| P2 | The Story has a dek (the summary line under the headline) | checked by code | warn | which field was used, that the page will use the first paragraph, or that the dek is a verbatim copy of the blurb (a dek that merely differs from the blurb is expected) | yes |
 | P3 | The dek adds something the headline does not | judged by Jev | info | the question, the answer and its probability | not yet |
 | P4 | The headline does not promise what the Story does not deliver | judged by Jev | warn | the question, the answer and the sentence compared | not yet |
 | P5 | The opening paragraph works as an opening | judged by Jev | info | the question and the answer | not yet |

@@ -27,6 +27,11 @@ export type ImageOperationName =
   | "image_review_queue"
   | "image_apply"
   | "image_discard"
+  | "guidelines_get"
+  | "guidelines_resolve"
+  | "guidelines_diff"
+  | "guidelines_save"
+  | "guidelines_history"
 ;
 
 export type ImageErrorCode =
@@ -50,6 +55,9 @@ export type ImageErrorCode =
   | "stale_version"
   | "candidate_not_ready"
   | "candidate_closed"
+  | "unknown_kind"
+  | "resolver_not_available"
+  | "document_hash_mismatch"
   | "service_unavailable"
 ;
 
@@ -758,6 +766,132 @@ export type ImageDiscardResult = {
   discarded: string[];
 };
 
+/** Read a kind of guidelines for the publication or one section, the current version or an older one. */
+export type GuidelinesGetInput = {
+  /** The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones. */
+  kind: string;
+  /** A section key. Leave it out for the publication's own guidelines. */
+  section?: string;
+  /** A version number; the current version when left out. */
+  version?: number;
+};
+
+export type GuidelinesGetResult = {
+  kind: string;
+  section?: string;
+  /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
+  document: Record<string, unknown>;
+  itemId: string;
+  versionNumber: number;
+  contentHash: string;
+  updatedAt?: string;
+  updatedBy?: string;
+  changeReason?: string;
+  isCurrent?: boolean;
+  /** What to pass to guidelines_save to replace this lineage's current version. */
+  expectedCurrentVersionId: string;
+};
+
+/** Show the effective guidelines for the publication or a section laid over it, with where every field came from. */
+export type GuidelinesResolveInput = {
+  /** The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones. */
+  kind: string;
+  /** A section key. Leave it out for the publication's own guidelines. */
+  section?: string;
+};
+
+export type GuidelinesResolveResult = {
+  kind: string;
+  section?: string;
+  /** False when the publication has no guidelines of this kind yet. */
+  found: boolean;
+  /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
+  document: Record<string, unknown>;
+  /** For every field, the layer it came from: publication, section, or locked by the publication. */
+  fieldSources: Record<string, unknown>;
+  layers: ({
+    scope: "publication" | "section";
+    itemId: string;
+    slug?: string;
+    versionNumber: number;
+    contentHash?: string;
+  })[];
+  warnings: {
+    code: string;
+    message: string;
+  }[];
+};
+
+/** Show what saving a guideline document would change, without saving it. */
+export type GuidelinesDiffInput = {
+  /** The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones. */
+  kind: string;
+  /** A section key. Leave it out for the publication's own guidelines. */
+  section?: string;
+  /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
+  document: Record<string, unknown>;
+};
+
+export type GuidelinesDiffResult = {
+  kind: string;
+  changes: {
+    path: string;
+    from?: unknown;
+    to?: unknown;
+  }[];
+  constraintChanges: Record<string, unknown>[];
+  wouldCreateVersion: number;
+};
+
+/** Save a guideline document as the next version of its kind and scope. */
+export type GuidelinesSaveInput = {
+  /** The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones. */
+  kind: string;
+  /** A section key. Leave it out for the publication's own guidelines. */
+  section?: string;
+  /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
+  document: Record<string, unknown>;
+  /** Why, in plain words. It is recorded with who and when. */
+  reason: string;
+  /** The current version id of that guideline lineage when you read it (guidelines_get returns it as expectedCurrentVersionId), or none for the first save. */
+  expectedCurrentVersionId: string;
+};
+
+export type GuidelinesSaveResult = {
+  kind: string;
+  section?: string;
+  itemId: string;
+  versionNumber: number;
+  contentHash: string;
+  /** True when the document equals the current version, so no version was made. */
+  unchanged?: boolean;
+  /** True when this is the first answer to the same request id, returned again. */
+  repeated?: boolean;
+};
+
+/** List the versions of a kind of guidelines, newest first, with who changed it and why. */
+export type GuidelinesHistoryInput = {
+  /** The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones. */
+  kind: string;
+  /** A section key. Leave it out for the publication's own guidelines. */
+  section?: string;
+};
+
+export type GuidelinesHistoryResult = {
+  kind: string;
+  section?: string;
+  versions: ({
+    itemId: string;
+    versionNumber: number;
+    isCurrent?: boolean;
+    at?: string;
+    by?: string;
+    byKind?: "human" | "agent";
+    reason?: string;
+    contentHash: string;
+  })[];
+};
+
 export interface ImageOperations {
   image_profile_get: { input: ImageProfileGetInput; result: ImageProfileGetResult };
   image_profile_resolve: { input: ImageProfileResolveInput; result: ImageProfileResolveResult };
@@ -783,43 +917,59 @@ export interface ImageOperations {
   image_review_queue: { input: ImageReviewQueueInput; result: ImageReviewQueueResult };
   image_apply: { input: ImageApplyInput; result: ImageApplyResult };
   image_discard: { input: ImageDiscardInput; result: ImageDiscardResult };
+  guidelines_get: { input: GuidelinesGetInput; result: GuidelinesGetResult };
+  guidelines_resolve: { input: GuidelinesResolveInput; result: GuidelinesResolveResult };
+  guidelines_diff: { input: GuidelinesDiffInput; result: GuidelinesDiffResult };
+  guidelines_save: { input: GuidelinesSaveInput; result: GuidelinesSaveResult };
+  guidelines_history: { input: GuidelinesHistoryInput; result: GuidelinesHistoryResult };
 }
 
 /** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */
 export const IMAGE_OPERATIONS = {
-  image_profile_get: { effect: "read", agentAllowed: true, command: "papyrus images profile get" },
-  image_profile_resolve: { effect: "read", agentAllowed: true, command: "papyrus images profile resolve" },
-  image_profile_diff: { effect: "read", agentAllowed: true, command: "papyrus images profile diff" },
-  image_profile_save: { effect: "write", agentAllowed: true, command: "papyrus images profile save" },
-  image_profile_history: { effect: "read", agentAllowed: true, command: "papyrus images profile history" },
-  image_profile_example_add: { effect: "write", agentAllowed: true, command: "papyrus images profile example add" },
-  image_profile_example_remove: { effect: "write", agentAllowed: true, command: "papyrus images profile example remove" },
-  image_capabilities: { effect: "read", agentAllowed: true, command: "papyrus images capabilities" },
-  image_brief_draft: { effect: "read", agentAllowed: true, command: "papyrus images brief" },
-  image_prompt_preview: { effect: "read", agentAllowed: true, command: "papyrus images prompt" },
-  image_search: { effect: "read", agentAllowed: true, command: "papyrus images search" },
-  image_generate: { effect: "spend", agentAllowed: true, command: "papyrus images generate" },
-  image_figure_add: { effect: "write", agentAllowed: true, command: "papyrus images figure add" },
-  image_round_get: { effect: "read", agentAllowed: true, command: "papyrus images round" },
-  image_candidate_get: { effect: "read", agentAllowed: true, command: "papyrus images show" },
-  image_list: { effect: "read", agentAllowed: true, command: "papyrus images list" },
-  image_retry: { effect: "spend", agentAllowed: true, command: "papyrus images retry" },
-  image_iterate: { effect: "spend", agentAllowed: true, command: "papyrus images iterate" },
-  image_select: { effect: "write", agentAllowed: true, command: "papyrus images select" },
-  image_unapply: { effect: "write", agentAllowed: true, command: "papyrus images unapply" },
-  image_review: { effect: "write", agentAllowed: false, command: "papyrus images review" },
-  image_review_queue: { effect: "read", agentAllowed: true, command: "papyrus images review-queue" },
-  image_apply: { effect: "write", agentAllowed: true, command: "papyrus images apply" },
-  image_discard: { effect: "write", agentAllowed: true, command: "papyrus images discard" },
+  image_profile_get: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile get" },
+  image_profile_resolve: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile resolve" },
+  image_profile_diff: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile diff" },
+  image_profile_save: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images profile save" },
+  image_profile_history: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile history" },
+  image_profile_example_add: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images profile example add" },
+  image_profile_example_remove: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images profile example remove" },
+  image_capabilities: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images capabilities" },
+  image_brief_draft: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images brief" },
+  image_prompt_preview: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images prompt" },
+  image_search: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images search" },
+  image_generate: { effect: "spend", agentAllowed: true, group: "images", command: "papyrus images generate" },
+  image_figure_add: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images figure add" },
+  image_round_get: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images round" },
+  image_candidate_get: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images show" },
+  image_list: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images list" },
+  image_retry: { effect: "spend", agentAllowed: true, group: "images", command: "papyrus images retry" },
+  image_iterate: { effect: "spend", agentAllowed: true, group: "images", command: "papyrus images iterate" },
+  image_select: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images select" },
+  image_unapply: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images unapply" },
+  image_review: { effect: "write", agentAllowed: false, group: "images", command: "papyrus images review" },
+  image_review_queue: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images review-queue" },
+  image_apply: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images apply" },
+  image_discard: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images discard" },
+  guidelines_get: { effect: "read", agentAllowed: true, group: "guidelines", command: "papyrus guidelines show" },
+  guidelines_resolve: { effect: "read", agentAllowed: true, group: "guidelines", command: "papyrus guidelines resolve" },
+  guidelines_diff: { effect: "read", agentAllowed: true, group: "guidelines", command: "papyrus guidelines diff" },
+  guidelines_save: { effect: "write", agentAllowed: true, group: "guidelines", command: "papyrus guidelines save" },
+  guidelines_history: { effect: "read", agentAllowed: true, group: "guidelines", command: "papyrus guidelines history" },
 } as const;
 
-export type ImageTransport = (request: { op: ImageOperationName; input: unknown; effect: "read" | "write" | "spend" }) => Promise<unknown>;
+/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite. */
+export type ImageTransport = (request: {
+  op: ImageOperationName;
+  input: unknown;
+  effect: "read" | "write" | "spend";
+  group: "images" | "guidelines";
+}) => Promise<unknown>;
 
 export async function callImageOperation<Name extends ImageOperationName>(
   name: Name,
   input: ImageOperations[Name]["input"],
   send: ImageTransport,
 ): Promise<ImageEnvelope<ImageOperations[Name]["result"]>> {
-  const answer = await send({ op: name, input, effect: IMAGE_OPERATIONS[name].effect });
+  const answer = await send({ op: name, input, effect: IMAGE_OPERATIONS[name].effect, group: IMAGE_OPERATIONS[name].group });
   return answer as ImageEnvelope<ImageOperations[Name]["result"]>;
 }

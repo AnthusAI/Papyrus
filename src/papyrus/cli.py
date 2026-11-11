@@ -201,7 +201,7 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
         return 0
     if command in {"entities", "clusters", "relations"}:
         allowed = {
-            "entities": "list, accept, reject, rename, alias, describe, accept-description, page, link, retype or registry",
+            "entities": "list, accept, reject, rename, alias, describe, accept-description, page, link, retype, add, merge, duplicates or registry",
             "clusters": "list, accept, name or reject",
             "relations": "list, accept or reject",
         }[command]
@@ -373,6 +373,24 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             return 0
         from papyrus_content.images.cli import command as images_command
         return images_command(args[1:])
+    if group == "guidelines":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.guidelines.cli import command as guidelines_command
+        return guidelines_command(args[1:])
+    if group == "figures":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.figures.cli import command as figures_command
+        return figures_command(args[1:])
+    if group == "design-system":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.figures.design_system_cli import command as design_system_command
+        return design_system_command(args[1:])
     command = args[1] if len(args) > 1 else None
     flags = [*global_flags, *(args[2:] if len(args) > 2 else [])]
 

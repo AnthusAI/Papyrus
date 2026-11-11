@@ -22,12 +22,14 @@ from .writers import (
     CloudFrontInvalidator,
     KeyValueStoreRedirects,
     S3PageWriter,
+    normalize_output_prefix,
     TargetedCloudFrontInvalidator,
 )
 from ..page_refresh.budget import budget_from_environment
 
 PUBLICATION_KIND_ENV = "PAPYRUS_PUBLICATION_KIND"
 SITE_BUCKET_ENV = "PAPYRUS_SITE_BUCKET"
+OUTPUT_PREFIX_ENV = "PAPYRUS_SITE_OUTPUT_PREFIX"   # unset or empty: the site owns its bucket (every dedicated site); set: a shared bucket, this site's folder
 EDGE_DISTRIBUTION_ENV = "PAPYRUS_EDGE_DISTRIBUTION_ID"
 REDIRECTS_KVS_ENV = "PAPYRUS_REDIRECTS_KVS_ARN"
 DEAD_LETTER_QUEUE_ENV = "PAPYRUS_PROJECTION_DLQ_URL"
@@ -43,6 +45,13 @@ S3_PROJECTION_KIND = "s3-projection"
 SITE_PROJECTOR_FACTORY = "create_projector"
 
 _projector_by_configuration: dict[tuple[str, str, tuple[str, ...]], SiteProjector] = {}
+
+
+def store_name(environment: Mapping[str, str]) -> str:
+    """What names this site's store in the lock table (lease and publish jobs): the bucket, plus the output prefix where the bucket is shared, so each site folder has its own."""
+    bucket = (environment.get(SITE_BUCKET_ENV) or "").strip()
+    prefix = normalize_output_prefix(environment.get(OUTPUT_PREFIX_ENV))
+    return f"{bucket}/{prefix.rstrip('/')}" if prefix else bucket
 
 
 def projection_configured(environ: Mapping[str, str] | None = None) -> bool:
@@ -172,15 +181,16 @@ def context_from_environment(
         invalidator = CloudFrontInvalidator(distribution_id, cloudfront_client)
     else:
         invalidator = None
+    output_prefix = normalize_output_prefix(environment.get(OUTPUT_PREFIX_ENV))
     source = PublishedContentSource(client)
     source.star_store = star_store_from_environment(environment)
     return ProjectionContext(
         source=source,
         projector=load_projector(environment),
-        writer=S3PageWriter(bucket, s3_client, html_s_maxage_seconds(environment)),
+        writer=S3PageWriter(bucket, s3_client, html_s_maxage_seconds(environment), output_prefix),
         invalidate=invalidator.invalidate if invalidator else None,
         redirect_store=KeyValueStoreRedirects(kvs_arn, kvs_client) if kvs_arn else None,
-        lease=lease_from_environment(environment, bucket),
+        lease=lease_from_environment(environment, store_name(environment)),
     )
 
 

@@ -100,7 +100,10 @@ STEPS: tuple[Step, ...] = (
          "Read only: ranked related articles, posts and References from the Story's concepts, other than what the Story already links or cites. Add the good ones as see-also associations "
          "(stories link-story --story <lineage> --to <lineage>, and --reference <id> for a Reference). Then mark this step done with a findings note that says what was linked and what was left out and why "
          "(papyrus stories step --story {story} --step related_content --state done --note <findings>), or skipped with a reason.", True),
-    Step("illustration", "illustration", "Editor", "Illustrate", "", NOT_BUILT, True, "Not built yet."),
+    Step("illustration", "illustration", "Editor", "Illustrate", "", NOT_BUILT, True,
+         "The stage is not built (nothing checks it), but a diagram, chart or illustration can be made now: follow the figures skill (.agents/skills/figures/SKILL.md, "
+         "papyrus guide figures). It draws in the site's design system, always renders light and dark (papyrus figures render), needs a person's approval, and is saved with "
+         "stories save-version --images."),
     Step("typesetting", "typesetting", "Editor", "Typeset", "", NOT_BUILT, True, "Not built yet."),
     Step("publish", "published", "A person", "Publish the Story", "papyrus ops content publish --id <item id>", LIVE, False,
          "The only hard gate."),

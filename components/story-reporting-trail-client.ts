@@ -10,7 +10,7 @@ import { configureAmplifyClient } from "./amplify-client-provider";
 import { loadModelPayloadsForOwner } from "./news-desk-taxonomy-client";
 
 type GraphqlResponse = { data?: Record<string, { items?: Record<string, unknown>[] | null; nextToken?: string | null } | null> | null; errors?: { message?: string }[] | null };
-type GraphqlClient = { graphql: (options: Record<string, unknown>) => Promise<GraphqlResponse> };
+export type GraphqlClient = { graphql: (options: Record<string, unknown>) => Promise<GraphqlResponse> };
 
 const USER_POOL = "userPool";
 const PAGE_LIMIT = 200;
@@ -128,15 +128,41 @@ export async function loadStoriesBasedOnReference(referenceLineageId: string, de
 }
 
 /** Reads the whole reporting trail of one story from the backend; the local preview serves a snapshot instead. */
-export async function loadStoryReportingTrail(lineageId: string, itemId: string, demo = false): Promise<StoryReportingTrail> {
-  if (demo || isLocalPreviewEnabled()) return createLocalPreviewReportingTrail(lineageId);
+function defaultClient(): GraphqlClient {
   configureAmplifyClient();
-  const client = generateClient<Schema>() as unknown as GraphqlClient;
+  return generateClient<Schema>() as unknown as GraphqlClient;
+}
+
+/**
+ * The newest version of a story: one indexed read of one row (the lineage index sorted by version number, newest first). The editor needs
+ * only this to say "version 2 of 5"; it used to load the whole reporting trail for it.
+ */
+export async function loadNewestStoryVersion(lineageId: string, demo = false, client?: GraphqlClient): Promise<{ id: string; versionNumber: number } | null> {
+  if (!client && (demo || isLocalPreviewEnabled())) {
+    const newest = createLocalPreviewReportingTrail(lineageId).versions[0];
+    return newest ? { id: newest.id, versionNumber: newest.versionNumber } : null;
+  }
+  const graphql = client ?? defaultClient();
+  const response = await graphql.graphql({
+    query: "query ($lineageId: ID!, $limit: Int) { listItemsByLineageAndVersion(lineageId: $lineageId, sortDirection: DESC, limit: $limit) { items { id versionNumber } nextToken } }",
+    variables: { lineageId, limit: 1 },
+    authMode: USER_POOL,
+  });
+  if (response.errors?.length) throw new Error(response.errors.map(error => error.message ?? "GraphQL error").join("; "));
+  const newest = response.data?.listItemsByLineageAndVersion?.items?.find(Boolean);
+  return newest ? { id: String(newest.id), versionNumber: Number(newest.versionNumber ?? 0) } : null;
+}
+
+export async function loadStoryReportingTrail(lineageId: string, itemId: string, demo = false, injectedClient?: GraphqlClient): Promise<StoryReportingTrail> {
+  if (!injectedClient && (demo || isLocalPreviewEnabled())) return createLocalPreviewReportingTrail(lineageId);
+  const client = injectedClient ?? defaultClient();
   const [versionRows, assignmentRows, attachmentRows, relationRows] = await Promise.all([
     listAll(client, "listItemsByLineageAndVersion", "id versionNumber versionState status stage headline title changeReason versionCreatedBy versionCreatedAt updatedAt metadata", ", $lineageId: ID!", ", lineageId: $lineageId", { lineageId }).catch(() => []),
     listAll(client, "listAssignmentsByItemLineageAndCreatedAt", "id title assignmentTypeKey status assigneeKey summary createdAt", ", $itemLineageId: ID!", ", itemLineageId: $itemLineageId", { itemLineageId: lineageId }).catch(() => []),
     listAll(client, "listModelAttachmentsByOwnerRoleAndSortKey", "id role filename mediaType byteSize", ", $ownerId: ID!", ", ownerId: $ownerId", { ownerId: itemId }).catch(() => []),
-    listAll(client, "listSemanticRelations", "id predicate subjectKind subjectLineageId objectKind objectId objectLineageId metadata", ", $filter: ModelSemanticRelationFilterInput", ", filter: $filter", { filter: { or: [{ subjectLineageId: { eq: lineageId } }, { objectLineageId: { eq: lineageId } }] } }).catch(() => []),
+    // The story's References are relations whose subject is the story: the subject-state index, as `papyrus stories references` reads them
+    // (story_reporting.story_references). A filtered listSemanticRelations here was a scan of the whole relation table on every open.
+    listAll(client, "listSemanticRelationsBySubjectState", "id predicate subjectKind subjectLineageId objectKind objectId objectLineageId metadata", ", $subjectStateKey: String!", ", subjectStateKey: $subjectStateKey", { subjectStateKey: `item#${lineageId}#current` }).catch(() => []),
   ]);
   const versions: TrailVersion[] = versionRows.map(row => ({
     id: String(row.id), versionNumber: Number(row.versionNumber ?? 0), versionState: text(row.versionState), status: text(row.status), stage: text(row.stage),

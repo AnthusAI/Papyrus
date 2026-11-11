@@ -272,7 +272,7 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       }),
     );
     // GetAccount (the send rate) does not support resource-level permissions.
-    email.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["sesv2:GetAccount"], resources: ["*"] }));
+    email.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ses:GetAccount"], resources: ["*"] }));
     // PutMetricData has no resource-level scope; the namespace condition keeps it to Caducus's.
     sesEvents.addToRolePolicy(
       new PolicyStatement({

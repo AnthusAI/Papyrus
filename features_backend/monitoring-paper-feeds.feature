@@ -30,6 +30,21 @@ Feature: Paper monitors read research feeds and Hugging Face daily papers into o
     Then the new papers and the cross-listed paper are recorded
     And neither revision is recorded
 
+  Scenario: A research organisation's blog feed is read without a description
+    Given a feed monitor for the METR RSS feed
+    And the feed holds a blog post, a note, an evaluation, a post that links to a paper and a post that links to a page on the site
+    When the feed monitor collects
+    Then five items are recorded and the pass is complete
+    And each item's canonical URL is the feed entry's link, even when the link is on another site or not under blog
+    And each item carries its title, publication date and the post's content as its abstract
+    And an item's source id comes from the entry's guid
+
+  Scenario: A long post's content is cut before it is stored
+    Given a feed monitor for the METR RSS feed
+    And the feed holds a post whose content is far longer than the abstract limit
+    When the feed monitor collects
+    Then the stored abstract is cut at the limit
+
   Scenario: A feed address on a host outside the allowed list is refused
     Given a feed monitor whose address is on a host outside the allowed list
     When the feed monitor collects
@@ -91,4 +106,5 @@ Feature: Paper monitors read research feeds and Hugging Face daily papers into o
 
   Scenario: Each paper monitor has a collect schedule and an hourly route schedule
     Given the paper monitors in the monitoring stack template
-    Then papers-arxiv-ai, papers-arxiv-security and papers-huggingface each have a schedule running the collector every 6 hours and a schedule running the router hourly, each naming its monitor
+    Then papers-arxiv-ai, papers-arxiv-security, papers-huggingface and feed-metr each have a schedule running the collector every 6 hours and a schedule running the router hourly, each naming its monitor
+    And no paper monitor routes in the same minute as another monitor

@@ -12,10 +12,11 @@ Nothing moves a Story into either stage by itself, and no agent or procedure wor
 
 **What it should produce.** (Intent only.) The pictures a Story needs: a hero or inline image, diagram or chart, each with alt text and a credit, stored as `MediaAsset` rows and referenced from the Markus body. Where a Story was made from a Reference, a post carries the Reference's preview image as a remote, credited address; the illustration stage is the place to replace it or host a licensed copy ([reference-curation-pipeline.md](reference-curation-pipeline.md)).
 
-**Who does it.** An editor, by hand. There is no illustration agent and no image generation in the repository.
+**Who does it.** An editor, by hand, or an agent following the [figures skill](../.agents/skills/figures/SKILL.md) for a diagram, chart or illustration ([figures.md](figures.md)); a person approves each figure. There is no image generation in the repository.
 
 **What the CLI can do today.**
 
+- Draw a figure: `papyrus figures render FOLDER --design-system DIR` writes a light and a dark picture from one SVG source and checks both; `papyrus figures directive FOLDER` prints the `::image{}` line. See [figures.md](figures.md).
 - Move the Story: `papyrus stories move --story LINEAGE --stage illustration [--reason "why"]`, or `stories save-version ... --stage illustration`.
 - Save pictures with a draft: `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures` uploads each local picture the text uses, with an optional dark version, exactly as the editor's "Insert image" does ([saving a draft with its pictures](story-reporting.md#saving-a-draft-with-its-pictures)). This is the same command at any stage; it is not specific to illustration.
 - In the newsroom editor, "Insert image" does the same by hand.
