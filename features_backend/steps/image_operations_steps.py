@@ -55,9 +55,9 @@ def step_cover(context):
     assert re.findall(r"^## (image_[a-z_]+)$", generate.DOCS.read_text(encoding="utf-8"), re.M) == NAMES
 
 
-@then("the table has the 24 operations the design describes")
+@then("the table has the 25 operations the design describes")
 def step_count(context):
-    assert len(NAMES) == 24
+    assert len(NAMES) == 25
 
 
 @then("the generate operation offers a speed of auto, standard or batch")

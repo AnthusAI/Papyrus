@@ -114,6 +114,8 @@ def cli_command(item: Operation) -> dict:
     parts = [f"papyrus {item.group} {words}"] + [f"<{kebab(field)}>" if field in required else f"[{kebab(field)}]" for field in item.positional]
     if item.file_field:
         parts.append("--file PATH")
+    if item.picture_field:
+        parts.append("[--file PICTURE]")
     seen_target = False
     for entry in flags:
         shown = {"string": "TEXT", "integer": "N", "boolean": "", "array": "TEXT ..."}.get(entry["kind"], "ID")
@@ -133,7 +135,7 @@ def cli_command(item: Operation) -> dict:
     if item.effect != "read":
         parts.append("[--dry-run]")
     return {"op": item.name, "group": item.group, "words": list(item.cli), "summary": item.summary, "effect": item.effect, "agentAllowed": item.agent_allowed,
-            "usage": " ".join(parts), "positional": list(item.positional), "file": item.file_field, "flags": flags}
+            "usage": " ".join(parts), "positional": list(item.positional), "file": item.file_field, "picture": item.picture_field, "flags": flags}
 
 
 def render_cli() -> str:
