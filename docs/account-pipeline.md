@@ -36,6 +36,14 @@ The repository variable is `AWS_ACCOUNT_ID` (a variable, not Git). The budget al
 
 A stack that must wait (a certificate before the registrar delegates the domain) is `"enabled": false` with a `reason`.
 
+## Check the repository's OIDC subject before the apply
+
+The roles trust the repository's OIDC subject. Newer GitHub repositories can use **immutable subject claims**, where the subject is `repo:<owner>@<owner id>/<repo>@<repo id>:...` instead of `repo:<owner>/<repo>:...`; a role that trusts the classic form refuses every run (found on Humorus, 2026-11-11). Read the repository's prefix and pass it as `GithubSubjectPrefix` (leave it empty for the classic form):
+
+```bash
+gh api repos/<owner>/<repo>/actions/oidc/customization/sub    # sub_claim_prefix
+```
+
 ## The one apply by a person
 
 The first apply of the baseline cannot come from a pipeline that does not exist yet. It is a single documented command (replacing `bootstrap.sh` for a deployment account). It writes no repository variable of any repository.
