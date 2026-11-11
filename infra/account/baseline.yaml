@@ -4,7 +4,7 @@ Description: >-
   roles a deployment repository's pipeline uses to deploy the account's own
   stacks (DNS, budget, certificate, SES) and to start Amplify jobs. Applied by
   a person once (the single bootstrap exception); afterwards changed only by
-  the pipeline, and only after a person approves the GitHub environment
+  the pipeline, and only by the roles job in the GitHub environment
   pipeline-roles. See docs/account-pipeline.md for what each role can and
   cannot do.
 
@@ -48,7 +48,7 @@ Parameters:
     Type: String
     Default: pipeline-roles
     AllowedPattern: "^[A-Za-z0-9_.-]+$"
-    Description: The GitHub environment (with a required reviewer) that guards changes to this stack.
+    Description: The GitHub environment (deployment branch policy main only, no required reviewers) the roles-apply role trusts.
   BudgetName:
     Type: String
     Description: The budget the pipeline looks up and manages.
@@ -218,15 +218,15 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${BudgetName}"
 
   # ---------------------------------------------------------------------------
-  # Roles-apply role: only the GitHub environment pipeline-roles, which waits
-  # for a person to approve. Can update this one stack, through the roles
+  # Roles-apply role: only the GitHub environment pipeline-roles (main only;
+  # no person approves). Can update this one stack, through the roles
   # service role, and nothing else.
   # ---------------------------------------------------------------------------
   GithubRolesApplyRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${Prefix}-github-roles-apply"
-      Description: !Sub "Applies changes to the pipeline roles stack after a person approves the ${ApprovalEnvironment} environment in ${GithubRepository}"
+      Description: !Sub "Applies changes to the pipeline roles stack from the ${ApprovalEnvironment} environment (main only) in ${GithubRepository}"
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -380,7 +380,7 @@ Resources:
 
   # ---------------------------------------------------------------------------
   # Service role for this stack: IAM on the pipeline's own roles and provider,
-  # only reachable through the approved roles-apply role.
+  # only reachable through the roles-apply role.
   # ---------------------------------------------------------------------------
   CloudFormationRolesServiceRole:
     Type: AWS::IAM::Role
