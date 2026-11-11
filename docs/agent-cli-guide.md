@@ -349,6 +349,19 @@ papyrus ops content publish --id LINEAGE-v3 --verify
 
 `--id` is the **version** item id (`LINEAGE-vN`, the lineage plus the version `stories show` prints), not the lineage id (`content publish failed [not-found]: No item LINEAGE`). Or pass `--slug SLUG [--section KEY]`. Stops with `[placeholder-slug]` for a placeholder address, `checklist-open` while procedure steps are open, and refuses an untyped Story. Close the checklist honestly first (see Checks).
 
+### Retire a Story and redirect its address
+**Lane:** both. **Writes:** yes; `--dry-run` previews. Not released yet: it ships with the next Papyrus release.
+
+Use it when two Stories become one article: the Story that goes away keeps working for readers.
+
+```sh
+papyrus stories retire --story LINEAGE --redirect-to TARGET_LINEAGE --dry-run
+papyrus stories retire --story LINEAGE --redirect-to TARGET_LINEAGE
+papyrus stories retire --story LINEAGE --undo
+```
+
+It unpublishes the Story, moves it to the `retired` stage (every version stays) and has the site redirect every address the Story was served at (current address, aliases, earlier slugs and type folders, the `.md` twin) permanently to the target's address; if the target changes address later the redirects follow. The Story leaves listings, the sitemap, feeds, public data and the cross-story boilerplate check. The command prints the pages written and the exact paths purged; it never purges more than the site's cap. It refuses a target that is missing, unpublished, the Story itself or retired. `--undo` publishes the retired version again and removes the redirects. A site that requires approval to publish restores from the console.
+
 ### Make the new page visible
 **Lane:** both. **Version:** 5.100.0.
 
