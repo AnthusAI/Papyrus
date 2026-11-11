@@ -1,0 +1,20 @@
+{
+  "id": "PPY-7f564a6a-0897-4618-8aba-153d07687d8a",
+  "title": "Humorus consumes the Papyrus mechanism",
+  "description": "Replace the copied generic code on the Humorus infra/pipeline branch with its stack settings only; one-time seed apply needs Ryan.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T20:37:05.848320Z",
+  "updated_at": "2026-11-11T20:37:05.848354Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

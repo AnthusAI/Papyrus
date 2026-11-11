@@ -29,10 +29,17 @@
       "text": "From Humorus, 2026-11-11, Ryan's standing rule: nobody creates a cloud resource by hand; every resource is defined in Git and applied by a pipeline on merge, and agents use the AWS CLI to read only.\n\nFor this story that means `infra/pipeline/bootstrap.sh` should stop being a script a person runs per account and become a template a pipeline applies:\n- The account's GitHub OIDC provider, the pipeline roles (today `papyrus-pipeline-approver.yaml` and `papyrus-stack-pipeline.yaml`) and the per-site deploy roles are CloudFormation (or CDK) stacks in Git, seeded into a new account from a template, with repository, domain and account taken from configuration. Nothing in it names AnthusAI/Papyrus, anth.us or our account variable.\n- Where a stack must exist before any pipeline can (the very first role), the one-time person step is a single documented `aws cloudformation deploy` of the same template, not a bespoke script that writes repository variables.\n- Hand-made roles, zones and providers in the running Anthus deployments are imported into those stacks (CloudFormation import with Retain), not replaced.\nHumorus has drafted the full epic; it will be agreed with Ryan and the Papyrus session before it is filed here.",
       "created_at": "2026-11-11T20:24:32.101096Z",
       "comment_type": "default"
+    },
+    {
+      "id": "7d75758e-d948-4c45-b15a-e8861da3c8ec",
+      "author": "home",
+      "text": "Linked, not moved, to epic PPY-9bd776 (A Papyrus deployment needs no hand-made cloud resources): story PPY-a73cd8 there covers this story's bootstrap complaint. The other parts of this story (domains, footer registry, privacy link, monitoring account) stay here.",
+      "created_at": "2026-11-11T20:37:05.121077Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-11T17:16:00.428184Z",
-  "updated_at": "2026-11-11T20:24:32.101351Z",
+  "updated_at": "2026-11-11T20:37:05.121280Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

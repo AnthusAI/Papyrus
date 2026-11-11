@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c320b035-dfd4-41b0-b833-7fc77006bccc",
+  "title": "The only person-only steps are the ones nothing can automate",
+  "description": "```gherkin\nFeature: What a person still does\n\n  Scenario: The list is short and written down\n    Given a new deployment\n    Then a person does only: apply the seed once, give the registrar the name servers, create the Google OAuth client, and put secret values such as SSM SecureString parameters\n    And everything else is done by the pipeline\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T20:36:49.598359Z",
+  "updated_at": "2026-11-11T20:36:49.598385Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-040588bf-56c6-4581-b79c-0ffd32d20bad",
+  "title": "Document the account pipeline and the person-only steps",
+  "description": "docs/account-pipeline.md; pointer from infra/pipeline/README.md and bootstrap.sh.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T20:37:05.603940Z",
+  "updated_at": "2026-11-11T20:37:05.603966Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-3c38b348-c733-4f3d-abf8-9bac9e7e81c0",
+  "title": "The pipeline deploys its own roles and account stacks on merge",
+  "description": "```gherkin\nFeature: Merge deploys the account's stacks\n\n  Scenario: A merge to the release branch applies changed stacks\n    Given a stack template changed in a commit merged to the release branch\n    When the account-stacks workflow runs\n    Then it signs in with GitHub OIDC and creates a change set per changed stack\n    And it executes only change sets that remove or replace nothing that is not allow-listed\n\n  Scenario: Changing the account baseline needs an approval\n    Given a merged change to the account baseline stack\n    When the workflow finds it differs from the live stack\n    Then the roles job waits for a person to approve the protected GitHub environment\n    And the ordinary deploy role cannot change that stack\n\n  Scenario: A pull request shows the plan with read-only access\n    Given a pull request that changes a stack\n    When CI runs\n    Then the templates are linted with no AWS access\n    And the plan is read with a role that can create nothing\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T20:36:49.105363Z",
+  "updated_at": "2026-11-11T20:36:49.105411Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

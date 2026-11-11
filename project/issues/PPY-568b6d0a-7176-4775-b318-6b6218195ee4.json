@@ -1,0 +1,20 @@
+{
+  "id": "PPY-568b6d0a-7176-4775-b318-6b6218195ee4",
+  "title": "Fold import, inline templates and config into stack_deploy.py",
+  "description": "Optional config only; the default stacks.json behaves as before. PR in progress.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T20:37:05.241978Z",
+  "updated_at": "2026-11-11T20:37:06.014827Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a41df96d-60df-41cc-9e7c-291578ca4119",
+  "title": "New accounts are seeded from the organisation",
+  "description": "Design only for now (see HUM-be87f4 comments): a service-managed StackSet on an OU delivers the baseline; accounts are created as code in a small org repo; read-only everyday SSO with a break-glass admin. Built last, after Ryan decides.\n\n```gherkin\nFeature: New accounts arrive seeded\n\n  Scenario: A new account in the Papyrus deployments OU gets the baseline\n    Given an account created in the Papyrus deployments OU\n    When it joins the OU\n    Then the organisation delivers the baseline stack automatically\n    And the account's pipeline can deploy without a person touching it\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T20:36:49.720873Z",
+  "updated_at": "2026-11-11T20:36:49.720903Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
