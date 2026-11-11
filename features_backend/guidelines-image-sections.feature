@@ -50,3 +50,54 @@ Feature: A section's image guidelines are a document of their own, and the comma
     When the command line and the door each resolve the "cover" use of "story-1" for the section "security" and the type "cover-illustration"
     Then both answers give the same effective guidance, sources and layers
     And both answers hold the guidance "Keep it quiet." and the palette "Ink blue" only
+
+  Scenario: A section image document can define an image type of the section's own
+    Given an image publication "ours" with a saved style profile whose master prompt says "Flat shapes with generous rounded corners."
+    And a Story "story-1" in each publication
+    And the section "security" has an image document with its own image type "process-diagram"
+    And the request names the image type "process-diagram"
+    And the request is for the section "security"
+    When the style is resolved for the "inline" use of "story-1" in "ours"
+    Then the answer resolves the image type "process-diagram" and says it came from the section layer
+
+  Scenario: A section's own image type is visible only when resolving for that section
+    Given an image publication "ours" with a saved style profile whose master prompt says "Flat shapes with generous rounded corners."
+    And a Story "story-1" in each publication
+    And the section "security" has an image document with its own image type "process-diagram"
+    And the section "news" exists without an image document
+    And the request names the image type "process-diagram"
+    And the request is for the section "news"
+    When the style is resolved for the "inline" use of "story-1" in "ours"
+    Then the answer refuses the image type "process-diagram" as unknown
+
+  Scenario: A section image type may not shadow an image type of the publication
+    Given an image publication "ours" with a saved style profile whose master prompt says "Flat shapes with generous rounded corners."
+    When an admin saves a section image document for "security" that redefines the publication's image type "cover-illustration"
+    Then the section save is refused as "invalid_input" naming "cover-illustration"
+
+  Scenario: A section image type is checked like any image type
+    Given an image publication "ours" with a saved style profile whose master prompt says "Flat shapes with generous rounded corners."
+    When an admin saves a section image document for "security" with an image type "loose-sketch" that has no use and no sources
+    Then the section save is refused as "invalid_input" naming "loose-sketch"
+
+  Scenario: The publication's binding rules and locks still apply to a section's image type
+    Given an image publication "ours" with a saved style profile whose master prompt says "Flat shapes with generous rounded corners."
+    When an admin saves a section image document for "security" with a generated photograph type "staged-photo"
+    Then the section save is refused as "constraint_conflict" naming "staged-photo"
+
+  Scenario: A section's image type is retired and never removed
+    Given an image publication "ours" with a saved style profile whose master prompt says "Flat shapes with generous rounded corners."
+    And the section "security" has an image document with its own image type "process-diagram"
+    When an admin saves a section image document for "security" that drops its image type "process-diagram"
+    Then the section save is refused as "invalid_input" naming "process-diagram"
+    When an admin saves a section image document for "security" that retires its image type "process-diagram"
+    Then the section save is accepted
+
+  Scenario: The guidelines resolve command shows the section's image types and where each came from
+    Given an image publication "ours" with a saved style profile whose master prompt says "Flat shapes with generous rounded corners."
+    And the section "security" has an image document with its own image type "process-diagram"
+    When an editor resolves the image guidelines for the section "security"
+    Then the resolved image guidelines list "process-diagram" as an image type of the section layer
+    And the resolved image guidelines name the publication's version and the section's version as layers
+    When an editor resolves the image guidelines for the publication alone
+    Then the resolved image guidelines do not list "process-diagram"

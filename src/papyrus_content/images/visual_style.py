@@ -167,7 +167,7 @@ def validate_profile(document: Any) -> list[Problem]:
     return problems
 
 
-SECTION_TOP_LEVEL = OVERRIDE_FIELDS | {"schemaVersion", "bodyMarkus"}
+SECTION_TOP_LEVEL = OVERRIDE_FIELDS | {"schemaVersion", "bodyMarkus", "typePreference"}
 
 
 def validate_section_style(document: Any) -> list[Problem]:
@@ -198,9 +198,68 @@ def validate_section_style(document: Any) -> list[Problem]:
             add(where, "A section's change to an image type must be an object.")
             continue
         for field in definition:
-            if field not in OVERRIDE_FIELDS - {"imageTypes"}:
-                add(f"{where}.{field}", f"{field} cannot be set from a section.")
+            if field == "constraints":
+                add(f"{where}.constraints", "Binding rules belong to the publication only.")
+            elif field not in TYPE_FIELDS:
+                add(f"{where}.{field}", f"{field} is not part of an image type.")
         _check_style_fields(where, definition, set(), add)
+    if "typePreference" in document and not isinstance(document["typePreference"], dict):
+        add("typePreference", "typePreference must be an object keyed by use.")
+    return problems
+
+
+def section_style_of(section: dict | None) -> dict:
+    return as_object((section or {}).get("visualStyle"))
+
+
+def section_type_keys(profile: dict | None, section_style: dict) -> list[str]:
+    """The image types a section's document defines that the publication does not have: types of the section's own."""
+    own = (profile or {}).get("imageTypes") or {}
+    return [key for key, definition in as_object(section_style.get("imageTypes")).items() if key not in own and isinstance(definition, dict)]
+
+
+def with_section_types(profile: dict, section_style: dict) -> tuple[dict, list[str]]:
+    """The profile with a section's own image types added and its typePreference appended to the publication's. Visible only to the one section."""
+    keys = section_type_keys(profile, section_style)
+    preference = {use: (None if listing is None else list(listing)) for use, listing in (profile.get("typePreference") or {}).items()}
+    for use, listing in as_object(section_style.get("typePreference")).items():
+        if isinstance(listing, list):
+            base = preference.get(use) or []
+            preference[use] = [*base, *(key for key in listing if key not in base)]
+    if not keys and not as_object(section_style.get("typePreference")):
+        return profile, []
+    types = {**(profile.get("imageTypes") or {}), **{key: section_style["imageTypes"][key] for key in keys}}
+    return {**profile, "imageTypes": types, "typePreference": preference}, keys
+
+
+def validate_section_types(publication: dict | None, section_document: dict, previous: dict | None = None) -> list[Problem]:
+    """What only the publication's document can decide about a section's image types: a type may not shadow a publication type, a new type is checked like any
+    type (use, sources, treatment, the binding rules and locks), the section's typePreference names real types of that use, and a type, once saved in the
+    section, is retired and never removed."""
+    problems: list[Problem] = []
+    own = (publication or {}).get("imageTypes") or {}
+    aimed = as_object(section_document.get("imageTypes"))
+    for key, definition in aimed.items():
+        if key in own and isinstance(definition, dict):
+            extra = sorted(set(definition) - OVERRIDE_FIELDS)
+            if extra:
+                problems.append(Problem(f"imageTypes.{key}", f"{key} is already an image type of the publication; a section may narrow it ({', '.join(sorted(OVERRIDE_FIELDS - {'imageTypes'}))}) "
+                                                          f"but not redefine it ({', '.join(extra)}). Use another key for a type of the section's own.", "type_shadowed"))
+    section_style = {name: value for name, value in section_document.items() if name not in ("schemaVersion", "bodyMarkus")}
+    merged, keys = with_section_types(publication or {}, section_style)
+    if keys and not publication:
+        problems.append(Problem("imageTypes", "Save the publication's image guidelines first: a section's own image type is checked against their treatments and binding rules."))
+        return problems
+    if keys or section_document.get("typePreference"):
+        found = validate_profile({**merged, "schemaVersion": SCHEMA_VERSION})
+        wanted = tuple(f"imageTypes.{key}" for key in keys)
+        problems.extend(p for p in found if p.path.startswith(wanted) or (p.path.startswith("typePreference") and section_document.get("typePreference")))
+        for key in keys:
+            if (merged["imageTypes"][key] or {}).get("treatment") is None and type_field(merged["imageTypes"], key, "treatment") is None:
+                problems.append(Problem(f"imageTypes.{key}.treatment", f"{key} needs a treatment of the publication, its own or from the type it extends."))
+    if previous is not None:
+        old = [key for key in section_type_keys(publication, {"imageTypes": as_object(previous.get("imageTypes"))}) if key not in aimed]
+        problems.extend(Problem(f"imageTypes.{key}", f"The section's image type {key} cannot be removed or renamed. Retire it with retired: true instead.") for key in old)
     return problems
 
 
@@ -591,9 +650,10 @@ def resolve_visual_style(profile: dict | None, *, profile_ref: dict | None = Non
         return {"resolutionHash": digest({"profile": None, "imageType": image_type, "use": use}), "profile": None, "layers": [], "effective": {}, "fieldSources": {},
                 "imageType": image_type or "", "imageTypeChosenBy": "request", "availableTypes": [], "constraints": [], "imageReview": DEFAULT_IMAGE_REVIEW,
                 "warnings": [{"code": "profile_missing", "message": PROFILE_MISSING}]}
+    profile, section_types = with_section_types(profile, section_style_of(section)) if section else (profile, [])
     types = profile.get("imageTypes") or {}
     warnings: list[dict] = []
-    choices = available_types(profile, use)
+    choices = [{**row, "origin": "section"} if row["key"] in section_types else row for row in available_types(profile, use)]
     chosen_by = "request"
     required_source = OPERATION_SOURCE.get(operation)
     if image_type:
@@ -680,15 +740,15 @@ def resolve_visual_style(profile: dict | None, *, profile_ref: dict | None = Non
 
     for name in chain:
         definition = types[name]
-        source = f"image-type:{name}"
-        layers.append({"layer": "image-type", "key": name, **({"via": "extends"} if name != image_type else {})})
+        source = f"section-image-type:{name}" if name in section_types else f"image-type:{name}"
+        layers.append({"layer": "image-type", "key": name, **({"via": "extends"} if name != image_type else {}), **({"origin": "section"} if name in section_types else {})})
         removal = definition.get("removeFromParent") or {}
         for item in removal.get("avoid") or []:
-            kept = [(text, where) for text, where in avoid if not (text == item and where.startswith("image-type:") and where != source)]
+            kept = [(text, where) for text, where in avoid if not (text == item and "image-type:" in where and where != source)]
             if len(kept) != len(avoid):
                 avoid[:] = kept
                 removed.append(f"avoid:{item!r} by {source}")
-        if removal.get("safeZones") and "safeZones" in scalars and scalars["safeZones"][1].startswith("image-type:"):
+        if removal.get("safeZones") and "safeZones" in scalars and "image-type:" in scalars["safeZones"][1]:
             del scalars["safeZones"]
             removed.append(f"safeZones by {source}")
         take(definition, source)
@@ -706,13 +766,13 @@ def resolve_visual_style(profile: dict | None, *, profile_ref: dict | None = Non
         layers.append({"layer": layer, **({"source": {"sectionId": section.get("id"), "updatedAt": section.get("updatedAt"), **(section.get("documentSource") or {})}} if layer == "section" and section else {}),
                        **({"source": dict(story_style["source"])} if layer == "story" and isinstance(story_style, dict) and story_style.get("source") else {})})
         for field in data:
-            if field not in OVERRIDE_FIELDS:
+            if field not in OVERRIDE_FIELDS and field != "typePreference":
                 warnings.append({"code": "override_field_ignored", "message": f"{label} cannot change {field}; it was ignored. Binding rules and what the publication forbids cannot be changed from a section or a Story."})
         if prose:
             guidance.append((prose.strip(), source))
         scoped = {field: value for field, value in data.items() if field in OVERRIDE_FIELDS and field != "imageTypes"}
         take(scoped, source, narrowing=True)
-        aimed = as_object(data.get("imageTypes")).get(image_type)
+        aimed = None if image_type in section_types else as_object(data.get("imageTypes")).get(image_type)
         if aimed:
             aimed = as_object(aimed)
             for field in aimed:

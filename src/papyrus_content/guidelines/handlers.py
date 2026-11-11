@@ -23,7 +23,7 @@ from papyrus_content.images.profile_handlers import diff_profile, get_profile, i
 from papyrus_content.images.visual_style import constraint_changes, diff_documents
 
 from .document import CONSTRAINTS, GuidelineError, kind_spec, validate_document
-from .layering import resolve_guidelines
+from .layering import resolve_guidelines, resolve_image_guidelines
 from .store import DocumentFiles, GuidelineStore, reference, saved_by_of
 
 IMAGE_KIND = "image"
@@ -91,6 +91,12 @@ def get_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles
 def resolve_guidelines_for(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
+    if kind == IMAGE_KIND:
+        try:
+            answer = resolve_image_guidelines(GuidelineStore(client, files), section)
+        except GuidelineError as error:
+            raise _refused(error) from error
+        return Outcome({key: value for key, value in answer.items() if not (key == "section" and value is None)}, publication, tuple(answer["warnings"]))
     try:
         answer = resolve_guidelines(GuidelineStore(client, files), kind, section)
     except GuidelineError as error:
@@ -122,6 +128,23 @@ def _checked(kind: str, document: Any, section: str | None) -> dict:
     return document
 
 
+def _image_section_checked(store: GuidelineStore, document: dict, section: str | None, previous: dict | None) -> None:
+    """A section's image document is also checked against the publication's: no shadowed type, every own type valid under its binding rules and locks."""
+    if kind_of_check(section):
+        from papyrus_content.images.visual_style import validate_section_types
+
+        base = store.read(IMAGE_KIND)
+        problems = validate_section_types(base["document"] if base else None, document, previous)
+        if problems:
+            first = problems[0]
+            raise ImageOperationError("constraint_conflict" if first.code == "constraint_conflict" else "invalid_input", f"{first.path or 'document'}: {first.message}",
+                                      details={"path": first.path, "problems": [{"path": p.path, "message": p.message, "code": p.code} for p in problems]})
+
+
+def kind_of_check(section: str | None) -> bool:
+    return bool(section)
+
+
 def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
@@ -134,6 +157,11 @@ def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
     except GuidelineError as error:
         raise _refused(error) from error
     old = current["document"] if current else None
+    if kind == IMAGE_KIND:
+        try:
+            _image_section_checked(store, document, section, old)
+        except GuidelineError as error:
+            raise _refused(error) from error
     changes = diff_documents(old, document)
     number = int(current["row"].get("versionNumber") or 1) if current else 0
     return Outcome(_described(kind, section, changes=changes, constraintChanges=_constraint_changes(kind, old, document),
@@ -192,6 +220,8 @@ def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
         document = _checked(kind, arguments["document"], section)
         current = next((row for row in versions if row.get("versionState") == "current"), None)
         old = store.read(kind, section)["document"] if current is not None else None
+        if kind == IMAGE_KIND:
+            _image_section_checked(store, document, section, old)
         changes = _constraint_changes(kind, old, document)
         if changes:
             _require_person_admin(caller, changes)

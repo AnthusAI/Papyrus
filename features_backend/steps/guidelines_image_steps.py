@@ -225,3 +225,115 @@ def step_same_lanes(context):
 def step_both_hold(context, guidance, colour):
     for name, result in context.lane_answers.items():
         assert guidance in result["effective"]["guidance"] and [c["name"] for c in result["effective"]["palette"]] == [colour], (name, result["effective"])
+
+
+# --- a section's own image types ---------------------------------------------------------------------------------------------------------------------------
+
+PROCESS_DIAGRAM = {"label": "Process diagram", "description": "A step by step diagram for security stories.", "treatment": "diagram", "use": "inline", "sources": ["generated"],
+                   "display": {"smallestWidthPx": 343, "thumbnail": False}}
+
+
+def save_section_through_door(context, section, document):
+    ensure_section(context, section)
+    backend = ours(context)
+    handlers = guidelines_with_client(backend, backend.document_files)
+    read = execute("guidelines_get", {"kind": "image", "section": section}, EDITOR, handlers)
+    guard = read["result"]["expectedCurrentVersionId"] if read["ok"] else read["error"]["details"].get("expectedCurrentVersionId", "none")
+    context.section_save = execute("guidelines_save", {"kind": "image", "section": section, "document": document, "reason": "Section types", "expectedCurrentVersionId": guard},
+                                   ADMIN, handlers)
+    return context.section_save
+
+
+@given('the section "{section}" has an image document with its own image type "{key}"')
+def step_section_own_type(context, section, key):
+    answer = save_section_through_door(context, section, {"schemaVersion": 2, "imageTypes": {key: dict(PROCESS_DIAGRAM)}})
+    assert answer["ok"], answer
+
+
+@given('the section "{section}" exists without an image document')
+def step_section_without_document(context, section):
+    ensure_section(context, section)
+
+
+@when('an admin saves a section image document for "{section}" that redefines the publication\'s image type "{key}"')
+def step_section_shadow(context, section, key):
+    save_section_through_door(context, section, {"schemaVersion": 2, "imageTypes": {key: {"label": "Mine", "use": "cover", "sources": ["generated"], "treatment": "diagram"}}})
+
+
+@when('an admin saves a section image document for "{section}" with an image type "{key}" that has no use and no sources')
+def step_section_incomplete(context, section, key):
+    save_section_through_door(context, section, {"schemaVersion": 2, "imageTypes": {key: {"label": "Sketch", "treatment": "diagram"}}})
+
+
+@when('an admin saves a section image document for "{section}" with a generated photograph type "{key}"')
+def step_section_photo(context, section, key):
+    save_section_through_door(context, section, {"schemaVersion": 2, "imageTypes": {key: {"label": "Staged", "treatment": "photo", "use": "cover", "sources": ["generated"]}}})
+
+
+@when('an admin saves a section image document for "{section}" that drops its image type "{key}"')
+def step_section_drop(context, section, key):
+    save_section_through_door(context, section, {"schemaVersion": 2, "avoid": ["clutter"]})
+
+
+@when('an admin saves a section image document for "{section}" that retires its image type "{key}"')
+def step_section_retire(context, section, key):
+    save_section_through_door(context, section, {"schemaVersion": 2, "imageTypes": {key: {**PROCESS_DIAGRAM, "retired": True}}})
+
+
+@then('the section save is refused as "{code}" naming "{key}"')
+def step_section_refused(context, code, key):
+    answer = context.section_save
+    assert not answer["ok"] and answer["error"]["code"] == code and key in json.dumps(answer["error"]), answer
+
+
+@then("the section save is accepted")
+def step_section_accepted(context):
+    assert context.section_save["ok"], context.section_save
+
+
+@then('the answer resolves the image type "{key}" and says it came from the section layer')
+def step_resolves_section_type(context, key):
+    answer = context.image_answers["ours"]
+    assert answer["ok"], answer
+    result = answer["result"]
+    assert result["imageType"] == key
+    assert {"layer": "image-type", "key": key, "origin": "section"} in result["layers"], result["layers"]
+    assert any(str(where).startswith(f"section-image-type:{key}") for where in result["fieldSources"].values()), result["fieldSources"]
+    assert [row for row in result["availableTypes"] if row["key"] == key][0]["origin"] == "section"
+
+
+@then('the answer refuses the image type "{key}" as unknown')
+def step_unknown_type(context, key):
+    answer = context.image_answers["ours"]
+    assert not answer["ok"] and answer["error"]["code"] == "image_type_unknown", answer
+
+
+@when('an editor resolves the image guidelines for the section "{section}"')
+def step_guidelines_resolve_section(context, section):
+    backend = ours(context)
+    context.resolved_image = execute("guidelines_resolve", {"kind": "image", "section": section}, EDITOR, guidelines_with_client(backend, backend.document_files))
+    assert context.resolved_image["ok"], context.resolved_image
+
+
+@when("an editor resolves the image guidelines for the publication alone")
+def step_guidelines_resolve_publication(context):
+    backend = ours(context)
+    context.resolved_image = execute("guidelines_resolve", {"kind": "image"}, EDITOR, guidelines_with_client(backend, backend.document_files))
+    assert context.resolved_image["ok"], context.resolved_image
+
+
+@then('the resolved image guidelines list "{key}" as an image type of the section layer')
+def step_resolved_lists(context, key):
+    result = context.resolved_image["result"]
+    assert key in result["document"]["imageTypes"] and result["fieldSources"][f"imageTypes.{key}"][0]["layer"] == "section", result["fieldSources"]
+
+
+@then("the resolved image guidelines name the publication's version and the section's version as layers")
+def step_resolved_layers(context):
+    layers = context.resolved_image["result"]["layers"]
+    assert [(layer["scope"], layer["versionNumber"]) for layer in layers] == [("publication", 1), ("section", 1)], layers
+
+
+@then('the resolved image guidelines do not list "{key}"')
+def step_resolved_without(context, key):
+    assert key not in context.resolved_image["result"]["document"]["imageTypes"]
