@@ -30,10 +30,15 @@ CLOSED_STATES = (DONE, SKIPPED, NOT_APPLICABLE)
 OUTLINE_KEY = "outline"
 EDITOR_REVIEW_KEY = "editorReview"
 STAGES_AT_OR_AFTER_COPYWRITING = ("copywriting", "illustration", "typesetting", "published")
+EARLY_STAGES = ("idea", "assignment", "reporting")
 STAGES_WITHOUT_NEXT_STEP = ("spiked", "held", "published")
 
+#: Steps added after Stories were already published. A published Story that has no item for one is a record of what happened before the step existed, so it is
+#: never listed as remaining; a revision of it (not published as such) gets the step like any draft.
+ADDED_AFTER_PUBLISH_KEYS = ("illustration",)
+
 #: The version of this template. Raise it whenever a step is added, removed or changes its status, so each checklist item records the template it came from.
-TEMPLATE_VERSION = 4
+TEMPLATE_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -100,10 +105,12 @@ STEPS: tuple[Step, ...] = (
          "Read only: ranked related articles, posts and References from the Story's concepts, other than what the Story already links or cites. Add the good ones as see-also associations "
          "(stories link-story --story <lineage> --to <lineage>, and --reference <id> for a Reference). Then mark this step done with a findings note that says what was linked and what was left out and why "
          "(papyrus stories step --story {story} --step related_content --state done --note <findings>), or skipped with a reason.", True),
-    Step("illustration", "illustration", "Editor", "Illustrate", "", NOT_BUILT, True,
-         "The stage is not built (nothing checks it), but a diagram, chart or illustration can be made now: follow the figures skill (.agents/skills/figures/SKILL.md, "
-         "papyrus guide figures). It draws in the site's design system, always renders light and dark (papyrus figures render), needs a person's approval, and is saved with "
-         "stories save-version --images."),
+    Step("illustration", "illustration", "Editor, or an agent following the figures skill", "Illustrate",
+         "papyrus stories save-version --story {story} --body-file draft.md --images ./pictures", LIVE, False,
+         "Required for the Story types the site lists in its design-system setting illustrationRequiredTypes (articles by default). Done only when the records prove it: the current version has a cover "
+         "(front matter image) that is a stored asset a person approved (a stock cover picked in the newsroom's Cover image, or a figure with 'Approved by NAME' in its credit; papyrus guide figures, "
+         ".agents/skills/figures/SKILL.md), with its dark picture where the site requires dark figures. It cannot be marked done by hand. A person can record an exception instead: "
+         "papyrus stories step --story {story} --step illustration --state skipped --reason <why>.", versioned=True),
     Step("typesetting", "typesetting", "Editor", "Typeset", "", NOT_BUILT, True, "Not built yet."),
     Step("publish", "published", "A person", "Publish the Story", "papyrus ops content publish --id <item id>", LIVE, False,
          "The only hard gate."),
@@ -124,8 +131,12 @@ def _metadata_of(row: dict[str, Any]) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, Any] | None] | None = None) -> dict[str, Any]:
-    """Reads the records once: the current version, the lineage's Assignments with their direction and research packets, and the stored check run."""
+def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, Any] | None] | None = None, *, read_cover: bool = True) -> dict[str, Any]:
+    """Reads the records once: the current version, the lineage's Assignments with their direction and research packets, and the stored check run.
+
+    The cover evidence (the version's media and the site's design-system settings) is read only from the copywriting stage on (``read_cover=False`` skips it
+    anywhere): before a draft there is no cover to find, and the router and the research worker, which work on Stories then, run under roles that cannot read media.
+    Until then the cover reads as missing, and the next change to the Story (an editor's, past that stage) reads the records."""
     from .assignments import assignment_metadata
     from .assignments_workflow import load_assignment_research_packet_entries
     from .story_reporting import _current_of, story_versions
@@ -143,6 +154,16 @@ def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, 
         except Exception:
             has_packet = False
         assignments.append({"id": assignment["id"], "hasDirection": bool(str(direction or "").strip()), "hasResearchPacket": has_packet})
+    illustration = None
+    try:
+        from .story_illustration import default_policy, inputs_for_item
+
+        if read_cover and (current.get("stage") or "idea") not in EARLY_STAGES:
+            illustration = inputs_for_item(client, current, _metadata_of(current))
+        else:
+            illustration = {"type": current.get("type"), "frontMatter": {}, "body": "", "mediaPaths": [], "policy": default_policy()}
+    except Exception:  # noqa: BLE001 - the step then reads unknown instead of the Story failing to load
+        illustration = None
     check_run, check_run_error = None, False
     try:
         if read_check_run is None:
@@ -160,6 +181,7 @@ def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, 
         "assignments": assignments,
         "checkRun": check_run,
         "checkRunError": check_run_error,
+        "illustration": illustration,
         "versionTimes": {int(row.get("versionNumber") or 0): row.get("versionCreatedAt") for row in versions},
     }
 
@@ -207,6 +229,10 @@ def _state_of(step: Step, facts: dict[str, Any]) -> str:
         review = metadata.get(EDITOR_REVIEW_KEY)
         approved = isinstance(review, dict) and review.get("versionId") == facts["versionId"] and review.get("verdict") == "approve"
         return DONE if approved else NOT_DONE
+    if step.key == "illustration":
+        from .story_illustration import cover_evidence
+
+        return cover_evidence(facts.get("illustration"))[0]
     if step.key == "publish":
         return DONE if stage == "published" else NOT_DONE
     if step.manual:
@@ -297,9 +323,16 @@ def resolve(assessment: dict[str, Any], stored: list[dict[str, Any]], facts: dic
                     row["hint"] = "the records show this is done; the next write to the Story records it on the checklist"
                 elif row["evidence"] == NOT_DONE and row["state"] == STALE:
                     row["hint"] = "the records do not show it for the current version either"
+        if row["evidence"] == NOT_APPLICABLE and row["state"] == NOT_DONE:   # the Story's type does not need this step (the type changed after the item was made)
+            row["state"] = NOT_APPLICABLE
+        row["historic"] = bool(
+            assessment["stage"] == "published" and item is None and row["key"] in ADDED_AFTER_PUBLISH_KEYS and row["evidence"] != DONE
+        )
+        if row["historic"]:
+            row["hint"] = "published before this step existed; it is not required of the published record (a revision must close it)"
         rows.append(row)
     resolved = _conclude(assessment["stage"], rows)
-    live = [row for row in rows if row["status"] == LIVE and not row["optional"]]
+    live = [row for row in rows if row["status"] == LIVE and not row["optional"] and not row["historic"]]
     remaining = [] if assessment["stage"] in ("spiked", "held") else [row for row in live if row["state"] not in CLOSED_STATES]
     blocking = [row for row in remaining if row["key"] != "publish" and row["state"] == NOT_DONE]
     stale = [row for row in remaining if row["state"] == STALE]

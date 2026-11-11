@@ -31,9 +31,9 @@ Feature: "papyrus stories next" gives one answer about what remains
     And the review step "review_people" is done with the note "Read as a reader would."
     When I run "stories next" with "--story story-1"
     Then the procedure output has a "status" line reading "blocked"
-    And the "remaining" lines are in order "direction, research, outline, copy_edit, review_reader_agents, review_search, review_social, concepts, related_content, publish"
+    And the "remaining" lines are in order "direction, research, outline, copy_edit, review_reader_agents, review_search, review_social, concepts, related_content, illustration, publish"
     And the "status" line counts as many as there are "remaining" lines
-    And the procedure output mentions "3/13"
+    And the procedure output mentions "3/14"
     And the procedure output has a "next" line for "direction"
 
   Scenario: A review recorded against an earlier version is stale
@@ -97,7 +97,7 @@ Feature: "papyrus stories next" gives one answer about what remains
     And every step of the Story is closed
     When I run "stories next" with "--story story-1"
     Then the procedure output has a "status" line reading "complete"
-    And the procedure output mentions "13/13"
+    And the procedure output mentions "14/14"
     And the procedure output has no "remaining" line
     And the procedure output has no "next" line
     And the procedure output has no "lens" line
