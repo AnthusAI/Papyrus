@@ -9,6 +9,9 @@ import { fetchAuthSession } from "aws-amplify/auth";
 import { gsap } from "gsap";
 import { Flip } from "gsap/Flip";
 import { ArchiveIcon, MenuIcon, MoreHorizontalIcon, RefreshCwIcon, XIcon } from "lucide-react";
+import { Palette, PenLine, ScrollText } from "lucide-react";
+import { VisualStyleAdmin } from "./visual-style-admin";
+import { WritingGuidelinesAdmin } from "./writing-guidelines-admin-panel";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -4617,6 +4620,7 @@ function AdministrationDeskView({
                   doctrineDrafts={doctrineDrafts}
                   doctrineRecords={doctrineRecords}
                   onCategoryDoctrineSave={onCategoryDoctrineSave}
+                  isAdmin={canManageUsers}
                   onPolicyChange={onPolicyChange}
                   onPolicySave={onPolicySave}
                 />
@@ -4915,6 +4919,7 @@ function AdministrationPoliciesPanel({
   doctrineCategories,
   doctrineDrafts,
   doctrineRecords,
+  isAdmin,
   onCategoryDoctrineSave,
   onPolicyChange,
   onPolicySave,
@@ -4924,6 +4929,7 @@ function AdministrationPoliciesPanel({
   doctrineCategories: DoctrineCategory[];
   doctrineDrafts: DoctrineEditorState;
   doctrineRecords: DoctrineRecord[];
+  isAdmin: boolean;
   onCategoryDoctrineSave: (category: DoctrineCategory, kind: DoctrineKind, text: string) => void;
   onPolicyChange: (kind: DoctrineKind, text: string) => void;
   onPolicySave: (kind: DoctrineKind) => void;
@@ -4934,6 +4940,7 @@ function AdministrationPoliciesPanel({
   );
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(sortedCategories[0]?.categoryKey ?? null);
   const selectedCategory = sortedCategories.find((category) => category.categoryKey === selectedCategoryKey) ?? sortedCategories[0] ?? null;
+  const [policiesTab, setPoliciesTab] = useState<"doctrine" | "writing-guidelines" | "visual-style">("doctrine");
 
   useEffect(() => {
     if (!sortedCategories.length) {
@@ -4947,6 +4954,14 @@ function AdministrationPoliciesPanel({
 
   return (
     <div data-news-desk-admin-panel="policies">
+      <div aria-label="Policy pages" className="mb-4 flex flex-wrap gap-2" data-policies-tabs role="group">
+        <Button aria-pressed={policiesTab === "doctrine"} onClick={() => setPoliciesTab("doctrine")} type="button" variant={policiesTab === "doctrine" ? "default" : "secondary"}><ScrollText aria-hidden /> Mission and policy{policiesTab === "doctrine" ? <span className="sr-only"> (selected)</span> : null}</Button>
+        <Button aria-pressed={policiesTab === "writing-guidelines"} data-policies-tab="writing-guidelines" onClick={() => setPoliciesTab("writing-guidelines")} type="button" variant={policiesTab === "writing-guidelines" ? "default" : "secondary"}><PenLine aria-hidden /> Writing guidelines{policiesTab === "writing-guidelines" ? <span className="sr-only"> (selected)</span> : null}</Button>
+        <Button aria-pressed={policiesTab === "visual-style"} data-policies-tab="visual-style" onClick={() => setPoliciesTab("visual-style")} type="button" variant={policiesTab === "visual-style" ? "default" : "secondary"}><Palette aria-hidden /> Visual style{policiesTab === "visual-style" ? <span className="sr-only"> (selected)</span> : null}</Button>
+      </div>
+      {policiesTab === "visual-style" ? <VisualStyleAdmin isAdmin={isAdmin} /> : policiesTab === "writing-guidelines" ? (
+        <WritingGuidelinesAdmin isAdmin={isAdmin} sections={sortedCategories.map((category) => ({ key: category.categoryKey, name: category.shortTitle || category.displayName }))} />
+      ) : <>
       <SectionHeader title="Editorial Policies" detail="Publication defaults with optional category overrides" />
       <div className="news-desk-doctrine-list">
         {DOCTRINE_DEFINITIONS.map((definition) => {
@@ -5010,6 +5025,7 @@ function AdministrationPoliciesPanel({
           </div>
         </div>
       </section>
+      </>}
     </div>
   );
 }

@@ -22,6 +22,18 @@ papyrus editorial context --backend cloud --story STORY_LINEAGE --format json
 papyrus editorial pack
 ```
 
+Then read the site's writing guidelines resolved for the Story's section, with the
+layer every field came from, before anything else you write:
+
+```bash
+papyrus guidelines resolve --kind writing --section SECTION
+```
+
+The agent context pack carries the same guidelines first (`papyrus assignments context-pack
+--story STORY_LINEAGE --profile copywriter`). They are the site's voice, audience, words to prefer and
+avoid, and binding rules; they add to this skill and never replace it. A `writing_guidelines_missing`
+warning means the site has none yet: say so, and do not invent a voice.
+
 The context `text` is the publication's mission and policy (and the section's,
 when the story has one), in precedence order. The pack's policies carry the
 house voice, banned phrases and judgment questions. **The same data instructs the

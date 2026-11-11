@@ -31,6 +31,8 @@
     "check:tenant-isolation-cases": "tsx scripts/generate-tenant-isolation-cases.ts --check",
     "test:tenant-isolation-cases": "tsx --test scripts/test-tenant-isolation-cases.ts && poetry run behave features_backend/tenant-isolation-adversarial.feature",
     "test:reference-link-resolvers": "tsx --test scripts/test-reference-links.ts && cucumber-js --profile referenceLinkResolvers",
+    "test:writing-guidelines-admin": "tsx --test scripts/test-writing-guidelines-admin-logic.ts && tsx scripts/test-writing-guidelines-admin.ts && cucumber-js --profile writingGuidelinesAdmin",
+    "test:visual-style-admin": "tsx --test scripts/test-visual-style-admin-logic.ts && tsx scripts/test-visual-style-admin.ts && cucumber-js --profile visualStyleAdmin",
     "test:image-example-upload": "tsx scripts/test-model-attachment-visual-roles.ts",
     "test:story-preview-heading": "tsx --test scripts/test-story-preview-heading.ts && cucumber-js --profile storyPreviewHeading",
     "test:story-detail-headline-image": "tsx --test scripts/test-story-headline-image.ts && cucumber-js --profile storyDetailHeadlineImage",

@@ -59,3 +59,12 @@ Feature: Current editorial context for newsroom agents
     Given editorial records with two sections called "Culture Desk"
     When editorial checks resolve context optionally for section "Culture Desk"
     Then the editorial context is resolved without section guidance and a warning names the publication
+
+  Scenario: Editorial context lists writing and image guidelines with their versions and hashes
+    Given editorial records with current publication and section policies
+    And the site has writing guidelines for the publication and the section "science" and image guidelines for the section "science"
+    When the agent resolves editorial context for assignment "a1" including the guidelines
+    Then the editorial context lists the writing guidelines at the publication and at the section and the image guidelines at the section
+    And each guidelines entry names its lineage, its version and a sha256 of its text, and the text names the command that reads them resolved
+    And the editorial context asked for without the guidelines lists none of them
+

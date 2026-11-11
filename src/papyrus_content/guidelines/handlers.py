@@ -22,6 +22,7 @@ from papyrus_content.images.operations import ERROR_BY_CODE
 from papyrus_content.images.profile_handlers import diff_profile, get_profile, identify, profile_history, save_profile
 from papyrus_content.images.visual_style import constraint_changes, diff_documents
 
+from .derived_policies import apply_derived_plan, changed_steps, describe_plan, plan_derived_policies
 from .document import CONSTRAINTS, GuidelineError, kind_spec, validate_document
 from .layering import resolve_guidelines, resolve_image_guidelines
 from .store import DocumentFiles, GuidelineStore, reference, saved_by_of
@@ -145,7 +146,19 @@ def kind_of_check(section: str | None) -> bool:
     return bool(section)
 
 
-def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
+def _policy_store(client, policies):
+    if policies is not None:
+        return policies
+    if getattr(client, "policies", None) is not None:
+        return client.policies
+    if hasattr(client, "graphql"):
+        from papyrus_content.editorial_checks import GraphQLEditorialStore
+
+        return GraphQLEditorialStore(client.graphql, getattr(client, "tenant_id", None))
+    return None
+
+
+def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None, policies=None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
     if kind == IMAGE_KIND and not section:
@@ -164,8 +177,16 @@ def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
             raise _refused(error) from error
     changes = diff_documents(old, document)
     number = int(current["row"].get("versionNumber") or 1) if current else 0
-    return Outcome(_described(kind, section, changes=changes, constraintChanges=_constraint_changes(kind, old, document),
-                              wouldCreateVersion=number + 1 if changes or current is None else number), publication)
+    would_create = number + 1 if changes or current is None else number
+    extra: dict = {}
+    store_of_policies = _policy_store(client, policies) if kind == "writing" else None
+    if store_of_policies is not None:
+        try:
+            extra["policyPlan"] = describe_plan(plan_derived_policies(store_of_policies, document, section, would_create))
+        except ModuleNotFoundError:
+            extra["policyPlanNotAvailable"] = "The Humanus policy reader is not installed where this diff ran."
+    return Outcome(_described(kind, section, changes=changes, constraintChanges=_constraint_changes(kind, old, document), wouldCreateVersion=would_create, **extra),
+                   publication)
 
 
 def guidelines_history(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
@@ -200,7 +221,7 @@ def _earlier_answer(rows: list[dict], caller: Caller) -> dict | None:
     return next((row for row in rows if saved_by_of(row).get("requestId") == caller.request_id and saved_by_of(row).get("sub") == caller.subject), None)
 
 
-def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
+def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None, policies=None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
     if not caller.is_admin:
@@ -232,8 +253,18 @@ def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
     except GuidelineError as error:
         raise _refused(error) from error
     ref = saved["reference"]
+    extra: dict = {}
+    store_of_policies = _policy_store(client, policies) if kind == "writing" else None
+    if store_of_policies is not None:
+        try:
+            steps = plan_derived_policies(store_of_policies, document, section, ref["versionNumber"])
+        except ModuleNotFoundError:
+            extra["policiesNotSynced"] = "The Humanus policy reader is not installed where this save ran; save again from the signed-in command line to sync the checks."
+        else:
+            apply_derived_plan(store_of_policies, steps)
+            extra["policies"] = describe_plan(changed_steps(steps))
     return Outcome(_described(kind, section, itemId=ref["itemId"], versionNumber=ref["versionNumber"], contentHash=ref["contentHash"] or "",
-                              **({} if saved["changed"] else {"unchanged": True})), publication)
+                              **({} if saved["changed"] else {"unchanged": True}), **extra), publication)
 
 
 # --- the lanes ---------------------------------------------------------------------------------------------------------------------------------------
@@ -262,11 +293,12 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None) -> dict[
     return {name: wrap(function) for name, function in GUIDELINE_HANDLERS.items()}
 
 
-def with_client(client, files: DocumentFiles | None = None, caller_filter: Callable[[Caller], Caller] | None = None) -> dict[str, Handler]:
+def with_client(client, files: DocumentFiles | None = None, caller_filter: Callable[[Caller], Caller] | None = None, policies=None) -> dict[str, Handler]:
     """The same handlers bound to one client and its document files (the image-service function and the tests)."""
     def bind(function):
         def handler(arguments: dict, caller: Caller) -> Outcome:
-            return function(client, arguments, caller_filter(caller) if caller_filter else caller, files)
+            wanted = (files,) + ((policies,) if function in (save_guidelines, diff_guidelines) else ())
+            return function(client, arguments, caller_filter(caller) if caller_filter else caller, *wanted)
         return handler
 
     return {name: bind(function) for name, function in GUIDELINE_HANDLERS.items()}
