@@ -10,9 +10,22 @@
   "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5e3fee71-d369-4794-bf23-bcf2f8f9539c",
+      "author": "home",
+      "text": "From Humorus, 2026-11-11, first real attempt on a new account in another organisation: infra/pipeline/bootstrap.sh could not be used. Its default --repo is this repository, so step 4 would overwrite this repository's AWS_ACCOUNT_ID variable with the new account and redirect our own releases; with --repo set to the site's repository the roles trust a repository that has none of the workflows. stacks.json also names our own domain for the operators stack. Only the CDK bootstrap was run. Needed: a way to bootstrap a second account without touching this repository's variables, with the domain taken from configuration.",
+      "created_at": "2026-11-11T17:37:32.883850Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Claude Fable 5.2",
+        "name": "Humorus Planning"
+      }
+    }
+  ],
   "created_at": "2026-11-11T17:16:00.428184Z",
-  "updated_at": "2026-11-11T17:16:00.428217Z",
+  "updated_at": "2026-11-11T17:37:32.884056Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
