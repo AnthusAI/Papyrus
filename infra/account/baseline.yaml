@@ -123,6 +123,10 @@ Resources:
                   - cloudformation:GetTemplateSummary
                   - cloudformation:ListChangeSets
                 Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-*/*"
+              - Sid: ReadWhyAChangeSetFailed
+                Effect: Allow
+                Action: cloudformation:DescribeEvents
+                Resource: "*"
               - Sid: ChangeSetsOnlyThroughTheServiceRole
                 Effect: Deny
                 Action: cloudformation:CreateChangeSet
@@ -259,6 +263,10 @@ Resources:
                   - cloudformation:GetTemplateSummary
                   - cloudformation:ListChangeSets
                 Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-github-deploy/*"
+              - Sid: ReadWhyAChangeSetFailed
+                Effect: Allow
+                Action: cloudformation:DescribeEvents
+                Resource: "*"
               - Sid: ChangeSetsOnlyThroughTheRolesServiceRole
                 Effect: Deny
                 Action: cloudformation:CreateChangeSet
@@ -311,12 +319,17 @@ Resources:
                   - route53:ChangeResourceRecordSets
                   - route53:ListResourceRecordSets
                   - route53:GetChange
+                  - route53:ListQueryLoggingConfigs
+                  - route53:GetQueryLoggingConfig
                 Resource: "*"
               - Sid: Budget
                 Effect: Allow
                 Action:
                   - budgets:ViewBudget
                   - budgets:ModifyBudget
+                  - budgets:ListTagsForResource
+                  - budgets:TagResource
+                  - budgets:UntagResource
                 Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/*"
               - Sid: ReadTheBudgetAlertAddress
                 Effect: Allow

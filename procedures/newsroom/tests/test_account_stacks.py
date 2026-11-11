@@ -395,6 +395,16 @@ def test_a_hand_made_zone_is_imported_then_updated(tmp_path):
     assert cloud.stacks["acct-dns"]["StackStatus"] == "UPDATE_COMPLETE"
 
 
+def test_a_stack_left_in_review_in_progress_is_still_imported_never_created(tmp_path):
+    """A first run whose change set failed to create leaves an empty REVIEW_IN_PROGRESS stack; creating a zone then would make a second zone."""
+    cloud = import_cloud()
+    cloud.stacks["acct-dns"] = {"StackStatus": "REVIEW_IN_PROGRESS", "Parameters": []}
+    ctx = make(tmp_path, cloud, [ZONE])
+    sd.deploy_stack(ctx, ZONE)
+    assert [c["kind"] for c in cloud.created][0] == "import"
+    assert "create" not in [c["kind"] for c in cloud.created]
+
+
 def test_the_zone_id_is_the_bare_id_without_the_hostedzone_prefix(tmp_path):
     cloud = import_cloud()
     assert sd.find_import(make(tmp_path, cloud, [ZONE]), ZONE_IMPORT) == "ZONE1"
@@ -751,7 +761,8 @@ def test_reusable_workflow_is_valid_and_pins_actions():
     doc = yaml.safe_load(text)
     triggers = doc.get("on") or doc.get(True)
     assert "workflow_call" in triggers
-    assert set(doc["jobs"]) == {"lint", "plan", "deploy", "roles"}
+    assert set(doc["jobs"]) == {"lint", "plan", "roles-check", "roles", "deploy"}
+    assert doc["jobs"]["roles"]["needs"] == "roles-check" and "roles" in doc["jobs"]["deploy"]["needs"]  # roles are applied before the app stacks
     for line in re.findall(r"^\s+- uses: (\S+)", text, flags=re.M):
         assert re.search(r"@[0-9a-f]{40}$", line), line  # every action pinned by commit
     assert doc["jobs"]["roles"]["environment"]
