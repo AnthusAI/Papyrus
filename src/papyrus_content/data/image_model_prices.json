@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "currency": "USD",
+  "note": "Estimated list prices per generated image, used to show a cost before anything is made. An estimate, not a bill. A model missing here, or listed without usdPerImage, is reported as unpriced, never as free. Edit this file to add a price once it is read from the provider's price page; no code changes.",
+  "models": {}
+}

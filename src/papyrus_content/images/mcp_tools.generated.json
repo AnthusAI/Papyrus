@@ -840,6 +840,11 @@
             "additionalProperties": false,
             "description": "What the picture is for: a Story or a Reference."
           },
+          "sectionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from."
+          },
           "use": {
             "type": "string",
             "enum": [
@@ -909,11 +914,11 @@
           }
         },
         "required": [
-          "target",
           "use",
           "brief"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "target may be left out: with no Story or Reference the round is private, there is nothing to apply, and it is for ad assets and section art."
       },
       "outputSchema": {
         "type": "object",
@@ -1184,6 +1189,11 @@
             "additionalProperties": false,
             "description": "What the picture is for: a Story or a Reference."
           },
+          "sectionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from."
+          },
           "use": {
             "type": "string",
             "enum": [
@@ -1253,11 +1263,11 @@
           }
         },
         "required": [
-          "target",
           "use",
           "brief"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "target may be left out: with no Story or Reference the round is private, there is nothing to apply, and it is for ad assets and section art."
       },
       "outputSchema": {
         "type": "object",

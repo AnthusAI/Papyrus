@@ -138,14 +138,15 @@ COMMANDS = [{'op': 'image_profile_get',
   'summary': 'Show exactly what would be asked of the image model, and what it would cost, without making anything.',
   'effect': 'read',
   'agentAllowed': True,
-  'usage': 'papyrus images prompt (--story ID | --reference ID) --use cover|inline|social [--image-type TEXT] --brief TEXT [--count N] [--spread '
-           'variations|types] [--image-types TEXT ...] [--model TEXT] [--accept-fallback TEXT] [--references TEXT ...] [--speed auto|standard|batch] '
-           '[--input-file PATH]',
+  'usage': 'papyrus images prompt [--story ID | --reference ID] [--section TEXT] --use cover|inline|social [--image-type TEXT] --brief TEXT [--count '
+           'N] [--spread variations|types] [--image-types TEXT ...] [--model TEXT] [--accept-fallback TEXT] [--references TEXT ...] [--speed '
+           'auto|standard|batch] [--input-file PATH]',
   'positional': [],
   'file': None,
   'picture': None,
   'flags': [{'field': 'target', 'flag': '--story', 'kind': 'target', 'targetKind': 'story'},
             {'field': 'target', 'flag': '--reference', 'kind': 'target', 'targetKind': 'reference'},
+            {'field': 'sectionId', 'flag': '--section', 'kind': 'string'},
             {'field': 'use', 'flag': '--use', 'kind': 'string', 'enum': ['cover', 'inline', 'social']},
             {'field': 'imageType', 'flag': '--image-type', 'kind': 'string'},
             {'field': 'brief', 'flag': '--brief', 'kind': 'string'},
@@ -181,14 +182,15 @@ COMMANDS = [{'op': 'image_profile_get',
   'summary': "Make pictures from a brief in the publication's style. The pictures arrive later.",
   'effect': 'spend',
   'agentAllowed': True,
-  'usage': 'papyrus images generate (--story ID | --reference ID) --use cover|inline|social [--image-type TEXT] --brief TEXT [--count N] [--spread '
-           'variations|types] [--image-types TEXT ...] [--model TEXT] [--accept-fallback TEXT] [--references TEXT ...] [--speed auto|standard|batch] '
-           '[--input-file PATH] [--dry-run]',
+  'usage': 'papyrus images generate [--story ID | --reference ID] [--section TEXT] --use cover|inline|social [--image-type TEXT] --brief TEXT '
+           '[--count N] [--spread variations|types] [--image-types TEXT ...] [--model TEXT] [--accept-fallback TEXT] [--references TEXT ...] '
+           '[--speed auto|standard|batch] [--input-file PATH] [--dry-run]',
   'positional': [],
   'file': None,
   'picture': None,
   'flags': [{'field': 'target', 'flag': '--story', 'kind': 'target', 'targetKind': 'story'},
             {'field': 'target', 'flag': '--reference', 'kind': 'target', 'targetKind': 'reference'},
+            {'field': 'sectionId', 'flag': '--section', 'kind': 'string'},
             {'field': 'use', 'flag': '--use', 'kind': 'string', 'enum': ['cover', 'inline', 'social']},
             {'field': 'imageType', 'flag': '--image-type', 'kind': 'string'},
             {'field': 'brief', 'flag': '--brief', 'kind': 'string'},

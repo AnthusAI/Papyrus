@@ -92,7 +92,7 @@ PAGE = {"nextToken": text("Pass this to get the next page. Absent when there is 
 
 # image_generate and image_prompt_preview take the same input.
 GENERATE_INPUT = obj({
-    "target": TARGET, "use": USE, "imageType": IMAGE_TYPE, "brief": text("What the picture should show. The publication's style rules are added by the service, never written here."),
+    "target": TARGET, "sectionId": text("A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from."), "use": USE, "imageType": IMAGE_TYPE, "brief": text("What the picture should show. The publication's style rules are added by the service, never written here."),
     "count": whole("How many to make (default 1). More than 1 is for a person choosing; an agent asking for more gets set_needs_person."),
     "spread": choice("variations", "types", description="Four takes of one image type, or one take of each type the use allows that can be generated."),
     "imageTypes": many(text(), "Image types to spread across, from the profile."),
@@ -100,7 +100,7 @@ GENERATE_INPUT = obj({
     "acceptFallback": text("Id of a fallback offered in a capability_unsupported error, to use instead."),
     "references": many(text(), "Example ids of the chosen image type to send as style references. Nothing else is accepted."),
     "speed": choice("auto", "standard", "batch", description="Which lane: auto picks by who is asking (a person standard, an agent batch at half price)."),
-}, ("target", "use", "brief"))
+}, ("use", "brief"), "target may be left out: with no Story or Reference the round is private, there is nothing to apply, and it is for ad assets and section art.")
 ROUND_RESULT = record({
     "roundId": text(), "imageType": text(), "imageTypeChosenBy": TYPE_CHOSEN_BY, "candidates": many(CANDIDATE_SUMMARY), "estimate": COST_ESTIMATE,
 }, ("roundId", "candidates"), "Returned at once; the pictures arrive later (image_round_get).")
@@ -320,7 +320,8 @@ OPERATIONS: tuple[Operation, ...] = (
         ("capability_unsupported", "constraint_conflict", "generation_not_configured", "image_type_required", "image_type_unknown", "not_found",
          "set_needs_person", "source_not_allowed"),
         (Example({"target": _STORY, "use": "cover", "imageType": "cover-illustration", "brief": "A locked filing cabinet with one drawer ajar"},
-                 {"plans": [{"planVersion": "image-prompt/v1", "imageType": "cover-illustration", "segments": [], "avoid": []}], "estimate": _ESTIMATE, "capabilityCheck": {"ok": True}}),),
+                 {"plans": [{"planVersion": "image-prompt/v2", "imageType": "cover-illustration", "segments": [], "avoid": []}], "estimate": _ESTIMATE, "capabilityCheck": {"ok": True}}),),
+        flags=(("sectionId", "section"),),
     ),
     # --- finding and making
     Operation(
@@ -343,7 +344,7 @@ OPERATIONS: tuple[Operation, ...] = (
                  {"roundId": "round-1", "imageType": "cover-illustration", "imageTypeChosenBy": "request",
                   "candidates": [{"id": "candidate-1", "position": 0, "status": "queued", "imageType": "cover-illustration", "origin": "generated", "lane": "batch"}],
                   "estimate": _ESTIMATE}),),
-        flags=(("imageTypes", "image-types"),),
+        flags=(("imageTypes", "image-types"), ("sectionId", "section")),
         notes="Spends only when the site's image generation is configured and approved.",
     ),
     Operation(
