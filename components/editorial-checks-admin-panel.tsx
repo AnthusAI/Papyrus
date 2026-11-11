@@ -60,6 +60,11 @@ function draftFrom(record: EditorialPolicyRecord, isNew: boolean): Draft {
   };
 }
 
+/** A check drawn from writing guidelines stops being synced the moment an admin edits it by hand (PPY-457028). */
+function handEditedSource(source: string): string {
+  return source.startsWith("writing-guidelines:") ? "custom" : source;
+}
+
 function lines(text: string): string[] {
   return text.split("\n").map((line) => line.trim()).filter(Boolean);
 }
@@ -141,6 +146,7 @@ export function EditorialChecksAdminPanel() {
         version: draft.isNew ? 1 : draft.record.version + 1,
         detectors: policy.detectors as unknown[],
         examples: (policy.examples as EditorialPolicyRecord["examples"]) ?? null,
+        source: draft.isNew ? draft.record.source : handEditedSource(draft.record.source),
       };
       await savePolicy(record, draft.isNew);
       setDraft(null);
@@ -226,7 +232,7 @@ export function EditorialChecksAdminPanel() {
                     aria-label={`${policy.title} enabled`}
                     checked={policy.enabled}
                     onChange={(event) => void run("toggle", async () => {
-                      await savePolicy({ ...policy, enabled: event.target.checked, version: policy.version + 1 }, false);
+                      await savePolicy({ ...policy, enabled: event.target.checked, version: policy.version + 1, source: handEditedSource(policy.source) }, false);
                       await refresh();
                     })}
                     type="checkbox"
