@@ -766,3 +766,11 @@ def test_import_template_drops_outputs_only():
     assert sd.import_template_text("Resources:\n  Z: {Type: X}\n") == "Resources:\n  Z: {Type: X}\n"
     real = (ROOT / "infra" / "account" / "stacks" / "dns.yaml").read_text(encoding="utf-8")
     assert "Outputs" in real and "Outputs" not in sd.import_template_text(real) and "HostedZone:" in sd.import_template_text(real)
+
+
+def test_baseline_trust_supports_the_repository_subject_prefix():
+    """A repository with immutable OIDC subjects has a different prefix; every trust statement must use the parameter when it is set."""
+    text = (ACCOUNT_DIR / "baseline.yaml").read_text(encoding="utf-8")
+    assert "GithubSubjectPrefix:" in text and "CustomSubject:" in text
+    assert text.count("Subject: !If [CustomSubject, !Ref GithubSubjectPrefix") == 3  # deploy, plan, roles-apply
+    assert 'repo:${GithubRepository}:' not in text

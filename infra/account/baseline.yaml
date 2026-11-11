@@ -21,6 +21,14 @@ Parameters:
     Type: String
     AllowedPattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
     Description: owner/repo allowed to assume the roles.
+  GithubSubjectPrefix:
+    Type: String
+    Default: ""
+    AllowedPattern: "^(repo:[A-Za-z0-9_.@-]+/[A-Za-z0-9_.@-]+)?$"
+    Description: >-
+      Leave empty for the classic subject "repo:<owner>/<repo>". A repository that uses GitHub's immutable subject claims has a
+      different prefix, "repo:<owner>@<owner id>/<repo>@<repo id>"; read it with
+      `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` (sub_claim_prefix). Roles that trust the wrong prefix refuse every run.
   ProductionBranch:
     Type: String
     Default: main
@@ -47,6 +55,7 @@ Parameters:
 
 Conditions:
   CreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
+  CustomSubject: !Not [!Equals [!Ref GithubSubjectPrefix, ""]]
 
 Resources:
   GithubOidcProvider:
@@ -82,7 +91,9 @@ Resources:
             Condition:
               StringEquals:
                 "token.actions.githubusercontent.com:aud": sts.amazonaws.com
-                "token.actions.githubusercontent.com:sub": !Sub "repo:${GithubRepository}:ref:refs/heads/${ProductionBranch}"
+                "token.actions.githubusercontent.com:sub": !Sub
+                  - "${Subject}:ref:refs/heads/${ProductionBranch}"
+                  - Subject: !If [CustomSubject, !Ref GithubSubjectPrefix, !Sub "repo:${GithubRepository}"]
       Policies:
         - PolicyName: start-and-read-production-amplify-jobs
           PolicyDocument:
@@ -174,7 +185,9 @@ Resources:
             Condition:
               StringEquals:
                 "token.actions.githubusercontent.com:aud": sts.amazonaws.com
-                "token.actions.githubusercontent.com:sub": !Sub "repo:${GithubRepository}:pull_request"
+                "token.actions.githubusercontent.com:sub": !Sub
+                  - "${Subject}:pull_request"
+                  - Subject: !If [CustomSubject, !Ref GithubSubjectPrefix, !Sub "repo:${GithubRepository}"]
       Policies:
         - PolicyName: read-only-plan
           PolicyDocument:
@@ -225,7 +238,9 @@ Resources:
             Condition:
               StringEquals:
                 "token.actions.githubusercontent.com:aud": sts.amazonaws.com
-                "token.actions.githubusercontent.com:sub": !Sub "repo:${GithubRepository}:environment:${ApprovalEnvironment}"
+                "token.actions.githubusercontent.com:sub": !Sub
+                  - "${Subject}:environment:${ApprovalEnvironment}"
+                  - Subject: !If [CustomSubject, !Ref GithubSubjectPrefix, !Sub "repo:${GithubRepository}"]
       Policies:
         - PolicyName: update-the-pipeline-roles-stack
           PolicyDocument:
