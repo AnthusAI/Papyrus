@@ -167,6 +167,43 @@ def validate_profile(document: Any) -> list[Problem]:
     return problems
 
 
+SECTION_TOP_LEVEL = OVERRIDE_FIELDS | {"schemaVersion", "bodyMarkus"}
+
+
+def validate_section_style(document: Any) -> list[Problem]:
+    """Every reason a section's image document may not be saved. A section may narrow and add guidance; it never sets what the publication alone owns."""
+    problems: list[Problem] = []
+
+    def add(path: str, message: str, code: str = "invalid_input") -> None:
+        problems.append(Problem(path, message, code))
+
+    if not isinstance(document, dict):
+        return [Problem("document", "The section's image document must be an object.")]
+    if document.get("schemaVersion") != SCHEMA_VERSION:
+        add("schemaVersion", f"schemaVersion must be {SCHEMA_VERSION}.")
+    for name in document:
+        if name not in SECTION_TOP_LEVEL:
+            add(name, f"{name} cannot be set from a section. Binding rules and what the publication forbids belong to the publication's image guidelines.")
+    if "bodyMarkus" in document and not isinstance(document["bodyMarkus"], str):
+        add("bodyMarkus", "bodyMarkus must be text.")
+    _check_style_fields("section", {key: value for key, value in document.items() if key in OVERRIDE_FIELDS and key != "imageTypes"}, set(), add)
+    aimed = document.get("imageTypes")
+    if aimed is not None and not isinstance(aimed, dict):
+        add("imageTypes", "imageTypes must be an object keyed by image type.")
+        aimed = {}
+    for key, definition in (aimed or {}).items():
+        where = f"imageTypes.{key}"
+        _check_key(where, key, add)
+        if not isinstance(definition, dict):
+            add(where, "A section's change to an image type must be an object.")
+            continue
+        for field in definition:
+            if field not in OVERRIDE_FIELDS - {"imageTypes"}:
+                add(f"{where}.{field}", f"{field} cannot be set from a section.")
+        _check_style_fields(where, definition, set(), add)
+    return problems
+
+
 def _check_key(path: str, key: str, add) -> None:
     if not KEY_PATTERN.match(key):
         add(path, f"{key!r} is not a valid key: use lowercase words joined by hyphens.")
@@ -666,7 +703,7 @@ def resolve_visual_style(profile: dict | None, *, profile_ref: dict | None = Non
         source = f"{layer}:{key}" if key else layer
         if not data and not prose:
             return
-        layers.append({"layer": layer, **({"source": {"sectionId": section.get("id"), "updatedAt": section.get("updatedAt")}} if layer == "section" and section else {}),
+        layers.append({"layer": layer, **({"source": {"sectionId": section.get("id"), "updatedAt": section.get("updatedAt"), **(section.get("documentSource") or {})}} if layer == "section" and section else {}),
                        **({"source": dict(story_style["source"])} if layer == "story" and isinstance(story_style, dict) and story_style.get("source") else {})})
         for field in data:
             if field not in OVERRIDE_FIELDS:

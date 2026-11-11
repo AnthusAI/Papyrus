@@ -247,7 +247,7 @@ def test_the_image_kind_runs_the_image_profile_operations_and_resolves_elsewhere
     assert execute("guidelines_history", {"kind": "image"}, Caller(), handlers)["result"]["versions"][0]["versionNumber"] == 1
     assert execute("guidelines_diff", {"kind": "image", "document": {"identity": {"mood": ["calm"]}}}, Caller(), handlers)["ok"]
     assert execute("guidelines_resolve", {"kind": "image"}, Caller(), handlers)["error"]["code"] == "resolver_not_available"
-    assert execute("guidelines_get", {"kind": "image", "section": "news"}, Caller(), handlers)["error"]["code"] == "invalid_input"
+    assert execute("guidelines_get", {"kind": "image", "section": "news"}, Caller(), handlers)["error"]["code"] == "not_found"
     guard = got["result"]["itemId"]
     save_input = {"kind": "image", "document": {"identity": {"mood": ["calm", "dry"]}}, "reason": "Mood", "expectedCurrentVersionId": guard}
     assert execute("guidelines_save", save_input, Caller(subject="Edie"), handlers)["error"]["code"] == "not_authorized"

@@ -84,10 +84,10 @@ def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | 
                                   request_id=arguments.get("requestId") if door in WRITE_DOORS else None)
     try:
         client = (client_factory or default_client_factory(env))()
+        files = (files_factory or (lambda built: S3DocumentFiles(built, env=env)))(client)
         if DOOR_GROUP[door] == "guidelines":
-            files = (files_factory or (lambda built: S3DocumentFiles(built, env=env)))(client)
             return execute(name, payload, caller, guidelines_with_client(client, files))
-        return execute(name, payload, caller, with_client(client, section_fields=SECTION_STYLE_FIELD))
+        return execute(name, payload, caller, with_client(client, section_fields=SECTION_STYLE_FIELD, files=files))
     except Exception as error:   # the browser gets a state; the cause goes to the log by type only
         LOG.error("image operation failed: %s %s", name, type(error).__name__)
         return error_envelope(name, "service_unavailable")

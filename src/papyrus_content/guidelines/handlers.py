@@ -8,8 +8,9 @@ keeps every kind the same way. The permission rules live here:
 * adding, changing or removing a binding constraint needs an admin who is a person: an agent gets ``human_required`` and nothing is saved;
 * a write repeated with the same request id by the same person gives the first answer, not a stale-version refusal.
 
-The ``image`` kind keeps its own document and resolver (``images/visual_style.py``): get, diff, save and history are the ``image_profile_*`` handlers,
-which stay as the operations' aliases; resolve points at ``papyrus images profile resolve``.
+The ``image`` kind keeps its own document and resolver (``images/visual_style.py``): for the publication's document, get, diff, save and history are the
+``image_profile_*`` handlers, which stay as the operations' aliases; resolve points at ``papyrus images profile resolve``, which also lays a section's image
+document over the profile. A section's image document is stored, read, diffed and saved by the generic path like any other kind's.
 """
 from __future__ import annotations
 
@@ -53,13 +54,10 @@ def _described(kind: str, section: str | None, **fields: Any) -> dict:
     return {"kind": kind, **({"section": section} if section else {}), **fields}
 
 
-def _image_alias(function: Callable, client, arguments: dict, caller: Caller) -> Outcome:
-    """Run an ``image_profile_*`` handler for ``kind: image``. Section image guidelines are not stored yet (PPY-c16829)."""
-    if arguments.get("section"):
-        raise ImageOperationError("invalid_input", "Section image guidelines are not stored yet; ask for the publication's image guidelines (leave section out).",
-                                  details={"path": "section"})
+def _image_alias(function: Callable, client, arguments: dict, caller: Caller, files: DocumentFiles | None) -> Outcome:
+    """Run an ``image_profile_*`` handler for the publication's ``kind: image`` document. A section's image document has no special rules and uses the generic path."""
     inner = {key: value for key, value in arguments.items() if key not in ("kind", "section")}
-    outcome = function(client, inner, caller)
+    outcome = function(client, inner, caller, files)
     result = {**outcome.result, "kind": IMAGE_KIND}
     if "profile" in result:
         result["document"] = result["profile"]
@@ -71,8 +69,8 @@ def _image_alias(function: Callable, client, arguments: dict, caller: Caller) ->
 def get_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
-    if kind == IMAGE_KIND:
-        return _image_alias(get_profile, client, arguments, caller)
+    if kind == IMAGE_KIND and not section:
+        return _image_alias(get_profile, client, arguments, caller, files)
     store = GuidelineStore(client, files)
     try:
         found = store.read(kind, section, version=arguments.get("version"))
@@ -127,8 +125,8 @@ def _checked(kind: str, document: Any, section: str | None) -> dict:
 def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
-    if kind == IMAGE_KIND:
-        return _image_alias(diff_profile, client, arguments, caller)
+    if kind == IMAGE_KIND and not section:
+        return _image_alias(diff_profile, client, arguments, caller, files)
     document = _checked(kind, arguments["document"], section)
     store = GuidelineStore(client, files)
     try:
@@ -145,8 +143,8 @@ def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
 def guidelines_history(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
-    if kind == IMAGE_KIND:
-        return _image_alias(profile_history, client, arguments, caller)
+    if kind == IMAGE_KIND and not section:
+        return _image_alias(profile_history, client, arguments, caller, files)
     try:
         rows = GuidelineStore(client, files).versions(kind, section)
     except GuidelineError as error:
@@ -181,8 +179,8 @@ def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
         raise ImageOperationError("not_authorized", "Only an admin may save guidelines. Nothing was saved.")
     if not caller.subject:
         raise ImageOperationError("not_authorized", "The caller is not identified, so the version cannot record who saved it.")
-    if kind == IMAGE_KIND:
-        return _image_alias(save_profile, client, arguments, caller)
+    if kind == IMAGE_KIND and not section:
+        return _image_alias(save_profile, client, arguments, caller, files)
     store = GuidelineStore(client, files)
     try:
         versions = store.versions(kind, section)

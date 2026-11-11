@@ -23,7 +23,7 @@ ADMIN = {"claims": {"name": "Ada Admin"}, "groups": ["admin"]}
 def knock(context, door, identity, **arguments):
     if "input" in arguments:
         arguments["input"] = json.dumps(arguments["input"])
-    context.door_answer = handle({"info": {"fieldName": door}, "identity": identity, "arguments": arguments}, client_factory=lambda: context.door_backend)
+    context.door_answer = handle({"info": {"fieldName": door}, "identity": identity, "arguments": arguments}, client_factory=lambda: context.door_backend, files_factory=lambda built: built.document_files)
     return context.door_answer
 
 
