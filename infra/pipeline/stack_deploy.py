@@ -691,7 +691,8 @@ def deploy_changes(ctx: Context, cfg: dict) -> str:
         raise Stop(f"template of {name} is {len(text.encode('utf-8'))} bytes; an inline template must be under {INLINE_TEMPLATE_LIMIT}")
 
     imp = cfg.get("import")
-    identifier = find_import(ctx, imp) if imp and stack is None else None
+    # A stack left in REVIEW_IN_PROGRESS by an earlier change set that failed to create is still a stack that does not exist yet: import, never create.
+    identifier = find_import(ctx, imp) if imp and (stack is None or status in FIRST_CREATE) else None
     if identifier is not None:
         ctx.out(f"{name}: the existing {imp['resourceType']} {identifier} will be imported, not replaced")
         run_change_set(ctx, cfg, None, "import", text, overrides, bucket, suffix="-import", resources=import_resources(imp, identifier))
