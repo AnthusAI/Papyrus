@@ -15,7 +15,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 from papyrus_content.images.examples import example_lists, provider_examples  # noqa: E402
 from papyrus_content.images.handlers import Caller, execute  # noqa: E402
 from papyrus_content.images.profile_handlers import with_client  # noqa: E402
-from papyrus_content.images.profile_store import profile_versions, to_document  # noqa: E402
+from papyrus_content.images.profile_store import document_store, profile_versions, to_document  # noqa: E402
 
 EDITOR = Caller(kind="person", subject="Edie Editor")
 AGENT = Caller(kind="agent", subject="Edie Editor", delegated_by="Edie Editor")
@@ -119,7 +119,7 @@ def step_remove(context, sha, reason):
 @when("an agent saves the same example with the provider flag switched on")
 def step_agent_flips(context):
     context.versions_before = current(context)["versionNumber"]
-    examples = [{**example, "sendToProvider": True} for example in example_lists(to_document(profile_versions(store(context))[0]))["cover-illustration"]]
+    examples = [{**example, "sendToProvider": True} for example in example_lists(to_document(profile_versions(store(context))[0], document_store(store(context))))["cover-illustration"]]
     run(context, "image_profile_save", {"document": {"imageTypes": {"cover-illustration": {"examples": examples}}}, "reason": "Flip it.",
                                          "expectedCurrentVersionId": current(context)["itemId"]}, AGENT)
 
@@ -127,7 +127,7 @@ def step_agent_flips(context):
 def stored_examples(context, image_type, version=None):
     versions = profile_versions(store(context))
     row = next(row for row in versions if int(row["versionNumber"]) == version) if version else versions[0]
-    return example_lists(to_document(row))[image_type]
+    return example_lists(to_document(row, document_store(store(context))))[image_type]
 
 
 @then("the profile is at version {number:d}")
@@ -178,14 +178,14 @@ def step_one_file(context):
 
 @then('the type "{image_type}", which extends "{parent}", lists no examples')
 def step_child_none(context, image_type, parent):
-    document = to_document(profile_versions(store(context))[0])
+    document = to_document(profile_versions(store(context))[0], document_store(store(context)))
     assert document["imageTypes"][image_type]["extends"] == parent
     assert example_lists(document)[parent] and example_lists(document)[image_type] == []
 
 
 @then('no example of "{image_type}" can be sent to a provider')
 def step_child_provider(context, image_type):
-    assert provider_examples(to_document(profile_versions(store(context))[0]), image_type) == []
+    assert provider_examples(to_document(profile_versions(store(context))[0], document_store(store(context))), image_type) == []
 
 
 @then('the type "{image_type}" lists no examples')
@@ -257,7 +257,7 @@ def step_refused_person(context, number):
 
 @then('the provider may be sent only the picture "{sha}" for "{image_type}"')
 def step_provider_only(context, sha, image_type):
-    document = to_document(profile_versions(store(context))[0])
+    document = to_document(profile_versions(store(context))[0], document_store(store(context)))
     assert [e["attachmentId"] for e in provider_examples(document, image_type)] == [attachment_id(context, sha)]
 
 

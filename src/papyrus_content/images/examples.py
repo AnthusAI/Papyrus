@@ -57,8 +57,8 @@ def _partial(scope: str, examples: list[dict]) -> dict:
     return {"identity": {"examples": examples}} if scope == IDENTITY else {"imageTypes": {scope: {"examples": examples}}}
 
 
-def _read_profile(client) -> tuple[dict, dict]:
-    document, _, row = _read_current(client)
+def _read_profile(client, files=None) -> tuple[dict, dict]:
+    document, _, row = _read_current(client, files)
     if document is None or row is None:
         raise ImageOperationError("not_found", "This publication has no visual style profile yet, so there is no image type to add a picture to. Save a profile first.",
                                   details={"expectedCurrentVersionId": NO_PROFILE_GUARD})
@@ -88,9 +88,9 @@ def _check_attachment(client, arguments: dict) -> dict:
     return attachment
 
 
-def example_add(client, arguments: dict, caller: Caller) -> Outcome:
+def example_add(client, arguments: dict, caller: Caller, files=None) -> Outcome:
     publication = _publication(client)
-    document, row = _read_profile(client)
+    document, row = _read_profile(client, files)
     _check_guard(row, arguments)
     scope = arguments["imageType"]
     if scope != IDENTITY:
@@ -109,14 +109,14 @@ def example_add(client, arguments: dict, caller: Caller) -> Outcome:
     entry = {"attachmentId": arguments["attachmentId"], "sha256": attachment["sha256"], "kind": arguments["kind"], "note": arguments["note"], "sendToProvider": send,
              "mediaType": attachment["mediaType"], "byteSize": int(attachment.get("byteSize") or 0), "filename": attachment.get("filename") or "",
              "addedBy": caller.subject, "addedByKind": caller.kind, "addedAt": utc_now_iso()}
-    saved = save_profile(client, {"document": _partial(scope, [*existing, entry]), "reason": arguments["reason"], "expectedCurrentVersionId": arguments["expectedCurrentVersionId"]}, caller)
+    saved = save_profile(client, {"document": _partial(scope, [*existing, entry]), "reason": arguments["reason"], "expectedCurrentVersionId": arguments["expectedCurrentVersionId"]}, caller, files)
     return Outcome({"attachmentId": arguments["attachmentId"], "sha256": "sha256:" + str(attachment["sha256"]), "versionNumber": saved.result["versionNumber"],
                     "imageType": scope}, publication)
 
 
-def example_remove(client, arguments: dict, caller: Caller) -> Outcome:
+def example_remove(client, arguments: dict, caller: Caller, files=None) -> Outcome:
     publication = _publication(client)
-    document, row = _read_profile(client)
+    document, row = _read_profile(client, files)
     _check_guard(row, arguments)
     wanted = arguments.get("imageType")
     lists = example_lists(document)
@@ -133,5 +133,5 @@ def example_remove(client, arguments: dict, caller: Caller) -> Outcome:
             partial["identity"] = {"examples": kept}
         else:
             partial.setdefault("imageTypes", {})[scope] = {"examples": kept}
-    saved = save_profile(client, {"document": partial, "reason": arguments["reason"], "expectedCurrentVersionId": arguments["expectedCurrentVersionId"]}, caller)
+    saved = save_profile(client, {"document": partial, "reason": arguments["reason"], "expectedCurrentVersionId": arguments["expectedCurrentVersionId"]}, caller, files)
     return Outcome({"versionNumber": saved.result["versionNumber"], "removedFrom": list(affected)}, publication)

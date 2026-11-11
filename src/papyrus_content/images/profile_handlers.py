@@ -16,10 +16,13 @@ from typing import Any, Callable
 from papyrus_content.editorial_context import _check_tenant, find_section, hosted_publication
 from papyrus_content.story_reporting import story_versions
 
+from papyrus_content.guidelines.document import GuidelineError
+from papyrus_content.guidelines.store import DocumentFiles
 from papyrus_content.publishing import utc_now_iso
 
 from .handlers import Caller, Handler, ImageOperationError, Outcome
-from .profile_store import NO_PROFILE_GUARD, current_version, next_record, profile_versions, reference, store_next_version, to_document
+from .profile_store import (IMAGE_KIND, NO_PROFILE_GUARD, current_version, document_store, profile_versions, read_current_profile, read_section_document, is_inline_shape, reference,
+                            to_document)
 from .visual_style import (Problem, StyleError, as_object, constraint_changes, diff_documents, image_review_of, keys_permanent, merge_document,
                            resolve_visual_style, stamp_constraints, validate_profile)
 
@@ -56,14 +59,22 @@ def _kind_of(row: dict) -> str:
     return "agent" if saved.get("kind") == "agent" else "human"
 
 
-def get_profile(client, arguments: dict, caller: Caller) -> Outcome:
+def _stored(error: GuidelineError) -> ImageOperationError:
+    return ImageOperationError("not_found" if error.code == "not_found" else "invalid_input", error.message, details=error.details)
+
+
+def get_profile(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
-    versions = profile_versions(client)
+    store = document_store(client, files)
+    versions = profile_versions(client, files=files)
     row = _row_by_version(versions, arguments["version"]) if arguments.get("version") else current_version(versions)
     if row is None:
         raise ImageOperationError("not_found", "This publication has no visual style profile" + (f" version {arguments['version']}." if arguments.get("version") else " yet."),
                                   details={"expectedCurrentVersionId": NO_PROFILE_GUARD})
-    document = to_document(row)
+    try:
+        document = to_document(row, store)
+    except GuidelineError as error:
+        raise _stored(error) from error
     return Outcome({"profile": document, "itemId": row["id"], "versionNumber": int(row.get("versionNumber") or 1), "updatedAt": row.get("versionCreatedAt") or row.get("updatedAt") or "",
                     "updatedBy": _who(row), "contentHash": reference(row)["contentHash"], "imageReview": image_review_of(document),
                     "isCurrent": row.get("versionState") == "current", "changeReason": row.get("changeReason") or ""}, publication)
@@ -85,13 +96,19 @@ SECTION_STYLE_FIELD = "visualStyle"
 
 
 def resolve_for_request(client, arguments: dict, *, operation: str = "resolve", allow_retired: bool = False,
-                        section_fields: str | None = None) -> tuple[dict, list[dict]]:
+                        section_fields: str | None = None, files: DocumentFiles | None = None) -> tuple[dict, list[dict]]:
     """The resolved style for a request of the shape image_profile_resolve takes, and the warnings the section lookup added.
 
     ``section_fields`` names fields to read from the section beyond the fixed list (``visualStyle``, which only a site whose data API has the field can
-    answer): the image-service function, which is deployed with that API, asks for it; the command line on the signed-in lane does not.
+    answer): both lanes ask for it and, when a site's data API does not have it yet, a warning says so.
+
+    A section's own image document (the ``image`` guideline at section scope) is the section layer when it exists; otherwise the section's ``visualStyle`` and
+    ``visualGuidance`` fields are, so a site that has not moved its section styles resolves as before.
     """
-    document, ref, _ = _read_current(client)
+    try:
+        document, ref, _ = read_current_profile(client, files)
+    except GuidelineError as error:
+        raise _stored(error) from error
     story = _story_for(client, arguments["target"]) if arguments.get("target") else None
     warnings: list[dict] = []
     section = None
@@ -104,7 +121,16 @@ def resolve_for_request(client, arguments: dict, *, operation: str = "resolve", 
         if section is not None:
             _check_tenant(client, section)
             if section_fields:
-                section = {**section, **(client.get_record_with_fields("NewsroomSection", section.get("storedId") or section["id"], section_fields) or {}), "id": section["id"]}
+                try:
+                    section = {**section, **(client.get_record_with_fields("NewsroomSection", section.get("storedId") or section["id"], section_fields) or {}), "id": section["id"]}
+                except Exception:
+                    warnings.append({"code": "section_style_unreadable", "message": "This site's data API cannot yet read a section's visualStyle field, so only the section's image document and visual guidance were applied."})
+            try:
+                layer = read_section_document(client, section, files)
+            except GuidelineError as error:
+                raise _stored(error) from error
+            if layer is not None:
+                section = {**section, **layer}
         elif arguments.get("sectionId"):
             raise ImageOperationError("not_found", f"No section {arguments['sectionId']} in this publication.")
         else:
@@ -123,14 +149,16 @@ def resolve_for_request(client, arguments: dict, *, operation: str = "resolve", 
     return resolved, resolved["warnings"]
 
 
-def _read_current(client) -> tuple[dict | None, dict | None, dict | None]:
-    row = current_version(profile_versions(client))
-    return (to_document(row), reference(row), row) if row else (None, None, None)
+def _read_current(client, files: DocumentFiles | None = None) -> tuple[dict | None, dict | None, dict | None]:
+    try:
+        return read_current_profile(client, files)
+    except GuidelineError as error:
+        raise _stored(error) from error
 
 
-def resolve_profile(client, arguments: dict, caller: Caller, section_fields: str | None = None) -> Outcome:
+def resolve_profile(client, arguments: dict, caller: Caller, section_fields: str | None = None, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
-    resolved, warnings = resolve_for_request(client, arguments, section_fields=section_fields)
+    resolved, warnings = resolve_for_request(client, arguments, section_fields=section_fields, files=files)
     return Outcome(resolved, publication, tuple(warnings))
 
 
@@ -144,10 +172,13 @@ class Prepared:
     constraint_changes: list[dict]
 
 
-def _prepare(client, arguments: dict) -> Prepared:
-    versions = profile_versions(client)
+def _prepare(client, arguments: dict, files: DocumentFiles | None = None) -> Prepared:
+    versions = profile_versions(client, files=files)
     row = current_version(versions)
-    old = to_document(row) if row else None
+    try:
+        old = to_document(row, document_store(client, files)) if row else None
+    except GuidelineError as error:
+        raise _stored(error) from error
     merged = merge_document(old, arguments["document"])
     problems = [*keys_permanent(old, merged), *validate_profile(merged)]
     if problems:
@@ -155,9 +186,9 @@ def _prepare(client, arguments: dict) -> Prepared:
     return Prepared(merged, versions, row, old, constraint_changes((old or {}).get("constraints"), merged.get("constraints")))
 
 
-def diff_profile(client, arguments: dict, caller: Caller) -> Outcome:
+def diff_profile(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
-    prepared = _prepare(client, arguments)
+    prepared = _prepare(client, arguments, files)
     changes = diff_documents(prepared.old, prepared.document)
     current = int(prepared.row.get("versionNumber") or 1) if prepared.row else 0
     return Outcome({"changes": changes, "constraintChanges": prepared.constraint_changes, "wouldCreateVersion": current + 1 if changes else current}, publication)
@@ -182,12 +213,12 @@ def _already_saved(versions: list[dict], caller: Caller) -> dict | None:
     return None
 
 
-def save_profile(client, arguments: dict, caller: Caller) -> Outcome:
+def save_profile(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
-    earlier = _already_saved(profile_versions(client), caller)
+    earlier = _already_saved(profile_versions(client, files=files), caller)
     if earlier is not None:
         return Outcome({"itemId": earlier["id"], "versionNumber": int(earlier.get("versionNumber") or 1), "contentHash": reference(earlier)["contentHash"], "repeated": True}, publication)
-    prepared = _prepare(client, arguments)
+    prepared = _prepare(client, arguments, files)
     merged, row, old = prepared.document, prepared.row, prepared.old
     guard = arguments["expectedCurrentVersionId"]
     if (row["id"] if row else NO_PROFILE_GUARD) != guard:
@@ -207,18 +238,26 @@ def save_profile(client, arguments: dict, caller: Caller) -> Outcome:
     now = utc_now_iso()
     if "constraints" in merged:
         merged["constraints"] = stamp_constraints((old or {}).get("constraints"), merged["constraints"], by=caller.subject, at=now, reason=arguments["reason"])
-    if old is not None and not diff_documents(old, merged):
+    inline = row is not None and is_inline_shape(row)
+    if old is not None and not inline and not diff_documents(old, merged):
         return Outcome({"itemId": row["id"], "versionNumber": int(row.get("versionNumber") or 1), "contentHash": reference(row)["contentHash"], "unchanged": True}, publication)
     saved_by = {"sub": caller.subject, "kind": caller.kind, **({"delegatedBy": caller.delegated_by} if caller.delegated_by else {}),
                 **({"requestId": caller.request_id} if caller.request_id else {})}
-    record = next_record(prepared.versions, merged, actor=caller.subject, reason=arguments["reason"], now=now, saved_by=saved_by)
-    store_next_version(client, prepared.versions, record)
-    return Outcome({"itemId": record["id"], "versionNumber": record["versionNumber"], "contentHash": record["contentHash"]}, publication)
+    try:
+        saved = document_store(client, files).save(IMAGE_KIND, merged, expected_current_version_id=guard, actor=caller.subject, reason=arguments["reason"], now=now, saved_by=saved_by,
+                                                             even_if_unchanged=inline)
+    except GuidelineError as error:
+        if error.code == "stale_version":
+            raise ImageOperationError("stale_version", "The profile has changed since you read it. Read it again and apply your change to the new version.",
+                                      details={"currentVersionId": error.details.get("expectedCurrentVersionId")}) from error
+        raise _stored(error) from error
+    ref = saved["reference"]
+    return Outcome({"itemId": ref["itemId"], "versionNumber": ref["versionNumber"], "contentHash": ref["contentHash"]}, publication)
 
 
-def profile_history(client, arguments: dict, caller: Caller) -> Outcome:
+def profile_history(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
-    versions = profile_versions(client)
+    versions = profile_versions(client, files=files)
     limit = int(arguments.get("limit") or DEFAULT_HISTORY_LIMIT)
     try:
         start = int(arguments.get("nextToken") or 0)
@@ -237,7 +276,7 @@ def profile_history(client, arguments: dict, caller: Caller) -> Outcome:
 from .examples import example_add, example_remove  # noqa: E402  (they build on save_profile and the helpers above)
 from .profile_init import init_profile  # noqa: E402
 
-PROFILE_HANDLERS: dict[str, Callable[[Any, dict, Caller], Outcome]] = {
+PROFILE_HANDLERS: dict[str, Callable[..., Outcome]] = {
     "image_profile_get": get_profile, "image_profile_resolve": resolve_profile, "image_profile_diff": diff_profile,
     "image_profile_save": save_profile, "image_profile_history": profile_history,
     "image_profile_init": init_profile, "image_profile_example_add": example_add, "image_profile_example_remove": example_remove,
@@ -278,23 +317,26 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None) -> dict[
 
         return create_authoring_client()[0]
 
-    def wrap(function):
+    def wrap(name, function):
         def handler(arguments: dict, caller: Caller) -> Outcome:
             client = factory()
+            if name == "image_profile_resolve":
+                return function(client, arguments, identify(client, caller), SECTION_STYLE_FIELD)
             return function(client, arguments, identify(client, caller))
         return handler
 
-    return {name: wrap(function) for name, function in PROFILE_HANDLERS.items()}
+    return {name: wrap(name, function) for name, function in PROFILE_HANDLERS.items()}
 
 
-def with_client(client, caller_filter: Callable[[Caller], Caller] | None = None, *, section_fields: str | None = None) -> dict[str, Handler]:
-    """The same handlers bound to one client (the image-service function and the tests)."""
+def with_client(client, caller_filter: Callable[[Caller], Caller] | None = None, *, section_fields: str | None = None,
+                files: DocumentFiles | None = None) -> dict[str, Handler]:
+    """The same handlers bound to one client and the files its documents are kept in (the image-service function and the tests)."""
     def bind(name, function):
         def handler(arguments: dict, caller: Caller) -> Outcome:
             caller = caller_filter(caller) if caller_filter else caller
             if name == "image_profile_resolve":
-                return function(client, arguments, caller, section_fields)
-            return function(client, arguments, caller)
+                return function(client, arguments, caller, section_fields, files)
+            return function(client, arguments, caller, files)
         return handler
 
     return {name: bind(name, function) for name, function in PROFILE_HANDLERS.items()}

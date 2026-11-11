@@ -68,16 +68,34 @@ class FakeBackend:
         self.items: list[dict] = []
         self.sections: dict[str, dict] = {}
         self.writes: list[tuple[str, str, dict]] = []
+        self.reads: list[tuple[str, str]] = []
+        self.document_attachments: list[dict] = []
+        self.document_bodies: dict[str, bytes] = {}
+        self.document_files = FakeFiles(self)
         self.attachments: dict[str, dict] = {}
         if profile is not None:
             self.save_profile_version(profile, by="admin-account", reason="First profile.")
 
-    def save_profile_version(self, document: dict, *, by: str, reason: str) -> dict:
-        from .profile_store import next_record, profile_versions, store_next_version
+    def save_profile_version(self, document: dict, *, by: str, reason: str, section: str | None = None) -> dict:
+        """Save a document the way the store does now: a catalog row, the text in the fake S3."""
+        from .profile_store import document_store, IMAGE_KIND
+
+        store = document_store(self)
+        current = store.current_row(IMAGE_KIND, section)
+        saved = store.save(IMAGE_KIND, document, section=section, expected_current_version_id=current["id"] if current else "none", actor=by, reason=reason,
+                           now="2026-11-07T17:51:39Z", saved_by={"sub": by, "kind": "person"})
+        return next(row for row in self.items if row["id"] == saved["reference"]["itemId"])
+
+    def save_inline_profile_version(self, document: dict, *, by: str, reason: str) -> dict:
+        """Save a profile the way a site that has not moved yet holds it: inline in the row's metadata."""
+        from .profile_store import inline_next_record, profile_versions
 
         versions = profile_versions(self)
-        record = next_record(versions, document, actor=by, reason=reason, now="2026-11-07T17:51:39Z", saved_by={"sub": by, "kind": "person"})
-        store_next_version(self, versions, record)
+        record = inline_next_record(versions, document, actor=by, reason=reason, now="2026-11-07T17:51:39Z", saved_by={"sub": by, "kind": "person"})
+        self.create_record("Item", record)
+        for row in versions:
+            if row.get("versionState") == "current":
+                self.update_record("Item", {"id": row["id"], "versionState": "superseded"})
         return record
 
     def add_story(self, lineage: str, *, section: str | None = None, image_style: dict | None = None, version: int = 1) -> dict:
@@ -93,10 +111,13 @@ class FakeBackend:
 
     # the calls the handlers make
     def list_by_index(self, index: str, key: str, **_: Any) -> list[dict]:
+        self.reads.append((index, key))
         if index == "knowledgeCorporaByRoleAndName":
             return copy.deepcopy(self.corpora)
         if index == "itemBySlug":
             return copy.deepcopy([row for row in self.items if row.get("slug") == key])
+        if index == "modelAttachmentsByOwnerRoleAndSortKey":
+            return copy.deepcopy([row for row in self.document_attachments if row.get("ownerId") == key])
         if index == "itemsByLineageAndVersion":
             return copy.deepcopy([row for row in self.items if row.get("lineageId") == key])
         raise AssertionError(f"unexpected index {index}")
@@ -128,3 +149,20 @@ class FakeBackend:
         assert model == "Item"
         self.writes.append(("update", model, copy.deepcopy(record)))
         next(row for row in self.items if row["id"] == record["id"]).update(copy.deepcopy(record))
+
+
+class FakeFiles:
+    """The S3 side of the fake: what the upload does with an attachment (it creates the ModelAttachment row) and what a download returns."""
+
+    def __init__(self, backend: FakeBackend):
+        self.backend = backend
+        self.downloads: list[str] = []
+
+    def put(self, attachment: dict, body: bytes) -> dict:
+        self.backend.document_attachments.append(copy.deepcopy(attachment))
+        self.backend.document_bodies[attachment["storagePath"]] = bytes(body)
+        return attachment
+
+    def get(self, attachment: dict) -> bytes | None:
+        self.downloads.append(attachment["ownerId"])
+        return self.backend.document_bodies.get(attachment["storagePath"])

@@ -83,6 +83,10 @@ class GuidelineStore:
             raise GuidelineError("document_hash_mismatch", f"The stored document of {row['id']} does not match its content hash.", {"itemId": row["id"]})
         return document
 
+    def document_of(self, row: dict) -> dict:
+        """The document one catalog row names: one attachment index query and one download."""
+        return self._document_of(row)
+
     def read(self, kind: str, section: str | None = None, *, version: int | None = None) -> dict | None:
         """``{document, reference}`` of the current version (or the numbered one), or None when there is none."""
         rows = self.versions(kind, section)
@@ -110,14 +114,14 @@ class GuidelineStore:
     # --- writes -------------------------------------------------------------------------------------------------------------------------------------
 
     def save(self, kind: str, document: Any, *, section: str | None = None, expected_current_version_id: str | None = None, actor: str, reason: str,
-             now: str | None = None, assets: dict[str, bytes] | None = None, saved_by: dict | None = None) -> dict:
+             now: str | None = None, assets: dict[str, bytes] | None = None, saved_by: dict | None = None, even_if_unchanged: bool = False) -> dict:
         """Save a document as the lineage's next version. ``{changed, reference}``.
 
         ``assets`` are binary files the document names (file name -> bytes), stored beside it as ModelAttachments of the same version. The caller puts
         their hashes in the document, so the content hash covers them.
 
         The first save names ``none``; a later one names the Item id it replaces and is refused as stale when that is no longer current. A document equal to
-        the current one makes no version. The file is written before the row, so a failure never leaves a version with nothing to read.
+        the current one makes no version, unless ``even_if_unchanged`` (a document whose current version still holds it in an older shape is rewritten in the new one). The file is written before the row, so a failure never leaves a version with nothing to read.
         ``saved_by`` (``{sub, kind, requestId}``) is recorded in the row's ``metadata`` when the door or the command line gives it: it is how a repeated request is
         recognised and how history says whether a person or an agent saved a version. Nothing else goes in ``metadata``.
         """
@@ -136,7 +140,7 @@ class GuidelineStore:
             raise GuidelineError("stale_version", "The guidelines have changed since you read them. Read them again and apply your change to the new version.",
                                  {"expectedCurrentVersionId": guard})
         content_hash = digest(document)
-        if current is not None and current.get("contentHash") == content_hash:
+        if current is not None and current.get("contentHash") == content_hash and not even_if_unchanged:
             return {"changed": False, "reference": reference(current)}
         stamp = now or _now()
         record = next_record(spec.name, section, versions, content_hash, actor=actor, reason=reason, now=stamp,

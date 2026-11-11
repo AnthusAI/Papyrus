@@ -48,9 +48,9 @@ def draft_document(brand: dict | None) -> tuple[dict, list[str]]:
     return document, notes
 
 
-def init_profile(client, arguments: dict, caller: Caller) -> Outcome:
+def init_profile(client, arguments: dict, caller: Caller, files=None) -> Outcome:
     publication = _publication(client)
-    document, _, row = _read_current(client)
+    document, _, row = _read_current(client, files)
     drafted, notes = draft_document(arguments.get("brand"))
     problems = validate_profile(drafted)
     if problems:

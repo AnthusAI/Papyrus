@@ -80,7 +80,7 @@ Feature: Guidelines are read and saved through the site's data API door
     Given a guidelines door onto a publication with a saved style profile
     When an editor reads the image guidelines through the guidelines door
     Then the door answers with the style profile as the document
-    And resolving image guidelines points at the image profile resolver
+    And resolving image guidelines gives the layered profile
 
   Scenario: The door's files stay under the item payload prefix
     Given the door's S3 files

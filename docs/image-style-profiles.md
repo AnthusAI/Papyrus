@@ -4,11 +4,12 @@ A publication says how its pictures should look once, in one place that editors 
 
 ## Where it lives
 
-- A private `Item` of type `doctrine`, slug `editorial-doctrine-visual-style`, one lineage, a new version for every edit. The structured profile is `metadata.visualStyle`, the review setting is `metadata.imageReview` and the prose guidance is `bodyMarkus`.
+- A private `Item` of type `doctrine`, slug `editorial-doctrine-visual-style`, one lineage, a new version for every edit. It is the `image` kind of guideline document (see the guidelines section of the [agent CLI guide](agent-cli-guide.md)): the database row is only a catalog entry (slug, version, who, when, why, content hash) and the document, text included, is one JSON file in S3 attached to that version. The document is the structured profile with `imageReview` and the prose guidance `bodyMarkus` beside it.
+- A site that has not saved its profile again still holds the old inline shape (`metadata.visualStyle`, `metadata.imageReview` and `bodyMarkus` on the row). Those versions are read as they are and never rewritten. The next save, even one that changes nothing, writes the new shape as the next version of the same lineage, and the old version stays. A resolve gives the same effective guidance before and after.
 - Reading and saving are the operations `image_profile_get`, `image_profile_resolve`, `image_profile_diff`, `image_profile_save`, `image_profile_history`, `image_profile_init` (a draft) and the example pictures below (`papyrus images profile ...`). The **document** you read and save is the profile with `imageReview` and `bodyMarkus` beside it.
 - A save lays your document over the current one: objects merge key by key, lists and values replace, `null` removes a key. A save that changes nothing makes no version. The first save passes `none` as the version it expects. `papyrus images profile diff --file F` shows what a save would change, with any change to a binding constraint listed separately, and saves nothing.
 - Every edit records who, when and why, and the older versions stay, so a picture can always be traced to the exact style it was made with. A publication without a profile still works: every answer carries the warning `profile_missing`, and a prompt is only the skeleton and the brief.
-- `NewsroomSection.visualGuidance` (prose) is the section's own layer. A section can also carry `visualStyle` (see below): one optional JSON field on `NewsroomSection`, available once the site's data API has been deployed with it.
+- A section's own layer is its **image document**: the same kind at section scope, slug `desk-doctrine-<sectionKey>-visual-style`, stored the same way (catalog row plus one S3 file). It holds the override fields below, plus `bodyMarkus` for the section's prose. Read and save it with `papyrus guidelines ... --kind image --section KEY`. A section without an image document keeps using `NewsroomSection.visualGuidance` (prose) and `NewsroomSection.visualStyle` (one optional JSON field, available once the site's data API has been deployed with it). The document, when there is one, replaces both. The section layer costs one indexed read for the section's versions and, when it has a current one, one attachment query and one download; nothing is read per Reference or Story.
 
 ## What a profile holds (schemaVersion 2)
 
@@ -42,7 +43,7 @@ A type's `sources` are `figure-system`, `stock` and `generated`, best first. A f
 
 **Choosing the type.** Name it with `imageType`. For a cover or social card you may leave it out: the first type in `typePreference` for that use whose sources allow what the operation does is used, and the answer says so (`imageTypeChosenBy: default-for-use` and an `image_type_defaulted` warning). Inline, or a use with no default, gives `image_type_required` with the choices and their descriptions. An unknown or retired type is `image_type_unknown` with the choices.
 
-**Section and Story overrides.** A section's override is `NewsroomSection.visualStyle` (plus `visualGuidance` prose); a Story's is `Item.metadata.imageStyle` (plus `notes`). Each may set `guidance`, `avoid`, `palette`, `sizes`, `display`, `safeZones`, `sources` and `treatment`, for all types or for one under `imageTypes.<key>`.
+**Section and Story overrides.** A section's override is its image document (or, until it has one, `NewsroomSection.visualStyle` plus `visualGuidance` prose); a Story's is `Item.metadata.imageStyle` (plus `notes`). Each may set `guidance`, `avoid`, `palette`, `sizes`, `display`, `safeZones`, `sources` and `treatment`, for all types or for one under `imageTypes.<key>`.
 
 ## Who may change what
 
@@ -86,4 +87,4 @@ An editor shows the style as well as describing it: **good examples** and **avoi
 
 ## What is not built yet
 
-The Administration screens (Policies > Visual style) are the next piece, and purging an example file nothing lists. The command line still runs the profile operations itself on the signed-in lane (it does not call the door yet), and on that lane a section's `visualStyle` is not read, so the two can differ for a section that has one until the command line goes through the door.
+The Administration screens (Policies > Visual style) are the next piece, and purging an example file nothing lists. The command line still runs the profile operations itself on the signed-in lane (it does not call the door yet). Both lanes lay the same section layer over the profile: the section's image document, else its `visualStyle` and `visualGuidance` fields. When a site's data API cannot yet read the `visualStyle` field, the answer carries the warning `section_style_unreadable` and the document and the prose still apply.

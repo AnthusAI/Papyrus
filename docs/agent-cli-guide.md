@@ -478,7 +478,7 @@ papyrus guidelines save --kind video --file ./video.yml --reason "First video gu
 - `save` takes the document whole (JSON or YAML) from `--file`; the document is validated and every problem is listed by field in `details.problems`. A document equal to the current one makes no version (`unchanged: true`). `--expected-current-version-id` must name the version you read: if someone saved since, the answer is `stale_version`; read again and apply your change to the new version.
 - **Binding rules** (`constraints`) belong to the publication. Adding, changing or removing one needs an admin who is a person: with `PAPYRUS_ACTOR_KIND=agent` the answer is `human_required` and nothing is saved, even in an admin's session. An editor's `save` is `not_authorized`.
 - `history` lists the versions newest first with who saved each, whether a person or an agent, when, and why.
-- `--kind image` runs the image profile operations (`papyrus images profile ...` keeps working); a section image document is not stored yet.
+- `--kind image` runs the image profile operations (`papyrus images profile ...` keeps working). With `--section` it reads and saves that section's image document, the section layer `papyrus images profile resolve` lays over the profile; a section without one keeps using its old visual style and visual guidance fields.
 
 ## Ideas
 <!-- guide:ideas -->
