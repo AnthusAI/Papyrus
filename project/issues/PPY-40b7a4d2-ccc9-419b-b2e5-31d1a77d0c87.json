@@ -34,10 +34,22 @@
         "model": "GPT-6",
         "name": "Codex"
       }
+    },
+    {
+      "id": "ba197cd7-8f6d-4767-8596-9a96ad8c1a8d",
+      "author": "home",
+      "text": "PPY-5377ad now specifies the convenience CLI for Day/Night generation and option rounds. Provide one command for a matched pair, one command for a three- or four-option Day round with a person's authorization, and a Night edit that accepts the round ID plus B or 2 and uses only that option's stored Day asset. Retain the low-level filename workflow. The image-toolchain design records how these reuse the same provider and spending checks.\n",
+      "created_at": "2026-11-11T01:30:40.702457Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Codex"
+      }
     }
   ],
   "created_at": "2026-11-06T14:42:18.929022Z",
-  "updated_at": "2026-11-11T01:23:14.141274Z",
+  "updated_at": "2026-11-11T01:30:40.702728Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
