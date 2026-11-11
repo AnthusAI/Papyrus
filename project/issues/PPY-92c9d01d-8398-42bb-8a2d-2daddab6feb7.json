@@ -10,9 +10,17 @@
   "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "14e4d1ee-7a06-4a0b-ab2f-69ce3f870ce2",
+      "author": "home",
+      "text": "Read-only inventory of the Anthus account with the papyrus-production profile, 2026-11-11 (no account ids recorded; nothing was created, changed or imported).\n\n**Already defined in Git and in CloudFormation (nothing to adopt):**\n- The pipeline roles: stacks papyrus-pipeline-approver and papyrus-stack-pipeline (with the approval workflow), papyrus-monitoring, papyrus-newsletter-sending-*, papyrus-email-*, papyrus-scheduled-job-knowledge-run-*, papyrus-procedure-runner, papyrus-projection-lock, the papyrus-edge-* CloudFront stacks, prospectus-github-deploy.\n- Each site's app-shell CDK stack amplify-app-shell-<site>-cms owns the Amplify app, service and compute roles, and the three per-site roles (<site>-github-deploy, <site>-github-ci, <site>-papyrus-authoring). These stacks are defined in Git but, per docs/site-hosting.md, applied by a person running cdk deploy; making that a pipeline job is a later story, not an import.\n\n**Hand-made, candidates for import (each needs a change set Ryan reads first):**\n1. Five public Route 53 zones (anth.us, apyr.us, pilobol.us, distinctive-mark.com, ryanalynporter.com). Their comments say they were moved by hand. No stack owns any of them (the edge stacks only reference zone ids). Import into an AWS::Route53::HostedZone with Retain; the deploy's name-server check must show the same four name servers per zone before and after.\n2. The monthly budget papyrus-amplify-monthly (72.78 USD) with its notifications and subscriber (the address is not recorded here).\n3. The CDKToolkit stack (CDK bootstrap version 32). CDK's own template; adoption means importing under the template the CDK CLI ships and keeping it on `cdk bootstrap`'s upgrade path. Do not fold it into our templates. Same for Humorus's CDKToolkit.\n4. The GitHub OIDC provider is in the CDK stack github-oidc-provider (a custom-resource provider), so it is already stack-managed, though by a custom resource rather than AWS::IAM::OIDCProvider. Replacing it is not needed.\n\n**Stale, needs a person, not part of the epic:** papyrus-edge-mom-consent-test is DELETE_FAILED, papyrus-edge-tactus is ROLLBACK_COMPLETE, and several amplify nested stacks sit in UPDATE_ROLLBACK_COMPLETE.\n\n**Plan:** (a) zones and the budget first, one per change set, using the new `import` config of stack_deploy.py in a dedicated Anthus account config (not the release stacks.json), `enabled: false` until Ryan has read each dry-run; (b) the dry run is the read-only `plan`, which prints \"would IMPORT the existing AWS::Route53::HostedZone\"; the real change set is created only after Ryan's go-ahead and must show Import and no Replace; (c) app-shell stacks to pipeline deploy later.",
+      "created_at": "2026-11-11T20:42:29.710674Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-11T20:37:05.724662Z",
-  "updated_at": "2026-11-11T20:37:05.724689Z",
+  "updated_at": "2026-11-11T20:42:29.710884Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
