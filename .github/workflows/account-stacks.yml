@@ -76,7 +76,9 @@ jobs:
         env:
           GLOB: ${{ inputs.lint-glob }}
         run: |
-          cfn-lint $GLOB .papyrus-tool/infra/account/baseline.yaml .papyrus-tool/infra/account/stacks/*.yaml
+          shopt -s nullglob
+          own=($GLOB)
+          cfn-lint "${own[@]}" .papyrus-tool/infra/account/baseline.yaml .papyrus-tool/infra/account/stacks/*.yaml
 
   plan:
     needs: lint
