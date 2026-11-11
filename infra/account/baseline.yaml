@@ -1,0 +1,386 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Account baseline for a Papyrus deployment: the GitHub OIDC provider and the
+  roles a deployment repository's pipeline uses to deploy the account's own
+  stacks (DNS, budget, certificate, SES) and to start Amplify jobs. Applied by
+  a person once (the single bootstrap exception); afterwards changed only by
+  the pipeline, and only after a person approves the GitHub environment
+  pipeline-roles. See docs/account-pipeline.md for what each role can and
+  cannot do.
+
+Parameters:
+  Prefix:
+    Type: String
+    AllowedPattern: "^[a-z][a-z0-9]{1,15}$"
+    Description: >-
+      Names this deployment. Roles are <Prefix>-github-deploy, -github-plan,
+      -github-roles-apply, -cloudformation and -cloudformation-roles; the
+      stacks the pipeline manages are named <Prefix>-*; this stack is
+      <Prefix>-github-deploy.
+  GithubRepository:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    Description: owner/repo allowed to assume the roles.
+  ProductionBranch:
+    Type: String
+    Default: main
+    AllowedPattern: "^[A-Za-z0-9_.-]+$"
+    Description: The one branch whose pushes may assume the deploy role. Also the Amplify branch it may build.
+  AmplifyAppId:
+    Type: String
+    Default: "*"
+    AllowedPattern: "^(\\*|d[a-z0-9]{9,15})$"
+    Description: The Amplify app the deploy role may build. "*" until the app exists, then the real id.
+  CreateOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: "false when the account already has a provider for token.actions.githubusercontent.com."
+  ApprovalEnvironment:
+    Type: String
+    Default: pipeline-roles
+    AllowedPattern: "^[A-Za-z0-9_.-]+$"
+    Description: The GitHub environment (with a required reviewer) that guards changes to this stack.
+  BudgetName:
+    Type: String
+    Description: The budget the pipeline looks up and manages.
+
+Conditions:
+  CreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  GithubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+
+  # ---------------------------------------------------------------------------
+  # Deploy role: a push to main. Starts Amplify jobs and drives change sets on
+  # the app stacks, always through the service role below. Cannot touch this
+  # stack.
+  # ---------------------------------------------------------------------------
+  GithubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-github-deploy"
+      Description: !Sub "Merge-to-${ProductionBranch} deploy for ${GithubRepository}: GitHub OIDC on that branch only; Amplify jobs and CloudFormation change sets on <Prefix>-* stacks through the service role"
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: GithubActionsOnTheProductionBranchOnly
+            Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateProvider
+                - !Ref GithubOidcProvider
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub "repo:${GithubRepository}:ref:refs/heads/${ProductionBranch}"
+      Policies:
+        - PolicyName: start-and-read-production-amplify-jobs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: StartAndReadProductionJobs
+                Effect: Allow
+                Action:
+                  - amplify:StartJob
+                  - amplify:GetJob
+                Resource: !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/${ProductionBranch}/jobs/*"
+        - PolicyName: deploy-app-stacks
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ChangeSetsOnAppStacks
+                Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ListChangeSets
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-*/*"
+              - Sid: ChangeSetsOnlyThroughTheServiceRole
+                Effect: Deny
+                Action: cloudformation:CreateChangeSet
+                Resource: "*"
+                Condition:
+                  StringNotEquals:
+                    "cloudformation:RoleArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-cloudformation"
+              - Sid: NeverThisStack
+                Effect: Deny
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DeleteStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:SetStackPolicy
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-github-deploy/*"
+              - Sid: HandTheServiceRoleToCloudFormationOnly
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-cloudformation"
+                Condition:
+                  StringEquals:
+                    "iam:PassedToService": cloudformation.amazonaws.com
+              - Sid: LookUpWhatToImport
+                Effect: Allow
+                Action:
+                  - route53:ListHostedZonesByName
+                  - route53:GetHostedZone
+                Resource: "*"
+              - Sid: LookUpTheBudget
+                Effect: Allow
+                Action: budgets:ViewBudget
+                Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${BudgetName}"
+
+  # ---------------------------------------------------------------------------
+  # Plan role: any pull request in this repository (not forks). Read only.
+  # ---------------------------------------------------------------------------
+  GithubPlanRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-github-plan"
+      Description: !Sub "Read-only plan for pull requests in ${GithubRepository}: describes stacks and looks up what would be imported; creates and changes nothing"
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: GithubActionsPullRequestsOnly
+            Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateProvider
+                - !Ref GithubOidcProvider
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub "repo:${GithubRepository}:pull_request"
+      Policies:
+        - PolicyName: read-only-plan
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: DescribeStacks
+                Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ListStackResources
+                  - cloudformation:DescribeStackResources
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-*/*"
+              - Sid: LookUpWhatToImport
+                Effect: Allow
+                Action:
+                  - route53:ListHostedZonesByName
+                  - route53:GetHostedZone
+                Resource: "*"
+              - Sid: LookUpTheBudget
+                Effect: Allow
+                Action: budgets:ViewBudget
+                Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${BudgetName}"
+
+  # ---------------------------------------------------------------------------
+  # Roles-apply role: only the GitHub environment pipeline-roles, which waits
+  # for a person to approve. Can update this one stack, through the roles
+  # service role, and nothing else.
+  # ---------------------------------------------------------------------------
+  GithubRolesApplyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-github-roles-apply"
+      Description: !Sub "Applies changes to the pipeline roles stack after a person approves the ${ApprovalEnvironment} environment in ${GithubRepository}"
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ApprovedEnvironmentOnly
+            Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateProvider
+                - !Ref GithubOidcProvider
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub "repo:${GithubRepository}:environment:${ApprovalEnvironment}"
+      Policies:
+        - PolicyName: update-the-pipeline-roles-stack
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ChangeSetsOnThisStack
+                Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ListChangeSets
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-github-deploy/*"
+              - Sid: ChangeSetsOnlyThroughTheRolesServiceRole
+                Effect: Deny
+                Action: cloudformation:CreateChangeSet
+                Resource: "*"
+                Condition:
+                  StringNotEquals:
+                    "cloudformation:RoleArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-cloudformation-roles"
+              - Sid: HandTheRolesServiceRoleToCloudFormationOnly
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-cloudformation-roles"
+                Condition:
+                  StringEquals:
+                    "iam:PassedToService": cloudformation.amazonaws.com
+
+  # ---------------------------------------------------------------------------
+  # Service role for the app stacks: what CloudFormation itself may do while it
+  # executes a change set. No IAM at all.
+  # ---------------------------------------------------------------------------
+  CloudFormationServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-cloudformation"
+      Description: Assumed by CloudFormation when it executes the app stacks (DNS, budget, certificate, SES). No IAM permissions.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: app-stack-resources
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Route53Zones
+                Effect: Allow
+                Action:
+                  - route53:CreateHostedZone
+                  - route53:GetHostedZone
+                  - route53:ListHostedZones
+                  - route53:ListHostedZonesByName
+                  - route53:UpdateHostedZoneComment
+                  - route53:ChangeTagsForResource
+                  - route53:ListTagsForResource
+                  - route53:ChangeResourceRecordSets
+                  - route53:ListResourceRecordSets
+                  - route53:GetChange
+                Resource: "*"
+              - Sid: Budget
+                Effect: Allow
+                Action:
+                  - budgets:ViewBudget
+                  - budgets:ModifyBudget
+                Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/*"
+              - Sid: Certificates
+                Effect: Allow
+                Action:
+                  - acm:RequestCertificate
+                  - acm:DescribeCertificate
+                  - acm:DeleteCertificate
+                  - acm:AddTagsToCertificate
+                  - acm:RemoveTagsFromCertificate
+                  - acm:ListTagsForCertificate
+                Resource: "*"
+              - Sid: SesIdentities
+                Effect: Allow
+                Action:
+                  - ses:CreateEmailIdentity
+                  - ses:GetEmailIdentity
+                  - ses:DeleteEmailIdentity
+                  - ses:PutEmailIdentityDkimAttributes
+                  - ses:PutEmailIdentityMailFromAttributes
+                  - ses:PutEmailIdentityConfigurationSetAttributes
+                  - ses:TagResource
+                  - ses:UntagResource
+                  - ses:ListTagsForResource
+                Resource: !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
+
+  # ---------------------------------------------------------------------------
+  # Service role for this stack: IAM on the pipeline's own roles and provider,
+  # only reachable through the approved roles-apply role.
+  # ---------------------------------------------------------------------------
+  CloudFormationRolesServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-cloudformation-roles"
+      Description: Assumed by CloudFormation when it executes the pipeline roles stack. IAM rights on the pipeline's own roles and GitHub provider only.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: pipeline-roles-only
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ThePipelineRoles
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:UpdateRole
+                  - iam:UpdateRoleDescription
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:TagRole
+                  - iam:UntagRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-github-*"
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-cloudformation"
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-cloudformation-roles"
+              - Sid: TheGithubProvider
+                Effect: Allow
+                Action:
+                  - iam:CreateOpenIDConnectProvider
+                  - iam:DeleteOpenIDConnectProvider
+                  - iam:GetOpenIDConnectProvider
+                  - iam:UpdateOpenIDConnectProviderThumbprint
+                  - iam:AddClientIDToOpenIDConnectProvider
+                  - iam:RemoveClientIDFromOpenIDConnectProvider
+                  - iam:TagOpenIDConnectProvider
+                  - iam:UntagOpenIDConnectProvider
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+
+Outputs:
+  GithubDeployRoleArn:
+    Description: Role for the merge-to-main Deploy workflow. Keep it in a GitHub variable, never in Git.
+    Value: !GetAtt GithubDeployRole.Arn

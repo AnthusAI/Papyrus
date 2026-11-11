@@ -709,3 +709,49 @@ def test_default_group_and_role_leave_the_existing_config_alone():
     config, _ = sd.load_config(sd.CONFIG_PATH)
     assert sd.selected(config, None, "default") == config["stacks"] == sd.selected(config, None)
     assert all("group" not in s and "serviceRoleName" not in s for s in config["stacks"])
+
+
+# ---------------------------------------------------------------------------------------------------------- the shipped account templates
+
+
+import re  # noqa: E402
+
+import yaml  # noqa: E402
+
+ACCOUNT_DIR = ROOT / "infra" / "account"
+
+
+def test_account_templates_are_generic_and_carry_no_ids():
+    """The account baseline and stacks are for any deployment: no Anthus repository or domain, no account ids, no emails."""
+    files = [ACCOUNT_DIR / "baseline.yaml", *sorted((ACCOUNT_DIR / "stacks").glob("*.yaml"))]
+    assert len(files) == 5
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        assert not re.search(r"\b\d{12}\b", text), path
+        assert "AnthusAI" not in text and "anth.us" not in text, path
+        assert not re.search(r"[\w.]+@[\w-]+\.[a-z]{2,}", text), path
+
+
+def test_baseline_names_everything_from_the_prefix():
+    text = (ACCOUNT_DIR / "baseline.yaml").read_text(encoding="utf-8")
+    assert "Prefix:" in text
+    assert not re.search(r"RoleName: (?!!Sub)\S", text)  # every role name is built from the prefix
+    assert "role/humorus" not in text and "stack/humorus" not in text
+
+
+def test_adopted_resources_are_retained():
+    for name, logical in (("dns", "HostedZone"), ("budget", "MonthlyBudget")):
+        text = (ACCOUNT_DIR / "stacks" / f"{name}.yaml").read_text(encoding="utf-8")
+        block = text[text.index(f"  {logical}:"):]
+        assert "DeletionPolicy: Retain" in block and "UpdateReplacePolicy: Retain" in block
+
+
+def test_reusable_workflow_is_valid_and_pins_actions():
+    text = (ROOT / ".github" / "workflows" / "account-stacks.yml").read_text(encoding="utf-8")
+    doc = yaml.safe_load(text)
+    triggers = doc.get("on") or doc.get(True)
+    assert "workflow_call" in triggers
+    assert set(doc["jobs"]) == {"lint", "plan", "deploy", "roles"}
+    for line in re.findall(r"^\s+- uses: (\S+)", text, flags=re.M):
+        assert re.search(r"@[0-9a-f]{40}$", line), line  # every action pinned by commit
+    assert doc["jobs"]["roles"]["environment"]

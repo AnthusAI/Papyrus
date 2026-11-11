@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Papyrus account stack: the monthly cost budget for the account.
+  Made by hand before the pipeline existed and adopted by import. The alert
+  address is a deploy-time parameter supplied from a GitHub variable, never
+  from Git.
+
+Parameters:
+  BudgetName:
+    Type: String
+  MonthlyLimitUsd:
+    Type: String
+    Default: "200"
+    AllowedPattern: "^[0-9]+$"
+  AlertEmail:
+    Type: String
+    NoEcho: true
+    Description: Where budget alerts go. Supplied by the pipeline from the BUDGET_ALERT_EMAIL variable.
+
+Resources:
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Budget:
+        BudgetName: !Ref BudgetName
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref MonthlyLimitUsd
+          Unit: USD
+        CostTypes:
+          IncludeCredit: true
+          IncludeDiscount: true
+          IncludeOtherSubscription: true
+          IncludeRecurring: true
+          IncludeRefund: true
+          IncludeSubscription: true
+          IncludeSupport: true
+          IncludeTax: true
+          IncludeUpfront: true
+          UseAmortized: false
+          UseBlended: false
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 50
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail

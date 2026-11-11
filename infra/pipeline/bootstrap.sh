@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# NOTE: for a deployment account that is not an Anthus account, do not use this script (its default repository is Papyrus and it writes that
+# repository's AWS_ACCOUNT_ID variable). Use the account baseline instead: docs/account-pipeline.md (epic PPY-9bd776).
+#
 # One-time setup of the approval-gated role deploy on an AWS account, and the emergency path for the pipeline roles (PPY-9d1b3e).
 #
 # NORMAL PATH (nobody runs anything): a change to infra/pipeline/papyrus-stack-pipeline.yaml is merged, the role-stack-deploy workflow
