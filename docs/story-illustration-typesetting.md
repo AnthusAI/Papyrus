@@ -4,7 +4,7 @@ The two stages between copywriting and publication. This page says what each sta
 
 ## What exists
 
-Both are values of `Item.stage` (`illustration`, then `typesetting`, then `published`) and both are columns on the stories board. In [the Story procedure](story-procedure.md) each is a step marked "not built, optional". `papyrus stories next` reports them as `unknown` and never lists them as skipped, and the context pack says "(not built)" next to them. Nothing checks that either stage was done before a Story is published; publishing is the only hard gate.
+Both are values of `Item.stage` (`illustration`, then `typesetting`, then `published`) and both are columns on the stories board. In [the Story procedure](story-procedure.md) typesetting is a step marked "not built, optional": `papyrus stories next` reports it as `unknown`, never lists it as skipped, and the context pack says "(not built)" next to it. Illustration is a live step (template version 5): required for the Story types that need a cover, closed by an approved cover or by a person's recorded exception, and checked when a Story publishes ([The Illustration step](story-procedure.md#the-illustration-step)). The illustration and typesetting stages themselves are still places an editor moves a Story to by hand.
 
 Nothing moves a Story into either stage by itself, and no agent or procedure works in them. An editor places a Story there by hand.
 

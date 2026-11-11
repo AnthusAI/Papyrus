@@ -172,7 +172,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       try {
         await openStory(page, COPYWRITING.lineage);
         const cards = panel(page).locator(".issue-card");
-        assert.equal(await cards.count(), 11, "every live step of the template");
+        assert.equal(await cards.count(), 14, "every live step of the template");
         assert.equal(await cards.evaluateAll(nodes => nodes.every(node => node.getAttribute("data-type") === "sub-task")), true, "Kanbus sub-task cards");
         assert.equal(await step(page, "outline").getAttribute("data-priority"), "Skipped");
         assert.match(await step(page, "outline").innerText(), /Reason: The editor wrote the draft straight from the reporting notes\./);

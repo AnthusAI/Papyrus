@@ -76,12 +76,19 @@ def test_the_design_system_is_a_registered_guideline_kind():
     ({"mystery": 1}, "mystery"),
     ({"settings": {"requireLight": True}}, "settings.requireLight"),
     ({"settings": {"requireDarkFigures": "yes"}}, "settings.requireDarkFigures"),
+    ({"settings": {"illustrationRequiredTypes": "article"}}, "settings.illustrationRequiredTypes"),
+    ({"settings": {"illustrationRequiredTypes": ["article", ""]}}, "settings.illustrationRequiredTypes"),
     ({"media": {"fonts/a.ttf": {"sha256": "nope", "byteSize": 1}}}, "media.fonts/a.ttf"),
     ({"media": {"fonts/A B.ttf": {"sha256": "0" * 64, "byteSize": 1}, "fonts/a-b.ttf": {"sha256": "0" * 64, "byteSize": 1}}}, "media.fonts/a-b.ttf"),
 ])
 def test_document_problems_are_named_by_field(change, path):
     document = {"schemaVersion": 1, "files": {"mapping.json": "{}"}, **change}
     assert path in {p.path for p in validate_design_system_document(document)}
+
+
+def test_the_illustration_setting_is_a_list_of_story_types():
+    document = {"schemaVersion": 1, "files": {"mapping.json": "{}"}, "settings": {"illustrationRequiredTypes": ["article", "post"], "requireDarkFigures": True}}
+    assert validate_design_system_document(document) == []
 
 
 def test_a_section_has_no_design_system():

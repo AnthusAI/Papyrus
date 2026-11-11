@@ -57,7 +57,7 @@ const PREVIEW_STORY_STARS: Readonly<Record<string, number>> = {
 };
 
 /** The template, as the preview shows it: the live steps of the Story procedure (src/papyrus_content/newsroom_process.py), in order. */
-const PREVIEW_CHECKLIST_TEMPLATE: readonly { key: string; title: string; command: string; required: boolean }[] = [
+export const PREVIEW_CHECKLIST_TEMPLATE: readonly { key: string; title: string; command: string; required: boolean }[] = [
   { key: "choose", title: "Choose the idea", command: "papyrus ideas select --section <section>", required: true },
   { key: "direction", title: "Give the research direction", command: "papyrus stories assign-research --story {story} --direction-file direction.md", required: true },
   { key: "research", title: "Research the Story", command: "papyrus assignments research-multi <assignment id>", required: true },
@@ -68,12 +68,16 @@ const PREVIEW_CHECKLIST_TEMPLATE: readonly { key: string; title: string; command
   { key: "review_reader_agents", title: "Reviewed for AI reader agents", command: "papyrus stories step --story {story} --step review_reader_agents --state done --note <findings>", required: true },
   { key: "review_search", title: "Reviewed for search", command: "papyrus stories step --story {story} --step review_search --state done --note <findings>", required: true },
   { key: "review_social", title: "Reviewed for social previews", command: "papyrus stories step --story {story} --step review_social --state done --note <findings>", required: true },
+  { key: "concepts", title: "Associate with relevant Concepts", command: "papyrus stories link-concept --story {story} --concept \"Name\" --note <why>", required: true },
+  { key: "related_content", title: "Add related associations", command: "papyrus stories suggest-links --story {story}", required: true },
+  { key: "illustration", title: "Illustrate", command: "papyrus stories save-version --story {story} --body-file draft.md --images ./pictures", required: true },
   { key: "publish", title: "Publish the Story", command: "papyrus ops content publish --id <item id>", required: false },
 ];
-const PREVIEW_CHECKLIST_TEMPLATE_VERSION = 2;
+/** Mirrors TEMPLATE_VERSION in src/papyrus_content/newsroom_process.py; scripts/test-story-checklist.ts checks the two agree. */
+export const PREVIEW_CHECKLIST_TEMPLATE_VERSION = 5;
 const PREVIEW_CHECKLIST_EVIDENCE_SOURCES: Record<string, string> = {
   choose: "the Story's stage", direction: "the research direction", research: "the research packet", outline: "the outline", draft: "the draft version",
-  copy_edit: "the copy-edit check", publish: "publishing",
+  copy_edit: "the copy-edit check", illustration: "the approved cover", publish: "publishing",
 };
 
 /** Notes the preview steps already carry, so the panel shows an open, a closed and a crowded step: the log is newest last. */
