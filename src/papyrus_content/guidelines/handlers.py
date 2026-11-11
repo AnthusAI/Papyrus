@@ -155,7 +155,10 @@ def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
     extra: dict = {}
     store_of_policies = _policy_store(client, policies) if kind == "writing" else None
     if store_of_policies is not None:
-        extra["policyPlan"] = describe_plan(plan_derived_policies(store_of_policies, document, section, would_create))
+        try:
+            extra["policyPlan"] = describe_plan(plan_derived_policies(store_of_policies, document, section, would_create))
+        except ModuleNotFoundError:
+            extra["policyPlanNotAvailable"] = "The Humanus policy reader is not installed where this diff ran."
     return Outcome(_described(kind, section, changes=changes, constraintChanges=_constraint_changes(kind, old, document), wouldCreateVersion=would_create, **extra),
                    publication)
 
@@ -225,9 +228,13 @@ def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
     extra: dict = {}
     store_of_policies = _policy_store(client, policies) if kind == "writing" else None
     if store_of_policies is not None:
-        steps = plan_derived_policies(store_of_policies, document, section, ref["versionNumber"])
-        apply_derived_plan(store_of_policies, steps)
-        extra["policies"] = describe_plan(changed_steps(steps))
+        try:
+            steps = plan_derived_policies(store_of_policies, document, section, ref["versionNumber"])
+        except ModuleNotFoundError:
+            extra["policiesNotSynced"] = "The Humanus policy reader is not installed where this save ran; save again from the signed-in command line to sync the checks."
+        else:
+            apply_derived_plan(store_of_policies, steps)
+            extra["policies"] = describe_plan(changed_steps(steps))
     return Outcome(_described(kind, section, itemId=ref["itemId"], versionNumber=ref["versionNumber"], contentHash=ref["contentHash"] or "",
                               **({} if saved["changed"] else {"unchanged": True}), **extra), publication)
 

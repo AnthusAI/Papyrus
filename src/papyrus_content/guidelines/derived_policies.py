@@ -12,13 +12,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import humanus
-
-from papyrus_content.editorial_checks import PUBLICATION_SCOPE, policy_record_id, record_from_policy
-from papyrus_content.editorial_policy_pack import _content
-
 from .document import slug_for
 
+PUBLICATION_SCOPE = "publication"
 SOURCE_PREFIX = "writing-guidelines:"
 WRITING = "writing"
 STAND_IN_PUBLICATION_KEY = "guidelines"
@@ -38,6 +34,8 @@ def scope_for(section: str | None) -> str:
 
 def drawn_policies(document: dict) -> list[dict]:
     """The Humanus policies the document yields (a section document has no publication key, so a stand-in is given for the reader)."""
+    import humanus
+
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "writing-guidelines.json"
         path.write_text(json.dumps({"publicationKey": STAND_IN_PUBLICATION_KEY, **document}), encoding="utf-8")
@@ -46,6 +44,9 @@ def drawn_policies(document: dict) -> list[dict]:
 
 def plan_derived_policies(store, document: dict, section: str | None, version_number: int) -> list[dict]:
     """One step per policy: create, update, disable, unchanged, or skipped (a policy this document does not own sits under that key)."""
+    from papyrus_content.editorial_checks import record_from_policy
+    from papyrus_content.editorial_policy_pack import _content
+
     scope, source, prefix = scope_for(section), source_for(section, version_number), _owned_prefix(section)
     existing = {row["id"]: row for row in store.list_policies()}
     steps: list[dict] = []
@@ -87,4 +88,4 @@ def changed_steps(steps: list[dict]) -> list[dict]:
     return [step for step in steps if step["action"] in ("create", "update", "disable")]
 
 
-__all__ = ["apply_derived_plan", "changed_steps", "describe_plan", "plan_derived_policies", "policy_record_id", "source_for"]
+__all__ = ["apply_derived_plan", "changed_steps", "describe_plan", "plan_derived_policies", "source_for"]
