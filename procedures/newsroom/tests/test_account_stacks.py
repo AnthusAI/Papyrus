@@ -755,3 +755,14 @@ def test_reusable_workflow_is_valid_and_pins_actions():
     for line in re.findall(r"^\s+- uses: (\S+)", text, flags=re.M):
         assert re.search(r"@[0-9a-f]{40}$", line), line  # every action pinned by commit
     assert doc["jobs"]["roles"]["environment"]
+
+
+def test_import_template_drops_outputs_only():
+    """CloudFormation refuses an IMPORT change set that adds Outputs; the UPDATE after it carries the whole template."""
+    text = "Parameters:\n  A: {Type: String}\nResources:\n  Z:\n    Type: X\nOutputs:\n  O:\n    Value: !Ref Z\nMetadata:\n  m: 1\n"
+    stripped = sd.import_template_text(text)
+    assert "Outputs" not in stripped and "Value: !Ref Z" not in stripped
+    assert "Resources:\n  Z:" in stripped and "Metadata:" in stripped
+    assert sd.import_template_text("Resources:\n  Z: {Type: X}\n") == "Resources:\n  Z: {Type: X}\n"
+    real = (ROOT / "infra" / "account" / "stacks" / "dns.yaml").read_text(encoding="utf-8")
+    assert "Outputs" in real and "Outputs" not in sd.import_template_text(real) and "HostedZone:" in sd.import_template_text(real)

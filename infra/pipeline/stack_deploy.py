@@ -33,6 +33,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import sys
 import time
 from pathlib import Path
@@ -590,11 +591,22 @@ def run_checks(ctx: Context, cfg: dict) -> None:
         ctx.write_summary(f"{cfg['name']}: check passed: {message}")
 
 
+def import_template_text(text: str) -> str:
+    """CloudFormation refuses an IMPORT change set that adds Outputs ("you cannot modify or add [Outputs]"). The import template is the
+    template without its top-level Outputs section; the follow-up UPDATE change set carries the whole template (found on 2026-11-11 by
+    previewing the Humorus zone import)."""
+    return re.sub(r"(?ms)^Outputs:.*?(?=^[A-Za-z]|\Z)", "", text).rstrip() + "\n"
+
+
 def run_change_set(ctx: Context, cfg: dict, stack: dict | None, kind: str, text: str, overrides: dict[str, str], bucket: str | None, suffix: str = "",
                    resources: list[dict] | None = None) -> str:
     """One change set, from creating it to watching its execution. kind: 'create' | 'update' | 'import'."""
     cloud, name = ctx.cloud, cfg["name"]
     template_path = template_file(ctx, cfg)
+    if kind == "import" and import_template_text(text) != text.rstrip() + "\n":
+        scratch = Path(tempfile.mkdtemp(prefix="stack-deploy-import-"))
+        template_path = scratch / template_path.name
+        template_path.write_text(import_template_text(text), encoding="utf-8")
     plan = parameter_plan(parse_template(text).get("Parameters", {}), param_map(stack), overrides, cfg.get("keepPrevious", False))
     validate_parameters({p["ParameterKey"]: p["ParameterValue"] for p in plan if "ParameterValue" in p})
 
