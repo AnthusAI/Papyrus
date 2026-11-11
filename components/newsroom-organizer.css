@@ -599,6 +599,9 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-pill{border-radius:999px}
 .newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-panel{border-radius:20px}
 .newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-tile{border-radius:12px}
+.newsroom-organizer [data-news-desk-admin-panel="writing-guidelines"] .vs-pill{border-radius:999px}
+.newsroom-organizer [data-news-desk-admin-panel="writing-guidelines"] .vs-panel{border-radius:20px}
+.newsroom-organizer [data-news-desk-admin-panel="writing-guidelines"] .vs-tile{border-radius:12px}
 .newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-small{border-radius:8px}
 .newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="bg-primary"]{background:var(--org-ink) !important;color:var(--org-paper) !important;border:0 !important;font-weight:600}
 .newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="bg-secondary"]{background:var(--org-control) !important;color:var(--org-ink) !important;border:0 !important;font-weight:600}
