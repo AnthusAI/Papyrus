@@ -102,7 +102,7 @@ A process that cannot fill a line says so in that line.
 - **Trigger.** The moment a Reference's summary vector is stored, new or rewritten because its text changed (the vector pass of the daily monitor-stories run queues one check). Never a schedule; never an accept, reject, vote or star.
 - **Inputs.** The Reference's summary vector and the publication's vector index; the site's own decided suggestions for the cut-off.
 - **Decision.** Which indexed References and concepts are close enough to suggest, cut where the site's decided suggestions say (`suggestion_calibration`).
-- **May write.** Suggested links (`related_to`, with the close-match score), one check record per Reference in the router's table, and the index's vectors; the saved place of the vector pass.
+- **May write.** Suggested links (`related_to` to another Reference, `tagged_with` to a concept, with the close-match score), one check record per Reference in the router's table, and the index's vectors; the saved place of the vector pass.
 - **Must never.** Repeat the check for text it already checked; walk the corpus to find work; decide a link (a suggestion is only a suggestion, and the card shows two of them); index rejected or archived References as live.
 - **Seen and reversed.** Suggested links on the card and in the Related section, each with Accept and Reject; the decision is recorded and trained on.
 - **Records.** One `{"suggestOnce": ...}` log line per check, the check record row, and the daily line's `suggestionsQueued`.
@@ -122,6 +122,7 @@ A process that cannot fill a line says so in that line.
 - **Seen and reversed.** The Idea column of the Stories board. An editor moves an idea forward or spikes it with a reason.
 - **Records.** One JSON log line per publication for the plan, one per step (`monitorStoriesStep`), one when the plan finishes, and the receipt.
 - **Fails.** Closed, and nothing is thrown away: the daily run only plans, and a queue drafts one candidate per message; a step that fails is delivered again up to three times, then waits in a dead-letter queue with an alarm, and the plan finishes without it. What was filed stays filed, and the next plan offers only what is not drafted.
+- **Reads.** The plan reads the existing ideas once (the stage indexes, then those stories by id) and stores them in its head row with the context and the duplicate cut. A step reads its own row and head, the Reference it cites and the few records it files and links, by id or index: never a whole table, and the worker's role has no `listItems` or `listReviewRequests`.
 - **Cost and bound.** One plan a day per publication; one step is bounded by the Lambda's 300 seconds and a 0.50 dollar guard on one oversized request. No fixed number of ideas and no time stop on the plan.
 - **Measured.** The log counts. Whether editors keep or spike the ideas is visible on the board but not reported: **no spec**.
 - **Gherkin.** `monitoring-daily-stories`, `monitoring-stories-queue`, `idea-pipeline`, `idea-monitor-stories`, `idea-trend-stories`, `idea-context-packs`, `idea-items`, `idea-duplicate-cut`, `idea-excluded-source-hosts`, `idea-run-large-site`, `idea-standard-replay`. Details: [idea-pipeline.md](idea-pipeline.md), [monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily).

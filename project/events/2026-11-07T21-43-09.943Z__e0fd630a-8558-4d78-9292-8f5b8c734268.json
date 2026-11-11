@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "e0fd630a-8558-4d78-9292-8f5b8c734268",
+  "issue_id": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:09.943Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Governance: golden renders, browser matrix and a staging tenant",
+    "description": "Why: one renderer couples every site to every release. Catch regressions before a tenant does.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

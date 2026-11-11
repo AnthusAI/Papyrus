@@ -577,7 +577,8 @@ def ai_review(run: Run) -> dict:
     used: dict[str, int] = {}
 
     model.limit_stage(shares["clusters"] + shares["relations"])
-    found, made = review.review_entities(generated, typed, mentions_of, model, actor, now=now, vocabulary=labels)
+    duplicate_proposals: list[dict] = []
+    found, made = review.review_entities(generated, typed, mentions_of, model, actor, now=now, vocabulary=labels, accepted=accepted_before, proposals=duplicate_proposals)
     patches += found
     decisions += made
     used["entities"] = model.calls
@@ -587,6 +588,10 @@ def ai_review(run: Run) -> dict:
     patches += found
     decisions += made
     used["clusters"] = model.calls - used["entities"]
+
+    filed = review.proposal_changes(duplicate_proposals, client.get_record) if duplicate_proposals else []  # nodes held back as possible duplicates: a proposal for a person each
+    if filed:
+        apply_record_changes(client, filed)
 
     # Entities accepted just now count as accepted for the relation review below.
     accepted_now = {patch["expected"]["id"] for patch in patches if patch["modelName"] == "SemanticNode" and patch["expected"].get("status") == "accepted"}
@@ -608,7 +613,7 @@ def ai_review(run: Run) -> dict:
     if patches:
         apply_record_changes(client, review.record_changes(patches))
 
-    log = {"week": run.config.week, "model": model.model, "calls": model.calls, "budget": {"calls": model.max_calls, "needed": needs, "owed": shares, "used": used}, "summary": review.summary_of(decisions), "decisions": [d.to_dict() for d in decisions], "acceptedNow": len(accepted_now)}
+    log = {"week": run.config.week, "model": model.model, "calls": model.calls, "budget": {"calls": model.max_calls, "needed": needs, "owed": shares, "used": used}, "summary": review.summary_of(decisions), "decisions": [d.to_dict() for d in decisions], "acceptedNow": len(accepted_now), "duplicateProposals": len(filed)}
     if run.config.monitor_sources and run.config.monitor_suggestions:
         log["monitorSuggestions"] = suggest_promotions(run, client)
     run.run_dir.mkdir(parents=True, exist_ok=True)

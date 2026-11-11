@@ -22,8 +22,8 @@ def test_mirrors_point_at_real_checks_and_point_back():
             assert check.key in lenses.CHECK_BY_KEY[other].mirrors, (check.key, other)
 
 
-def test_exactly_three_failures_are_errors():
-    assert [check.key for check in lenses.CHECK_BY_KEY.values() if check.severity == lenses.ERROR] == ["P7", "P10", "A2", "C6"]
+def test_exactly_four_failures_are_errors():
+    assert [check.key for check in lenses.CHECK_BY_KEY.values() if check.severity == lenses.ERROR] == ["P7", "P10", "P16", "A2", "C6"]
 
 
 def test_every_role_that_is_named_exists_and_each_role_reads_something():

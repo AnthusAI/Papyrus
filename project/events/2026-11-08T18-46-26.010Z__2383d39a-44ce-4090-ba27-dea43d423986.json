@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "2383d39a-44ce-4090-ba27-dea43d423986",
+  "issue_id": "PPY-3ff46540-0fbd-4daf-b45c-76be807019bf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:26.010Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Security review gates: threat model, internal review before isolation is claimed, external review before outside tenants",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

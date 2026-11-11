@@ -94,7 +94,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
     },
     async listForReference(referenceLineageId) {
       const relations = (await relationsAround("reference", referenceLineageId, "both")) as RelationRow[];
-      const candidates = relations.filter(row => row.predicate === "related_to");
+      const candidates = relations.filter(row => row.predicate === "related_to" || (row.predicate === "tagged_with" && row.objectKind === "semanticNode"));
       const conceptIds: string[] = [];
       const referenceIds: string[] = [];
       for (const row of candidates) {
@@ -112,7 +112,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
       const entries: RelatedEntry[] = [];
       for (const found of linked) {
         const item = resolve("reference", found.lineageId);
-        if (item) entries.push({ relationId: found.relationId, state: "current", provenance: "human", predicate: "related_to", direction: "incoming", item, similarity: null, label: null, explanation: found.explanation });
+        if (item) entries.push({ relationId: found.relationId, state: "current", provenance: "human", predicate: "tagged_with", direction: "incoming", item, similarity: null, label: null, explanation: found.explanation });
       }
       return entries;
     },
@@ -149,7 +149,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
       if (!slug) throw new Error("A concept needs a name.");
       const lineageId = editorConceptLineageId(slug);
       const data = await runGraphql<{ createReferenceLink?: { ok: boolean; relationId: string } }>(CREATE_CONCEPT_AND_LINK_MUTATION, {
-        subjectLineageId: referenceLineageId, objectKind: "semanticNode", objectLineageId: lineageId, predicate: "related_to", newConceptName: slug,
+        subjectLineageId: referenceLineageId, objectKind: "semanticNode", objectLineageId: lineageId, predicate: "tagged_with", newConceptName: slug,
       });
       if (!data.createReferenceLink?.ok) throw new Error("The concept could not be created.");
       return { relationId: data.createReferenceLink.relationId, item: editorConceptItem(slug) };

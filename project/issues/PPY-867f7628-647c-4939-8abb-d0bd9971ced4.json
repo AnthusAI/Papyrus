@@ -1,0 +1,31 @@
+{
+  "id": "PPY-867f7628-647c-4939-8abb-d0bd9971ced4",
+  "title": "Auth spike part 1: claims Lambda and tenant owner rules deny every cross-tenant get, list, create, update and delete",
+  "description": "Outcome: Sandbox only. A pre-token-generation (V2) Lambda adds papyrus_tenant_editor / _member claims from a hard-coded membership table; Item and Reference get allow.ownerDefinedIn(\"tenantId\").identityClaim(...) rules and NO group rules. Prove with two Google test users (never Cognito password users) that every operation across tenants is denied, and record the exact rule syntax that works. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) spike-tenant-claims-1, branch feature/<this issue id>-spike-tenant-claims-1 from origin/develop (spikes: branch spike/<this issue id>-spike-tenant-claims-1, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): throwaway copy of amplify/data/schema.ts (two models) and amplify/auth/resource.ts in an ampx sandbox (docs/aws-sandbox-personal.md).\n\nAcceptance (Gherkin feature file: features_backend/tenant-claims-spike.feature):\nScenario: A token for alpha cannot touch beta's Item\n    Given sandbox users acting for \"alpha\" and \"beta\"\n    When alpha gets, lists, creates with tenantId beta, updates and deletes beta's Item\n    Then every call is denied or returns nothing\n\nDependencies: blocked by nothing. Blocks PPY-cc8a4c. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: ampx sandbox; the scenario run by hand or a small script; findings and rule syntax on this issue.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: If the rule form fails, say so plainly: the fallback (custom resolvers reading claims) is decided from this result.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: none in production.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9f3de056-b9e3-45e8-92ee-c71395ae25d4",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "44d6955b-c523-458c-b8bf-c9dd7ef8440f",
+      "author": "home",
+      "text": "Status (spike/PPY-867f76-spike-tenant-claims-1): PARTIAL, offline only; no sandbox deployed (instructed not to deploy). Rule form works: allow.ownerDefinedIn(\"tenantId\").identityClaim(\"papyrus_tenant_<role>\").to([...]), one rule per role, no group rules. Amplify-generated resolvers executed with the simulator VTL engine: alpha editor get/list/index-list/create(tenantId beta)/update/delete on beta's row all denied or empty; no-claim token and member-role writes denied; same-tenant controls pass (39 checks). HOLE: update can set tenantId to another tenant under model-level rules; a field-level rule on tenantId (create+read only) closes it, and clients must then never re-send tenantId on update. Base list is a Scan+filter (short pages); use tenant-prefixed index keys. Claims must be on the ACCESS token (Amplify v6 sends it) so the pre-token Lambda must be V2_0 (needs Essentials/Plus per Cognito docs); defineAuth triggers cannot select V2, CDK addTrigger(...V2_0) can. Subscriptions: filtered per claim in the generated templates, not executed. Still to do by hand with sandbox access: the Gherkin scenario with two Google test users, page sizes, subscriptions, Cognito plan/price. Notes: docs/plans/tenant-claims-spike-1.md; feature: features_backend/tenant-claims-spike.feature (@sandbox).",
+      "created_at": "2026-11-10T14:21:50.895949Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T21:32:22.413160Z",
+  "updated_at": "2026-11-10T14:21:50.896387Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

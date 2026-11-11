@@ -172,7 +172,7 @@ Feature: One definition of the Story procedure
   Scenario: Stories next prints every step with its state and then what comes next
     Given a Story at the "idea" stage
     When I run "stories next" with "--story story-1"
-    Then the procedure output has a step line for each of the 15 steps
+    Then the procedure output has a step line for each of the 17 steps
     And the procedure output has a "next" line for "choose"
 
   Scenario: A step that is off or not built says so instead of offering a command

@@ -193,6 +193,13 @@ not the production origin is **guarded**: every page gets `<meta name="robots" c
 false` switches it off. A guarded build also never emits Google Analytics: `chrome.ga_measurement_id` and `chrome.consent_mode` (with its
 banner) are dropped from every page, so a staging site does not count visits.
 
+`chrome.consent_mode` also takes the region-aware settings `region_lookup` (off by default; when absent the notice shows to
+everyone, as before), `region_lookup_address` (default `/_papyrus/consent`), `region_lookup_timeout_milliseconds` (default
+1500), `denied_by_default_regions` (replaces the default list of regions that need a notice) and
+`additional_denied_by_default_regions` (adds to it). The default list is a policy choice that the owner owns, not legal
+advice. Turning `region_lookup` on only works once the site's edge answers that address; see
+[region-aware consent](region-aware-consent.md) and `site-hosting.md`, "Consent Mode v2 and the consent banner".
+
 ## The head
 
 One builder writes the head of every page, in this order: font links, icons and manifest, theme colours, feed
@@ -325,6 +332,7 @@ error (prefix helpers with `_`):
 | `page_finish(html, page)` | the finished page as text, the page | the text that is written; the last step, after `head_extra`, `body_class` and `page_body` |
 | `page_inputs(site)` | a `HookSite` | JSON-able data every page also renders from (a table of URLs it rewrites links with); every page is rendered again when it changes |
 | `redirects(site)` | a `HookSite` | exact redirects `{"/old/": "/new/"}` derived from the items, on top of the items' `aliases`; `redirects.exact` of `projection.json` wins over it, and a path that is a page is never redirected |
+| `byline(entry)` | an entry | the complete byline text (`"By various bots and Ryan Porter"`, plain text, escaped by core), or `None` for the default. It replaces the linked author names in the item page's byline (`components.itemByline`) and the "By ..." line of the Markdown twin, so the page and its twin agree; it reads only the entry |
 | `block(name, attributes, page)` | the name of an `::include{kind="block"}`, its other attributes (without `kind`, `name`, `depends`), the page | the markup of the block (see "Authored page files") |
 
 `card` may also take `variant` (the `card` attribute of an `::include` listing, otherwise `None`) and `index` (the card's place in its list, from 0) as parameters of those names; a hook without `variant` rejects an include that names one.
@@ -792,5 +800,5 @@ uses the text display.
 
 Entries carry the item's raw front matter as `entry.data` and a `derived` map from the `derive` hook, both part of
 the dependency fingerprints, so a new per-item field (a content shape, a shelf life, a pin-until date) reaches
-hooks, cards and listings without a change to the model. Ordering is one function (`entries.newest_first`) and
+hooks, cards and listings without a change to the model. Ordering is one function (`entries.newest_first`; hooks that draw their own listing call `page.ranked(entries, bucket=None)` for the Story ranking the home page uses: rolling recency bucket, then the editors' stars, unchanged when nothing is rated; a rating that moves the order re-renders those pages) and
 selection is the `listed` flag plus section options, so pin and shelf-life rules are additions at those two seams.

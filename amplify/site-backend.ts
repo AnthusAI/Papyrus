@@ -17,7 +17,7 @@ import { planRenditions } from "./publication/renditions-settings";
 import { addProjectionLeaseAccess } from "./publication/projection-lease";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
-import { assertValidMonitoringConfig, assertValidPublicationConfig } from "./site-backend-config";
+import { assertValidMonitoringConfig, assertValidPublicationConfig, assertValidTenancyConfig, resolveTenancyMode, tenancyFunctionEnvironment } from "./site-backend-config";
 import { revalidateSecretReadStatement } from "./revalidate-secret-policy";
 import {
   revalidateDistributionEnvironment,
@@ -25,6 +25,7 @@ import {
   validateRevalidateDistributionIds,
 } from "./revalidate-invalidation-settings";
 import { enablePointInTimeRecoveryOnDataTables } from "./data-table-recovery";
+import { applySiteBackendCostTags, siteCostAttribution, wireSiteUsageSender } from "./cost-attribution";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, trustClientOnIdentityPool } from "./auth/prospectus-google-client";
@@ -84,6 +85,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   // `papyrus.config.ts`'s default export. Backend options live under `backend`;
   // the default brand id namespaces account-global resources.
   const site = { brandId: papyrusSite.defaultBrand, ...papyrusSite.backend };
+  // Prospectus cost accounting: on when `papyrus-infra backend-deploy` asks for a cost tag wave (PAPYRUS_COST_TAG_WAVE).
+  // Null, from a plain `ampx pipeline-deploy`, leaves the backend untouched.
+  const costAttribution = siteCostAttribution();
   const knowledgeVectorDimension = 1536;
   const knowledgeEmbeddingModel = "text-embedding-3-small";
 
@@ -119,6 +123,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const publication = resolveSitePublication(site, activeBrand?.renderer?.kind);
   if (publication !== undefined) assertValidPublicationConfig(publication);
   assertValidMonitoringConfig(site.monitoring);
+  assertValidTenancyConfig(site.tenancy);
+  const tenancyMode = resolveTenancyMode(site.tenancy);
   const emailMonitorId = site.monitoring?.emailMonitorId ?? "hn";
   const publicationPlan = planS3ProjectionBackend(publication);
   const renditionsPlan = planRenditions(publication, process.cwd());
@@ -160,6 +166,13 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     slackDelivery,
     storage,
   });
+
+  // Tenancy mode reaches every function; dedicated adds nothing, so an existing site's template is unchanged.
+  for (const resource of Object.values(backend) as Array<{ resources?: { lambda?: unknown }; addEnvironment?: unknown }>) {
+    const lambda = resource?.resources?.lambda;
+    if (!(lambda instanceof LambdaFunction)) continue;
+    for (const [name, value] of Object.entries(tenancyFunctionEnvironment(tenancyMode))) lambda.addEnvironment(name, value);
+  }
 
   enablePointInTimeRecoveryOnDataTables(backend.data.resources.cfnResources.amplifyDynamoDbTables);
 
@@ -874,6 +887,15 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     },
   });
   wireEditorialChecks(backend);
+  // The functions that call models report their tokens to the site's Prospectus usage queue.
+  if (costAttribution) {
+    const editorialChecksLambda = backend.editorialChecks.resources.lambda as LambdaFunction;
+    wireSiteUsageSender(editorialChecksLambda, costAttribution);
+    wireSiteUsageSender(knowledgeQueryLambda, costAttribution);
+    // Every resource in every backend stack carries the anthus: cost tags (Prospectus reads cost by them), in waves that
+    // each fit one CloudFormation operation; the usage senders' stacks change in the first pass, so they go first.
+    applySiteBackendCostTags(backend.stack, costAttribution, [Stack.of(editorialChecksLambda), Stack.of(knowledgeQueryLambda)]);
+  }
   wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);
   wireImageService(backend);

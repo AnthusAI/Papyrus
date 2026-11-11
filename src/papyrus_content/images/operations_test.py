@@ -11,11 +11,16 @@ import pytest
 
 from papyrus_content.images import cli as images_cli
 from papyrus_content.images import generate, mcp
-from papyrus_content.images.cli_generated import COMMANDS
+from papyrus_content.images.cli_generated import COMMANDS as ALL_COMMANDS
 from papyrus_content.images.handlers import HANDLERS, Caller, ImageOperationError, Outcome, check, execute
-from papyrus_content.images.operations import BY_NAME, COMMON_ERRORS, ERROR_BY_CODE, ERRORS, OPERATIONS
+from papyrus_content.images.operations import BY_NAME, COMMON_ERRORS, ERROR_BY_CODE, ERRORS
+from papyrus_content.images.operations import OPERATIONS as ALL_OPERATIONS
 
+# This file is about the image operations. The guideline operations share the table and the generators (guidelines/operations_test.py covers them).
+OPERATIONS = tuple(item for item in ALL_OPERATIONS if item.group == "images")
+COMMANDS = [entry for entry in ALL_COMMANDS if entry["group"] == "images"]
 NAMES = [item.name for item in OPERATIONS]
+ALL_NAMES = [item.name for item in ALL_OPERATIONS]
 DESIGN_NAMES = {
     "image_profile_get", "image_profile_resolve", "image_profile_diff", "image_profile_save", "image_profile_history", "image_profile_example_add",
     "image_profile_example_remove", "image_capabilities", "image_brief_draft", "image_prompt_preview", "image_search", "image_generate", "image_round_get",
@@ -139,10 +144,10 @@ def test_the_generator_check_exits_nonzero_when_something_is_stale(monkeypatch, 
 
 def test_each_front_end_covers_exactly_the_operations_in_the_table():
     assert [entry["op"] for entry in COMMANDS] == NAMES
-    assert list(mcp.image_tools()) == NAMES and list(mcp.image_descriptions()) == NAMES and list(mcp.image_output_schemas()) == NAMES
+    assert list(mcp.image_tools()) == ALL_NAMES and list(mcp.image_descriptions()) == ALL_NAMES and list(mcp.image_output_schemas()) == ALL_NAMES
     ts = generate.TS_TYPES.read_text(encoding="utf-8")
-    assert re.findall(r"^  (image_[a-z_]+): \{ input:", ts, re.M) == NAMES
-    assert re.findall(r"^  (image_[a-z_]+): \{ effect:", ts, re.M) == NAMES
+    assert re.findall(r"^  ((?:image|guidelines)_[a-z_]+): \{ input:", ts, re.M) == ALL_NAMES
+    assert re.findall(r"^  ((?:image|guidelines)_[a-z_]+): \{ effect:", ts, re.M) == ALL_NAMES
     skill = generate.SKILL.read_text(encoding="utf-8")
     block = skill[skill.index(generate.BEGIN):skill.index(generate.END)]
     assert re.findall(r"^\| `(image_[a-z_]+)` \| `papyrus images", block, re.M) == NAMES
@@ -180,7 +185,7 @@ def test_every_handler_answers_not_implemented_until_its_step():
     for item in (item for item in OPERATIONS if item.name not in PROFILE_HANDLERS):
         envelope = execute(item.name, item.examples[0].input, Caller())
         assert envelope["error"]["code"] == "not_implemented" and envelope["error"]["details"] == {"operation": item.name}
-    assert set(HANDLERS) == set(NAMES)
+    assert set(HANDLERS) == set(ALL_NAMES)
 
 
 def test_the_cli_exits_with_the_shared_code_and_prints_json():

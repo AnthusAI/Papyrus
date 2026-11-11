@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "58edec25-23e6-47fd-812d-e749d404baa6",
+  "issue_id": "PPY-e54ecaba-80a3-467c-9e79-00cad5016a00",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:49.263Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Sign-up to live site with no human step (staging)",
+    "description": "What: payment, account creation, entitlement, tenant provisioning and first sign-in chained; payment is required before the site exists.\nAcceptance:\nScenario: A paid sign-up reaches a live site\n  Given a new person completes payment in staging\n  When provisioning finishes\n  Then their subdomain serves a starter site and they can sign in as admin",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

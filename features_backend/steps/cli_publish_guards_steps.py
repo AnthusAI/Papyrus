@@ -126,7 +126,10 @@ def records_written(context) -> None:
 
 @then('the projection was requested through the "{mutation}" mutation for the story')
 def mutation_requested(context, mutation: str) -> None:
-    assert context.client.mutations == [(mutation, {"id": ITEM_ID})], context.client.mutations
+    # A publish asks for a background build (async) and waits on its job; an unpublish is one call (PPY-3acc8d).
+    expected = {"id": ITEM_ID, "async": True} if mutation == "publishItem" else {"id": ITEM_ID}
+    assert context.client.mutations[:1] == [(mutation, expected)], context.client.mutations
+    assert all(name == mutation and payload == {"id": ITEM_ID, "jobStatus": True} for name, payload in context.client.mutations[1:]), context.client.mutations
 
 
 @then("no AWS function was invoked")
@@ -147,7 +150,7 @@ def exits_ok(context) -> None:
 
 @then("the command exits with an error")
 def exits_error(context) -> None:
-    assert context.exit_code == 1, (context.exit_code, context.stdout, context.stderr)
+    assert context.exit_code not in (0, None), (context.exit_code, context.stdout, context.stderr)
 
 
 @then("the output says the data is published but the page is not")
@@ -221,3 +224,8 @@ def stage_unchanged(context) -> None:
 @then("no publish warning is printed")
 def no_warning(context) -> None:
     assert context.stderr == ""
+
+
+@then("the command exits with code {code:d}")
+def exits_with_code(context, code: int) -> None:
+    assert context.exit_code == code, (context.exit_code, context.stdout, context.stderr)

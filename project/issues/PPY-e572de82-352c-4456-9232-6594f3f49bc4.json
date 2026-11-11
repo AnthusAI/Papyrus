@@ -1,0 +1,32 @@
+{
+  "id": "PPY-e572de82-352c-4456-9232-6594f3f49bc4",
+  "title": "Brand pack storage, the allowed fonts, and one small brand stylesheet per tenant",
+  "description": "Outcome: The brand pack format and validator are PPY-88a883; this task stores and serves them. A BrandPack is a SiteDocument (kind brand). On save, after validation, Papyrus writes one immutable stylesheet of custom properties (sites/<tenant>/_papyrus/brand-<hash>.css, cached for a year) and the next projection references it; the core stylesheet stays one shared, versioned file per release. Fonts come from an allow-list of self-hosted families with known metrics (no third-party font requests from readers' browsers), so the text floors hold. The logo is a media object under the tenant prefix with renditions.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/projection/standard (head rendering of the brand stylesheet), the brand pack validator module (PPY-88a883), new font assets under src/papyrus_content/projection/standard/assets/fonts/, the site store (PPY-c020ce).\n\nAcceptance (Gherkin feature file: features_backend/brand-pack-serving.feature):\nScenario: A brand change changes one small file, not the site's CSS\n    Given \"alpha\" changes its brand colour\n    When the brand pack is saved\n    Then a new brand stylesheet is written, the core stylesheet is unchanged, and pages reference the new file after re-projection\n\nScenario: A font outside the allow-list cannot be saved\n    When an admin picks a font that is not on the list\n    Then the save is refused\n\nDependencies: blocked by PPY-c020ce. Blocks PPY-3aa10f, PPY-810f42, PPY-413576. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-88a883.\n\nTesting: pytest; browser policy checks (PPY-a78dfd) against two brand packs.\nRollout: Releasable alone.\nRisk and mitigation: Risk: a brand change needs every page re-rendered to pick up the new hash. Mitigation: pages reference a stable per-tenant path whose object is short-cached, or the change queues a re-render through the fair queue (PPY-994bd0); decided with a measurement.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-c020ce4b-3eb9-4046-9bc3-d1f0555a0bb7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-88a88367-e908-4dc2-9174-fd29fdcfcdbf",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:23.814783Z",
+  "updated_at": "2026-11-08T18:47:06.364537Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

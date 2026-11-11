@@ -68,8 +68,9 @@ import {
   type ConversationViewer,
 } from "../lib/conversation";
 import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "../lib/post-message";
-import { isStoryItemType, legacyStageKeysToLoad, storyItemTypeFilter, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
-import { collectFilteredPage } from "../lib/story-stage-paging";
+import { isStoryItemType, legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { readStoryStageChangesSince, readStoryStagePage, STORY_STAGE_PAGE_LIMIT, type StageQueryFetch } from "../lib/story-stage-query";
+import { readWithStoryStageIndex } from "../lib/story-stage-mode";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
@@ -2626,23 +2627,28 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
   });
 }
 
-const CONTENT_ITEMS_BY_STAGE_QUERY = `
-  query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $filter: ModelItemFilterInput, $limit: Int, $nextToken: String) {
-    listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, filter: $filter, limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating }
-      nextToken
-    }
-  }
-`;
-
-export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = 25;
+export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = STORY_STAGE_PAGE_LIMIT;
 
 export type ContentItemStagePage = {
   versions: ContentItemVersionRecord[];
   nextToken: string | null;
 };
 
-/** One newest-updated-first page of the content items in one stage, so a board column can load as it is scrolled. */
+function contentItemStageFetch(): StageQueryFetch {
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as {
+    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
+  };
+  return async ({ query, field, variables }) => {
+    const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({ query, variables, authMode: USER_POOL_AUTH_MODE });
+    assertNoGraphQLErrors(response.errors);
+    const connection = response.data?.[field];
+    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+    return { items: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[], nextToken: connection.nextToken ?? null };
+  };
+}
+
+/** One newest-updated-first page of the stories in one stage, so a board column can load as it is scrolled (lib/story-stage-query.ts). */
 export async function loadNewsroomContentItemStagePage(
   stage: string,
   nextToken: string | null = null,
@@ -2657,64 +2663,22 @@ export async function loadNewsroomContentItemStagePage(
       nextToken: followingOffset < versionsInStage.length ? String(followingOffset) : null,
     };
   }
-  configureAmplifyClient();
-  const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
-  };
-  const field = "listItemsByStageAndUpdatedAt";
-  // Only story types, filtered in the query. The filter runs after DynamoDB reads a page, so read until the column has its page.
-  const page = await collectFilteredPage<ContentItemVersionRecord>(async (token, scanLimit) => {
-    const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
-      query: CONTENT_ITEMS_BY_STAGE_QUERY,
-      variables: { stage, sortDirection: "DESC", filter: storyItemTypeFilter(), limit: Math.max(limit, scanLimit), nextToken: token },
-      authMode: USER_POOL_AUTH_MODE,
-    });
-    assertNoGraphQLErrors(response.errors);
-    const connection = response.data?.[field];
-    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
-    return { items: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[], nextToken: connection.nextToken ?? null };
-  }, { nextToken, wanted: limit });
+  const fetch = contentItemStageFetch();
+  const page = await readWithStoryStageIndex(mode => readStoryStagePage(fetch, mode, stage, { nextToken, limit }));
   return { versions: page.items, nextToken: page.nextToken };
 }
 
-const CONTENT_ITEMS_CHANGED_SINCE_QUERY = `
-  query ListItemsChangedSince($stage: String!, $updatedAt: ModelStringKeyConditionInput, $sortDirection: ModelSortDirection, $filter: ModelItemFilterInput, $limit: Int, $nextToken: String) {
-    listItemsByStageAndUpdatedAt(stage: $stage, updatedAt: $updatedAt, sortDirection: $sortDirection, filter: $filter, limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating }
-      nextToken
-    }
-  }
-`;
-
 /**
- * Every story-type Item in one stage whose `updatedAt` is at or after `since`, newest first. This is a key condition on the stage index's
- * sort key, so DynamoDB reads only the changed rows: a quiet board costs one small request per stage that returns nothing. `since` is
- * inclusive (a row written in the same instant as the newest row already shown is read again, and the caller merges by id).
+ * Every story in one stage whose `updatedAt` is at or after `since`, newest first. This is a key condition on the index's sort key, so
+ * DynamoDB reads only the changed rows: a quiet board costs one small request per stage that returns nothing. `since` is inclusive (a row
+ * written in the same instant as the newest row already shown is read again, and the caller merges by id).
  */
 export async function loadNewsroomContentItemsChangedSince(stage: string, since: string): Promise<ContentItemVersionRecord[]> {
   if (isLocalPreviewEnabled()) {
     return createLocalPreviewContentItemVersions().filter(version => version.stage === stage && isStoryItemType(version.type) && String(version.updatedAt ?? "") >= since);
   }
-  configureAmplifyClient();
-  const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
-  };
-  const field = "listItemsByStageAndUpdatedAt";
-  const changed: ContentItemVersionRecord[] = [];
-  let nextToken: string | null = null;
-  do {
-    const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
-      query: CONTENT_ITEMS_CHANGED_SINCE_QUERY,
-      variables: { stage, updatedAt: { ge: since }, sortDirection: "DESC", filter: storyItemTypeFilter(), limit: CONTENT_ITEM_COLUMN_PAGE_LIMIT, nextToken },
-      authMode: USER_POOL_AUTH_MODE,
-    });
-    assertNoGraphQLErrors(response.errors);
-    const connection = response.data?.[field];
-    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
-    changed.push(...((connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[]));
-    nextToken = connection.nextToken ?? null;
-  } while (nextToken);
-  return changed;
+  const fetch = contentItemStageFetch();
+  return readWithStoryStageIndex(mode => readStoryStageChangesSince(fetch, mode, stage, since));
 }
 
 export async function loadModelPayloadsForOwner(

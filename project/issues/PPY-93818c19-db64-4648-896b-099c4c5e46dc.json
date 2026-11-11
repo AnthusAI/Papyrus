@@ -1,0 +1,37 @@
+{
+  "id": "PPY-93818c19-db64-4648-896b-099c4c5e46dc",
+  "title": "Social preview review passes WebP without checking share-image compatibility",
+  "description": "Machines on Machines groovebox article reported missing share previews. Live og:image and twitter:image both pointed to a publicly reachable 912x572 WebP. LinkedIn documents JPEG/PNG for share image uploads; this is a compatibility concern, not proof of the cause on any particular platform. The social lens C1 passed solely because it could construct addresses, C4 did not run because it needed the picture file, and no finding warned about WebP. Reproduce: PAPYRUS_SITE=newsroom.machines-on-machines.anth.us papyrus stories lens-check --story content-item-musicians-are-rewriting-the-instruments-they-play-2bef74cda95fb3c7 --lens social --static web --json. Expected: check actual public image response, supported type and dimensions when available, flag unverified or potentially incompatible formats and do not imply successful crawler retrieval merely because a URL can be constructed. Consider separate JPEG/PNG social rendition while keeping modern article images, and test behavior with absent/unreachable images. Article changed from WebP to same image in JPEG; independently verify each platform before claiming the root cause.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "1c3d24d3-2757-4fa4-90cf-0b1aa5ef0d16",
+      "author": "home",
+      "text": "User requests a dependable checklist process, not just a one-off JPEG fix. Extend the social-review procedure and agent skill/CLI guidance so the reviewer: (1) identifies the actual planned share-image URL, resolves a public absolute HTTPS URL and checks the file itself, response status, Content-Type, dimensions and aspect ratio; (2) uses a JPEG or PNG share rendition when cross-platform compatibility is needed, preserving WebP/AVIF for normal page images where possible; do not infer universal platform restrictions or pad/upscale a small image without recording it; (3) examines image, title and description together for relevance, legibility, accessibility and misleading context; (4) records the tested URL, format, dimensions, result and any platform-specific uncertainty in the social checklist note; (5) after publishing checks the live og:image and twitter:image tags and public image fetch, reporting stale CDN or third-party preview caches separately, without assuming that a platform displayed it. A generated URL is not proof that a file exists or that a crawler can read it. If a check is unavailable, record it as not verified rather than passed. Make the built-in review/checklist and its agent-facing instructions prompt these actions consistently; cover missing image, invalid URL, unavailable network, bad MIME, small image, supported JPEG/PNG and WebP in tests. Investigate whether separate social-image front matter is honored independently of the cover. The automated check cannot promise the behavior of external platforms; distinguish direct verification from inference.",
+      "created_at": "2026-11-10T12:13:59.431240Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "Codex"
+      }
+    }
+  ],
+  "created_at": "2026-11-10T12:12:27.758390Z",
+  "updated_at": "2026-11-10T12:13:59.431759Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

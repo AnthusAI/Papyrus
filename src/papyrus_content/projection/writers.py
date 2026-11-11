@@ -11,10 +11,13 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 
-from ..edge_invalidation import invalidate_distribution
+from ..edge_invalidation import InvalidationCapped, invalidate_distribution, invalidate_exact_paths
+from ..page_refresh.paths import paths_for_page_keys
 
 STATE_PREFIX = "_papyrus/"
 HEAD_WORKERS = 16
+PUT_WORKERS = 16
+S3_MAX_POOL_CONNECTIONS = 32   # above HEAD_WORKERS and PUT_WORKERS, so parallel requests never wait for a pooled connection ("Connection pool is full")
 DEFAULT_HTML_S_MAXAGE_SECONDS = 300
 FALLBACK_HTML_S_MAXAGE_SECONDS = 60
 HTML_STALE_WHILE_REVALIDATE_SECONDS = 60
@@ -36,6 +39,33 @@ CONTENT_TYPES_BY_SUFFIX = {
     ".txt": "text/plain; charset=utf-8",
     ".md": "text/markdown; charset=utf-8",
 }
+
+
+class OutputPrefixError(ValueError):
+    """A key a prefixed writer refuses: it would land outside the writer's output prefix."""
+
+
+def normalize_output_prefix(prefix: str | None) -> str:
+    """``""`` (no prefix: the site owns its whole bucket) or a relative folder ending in ``/`` ("sites/alpha/")."""
+    text = (prefix or "").strip()
+    if not text:
+        return ""
+    if text.startswith("/"):
+        raise OutputPrefixError(f"The output prefix {prefix!r} must be relative to the bucket; it starts with '/'.")
+    segments = text.rstrip("/").split("/")
+    if any(segment in ("", ".", "..") for segment in segments):
+        raise OutputPrefixError(f"The output prefix {prefix!r} has an empty, '.' or '..' folder name.")
+    return "/".join(segments) + "/"
+
+
+def prefixed_key(output_prefix: str, key: str) -> str:
+    """The stored key of a site key. With no prefix the key is returned untouched; with one, a key that is absolute or climbs out of the
+    prefix (``..``) is refused, so nothing a prefixed writer writes, reads or deletes is outside its folder."""
+    if not output_prefix:
+        return key
+    if key.startswith("/") or ".." in key.split("/"):
+        raise OutputPrefixError(f"The key {key!r} is outside the output prefix {output_prefix!r}; a prefixed writer only touches keys under its prefix.")
+    return output_prefix + key
 
 
 def content_type_for(key: str) -> str:
@@ -74,6 +104,7 @@ class StoredObject:
     etag: str | None = None
     version: int | None = None
     inputs: str | None = None
+    last_modified: str | None = None   # ISO time the store wrote it (S3 LastModified), where the store says
 
 
 def body_etag(body: bytes) -> str:
@@ -95,24 +126,25 @@ class PageWriter(Protocol):
 class LocalDirectoryWriter:
     """A directory as a site store; version and inputs metadata live in memory, beside the files."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, output_prefix: str = "") -> None:
         self._root = Path(root)
+        self._output_prefix = normalize_output_prefix(output_prefix)
         self._metadata: dict[str, tuple[int | None, str | None]] = {}
 
     def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None:
-        target = self._root / key
+        target = self._root / prefixed_key(self._output_prefix, key)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
         self._metadata[key] = (version, inputs)
 
     def delete(self, key: str) -> None:
-        target = self._root / key
+        target = self._root / prefixed_key(self._output_prefix, key)
         if target.is_file():
             target.unlink()
         self._metadata.pop(key, None)
 
     def get(self, key: str) -> bytes | None:
-        target = self._root / key
+        target = self._root / prefixed_key(self._output_prefix, key)
         return target.read_bytes() if target.is_file() else None
 
     def head(self, key: str) -> StoredObject | None:
@@ -128,18 +160,23 @@ class LocalDirectoryWriter:
             for path in sorted(self._root.rglob("*"))
             if path.is_file()
         ]
-        return [self.head(key) for key in found if key.startswith(prefix)]
+        under = [key[len(self._output_prefix) :] for key in found if key.startswith(self._output_prefix)]
+        return [self.head(key) for key in under if key.startswith(prefix)]
 
 
 class S3PageWriter:
+    source_markers = True   # item pages end with the papyrus-source-version marker (page_refresh/marker.py)
+
     def __init__(
-        self, bucket: str, s3_client: Any = None, html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS
+        self, bucket: str, s3_client: Any = None, html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS, output_prefix: str = ""
     ) -> None:
         if s3_client is None:
             import boto3
+            from botocore.config import Config
 
-            s3_client = boto3.client("s3")
+            s3_client = boto3.client("s3", config=Config(max_pool_connections=S3_MAX_POOL_CONNECTIONS))
         self._bucket = bucket
+        self._output_prefix = normalize_output_prefix(output_prefix)   # "" for a site that owns its bucket; keys are then untouched
         self._s3 = s3_client
         self._html_s_maxage_seconds = html_s_maxage_seconds
 
@@ -155,11 +192,12 @@ class S3PageWriter:
             etag=str(headers.get("ETag", "")).strip('"') or None,
             version=int(version) if version not in (None, "") else None,
             inputs=metadata.get(INPUTS_METADATA_KEY),
+            last_modified=headers["LastModified"].isoformat() if hasattr(headers.get("LastModified"), "isoformat") else None,
         )
 
     def head(self, key: str) -> StoredObject | None:
         try:
-            return self._stored_object(key, self._s3.head_object(Bucket=self._bucket, Key=key))
+            return self._stored_object(key, self._s3.head_object(Bucket=self._bucket, Key=prefixed_key(self._output_prefix, key)))
         except Exception as error:  # noqa: BLE001 - only "not found" is an expected absence
             if self._error_code(error) in ("404", "NoSuchKey", "NotFound"):
                 return None
@@ -167,7 +205,7 @@ class S3PageWriter:
 
     def get(self, key: str) -> bytes | None:
         try:
-            return self._s3.get_object(Bucket=self._bucket, Key=key)["Body"].read()
+            return self._s3.get_object(Bucket=self._bucket, Key=prefixed_key(self._output_prefix, key))["Body"].read()
         except Exception as error:  # noqa: BLE001 - only "not found" is an expected absence
             if self._error_code(error) in ("NoSuchKey", "404", "NotFound"):
                 return None
@@ -177,12 +215,12 @@ class S3PageWriter:
         objects: list[StoredObject] = []
         token: str | None = None
         while True:
-            arguments: dict[str, Any] = {"Bucket": self._bucket, "Prefix": prefix}
+            arguments: dict[str, Any] = {"Bucket": self._bucket, "Prefix": self._output_prefix + prefix}
             if token:
                 arguments["ContinuationToken"] = token
             page = self._s3.list_objects_v2(**arguments)
             objects.extend(
-                StoredObject(key=entry["Key"], etag=str(entry.get("ETag", "")).strip('"') or None)
+                StoredObject(key=entry["Key"][len(self._output_prefix) :], etag=str(entry.get("ETag", "")).strip('"') or None)
                 for entry in page.get("Contents", [])
             )
             if not page.get("IsTruncated"):
@@ -207,7 +245,7 @@ class S3PageWriter:
         }
 
     def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None:
-        arguments: dict[str, Any] = {"Bucket": self._bucket, "Key": key, "Body": body, **self._headers_for(key)}
+        arguments: dict[str, Any] = {"Bucket": self._bucket, "Key": prefixed_key(self._output_prefix, key), "Body": body, **self._headers_for(key)}
         metadata: dict[str, str] = {}
         if version is not None:
             metadata[VERSION_METADATA_KEY] = str(version)
@@ -217,8 +255,19 @@ class S3PageWriter:
             arguments["Metadata"] = metadata
         self._s3.put_object(**arguments)
 
+    def put_many(self, pages: list[tuple[str, bytes, int | None, str | None]]) -> None:
+        """Write ``(key, body, version, inputs)`` with up to ``PUT_WORKERS`` requests at once. Sitemaps and feeds (``.xml``) go after every
+        other page of the batch, as the engine orders them, so a sitemap never names a page that is not written yet. Raises the first failure."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        phases = [[page for page in pages if not page[0].endswith(".xml")], [page for page in pages if page[0].endswith(".xml")]]
+        with ThreadPoolExecutor(max_workers=PUT_WORKERS) as pool:
+            for phase in phases:
+                for future in [pool.submit(self.put, key, body, version=version, inputs=inputs) for key, body, version, inputs in phase]:
+                    future.result()
+
     def delete(self, key: str) -> None:
-        self._s3.delete_object(Bucket=self._bucket, Key=key)
+        self._s3.delete_object(Bucket=self._bucket, Key=prefixed_key(self._output_prefix, key))
 
 
 def request_paths_for_key(key: str) -> tuple[str, ...]:
@@ -231,14 +280,9 @@ def request_paths_for_key(key: str) -> tuple[str, ...]:
     return ("/" + key,)
 
 
-def invalidation_paths_for(keys: list[str]) -> list[str]:
-    paths: list[str] = []
-    for key in keys:
-        paths.append("/" + key)
-        if PurePosixPath(key).name == "index.html":
-            directory = str(PurePosixPath(key).parent)
-            paths.append("/" if directory == "." else f"/{directory}/")
-    return list(dict.fromkeys(paths))
+def invalidation_paths_for(keys: list[str], url_style: str = "html") -> list[str]:
+    """The request paths to invalidate for written page keys, every form a page is cached under (``page_refresh/paths.py``)."""
+    return paths_for_page_keys(keys, url_style)
 
 
 class CloudFrontInvalidator:
@@ -248,6 +292,27 @@ class CloudFrontInvalidator:
 
     def invalidate(self, keys: list[str]) -> list[str]:
         return invalidate_distribution(self._distribution_id, invalidation_paths_for(keys), self._cloudfront)
+
+
+class TargetedCloudFrontInvalidator:
+    """``cache.invalidation: "targeted"``: purge exactly the pages a publish wrote, in both URL forms, and never collapse to ``/*``.
+
+    More than ``cap`` paths (``publication.cache.maxInvalidationPaths``) purge the first ``cap`` and raise ``InvalidationCapped`` naming the rest.
+    """
+
+    def __init__(self, distribution_id: str, cap: int, cloudfront_client: Any = None) -> None:
+        self._distribution_id = distribution_id
+        self._cap = cap
+        self._cloudfront = cloudfront_client
+
+    def invalidate(self, keys: list[str]) -> list[str]:
+        paths = invalidation_paths_for(keys)
+        listed, skipped = paths[: self._cap], paths[self._cap :]
+        if listed:
+            invalidate_exact_paths(self._distribution_id, listed, self._cloudfront)
+        if skipped:
+            raise InvalidationCapped(listed, skipped, self._cap)
+        return listed
 
 
 class RedirectStore(Protocol):

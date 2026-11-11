@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "a1a739c2-1014-44f5-ae60-6aaf60c1fe7c",
+  "issue_id": "PPY-867f7628-647c-4939-8abb-d0bd9971ced4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:32:22.413Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Auth spike part 1: claims Lambda and tenant owner rules deny every cross-tenant get, list, create, update and delete",
+    "description": "(being written)",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-9f3de056-b9e3-45e8-92ee-c71395ae25d4",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

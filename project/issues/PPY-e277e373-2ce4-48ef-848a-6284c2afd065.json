@@ -1,0 +1,30 @@
+{
+  "id": "PPY-e277e373-2ce4-48ef-848a-6284c2afd065",
+  "title": "Tenant keys on Reference, corpus and reader models",
+  "description": "What: Reference, corpora and reader rows carry and enforce tenantId. Any new index follows the one-GSI-per-table-per-release rule, so the story plans its index across releases. Adopts legacy bare-id rows into the dedicated tenant (see existing PPY-109133 for the adoption pattern).\nAcceptance:\nScenario: A query on tenant A's References returns only A's rows\n  Given References in two tenants\n  When tenant A lists by an index\n  Then only A's rows return and no whole-table read happens",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "66f6ceaf-6816-4cd5-9b92-3b8915880e9f",
+      "author": "home",
+      "text": "Implemented by PPY-94d609 (optional tenantId), PPY-ce6207 (knowledge keys), PPY-ef2c57 (reader and plugin keys, tables outside AppSync, vectors) and PPY-8f9462 (adoption of every model). Index plan: Reference needs NO new index for tenancy (corpus ids become tenant-unique, which makes feedStateKey, starFeedKey, mediumFeedKey, contentNeededKey and publicFeedKey tenant-safe; global values get a tenant prefix). Reference stays at 16 indexes with PR #1239.",
+      "created_at": "2026-11-08T18:48:43.641814Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-07T21:42:47.917446Z",
+  "updated_at": "2026-11-08T18:48:43.642077Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

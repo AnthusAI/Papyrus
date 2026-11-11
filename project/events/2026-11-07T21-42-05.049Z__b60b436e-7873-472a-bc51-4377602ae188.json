@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "b60b436e-7873-472a-bc51-4377602ae188",
+  "issue_id": "PPY-5169f291-0e97-492a-91f4-0c7f61053c0c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:05.049Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Chip-label option and nav subtitles come from the projection",
+    "description": "What: projection options for hiding or relabelling concept chips and for nav item subtitles, so MoM can delete _unlabel_concept_chips and its nav subtitle code.\nAcceptance:\nScenario: A site sets chip labels off in projection.json\n  Given the option is off\n  When a card renders\n  Then no label HTML is emitted and nothing is stripped afterwards",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-c446fe56-1b96-4fe5-8a17-af8be3a2b68b",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

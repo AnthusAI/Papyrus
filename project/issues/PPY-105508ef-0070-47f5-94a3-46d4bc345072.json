@@ -1,0 +1,30 @@
+{
+  "id": "PPY-105508ef-0070-47f5-94a3-46d4bc345072",
+  "title": "Editors can refresh specific pages on demand: one page, one story's pages, or all index pages (CLI and MCP)",
+  "description": "Ryan 2026-11-08, from editing sessions: after editing an article it was very hard to get the home page and other index pages updated in production. The one-hour edge cache (s-maxage 3600) stays the default. We need explicit operations for the times an editor must see an edit now.\n\nOperations (one definition behind the CLI and the MCP tool, per the image-toolchain pattern):\n- refresh a page: give a path; invalidate both URL forms (/dir/ and /dir/index.html) because they are cached separately, and the Markdown twin.\n- refresh a story: the story's page, its twin, and every index page that lists it (home, /articles/ or /posts/, its section page, section pagination, videos/findings when relevant).\n- refresh the index pages: home, every list page, every section page.\n- re-render pages: rebuild from the deployed hooks without a content change (a hooks or template change in git does not reach existing pages until they are re-rendered; today only a publish of each story does that).\nEach operation prints what it wrote and what it invalidated, how many invalidation paths (first 1,000 a month are free, then 0.005 USD each), and the CloudFront invalidation id with its status. A --dry-run shows the paths. Never a whole-site purge unless asked by name.\n\nEvidence: 2026-11-08 an article page served the old headline from CloudFront for an hour after publish; purging only the trailing-slash form did not fix the index pages while /index.html paths did, and another session found the reverse; both forms are needed.\nAcceptance: Gherkin for each operation, a unit test for the path expansion, docs in docs/site-hosting.md.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "ce89681e-c032-47a2-b8cf-b094645cd772",
+      "author": "home",
+      "text": "Branch feature/PPY-105508-page-refresh. Built: update-live (one command for the editing loop), refresh --path/--story/--indexes, rerender --story/--indexes/--all, inspect-page (+ --fix), source-version marker on stored item pages, per-call cap 25 (publication.cache.maxInvalidationPaths) refused with --force-paths N, dry-run first above 5 paths (--run), no wildcard, invalidation only through the content-actions function (refreshSitePages mutation / direct invoke), AGENTS.md rule against raw aws cloudfront create-invalidation. Verification: pytest test_page_refresh.py 48 passed; behave page-refresh, page-refresh-editor-lane, page-inspect 39 scenarios passed; operator-cli, projection features, test-s3-projection-publication, schema-parity ok. Needs deploy: content-actions function + refreshSitePages mutation per site. Not verified: nothing run against real AWS.",
+      "created_at": "2026-11-08T17:27:18.735017Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T16:40:45.105092Z",
+  "updated_at": "2026-11-08T17:27:18.735678Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

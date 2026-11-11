@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "79c77873-92e7-4bc7-a343-d01a45bc516a",
+  "issue_id": "PPY-203ce2b7-7c67-4699-8c35-081da06a91d7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:18.932Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Workers, agents and operators act for one named tenant; IAM is for platform staff only",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "PPY-ba92b799-b418-457f-919a-5e6dedd49186",
+  "title": "Custom domains in every plan: verification, certificates, DNS guidance",
+  "description": "What: a tenant adds its own domain, proves ownership, gets a certificate, and routes to its site. Follows the subdomain launch. Amplify domain-association throttling is why this uses the edge stack pattern, not per-tenant Amplify apps.\nAcceptance:\nScenario: A verified custom domain serves the tenant\n  Given a tenant has proven ownership of its domain\n  When a reader requests it\n  Then the tenant's site is served over HTTPS",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "243a8a65-5cdd-4582-98b0-6a5cc2ccde08",
+      "author": "home",
+      "text": "Implemented by PPY-966722; certificate mechanism decided by PPY-3b3cc3.",
+      "created_at": "2026-11-08T18:48:44.095267Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-07T21:42:48.527807Z",
+  "updated_at": "2026-11-08T18:48:44.095511Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

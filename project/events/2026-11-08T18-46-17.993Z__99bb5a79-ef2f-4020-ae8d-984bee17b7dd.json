@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "99bb5a79-ef2f-4020-ae8d-984bee17b7dd",
+  "issue_id": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:17.993Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Milestones: the multi-tenant plan in releasable steps M0 to M8",
+    "description": "(being written)",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

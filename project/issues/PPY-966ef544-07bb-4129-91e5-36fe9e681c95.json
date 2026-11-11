@@ -1,0 +1,36 @@
+{
+  "id": "PPY-966ef544-07bb-4129-91e5-36fe9e681c95",
+  "title": "Prospectus: one 'papyrus' product whose tenant deployments are created by API and held as data",
+  "description": "Outcome: Owner decision A (Ryan, 2026-11-08): launching a new site must be a data change only, with no code edit and no deployment. Today each site is a Prospectus product \"papyrus-<site>\" with its own reviewed entry in accounts/papyrus-sites.json, its own Cognito user pool, app client and compute role, capped at about 40 entries; there is no self-serve provisioning API and no invite by email (kanbus-59284c, kanbus-4c99c6, kanbus-b09c91, kanbus-db57cb); no lifecycle events yet (kanbus-6efecd). Needed in Prospectus: one product \"papyrus\" registered once for the shared stack (one pool, one client, one compute role); a deployment record per tenant (deployment id = site id, owning Account UUID, state) created and changed through an authenticated API and stored as data; entitlements per deployment; invites by email for Account members. Papyrus's side: the provisioning workflow (PPY-70a429) calls that API and never edits a file in either repository. Dedicated sites keep their per-site product entries. Coordinate with the Prospectus session; its approval is needed for Prospectus changes.\n\nProspectus status (read 2026-11-08, Prospectus develop a329ee1; Prospectus is not edited from here): the Prospectus session filed epic kanbus-b770c2 \"Papyrus deployments created through an API and held as data (shared tier)\": kanbus-271b4a deployment record (deploymentId, accountId, product papyrus, hostnames, status, createdBy, revision, journal) and routes to create, read, list, change and retire, idempotent by operation id, callable by the Papyrus shared-tier role and by operators with a reviewed grant; kanbus-3e5e82 shared sign-in (one Google client, authorize takes the deployment and checks token binding, Account ownership and membership, returns capabilities combined with billing standing; reader subjects pairwise per deployment); kanbus-f45f7f shared-tier cost accounting; kanbus-6daa8f custom domains on deployments with DNS TXT proof and a cooling-off period; kanbus-3c5b8b bring-your-own Google client; kanbus-fa72e8 security review. Correction needed in Prospectus: its epic kanbus-b770c2 says dedicated sites, including the partner's first three, stay on the per-site registry. That is wrong: Ryan (2026-11-08) decided the partner's three sites launch directly as shared-tier deployments at M7, so kanbus-271b4a and kanbus-3e5e82 are on their launch path. The Prospectus session must be told (coordinator).\n\nPapyrus asks still to confirm with the Prospectus session (record its answer here): (a) a deployment.changed event (created, changed, retired) through kanbus-6efecd, naming deploymentId and accountId and carrying no personal data; (b) a list route with a changed-since cursor so Papyrus can run a reconcile sweep when an event is lost; (c) Prospectus is the only writer of deployment records (decision D7) and of hostname claims and ownership proof (D8): Papyrus's TenantDomain mirrors them and owns only certificate and edge state; (d) the papyrus shared-tier role's grant is limited to read and to hostname-change requests its tenants make.\n\nData-only flow this consumer implements: operator or checkout creates the deployment in Prospectus -> event or sweep -> Papyrus re-reads deployment and entitlement -> provisioning PPY-70a429 -> owner signs in on newsroom.p.apyr.us. No file edit, no deploy, no Cognito callback change, no new certificate.\n\nTouches (verified at origin/develop 23fabe1d): Prospectus repository: accounts/papyrus-sites.json (stays for dedicated sites), the accounts plane (infra/lib/accounts-plane.ts), new deployment routes and records; Papyrus: lib/tenant-keys.ts, lib/prospectus-tenant.ts, the provisioning function.\n\nAcceptance (Gherkin feature file: features_backend/tenant-provisioning.feature (Papyrus side) and a Prospectus feature file named by its session):\nScenario: A new shared-tier site is created with no code change\n    Given an Account that has paid for a shared-tier site\n    When provisioning asks Prospectus to create deployment \"harbour-news\" of product \"papyrus\"\n    Then the deployment exists as data, no file in either repository changed, and nothing was deployed\n\nScenario: The per-site cap does not apply to shared-tier sites\n    Given 200 shared-tier deployments\n    When one more is created\n    Then it succeeds\n\nDependencies: blocked by PPY-6d9a6d. Blocks PPY-1da916. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-a1e75a, PPY-8bb56d.\n\nTesting: Behave against a fake Prospectus for the Papyrus side; Prospectus's own specs for its side.\nRollout: Prospectus change first, behind its own flag; Papyrus provisioning consumes it once deployed.\nRisk and mitigation: Risk: a data-driven product removes the human review that each site entry had today. Mitigation: the provisioning security review (PPY-1da916) with its controls is a gate.\n\nReleasable on its own: yes, in Prospectus (Papyrus side waits).\nDynamoDB index: none.\nAppSync authorisation: changes: Prospectus product and deployment authorisation.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-6d9a6d92-e01e-4ea7-9ba5-8cbf2fff936c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a1e75a3f-f47e-482c-ab3c-d2d5d1e8b070",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-8bb56db6-1771-4c5d-aa84-f20c3a211256",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T21:17:56.784361Z",
+  "updated_at": "2026-11-09T00:29:55.622445Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

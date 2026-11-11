@@ -1,0 +1,28 @@
+{
+  "id": "PPY-8d41d7b8-455c-4370-9564-a8845c739e68",
+  "title": "P2 Guidelines operations, papyrus guidelines CLI and the door",
+  "description": "What: one definition for CLI, MCP, newsroom client and the GraphQL door.\n\nFiles:\n- src/papyrus_content/images/operations.py (operation table): guidelines_get, guidelines_resolve, guidelines_diff, guidelines_save, guidelines_history with kind writing|image and optional section; kind image delegates to the image_profile_* handlers (kept as aliases); regenerate cli_generated.py, mcp_tools.generated.json, lib/images/operations.generated.ts\n- src/papyrus_content/guidelines/handlers.py; src/papyrus_content/cli wiring for `papyrus guidelines show|resolve|diff|save|history` (writes by default, --dry-run previews, --help sends nothing)\n- amplify/functions/image-service/{schema.ts,wire.ts,resource.ts}: guidelinesRead(op,input,actorKind) and guidelinesWrite(op,input,requestId,actorKind); IAM read/write on the payload bucket prefix newsroom/payloads/item/\n- src/papyrus_content/image_service.py: route the new fields; caller identity from AppSync only; admins save, editors read; agent cannot change constraints (human_required); requestId makes writes repeatable\n- features_backend/guidelines-door.feature, features_backend/guidelines-cli.feature\n\nAcceptance checks:\n- The operation table test proves CLI flags, MCP tools and the TS client are generated from the same entries.\n- An editor's save is not_authorized; an admin's save creates a version; an agent's constraint change is human_required and saves nothing.\n- Deploy to Pilobolus first (one data API deploy bundled with the version bump), then all seven sites in one batch.\n\nGherkin scenarios:\n- An admin saves writing guidelines through the door\n- An editor can read but not save guidelines\n- An agent cannot change a binding constraint even with an admin's session\n- Repeating a write with the same request id returns the first answer\n- The read door refuses a write operation\n- papyrus guidelines save writes unless --dry-run\n- papyrus guidelines diff shows the change and saves nothing\n- papyrus guidelines resolve prints each field with where it came from\n\nDesign: docs/plans/guidelines-as-data.md. Gherkin specs are required and ship in the same PR. Text lives in S3, never inline in DynamoDB; no new GSI; no subscriptions. Style and voice wording is data, never code.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-0796f2aa-a729-4567-b4ef-5ded75335c48",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-09T00:15:33.917953Z",
+  "updated_at": "2026-11-09T00:16:15.970851Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

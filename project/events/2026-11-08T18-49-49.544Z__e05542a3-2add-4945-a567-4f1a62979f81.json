@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "e05542a3-2add-4945-a567-4f1a62979f81",
+  "issue_id": "PPY-6d9a6d92-e01e-4ea7-9ba5-8cbf2fff936c",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:49:49.544Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Answer, with the Prospectus session (tell it before anything merges there; its approval is needed for Prospectus changes), what Prospectus offers today and what it must add. Read so far (Prospectus develop 8b8e6b8, 2026-11-07): products are a reviewed file per site (accounts/papyrus-sites.json: one Cognito client, issuer and review id per Papyrus site); billing lines are per product per account with interval plans and \"pricing out of scope\" (docs/BILLING.md); Stripe is not built; billing \"never grants, disables or suspends an entitlement\" (no automatic suspension); the weekly quota with check, usage and reservation routes is built (docs/QUOTA.md); cost accounting in microdollars with per-deployment attribution and a split of shared resources by reported usage is agreed but not built (docs/COST_ACCOUNTING.md); lifecycle events (kanbus-6efecd) are a wait. Questions: (1) one \"papyrus\" product with one deployment per site instead of a product per site? (2) usage-priced plans and how metered usage becomes invoice lines; (3) an event when a payment fails and when an account cancels, and whether a past-due account is suspended automatically (owner decision); (4) does the per-deployment cost ledger accept Papyrus's daily per-tenant usage report for shared resources; (5) pairwise reader identity per site when every site shares one product. Output: a list of Prospectus issues (kanbus ids) with owners, and an update to the Papyrus wait task PPY-a1e75a.\n\nTouches (verified at origin/develop 23fabe1d): Read-only: the Prospectus repository (develop) docs/BILLING.md, docs/QUOTA.md, docs/COST_ACCOUNTING.md, docs/ARCHITECTURE.md, accounts/papyrus-sites.json; Papyrus lib/tenant-keys.ts (tenantIdForProspectusAccount), lib/prospectus-tenant.ts.\n\nAcceptance (Gherkin feature file: none (spike); produces the inputs for features_backend/tenant-provisioning.feature):\nScenario: Every Prospectus dependency of the shared tier is named\n    Given the five questions above\n    When the spike closes\n    Then each has an answer and, where Prospectus must change, a kanbus issue id\n\nDependencies: blocked by nothing. Blocks PPY-70a429, PPY-2321aa, PPY-d7274f, PPY-3fd951, PPY-5219fc. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-a1e75a.\n\nTesting: None (reading and conversation).\nRollout: None.\nRisk and mitigation: Risk: Papyrus builds provisioning against a Prospectus contract that changes. Mitigation: every Papyrus task that calls Prospectus waits on a named, deployed Prospectus route (same rule as PPY-a1e75a).\n\nReleasable on its own: not applicable (spike).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

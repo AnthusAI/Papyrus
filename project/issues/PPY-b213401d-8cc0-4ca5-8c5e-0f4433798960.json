@@ -1,0 +1,28 @@
+{
+  "id": "PPY-b213401d-8cc0-4ca5-8c5e-0f4433798960",
+  "title": "Home templates as data: two or three vetted home pages built from includes",
+  "description": "Outcome: A tenant picks a home template instead of writing a home page: each template is a Markus page with ::include blocks (latest stories, findings by section, talking now, concepts) from the block catalogue. MoM's pages/home.md is the model for the 'publication' template; a quieter 'blog' template serves Pilobolus-like sites. Blocks read from indexes (PPY-7f1e54), never from whole-corpus files.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/projection/standard (home page and includes), new templates under src/papyrus_content/starter/home/, docs/home-page.md.\n\nAcceptance (Gherkin feature file: features_backend/home-templates.feature):\nScenario: Choosing a template changes the home page only\n    Given \"alpha\" switches from \"publication\" to \"blog\"\n    When the home page is projected\n    Then it uses the blog template and no other page changed\n\nDependencies: blocked by PPY-1252ce. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Golden renders of each template with two brand packs.\nRollout: Releasable alone.\nRisk and mitigation: Risk: a template depends on a block that reads the whole corpus. Mitigation: blocked by PPY-7f1e54 for any References block.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-1252ceae-7c20-426b-bccd-8970e7950fa0",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:24.187096Z",
+  "updated_at": "2026-11-08T18:47:07.201352Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -54,6 +54,20 @@ assertEqual(
 );
 assertEqual(imageAndCitation.imageSrcs, [{ src: "images/a.png", alt: "A", layout: "full" }], "image token resolves");
 
+// A ::video{} is a sentinel paragraph with an entry in papyrus.videos; it reads as one plain line (title, credit, address) and is not an image.
+const withVideo = loadEnvelope("plain");
+withVideo.document.children.splice(1, 0, { type: "paragraph", inline: [{ type: "text", text: "PAPYRUSMARKUP00007END" }], line: 3 });
+withVideo.papyrus.videos = {
+  PAPYRUSMARKUP00007END: { src: "https://youtu.be/UytYrhYLOKI", videoId: "UytYrhYLOKI", title: "Aircraft demo", credit: "Some Channel", caption: null, start: null, layout: "inline" },
+};
+const video = projectBodyIr(withVideo);
+assertEqual(
+  video.body,
+  ["First paragraph here.", "Video: Aircraft demo (Some Channel) https://youtu.be/UytYrhYLOKI", "Second paragraph wraps a line."],
+  "a video reads as one plain line",
+);
+assertEqual(video.imageSrcs, [], "a video is not an image");
+
 const pullQuote = projectBodyIr(loadEnvelope("pull-quote"));
 assertEqual(pullQuote.body, ["Before.", "After."], "pull-quote body");
 assertEqual(pullQuote.pullQuotes, ["A quoted line."], "pull-quote extracted");

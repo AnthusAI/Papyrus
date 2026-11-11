@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8064b31b-dfd9-4839-becb-869ae5648ea5",
+  "title": "Lens check: a Story's card must have an image, not placeholder art",
+  "description": "Dropping the 'image:' front-matter key silently turns a story's home-page card into placeholder art with no editorial warning (Anthus news desk editing, 2026-11-09, privacy story v17). Add an audience-lens check in src/papyrus_content/audience_lenses.py, next to P10/C6, that a published Story's card has an image: ERROR when the card would draw placeholder art. Gherkin: 'A story whose card would draw placeholder art fails the lens check'; 'A story with a cover image passes'.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T00:40:22.990850Z",
+  "updated_at": "2026-11-09T00:40:22.991207Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

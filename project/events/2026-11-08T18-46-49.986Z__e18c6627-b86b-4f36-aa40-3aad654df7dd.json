@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "e18c6627-b86b-4f36-aa40-3aad654df7dd",
+  "issue_id": "PPY-48659296-6f90-4549-85f6-4599a2e31371",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:49.986Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M4; PPY-966722 for threat-intelligence.anth.us.\nExit criteria: PPY-e1d26f, PPY-e51189, PPY-0c4b55 done; 14 days green (PPY-16f13a).\nCustomer-visible: TI readers: no visible change (URL parity). TI editors: the shared newsroom host.\nIndex-adding deploys in this milestone: None.\nContains: PPY-e1d26f, PPY-966722, PPY-e51189, PPY-0c4b55, PPY-16f13a, PPY-32b4c5\nFollows: M4."
+      }
+    }
+  }
+}

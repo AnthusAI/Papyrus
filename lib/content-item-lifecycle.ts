@@ -38,6 +38,15 @@ export function storyItemTypeFilter(): Record<string, unknown> {
   return { and: SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })) };
 }
 
+/**
+ * The filter for the board's stage columns: story types, and never a superseded version. A saved version keeps the stage it was written in, so a Story
+ * published long ago still has a superseded row in Copywriting; the Published column loads only its newest page, and that row would stand in for the Story
+ * in the wrong column. The newest row of a Story is current or a draft.
+ */
+export function boardStoryFilter(): Record<string, unknown> {
+  return { and: [...SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })), { versionState: { ne: "superseded" } }] };
+}
+
 export const PUBLISHED_STAGE_KEY = "published";
 
 /** Stage keys written before the story stages were simplified, read as the stage that replaced them. */
@@ -105,7 +114,21 @@ export type ContentItemVersionRecord = {
   versionCreatedBy?: string | null;
   /** An editor's private 1-5 rating of the Story. Absent (undefined) when this record was not read from the Item row, so the rating is unknown; null is unrated. */
   starRating?: number | null;
+  /** current, draft or superseded. Read by the board's stage queries; absent on records built elsewhere. */
+  versionState?: string | null;
+  /** The row's stage while it is the head of its lineage, else absent (contentItemHeadStageKey). Indexed by listItemsByHeadStageAndUpdatedAt. */
+  headStageKey?: string | null;
 };
+
+/**
+ * The head stage key a row should carry (docs/plans/story-head-stage-index.md): its stage while it is the head of its lineage (any version state
+ * but superseded: a story whose only row is a draft is still on the board), else null. A row with no stage is in no stage index. The same rule is
+ * head_stage_key in src/papyrus_content/content_item_lifecycle.py; the authoring client adds the tenant prefix on a tenant backend.
+ */
+export function contentItemHeadStageKey(row: { stage?: string | null; versionState?: string | null }): string | null {
+  if (row.versionState === "superseded") return null;
+  return row.stage ? row.stage : null;
+}
 
 export function latestVersionPerContentItem(
   versions: readonly ContentItemVersionRecord[],

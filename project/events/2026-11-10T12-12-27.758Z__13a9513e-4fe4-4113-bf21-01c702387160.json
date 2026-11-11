@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "13a9513e-4fe4-4113-bf21-01c702387160",
+  "issue_id": "PPY-93818c19-db64-4648-896b-099c4c5e46dc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T12:12:27.758Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Social preview review passes WebP without checking share-image compatibility",
+    "description": "Machines on Machines groovebox article reported missing share previews. Live og:image and twitter:image both pointed to a publicly reachable 912x572 WebP. LinkedIn documents JPEG/PNG for share image uploads; this is a compatibility concern, not proof of the cause on any particular platform. The social lens C1 passed solely because it could construct addresses, C4 did not run because it needed the picture file, and no finding warned about WebP. Reproduce: PAPYRUS_SITE=newsroom.machines-on-machines.anth.us papyrus stories lens-check --story content-item-musicians-are-rewriting-the-instruments-they-play-2bef74cda95fb3c7 --lens social --static web --json. Expected: check actual public image response, supported type and dimensions when available, flag unverified or potentially incompatible formats and do not imply successful crawler retrieval merely because a URL can be constructed. Consider separate JPEG/PNG social rendition while keeping modern article images, and test behavior with absent/unreachable images. Article changed from WebP to same image in JPEG; independently verify each platform before claiming the root cause.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6"
+    }
+  }
+}

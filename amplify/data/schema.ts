@@ -51,6 +51,7 @@ export const OPTIONAL_MODEL_GROUPS = {
   editorial: ["EditorialCheckRun", "EditorialFeedback", "EditorialPolicy", "EditorialCheckSettings"],
   steering: ["SteeringProposal", "SteeringDecision", "LexicalSteeringRule"],
   variations: ["StoryVariation"],
+  tenancy: ["Tenant", "TenantMembership", "TenantDomain"],
 } as const;
 
 /**
@@ -147,6 +148,7 @@ const definitions = {
 
   UserRoleAssignment: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       userProfileId: a.id().required(),
       userSub: a.string(),
       email: a.email(),
@@ -344,6 +346,15 @@ const definitions = {
     reasonCode: a.string(),
   }),
 
+  ReferenceSectionActionResult: a.customType({
+    ok: a.boolean().required(),
+    referenceId: a.id().required(),
+    sectionId: a.id(),
+    previousSectionId: a.id(),
+    changed: a.boolean().required(),
+    status: a.string().required(),
+  }),
+
   ReferenceStarsActionResult: a.customType({
     ok: a.boolean().required(),
     referenceId: a.id().required(),
@@ -523,6 +534,19 @@ const definitions = {
     .returns(a.ref("ReferenceStarsActionResult"))
     .authorization((allow) => [
       allow.authenticated("identityPool"),
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  setReferenceSection: a
+    .mutation()
+    .arguments({
+      referenceId: a.id().required(),
+      sectionId: a.id(),
+      agentLabel: a.string(),
+    })
+    .returns(a.ref("ReferenceSectionActionResult"))
+    .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
@@ -852,6 +876,27 @@ const definitions = {
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(functionHandler("categoryAction", categoryAction)),
 
+  StoryReferenceRoleResult: a.customType({
+    ok: a.boolean().required(),
+    relationId: a.string().required(),
+    role: a.string().required(),
+    previousRole: a.string(),
+    citationKey: a.string(),
+  }),
+
+  /** An editor changes a Story source's role (consulted, cited, based_on). SemanticRelation stays append-only for the groups; this route changes only that one kind of row (story-reference-role.ts). */
+  setStoryReferenceRole: a
+    .mutation()
+    .arguments({
+      relationId: a.id().required(),
+      role: a.string().required(),
+      citationKey: a.string(),
+      note: a.string(),
+    })
+    .returns(a.ref("StoryReferenceRoleResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
   suggestReferenceLinks: a
     .mutation()
     .arguments({ input: a.json().required() })
@@ -867,6 +912,13 @@ const definitions = {
     .handler(functionHandler("contentActions", contentActions)),
 
   requestStagingBuild: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
+  refreshSitePages: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
@@ -1300,6 +1352,7 @@ const definitions = {
 
   Assignment: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       assignmentTypeKey: a.string().required(),
       queueKey: a.string().required(),
       queueStatusKey: a.string().required(),
@@ -1350,6 +1403,7 @@ const definitions = {
 
   AssignmentEvent: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       assignmentId: a.id().required(),
       assignmentTypeKey: a.string().required(),
       queueKey: a.string().required(),
@@ -1372,6 +1426,7 @@ const definitions = {
 
   ProcedureDefinition: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       procedureKey: a.string().required(),
       title: a.string().required(),
       category: a.string().required(),
@@ -1396,6 +1451,7 @@ const definitions = {
 
   ProcedureVersion: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       procedureId: a.id().required(),
       procedureKey: a.string().required(),
       versionNumber: a.integer().required(),
@@ -1422,6 +1478,7 @@ const definitions = {
 
   ProcedureRun: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       procedureId: a.id().required(),
       procedureKey: a.string().required(),
       procedureVersionId: a.id().required(),
@@ -1457,6 +1514,7 @@ const definitions = {
   /** A named "when X happens, run procedure Y" (PPY-9ff95b). Step 1 mirrors the monitoring router's procedureTriggers and starts nothing itself. */
   Automation: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       title: a.string().required(),
       description: a.string(),
       enabled: a.boolean().required(),
@@ -1477,6 +1535,7 @@ const definitions = {
   /** A human review point raised by a step on any item (PPY-ab6a50). Review is not a story state. */
   ReviewRequest: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       subject: a.json().required(),
       mode: a.string().required(),
       reason: a.string().required(),
@@ -1499,6 +1558,7 @@ const definitions = {
   /** One user's read mark on one review request; id is "<userKey>#<requestId>". */
   ReviewReadMark: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       requestId: a.string().required(),
       userKey: a.string().required(),
       readAt: a.datetime().required(),
@@ -1510,6 +1570,7 @@ const definitions = {
   /** One way a Story could connect to what the newsroom knows: its own point, wording and connections. Not a version: variations sit side by side and an editor chooses (docs/story-variations.md). */
   StoryVariation: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       storyLineageId: a.id().required(),
       variationNumber: a.integer().required(),
       status: a.string().required(),
@@ -1543,6 +1604,7 @@ const definitions = {
   /** Who is told about review requests: scope default, mode or automation. Changed by data, not code. */
   ReviewRecipientRule: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       scope: a.string().required(),
       key: a.string(),
       roles: a.string().array(),
@@ -1588,6 +1650,7 @@ const definitions = {
 
   KnowledgeCorpus: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       name: a.string().required(),
       role: a.string().required(),
       itemCount: a.integer(),
@@ -1605,6 +1668,7 @@ const definitions = {
 
   KnowledgeImportRun: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       corpusId: a.id().required(),
       importKind: a.string().required(),
       corpusImportKindKey: a.string(),
@@ -1632,6 +1696,7 @@ const definitions = {
 
   KnowledgeRawPayload: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       ownerType: a.string().required(),
       ownerId: a.id().required(),
       payloadKind: a.string().required(),
@@ -1652,6 +1717,7 @@ const definitions = {
   // delegation (PPY-05f412). Never add a write rule here, and never move these records to a model editors can write.
   CurationDelegationRecord: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       grantorSub: a.string().required(),
       recordJson: a.string().required(),
       createdAt: a.datetime().required(),
@@ -1664,6 +1730,7 @@ const definitions = {
 
   KnowledgeArtifact: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       corpusId: a.id().required(),
       artifactKind: a.string().required(),
       artifactId: a.string().required(),
@@ -1683,6 +1750,7 @@ const definitions = {
 
   CategorySet: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       lineageId: a.id().required(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
@@ -1712,6 +1780,7 @@ const definitions = {
 
   Category: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       lineageId: a.id().required(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
@@ -1753,6 +1822,7 @@ const definitions = {
 
   CategoryKeyword: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       categorySetId: a.id().required(),
       corpusId: a.id().required(),
       categoryKey: a.string().required(),
@@ -1781,6 +1851,7 @@ const definitions = {
 
   LexicalSteeringRule: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       ruleKind: a.string().required(),
       term: a.string().required(),
       normalizedTerm: a.string().required(),
@@ -1809,6 +1880,7 @@ const definitions = {
 
   SteeringProposal: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       categorySetId: a.id(),
       corpusId: a.id().required(),
       importRunId: a.id(),
@@ -1846,6 +1918,7 @@ const definitions = {
 
   SteeringDecision: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       proposalId: a.id().required(),
       categorySetId: a.id(),
       action: a.string().required(),
@@ -1865,6 +1938,7 @@ const definitions = {
 
   Reference: realtimeModel({
       id: a.id().required(),
+      tenantId: a.string(),
       lineageId: a.id().required(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
@@ -1898,6 +1972,8 @@ const definitions = {
       curationReasonCode: a.string(),
       curationActorKind: a.string(),
       curationSectionId: a.string(),
+      curationSectionUpdatedAt: a.datetime(),   // when and by whom the section was last set on its own (`setReferenceSection`); the vote's own fields do not move
+      curationSectionUpdatedBy: a.string(),
       curationShareable: a.boolean(),
       curationDelegation: a.json(),
       curationDecisionRelationId: a.string(),
@@ -1984,6 +2060,7 @@ const definitions = {
 
   ReferenceAttachment: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       referenceId: a.id().required(),
       referenceLineageId: a.id().required(),
       referenceVersionNumber: a.integer(),
@@ -2013,6 +2090,7 @@ const definitions = {
 
   SemanticNode: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       lineageId: a.id().required(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
@@ -2057,6 +2135,7 @@ const definitions = {
 
   Message: realtimeModel({
       id: a.id().required(),
+      tenantId: a.string(),
       messageKind: a.string().required(),
       messageDomain: a.string().required(),
       status: a.string().required(),
@@ -2113,6 +2192,7 @@ const definitions = {
 
   MessageThread: realtimeModel({
       id: a.id().required(),
+      tenantId: a.string(),
       threadKind: a.string().required(),
       status: a.string().required(),
       // The title and the creator are set when a conversation is created and read afterwards; a title changes only through
@@ -2137,6 +2217,8 @@ const definitions = {
       createdAt: a.datetime().required(),
       updatedAt: a.datetime().required(),
       newsroomFeedKey: a.string(),
+      // The section the conversation is filed under, set by an editor; empty means the anchor's own section (its Reference's or Story's).
+      sectionId: a.id(),
     })
     .secondaryIndexes((index) => [
       index("newsroomFeedKey").sortKeys(["updatedAt"]).queryField("listMessageThreadsByNewsroomFeedAndUpdatedAt"),
@@ -2151,6 +2233,7 @@ const definitions = {
 
   ModelAttachment: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       ownerKind: a.string().required(),
       ownerId: a.id().required(),
       ownerLineageId: a.id(),
@@ -2182,6 +2265,7 @@ const definitions = {
 
   SemanticRelationType: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       key: a.string().required(),
       label: a.string().required(),
       inverseLabel: a.string(),
@@ -2209,6 +2293,7 @@ const definitions = {
 
   SemanticRelation: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       relationState: a.string().required(),
       predicate: a.string().required(),
       relationTypeId: a.id(),
@@ -2299,6 +2384,9 @@ const definitions = {
       starRatedBy: a.string(),
       /** The Item this one is a child of: a checklist step (type sub-task) names its Story's lineage here (docs/story-procedure.md). */
       parentLineageId: a.id(),
+      /** Only the head row of a lineage carries this: its stage (tenant-prefixed on a tenant backend), so the head stage index holds one row per
+       *  story; a superseded version has none (docs/plans/story-head-stage-index.md). */
+      headStageKey: a.string(),
       tags: a.hasMany("ItemTag", "itemId"),
       mediaAssets: a.hasMany("MediaAsset", "itemId"),
       ...(includeEditions ? { editionItems: a.hasMany("EditionItem", "itemId") } : {}),
@@ -2311,6 +2399,7 @@ const definitions = {
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listItemsBySectionStatusAndPublishedAt"),
       index("versionState").sortKeys(["updatedAt"]).queryField("listItemsByVersionStateAndUpdatedAt"),
       index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt"),
+      index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt"),
       index("parentLineageId").sortKeys(["sortTitle"]).queryField("listItemsByParentAndOrder"),
     ])
     .authorization((allow) => [
@@ -2319,6 +2408,7 @@ const definitions = {
 
   Tag: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       slug: a.string().required(),
       label: a.string().required(),
       type: a.string(),
@@ -2335,6 +2425,7 @@ const definitions = {
 
   ItemTag: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       itemId: a.id().required(),
       tagId: a.id().required(),
       itemType: a.string().required(),
@@ -2387,6 +2478,7 @@ const definitions = {
 
   Edition: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       lineageId: a.id().required(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
@@ -2418,6 +2510,7 @@ const definitions = {
 
   EditionItem: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       editionId: a.id().required(),
       editionLineageId: a.id(),
       itemId: a.id().required(),
@@ -2519,6 +2612,7 @@ const definitions = {
 
   PublishedEdition: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       sourceEditionId: a.id().required(),
       editionLineageId: a.id().required(),
       versionNumber: a.integer().required(),
@@ -2544,6 +2638,7 @@ const definitions = {
 
   PublishedEditionItem: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       publishedEditionId: a.id().required(),
       publishedItemId: a.id().required(),
       sourceEditionItemId: a.id().required(),
@@ -2568,6 +2663,7 @@ const definitions = {
 
   PublishedCategorySet: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       sourceCategorySetId: a.id().required(),
       categorySetLineageId: a.id().required(),
       versionNumber: a.integer().required(),
@@ -2593,6 +2689,7 @@ const definitions = {
 
   PublishedCategory: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       sourceCategoryId: a.id().required(),
       publishedCategorySetId: a.id().required(),
       categoryLineageId: a.id().required(),
@@ -2625,6 +2722,64 @@ const definitions = {
       allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
     ]),
+  /** A tenant: one publication on a shared stack, id = the site id. Operators write; its own admin reads (PPY-31c45c). Group "tenancy". */
+  Tenant: modelWithoutSubscriptions({
+      id: a.id().required(),
+      accountId: a.string().required(),
+      displayName: a.string().required(),
+      state: a.string().required(),
+      stateKey: a.string().required(),
+      plan: a.string(),
+      entitlements: a.json(),
+      createdAt: a.datetime().required(),
+      stateChangedAt: a.datetime(),
+    })
+    .secondaryIndexes((index) => [
+      index("accountId").queryField("listTenantsByAccount"),
+      index("stateKey").queryField("listTenantsByStateKey"),
+    ])
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("id").identityClaim("papyrus_tenant_admin").to(["read"]),
+    ]),
+
+  /** Who belongs to a tenant and in what role; id = "<tenant>#<userSub>" (PPY-31c45c). Group "tenancy". */
+  TenantMembership: modelWithoutSubscriptions({
+      id: a.id().required(),
+      tenantId: a.string().required(),
+      userSub: a.string().required(),
+      userProfileId: a.id(),
+      role: a.string().required(),
+      status: a.string().required(),
+      grantedBy: a.string(),
+      grantedAt: a.datetime(),
+    })
+    .secondaryIndexes((index) => [
+      index("userSub").queryField("listTenantMembershipsByUserSub"),
+      index("tenantId").queryField("listTenantMembershipsByTenant"),
+    ])
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
+    ]),
+
+  /** A hostname served for a tenant; id = the lowercase hostname, so it can belong to one tenant only (PPY-31c45c). Group "tenancy". */
+  TenantDomain: modelWithoutSubscriptions({
+      id: a.id().required(),
+      tenantId: a.string().required(),
+      kind: a.string().required(),
+      status: a.string().required(),
+      verification: a.json(),
+      certificateRef: a.string(),
+    })
+    .secondaryIndexes((index) => [
+      index("tenantId").queryField("listTenantDomainsByTenant"),
+    ])
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
+    ]),
+
   ...editorialChecksSchemaDefinitions,
   ...monitoringViewSchemaDefinitions,
   ...automationViewSchemaDefinitions,
@@ -2659,6 +2814,14 @@ function functionGrants(allow: any) {
     allow.resource(procedureAction),
     allow.resource(publicForms).to(["mutate"]),
   ];
+}
+
+/**
+ * Pick a rule set by tenancy mode (docs/multi-tenancy.md). Not used yet: a later change passes the shared
+ * stack's rules (no guest reads, no global group rules) through here so dedicated sites keep today's.
+ */
+export function rulesForTenancyMode<T>(mode: "dedicated" | "shared", rules: { dedicated: T; shared: T }): T {
+  return mode === "shared" ? rules.shared : rules.dedicated;
 }
 
 export const schema = a.schema(baseDefinitions).authorization(functionGrants);

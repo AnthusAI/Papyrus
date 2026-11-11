@@ -60,6 +60,28 @@ from typing import Any, Callable, Mapping
 CitationFormatter = Callable[[Mapping[str, Any]], str]
 
 
+#: How the bibliography links a source (``projection.json`` ``citations.links``).
+#: ``external`` is the original behaviour: the source's own URL is a link. ``internal`` links a source only to the
+#: site's own page for it (the entry's ``internalUrl``, a path on this site), else plain text. ``none`` is plain text.
+LINK_MODES = ("external", "internal", "none")
+DEFAULT_LINK_MODE = "external"
+#: CSL-JSON fields that carry an outbound address; left out of an entry that must not show or link one.
+INTERNAL_URL_FIELD = "internalUrl"
+_OUTBOUND_FIELDS = ("URL", "url", "DOI", "doi")
+
+#: The Lucide ``external-link`` icon (lucide.dev, ISC licence), drawn in currentColor, that ends every link out of the site.
+EXTERNAL_LINK_ICON = (
+    '<svg class="citation-external-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" '
+    'data-icon="external-link"><path d="M15 3h6v6"/><path d="M10 14 21 3"/>'
+    '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>'
+)
+
+
+def _is_local_path(page: str) -> bool:
+    return page.startswith("/") and not page.startswith("//") and "://" not in page
+
+
 class CitationError(RuntimeError):
     """Raised for an unknown citation key or an unsupported format."""
 
@@ -324,6 +346,19 @@ class CitationRendering:
     #: Fail the build on a ``[@key]`` with no matching ``citations:`` entry.
     #: Off leaves the raw text in place.
     strict: bool = True
+    #: ``external`` | ``internal`` | ``none``: see ``LINK_MODES``.
+    links: str = DEFAULT_LINK_MODE
+    #: Resolves a cited source to this site's own page: ``entry -> path`` or ``None``. The collector writes the answer into the
+    #: entry's ``internalUrl`` (the projection sets it per page; see ``projection/site_relations.py``). With the ``external``
+    #: mode a source that has a page links to it, with no icon and in the same tab; one that has none links out.
+    #: Opt-in (``projection.json`` ``citations.externalIcon``): an outside link gets the class ``citation-external`` and ends with the Lucide
+    #: ``external-link`` icon. Off, an outside link is the original markup, byte for byte.
+    external_icon: bool = False
+    page_for: Callable[[Mapping[str, Any]], str | None] | None = None
+
+    def __post_init__(self) -> None:
+        if self.links not in LINK_MODES:
+            raise CitationError(f"Unknown citation links mode {self.links!r}. Known modes: {', '.join(LINK_MODES)}.")
 
     def formatter(self, name: str) -> CitationFormatter:
         if name in self.formatters:
@@ -341,9 +376,18 @@ class CitationCollector:
     """Per-page numbering state: first reference order wins, keys dedupe."""
 
     def __init__(self, entries: Mapping[str, Mapping[str, Any]], config: CitationRendering) -> None:
+        if config.page_for is not None:
+            entries = {key: self._with_page(entry, config.page_for) for key, entry in entries.items()}
         self.entries = entries
         self.config = config
         self._order: list[str] = []
+
+    @staticmethod
+    def _with_page(entry: Mapping[str, Any], page_for: Callable[[Mapping[str, Any]], str | None]) -> Mapping[str, Any]:
+        if str(entry.get(INTERNAL_URL_FIELD) or "").strip():
+            return entry
+        page = page_for(entry)
+        return {**entry, INTERNAL_URL_FIELD: page} if page else entry
 
     def number_for(self, key: str) -> int | None:
         if key not in self.entries:
@@ -368,14 +412,33 @@ class CitationCollector:
             f'<a href="{html.escape(href, quote=True)}">{number}</a></span>'
         )
 
+    @staticmethod
+    def _plain_item(entry: Mapping[str, Any], formatter: CitationFormatter, mode: str, page: str) -> str:
+        """An entry with no outbound address: title, publisher and date as text; with ``internal``, linked to the
+        site's own page for it when the entry names one (``internalUrl``, a path on this site, never an address)."""
+        stripped = {k: v for k, v in entry.items() if k not in _OUTBOUND_FIELDS}
+        text = html.escape(formatter(stripped), quote=False)
+        if mode == "internal" and _is_local_path(page):
+            return f'<a href="{html.escape(page, quote=True)}">{text}</a>'
+        return text
+
     def list_html(self, *, fmt: str | None = None) -> str:
         """The end-of-article bibliography, in first-reference order."""
         if not self._order:
             return ""
         formatter = self.config.formatter(fmt or self.config.default_format)
+        mode = self.config.links
         items: list[str] = []
         for index, key in enumerate(self._order, start=1):
-            entry = self.entries[key]
+            entry = {k: v for k, v in self.entries[key].items() if k != INTERNAL_URL_FIELD}
+            page = str(self.entries[key].get(INTERNAL_URL_FIELD) or "").strip()
+            anchor = html.escape(f"{self.config.anchor_prefix}{index}", quote=True)
+            if mode == "external" and _is_local_path(page):
+                items.append(f'<li id="{anchor}">{self._plain_item(entry, formatter, "internal", page)}</li>')
+                continue
+            if mode != "external":
+                items.append(f'<li id="{anchor}">{self._plain_item(entry, formatter, mode, page)}</li>')
+                continue
             text = formatter(entry)
             url = str(entry.get("URL") or entry.get("url") or "").strip()
             if url:
@@ -387,11 +450,12 @@ class CitationCollector:
             body = html.escape(text, quote=False)
             if url:
                 safe = html.escape(url, quote=True)
+                klass = 'class="citation-external" ' if self.config.external_icon else ""
+                icon = EXTERNAL_LINK_ICON if self.config.external_icon else ""
                 body += (
-                    f'<a href="{safe}" target="_blank" '
-                    f'rel="noopener noreferrer">{html.escape(url, quote=False)}</a>'
+                    f'<a {klass}href="{safe}" target="_blank" '
+                    f'rel="noopener noreferrer">{html.escape(url, quote=False)}{icon}</a>'
                 )
-            anchor = html.escape(f"{self.config.anchor_prefix}{index}", quote=True)
             items.append(f'<li id="{anchor}">{body}</li>')
         klass = html.escape(self.config.list_class, quote=True)
         return f'<ol class="{klass}">' + "".join(items) + "</ol>"

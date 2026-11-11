@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
+from .site_relations import EMPTY as EMPTY_RELATIONS, SiteRelations
+
 
 @dataclass(frozen=True)
 class ItemSummary:
@@ -44,6 +46,8 @@ class SiteIndex:
     load_item: Callable[[str], ProjectedItem]
     #: ``{lineage id: stars (1 to 5)}`` of the rated Stories, read when the index was. Private: listings order by it and nothing prints it.
     story_stars: Mapping[str, int] = field(default_factory=dict)
+    #: The published Stories' ``based_on`` Reference addresses and concept links, read when the index was (``site_relations.py``).
+    relations: SiteRelations = EMPTY_RELATIONS
 
 
 @dataclass
@@ -55,10 +59,14 @@ class ProjectionReport:
     redirects_deleted: int = 0
     invalidated: list[str] = field(default_factory=list)
     unpurged: list[str] = field(default_factory=list)
+    #: Targeted mode only: request paths not purged because the call was over ``maxInvalidationPaths``.
+    invalidation_capped: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     follow_up_item_pages: bool = False
     rounds: int = 1
     skipped: list[str] = field(default_factory=list)
+    #: Pages rendered again whose stored bytes were already these (a store that can tell, S3): not purged, and not written unless only the digest changed.
+    unchanged: list[str] = field(default_factory=list)
     #: Items whose content could not be rendered (a deploy-time render only): ``{itemId, slug, error}``. Their pages are left as they are.
     unrenderable: list[dict] = field(default_factory=list)
 
@@ -70,11 +78,13 @@ class ProjectionReport:
         return {
             "ok": self.ok,
             "written": len(self.written),
+            "unchanged": len(self.unchanged),
             "deleted": len(self.deleted),
             "redirectsWritten": self.redirects_written,
             "redirectsDeleted": self.redirects_deleted,
             "invalidated": len(self.invalidated),
             "unpurged": len(self.unpurged),
+            "invalidationCapped": len(self.invalidation_capped),
             "errors": list(self.errors),
             "followUpItemPages": self.follow_up_item_pages,
             "rounds": self.rounds,

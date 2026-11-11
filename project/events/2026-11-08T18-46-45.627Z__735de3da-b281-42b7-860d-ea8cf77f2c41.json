@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "735de3da-b281-42b7-860d-ea8cf77f2c41",
+  "issue_id": "PPY-8f2c4ff5-758b-4fc1-8ea4-de1800ac219d",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:45.627Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: There is no automated guard for the one-new-index-per-table-per-deploy rule today (only comments in scripts/test-reference-feed-keys.ts). Add a CI check that compares the indexes of every model with origin/develop's last release tag and fails when a table gains more than one index, when an index changes its keys in place, or when a table passes 18 indexes (DynamoDB's default limit is 20; Reference is at 15, 16 with PR #1239). It also prints the release order the upgrade planner (PPY-d2cab9) needs.\n\nTouches (verified at origin/develop 23fabe1d): new scripts/test-gsi-ledger.ts, package.json test script, CI workflow, docs/releasing.md.\n\nAcceptance (Gherkin feature file: features_backend/gsi-ledger.feature):\nScenario: Two new indexes on one table fail the build\n    Given a change that adds two indexes to Reference\n    When CI runs\n    Then the GSI ledger check fails naming Reference and both indexes\n\nDependencies: blocked by nothing. Blocks PPY-1ce06f, PPY-297ebe. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Unit tests with schema fixtures.\nRollout: CI only; releasable immediately.\nRisk and mitigation: Low. Risk: false failures on renamed indexes. Mitigation: a rename is reported as remove plus add, which is what DynamoDB does anyway.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

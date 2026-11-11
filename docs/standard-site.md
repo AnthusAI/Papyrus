@@ -474,10 +474,36 @@ Place it on any authored page (a `videos` page, a home page band, a section fron
 
 Tests: `features_backend/reference-medium.feature` (the page lists only accepted videos, newest first; the stars never appear in any file; no embeds or scripts; unknown medium is a build error) and `src/papyrus_content/projection/standard` card markup in `procedures/newsroom/tests/test_home_page_references.py`.
 
+### Video embeds (`embeds`)
+
+`::video{...}` in a Story ([the markup](markus-content-markup.md#videos)) is the provider's standard iframe embed: the provider draws its own thumbnail and play button, and we ship no poster, placeholder or script. Which providers play is one setting in `projection.json`:
+
+```json
+"embeds": { "providers": ["youtube", "vimeo", "instagram"] }
+```
+
+`providers` names any of the registry's providers (`youtube`, `vimeo`, `instagram`); it is empty by default. **With no `embeds`, or an empty list, nothing about the
+site changes**: core does not read `::video`, the site publishes the same files, and the site's own hooks keep the line. With providers listed, the site also publishes
+`_config/content-security-policy.txt`, a one-line fragment such as
+`frame-src https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com`, with the frame origins of each listed provider and nothing else, for the site's edge (`customHttp.yml` or the
+CloudFront response-headers policy) to include. A known provider that is not listed shows as a plain linked credit line.
+
+**Privacy.** The iframe loads with the page (YouTube through `youtube-nocookie.com`, Vimeo with `dnt=1`), so the provider is contacted when a reader opens the page, not when they press play. A site that wants no such contact leaves `embeds.providers` empty.
+
+**Migrating a site that embeds with its own hooks (Pilobolus).** Pilobolus lifts `::video{src="https://www.instagram.com/..." title="..."}` lines in its `hooks.py`
+(`source`, then `item_decorator`) and draws Instagram's `blockquote` embed, which loads Instagram's own script on every page view. Nothing changes until the site opts in, so it can move one step at a time:
+(1) for each Instagram line add `credit="..."` (required),
+(2) delete the Instagram handling from `hooks.py` and the loading of Instagram's script, (3) add `"embeds": {"providers": ["instagram"]}` to `projection.json`, (4) add the published
+`_config/content-security-policy.txt` fragment (`frame-src https://www.instagram.com`) to the site's headers and drop Instagram's script and the `script-src` entries it needed,
+(5) check the Stories with `papyrus stories lens-check` (P16 and P18). Steps 1 to 3 go in one deploy, because a line without a credit is refused at save once Instagram is listed.
+
+Tests: `features_backend/video-embed.feature`.
+
 ### Images and citations
 
 Every site has `::image{...}` (responsive pictures from renditions), `[@key]` and `::citations` without declaring anything in
-`web/projection.json`. A site opts out with `"images": false` or `"citations": false`, and configures pictures by declaring
+`web/projection.json`. A site opts out with `"images": false` or `"citations": false`, sets `"citations": {"links": "external" | "internal" | "none"}` to change how
+the bibliography links a source (default `external`; see [markus-content-markup.md](markus-content-markup.md#how-the-bibliography-links-a-source)), and configures pictures by declaring
 `"images": { ... }` (`widths`, `formats`, `quality`, `layouts`, `gatsby_parity`, `listing_max_width`; Anth.us declares
 `gatsby_parity`, `placeholder` and `listing_max_width` only to match its earlier Gatsby site). With nothing declared the
 renditions are the pipeline defaults: widths 480, 768, 1024, 1366 and 1920, WebP, a 1024 px fallback, lazy loading, no

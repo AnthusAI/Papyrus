@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b26cf984-1ae7-4bb8-a557-02e7d68c9873",
+  "issue_id": "PPY-ead200ef-882a-4001-8234-933f47c4f6cb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T14:29:22.499Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Knowledge-run image Papyrus pin should follow each site's pin",
+    "description": "infra/knowledge-run/Dockerfile ARG PAPYRUS_VERSION default is fixed; it should follow each site's Papyrus pin automatically so a site bump does not leave the knowledge run on an older release.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "5767cbcf-548b-4bb7-8d5a-57feb463fb9d",
+  "issue_id": "PPY-13fbeaed-b2c8-4831-ae0a-e394c2b4ea85",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:25.009Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Dedicated sites adopt their fixed tenant, one site at a time",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

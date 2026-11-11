@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "2f96330f-4af3-4fc8-a108-7e58b0570a88",
+  "issue_id": "PPY-752480c1-0ceb-4176-ac1f-9035d7085b39",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:20.286Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Workflow and conversation models carry their tenant in every key (Messages, threads, assignments, procedures, reviews, editorial checks)",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

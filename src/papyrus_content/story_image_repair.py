@@ -23,12 +23,14 @@ from .renditions import media_key_for_source
 class ImageRepairPlan:
     copies: dict[str, str] = field(default_factory=dict)  # old key -> canonical key, one per distinct object
     row_updates: list[tuple[str, str, str]] = field(default_factory=list)  # (MediaAsset id, old key, canonical key)
+    published_row_updates: list[tuple[str, str, str]] = field(default_factory=list)  # (PublishedMediaAsset id, old key, canonical key)
     already_canonical: int = 0
+    repoint_only: set[str] = field(default_factory=set)  # old keys whose canonical object already exists: rows only, no copy
     unrepairable: list[str] = field(default_factory=list)  # rows without a srcPath, with the reason
 
     @property
     def needed(self) -> bool:
-        return bool(self.row_updates)
+        return bool(self.row_updates or self.published_row_updates)
 
 
 def _src_path(row: dict[str, Any]) -> str | None:
@@ -42,9 +44,25 @@ def _src_path(row: dict[str, Any]) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def plan_image_path_repair(rows: list[dict[str, Any]]) -> ImageRepairPlan:
-    """The copies and row updates that bring every picture row of a story to ``media/<srcPath>``. Pure."""
+def plan_image_path_repair(
+    rows: list[dict[str, Any]],
+    published_rows: list[dict[str, Any]] | None = None,
+    exists=None,
+) -> ImageRepairPlan:
+    """The copies and row updates that bring every picture row of a story to ``media/<srcPath>``.
+
+    Pure apart from ``exists(key)``, an optional bucket check: with it, a row whose canonical object is already there is
+    planned as a re-point only (no copy).
+    """
     plan = ImageRepairPlan()
+    for row in published_rows or []:
+        if row.get("type") != "image":
+            continue
+        stored, src = row.get("storagePath"), _src_path(row)
+        if not stored or not src:
+            plan.unrepairable.append(f"{row.get('id')}: has no storagePath or srcPath")
+        elif stored != media_key_for_source(src):
+            plan.published_row_updates.append((row["id"], stored, media_key_for_source(src)))
     for row in rows:
         if row.get("type") != "image":
             continue
@@ -59,6 +77,10 @@ def plan_image_path_repair(rows: list[dict[str, Any]]) -> ImageRepairPlan:
             continue
         plan.copies.setdefault(stored, wanted)
         plan.row_updates.append((row["id"], stored, wanted))
+    for _id, stored, wanted in plan.published_row_updates:
+        plan.copies.setdefault(stored, wanted)
+    if exists is not None:
+        plan.repoint_only = {old for old, new in plan.copies.items() if exists(new)}
     return plan
 
 
@@ -69,6 +91,12 @@ def story_media_rows(client, lineage_id: str) -> list[dict[str, Any]]:
         row for version in story_versions(client, lineage_id)
         for row in client.list_by_index("mediaAssetsByItemAndSortKey", version["id"])
     ]
+
+
+def story_published_media_rows(client, lineage_id: str) -> list[dict[str, Any]]:
+    from .publishing import published_item_id_for
+
+    return list(client.list_by_index("publishedMediaAssetsByItemAndSortKey", published_item_id_for(lineage_id)))
 
 
 def apply_image_path_repair(client, store, plan: ImageRepairPlan) -> list[tuple[str, str, str]]:
@@ -94,11 +122,21 @@ def apply_image_path_repair(client, store, plan: ImageRepairPlan) -> list[tuple[
             continue
         client.update_record("MediaAsset", {"id": row_id, "storagePath": wanted})
         results.append(("row", row_id, "updated"))
+    for row_id, old, wanted in plan.published_row_updates:
+        if old not in copied:
+            results.append(("published-row", row_id, "left-alone"))
+            continue
+        client.update_record("PublishedMediaAsset", {"id": row_id, "storagePath": wanted})
+        results.append(("published-row", row_id, "updated"))
     return results
 
 
 def plan_lines(lineage_id: str, plan: ImageRepairPlan) -> list[str]:
-    lines = [f"stories\trepair-image-paths\t{lineage_id}\tobject\t{old}\t->\t{new}" for old, new in sorted(plan.copies.items())]
-    lines += [f"stories\trepair-image-paths\t{lineage_id}\trow\t{row_id}\t->\t{wanted}" for row_id, _old, wanted in plan.row_updates]
+    lines = [
+        f"stories\trepair-image-paths\t{lineage_id}\t{'object-already-there' if old in plan.repoint_only else 'object'}\t{old}\t->\t{new}"
+        for old, new in sorted(plan.copies.items())
+    ]
+    lines += [f"stories\trepair-image-paths\t{lineage_id}\trow\t{row_id}\t{old}\t->\t{wanted}" for row_id, old, wanted in plan.row_updates]
+    lines += [f"stories\trepair-image-paths\t{lineage_id}\tpublished-row\t{row_id}\t{old}\t->\t{wanted}" for row_id, old, wanted in plan.published_row_updates]
     lines += [f"stories\trepair-image-paths\t{lineage_id}\tskipped\t{reason}" for reason in plan.unrepairable]
     return lines

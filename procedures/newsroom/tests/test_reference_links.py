@@ -96,15 +96,27 @@ class ReferenceLinkTests(unittest.TestCase):
         self.assertEqual(again["outcome"], "kept")
         self.assertEqual(client.tables["SemanticRelation"][result["relationId"]]["relationState"], "rejected")
 
-    def test_a_concept_tag_is_related_to_from_the_reference_to_the_node(self):
+    def test_a_concept_tag_is_tagged_with_from_the_reference_to_the_node(self):
         client = FakeClient()
         result = link_concept(client, "reference-a", NODE, "human", actor="sub-1", now=NOW)
         row = client.tables["SemanticRelation"][result["relationId"]]
-        self.assertEqual((row["predicate"], row["subjectKind"], row["objectKind"]), ("related_to", "reference", "semanticNode"))
+        self.assertEqual((row["predicate"], row["subjectKind"], row["objectKind"]), ("tagged_with", "reference", "semanticNode"))
         self.assertEqual(row["objectStateKey"], "semanticNode#node-voice#current")
         self.assertEqual(json.loads(row["metadata"])["kind"], "reference.concept")
         self.assertEqual(link_concept(client, "reference-a", NODE, "human", actor="sub-1", now=LATER)["outcome"], "updated")
         self.assertEqual(len(client.tables["SemanticRelation"]), 1)
+
+    def test_a_tag_honours_the_same_pairs_legacy_related_to_row(self):
+        client = FakeClient()
+        legacy = link_concept(client, "reference-a", NODE, "human", actor="sub-1", now=NOW, predicate="related_to")
+        # a machine suggestion beside a current legacy tag writes nothing new
+        self.assertEqual(link_concept(client, "reference-a", NODE, "suggested", actor="auto:vector", now=LATER)["outcome"], "kept")
+        self.assertEqual(list(client.tables["SemanticRelation"]), [legacy["relationId"]])
+        # a rejected legacy tag stays rejected under the new name too
+        decide(client, legacy["relationId"], "rejected", None, "no", "sub-2", now=LATER)
+        for provenance in ("human", "suggested", "derived"):
+            self.assertEqual(link_concept(client, "reference-a", NODE, provenance, actor="sub-1", now=LATER)["outcome"], "rejected")
+        self.assertEqual(list(client.tables["SemanticRelation"]), [legacy["relationId"]])
 
     def test_unknown_inputs_are_refused(self):
         client = FakeClient()

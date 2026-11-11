@@ -72,7 +72,7 @@ Feature: A signed-in editor manages concepts from the papyrus CLI, with no AWS l
 
   Scenario: A Reference is linked from the CLI to another Reference or to a concept
     When the editor links the Reference "ref-1" to the concept "boxing" with the note "The sibling problem"
-    Then the CLI asks the site for a related-to link from the Reference to "confinement problem" with that note
+    Then the CLI asks the site for a tagged-with link from the Reference to "confinement problem" with that note
     When the editor links the Reference "ref-1" to the Reference "ref-2" as "supports"
     Then the CLI asks the site for a supports link between the two References
 

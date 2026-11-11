@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "bc1ac647-4798-4779-ae75-d635f8393e3f",
+  "issue_id": "PPY-98eaeeba-0b2e-48d0-ab08-e6c78858f920",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:44.042Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: amplify/storage/resource.ts gives the editor and admin groups read, write and delete on all of media/* and newsroom/*, and guests read media/*; nothing mentions a tenant, and the identity pool cannot tell one tenant's folder from another (docs/multi-tenancy.md, \"Story pictures and the one-key rule\"). On the shared stack: uploads use a short-lived presigned URL issued by a function that checks the tenant (the model-attachment-upload function already follows this pattern), keys move under tenants/<tenant>/ (media, newsroom, corpora, preview), the identity pool grants tenant users no direct S3 access, and public images are served only through CloudFront from the site prefix. The one-key rule becomes tenants/<tenant>/media/<srcPath>; papyrus_content.renditions.media_key_for_source is the single place that builds it. copy-backend --stamp-tenant and import-markus already write media/<tenant>/..., which PPY-8f9462 reconciles.\n\nTouches (verified at origin/develop 23fabe1d): amplify/storage/resource.ts, amplify/functions/model-attachment-upload/, amplify/functions/renditions/ (source key parsing), amplify/publication/renditions-function.ts, src/papyrus_content/renditions.py (media_key_for_source), the newsroom image upload code path (components/ and app/newsroom using Amplify Storage uploadData), docs/multi-tenancy.md.\n\nAcceptance (Gherkin feature file: features_backend/tenant-storage-isolation.feature):\nScenario: An editor cannot write another tenant's object\n    Given an \"alpha\" editor\n    When the editor asks for an upload URL for \"tenants/beta/media/assets/x/pic.png\"\n    Then the request is refused\n\nScenario: An uploaded picture gets renditions under its tenant\n    Given an \"alpha\" editor uploads \"assets/launch/pic.png\"\n    When the renditions function runs\n    Then the renditions are under the alpha site prefix and nowhere else\n\nDependencies: blocked by PPY-0bb0fd. Blocks PPY-bdc4ee. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-5e0259.\n\nTesting: Unit tests of the key builder and the upload function; Behave in a sandbox; adversarial suite covers presign, direct identity-pool access and rendition paths.\nRollout: Shared stack first. Dedicated sites keep the current rules until they adopt their tenant (PPY-13fbea); the key function supports both layouts during the move.\nRisk and mitigation: Risk: existing pictures lose their renditions when keys move (the PPY-a96347 failure). Mitigation: the move is a copy plus row update with the existing repair command (stories repair-image-paths) and a dry run listing every object first.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: storage access rules (identity-pool policies).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

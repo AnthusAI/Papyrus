@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "7fcaf1cf-f25e-4957-9200-864d58dad209",
+  "issue_id": "PPY-f0ae906c-b578-4247-8fa7-5159e21c15c4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:25.973Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "SiteStore interface with file-seeded and database-backed stores",
+    "description": "What: one interface for site config, brand pack, pages and nav, with a file-seeded backing (today's repositories) and a database-plus-S3 backing. Config text goes to S3; DynamoDB holds keys and pointers only.\nAcceptance:\nScenario: Both stores produce identical output\n  Given TI and MoM configuration loaded from files and from the store\n  When each site is built\n  Then the output is byte identical",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

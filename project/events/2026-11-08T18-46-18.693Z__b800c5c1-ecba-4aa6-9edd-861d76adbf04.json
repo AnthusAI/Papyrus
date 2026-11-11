@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "b800c5c1-ecba-4aa6-9edd-861d76adbf04",
+  "issue_id": "PPY-7dc4633f-740e-4a88-a901-9fa4dbbc89ab",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:18.693Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Every function takes the tenant from the caller, not from PAPYRUS_TENANT_ID",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

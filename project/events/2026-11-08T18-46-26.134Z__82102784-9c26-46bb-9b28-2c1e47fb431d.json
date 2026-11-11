@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "82102784-9c26-46bb-9b28-2c1e47fb431d",
+  "issue_id": "PPY-7438d98a-9eba-4be3-acca-e13bb2b702c5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:26.134Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Runbooks for the shared tier's incidents",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

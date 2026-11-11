@@ -22,16 +22,22 @@ from .writers import (
     CloudFrontInvalidator,
     KeyValueStoreRedirects,
     S3PageWriter,
+    normalize_output_prefix,
+    TargetedCloudFrontInvalidator,
 )
+from ..page_refresh.budget import budget_from_environment
 
 PUBLICATION_KIND_ENV = "PAPYRUS_PUBLICATION_KIND"
 SITE_BUCKET_ENV = "PAPYRUS_SITE_BUCKET"
+OUTPUT_PREFIX_ENV = "PAPYRUS_SITE_OUTPUT_PREFIX"   # unset or empty: the site owns its bucket (every dedicated site); set: a shared bucket, this site's folder
 EDGE_DISTRIBUTION_ENV = "PAPYRUS_EDGE_DISTRIBUTION_ID"
 REDIRECTS_KVS_ENV = "PAPYRUS_REDIRECTS_KVS_ARN"
 DEAD_LETTER_QUEUE_ENV = "PAPYRUS_PROJECTION_DLQ_URL"
 HTML_S_MAXAGE_ENV = "PAPYRUS_HTML_S_MAXAGE_SECONDS"
 EDGE_INVALIDATION_ENV = "PAPYRUS_EDGE_INVALIDATION"
 EDGE_INVALIDATION_OFF = "off"
+EDGE_INVALIDATION_TARGETED = "targeted"
+EDGE_INVALIDATION_ALL = "all"
 PUBLIC_URL_ENV = "PAPYRUS_SITE_PUBLIC_URL"
 SITE_PROJECTOR_ENV = "PAPYRUS_SITE_PROJECTOR"
 SITE_STATIC_DIRECTORY_ENV = "PAPYRUS_SITE_STATIC_DIR"
@@ -39,6 +45,13 @@ S3_PROJECTION_KIND = "s3-projection"
 SITE_PROJECTOR_FACTORY = "create_projector"
 
 _projector_by_configuration: dict[tuple[str, str, tuple[str, ...]], SiteProjector] = {}
+
+
+def store_name(environment: Mapping[str, str]) -> str:
+    """What names this site's store in the lock table (lease and publish jobs): the bucket, plus the output prefix where the bucket is shared, so each site folder has its own."""
+    bucket = (environment.get(SITE_BUCKET_ENV) or "").strip()
+    prefix = normalize_output_prefix(environment.get(OUTPUT_PREFIX_ENV))
+    return f"{bucket}/{prefix.rstrip('/')}" if prefix else bucket
 
 
 def projection_configured(environ: Mapping[str, str] | None = None) -> bool:
@@ -132,6 +145,13 @@ def invalidation_enabled(environment: Mapping[str, str]) -> bool:
     return (environment.get(EDGE_INVALIDATION_ENV) or "").strip().lower() != EDGE_INVALIDATION_OFF
 
 
+def targeted_invalidation(environment: Mapping[str, str]) -> bool:
+    """The default (PPY-2745c1): ``publication.cache.invalidation`` unset or ``"targeted"``. A single-story publish or save purges exactly the pages it wrote
+    (both URL forms, never ``/*``, capped at ``maxInvalidationPaths``); a deploy never purges. ``"off"`` purges nothing; ``"all"`` is the old billable
+    collapse-to-``/*`` behaviour, discouraged."""
+    return (environment.get(EDGE_INVALIDATION_ENV) or "").strip().lower() not in (EDGE_INVALIDATION_OFF, EDGE_INVALIDATION_ALL)
+
+
 def html_s_maxage_seconds(environment: Mapping[str, str]) -> int:
     configured = (environment.get(HTML_S_MAXAGE_ENV) or "").strip()
     if configured:
@@ -146,27 +166,31 @@ def context_from_environment(
     s3_client: Any = None,
     cloudfront_client: Any = None,
     kvs_client: Any = None,
+    force_invalidation: bool = False,
 ) -> ProjectionContext:
+    """``force_invalidation`` keeps the edge invalidator even when the site's ``cache.invalidation`` is ``off``: an explicit refresh purges what it wrote."""
     environment = os.environ if environ is None else environ
     bucket = (environment.get(SITE_BUCKET_ENV) or "").strip()
     if not bucket:
         raise ValueError(f"{SITE_BUCKET_ENV} is not set; this site has no s3-projection publication.")
     distribution_id = (environment.get(EDGE_DISTRIBUTION_ENV) or "").strip()
     kvs_arn = (environment.get(REDIRECTS_KVS_ENV) or "").strip()
-    invalidator = (
-        CloudFrontInvalidator(distribution_id, cloudfront_client)
-        if distribution_id and invalidation_enabled(environment)
-        else None
-    )
+    if distribution_id and targeted_invalidation(environment):
+        invalidator = TargetedCloudFrontInvalidator(distribution_id, budget_from_environment(environment).path_cap, cloudfront_client)
+    elif distribution_id and (force_invalidation or invalidation_enabled(environment)):
+        invalidator = CloudFrontInvalidator(distribution_id, cloudfront_client)
+    else:
+        invalidator = None
+    output_prefix = normalize_output_prefix(environment.get(OUTPUT_PREFIX_ENV))
     source = PublishedContentSource(client)
     source.star_store = star_store_from_environment(environment)
     return ProjectionContext(
         source=source,
         projector=load_projector(environment),
-        writer=S3PageWriter(bucket, s3_client, html_s_maxage_seconds(environment)),
+        writer=S3PageWriter(bucket, s3_client, html_s_maxage_seconds(environment), output_prefix),
         invalidate=invalidator.invalidate if invalidator else None,
         redirect_store=KeyValueStoreRedirects(kvs_arn, kvs_client) if kvs_arn else None,
-        lease=lease_from_environment(environment, bucket),
+        lease=lease_from_environment(environment, store_name(environment)),
     )
 
 

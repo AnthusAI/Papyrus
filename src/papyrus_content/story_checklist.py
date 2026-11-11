@@ -12,6 +12,8 @@ Fields of a sub-task Item: ``lineageId`` ``step-<story>-<key>``, ``title`` (the 
 sub, reason, note and evidence reference). A sub-task has no stage, no section and no body: it never reaches a board column, a listing or a page,
 and ``sub-task`` is a system type (``content_item_lifecycle.SYSTEM_ITEM_TYPES``), so it is never a Story and never publishable.
 
+* A change records the number of the Story version it was made against (``storyVersion``); ``newsroom_process.resolve`` reads a ``done`` of a versioned
+  step (copy edit, review lenses) against an earlier version as stale (docs/story-procedure.md, "Staleness").
 * A step is ``open``, ``done``, ``skipped`` or ``not_applicable``. Skipped and not applicable need a reason; a manual step (the four review
   lenses) needs a short findings note to be done. Only a person reopens a step.
 * The existing writes (research packet, outline, draft, passed copy-edit check) mark their step done through the evidence logic of
@@ -71,7 +73,11 @@ PUBLISH_KEY = "publish"
 
 
 class ChecklistError(ValueError):
-    """A change to a checklist step that the rules refuse."""
+    """A change to a checklist step that the rules refuse. ``open_steps`` lists the steps that block a publish: ``[{"key", "label"}]`` (PPY-0515e1)."""
+
+    def __init__(self, message: str = "", open_steps: list[dict[str, str]] | None = None) -> None:
+        super().__init__(message)
+        self.open_steps = list(open_steps or [])
 
 
 def template_steps() -> list:
@@ -125,7 +131,7 @@ def _flat(group: list[dict[str, Any]]) -> dict[str, Any]:
         "stepOrder": meta.get("stepOrder", 0), "templateVersion": meta.get("templateVersion"), "title": current.get("title"), "command": meta.get("command"),
         "state": current.get("status"), "actorKind": entry.get("actorKind"), "actorLabel": entry.get("actorLabel"), "actorSub": entry.get("actorSub"),
         "changedAt": entry.get("at") or current.get("versionCreatedAt"), "reason": entry.get("reason"), "note": entry.get("note"),
-        "evidence": entry.get("evidence"), "history": _history_of(ordered), "versionNumber": int(current.get("versionNumber") or len(ordered)),
+        "evidence": entry.get("evidence"), "storyVersion": entry.get("storyVersion"), "history": _history_of(ordered), "versionNumber": int(current.get("versionNumber") or len(ordered)),
         "notes": [note for note in (meta.get("notes") or []) if isinstance(note, dict)],
     }
 
@@ -151,11 +157,13 @@ def summary_of(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def progress_text(summary: dict[str, Any]) -> str:
-    """The card line, for example ``4/9 · 2 skipped``: closed with a done or not-applicable answer over all, then the skipped count."""
-    answered = int(summary.get("done") or 0) + int(summary.get("not_applicable") or 0)
+def progress_text(summary: dict[str, Any], stale: int = 0) -> str:
+    """The card line, for example ``4/9 · 2 skipped``: closed with a done or not-applicable answer over all, then the skipped count.
+
+    ``stale`` is for ``stories next``: done steps recorded against an earlier version are not counted as answered, and the line says how many."""
+    answered = int(summary.get("done") or 0) + int(summary.get("not_applicable") or 0) - stale
     text = f"{answered}/{int(summary.get('total') or 0)}"
-    return text + (f" · {summary['skipped']} skipped" if summary.get("skipped") else "")
+    return text + (f" · {summary['skipped']} skipped" if summary.get("skipped") else "") + (f" · {stale} stale" if stale else "")
 
 
 def _metadata_of(row: dict[str, Any]) -> dict[str, Any]:
@@ -182,10 +190,10 @@ def refresh_summary(client, lineage: str, rows: list[dict[str, Any]], *, now: st
     return summary
 
 
-def _entry(state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None) -> dict[str, Any]:
+def _entry(state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None, story_version=None) -> dict[str, Any]:
     return {key: value for key, value in {
         "at": now, "state": state, "actorKind": actor["kind"], "actorLabel": actor.get("label"), "actorSub": actor.get("sub"),
-        "reason": reason, "note": note, "evidence": evidence,
+        "reason": reason, "note": note, "evidence": evidence, "storyVersion": story_version,
     }.items() if value not in (None, "")}
 
 
@@ -198,11 +206,12 @@ def _new_row(lineage: str, key: str) -> dict[str, Any]:
     }
 
 
-def _apply(row: dict[str, Any], state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None) -> dict[str, Any]:
-    entry = _entry(state, actor, now, reason=reason, note=note, evidence=evidence)
+def _apply(row: dict[str, Any], state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None, story_version=None) -> dict[str, Any]:
+    """``story_version`` is the number of the Story version the change was made against (see ``newsroom_process.resolve`` for what goes stale)."""
+    entry = _entry(state, actor, now, reason=reason, note=note, evidence=evidence, story_version=story_version)
     return {
         **row, "state": state, "actorKind": actor["kind"], "actorLabel": actor.get("label"), "actorSub": actor.get("sub"),
-        "changedAt": now, "reason": reason, "note": note, "evidence": evidence, "history": [*row.get("history", []), entry],
+        "changedAt": now, "reason": reason, "note": note, "evidence": evidence, "storyVersion": story_version, "history": [*row.get("history", []), entry],
         "versionNumber": int(row.get("versionNumber") or 0) + 1, "written": {"by": entry.get("actorLabel") or entry.get("actorSub"), "at": now, "reason": reason or note or state},
     }
 
@@ -267,7 +276,8 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
     now = now or utc_now()
     facts = facts or story_facts(client, lineage)
     assessment = assessment or assess(facts)
-    states = {row["key"]: row["state"] for row in assessment["steps"]}
+    states = {row["key"]: row.get("evidence", row["state"]) for row in assessment["steps"]}   # what the records prove, never the stored answer
+    version = int(facts["versionNumber"])
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     kept_as_record = facts["stage"] == "published" and bool(rows)   # a published Story that has a checklist gets no new template steps
     created, completed = [], []
@@ -278,15 +288,22 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
                 continue
             row = _new_row(lineage, step.key)
             if states.get(step.key) == DONE:
-                row = _apply(row, STEP_DONE, evidence_actor(step.key), now, evidence=evidence_text(step.key, facts))
+                row = _apply(row, STEP_DONE, evidence_actor(step.key), now, evidence=evidence_text(step.key, facts), story_version=version)
                 completed.append(step.key)
             else:
-                row = _apply(row, OPEN, TEMPLATE_ACTOR, now)
+                row = _apply(row, OPEN, TEMPLATE_ACTOR, now, story_version=version)
             _write(client, row, supersede=write_summary)
             rows[step.key] = row
             created.append(step.key)
         elif existing["state"] == OPEN and states.get(step.key) == DONE and not _reopened_by_person(existing):
-            row = _apply(existing, STEP_DONE, evidence_actor(step.key), now, evidence=evidence_text(step.key, facts))
+            row = _apply(existing, STEP_DONE, evidence_actor(step.key), now, evidence=evidence_text(step.key, facts), story_version=version)
+            _write(client, row, supersede=write_summary)
+            rows[step.key] = row
+            completed.append(step.key)
+        elif (existing["state"] == STEP_DONE and step.versioned and not step.manual and states.get(step.key) == DONE
+              and existing.get("storyVersion") != version and not _reopened_by_person(existing)):
+            # A versioned step the records can prove (the copy edit) whose evidence now holds for a newer version: record it again for that version.
+            row = _apply(existing, STEP_DONE, evidence_actor(step.key), now, evidence=evidence_text(step.key, facts), story_version=version)
             _write(client, row, supersede=write_summary)
             rows[step.key] = row
             completed.append(step.key)
@@ -308,6 +325,16 @@ def sync_quietly(client, lineage: str, *, facts=None, assessment=None, write_sum
 def ensure_for_new_story(client, lineage: str) -> dict[str, Any] | None:
     """Called by every path that creates a Story, once, right after the Story exists."""
     return sync_quietly(client, lineage)
+
+
+def _current_version_number(client, lineage: str) -> int | None:
+    """The number of the Story's current version, recorded with a change so a later version can tell the record is of an earlier one. None if unreadable."""
+    from .story_reporting import current_story_version
+
+    try:
+        return int(current_story_version(client, lineage).get("versionNumber") or 0) or None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any], reason: str | None = None, note: str | None = None,
@@ -339,7 +366,7 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
     existing = rows.get(key)
     if existing is None and step.status != LIVE:
         raise ChecklistError(f"Step '{key}' is not live in the procedure yet, so it has no checklist item.")
-    row = _apply(existing or _new_row(lineage, key), state, actor, now, reason=reason, note=note, evidence=evidence)
+    row = _apply(existing or _new_row(lineage, key), state, actor, now, reason=reason, note=note, evidence=evidence, story_version=_current_version_number(client, lineage))
     _write(client, row)
     rows[key] = row
     refresh_summary(client, lineage, sorted(rows.values(), key=lambda item: (int(item.get("stepOrder") or 0), item["stepKey"])), now=now)
@@ -396,7 +423,7 @@ def mark_imported(client, lineage: str, source: str, *, now: str | None = None) 
     for step in template_steps():
         row = _new_row(lineage, step.key)
         row = _apply(row, OPEN if step.key == PUBLISH_KEY else NOT_APPLICABLE, actor if step.key != PUBLISH_KEY else TEMPLATE_ACTOR, now,
-                     reason=None if step.key == PUBLISH_KEY else f"imported from {source}")
+                     reason=None if step.key == PUBLISH_KEY else f"imported from {source}", story_version=_current_version_number(client, lineage))
         _write(client, row)
         rows.append(row)
     refresh_summary(client, lineage, rows, now=now)
@@ -433,9 +460,11 @@ def require_checklist_closed(client, item: dict[str, Any]) -> None:
     blocking = open_required(rows)
     if blocking:
         lines = [f"{STEP_BY_KEY[row['stepKey']].title} ({row['stepKey']})" for row in blocking]
+        open_steps = [{"key": row["stepKey"], "label": STEP_BY_KEY[row["stepKey"]].title} for row in blocking]
         raise ChecklistError(
             "Publishing is blocked: these required steps are open: " + "; ".join(lines) + ". Mark each done, skipped with a reason or "
-            f"not applicable with a reason: papyrus stories step --story {lineage} --step <step> --state <state> --reason <why>."
+            f"not applicable with a reason: papyrus stories step --story {lineage} --step <step> --state <state> --reason <why>.",
+            open_steps,
         )
 
 
@@ -508,7 +537,7 @@ def _backfill_one(client, lineage: str, *, apply: bool) -> dict[str, Any] | None
     return {"created": missing, "completed": [key for key in [*missing, *completable] if states.get(key) == DONE]}
 
 
-def checklist_lines(shown: list[dict[str, Any]]) -> list[str]:
+def checklist_lines(shown: list[dict[str, Any]], stale: int = 0) -> list[str]:
     """The stored checklist as tab-separated lines for ``papyrus stories next``: an ``item`` line each, then the progress."""
     if not shown:
         return ["\t".join(["checklist", "none", "no checklist yet; a write to the Story makes one"])]
@@ -519,5 +548,5 @@ def checklist_lines(shown: list[dict[str, Any]]) -> list[str]:
         lines.append("\t".join(["item", row["stepKey"], row["state"], row["title"], who, str(row.get("changedAt") or ""), detail]))
         for note in row.get("notes") or []:
             lines.append("\t".join(["note", row["stepKey"], f"{note.get('actorKind')}:{note.get('actorLabel') or note.get('actorSub')}", str(note.get("at") or ""), str(note.get("text") or "").replace("\n", " ")]))
-    lines.append("\t".join(["checklist", "progress", progress_text(summary_of(shown))]))
+    lines.append("\t".join(["checklist", "progress", progress_text(summary_of(shown), stale)]))
     return lines

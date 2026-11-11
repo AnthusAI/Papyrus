@@ -96,6 +96,10 @@ jobs:
   tests:
     needs: scope
     if: needs.scope.outputs.deploy == 'true'
+    # actions: read lets the reuse check look up an earlier green run on the same tree; the tests themselves get contents: read.
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/tests.yml
 
   deploy:

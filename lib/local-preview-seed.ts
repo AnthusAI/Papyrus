@@ -5,7 +5,7 @@ import type { MediaAssetRecord } from "./newsroom-media";
 import type { ResearchAssignmentPlan } from "./assign-research";
 import type { ResearchPacketView } from "./research-packet";
 import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailAgentNote, type TrailAssignment, type TrailReference, type TrailThread, type TrailVersion } from "./story-reporting-trail";
-import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
+import { contentItemHeadStageKey, contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
 import { noteProblem, stepChangeProblem, summarizeStoryChecklist, type StoryStepNote, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
@@ -174,6 +174,7 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         lineageId: `preview-item-lineage-${stageKey}-${headlineIndex}`,
         versionNumber: 1,
         stage: stageKey,
+        headStageKey: contentItemHeadStageKey({ stage: stageKey, versionState: "current" }),   // each sample story is its own one-row lineage
         type: "article",
         status: stageKey === "published" ? "published" : "draft",
         title: headline,

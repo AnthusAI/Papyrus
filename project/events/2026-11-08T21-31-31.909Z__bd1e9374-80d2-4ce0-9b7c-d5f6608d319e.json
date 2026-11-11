@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bd1e9374-80d2-4ce0-9b7c-d5f6608d319e",
+  "issue_id": "PPY-a18d0768-9782-4d2f-b957-ef77166ef50b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:31:31.909Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Publish check: a story picture must be hosted by us (per publication setting)",
+    "description": "Add a checklist/lens check (and a per-publication setting, off by default so existing sites are unchanged, on for Machines on Machines) that flags a story whose cover picture or body pictures point at an address that is not our own storage or the site's own host: plain words, names the picture, points at the localise operation. Severity per the story procedure rules (error when the setting is on). Applies to social preview images too (og:image and twitter:image come from the cover). Gherkin: external cover flagged, own path passes, setting off does not flag. Depends on the localise story.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "92a33314-df94-4956-b8b7-89288bd03aad",
+  "issue_id": "PPY-a78dfdca-531d-47bf-b6b5-78c63140ce27",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:25.069Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Platform design policy enforced for every tenant",
+    "description": "What: a validator and browser checks for text floors, one image ratio on a 4px rhythm, contrast, no borders (flat fills and rounded rectangles) and colour-safe marks (never colour alone). Applies to every brand pack; a tenant cannot switch them off.\nAcceptance:\nScenario: A low-contrast brand pack is refused\n  Given a pack whose body text fails contrast in dark mode\n  When it is validated\n  Then it is rejected with the failing pair named",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2a44b217-dae4-4d20-9792-cb51a3a1017e",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

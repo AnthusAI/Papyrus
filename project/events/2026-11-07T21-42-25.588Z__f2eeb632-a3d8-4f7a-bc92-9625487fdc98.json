@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f2eeb632-a3d8-4f7a-bc92-9625487fdc98",
+  "issue_id": "PPY-88a88367-e908-4dc2-9174-fd29fdcfcdbf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:25.588Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Brand pack format and validator",
+    "description": "What: a JSON brand pack: name, logo, role colours for light and dark, fonts from an allow-list, sections, nav, home template, plus an image-style slot (links PPY-1f68bf) that accepts still pictograms. A validator applies the platform policy. Versioned schema.\nAcceptance:\nScenario: A valid pack builds a branded site\n  Given a pack with its own colours and font from the allow-list\n  When the site builds in light and dark\n  Then the brand shows and the policy checks pass\nScenario: A font outside the allow-list is rejected",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-31efef9d-7906-42d8-a6c5-b071ca5814d9",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

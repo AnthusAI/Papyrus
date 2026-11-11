@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "0430ba77-d185-4c1d-801c-7747a79b4a9c",
+  "issue_id": "PPY-cf7e6ef6-91ea-4beb-8730-f4c7318edb63",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:25.461Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The publication layout preset: sectioned tiers, hamburger nav with subtitles, slots",
+    "description": "What: a core layout preset for tiered sectioned listings, hamburger nav with subtitles, and spine and ornament slots. Home templates are chosen from a short list (PPY-1b83d3 home page work feeds this).\nAcceptance:\nScenario: A site picks the preset in configuration only\n  Given projection and brand pack with no hooks\n  When the site builds\n  Then home, section, item, wiki and 404 pages render in the preset",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-31efef9d-7906-42d8-a6c5-b071ca5814d9",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

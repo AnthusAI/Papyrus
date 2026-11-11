@@ -6,6 +6,9 @@ docs/images.md are all generated from this table by ``scripts/generate-image-ope
 
 To add or change an operation: edit ``OPERATIONS`` below, then run ``python scripts/generate-image-operations.py``.
 This module describes operations only. What they do is in ``handlers.py`` (every handler answers ``not_implemented`` until its build step).
+
+The table also holds the guideline operations (``group="guidelines"``: ``guidelines_get`` and the rest, PPY-8d41d7). They are the same kind of thing, so the
+generated MCP schema and TypeScript types cover them too; their CLI group is ``papyrus guidelines`` and their door is ``guidelinesRead`` / ``guidelinesWrite``.
 """
 from __future__ import annotations
 
@@ -129,6 +132,7 @@ class Operation:
     file_field: str | None = None          # the property the CLI fills from --file (a JSON or YAML document)
     picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
+    group: Literal["images", "guidelines"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
 
     @property
     def mcp_name(self) -> str:
@@ -136,7 +140,7 @@ class Operation:
 
     @property
     def command(self) -> str:
-        return " ".join(("papyrus", "images", *self.cli))
+        return " ".join(("papyrus", self.group, *self.cli))
 
 
 @dataclass(frozen=True)
@@ -171,6 +175,9 @@ ERRORS = (
     ErrorCode("stale_version", "The Story has a newer version than the one you named. Read it again."),
     ErrorCode("candidate_not_ready", "The picture is still being made."),
     ErrorCode("candidate_closed", "The picture was already discarded, expired or applied."),
+    ErrorCode("unknown_kind", "There is no such kind of guidelines.", details="kinds lists the kinds this site knows"),
+    ErrorCode("resolver_not_available", "This kind of guidelines is resolved by its own command, not this one.", details="use names the command"),
+    ErrorCode("document_hash_mismatch", "The stored guideline document does not match its recorded hash, so it was not used.", details="itemId"),
     ErrorCode("service_unavailable", "A permission or storage check could not be made. Nothing was changed.", retryable=True),
 )
 ERROR_BY_CODE = {error.code: error for error in ERRORS}
@@ -479,8 +486,93 @@ OPERATIONS: tuple[Operation, ...] = (
     ),
 )
 
+# --- guidelines (PPY-8d41d7; design: docs/plans/guidelines-as-data.md) -----------------------------------------------------------------------------
+KIND = text("The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones.")
+SECTION = text("A section key. Leave it out for the publication's own guidelines.")
+GUIDELINE_DOCUMENT = {"type": "object", "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."}
+GUIDELINE_GUARD = text("The current version id of that guideline lineage when you read it (guidelines_get returns it as expectedCurrentVersionId), "
+                       "or none for the first save.")
+GUIDELINE_CHANGES = many(record({"path": text(), "from": anything(), "to": anything()}, ("path",)))
+_GUIDELINE_REF = {"itemId": "item-editorial-doctrine-writing-v2", "versionNumber": 2, "contentHash": "sha256:5c1e"}
+_GUIDELINE_DOCUMENT = {"schemaVersion": 1, "audience": "General readers", "tone": ["Warm and plain."], "constraints": [{"id": "no-hype", "text": "No hype."}]}
+
+GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "guidelines_get", ("show",), "Read a kind of guidelines for the publication or one section, the current version or an older one.", "read",
+        obj({"kind": KIND, "section": SECTION, "version": whole("A version number; the current version when left out.")}, ("kind",)),
+        record({"kind": text(), "section": text(), "document": GUIDELINE_DOCUMENT, "itemId": text(), "versionNumber": whole(), "contentHash": text(), "updatedAt": text(),
+                "updatedBy": text(), "changeReason": {"type": "string"}, "isCurrent": flag(),
+                "expectedCurrentVersionId": text("What to pass to guidelines_save to replace this lineage's current version.")},
+               ("kind", "document", "itemId", "versionNumber", "contentHash", "expectedCurrentVersionId")),
+        ("not_found", "unknown_kind"),
+        (Example({"kind": "writing"}, {"kind": "writing", "document": _GUIDELINE_DOCUMENT, **_GUIDELINE_REF, "updatedAt": "2026-11-10T10:00:00Z", "updatedBy": "Ada Admin",
+                                       "changeReason": "Narrowed the audience.", "isCurrent": True, "expectedCurrentVersionId": "item-editorial-doctrine-writing-v2"}),),
+        group="guidelines",
+        notes="Nothing stored yet gives not_found with expectedCurrentVersionId none in details: pass that to the first save.",
+    ),
+    Operation(
+        "guidelines_resolve", ("resolve",), "Show the effective guidelines for the publication or a section laid over it, with where every field came from.", "read",
+        obj({"kind": KIND, "section": SECTION}, ("kind",)),
+        record({"kind": text(), "section": text(), "found": flag("False when the publication has no guidelines of this kind yet."), "document": GUIDELINE_DOCUMENT,
+                "fieldSources": {"type": "object", "description": "For every field, the layer it came from: publication, section, or locked by the publication."},
+                "layers": many(record({"scope": choice("publication", "section"), "itemId": text(), "slug": text(), "versionNumber": whole(), "contentHash": text()},
+                                      ("scope", "itemId", "versionNumber"))),
+                "warnings": many(record({"code": text(), "message": text()}, ("code", "message")))},
+               ("kind", "found", "document", "fieldSources", "layers", "warnings")),
+        ("unknown_kind", "resolver_not_available", "document_hash_mismatch"),
+        (Example({"kind": "writing", "section": "news"}, {"kind": "writing", "section": "news", "found": True, "document": _GUIDELINE_DOCUMENT,
+                                                          "fieldSources": {"audience": "publication", "tone": "publication"},
+                                                          "layers": [{"scope": "publication", **{**_GUIDELINE_REF, "slug": "editorial-doctrine-writing"}}], "warnings": []}),),
+        group="guidelines",
+        notes="A publication with no guidelines of the kind gets found false and the warning <kind>_guidelines_missing, not an error. Image guidelines are resolved by "
+              "papyrus images profile resolve.",
+    ),
+    Operation(
+        "guidelines_diff", ("diff",), "Show what saving a guideline document would change, without saving it.", "read",
+        obj({"kind": KIND, "section": SECTION, "document": GUIDELINE_DOCUMENT}, ("kind", "document")),
+        record({"kind": text(), "changes": GUIDELINE_CHANGES, "constraintChanges": many({"type": "object"}), "wouldCreateVersion": whole(minimum=0)},
+               ("kind", "changes", "constraintChanges", "wouldCreateVersion")),
+        ("unknown_kind",),
+        (Example({"kind": "writing", "document": _GUIDELINE_DOCUMENT}, {"kind": "writing", "changes": [{"path": "audience", "from": "Engineers", "to": "General readers"}],
+                                                                     "constraintChanges": [], "wouldCreateVersion": 3}),),
+        file_field="document", group="guidelines",
+        notes="A writing or video document is stored whole, so the diff compares it with the current document field by field. An image document is laid over the "
+              "current profile, as image_profile_diff does.",
+    ),
+    Operation(
+        "guidelines_save", ("save",), "Save a guideline document as the next version of its kind and scope.", "write",
+        obj({"kind": KIND, "section": SECTION, "document": GUIDELINE_DOCUMENT, "reason": REASON, "expectedCurrentVersionId": GUIDELINE_GUARD},
+            ("kind", "document", "reason", "expectedCurrentVersionId")),
+        record({"kind": text(), "section": text(), "itemId": text(), "versionNumber": whole(), "contentHash": text(),
+                "unchanged": flag("True when the document equals the current version, so no version was made."),
+                "repeated": flag("True when this is the first answer to the same request id, returned again.")}, ("kind", "itemId", "versionNumber", "contentHash")),
+        ("human_required", "stale_version", "unknown_kind"),
+        (Example({"kind": "writing", "document": _GUIDELINE_DOCUMENT, "reason": "Narrowed the audience.", "expectedCurrentVersionId": "item-editorial-doctrine-writing-v1"},
+                 {"kind": "writing", **_GUIDELINE_REF}),),
+        file_field="document", group="guidelines",
+        notes="Only an admin may save; an editor gets not_authorized. Adding, changing or removing a binding constraint needs an admin who is a person: an agent gets "
+              "human_required and nothing is saved. The first save of a lineage passes none as expectedCurrentVersionId. The document is stored whole, as given. "
+              "Saving a document that equals the current one makes no version. Every problem with a document is listed by field in details.problems.",
+    ),
+    Operation(
+        "guidelines_history", ("history",), "List the versions of a kind of guidelines, newest first, with who changed it and why.", "read",
+        obj({"kind": KIND, "section": SECTION}, ("kind",)),
+        record({"kind": text(), "section": text(),
+                "versions": many(record({"itemId": text(), "versionNumber": whole(), "isCurrent": flag(), "at": text(), "by": text(), "byKind": choice("human", "agent"),
+                                         "reason": {"type": "string"}, "contentHash": text()}, ("itemId", "versionNumber", "contentHash")))},
+               ("kind", "versions")),
+        ("unknown_kind",),
+        (Example({"kind": "writing"}, {"kind": "writing", "versions": [{"itemId": "item-editorial-doctrine-writing-v2", "versionNumber": 2, "isCurrent": True,
+                                                                         "at": "2026-11-10T10:00:00Z", "by": "Ada Admin", "byKind": "human",
+                                                                         "reason": "Narrowed the audience.", "contentHash": "sha256:5c1e"}]}),),
+        group="guidelines",
+    ),
+)
+
+OPERATIONS = OPERATIONS + GUIDELINE_OPERATIONS
+
 BY_NAME = {operation.name: operation for operation in OPERATIONS}
-BY_CLI = {operation.cli: operation for operation in OPERATIONS}
+BY_CLI = {(operation.group, operation.cli): operation for operation in OPERATIONS}
 
 
 def operation(name: str) -> Operation | None:

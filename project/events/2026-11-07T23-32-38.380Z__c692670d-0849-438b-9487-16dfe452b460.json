@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "c692670d-0849-438b-9487-16dfe452b460",
+  "issue_id": "PPY-64b87a1a-1be3-45ed-8861-06d12717a7fb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T23:32:38.380Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editorial structure on the shared layout",
+    "description": "Six sections, home and about pages and nav subtitles as data (projection.json plus pages), ordered by the one rule (rolling seven-day buckets, quality, recency; sections placed by best item).\nScenario: The home page follows the shared ordering\n  Given sections with items of different ages and quality\n  When the home page builds\n  Then sections and items follow the one ordering rule\n\nDepends on: PPY-196189, PPY-2d9715.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-fe8bc69c-453f-45f8-938d-eaabb8a366a8",
+    "labels": [
+      "standard-frontend-plan",
+      "threat-intelligence"
+    ]
+  }
+}

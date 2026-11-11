@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8a374e41-ca94-41ab-a6cd-b832810e049e",
+  "title": "Step runner: Item stream, per-site FIFO queue, dispatcher, coalescing window",
+  "description": "Fire steps when a checklist step becomes ready, including console board moves. Stream on the Item table, one FIFO group per Story, idempotent run claims per Story version, window shorter after a person acts. No whole-table reads (today every delivery reads the Automation table).",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T16:58:28.182828Z",
+  "updated_at": "2026-11-08T16:58:28.182859Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

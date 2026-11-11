@@ -38,6 +38,7 @@ import { isStoryItemType } from "../../../lib/content-item-lifecycle";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
 import { createConceptLink, createReferenceLink, decideReferenceLink, describeEditorConcept, ensureEditorConcept, type ReferenceLinkStore } from "./reference-links";
 import { applyKnowledgeReview, type KnowledgeReviewStore } from "./knowledge-review";
+import { setStoryReferenceRole } from "./story-reference-role";
 import { editOriginOfIdentity } from "../shared/edit-origin";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
@@ -51,6 +52,7 @@ type DenyCurationDelegationHandler = Schema["denyCurationDelegation"]["functionH
 type GetCurationDelegationStatusHandler = Schema["getCurationDelegationStatus"]["functionHandler"];
 type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functionHandler"];
 type ReferenceStarsHandler = Schema["setReferenceStars"]["functionHandler"];
+type ReferenceSectionHandler = Schema["setReferenceSection"]["functionHandler"];
 type RecordDelegatedStarsHandler = Schema["recordDelegatedStars"]["functionHandler"];
 type ItemStarsHandler = Schema["setItemStars"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
@@ -70,12 +72,14 @@ type CreateReferenceLinkHandler = Schema["createReferenceLink"]["functionHandler
 type DescribeConceptHandler = Schema["describeConcept"]["functionHandler"];
 type CreateEditorConceptHandler = Schema["createEditorConcept"]["functionHandler"];
 type DecideReferenceLinkHandler = Schema["decideReferenceLink"]["functionHandler"];
+type SetStoryReferenceRoleHandler = Schema["setStoryReferenceRole"]["functionHandler"];
 type CreateConceptLinkHandler = Schema["createConceptLink"]["functionHandler"];
 type ApplyKnowledgeReviewHandler = Schema["applyKnowledgeReview"]["functionHandler"];
 type CategoryActionEvent =
   | Parameters<LinkMessageHashtagsHandler>[0]
   | Parameters<CreateReferenceLinkHandler>[0]
   | Parameters<DecideReferenceLinkHandler>[0]
+  | Parameters<SetStoryReferenceRoleHandler>[0]
   | Parameters<CreateConceptLinkHandler>[0]
   | Parameters<ApplyKnowledgeReviewHandler>[0]
   | Parameters<DescribeConceptHandler>[0]
@@ -162,6 +166,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "createConceptLink") return createConceptLinkAction(event as Parameters<CreateConceptLinkHandler>[0]);
   if (fieldName === "applyKnowledgeReview") return applyKnowledgeReviewAction(event as Parameters<ApplyKnowledgeReviewHandler>[0]);
   if (fieldName === "decideReferenceLink") return decideReferenceLinkAction(event as Parameters<DecideReferenceLinkHandler>[0]);
+  if (fieldName === "setStoryReferenceRole") return setStoryReferenceRoleAction(event as Parameters<SetStoryReferenceRoleHandler>[0]);
   if (fieldName === "linkMessageHashtags") return linkMessageHashtagsAction(event as Parameters<LinkMessageHashtagsHandler>[0]);
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
@@ -174,6 +179,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "getCurationDelegationStatus") return getCurationDelegationStatusAction(event as Parameters<GetCurationDelegationStatusHandler>[0]);
   if (fieldName === "recordDelegatedCuration") return recordDelegatedCuration(event as Parameters<RecordDelegatedCurationHandler>[0]);
   if (fieldName === "recordDelegatedStars") return recordDelegatedStars(event as Parameters<RecordDelegatedStarsHandler>[0]);
+  if (fieldName === "setReferenceSection") return setReferenceSection(event as Parameters<ReferenceSectionHandler>[0]);
   if (fieldName === "setReferenceStars") return setReferenceStars(event as Parameters<ReferenceStarsHandler>[0]);
   if (fieldName === "setItemStars") return setItemStars(event as Parameters<ItemStarsHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
@@ -612,6 +618,42 @@ async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
   });
 }
 
+/**
+ * Changes only a Reference's Section (`curationSectionId`) and records who and when (`curationSectionUpdatedBy`, `curationSectionUpdatedAt`).
+ * It leaves the vote alone: the status, who voted and when, the note, the actor kind, the feedback and the star rating are not written, so the
+ * Cyclotron's vote id is unchanged and nothing is re-handed-off. The home page's Reference stream already watches `curationSectionId`, so the
+ * snapshot is re-triggered the way an accept does it (docs/home-page.md, Freshness). A Section can be set only on an accepted Reference and must be
+ * an enabled `NewsroomSection`; an empty `sectionId` clears it. A signed-in session must be an editor or admin; an operator on AWS credentials
+ * (the IAM lane, decided by IAM policy) is recorded by role session, never by a name it sends.
+ */
+async function setReferenceSection(event: Parameters<ReferenceSectionHandler>[0]) {
+  if (getIdentitySub(event)) requireEditorGroups(event, "set a section");
+  const client = await getDataClient();
+  const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
+  const requestedSectionId = normalizeOptionalString(event.arguments.sectionId);
+  const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
+  const status = normalizeOptionalString(reference.curationStatus) ?? "pending";
+  const previousSectionId = normalizeOptionalString(reference.curationSectionId);
+  if (requestedSectionId && status !== "accepted") {
+    throw new Error(`A section can be set only on an accepted Reference; this one is ${status}.`);
+  }
+  const sectionRecord = requestedSectionId
+    ? (await client.models.NewsroomSection.get({ id: requestedSectionId })).data ?? null
+    : null;
+  const sectionId = validatedCurationSectionId(requestedSectionId, "accept", sectionRecord);
+  if (sectionId === previousSectionId) return { ok: true, referenceId, sectionId, previousSectionId, changed: false, status };
+  const now = new Date().toISOString();
+  const person = getIdentitySub(event)
+    ? (getIdentityLabel(event) ?? getIdentitySub(event) ?? "Papyrus newsroom")
+    : `Papyrus operator (${normalizeOptionalString(String((event.identity as { userArn?: unknown } | null | undefined)?.userArn ?? "").split("/").pop()) ?? "AWS credentials"})`;
+  const actor = withViaNote(person, event, normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel));
+  await requireDataResult(
+    client.models.Reference.update({ id: referenceId, curationSectionId: sectionId, curationSectionUpdatedAt: now, curationSectionUpdatedBy: actor }),
+    "update Reference section",
+  );
+  return { ok: true, referenceId, sectionId, previousSectionId, changed: true, status };
+}
+
 function starsAcceptNote(stars: number): string {
   return `Accepted by rating it ${stars} of 5 stars.`;
 }
@@ -965,6 +1007,36 @@ async function decideReferenceLinkAction(event: Parameters<DecideReferenceLinkHa
   });
 }
 
+/** An editor changes a Story source's role (consulted to cited) on a model their token may not update: see story-reference-role.ts. */
+async function setStoryReferenceRoleAction(event: Parameters<SetStoryReferenceRoleHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to change a Story's source.");
+  const claims = (event.identity as { claims?: Record<string, unknown> } | null | undefined)?.claims ?? {};
+  const client = await getDataClient();
+  return setStoryReferenceRole(
+    {
+      getRelation: async (id) => {
+        const response = await client.models.SemanticRelation.get({ id });
+        assertNoDataErrors(response.errors, "get SemanticRelation");
+        return (response.data as any) ?? null;
+      },
+      updateRelation: async (patch) => {
+        await requireDataResult(client.models.SemanticRelation.update(patch as any), "update Story source SemanticRelation");
+      },
+    },
+    {
+      relationId: normalizeRequiredString(event.arguments.relationId, "relationId"),
+      role: normalizeRequiredString(event.arguments.role, "role"),
+      callerGroups: claimGroups(claims["cognito:groups"]),
+      citationKey: normalizeOptionalString(event.arguments.citationKey),
+      note: normalizeOptionalString(event.arguments.note),
+      actor: getIdentityLabel(event) ?? callerSub,
+      now: new Date().toISOString(),
+      origin: editOriginOfIdentity(event.identity),
+    },
+  );
+}
+
 async function createConceptLinkAction(event: Parameters<CreateConceptLinkHandler>[0]) {
   const callerSub = getIdentitySub(event);
   if (!callerSub) throw new Error("Sign in to link concepts.");
@@ -1233,6 +1305,8 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       curationReasonCode: normalizeOptionalString(current.curationReasonCode),
       curationActorKind: normalizeOptionalString(current.curationActorKind),
       curationSectionId: normalizeOptionalString(current.curationSectionId),
+      curationSectionUpdatedAt: normalizeOptionalString(current.curationSectionUpdatedAt),
+      curationSectionUpdatedBy: normalizeOptionalString(current.curationSectionUpdatedBy),
       curationShareable: typeof current.curationShareable === "boolean" ? current.curationShareable : null,
       curationDelegation: current.curationDelegation ?? null,
       curationDecisionRelationId: normalizeOptionalString(current.curationDecisionRelationId),

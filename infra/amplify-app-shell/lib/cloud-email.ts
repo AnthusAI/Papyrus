@@ -34,6 +34,13 @@ export function addCloudEmail(stack: Stack, config: CloudEmailConfig): Record<st
         snsDestination: { topicArn: topic.topicArn } },
     });
     events.node.addDependency(topic);
+    // Also onto the account's default bus, so the notifications plugin's rule can hear delivery events for the mail it tagged.
+    new ses.CfnConfigurationSetEventDestination(stack, "CloudEmailEventBridge", {
+      configurationSetName: configurationSet.ref,
+      eventDestination: { name: "delivery-events-bus", enabled: true,
+        matchingEventTypes: ["SEND", "DELIVERY", "BOUNCE", "COMPLAINT", "REJECT", "RENDERING_FAILURE", "DELIVERY_DELAY"],
+        eventBridgeDestination: { eventBusArn: stack.formatArn({ service: "events", resource: "event-bus", resourceName: "default" }) } },
+    });
     // These dimensions also feed the newsletter consumer's existing bounce/complaint alarms.
     new ses.CfnConfigurationSetEventDestination(stack, "CloudEmailMetrics", {
       configurationSetName: configurationSet.ref,

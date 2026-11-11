@@ -52,16 +52,20 @@ cd infra/scheduled-jobs && npm ci
 IMAGE_TAG=$(PAPYRUS_SPEC='papyrus-newsroom[markus] @ git+https://github.com/AnthusAI/Papyrus@<develop sha>' ../knowledge-run/build_image.sh)   # arm64; prints the tag
 ```
 
+> `cdk deploy` matches the real stack name, so `--parameters` takes `papyrus-scheduled-job-knowledge-run-<site>:Param=value`, not the construct id `KnowledgeRun-<site>`.
+
+`<site-graphql-endpoint>` is the site's AppSync GraphQL URL (the `data.url` in its `amplify_outputs.json`); the literal API ids are kept out of the repository.
+
 ### shipped
 
 ```bash
 SITE=../amplify-app-shell/examples/shipped.site.json
 npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-shipped
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-shipped \
-  --parameters KnowledgeRun-shipped:TrendDraftsEnabled=true \
-  --parameters KnowledgeRun-shipped:TrendDraftsEndpoint=https://imnmexcbrzcddk2g4vl6hsn7ie.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-shipped:TrendDraftsSnapshotUrl=https://shipped.anth.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-shipped:MonitorStoriesEnabled=true
+  --parameters papyrus-scheduled-job-knowledge-run-shipped:TrendDraftsEnabled=true \
+  --parameters papyrus-scheduled-job-knowledge-run-shipped:TrendDraftsEndpoint=<site-graphql-endpoint> \
+  --parameters papyrus-scheduled-job-knowledge-run-shipped:TrendDraftsSnapshotUrl=https://shipped.anth.us/_data/knowledge/index.json \
+  --parameters papyrus-scheduled-job-knowledge-run-shipped:MonitorStoriesEnabled=true
 ```
 
 ### anth-us
@@ -70,10 +74,10 @@ npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-shipped \
 SITE=../amplify-app-shell/examples/anth-us.site.json
 npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-anth-us
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-anth-us \
-  --parameters KnowledgeRun-anth-us:TrendDraftsEnabled=true \
-  --parameters KnowledgeRun-anth-us:TrendDraftsEndpoint=https://2m5fh2nqlnfxlfg2mxepp7tdbm.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-anth-us:TrendDraftsSnapshotUrl=https://anth.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-anth-us:MonitorStoriesEnabled=true
+  --parameters papyrus-scheduled-job-knowledge-run-anth-us:TrendDraftsEnabled=true \
+  --parameters papyrus-scheduled-job-knowledge-run-anth-us:TrendDraftsEndpoint=<site-graphql-endpoint> \
+  --parameters papyrus-scheduled-job-knowledge-run-anth-us:TrendDraftsSnapshotUrl=https://anth.us/_data/knowledge/index.json \
+  --parameters papyrus-scheduled-job-knowledge-run-anth-us:MonitorStoriesEnabled=true
 ```
 
 ### threat-intelligence
@@ -82,10 +86,10 @@ npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-anth-us \
 SITE=../amplify-app-shell/examples/threat-intelligence.site.json
 npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-threat-intelligence
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-threat-intelligence \
-  --parameters KnowledgeRun-threat-intelligence:TrendDraftsEnabled=true \
-  --parameters KnowledgeRun-threat-intelligence:TrendDraftsEndpoint=https://2neu5y2cjrbnbkord2mdaetysi.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-threat-intelligence:TrendDraftsSnapshotUrl=https://threat-intelligence.anth.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-threat-intelligence:MonitorStoriesEnabled=true
+  --parameters papyrus-scheduled-job-knowledge-run-threat-intelligence:TrendDraftsEnabled=true \
+  --parameters papyrus-scheduled-job-knowledge-run-threat-intelligence:TrendDraftsEndpoint=<site-graphql-endpoint> \
+  --parameters papyrus-scheduled-job-knowledge-run-threat-intelligence:TrendDraftsSnapshotUrl=https://threat-intelligence.anth.us/_data/knowledge/index.json \
+  --parameters papyrus-scheduled-job-knowledge-run-threat-intelligence:MonitorStoriesEnabled=true
 ```
 
 ### distinctive
@@ -94,10 +98,10 @@ npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-threat-intellig
 SITE=../amplify-app-shell/examples/distinctive.site.json
 npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-distinctive
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-distinctive \
-  --parameters KnowledgeRun-distinctive:TrendDraftsEnabled=true \
-  --parameters KnowledgeRun-distinctive:TrendDraftsEndpoint=https://lzc75j6qdjboblirpdtsalilnq.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-distinctive:TrendDraftsSnapshotUrl=https://distinctive-mark.com/_data/knowledge/index.json \
-  --parameters KnowledgeRun-distinctive:MonitorStoriesEnabled=true
+  --parameters papyrus-scheduled-job-knowledge-run-distinctive:TrendDraftsEnabled=true \
+  --parameters papyrus-scheduled-job-knowledge-run-distinctive:TrendDraftsEndpoint=<site-graphql-endpoint> \
+  --parameters papyrus-scheduled-job-knowledge-run-distinctive:TrendDraftsSnapshotUrl=https://distinctive-mark.com/_data/knowledge/index.json \
+  --parameters papyrus-scheduled-job-knowledge-run-distinctive:MonitorStoriesEnabled=true
 ```
 
 ### pilobol-us
@@ -106,10 +110,10 @@ npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-distinctive \
 SITE=../amplify-app-shell/examples/pilobol-us.site.json
 npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-pilobol-us
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-pilobol-us \
-  --parameters KnowledgeRun-pilobol-us:TrendDraftsEnabled=true \
-  --parameters KnowledgeRun-pilobol-us:TrendDraftsEndpoint=https://sivqwif4onbdnoh3fm3nrl437q.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-pilobol-us:TrendDraftsSnapshotUrl=https://pilobol.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-pilobol-us:MonitorStoriesEnabled=true
+  --parameters papyrus-scheduled-job-knowledge-run-pilobol-us:TrendDraftsEnabled=true \
+  --parameters papyrus-scheduled-job-knowledge-run-pilobol-us:TrendDraftsEndpoint=<site-graphql-endpoint> \
+  --parameters papyrus-scheduled-job-knowledge-run-pilobol-us:TrendDraftsSnapshotUrl=https://pilobol.us/_data/knowledge/index.json \
+  --parameters papyrus-scheduled-job-knowledge-run-pilobol-us:MonitorStoriesEnabled=true
 ```
 
 ### p-apyr-us
@@ -118,10 +122,10 @@ npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-pilobol-us \
 SITE=../amplify-app-shell/examples/p-apyr-us.site.json
 npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-p-apyr-us
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-p-apyr-us \
-  --parameters KnowledgeRun-p-apyr-us:TrendDraftsEnabled=true \
-  --parameters KnowledgeRun-p-apyr-us:TrendDraftsEndpoint=https://632qpvm7w5emhb2zo2vomc5rae.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-p-apyr-us:TrendDraftsSnapshotUrl=https://read.p.apyr.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-p-apyr-us:MonitorStoriesEnabled=true
+  --parameters papyrus-scheduled-job-knowledge-run-p-apyr-us:TrendDraftsEnabled=true \
+  --parameters papyrus-scheduled-job-knowledge-run-p-apyr-us:TrendDraftsEndpoint=<site-graphql-endpoint> \
+  --parameters papyrus-scheduled-job-knowledge-run-p-apyr-us:TrendDraftsSnapshotUrl=https://read.p.apyr.us/_data/knowledge/index.json \
+  --parameters papyrus-scheduled-job-knowledge-run-p-apyr-us:MonitorStoriesEnabled=true
 ```
 
 ### machines-on-machines
@@ -132,10 +136,10 @@ The site's reader distribution is `E1PTZ8B9ZF9GCU` (`machines-on-machines.anth.u
 SITE=../amplify-app-shell/examples/machines-on-machines.site.json
 npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-machines-on-machines
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-machines-on-machines \
-  --parameters KnowledgeRun-machines-on-machines:TrendDraftsEnabled=true \
-  --parameters KnowledgeRun-machines-on-machines:TrendDraftsEndpoint=https://vuagbw3fmvalta762m4zsacxce.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-machines-on-machines:TrendDraftsSnapshotUrl=https://machines-on-machines.anth.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-machines-on-machines:MonitorStoriesEnabled=true
+  --parameters papyrus-scheduled-job-knowledge-run-machines-on-machines:TrendDraftsEnabled=true \
+  --parameters papyrus-scheduled-job-knowledge-run-machines-on-machines:TrendDraftsEndpoint=<site-graphql-endpoint> \
+  --parameters papyrus-scheduled-job-knowledge-run-machines-on-machines:TrendDraftsSnapshotUrl=https://machines-on-machines.anth.us/_data/knowledge/index.json \
+  --parameters papyrus-scheduled-job-knowledge-run-machines-on-machines:MonitorStoriesEnabled=true
 ```
 
 ### dataparade
@@ -144,10 +148,10 @@ npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-machines-on-mac
 SITE=../amplify-app-shell/examples/dataparade.site.json
 npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-dataparade
 npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-dataparade \
-  --parameters KnowledgeRun-dataparade:TrendDraftsEnabled=true \
-  --parameters KnowledgeRun-dataparade:TrendDraftsEndpoint=https://lncgpg57sndelgnygygdoilm7i.appsync-api.us-east-1.amazonaws.com/graphql \
-  --parameters KnowledgeRun-dataparade:TrendDraftsSnapshotUrl=https://dataparade.anth.us/_data/knowledge/index.json \
-  --parameters KnowledgeRun-dataparade:MonitorStoriesEnabled=true
+  --parameters papyrus-scheduled-job-knowledge-run-dataparade:TrendDraftsEnabled=true \
+  --parameters papyrus-scheduled-job-knowledge-run-dataparade:TrendDraftsEndpoint=<site-graphql-endpoint> \
+  --parameters papyrus-scheduled-job-knowledge-run-dataparade:TrendDraftsSnapshotUrl=https://dataparade.anth.us/_data/knowledge/index.json \
+  --parameters papyrus-scheduled-job-knowledge-run-dataparade:MonitorStoriesEnabled=true
 ```
 
 For a site whose `infra/site.json` lives in its own repo, point `SITE` at that file instead once it carries the same `knowledgeRun` block. Shipped is a redeploy of the existing stack: the new `MonitorStoriesEnabled` parameter defaults to `false`, so the command above turns it on in the same change set.

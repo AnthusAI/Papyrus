@@ -1,0 +1,20 @@
+{
+  "id": "PPY-93779be1-01d1-4e96-be12-13551f882142",
+  "title": "Concepts row on story pages (articles and posts), above the references",
+  "description": "Read the story's mentions and related_to relations to public concept pages into the page build and list them as links. Hide when empty. Data note: posts carry related_to, not mentions; wiki entityKey is a bare slug while SemanticNode nodeKey is editor_concept--slug.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T12:30:09.858915Z",
+  "updated_at": "2026-11-09T12:30:09.858939Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

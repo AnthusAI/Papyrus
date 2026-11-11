@@ -13,6 +13,7 @@ export const proposalActionsSchemaDefinitions = {
   Proposal: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       kind: a.string().required(),
       title: a.string().required(),
       summary: a.string(),

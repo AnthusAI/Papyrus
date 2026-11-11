@@ -1,0 +1,20 @@
+{
+  "id": "PPY-41cc4f99-c0e9-4030-9268-8739a0076505",
+  "title": "Public Trending block on the publication front end (per-site setting)",
+  "description": "Precomputed file, no per-view backend calls; rising topics last 7/14 days with sparkline; marks and legend, not colour alone; off by default; editor-accepted topics only.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0f0282f-0949-4f47-93ba-a9839e98154c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T16:56:49.306375Z",
+  "updated_at": "2026-11-08T16:56:49.306402Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

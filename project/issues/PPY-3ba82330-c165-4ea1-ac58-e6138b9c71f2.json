@@ -1,0 +1,20 @@
+{
+  "id": "PPY-3ba82330-c165-4ea1-ac58-e6138b9c71f2",
+  "title": "stories list/show: stars, filters, sorting, and stories set-stars",
+  "description": "From the Anthus news desk editing session (Ryan's request), 2026-11-09: 'papyrus stories list' and 'papyrus stories show' do not show a Story's star rating and there is no way to filter or sort by stars; the editors had to write a script against story_versions() (starRating on the current version row) and call the setItemStars mutation by hand to list the 3-star published stories and raise them to 4. Ask: (1) stars column in stories list plus --stars N, --min-stars, --max-stars and --sort stars; also word count and last-published date columns; (2) stars, ratedBy and ratedAt in stories show; (3) papyrus stories set-stars --story LINEAGE --stars N (the earlier-filed command); same for the MCP equivalents. Stars are private newsroom data: never printed to published output. Gherkin: listing by stars, filtering, show, set-stars with validation (1-5, 0 clears), and a guard that nothing public gains a rating.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T04:52:37.315733Z",
+  "updated_at": "2026-11-09T04:52:37.316Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
