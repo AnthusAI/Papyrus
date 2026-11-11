@@ -829,6 +829,28 @@ files = [
 ]
 
 [[package]]
+name = "caducus"
+version = "0.2.0"
+description = "CLI for collecting ops events and running reinforcement-memory analysis."
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "caducus-0.2.0-py3-none-any.whl", hash = "sha256:130ad97adb865e1a708f77969d828e269680678e79fb029290ced8dabbc35d6a"},
+    {file = "caducus-0.2.0.tar.gz", hash = "sha256:f0b1cdd9e4742929bd1d20e0294db94cf322da90b7ec6660b6a1bc9bc28a01ed"},
+]
+
+[package.dependencies]
+boto3 = {version = ">=1.34", optional = true, markers = "extra == \"notify\""}
+
+[package.extras]
+dev = ["behave (>=1.2.6)", "black (>=24.0)", "build (>=1.2.2)", "pytest (>=8.0)", "python-semantic-release (>=10.5.3)", "ruff (>=0.4.0)"]
+notify = ["boto3 (>=1.34)"]
+notify-dev = ["PyYAML (>=6.0)", "boto3 (>=1.34)", "jsonschema (>=4.0)", "moto[dynamodb,ses,sqs,ssm] (>=5.0)", "pytest-cov (>=5.0)"]
+radar = ["PyYAML (>=6.0)", "virtuus (>=0.4.0)"]
+reinforcement-memory = ["biblicus (>=1.6.0)", "scikit-learn (>=1.3.0)"]
+
+[[package]]
 name = "catalogue"
 version = "2.0.10"
 description = "Super lightweight function registries for your library"
@@ -852,7 +874,6 @@ files = [
     {file = "certifi-2026.4.22-py3-none-any.whl", hash = "sha256:3cb2210c8f88ba2318d29b0388d1023c8492ff72ecdde4ebdaddbb13a31b1c4a"},
     {file = "certifi-2026.4.22.tar.gz", hash = "sha256:8d455352a37b71bf76a79caa83a3d6c25afee4a385d632127b6afb3963f1c580"},
 ]
-markers = {main = "extra == \"newsroom\" or extra == \"transcripts\""}
 
 [[package]]
 name = "cffi"
@@ -1090,7 +1111,6 @@ files = [
     {file = "charset_normalizer-3.4.7-py3-none-any.whl", hash = "sha256:3dce51d0f5e7951f8bb4900c257dad282f49190fdbebecd4ba99bcc41fef404d"},
     {file = "charset_normalizer-3.4.7.tar.gz", hash = "sha256:ae89db9e5f98a11a4bf50407d4363e7b09b31e55bc117b4f7d80aab97ba009e5"},
 ]
-markers = {main = "extra == \"newsroom\" or extra == \"transcripts\""}
 
 [[package]]
 name = "citeproc-py"
@@ -1871,6 +1891,21 @@ files = [
     {file = "et_xmlfile-2.0.0.tar.gz", hash = "sha256:dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54"},
 ]
 markers = {main = "extra == \"newsroom\""}
+
+[[package]]
+name = "execnet"
+version = "2.1.2"
+description = "execnet: rapid multi-Python deployment"
+optional = false
+python-versions = ">=3.8"
+groups = ["dev"]
+files = [
+    {file = "execnet-2.1.2-py3-none-any.whl", hash = "sha256:67fba928dd5a544b783f6056f449e5e3931a5c378b128bc18501f7ea79e296ec"},
+    {file = "execnet-2.1.2.tar.gz", hash = "sha256:63d83bfdd9a23e35b9c6a3261412324f964c2ec8dcd8d3c6916ee9373e0befcd"},
+]
+
+[package.extras]
+testing = ["hatch", "pre-commit", "pytest", "tox"]
 
 [[package]]
 name = "fastapi"
@@ -2747,7 +2782,6 @@ files = [
     {file = "idna-3.15-py3-none-any.whl", hash = "sha256:048adeaf8c2d788c40fee287673ccaa74c24ffd8dcf09ffa555a2fbb59f10ac8"},
     {file = "idna-3.15.tar.gz", hash = "sha256:ca962446ea538f7092a95e057da437618e886f4d349216d2b1e294abfdb65fdc"},
 ]
-markers = {main = "extra == \"priming\" or extra == \"newsroom\" or extra == \"transcripts\""}
 
 [package.extras]
 all = ["mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
@@ -5883,6 +5917,27 @@ pygments = ">=2.7.2"
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
 
 [[package]]
+name = "pytest-xdist"
+version = "3.8.0"
+description = "pytest xdist plugin for distributed testing, most importantly across multiple CPUs"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "pytest_xdist-3.8.0-py3-none-any.whl", hash = "sha256:202ca578cfeb7370784a8c33d6d05bc6e13b4f25b5053c30a152269fd10f0b88"},
+    {file = "pytest_xdist-3.8.0.tar.gz", hash = "sha256:7e578125ec9bc6050861aa93f2d59f1d8d085595d6551c2c90b6f4fad8d3a9f1"},
+]
+
+[package.dependencies]
+execnet = ">=2.1"
+pytest = ">=7.0.0"
+
+[package.extras]
+psutil = ["psutil (>=3.0)"]
+setproctitle = ["setproctitle"]
+testing = ["filelock"]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 description = "Extensions to the standard Python datetime module"
@@ -6377,7 +6432,6 @@ files = [
     {file = "requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0"},
     {file = "requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed"},
 ]
-markers = {main = "extra == \"newsroom\" or extra == \"transcripts\""}
 
 [package.dependencies]
 certifi = ">=2023.5.7"
@@ -9030,4 +9084,4 @@ transcripts = ["youtube-transcript-api"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "90a46425a5967a2345fb439f2003944b99344f6558323c74cc2737a639fbafc6"
+content-hash = "b02b8696ba474d91bc4b61500a222bef439099a06b6df3e2c8b91f3cc6817455"

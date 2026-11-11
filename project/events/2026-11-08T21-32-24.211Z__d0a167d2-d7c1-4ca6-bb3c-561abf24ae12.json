@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "d0a167d2-d7c1-4ca6-bb3c-561abf24ae12",
+  "issue_id": "PPY-7cd7a2f1-72a3-4499-b134-5a9bf0030fc6",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:32:24.211Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Throwaway CDK stack in the sandbox account: one distribution, one bucket with sites/alpha and sites/beta, a viewer-request CloudFront Function mapping Host to prefix via a KeyValueStore. Measure with x-cache whether invalidating '/about/' (and '/sites/alpha/about/') purges only alpha's copy. This decides the freshness design for the shared stack. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) spike-shared-edge-1, branch feature/<this issue id>-spike-shared-edge-1 from origin/develop (spikes: branch spike/<this issue id>-spike-shared-edge-1, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): new throwaway stack; reads amplify/publication/redirect-and-index.js and src/papyrus_content/edge_invalidation.py.\n\nAcceptance (Gherkin feature file: features_backend/shared-edge-spike.feature):\nScenario: Purging alpha's page leaves beta's cached\n    Given both tenants' /about/ are cached\n    When alpha's /about/ is purged\n    Then beta's next request is a cache hit\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: curl with x-cache headers; findings on this issue; destroy the stack afterwards.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

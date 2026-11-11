@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
-from .content_item_lifecycle import CONTENT_ITEM_STAGES, require_content_item_stage
+from .content_item_lifecycle import CONTENT_ITEM_STAGES, head_stage_fields, require_content_item_stage
 from .machine_writes import apply_stamp
 from .ids import hash_short, safe_id
 from .item_stars import carry_item_stars
@@ -114,8 +114,15 @@ def plan_version_repair(client, lineage_id: str) -> list[dict[str, Any]]:
             "previousVersionId": ordered[index - 1]["id"] if index else None,
         }
         changes = {key: value for key, value in wanted.items() if row.get(key) != value}
-        if changes:
-            updates.append({"id": row["id"], **changes})
+        # The head stage key follows the version state: the one current row carries its stage, every other row none. The row that stays
+        # current is written too when its key is missing or wrong, so a repaired story is in the head stage index exactly once.
+        key = head_stage_fields({**row, **changes})["headStageKey"]
+        stored = str(row.get("headStageKey") or "").rsplit("#", 1)[-1] or None
+        if changes or key != stored:
+            update = {"id": row["id"], **changes, "headStageKey": key}
+            if row.get("updatedAt"):
+                update["updatedAt"] = row["updatedAt"]   # a repair is not a change of the story: no card jumps to the top
+            updates.append(update)
     return updates
 
 
@@ -216,6 +223,7 @@ def save_story_version(
     }
     if stage:
         record["stage"] = require_content_item_stage(stage)
+    record.update(head_stage_fields(record))   # the new version is the head; the rows superseded below leave the head stage index
     carry_item_stars(latest, record)   # the editors' rating of the Story belongs to the Story, not to one version
     client.create_record("Item", compact_dict(record))
     for row in (media_rows(record_id) if media_rows else []):
@@ -223,8 +231,18 @@ def save_story_version(
     _carry_media_forward(client, record_id, envelope, versions)
     for row in versions:
         if row.get("versionState") == "current" or row["id"] == latest["id"]:
-            client.update_record("Item", {"id": row["id"], "versionState": "superseded"})
+            client.update_record("Item", superseding_update(row))
     return record
+
+
+def superseding_update(row: dict[str, Any]) -> dict[str, Any]:
+    """The one update that supersedes a version: its state, its head stage key cleared (it leaves the head stage index), and its own ``updatedAt``
+    passed back so the update does not stamp it as freshly changed (AppSync sets ``updatedAt`` to now when the input has none, and the old stage
+    index sorts by it)."""
+    update = {"id": row["id"], "versionState": "superseded", **head_stage_fields(row, head=False)}
+    if row.get("updatedAt"):
+        update["updatedAt"] = row["updatedAt"]
+    return update
 
 
 def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], earlier_versions: list[dict[str, Any]]) -> None:
@@ -267,8 +285,9 @@ def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], ear
 
 
 def create_story(client, *, title: str, section_key: str | None, stage: str = "idea", summary: str | None = None,
-                 actor: str, now: str | None = None) -> dict[str, Any]:
-    """Records a new story (the first Item of a new lineage) at the idea, assignment or reporting stage."""
+                 actor: str, now: str | None = None, item_type: str | None = None) -> dict[str, Any]:
+    """Records a new story (the first Item of a new lineage) at the idea, assignment or reporting stage. ``item_type`` is the Story type (``article``, ``post``,
+    ...); without one the site's default applies, else the story is ``untyped`` and cannot be published until a type is chosen."""
     from .content_item_lifecycle import build_new_content_item_version, content_item_lineage_id_for_first_work
     from .records import apply_record_changes, build_record_changes
 
@@ -284,7 +303,8 @@ def create_story(client, *, title: str, section_key: str | None, stage: str = "i
     now = now or utc_now_iso()
     lineage_id = content_item_lineage_id_for_first_work(title=title, first_assignment_id=f"story-create-{now}")
     item = build_new_content_item_version(
-        lineage_id=lineage_id, title=title, summary=summary or title, section_key=section_key, stage=stage, actor_label=actor, now=now
+        lineage_id=lineage_id, title=title, summary=summary or title, section_key=section_key, stage=stage, actor_label=actor, now=now,
+        item_type=item_type,
     )
     apply_record_changes(client, build_record_changes(client, [{"modelName": "Item", "expected": item}]))
     from .story_checklist import ensure_for_new_story
@@ -322,7 +342,7 @@ def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason:
     moves = [move for move in metadata.get(STAGE_MOVES_KEY) or [] if isinstance(move, dict)]
     moves.append({"at": now, "from": previous, "to": stage, "by": actor, "reason": reason})
     metadata[STAGE_MOVES_KEY] = moves[-MAX_STAGE_MOVES:]
-    client.update_record("Item", {"id": latest["id"], "stage": stage, "updatedAt": now, "metadata": to_aws_json(metadata)})
+    client.update_record("Item", {"id": latest["id"], "stage": stage, **head_stage_fields({**latest, "stage": stage}), "updatedAt": now, "metadata": to_aws_json(metadata)})
     from .story_checklist import sync_quietly
 
     sync_quietly(client, lineage_id)   # a change: the checklist catches up with the template and the evidence
@@ -433,8 +453,50 @@ def link_reference_to_story(
         "metadata": json.dumps(metadata, sort_keys=True),
         "newsroomFeedKey": "story-references",
     }
-    outcome = client.upsert("SemanticRelation", record)
+    try:
+        outcome = client.upsert("SemanticRelation", record)
+    except Exception as error:  # noqa: BLE001 - only the one refusal below is answered; anything else is raised as it was
+        if not (existing and _update_refused(error)):
+            raise
+        # A signed-in editor's token may create a SemanticRelation but never update one (the model is append-only for the groups). The refusal
+        # is certain (nothing was written), so the role change goes through the site's own route, which changes only a Story source's role,
+        # citation key and note. The IAM lane never gets here: its rule allows the update.
+        changed = set_story_reference_role(client, relation_id, role=role, citation_key=citation_key, note=note)
+        return {"relationId": relation_id, "role": changed.get("role") or role, "outcome": "updated", "referenceLineageId": reference_lineage_id}
     return {"relationId": relation_id, "role": role, "outcome": outcome, "referenceLineageId": reference_lineage_id}
+
+
+SET_STORY_REFERENCE_ROLE_MUTATION = """
+mutation SetStoryReferenceRole($relationId: ID!, $role: String!, $citationKey: String, $note: String) {
+  setStoryReferenceRole(relationId: $relationId, role: $role, citationKey: $citationKey, note: $note) {
+    ok relationId role previousRole citationKey
+  }
+}
+"""
+
+
+def _update_refused(error: BaseException) -> bool:
+    return "Not Authorized to access updateSemanticRelation" in str(error)
+
+
+def set_story_reference_role(client, relation_id: str, *, role: str, citation_key: str | None = None, note: str | None = None) -> dict[str, Any]:
+    """Changes the role of a source already attached to a Story through the site's ``setStoryReferenceRole`` route (editor and admin groups).
+
+    The site stamps who changed it from the sign-in and refuses any relation that is not a Story source, so no other relation can be rewritten this way."""
+    if role not in STORY_REFERENCE_ROLES:
+        raise ValueError(f"role must be one of {', '.join(STORY_REFERENCE_ROLES)}.")
+    variables = {"relationId": relation_id, "role": role, "citationKey": citation_key, "note": note}
+    try:
+        data = client.graphql(SET_STORY_REFERENCE_ROLE_MUTATION, variables)
+    except Exception as error:  # noqa: BLE001 - re-raised with the reason a site that predates the route gives
+        if "setStoryReferenceRole" in str(error) and ("Cannot query field" in str(error) or "FieldUndefined" in str(error) or "Unknown field" in str(error)):
+            raise RuntimeError(
+                "This site's backend predates the setStoryReferenceRole route, so a signed-in editor cannot change the role of a source already attached. "
+                "Until the site's backend is deployed, ask an operator to run the same command with AWS credentials (PAPYRUS_GRAPHQL_AUTH=iam). "
+                "A source attached for the first time can still be attached as cited directly."
+            ) from error
+        raise
+    return (data or {}).get("setStoryReferenceRole") or {}
 
 
 def stories_based_on_reference(client, reference_lineage_id: str) -> list[dict[str, Any]]:

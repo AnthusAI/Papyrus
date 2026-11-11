@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "d6a63003-b5d6-481a-acde-714b4faa72e4",
+  "issue_id": "PPY-8ca9a7d9-22e0-44da-8e53-b4f436f3488d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:24.890Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Which of our sites follow TI onto the shared tier, and which stay dedicated",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

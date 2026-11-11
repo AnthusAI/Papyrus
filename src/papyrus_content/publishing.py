@@ -20,7 +20,7 @@ from .machine_writes import apply_stamp
 from .markus_renderer.derive import BodyError, derive_body
 from .projection.stored import PROJECTION_METADATA_KEY, projection_metadata
 from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
-from .content_item_lifecycle import UNTYPED_ITEM_TYPE
+from .content_item_lifecycle import UNTYPED_ITEM_TYPE, head_stage_fields
 from .item_stars import assert_no_item_stars
 from .wiki_stamp import WIKI_PAGE_ITEM_TYPE, stamp_problems
 
@@ -60,11 +60,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 class PublishError(Exception):
-    def __init__(self, code: str, message: str = "", errors: list[BodyError] | None = None):
+    def __init__(self, code: str, message: str = "", errors: list[BodyError] | None = None, details: dict[str, Any] | None = None):
         super().__init__(message or code)
         self.code = code
         self.message = message or code
         self.errors = list(errors or [])
+        self.details = dict(details or {})   # machine-readable extras, e.g. {"openSteps": [{"key", "label"}]} for checklist-open
 
 
 def item_id_for(section: str | None, slug: str) -> str:
@@ -252,6 +253,7 @@ def save_item(
         "metadata": to_aws_json(metadata),
         "contentHash": _source_content_hash(fields),
     }
+    record.update(head_stage_fields(record))   # a save in place keeps the row in the head stage index while it is the head
     client.upsert("Item", compact_dict(record))
     return record
 
@@ -370,7 +372,7 @@ def publish_item(
     try:
         require_checklist_closed(client, item)   # every required step done, or skipped / not applicable with a recorded reason
     except ChecklistError as error:
-        raise PublishError("checklist-open", str(error)) from error
+        raise PublishError("checklist-open", str(error), details={"openSteps": error.open_steps}) from error
     ensure_publish_approval(client, item, approved_by=approved_by, actor=actor)
     if already_projected:
         version_number = existing.get("versionNumber") or 1
@@ -409,12 +411,15 @@ def publish_item(
             "versionCreatedBy": actor,
             "changeReason": "publish",
             "bodyIr": to_aws_json(envelope),
+            **head_stage_fields({"versionState": "current", "stage": "published"}),   # the published record is the head
         },
     )
-    # The published record is the one current record of its lineage.
+    # The published record is the one current record of its lineage, and the only one in the head stage index.
+    from .story_reporting import superseding_update
+
     for sibling in client.list_by_index("itemsByLineageAndVersion", lineage_id):
-        if sibling["id"] != item_id and sibling.get("versionState") == "current":
-            client.update_record("Item", {"id": sibling["id"], "versionState": "superseded"})
+        if sibling["id"] != item_id and sibling.get("versionState") in ("current", "draft"):
+            client.update_record("Item", superseding_update(sibling))
     from .content_item_lifecycle import is_story_item_type
 
     if is_story_item_type(item.get("type")):
@@ -450,6 +455,7 @@ def unpublish_item(client, item_id: str, *, actor: str, now: str | None = None) 
             "versionCreatedAt": now,
             "versionCreatedBy": actor,
             "changeReason": "unpublish",
+            **head_stage_fields({**item, "stage": "copywriting"}),
         },
     )
     return PublishResult(True, item_id, published_id, (published or {}).get("versionNumber"), deleted)

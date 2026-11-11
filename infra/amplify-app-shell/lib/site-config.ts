@@ -151,6 +151,12 @@ export type AmplifyAppShellSiteConfig = {
    * private repositories get no Actions minutes, so Amplify's own repository-connected auto-build stays on.
    */
   autoDeploy: boolean;
+  /**
+   * Prospectus cost accounting (docs/cost-accounting.md) on the app shell and private chat stacks. Default true: every
+   * resource gets the anthus: cost tags. The site backend tags itself in waves (papyrus-infra backend-deploy) and reads
+   * its site ID from this file, so nothing here switches it.
+   */
+  costAccounting: boolean;
   ci?: CiGateConfig;
   github?: {
     owner: string;
@@ -665,7 +671,7 @@ export function parseSiteConfig(raw: unknown, environment: Record<string, string
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "email", "reader", "papyrusVersion", "storagePreviewPrefix", "chat", "knowledgeRun", "autoDeploy", "ci", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "email", "reader", "papyrusVersion", "storagePreviewPrefix", "chat", "knowledgeRun", "autoDeploy", "costAccounting", "ci", "github"],
     "site",
   );
 
@@ -721,6 +727,9 @@ export function parseSiteConfig(raw: unknown, environment: Record<string, string
 
   const autoDeploy = record.autoDeploy ?? true;
   if (typeof autoDeploy !== "boolean") fail("autoDeploy", "must be a boolean");
+
+  const costAccounting = record.costAccounting ?? true;
+  if (typeof costAccounting !== "boolean") fail("costAccounting", "must be a boolean");
 
   const ci = parseCi(record.ci, autoDeploy as boolean);
 
@@ -785,6 +794,7 @@ export function parseSiteConfig(raw: unknown, environment: Record<string, string
     storagePreviewPrefix,
     ...(chat ? { chat } : {}),
     autoDeploy: autoDeploy as boolean,
+    costAccounting: costAccounting as boolean,
     ...(ci ? { ci } : {}),
     github,
     ...(record.knowledgeRun !== undefined ? { knowledgeRun: record.knowledgeRun } : {}),

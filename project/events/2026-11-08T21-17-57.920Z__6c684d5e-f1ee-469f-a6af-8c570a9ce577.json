@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "6c684d5e-f1ee-469f-a6af-8c570a9ce577",
+  "issue_id": "PPY-966ef544-07bb-4129-91e5-36fe9e681c95",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:17:57.920Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Owner decision A (Ryan, 2026-11-08): launching a new site must be a data change only, with no code edit and no deployment. Today each site is a Prospectus product \"papyrus-<site>\" with its own reviewed entry in accounts/papyrus-sites.json, its own Cognito user pool, app client and compute role, capped at about 40 entries; there is no self-serve provisioning API and no invite by email (kanbus-59284c, kanbus-4c99c6, kanbus-b09c91, kanbus-db57cb); no lifecycle events yet (kanbus-6efecd). Needed in Prospectus: one product \"papyrus\" registered once for the shared stack (one pool, one client, one compute role); a deployment record per tenant (deployment id = site id, owning Account UUID, state) created and changed through an authenticated API and stored as data; entitlements per deployment; invites by email for Account members. Papyrus's side: the provisioning workflow (PPY-70a429) calls that API and never edits a file in either repository. Dedicated sites keep their per-site product entries. Coordinate with the Prospectus session; its approval is needed for Prospectus changes.\n\nTouches (verified at origin/develop 23fabe1d): Prospectus repository: accounts/papyrus-sites.json (stays for dedicated sites), the accounts plane (infra/lib/accounts-plane.ts), new deployment routes and records; Papyrus: lib/tenant-keys.ts, lib/prospectus-tenant.ts, the provisioning function.\n\nAcceptance (Gherkin feature file: features_backend/tenant-provisioning.feature (Papyrus side) and a Prospectus feature file named by its session):\nScenario: A new shared-tier site is created with no code change\n    Given an Account that has paid for a shared-tier site\n    When provisioning asks Prospectus to create deployment \"harbour-news\" of product \"papyrus\"\n    Then the deployment exists as data, no file in either repository changed, and nothing was deployed\n\nScenario: The per-site cap does not apply to shared-tier sites\n    Given 200 shared-tier deployments\n    When one more is created\n    Then it succeeds\n\nDependencies: blocked by PPY-6d9a6d. Blocks PPY-1da916. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-a1e75a, PPY-8bb56d.\n\nTesting: Behave against a fake Prospectus for the Papyrus side; Prospectus's own specs for its side.\nRollout: Prospectus change first, behind its own flag; Papyrus provisioning consumes it once deployed.\nRisk and mitigation: Risk: a data-driven product removes the human review that each site entry had today. Mitigation: the provisioning security review (PPY-1da916) with its controls is a gate.\n\nReleasable on its own: yes, in Prospectus (Papyrus side waits).\nDynamoDB index: none.\nAppSync authorisation: changes: Prospectus product and deployment authorisation.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

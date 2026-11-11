@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "5fb21a80-ff3e-44c6-888d-c9741750969f",
+  "issue_id": "PPY-e572de82-352c-4456-9232-6594f3f49bc4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:23.814Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Brand pack storage, the allowed fonts, and one small brand stylesheet per tenant",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

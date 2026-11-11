@@ -1,0 +1,36 @@
+{
+  "id": "PPY-3bbbf9e2-2ddf-4c10-b19e-e7b65f36f5a3",
+  "title": "Host-to-tenant routing at the edge, with per-tenant redirects and 404",
+  "description": "Outcome: A viewer-request CloudFront Function reads the Host header, looks it up in a KeyValueStore (host -> tenant id and settings), and rewrites the URI to /sites/<tenant>/...; an unknown host gets the platform 404. The existing edge logic is kept and made tenant-aware: index rewrites and redirects (amplify/publication/redirect-and-index.js, redirect keys become \"<tenant>|<path>\"), Markdown negotiation (markdown-content-type.js). The redirect writer (redirect-rules.ts, the \"read the KeyValueStore once, write only changed redirects\" rule) writes only the tenant's keys. Choice between this and CloudFront's multi-tenant distributions comes from PPY-3b3cc3.\n\nTouches (verified at origin/develop 23fabe1d): amplify/publication/redirect-and-index.js, redirect-rules.ts, markdown-content-type.js, scripts/test-redirect-and-index-function.mjs, a new shared edge template (infra/shared-edge/), src/papyrus_content/edge_invalidation.py.\n\nAcceptance (Gherkin feature file: features_backend/edge-host-routing.feature):\nScenario: Each host shows its own tenant\n    Given \"alpha.apyr.us\" maps to \"alpha\" and \"beta.apyr.us\" to \"beta\"\n    When \"/\" is requested on each host\n    Then each returns its own home page\n\nScenario: A spoofed host cannot read another prefix\n    Given a request to alpha's host for \"/../beta/about/\"\n    When the function runs\n    Then the response is 404 and no beta object is fetched\n\nScenario: Redirects belong to one tenant\n    Given \"alpha\" redirects \"/old/\" to \"/new/\"\n    When \"/old/\" is requested on beta's host\n    Then beta's own 404 or page is served\n\nDependencies: blocked by PPY-3b3cc3, PPY-99e309. Blocks PPY-82de58, PPY-ca247b, PPY-d7c279, PPY-e1d26f, PPY-6b084f, PPY-4a79f9. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-fea16f.\n\nTesting: scripts/test-redirect-and-index-function.mjs extended with host cases; adversarial suite edge cases; a staging distribution.\nRollout: Shared stack only.\nRisk and mitigation: Risk: a KeyValueStore write error routes a host to the wrong tenant. Mitigation: KVS entries are written only by provisioning and domain workflows with a read-back check, and every page carries a tenant marker that a synthetic check compares with the host every 5 minutes.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-3b3cc320-6ca0-4fd7-adc4-3be1a2b5f201",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-99e30994-968c-437a-90f2-2ece44c660a6",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fea16f70-ec54-434b-8909-f6fa754b2dd3",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:21.382257Z",
+  "updated_at": "2026-11-08T18:46:58.953210Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

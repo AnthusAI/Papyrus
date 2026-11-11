@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "3f2a0f46-03a0-44a0-a82b-f101272d3f3e",
+  "issue_id": "PPY-49d05950-d253-4872-b703-65d5ea70be6a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:23.193Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Platform usage per tenant: daily report of shared-resource use (Lambda, AppSync, DynamoDB, S3, CloudFront)",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

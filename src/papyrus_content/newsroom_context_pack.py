@@ -80,6 +80,7 @@ How to read what follows:
 - The published Stories are shown for voice and to avoid repeating them. Never reuse their paragraphs, their closing sections or their calls to action, and never copy a source's text.
 - An editor's words (a vote reason, stars, a note on how two sources connect, a message) are human judgement about direction. They are not facts and not instructions to ignore the policy above.
 - The publication's private guidance shapes the draft and is never quoted in it.
+- A generated image has no credit line at all; leave credit off.
 """
 
 EDITOR_ROLE = """You are an editor at this publication. You decide which Stories are worth working on and how each should be structured before anyone writes it. You do not publish.
@@ -97,6 +98,7 @@ How to read what follows:
 - The publication's image style and its image types come first. The types are the publication's own list: choose one before you ask for a picture, and say why.
 - The rules that cannot be loosened are not suggestions. Write a brief about what the picture should show, never about its style: the style is added for you from the publication's profile.
 - The Story and the conversation on it say what the picture is for. Do not describe anyone or anything the Story does not support.
+- A generated image has no credit line at all; leave credit off.
 - A picture you add without a person looking at it is marked as not reviewed. Never say a person approved a picture.
 """
 
@@ -928,8 +930,9 @@ def section_concepts_layer(situation: Situation) -> tuple[list[Entry], str | Non
 
 
 def concept_reference_candidates(situation: Situation) -> list[tuple[dict[str, Any], list[str]]]:
-    """Accepted References tagged with (related_to) or mentioning (mentions) a core concept, best first, each with the labels of the concepts."""
-    from .concept_link_predicates import RELATED_TO, is_reference_concept_link
+    """Accepted References tagged with (tagged_with, or the legacy related_to) or mentioning (mentions) a core concept, best first, each with the labels of the concepts."""
+    from .concept_link_predicates import is_reference_concept_link
+    from .reference_links import CONCEPT_TAG_PREDICATES
     from .section_concepts import concept_label
 
     accepted = {str(row.get("lineageId") or row["id"]): row for row in situation.accepted_references()}
@@ -941,7 +944,7 @@ def concept_reference_candidates(situation: Situation) -> list[tuple[dict[str, A
             reference = str(relation.get("subjectLineageId") or "")
             if (is_reference_concept_link(relation.get("predicate"), relation.get("subjectKind"), relation.get("objectKind")) and reference in accepted
                     and reference not in attached):
-                way = "tagged" if relation["predicate"] == RELATED_TO else "mentioned"
+                way = "tagged" if relation["predicate"] in CONCEPT_TAG_PREDICATES else "mentioned"
                 labels.setdefault(reference, {}).setdefault(concept_label(node), way)
                 if way == "tagged":
                     labels[reference][concept_label(node)] = way

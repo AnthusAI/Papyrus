@@ -1,0 +1,28 @@
+{
+  "id": "PPY-94d60950-f4c8-4434-89f4-cfe3c967df99",
+  "title": "Optional tenantId on every tenant-owned model (additive)",
+  "description": "Outcome: Add tenantId: a.string() (optional) to the 52 tenant-owned models that lack it: UserRoleAssignment (superseded by TenantMembership, kept for dedicated), Assignment, AssignmentEvent, ProcedureDefinition, ProcedureVersion, ProcedureRun, Automation, ReviewRequest, ReviewReadMark, StoryVariation, ReviewRecipientRule, KnowledgeCorpus, KnowledgeImportRun, KnowledgeRawPayload, CurationDelegationRecord, KnowledgeArtifact, CategorySet, Category, CategoryKeyword, LexicalSteeringRule, SteeringProposal, SteeringDecision, Reference, ReferenceAttachment, SemanticNode, Message, MessageThread, ModelAttachment, SemanticRelationType, SemanticRelation, Tag, ItemTag, Edition, EditionItem, PublishedEdition, PublishedEditionItem, PublishedCategorySet, PublishedCategory, EditorialPolicy, EditorialCheckSettings, EditorialFeedback, EditorialCheckRun, Proposal, ReaderProfile, ReaderHandle, ReaderVote, ReaderFlag, ReaderComment, ReaderSubmission, ReaderReport, ModerationAction, SignupEntry. Global identity models stay global: UserProfile, UserIdentity, PublicHandleClaim. Writers start stamping tenantId when they have one; nothing reads it yet.\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts, amplify/functions/editorial-checks/schema.ts, amplify/functions/proposal-actions/schema.ts, amplify/plugins/reader-steering/schema.ts, amplify/plugins/signup/schema.ts, amplify/data/resource.ts (the twin definitions), scripts/test-schema-parity.ts, src/papyrus_content tenancy helpers (papyrus_content.tenancy).\n\nAcceptance (Gherkin feature file: features_backend/tenant-field-everywhere.feature):\nScenario: A tenant client stamps its tenant on every write\n    Given a client for tenant \"alpha\"\n    When it creates a Message, an Assignment and a Reference\n    Then each row has tenantId \"alpha\"\n\nScenario: A client without a tenant writes exactly as before\n    Given a dedicated backend with no tenant configured\n    When an editor creates a Message\n    Then the row has no tenantId and the call succeeds\n\nDependencies: blocked by nothing. Blocks PPY-06ae68, PPY-7dc463, PPY-ce6207, PPY-752480, PPY-f60a1e, PPY-ef2c57, PPY-1ce06f. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-e277e3.\n\nTesting: Schema parity test; pytest for the tenant client stamping; Behave in a sandbox.\nRollout: One release for every site (adding a non-key attribute changes no table). Cost: none until rows are written.\nRisk and mitigation: Risk: the Amplify CloudFormation resource count for a fresh create grows. Mitigation: no new resources (attributes only).\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-e277e373-2ce4-48ef-848a-6284c2afd065",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:19.664123Z",
+  "updated_at": "2026-11-08T21:27:53.886513Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

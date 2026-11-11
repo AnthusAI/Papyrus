@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "da9085fc-19d3-4e8c-a125-045430aa7f86",
+  "issue_id": "PPY-99e30994-968c-437a-90f2-2ece44c660a6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:21.268Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "One shared site bucket: each tenant's pages, renditions and data files under sites/<tenant>/",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

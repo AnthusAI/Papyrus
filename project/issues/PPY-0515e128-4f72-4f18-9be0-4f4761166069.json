@@ -1,0 +1,30 @@
+{
+  "id": "PPY-0515e128-4f72-4f18-9be0-4f4761166069",
+  "title": "Publishing a published story is silently blocked by the new checklist, and scripts cannot tell",
+  "description": "2026-11-08: a script ran papyrus ops content publish for 76 published stories after saving edited versions. Each call was rejected with 'content publish failed [checklist-open]' (review steps open on legacy published stories) but the script only looked for an ok:false marker and logged success, so nothing went live. Needs: a non-zero exit code and a distinct machine-readable code for checklist-open; a --json result; and an owner decision on whether a text-only edit of an already-published story should reopen the review lenses, research and outline steps at all. checklist-backfill leaves the four review lenses open on published stories, so every edit of a legacy story hits this.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "8c320b62-fa06-4734-815f-fd735f5242a5",
+      "author": "home",
+      "text": "Branch feature/PPY-2745c1-publish-stages, PR https://github.com/AnthusAI/Papyrus/pull/1304 (stacked on #1302). Verified with fakes only (pytest + behave, see PR); nothing run against real AWS. Needs deploy: content-actions function per site.",
+      "created_at": "2026-11-08T17:45:30.974214Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T16:40:45.460450Z",
+  "updated_at": "2026-11-08T17:45:30.974509Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

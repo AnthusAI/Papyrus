@@ -22,7 +22,8 @@ REQUIREMENT = MONITORING / "caducus-requirement.txt"
 PREFIX = "papyrus-operator-"
 TEST_ALARM = "papyrus-notify-test-alarm"
 LEGACY_ALARMS = {"papyrus-monitoring-collector-errors", "papyrus-monitoring-search-provider-failing", "papyrus-monitoring-router-errors",
-                 "papyrus-monitoring-router-dead-letters", "papyrus-monitoring-decisions-stopped"}
+                 "papyrus-monitoring-router-dead-letters", "papyrus-monitoring-decisions-stopped",
+                 "papyrus-monitoring-suggest-dead-letters", "papyrus-monitoring-story-dead-letters"}
 
 
 class Loader(yaml.SafeLoader):
@@ -92,7 +93,8 @@ def test_the_table_matches_what_caducus_stores(resources):
     table = resources["OperatorTable"]
     props = table["Properties"]
     assert props["TableName"] == "papyrus-operator-alerts"
-    assert table["DeletionPolicy"] == table["UpdateReplacePolicy"] == "Retain"
+    # RetainExceptOnCreate: kept on delete, but a rolled-back first create does not leave an empty table behind (see the template comment).
+    assert table["DeletionPolicy"] == "RetainExceptOnCreate" and table["UpdateReplacePolicy"] == "Retain"
     assert props["TimeToLiveSpecification"] == {"AttributeName": "expiresAt", "Enabled": True}
     assert props["PointInTimeRecoverySpecification"]["PointInTimeRecoveryEnabled"] is False   # erasure is real
     assert props["SSESpecification"]["SSEEnabled"] is True and props["BillingMode"] == "PAY_PER_REQUEST"
@@ -557,7 +559,12 @@ caducus = pytest.importorskip("caducus.notify.fakes", reason="caducus is not imp
 
 @pytest.fixture()
 def world(tmp_path):
+    from pathlib import Path
+
     from caducus.notify.catalog import catalog_from_mapping
+
+    if not Path(caducus.FIXTURES).is_dir():
+        pytest.skip("the installed caducus wheel ships no test fixtures; set PYTHONPATH to a Caducus checkout")
 
     world = caducus.World(operators=1)
     world.catalog = catalog_from_mapping(yaml.safe_load(CATALOG.read_text()))

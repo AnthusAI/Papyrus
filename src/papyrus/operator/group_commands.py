@@ -45,10 +45,24 @@ COMMAND_USAGE = {
   ("stories", "assign-research"): "--story LINEAGE --direction TEXT|--direction-file FILE [--type research.multi] [--title TEXT] [--dry-run]  (an idea Story moves to the assignment stage; the run opens and reads the sources it finds, and its packet lists any it could not open)",
   ("assignments", "fact-check"): "--message RESEARCH_PACKET_MESSAGE_ID [--judge true|false] [--format text|json]  (read only; --judge true makes one model call per claim)",
   ("assignments", "context-pack"): "--story LINEAGE [--assignment ID] [--direction TEXT] [--format text|json] [--max-characters N]  (read only)",
+  ("content", "refresh"): "--path PATH [--path PATH ...] | --story LINEAGE | --indexes  [--run] [--force-paths N] [--dry-run] [--json]  (purge pages at the edge now: both URL forms and the Markdown twin; never the whole site; over 5 paths is a dry run until --run; cap 25 paths unless --force-paths N)",
+  ("content", "update-live"): "--story LINEAGE [--run] [--force-paths N] [--verify-seconds N] [--dry-run] [--json]  (re-project one Story, purge exactly its pages and the index pages that list it, check the live page shows the new version)",
+  ("content", "inspect-page"): "--path PATH | --story LINEAGE [--fix] [--run] [--force-paths N] [--json]  (read only unless --fix: the record, the stored page and what the edge serves, with one verdict)",
+  ("content", "rerender"): "--story LINEAGE | --indexes [--under /PREFIX/ ...] | --all  [--no-invalidate] [--dry-run] [--json]  (rebuild pages from the deployed hooks, then purge what was written)",
   ("stories", "list"): "[--stage STAGE] [--section ID|SLUG|NAME] [--limit N]  (read only; prints the lineage ids stories show takes)",
-  ("stories", "show"): "--story LINEAGE  (read only; prints its References by lineage id, which references show accepts)",
+  ("stories", "show"): "--story LINEAGE  (read only; prints its References by lineage id, which references show accepts, and its related stories)",
   ("assignments", "show"): "--assignment ID  (read only; status, type, section, Story and events)",
   ("stories", "move"): "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]  (board stage only: --stage published publishes no page; use ops content publish)",
+  ("stories", "set-type"): "--story LINEAGE|SLUG --type TYPE [--dry-run]  (sets the Story type the site uses, for example post or article; a new version, never a rewrite of history)",
+  ("stories", "link-story"): "--story LINEAGE|SLUG (--to LINEAGE|SLUG [--to ...] | --reference REFERENCE_ID [--reference ...]) [--note TEXT] [--dry-run] [--json]  (links stories, or accepted References, for the See also block; either direction counts as the same link, so repeating writes nothing)",
+  ("stories", "link-concept"): "--story LINEAGE|SLUG --concept NAME|#HASHTAG|NODEKEY [--concept ...] [--note TEXT] [--dry-run] [--json]  (tags a story with existing accepted concepts, exact match only; never creates one)",
+  ("stories", "suggest-links"): "--story LINEAGE|SLUG [--kinds articles,posts,references] [--limit N] [--min-score S] [--json]  (read only; ranked related articles, posts and References from the story's concepts, with the shared concepts and the ready link command)",
+  ("stories", "suggest-associations"): "(--story LINEAGE|SLUG | --reference ID) [--kinds articles,posts,references] [--limit N] [--json]  (read only, no embedding key needed; concepts named in the item's own text, then related articles, posts and References, each with its link command)",
+  ("relations", "related"): "--concept NAME|#HASHTAG|NODEKEY [--limit N] [--json]  (read only; the concepts near a concept: confirmed links, aliases, co-occurrence; `papyrus knowledge concepts related`)",
+  ("relations", "search"): "\"free text\" [--limit N] [--json] | --list  (read only; accepted concepts by meaning, name matches first, duplicates flagged; `papyrus knowledge concepts search`)",
+  ("stories", "check-links"): "[--story LINEAGE|SLUG] [--json]  (read only; lists story links and concept tags that are not the official shape)",
+  ("references", "link-concept"): "--reference ID --concept NAME|#HASHTAG|NODEKEY [--concept ...] [--note TEXT] [--dry-run] [--json]  (tags a Reference with existing accepted concepts, exact match only; never creates one)",
+  ("references", "check-links"): "--reference ID | --corpus-id ID [--json]  (read only; lists Reference concept tags that are not the official shape)",
   ("stories", "note"): "--story LINEAGE --body TEXT|--body-file FILE [--summary TEXT] [--kind note|...] [--reference LINEAGE] [--version N]  (a person's note; the newsroom names you from your sign-in; an AI agent uses agent-note)",
   ("stories", "agent-note"): "--story LINEAGE --agent NAME --body TEXT|--body-file FILE [--summary TEXT] [--reference LINEAGE] [--version N] [--dry-run]  (an AI agent's note, shown labelled as AI; never a Message)",
   ("stories", "save-version"): "--story LINEAGE --body-file FILE --reason TEXT --author-label NAME [--stage STAGE | --advance]",
@@ -103,6 +117,18 @@ def group_subcommands(group: str) -> list[str] | None:
     from papyrus_content.images.cli import route_tree
 
     return list(route_tree())
+  if group == "guidelines":
+    from papyrus_content.guidelines.cli import route_tree as guidelines_route_tree
+
+    return list(guidelines_route_tree())
+  if group == "design-system":
+    from papyrus_content.figures.design_system_cli import COMMANDS as DESIGN_SYSTEM_COMMANDS
+
+    return list(DESIGN_SYSTEM_COMMANDS)
+  if group == "figures":
+    from papyrus_content.figures.cli import COMMANDS
+
+    return list(COMMANDS)
   if group in CONTENT_GROUPS_BY_PAPYRUS_GROUP:
     from papyrus_content.cli import PORTED_COMMANDS
 

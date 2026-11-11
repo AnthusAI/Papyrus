@@ -13,6 +13,7 @@ export const editorialChecksSchemaDefinitions = {
     EditorialPolicy: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         policyKey: a.string().required(),
         scope: a.string().required(),
         version: a.integer().required(),
@@ -30,6 +31,7 @@ export const editorialChecksSchemaDefinitions = {
     EditorialCheckSettings: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         settings: a.json().required(),
       })
       .disableOperations(["subscriptions"])
@@ -37,6 +39,7 @@ export const editorialChecksSchemaDefinitions = {
     EditorialFeedback: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         itemId: a.string().required(),
         findingId: a.string().required(),
         policyId: a.string().required(),
@@ -53,6 +56,7 @@ export const editorialChecksSchemaDefinitions = {
     EditorialCheckRun: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         itemId: a.string().required(),
         lineageId: a.string().required(),
         versionNumber: a.integer().required(),

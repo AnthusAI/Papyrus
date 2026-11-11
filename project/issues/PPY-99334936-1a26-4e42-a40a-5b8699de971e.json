@@ -1,0 +1,23 @@
+{
+  "id": "PPY-99334936-1a26-4e42-a40a-5b8699de971e",
+  "title": "Retire web/hooks.py and the Next.js reader code",
+  "description": "Delete web/hooks.py, web/pictograms.py, publication/redesign and the unused Pretext pieces once stories 2 to 5 pass.\nScenario: TI has no site hooks\n  Given the repository after the change\n  Then no hook module exists and the build uses only projection, brand pack and pages\n\nDepends on: stories 2 to 5 of this epic.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-fe8bc69c-453f-45f8-938d-eaabb8a366a8",
+  "labels": [
+    "standard-frontend-plan",
+    "threat-intelligence"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T23:32:38.734638Z",
+  "updated_at": "2026-11-07T23:32:38.734674Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

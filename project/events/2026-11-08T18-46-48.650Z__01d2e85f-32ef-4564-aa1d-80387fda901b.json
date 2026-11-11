@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "01d2e85f-32ef-4564-aa1d-80387fda901b",
+  "issue_id": "PPY-297ebefd-58f9-49aa-b7c1-03105269ef06",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:48.650Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Owner decision 14: Papyrus manages upgrades for dedicated customers. Builds on the upgrade planner (PPY-d2cab9): a pipeline that assumes a role in the customer's account through GitHub OIDC (no long-lived keys), runs each release the plan lists in order (one index per table per deploy), verifies after each, and stops on failure with the Amplify job log read first. Supported window, deprecation warnings for two minors, and how tenant adoption fits into the steps.\n\nTouches (verified at origin/develop 23fabe1d): the upgrade planner command, a reusable GitHub Actions workflow, IAM role template for customer accounts, docs.\n\nAcceptance (Gherkin feature file: features_backend/managed-dedicated-upgrade.feature):\nScenario: An upgrade crosses two index releases in two deploys\n    Given a dedicated customer two releases behind, each adding an index to Reference\n    When the managed upgrade runs\n    Then it deploys and verifies twice, in order\n\nDependencies: blocked by PPY-8f2c4f. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-d2cab9.\n\nTesting: Run against a sandbox account acting as a customer.\nRollout: Our own dedicated sites first (Distinctive Mark is the first real case).\nRisk and mitigation: Risk: a customer's account differs from ours. Mitigation: a preflight check of quotas, roles and the current version before any deploy.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

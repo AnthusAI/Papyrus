@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "57f878f7-46cc-4528-9152-be7cbfb41d92",
+  "issue_id": "PPY-8f9462c3-2ffd-4e71-8044-cadcc254586f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:20.775Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "adopt-tenant-data and copy-backend --stamp-tenant cover every model, every key and every object",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

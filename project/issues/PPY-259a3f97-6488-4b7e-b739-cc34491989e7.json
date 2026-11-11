@@ -1,0 +1,30 @@
+{
+  "id": "PPY-259a3f97-6488-4b7e-b739-cc34491989e7",
+  "title": "Plan moving our own dedicated sites onto the standard system",
+  "description": "What: order and risks for moving our own sites. Threat Intelligence goes first and onto the shared multi-tenant stack as tenant #1 (after the brand-neutral acceptance test and real tenant authorisation). Shipped, Anth.us and Machines on Machines stay dedicated for now; Pilobolus and Papyrus-web are not yet decided. Open question for Ryan: Distinctive Mark is dedicated pending its upgrade; shared or dedicated afterwards is not decided. Planning only; no work until the layout and shared stack are proven.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c60e2a69-4bd2-48b6-a824-915736f79cf5",
+      "author": "home",
+      "text": "Decision record task: PPY-8ca9a7.",
+      "created_at": "2026-11-08T18:48:45.722263Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-07T21:43:09.819798Z",
+  "updated_at": "2026-11-08T18:48:45.722527Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

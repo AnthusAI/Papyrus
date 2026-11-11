@@ -464,9 +464,9 @@ assert.ok(
   "the function and the worker can queue",
 );
 assert.ok(statements.some((statement) => actionsOf(statement).includes("sqs:ReceiveMessage")), "the worker consumes the queue");
-const getAccount = statements.filter((statement) => actionsOf(statement).includes("sesv2:GetAccount"));
+const getAccount = statements.filter((statement) => actionsOf(statement).includes("ses:GetAccount"));
 assert.equal(getAccount.length, 1);
-assert.deepEqual(getAccount[0].Action, "sesv2:GetAccount");
+assert.deepEqual(getAccount[0].Action, "ses:GetAccount");
 assert.ok(
   statements.some((statement) => actionsOf(statement).some((action) => action.startsWith("kms:Decrypt")) && JSON.stringify(statement.Resource).includes("Key")),
   "the function can decrypt the table key",
@@ -474,7 +474,7 @@ assert.ok(
 const wildcards = statements.filter((statement) => statement.Resource === "*");
 assert.deepEqual(
   wildcards.map((statement) => statement.Action).sort(),
-  ["ses:DeleteSuppressedDestination", "sesv2:GetAccount"],
+  ["ses:DeleteSuppressedDestination", "ses:GetAccount"],
   "the two actions IAM cannot scope to a resource: lifting a suppression and reading the send rate",
 );
 const sending = statements.filter((statement) => actionsOf(statement).includes("ses:PutConfigurationSetSendingOptions"));

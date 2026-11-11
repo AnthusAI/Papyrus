@@ -77,6 +77,9 @@ Every operation may return `invalid_input`, `not_authorized`, `service_unavailab
 | `stale_version` | The Story has a newer version than the one you named. Read it again. | no |  |
 | `candidate_not_ready` | The picture is still being made. | no |  |
 | `candidate_closed` | The picture was already discarded, expired or applied. | no |  |
+| `unknown_kind` | There is no such kind of guidelines. | no | kinds lists the kinds this site knows |
+| `resolver_not_available` | This kind of guidelines is resolved by its own command, not this one. | no | use names the command |
+| `document_hash_mismatch` | The stored guideline document does not match its recorded hash, so it was not used. | no | itemId |
 | `service_unavailable` | A permission or storage check could not be made. Nothing was changed. | yes |  |
 
 ## image_profile_get

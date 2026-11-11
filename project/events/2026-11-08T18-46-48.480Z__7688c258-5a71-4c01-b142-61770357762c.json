@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "7688c258-5a71-4c01-b142-61770357762c",
+  "issue_id": "PPY-8ca9a7d9-22e0-44da-8e53-b4f436f3488d",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:48.480Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: A decision record for Ryan with a recommended order once TI is done: Pilobolus (pre-production, a blog without sections) second; then the small product and marketing sites that already fit the preset; DataParade (served under a host site's path) after base-path support on the shared stack. Stay dedicated for now (owner decision 13): Shipped (product-shaped hooks), Anth.us (production; never touched without instruction), Machines on Machines (design reference, most active newsroom). Distinctive Mark: dedicated until its staged upgrade is done (its own board), then decide. Each move reuses the TI runbook.\n\nTouches (verified at origin/develop 23fabe1d): docs/plans/multi-tenant-architecture.md, existing PPY-259a3f (plan moving our dedicated sites).\n\nAcceptance (Gherkin feature file: none (decision record)):\nScenario: Every site has a stated tier\n    Given the list of our Papyrus sites\n    When the decision is recorded\n    Then each site is shared-next, shared-later or dedicated, with a reason\n\nDependencies: blocked by PPY-16f13a. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-259a3f.\n\nTesting: None.\nRollout: Decision only.\nRisk and mitigation: Low.\n\nReleasable on its own: not applicable (decision).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

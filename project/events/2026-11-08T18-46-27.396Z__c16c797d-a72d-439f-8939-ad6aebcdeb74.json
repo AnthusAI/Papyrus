@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "c16c797d-a72d-439f-8939-ad6aebcdeb74",
+  "issue_id": "PPY-cf9039f1-fbd0-4ec0-9aa4-abadba8c51b5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:27.396Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M8 First outside paying tenant",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -39,12 +39,17 @@ class TactusToolsModuleTests(unittest.TestCase):
                 "papyrus_editorial_context",
                 "papyrus_fetch_pdf_text",
                 "papyrus_find_or_register_source",
+                "papyrus_link_concepts",
+                "papyrus_link_stories",
                 "papyrus_link_story_reference",
                 "papyrus_record_editor_review",
+                "papyrus_related_concepts",
                 "papyrus_save_story_version",
+                "papyrus_search_concepts",
                 "papyrus_set_story_slug",
                 "papyrus_story_version",
                 "papyrus_story_versions",
+                "papyrus_suggest_links",
             ],
         )
 

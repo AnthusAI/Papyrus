@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "3f2852d6-4cff-4100-a778-0c3dd8c32365",
+  "issue_id": "PPY-9f929e1a-a487-4185-b896-8ef1409628b7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:20.026Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "New model: TenantUsageCounter, maintained when the work happens",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

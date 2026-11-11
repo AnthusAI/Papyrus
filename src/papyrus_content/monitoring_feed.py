@@ -39,6 +39,7 @@ from .monitoring_web import arxiv_paper_id
 FEED_HOSTS = {
     "rss.arxiv.org": "arXiv",
     "export.arxiv.org": "arXiv",
+    "metr.org": "METR",
 }
 #: Larger than the 2 MB of the Hacker News feed: arXiv's combined daily feed for five categories is about 3.6 MB.
 MAX_FEED_DOCUMENT_BYTES = 8_000_000

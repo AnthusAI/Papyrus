@@ -1,4 +1,5 @@
 import { Construct } from "constructs";
+import { applySharedCostTags } from "./cost-attribution";
 import { CfnOutput, Stack, StackProps } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 
@@ -18,6 +19,8 @@ export class GithubOidcProviderStack extends Stack {
 
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+    // The account's one GitHub OIDC provider serves every site.
+    applySharedCostTags(this);
 
     const provider = new iam.OpenIdConnectProvider(this, "GithubOidc", {
       url: `https://${GITHUB_OIDC_PROVIDER_HOST}`,

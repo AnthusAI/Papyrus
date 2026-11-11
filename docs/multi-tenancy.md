@@ -6,9 +6,29 @@ A signed-in editor does not set the tenant by hand: the site publishes its own t
 
 The key helpers live in `papyrus_content.tenancy`; `PapyrusGraphQLAuthoringClient(tenant_id=...)` applies them at the client boundary so callers never build tenant keys themselves.
 
+## Tenancy mode
+
+A backend is either `dedicated` (one stack per site, the default and what every site is today) or `shared` (one stack serving several tenants). Set it in the site backend config: `tenancy: { mode: "shared" }`. A site with no `tenancy` setting synthesises exactly the template it always did: `dedicated` adds nothing to any function, and an unset `PAPYRUS_TENANCY_MODE` means dedicated.
+
+On `shared`, `amplify/site-backend.ts` sets `PAPYRUS_TENANCY_MODE=shared` on every function. Code never reads the variable itself; it asks `papyrus_content.tenancy.is_shared_stack()` in Python or `isSharedStack()` in `lib/tenant-keys.ts`. `scripts/test-tenancy-mode.ts` fails if any other file names the variable. `rulesForTenancyMode` in `amplify/data/schema.ts` is the helper the shared stack will use to vary access rules by mode; nothing uses it yet. Tests: `npm run test:tenancy-mode`.
+
 ## What the tenant models carry
 
 Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows get a `tenantId`. The index values that would be global (`typeStatus`, `sectionStatus`, slug lookups) are prefixed with `<tenant>#`, media rows are listed, read, updated and deleted by their own tenant only (see [story pictures](#story-pictures-and-the-one-key-rule) for the key), and a tenant client lists, reads, updates and deletes only its own rows.
+
+## Tenant, membership and domain records
+
+Three models hold the tenants themselves (PPY-31c45c). They are new tables, each created with all its indexes in one deploy, and they sit in the optional model group `tenancy` (`OPTIONAL_MODEL_GROUPS`), so a dedicated site can leave them out of a first deploy with `excludeModelGroups: ["tenancy"]`. Nothing reads or writes them yet.
+
+| Model | Id | Fields | Indexes |
+| --- | --- | --- | --- |
+| `Tenant` | the site id (`validate_tenant_id`) | `accountId` (the Prospectus Account), `displayName`, `state` (`active`, `past_due`, `suspended`, `deleted_pending`, `deleted`), `stateKey` (`state#<state>`), `plan`, `entitlements`, `createdAt`, `stateChangedAt` | `accountId`, `stateKey` |
+| `TenantMembership` | `<tenant>#<userSub>` | `tenantId`, `userSub`, `userProfileId` (the stable person key; one person can have two subs), `role` (`admin`, `editor`, `curator`, `member`), `status`, `grantedBy`, `grantedAt` | `userSub` (the token Lambda), `tenantId` |
+| `TenantDomain` | the lowercase hostname | `tenantId`, `kind` (`subdomain`, `custom`), `status` (`pending_dns`, `pending_certificate`, `active`, `failed`, `removed`), `verification`, `certificateRef` | `tenantId` |
+
+Because a domain's id is its hostname, a hostname can belong to one tenant only: a second create fails on the key. `papyrus_content.tenant_records` holds the key shapes and the two lookups callers must share (`list_memberships_for_user` is one query on the `userSub` index, never a scan; `claim_domain` refuses a hostname already held).
+
+Access: the `admin` group (the platform operator) has full access; a tenant's admin may read its own rows through the `papyrus_tenant_admin` claim (`ownerDefinedIn("id")` on Tenant, `ownerDefinedIn("tenantId")` on the others). The claim is not issued yet (PPY-0bb0fd), so today only the operator group has any access. The claim rule is read-only, so it needs no field lock on `tenantId`. The tenant-claims and provisioning functions use IAM grants, which their own tasks add. The `userSub` index partition is a person, not a tenant: only the token Lambda (IAM) queries it.
 
 ## NewsroomSection ids
 
@@ -45,6 +65,8 @@ A story picture has one address, its `srcPath` (`assets/<slug>/<file>`). The sav
 Why there is no tenant folder in the key: the folder was added so that two tenants importing files of the same relative name (`import-markus`, `copy-backend --stamp-tenant`) could not overwrite each other in a shared bucket, and it was never an access boundary. The storage rules (`amplify/storage/resource.ts`) give the `editor` and `admin` groups read and write on all of `media/*` and guests read, and nothing in them mentions a tenant; the identity pool cannot tell one tenant's folder from another's. What keeps tenants apart is the row (`tenantId` and the tenant-scoped indexes, enforced by the tenant client) and, in the standard site, the backend itself: one backend, one site bucket and one renditions function per site, so there is one `srcPath` namespace per bucket. The renditions are read by `srcPath` alone, so a folder in the key cannot be reflected in the renditions without a second mapping. The `srcPath` of a saved story picture already carries the story's slug, which is unique within a tenant, so two tenants in one bucket collide only if they have the same slug and file name. That residual risk exists only for a backend that serves several publications from one bucket, which the standard site does not; this rule removes no access protection (there was none by key) and no row isolation.
 
 Before this rule `stories save-version --images` stored tenant pictures at `media/<tenant>/assets/...` (PPY-a96347). Their renditions were made under the tenant folder, the projector looked for none, and a publish failed with missing renditions; the command the error suggested pointed at an object that did not exist. Existing objects are not moved by a deploy. `papyrus stories repair-image-paths --story <lineage> [--write]` copies a story's pictures to `media/<srcPath>` inside the bucket (no new upload) and points its rows at them; see [story-reporting.md](story-reporting.md#saving-a-draft-with-its-pictures). `papyrus ops content renditions --source <srcPath>` signed in asks the site's image function to make renditions again, and names the old tenant key if that is where the object is.
+
+The write path used to undo that rule for the rows: the tenant stamp rewrote every `MediaAsset` and `PublishedMediaAsset` `storagePath` to `media/<tenant>/<srcPath>` while the object sat at `media/<srcPath>`, so the console preview signed a key with no object (PPY-5978b4). The stamp no longer touches `storagePath`. `stories repair-image-paths` also re-points rows (media and published media) whose object is already at `media/<srcPath>`, copying and deleting nothing; the dry run lists each row.
 
 `content import-markus --tenant` and `content copy-backend --stamp-tenant` still place objects under `media/<tenant>/...` and keep their `storagePath` rows to match; a site that makes renditions from those objects needs the same repair per story (the command works from the rows, not from how they were saved).
 

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7bba717d-c875-46bf-81f0-5a200982515a",
+  "issue_id": "PPY-eceeb63b-430e-4554-b227-4d53586d2907",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T05:39:34.661Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Withdraw (spike) a published Story and restore it: stories withdraw / stories restore",
+    "description": "Ryan (via the Anthus news desk editing session, 2026-11-09): no way today to take a published Story down properly. 'papyrus stories move --stage spiked' is board-only (the live page stays up); 'papyrus ops content unpublish' deletes the PublishedItem and sets the Item back to stage copywriting, with no path plan and the old URL then 404s. Need: a CLI/MCP action to WITHDRAW (spike) a published Story so the live page, .md twin, index/section/home/sitemap entries are removed, stage = spiked, old URL -> the site's 404 page or a redirect to its section where the redirect mechanism allows, REVERSIBLE (restore republishes the last published version), with a dry-run printing the exact paths to be written and purged (cap 25, count and cost printed, per the refresh guardrails). Ryan approved spiking 11 MoM stories; nothing is spiked until this exists.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

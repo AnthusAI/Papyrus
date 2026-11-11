@@ -6,7 +6,6 @@ import json
 import re
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 from behave import given, then
 
@@ -16,7 +15,6 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 
 from papyrus_content import audience_lenses as lenses  # noqa: E402
-from papyrus_content import story_commands  # noqa: E402
 from papyrus_content.newsroom_context_pack import HEADINGS  # noqa: E402
 
 LAYER = "audience_lenses"
@@ -138,10 +136,10 @@ def person_approves(context):
     assert "Only a person gives the final approval" in single_lens_text(context)
 
 
-@then("the lens text names the three problems that must be fixed before a step can close")
-def three_problems(context):
+@then("the lens text names the four problems that must be fixed before a step can close")
+def four_problems(context):
     text = single_lens_text(context)
-    for phrase in ("no alt text", "third-party image with no credit", "Markdown copy that differs"):
+    for phrase in ("no alt text", "third-party image with no credit", "video with no title or no credit", "Markdown copy that differs"):
         assert phrase in text, phrase
 
 
@@ -169,11 +167,12 @@ def no_layer(context):
 
 @given('the checklist records the step "{step}" as done')
 def checklist_done(context, step):
-    context.lens_states = {**getattr(context, "lens_states", {}), step: "done"}
-    if not hasattr(context, "lens_patch"):
-        context.lens_patch = patch.object(story_commands, "lens_step_states", lambda _client, _lineage: dict(context.lens_states))
-        context.lens_patch.start()
-        context.add_cleanup(context.lens_patch.stop)
+    """A real checklist item, recorded against the Story's current version (`stories next` reads the checklist, not a seam)."""
+    from papyrus_content import story_checklist
+
+    client = context.world.client or context.world.build()
+    story_checklist.sync_checklist(client, "story-1")
+    story_checklist.set_step(client, "story-1", step, "done", actor={"kind": "person", "label": "Editor"}, note="Read it through.")
 
 
 def lens_lines(context):

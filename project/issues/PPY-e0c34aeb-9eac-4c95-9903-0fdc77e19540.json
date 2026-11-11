@@ -1,0 +1,37 @@
+{
+  "id": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "title": "Real tenant authorisation and the cost fixes, before any outside tenant",
+  "description": "Why: tenancy today is a convention (\"This is scoping, not authorization\", docs/multi-tenancy.md). AppSync rules grant by Cognito group, never by tenant; References and corpora have no isolation; editors can write all of media/*. Cost also multiplies by tenant count: the whole-corpus home snapshot (PPY-ee02b8, about 55,000 AppSync requests an hour on MoM), the reader snapshot's full read, ReferenceIntake's whole-table list and CloudFront invalidations. No paying stranger goes on the shared tier until this epic is done. Ends with a p.apyr.us page.\nExisting, linked: PPY-7f1e54 (index-backed public blocks), PPY-ee02b8 (snapshot and intake scans), PPY-409932 (cache strategy). Do not duplicate them.",
+  "type": "epic",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "63b1e8d1-c122-458e-aee3-a32de06b0885",
+      "author": "home",
+      "text": "Workstream (a), tenant identity and isolation, is planned as tasks PPY-9f3de0 (spike, 3 days, decides the rule form), PPY-0bb0fd (session tenant as role claims), PPY-06ae68 (tenant rules beside group rules), PPY-7dc463 (functions take the tenant from the caller), PPY-98eaee, PPY-203ce2, PPY-baa75d, PPY-e01d82, PPY-29f730 (adversarial suite) and PPY-bdc4ee (group rules removed: the breaking step). The cost-fix half of this epic is tracked by PPY-7f1e54, PPY-ee02b8, PPY-3fd0aa and the fair queue PPY-994bd0.\n\nVerified gaps beyond the memo (develop 23fabe1d): functions get their tenant from a build variable (amplify/site-backend.ts 471-491), and schema-level allow.resource grants give each function every model; Published* models allow guest AppSync reads; Reference, Message and MessageThread have realtime subscriptions on; the projection lease is keyed by bucket name; six DynamoDB tables outside AppSync and the S3 Vectors index have no tenant in their keys; 55 of 60 models lack tenantId (the memo named three).",
+      "created_at": "2026-11-08T18:48:43.460871Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "031f77e0-5115-4fb8-bc25-96976f41c379",
+      "author": "home",
+      "text": "Sign-in tasks added (Ryan 2026-11-08): PPY-fdbbd7 shared sign-in (one pool, one shared Google client, fixed callbacks), PPY-8eca5b spike on per-tenant Google clients in one pool, PPY-496c0b bring-your-own Google client with SSM SecureString storage, validation, rotation and fallback.",
+      "created_at": "2026-11-08T21:19:03.717386Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-07T21:42:47.671102Z",
+  "updated_at": "2026-11-08T21:19:03.717599Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

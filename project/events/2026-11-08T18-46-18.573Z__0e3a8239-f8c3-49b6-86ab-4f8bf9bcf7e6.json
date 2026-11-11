@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "0e3a8239-f8c3-49b6-86ab-4f8bf9bcf7e6",
+  "issue_id": "PPY-06ae6834-b447-4617-8cef-0331791e056e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:18.573Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Tenant rules on every tenant model, added beside today's group rules (stage 1, additive)",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

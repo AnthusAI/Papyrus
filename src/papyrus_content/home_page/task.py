@@ -91,7 +91,19 @@ def _published_story(client: Any, projector: Any, lineage_id: str) -> dict[str, 
     summary = summary_from_row(row)
     paths = projector.item_page_paths(summary)
     title = clean_text(row.get("headline") or row.get("title"))
-    return {"url": policy.url_for_key(paths[0]), "title": title} if paths and title else None
+    if not paths or not title:
+        return None
+    anchor = {"url": policy.url_for_key(paths[0]), "title": title}
+    section = _story_section(projector, row.get("section"))
+    return {**anchor, "section": section} if section else anchor
+
+
+def _story_section(projector: Any, name: Any) -> str | None:
+    """A Story's section title: the configured section's label when its name matches, otherwise the name as stored."""
+    if not name:
+        return None
+    labels = {group.name: group.label for group in getattr(getattr(projector, "standard", None), "sections", ())}
+    return clean_text(labels.get(str(name)) or str(name))
 
 
 def _thread_files(settings: HomePageSettings, client: Any, projector: Any, records: list[dict[str, Any]], now: datetime) -> tuple[dict[str, bytes], int]:
@@ -99,7 +111,8 @@ def _thread_files(settings: HomePageSettings, client: Any, projector: Any, recor
     if not settings.threads.enabled:
         return {}, 0
     public_references = {record["key"]: str(record.get("title") or "Reference") for record in records}
-    threads = collect_threads(client, public_references, settings, story_anchor=story_anchor_resolver(client, projector))
+    reference_sections = {record["key"]: record["section"] for record in records if record.get("section")}
+    threads = collect_threads(client, public_references, settings, story_anchor=story_anchor_resolver(client, projector), reference_sections=reference_sections)
     index, documents = build_threads_snapshot(threads, now)
     files = {site_key(projector, THREADS_FILE): snapshot_bytes(index)}
     for key, document in documents.items():

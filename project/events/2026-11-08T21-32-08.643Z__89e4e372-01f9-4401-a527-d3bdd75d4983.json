@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "89e4e372-01f9-4401-a527-d3bdd75d4983",
+  "issue_id": "PPY-f98e057c-e44f-4b2c-ae61-f22e8aabee92",
+  "event_type": "issue_deleted",
+  "occurred_at": "2026-11-08T21:32:08.643Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cost accounting part 1: tag every resource with anthus:app, anthus:account, anthus:deployment and fail CI on an untagged one",
+    "issue_type": "sub-task",
+    "status": "open"
+  }
+}

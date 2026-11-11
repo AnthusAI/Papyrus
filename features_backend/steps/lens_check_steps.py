@@ -1,4 +1,4 @@
-"""papyrus stories lens-check and the deterministic lens checks (features_backend/lens-check.feature). Nothing here calls a model or the network."""
+"""papyrus stories lens-check and the deterministic lens checks (features_backend/lens-check.feature). Nothing here calls a model or the network: the share picture is a fake."""
 
 from __future__ import annotations
 
@@ -22,6 +22,8 @@ from fake_client import FakeAuthoringClient  # noqa: E402
 from papyrus_content import audience_lenses as lenses  # noqa: E402
 from papyrus_content import lens_evidence as evidence  # noqa: E402
 from papyrus_content import story_commands  # noqa: E402
+from papyrus_content.share_image_check import Fetched, ShareImageUnavailable  # noqa: E402
+from papyrus_content.share_image_samples import sample_image  # noqa: E402
 from papyrus_content.projection.standard.config import standard_settings_from_mapping  # noqa: E402
 from papyrus_content.projection.standard.environment import resolve_environment  # noqa: E402
 
@@ -33,7 +35,7 @@ DEFAULT_FRONT = "title: Board refuses\n"
 
 def state(context) -> dict:
     if not hasattr(context, "lens"):
-        context.lens = {"front": DEFAULT_FRONT, "body": "", "stage": "copywriting", "site": None, "settings": None, "environ": {}, "fault": False, "title": None}
+        context.lens = {"front": DEFAULT_FRONT, "body": "", "stage": "copywriting", "site": None, "settings": None, "environ": {}, "fault": False, "title": None, "fetch_image": None}
     return context.lens
 
 
@@ -138,7 +140,21 @@ def run_checks(context, lens_name=None):
                 return text.rstrip("\n").rsplit("\n\n", 1)[0] + "\n"
 
             stack.enter_context(patch.object(evidence, "item_markdown", lossy))
-        context.findings = evidence.run_checks(story, lens["site"], lens=lens_name)
+        context.findings = evidence.run_checks(story, lens["site"], lens=lens_name, fetch_image=lens["fetch_image"])
+
+
+@given('the share picture answers with status {status:d}, type "{content_type}" and a {image_format} of {width:d} by {height:d} pixels')
+def share_picture_answers(context, status, content_type, image_format, width, height):
+    body = sample_image(image_format, width, height) if status == 200 else b""
+    state(context)["fetch_image"] = lambda url: Fetched(status, content_type, body)
+
+
+@given("the share picture cannot be requested")
+def share_picture_unreachable(context):
+    def down(url):
+        raise ShareImageUnavailable("the network is unavailable")
+
+    state(context)["fetch_image"] = down
 
 
 @when("the lens checks run")

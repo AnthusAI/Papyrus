@@ -1,0 +1,28 @@
+{
+  "id": "PPY-994bd093-b3f2-442c-9711-0ac8e5819220",
+  "title": "Per-tenant projection lease and a fair-share queue for background projection work",
+  "description": "Outcome: The projection lease is keyed by the site bucket name (src/papyrus_content/projection/lease.py; table papyrus-projection-locks), so on a shared bucket every tenant would wait on one lock and one busy tenant would block all. Key it by \"<bucket>#<tenant>\". Background projection work (the page-refresh re-render task, the home-page snapshot, the reader snapshot, full re-projections after a release) moves from direct asynchronous Lambda invokes to one queue with the tenant as the message group, so a tenant with a large re-render cannot hold the workers while others wait (Amazon SQS fair queues or FIFO groups, chosen with a measurement). A release that re-projects every tenant goes through the same queue, oldest-first.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/projection/lease.py, amplify/publication/projection-lease.ts, content-actions task scheduling (page-refresh-rerender, reader-snapshot, home-page snapshot trigger in amplify/plugins/home-page), amplify/publication/reproject-on-deploy.ts, a new queue in the shared stack.\n\nAcceptance (Gherkin feature file: features_backend/tenant-fair-projection.feature):\nScenario: One tenant's big re-render does not delay another's publish\n    Given \"alpha\" queued a full re-render of 3,000 pages\n    When \"beta\" publishes one story\n    Then beta's page is written without waiting for alpha's re-render to finish\n\nScenario: Two projections of one tenant never overlap\n    Given a projection of \"alpha\" holds its lease\n    When another projection of \"alpha\" starts\n    Then it waits and \"beta\" is unaffected\n\nDependencies: blocked by PPY-99e309. Blocks PPY-f40a02, PPY-4a79f9. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: pytest for the lease key; a staging load test (I_LOAD) with one noisy tenant.\nRollout: Releasable alone (the dedicated key is unchanged: no tenant means the bucket alone).\nRisk and mitigation: Risk: queue ordering changes publish latency. Mitigation: publish-time single-page projection stays synchronous in the request; only bulk work is queued.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-99e30994-968c-437a-90f2-2ece44c660a6",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:23.317645Z",
+  "updated_at": "2026-11-08T18:47:05.351030Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

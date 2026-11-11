@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "06f3681b-af8b-439c-96be-46f59042b265",
+  "issue_id": "PPY-e882eeb3-7cf8-4ed7-86e6-08362de7f22e",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:46.865Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Implements the export half of PPY-8e6c06 and the ownership promise (PPY-2f1bb2). One command and one newsroom button produce an archive in S3 (presigned download): every row of every tenant model as JSON Lines, every story body as Markus, every media object, the site documents, the Cyclotron store and decision history, reader data the tenant owns (without readers' private identifiers), and a manifest with counts and hashes. Reads go through tenant indexes only (no whole-table read). The archive loads into a fresh dedicated backend with copy-backend.\n\nTouches (verified at origin/develop 23fabe1d): new src/papyrus_content/tenant_export.py and CLI command (papyrus ops tenant export), a content-actions task, the newsroom settings page, docs.\n\nAcceptance (Gherkin feature file: features_backend/tenant-export.feature):\nScenario: Export holds everything and only the tenant's data\n    Given \"alpha\" with stories, References, messages, media, settings and votes\n    When \"alpha\" exports\n    Then the archive's counts equal alpha's rows and contain nothing of \"beta\"\n    And the archive loads into an empty dedicated backend that renders the same pages\n\nDependencies: blocked by PPY-1ce06f, PPY-8f9462. Blocks PPY-62f10d. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-8e6c06, PPY-2f1bb2.\n\nTesting: Behave in a sandbox with two tenants; a round trip into a dedicated sandbox and a golden render compare.\nRollout: Shared stack; also offered to dedicated customers.\nRisk and mitigation: Risk: a large tenant's export outlasts a Lambda. Mitigation: the export runs as a resumable task per model with a manifest of finished parts.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

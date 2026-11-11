@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "6c513a6b-0f6a-4711-bdd6-7b65f1257493",
+  "issue_id": "PPY-4611d53a-ab25-4325-8534-b76899ee7d0d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T16:40:45.345Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "ops content publish reports failure on a 30 second client timeout while the page-building Lambda is still writing pages",
+    "description": "papyrus ops content publish prints 'FAILED to project the page: the data is published but the page is not live (The read operation timed out)' when the page-build step outlasts the CLI GraphQL timeout (default 30 s, PAPYRUS_GRAPHQL_TIMEOUT_SECONDS). The content-actions Lambda runs up to about 75 s and completes the write anyway, so the report is wrong and operators retry. Fix: a longer default for the projection call, or return a job id and poll; report 'still running' distinctly from 'failed'. Seen on machines-on-machines 2026-11-08 across about 20 publishes.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+    "labels": [
+      "static-projection"
+    ]
+  }
+}

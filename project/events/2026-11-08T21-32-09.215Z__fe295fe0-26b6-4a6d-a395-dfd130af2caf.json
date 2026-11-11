@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "fe295fe0-26b6-4a6d-a395-dfd130af2caf",
+  "issue_id": "PPY-ecb656f0-e079-4e5e-a0e4-1003671bef90",
+  "event_type": "issue_deleted",
+  "occurred_at": "2026-11-08T21:32:09.215Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Standard layout slice: story and reference cards rendered from data in core (first slice of PPY-613a29)",
+    "issue_type": "task",
+    "status": "open"
+  }
+}

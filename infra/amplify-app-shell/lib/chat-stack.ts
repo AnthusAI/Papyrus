@@ -1,4 +1,5 @@
 import { Construct } from "constructs";
+import { applySiteCostTags } from "./cost-attribution";
 import { Annotations, Arn, ArnFormat, Aws, CfnOutput, CfnParameter, Duration, Fn, RemovalPolicy, Stack, StackProps } from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
@@ -40,6 +41,7 @@ export class PapyrusChatStack extends Stack {
     if (!chat || !stackName) throw new Error(`site ${config.siteId} does not enable chat`);
     // The construct id is the stack name: the SQS event source mapping logical ids derive from it.
     super(scope, stackName, { ...stackProps, stackName });
+    if (config.costAccounting) applySiteCostTags(this, config.siteId);
 
     const modelKeyParameter = chat.modelKeyParameter;
     const logGroupPrefix = resolveChatLogGroupPrefix(config);

@@ -1,0 +1,28 @@
+{
+  "id": "PPY-e01d8265-67b7-45c9-9804-4a2f789c476d",
+  "title": "Realtime subscriptions off on the shared stack",
+  "description": "Outcome: Reference, Message and MessageThread are realtime models (realtimeModel in schema.ts), and the topic-steering workspace subscribes to Reference create, update and delete (components/topic-steering-workspace.tsx around line 1574). With group rules every editor of every tenant would receive every tenant's events. Standing rule: avoid AppSync subscriptions unless really needed. On the shared stack these three models use modelWithoutSubscriptions and the workspace refreshes by query (the same index reads it already makes).\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts (Reference, Message, MessageThread), components/topic-steering-workspace.tsx (subscription block and attachment subscriptions), features for the workspace refresh.\n\nAcceptance (Gherkin feature file: features/topic-steering-refresh-without-subscriptions.feature):\nScenario: The workspace shows a new Reference without a subscription\n    Given an editor has the topic-steering workspace open on the shared stack\n    When a monitor adds a Reference to the editor's tenant\n    Then the workspace shows it after its next refresh and no subscription was opened\n\nDependencies: blocked by PPY-46635e. Blocks PPY-bdc4ee. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Browser test of the workspace; adversarial suite asserts the subscription fields are absent on the shared schema.\nRollout: Shared stack only; dedicated sites unchanged.\nRisk and mitigation: Risk: editors notice slower updates. Mitigation: refresh on focus and after the editor's own writes; the poll uses the existing indexes.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: removes subscription operations on three models (shared stack).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-46635e53-2ba7-4791-ab0a-47180a1ba82b",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:19.172196Z",
+  "updated_at": "2026-11-08T21:27:53.487070Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

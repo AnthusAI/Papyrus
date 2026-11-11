@@ -1,0 +1,44 @@
+{
+  "id": "PPY-667a23a1-e29f-4d96-a9e8-3964dc6d1bdb",
+  "title": "M4 Shared serving and site as data",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3). Critical-path plan: PPY-e38a2d. Design note: docs/plans/multi-tenant-architecture.md (PR #1305).\n\nEntry criteria: M3 for the breaking parts; serving and site-as-data work starts during M3. Front-end track: PPY-7e396d passed.\nExit criteria: PPY-99e309, PPY-3bbbf9, PPY-82de58, PPY-ca247b, PPY-130eb2, PPY-fdbbd7, PPY-1252ce (part 1 PPY-ee1e02), PPY-e572de, PPY-413576, PPY-994bd0 released; two internal test tenants created by data only (no code change, no deploy) and served by host on staging; load test PPY-4a79f9 passed; runbooks PPY-7438d9 rehearsed.\nCustomer-visible: Internal test tenants on *.staging.p.apyr.us.\nIndex-adding deploys in this milestone: None.\nContains: PPY-99e309, PPY-3bbbf9, PPY-82de58, PPY-ca247b, PPY-130eb2, PPY-fdbbd7, PPY-1252ce, PPY-ee1e02, PPY-e572de, PPY-413576, PPY-994bd0, PPY-4a79f9, PPY-7438d9, PPY-7e396d\nNot gating: PPY-91fb68 live preview, PPY-b21340 home templates (onboarding polish).\nFollows: M3, M1.\n\nAcceptance (Gherkin):\nScenario: Two tenants' pages never share a key (features_backend/tenant-output-prefix.feature, PPY-99e309)\nScenario: Each host shows its own tenant (features_backend/edge-host-routing.feature, PPY-3bbbf9)\nScenario: A spoofed host cannot read another prefix (same file)\nScenario: A new tenant is reachable at its subdomain (features_backend/default-subdomain.feature, PPY-82de58)\nScenario: A large publish never becomes a wildcard (features_backend/shared-stack-freshness.feature, PPY-ca247b)\nScenario: An explicit update-live purges only the tenant's exact paths (same file)\nScenario: An editor reaches their tenant's newsroom from the site (features/shared-newsroom-host.feature, PPY-130eb2)\nScenario: A new site needs no sign-in configuration change (features/shared-sign-in.feature, PPY-fdbbd7)\nScenario: Signing in grants nothing without membership (same file)\nScenario: Two tenants render in one process without mixing (features_backend/shared-render-from-store.feature, PPY-413576)\nScenario: Hooks never run on the shared stack (same file)\nScenario: One noisy tenant does not slow the others (features_backend/shared-stack-load.feature, PPY-4a79f9)\nScenario: One tenant's data is restored without touching others (PPY-7438d9)\n\nAcceptance checks:\n1. Synthetic tenant-marker check: every page on each test host carries its own tenant marker (zero mismatches over 24 hours).\n2. The shared Cognito app client's callback list is the fixed set (synth test), unchanged after creating the second test tenant.\n3. CloudFront invalidation log for the week shows no \"/*\" and every path metered to a tenant.\n4. Load test report attached with p95 publish latency per tenant under one noisy tenant.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-6cb791aa-03c1-4804-9626-35a9707148dc",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-b5fab67c-3fbf-4b1d-83ad-01a2f8d5338b",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fdbbd71b-20b0-496d-af0b-0bf7dbcb89b0",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "045e45bd-e5de-4e5b-925a-b5c62e5e2f78",
+      "author": "home",
+      "text": "Adds PPY-fdbbd7 (shared sign-in: one pool, one shared Google client, fixed callback list, newsroom.p.apyr.us). Default subdomains are <site>.p.apyr.us.",
+      "created_at": "2026-11-08T21:19:02.077840Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T18:46:26.893643Z",
+  "updated_at": "2026-11-09T00:20:15.677648Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

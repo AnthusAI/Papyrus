@@ -1,0 +1,40 @@
+{
+  "id": "PPY-e882eeb3-7cf8-4ed7-86e6-08362de7f22e",
+  "title": "Tenant export: everything, in open formats, reopenable as a dedicated site",
+  "description": "Outcome: Implements the export half of PPY-8e6c06 and the ownership promise (PPY-2f1bb2). One command and one newsroom button produce an archive in S3 (presigned download): every row of every tenant model as JSON Lines, every story body as Markus, every media object, the site documents, the Cyclotron store and decision history, reader data the tenant owns (without readers' private identifiers), and a manifest with counts and hashes. Reads go through tenant indexes only (no whole-table read). The archive loads into a fresh dedicated backend with copy-backend.\n\nTouches (verified at origin/develop 23fabe1d): new src/papyrus_content/tenant_export.py and CLI command (papyrus ops tenant export), a content-actions task, the newsroom settings page, docs.\n\nAcceptance (Gherkin feature file: features_backend/tenant-export.feature):\nScenario: Export holds everything and only the tenant's data\n    Given \"alpha\" with stories, References, messages, media, settings and votes\n    When \"alpha\" exports\n    Then the archive's counts equal alpha's rows and contain nothing of \"beta\"\n    And the archive loads into an empty dedicated backend that renders the same pages\n\nDependencies: blocked by PPY-1ce06f, PPY-8f9462. Blocks PPY-62f10d. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-8e6c06, PPY-2f1bb2.\n\nTesting: Behave in a sandbox with two tenants; a round trip into a dedicated sandbox and a golden render compare.\nRollout: Shared stack; also offered to dedicated customers.\nRisk and mitigation: Risk: a large tenant's export outlasts a Lambda. Mitigation: the export runs as a resumable task per model with a manifest of finished parts.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-1ce06f3a-5a20-46f6-9f57-5d40cbfb8870",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8f9462c3-2ffd-4e71-8044-cadcc254586f",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8e6c0600-8cb6-43f1-b5da-0ba9b46089fe",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-2f1bb2af-3dfd-4518-9505-ffa97b85681b",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:22.704603Z",
+  "updated_at": "2026-11-08T18:47:03.801303Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

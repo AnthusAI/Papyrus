@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a15c9b53-6441-426c-b6f8-59716d65809f",
+  "issue_id": "PPY-de286bf9-273a-4e47-bfeb-89c799dba3b0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T00:15:34.168Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P4 Agents read the resolved guidelines (context pack, editorial context, skills)",
+    "description": "What: every agent and tool gets guidelines from the one resolver, after its fixed base prompt.\n\nFiles:\n- src/papyrus_content/newsroom_context_pack.py: new core layer writing_guidelines (copywriter: in full, before editorial_policies; editor: voice, audience, constraints only); visual_style resolves the section document; voice_examples reads exemplars first; layers record slug/version/hash\n- src/papyrus_content/images/prompt_lint.py: extend to the role text in newsroom_context_pack.py (no publication-specific wording in code)\n- src/papyrus_content/editorial_context.py and amplify/functions/shared/editorial-context.ts: entries writing-guidelines and visual-style at publication and section scope with lineage, version and sha256 (assignment-action picks them up)\n- .agents/skills/copywriting/SKILL.md, skills/image-work/SKILL.md: read resolved guidelines first; no site wording\n- docs/newsroom-context-packs.md\n- features_backend/newsroom-context-pack.feature, features_backend/editorial-context.feature (new scenarios)\n\nAcceptance checks:\n- The role text always comes before the site's guidelines and is unchanged by any document (add-only).\n- writing_guidelines and visual_style are core and never shed under the budget.\n- papyrus assignments context-pack --story L --profile copywriter shows the section's writing guidelines with their sources.\n\nGherkin scenarios:\n- The copywriter's pack holds the section's resolved writing guidelines after its role text\n- The editor's pack holds only the voice, audience and binding rules\n- A site's guidelines cannot replace the fixed role text\n- Writing guidelines are never shed when the pack is over budget\n- Editorial context lists writing and image guidelines with their versions and hashes\n- A pack built for a site with no writing guidelines carries the missing warning\n\nDesign: docs/plans/guidelines-as-data.md. Gherkin specs are required and ship in the same PR. Text lives in S3, never inline in DynamoDB; no new GSI; no subscriptions. Style and voice wording is data, never code.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+    "labels": []
+  }
+}

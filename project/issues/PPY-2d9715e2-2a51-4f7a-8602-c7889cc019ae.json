@@ -1,0 +1,30 @@
+{
+  "id": "PPY-2d9715e2-2a51-4f7a-8602-c7889cc019ae",
+  "title": "Sections are placed by their best item under the same rule, in core",
+  "description": "What: the references and stories includes group by section name and place each section by its best item under the one ordering rule, with no HTML parsing. Replaces newest-update placement for Articles and Posts. Uses section names from PPY-6a3735.\nWhy: MoM's group redraw is the evidence that core cannot do this today.\nAcceptance:\nScenario: A section with the best recent item comes first\n  Given section A updated yesterday with a weak item and section B with a strong item in the same bucket\n  When the home page is built\n  Then section B is placed before section A\nScenario: Articles and Posts sections follow the same placement as Videos\n  Given the same data for all three kinds\n  When each list is built\n  Then the section order is identical in rule",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c446fe56-1b96-4fe5-8a17-af8be3a2b68b",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0ab69eb2-d90c-40a5-89f5-fd04169317c9",
+      "author": "home",
+      "text": "Machines on Machines needs this for its Videos and Findings pages (MoM epic MOM-b08bdd, Phase B task MOM-d29573, AnthusAI/Machines-on-Machines board; filed 2026-11-08). Concrete shape that would let MoM delete its HTML regrouping (`_grouped_by_section` in web/hooks.py) and the `count=\"500\"` source include it uses to find each section's best items (a cap: a section whose best Reference ranks below the 500th is not shown on the page):\n\n`::include{kind=\"references\" select=\"recent\" bucket=\"week\" medium=\"video\" groups=\"section\" per=\"7,6,6,3\" [section=\"A|B|...\"]}`\n- one group per section that has at least one matching Reference, placed by the position of its best Reference in the include's order (the shared rolling-week order), no cap on how far down that best Reference is;\n- `per` as in the listing include's groups: a list whose last value repeats;\n- References with no section are never grouped; `section=\"A|B\"` (see the new filters story) limits grouping to the sections the site has pages for;\n- markup: `<section class=\"home-page-reference-group\" data-section=\"<label>\" data-index=\"<i>\" data-total=\"<all matching References in that section>\"><ul class=\"home-page-grid\" data-card=\"tile\">...</ul></section>`; `data-total` lets a site write \"More <section> videos…\" only when there are more;\n- every placed Reference is claimed in the page ledger; not pageable (`paged` with `groups` is a build error).\nCross-reference: PPY-a9402d (section any-of, notSection, notMedium; paged lists).\n",
+      "created_at": "2026-11-08T19:06:10.799868Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-07T21:42:04.758054Z",
+  "updated_at": "2026-11-08T19:06:10.800185Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

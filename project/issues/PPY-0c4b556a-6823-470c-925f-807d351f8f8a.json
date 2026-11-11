@@ -1,0 +1,36 @@
+{
+  "id": "PPY-0c4b556a-6823-470c-925f-807d351f8f8a",
+  "title": "TI's monitors, Cyclotron, editors and agents move with it",
+  "description": "Outcome: The pieces outside the content tables: the monitoring router's publication entry (appsyncEndpoint of the shared stack, tenantId threat-intelligence, mode unchanged; AGENTS.md \"monitoring\"); the Cyclotron store prefix and its ids (\"<cyclotronId>-threat-intelligence\"); TI's editors get TenantMembership rows and sign in to the shared newsroom with Google; agents that act for TI re-login with remote login against the shared stack; scheduled jobs (knowledge runs, transcripts) point at the tenant.\n\nTouches (verified at origin/develop 23fabe1d): monitoring router configuration (SSM /papyrus/monitoring/table-name entry), Cyclotron store S3 prefix, TenantMembership rows, docs/cli-login.md for the agents.\n\nAcceptance (Gherkin feature file: features_backend/ti-operations-move.feature):\nScenario: TI's monitor delivers into the shared stack after cut-over\n    Given the router entry points at the shared stack for TI\n    When the next monitor run delivers References\n    Then they land in TI's tenant with TI's corpus ids\n\nDependencies: blocked by PPY-203ce2, PPY-e1d26f. Blocks PPY-16f13a. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-32b4c5.\n\nTesting: Run in staging during the rehearsal.\nRollout: Part of the cut-over day.\nRisk and mitigation: Risk: the router keeps writing to the old backend after cut-over. Mitigation: the old backend's intake is switched off in the same step (router mode dry-run for the old entry).\n\nReleasable on its own: no (operation).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-fe8bc69c-453f-45f8-938d-eaabb8a366a8",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-203ce2b7-7c67-4699-8c35-081da06a91d7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e1d26fa2-6008-40d6-a6a1-4be875bd55b3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-32b4c5ea-3445-40e9-8c12-f57568afe88e",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:24.650952Z",
+  "updated_at": "2026-11-08T18:47:09.360787Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

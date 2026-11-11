@@ -41,3 +41,9 @@ Feature: The Stories board lists stories, not every kind of Item
     Given Items of the site's own type "guide" and of the types wiki page, post, newsletter issue and untyped
     When the Stories board is built
     Then the guide, the post, the newsletter issue and the untyped story are cards and the wiki page is not
+
+  Scenario: A published Story is not shown in the column it was once written in
+    Given a Story written in Copywriting and later published, whose newest version is not in the first page of the Published column
+    When the Stories board loads the Copywriting column
+    Then the superseded Copywriting version is not loaded and the Story is not a Copywriting card
+    And the board asks for story types that are not superseded

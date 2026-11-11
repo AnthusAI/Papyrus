@@ -197,6 +197,10 @@ def step_catalog(context):
     if importlib.util.find_spec("caducus") is None:
         context.scenario.skip("caducus is not importable; set PYTHONPATH to a Caducus checkout")
         return
+    from caducus.notify import fakes as caducus_fakes
+    if not Path(caducus_fakes.FIXTURES).is_dir():
+        context.scenario.skip("the installed caducus wheel ships no test fixtures; set PYTHONPATH to a Caducus checkout")
+        return
     from caducus.notify.catalog import catalog_from_mapping
     from caducus.notify.fakes import World
 

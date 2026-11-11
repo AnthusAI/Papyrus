@@ -5,7 +5,7 @@ confirmed it, or a deterministic rule derived it), ``suggested`` (a machine prop
 ``rejected`` (a person said no). The state is part of the state keys, so every reader that queries ``...#current`` sees
 only confirmed edges and never a suggestion or a rejection.
 
-Tagging a Reference with a concept is a ``related_to`` edge from the reference to the ``semanticNode``. The ``mentions``
+Tagging a Reference with a concept is a ``tagged_with`` edge (``related_to`` before 2026-11-09; see CONCEPT_TAG_PREDICATES) from the reference to the ``semanticNode``. The ``mentions``
 predicate stays for text that enrichment extracted.
 """
 
@@ -20,6 +20,14 @@ from .relation_types import semantic_relation_type_fields_for_predicate
 from .story_reporting import current_reference, latest_story_version
 
 RELATED_TO = "related_to"
+# Concept tagging (a story or a Reference "tagged with" a concept) is `tagged_with`. `related_to` was the name before 2026-11-09; rows under it still exist
+# (written before the rename), so every reader accepts both until `papyrus relations migrate-concept-tags` has run: CONCEPT_TAG_PREDICATES. Every writer now writes
+# CONCEPT_TAG_PREDICATE; the legacy name is only read, and migrated.
+TAGGED_WITH = "tagged_with"
+CONCEPT_TAG_PREDICATE = TAGGED_WITH
+LEGACY_CONCEPT_TAG_PREDICATE = RELATED_TO
+CONCEPT_TAG_PREDICATES = (CONCEPT_TAG_PREDICATE, LEGACY_CONCEPT_TAG_PREDICATE)
+SEE_ALSO = "see_also"   # story to story: "read this too" (one meaning; a story pair is never `related_to`)
 CITES = "cites"
 SUPPORTS = "supports"
 CONTRADICTS = "contradicts"
@@ -30,6 +38,8 @@ DECISIONS = ("accepted", "rejected")
 REFERENCE_LINK_KIND = "reference.link"
 REFERENCE_CONCEPT_KIND = "reference.concept"
 ITEM_CONCEPT_KIND = "item.concept"
+ITEM_LINK_KIND = "item.link"
+ITEM_REFERENCE_LINK_KIND = "item.reference-link"   # story -> Reference see_also, named like its neighbours item.link and item.concept
 REFERENCE_LINK_FEED_KEY = "reference-links"
 STATE_FOR_PROVENANCE = {"human": "current", "derived": "current", "suggested": "suggested"}
 STATE_FOR_DECISION = {"accepted": "current", "rejected": "rejected"}
@@ -50,6 +60,9 @@ def _state_keys(subject_kind: str, subject_lineage_id: str, object_kind: str, ob
     }
 
 
+relation_state_keys = _state_keys   # the four state keys of an edge, for the one migration that rewrites them (concept_tag_migration.py)
+
+
 def _stored_metadata(row: dict[str, Any] | None) -> dict[str, Any]:
     if not row:
         return {}
@@ -62,6 +75,30 @@ def _stored_metadata(row: dict[str, Any] | None) -> dict[str, Any]:
 def _require_provenance(provenance: str) -> None:
     if provenance not in PROVENANCES:
         raise ValueError(f"provenance must be one of {', '.join(PROVENANCES)}.")
+
+
+def _require_tag_predicate(predicate: str) -> None:
+    if predicate not in CONCEPT_TAG_PREDICATES:
+        raise ValueError(f"A concept tag is one of {', '.join(CONCEPT_TAG_PREDICATES)}.")
+
+
+def _legacy_tag_outcome(client, subject_lineage_id: str, object_lineage_id: str, predicate: str, provenance: str) -> dict[str, Any] | None:
+    """What a ``tagged_with`` writer must honour in the same pair's row under the legacy ``related_to`` name (until ``relations migrate-concept-tags`` has run).
+
+    A person's rejection there is kept (no writer flips it back, whatever the name), and a machine writer (a suggestion or a derived tag) does not add a second row beside a
+    legacy one that is still current or suggested. A person's tag is written: it is the confirmed row, and the migration skips a pair that already has one."""
+    if predicate != CONCEPT_TAG_PREDICATE:
+        return None
+    legacy_id = reference_link_relation_id(LEGACY_CONCEPT_TAG_PREDICATE, subject_lineage_id, object_lineage_id)
+    legacy = client.get_record("SemanticRelation", legacy_id)
+    if not legacy or legacy.get("relationState") == "superseded":
+        return None
+    if legacy.get("relationState") == "rejected":
+        meta = _stored_metadata(legacy)
+        return {"relationId": legacy_id, "relationState": "rejected", "outcome": "rejected", "decidedBy": meta.get("decidedBy"), "decidedAt": meta.get("decidedAt")}
+    if provenance != "human":
+        return {"relationId": legacy_id, "relationState": legacy["relationState"], "outcome": "kept"}
+    return None
 
 
 def _require_reference(client, reference_id: str) -> dict[str, Any]:
@@ -91,6 +128,10 @@ def _write_edge(
     existing = client.get_record("SemanticRelation", relation_id)
     if provenance == "suggested" and existing and existing.get("relationState") != "suggested":
         return {"relationId": relation_id, "relationState": existing["relationState"], "outcome": "kept"}
+    if existing and existing.get("relationState") == "rejected":
+        # A person rejected this edge. No writer flips it back (a suggestion, a derived link or a tag): only a person's decision does, through ``decide``.
+        return {"relationId": relation_id, "relationState": "rejected", "outcome": "rejected",
+                "decidedBy": _stored_metadata(existing).get("decidedBy"), "decidedAt": _stored_metadata(existing).get("decidedAt")}
     state = STATE_FOR_PROVENANCE[provenance]
     previous = _stored_metadata(existing)
     metadata = {
@@ -211,21 +252,26 @@ def link_concept(
     model_version: str | None = None,
     note: str | None = None,
     now: str | None = None,
+    predicate: str = CONCEPT_TAG_PREDICATE,
 ) -> dict[str, Any]:
-    """Tags a Reference with a concept: a ``related_to`` edge from the reference to the ``semanticNode`` row ``node``.
+    """Tags a Reference with a concept: a ``tagged_with`` edge from the reference to the ``semanticNode`` row ``node``.
 
     ``node`` is the SemanticNode row (``id``, ``lineageId``, ``versionNumber``). ``mentions`` is not used here; it stays
     for text that enrichment extracted.
     """
     _require_provenance(provenance)
+    _require_tag_predicate(predicate)
     now = now or utc_now_iso()
     reference_end = _reference_end(_require_reference(client, reference), reference)
     node_end = {"kind": "semanticNode", "id": node["id"], "lineageId": node.get("lineageId") or node["id"], "versionNumber": node.get("versionNumber")}
+    legacy = _legacy_tag_outcome(client, reference_end["lineageId"], node_end["lineageId"], predicate, provenance)
+    if legacy is not None:
+        return legacy
     return _write_edge(
         client,
-        relation_id=reference_link_relation_id(RELATED_TO, reference_end["lineageId"], node_end["lineageId"]),
+        relation_id=reference_link_relation_id(predicate, reference_end["lineageId"], node_end["lineageId"]),
         kind=REFERENCE_CONCEPT_KIND,
-        predicate=RELATED_TO,
+        predicate=predicate,
         subject=reference_end,
         object_=node_end,
         provenance=provenance,
@@ -249,22 +295,112 @@ def link_item_concept(
     note: str | None = None,
     now: str | None = None,
     story: dict[str, Any] | None = None,
+    predicate: str = CONCEPT_TAG_PREDICATE,
 ) -> dict[str, Any]:
-    """Tags a story (an Item, by lineage id) with a concept: a ``related_to`` edge from the item to the ``semanticNode`` row ``node``, so the
-    story shows on the concept's page. Same row conventions as ``link_concept``; ``related_to`` allows an item as its subject.
+    """Tags a story (an Item, by lineage id) with a concept: a ``tagged_with`` edge from the item to the ``semanticNode`` row ``node``, so the
+    story shows on the concept's page. Same row conventions as ``link_concept``; ``tagged_with`` allows an item as its subject.
     ``story`` is the record the caller has just written; the lineage index is eventually consistent (see ``link_reference_to_story``)."""
     _require_provenance(provenance)
+    _require_tag_predicate(predicate)
     now = now or utc_now_iso()
     story = story or latest_story_version(client, item_lineage_id)
     item_end = {"kind": "item", "id": story["id"], "lineageId": item_lineage_id, "versionNumber": story.get("versionNumber")}
     node_end = {"kind": "semanticNode", "id": node["id"], "lineageId": node.get("lineageId") or node["id"], "versionNumber": node.get("versionNumber")}
+    legacy = _legacy_tag_outcome(client, item_lineage_id, node_end["lineageId"], predicate, provenance)
+    if legacy is not None:
+        return legacy
     return _write_edge(
         client,
-        relation_id=reference_link_relation_id(RELATED_TO, item_lineage_id, node_end["lineageId"]),
+        relation_id=reference_link_relation_id(predicate, item_lineage_id, node_end["lineageId"]),
         kind=ITEM_CONCEPT_KIND,
-        predicate=RELATED_TO,
+        predicate=predicate,
         subject=item_end,
         object_=node_end,
+        provenance=provenance,
+        actor=actor,
+        score=None,
+        confidence=None,
+        classifier_id=None,
+        model_version=None,
+        note=note,
+        now=now,
+    )
+
+
+def link_items(
+    client,
+    first: dict[str, Any],
+    second: dict[str, Any],
+    provenance: str,
+    *,
+    actor: str,
+    note: str | None = None,
+    now: str | None = None,
+) -> dict[str, Any]:
+    """Links two stories (Items, as their current records) with the one official ``see_also`` edge, kind ``item.link``.
+
+    Symmetric like reference links: one row, the lower lineage id as subject, the deterministic id from the pair, so A to B and B to A are one row.
+    A rejected edge is never flipped back (see ``_write_edge``)."""
+    _require_provenance(provenance)
+    now = now or utc_now_iso()
+    ends = sorted(({"kind": "item", "id": story["id"], "lineageId": story.get("lineageId") or story["id"], "versionNumber": story.get("versionNumber")}
+                   for story in (first, second)), key=lambda end: end["lineageId"])
+    if ends[0]["lineageId"] == ends[1]["lineageId"]:
+        raise ValueError("A story cannot be linked to itself.")
+    return _write_edge(
+        client,
+        relation_id=reference_link_relation_id(SEE_ALSO, ends[0]["lineageId"], ends[1]["lineageId"]),
+        kind=ITEM_LINK_KIND,
+        predicate=SEE_ALSO,
+        subject=ends[0],
+        object_=ends[1],
+        provenance=provenance,
+        actor=actor,
+        score=None,
+        confidence=None,
+        classifier_id=None,
+        model_version=None,
+        note=note,
+        now=now,
+    )
+
+
+def link_item_reference_see_also(
+    client,
+    item_lineage_id: str,
+    reference: str,
+    provenance: str,
+    *,
+    actor: str,
+    note: str | None = None,
+    now: str | None = None,
+    story: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Links a story to a Reference with the official ``see_also`` edge ("read this source too"), kind ``item.reference-link``.
+
+    Directional: the story is the subject, the Reference (a record id or a lineage id) the object. The id is deterministic from the predicate, the story
+    lineage and the Reference lineage, so a repeat finds the row: a current (or suggested) edge is reported as ``exists`` and nothing is written, and a rejected
+    edge is never flipped back (``outcome`` ``rejected``). Only an accepted Reference can be linked: the public page shows accepted References only.
+    ``story`` is the story's record when the caller has it (the lineage index is eventually consistent)."""
+    _require_provenance(provenance)
+    now = now or utc_now_iso()
+    found = _require_reference(client, reference)
+    if found.get("curationStatus") != "accepted":
+        raise ValueError(f"Reference {reference} is {found.get('curationStatus') or 'not accepted'}; only accepted References can be linked to a story, because only those are shown on the page.")
+    reference_end = _reference_end(found, reference)
+    story = story or latest_story_version(client, item_lineage_id)
+    item_end = {"kind": "item", "id": story["id"], "lineageId": item_lineage_id, "versionNumber": story.get("versionNumber")}
+    relation_id = reference_link_relation_id(SEE_ALSO, item_lineage_id, reference_end["lineageId"])
+    existing = client.get_record("SemanticRelation", relation_id)
+    if existing and existing.get("relationState") in ("current", "suggested"):
+        return {"relationId": relation_id, "relationState": existing["relationState"], "outcome": "exists"}
+    return _write_edge(
+        client,
+        relation_id=relation_id,
+        kind=ITEM_REFERENCE_LINK_KIND,
+        predicate=SEE_ALSO,
+        subject=item_end,
+        object_=reference_end,
         provenance=provenance,
         actor=actor,
         score=None,

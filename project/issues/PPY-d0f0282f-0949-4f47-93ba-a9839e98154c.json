@@ -1,0 +1,22 @@
+{
+  "id": "PPY-d0f0282f-0949-4f47-93ba-a9839e98154c",
+  "title": "Topic modeling on recent References: agent tool and public Trending view",
+  "description": "Ryan 2026-11-08. Agent tool (CLI + MCP from one operation table) that runs topic modeling on recent References, parameterized: window (default 14 days on the source date; presets 7d/14d/28d), section filter, monitor/source, state (default accepted+pending), min cluster size scaled to the window, compare-to previous window, max_references as a logged safety stop only. Returns compact topics (label, top terms, count, trend mark, representative References, saved id); follow-ups topics.show / topics.members. Needs a date-and-section Reference index (no whole-table reads). Public: precomputed Trending block per site (off by default), per-section trending, editor-accepted topics only; trend direction by mark and legend, not colour alone. Decisions: window 14d default; public topics only after editor acceptance; Trending block is a per-site setting, off by default. Existing: BERTopic through Biblicus in the weekly knowledge run (docs/knowledge-cloud-run.md); the run's topic model reads the site's own items, not general References. Build the agent tool first.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "topics"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T16:56:48.821714Z",
+  "updated_at": "2026-11-08T16:56:48.822201Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

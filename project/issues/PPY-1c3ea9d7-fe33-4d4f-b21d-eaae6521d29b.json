@@ -1,0 +1,22 @@
+{
+  "id": "PPY-1c3ea9d7-fe33-4d4f-b21d-eaae6521d29b",
+  "title": "Reader votes train only the tenant's own Cyclotron, opt-in; shared model explored later",
+  "description": "What: default off; a tenant may opt in to training its own Cyclotron from reader votes. A shared model trained across tenants is not built; a short design note records the question for later.\nAcceptance:\nScenario: Votes on tenant A never reach tenant B's model\n  Given both tenants collect votes\n  When A's Cyclotron retrains\n  Then B's data is not read",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:43:09.201747Z",
+  "updated_at": "2026-11-07T21:43:09.201785Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

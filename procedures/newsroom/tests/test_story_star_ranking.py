@@ -39,6 +39,30 @@ SETTINGS = settings(
 )
 
 
+HOOK_PAGE = {"id": "hooked", "path": "hooked", "title": "Hooked", "source": "hooked.md"}
+HOOKS = (
+    "def main(page):\n"
+    "    if page.custom_id != 'hooked':\n"
+    "        return None\n"
+    "    ranked = page.ranked([entry for entry in page.entries if entry.type == 'article'])\n"
+    "    return '<main><ol>' + ''.join('<li data-story=\"' + entry.slug + '\"></li>' for entry in ranked) + '</ol></main>'\n"
+)
+
+
+def hooked_site():
+    settings_ = {**SETTINGS, "hooks": "hooks.py", "pages": [*PAGES, HOOK_PAGE]}
+    projected = cms_site(settings_, stories(), {**FILES, "hooks.py": HOOKS, "hooked.md": BAND})
+    projected.context.source.star_store = MemoryStarStore()
+    projected.projector.clock = lambda: AS_OF
+    return projected
+
+
+def hooked(site) -> list[str]:
+    import re
+
+    return re.findall(r'data-story="([^"]+)"', site.text("hooked/index.html"))
+
+
 def stories():
     return [item(slug, date=day) for slug, day in [*WEEK, THIS_WEEK_STAR, *LAST_WEEK]]
 
@@ -280,3 +304,31 @@ def test_a_site_can_make_none_its_default_bucket_and_keep_every_listing_newest_f
         assert cards(plain.text("posts/index.html")) == newest_first()
     finally:
         plain.cleanup()
+
+
+# ------------------------------------------------------------------ hooks: page.ranked
+
+
+def test_a_hook_that_calls_page_ranked_sees_a_five_star_story_ahead_of_a_newer_unrated_one():
+    site = hooked_site()
+    try:
+        assert hooked(site) == newest_first(), "nothing rated: newest first"
+        rate(site, "three", 5)
+        reproject(site)
+        assert hooked(site)[:2] == ["three", "eight"], "five stars lead the bucket, the newer unrated Story follows"
+        assert hooked(site)[-2:] == ["old-a", "old-b"] or hooked(site)[-2:] == ["old-b", "old-a"]
+    finally:
+        site.cleanup()
+
+
+def test_a_rating_re_renders_the_hook_page_that_ranks_and_a_rating_that_moves_nothing_does_not():
+    site = hooked_site()
+    try:
+        reproject(site)
+        site.writer.operations.clear()
+        site.context.source.star_store.record({"item-posts-three": 5})
+        report = project_stale_listings(site.context)
+        assert report.ok and "hooked/index.html" in report.written
+        assert hooked(site)[0] == "three"
+    finally:
+        site.cleanup()

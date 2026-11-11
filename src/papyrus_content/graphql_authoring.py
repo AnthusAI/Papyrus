@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import re
+import sys
 import http.client
 import urllib.parse
 from typing import Any, Callable
 
 from . import request_meter
+from .content_item_lifecycle import HEAD_STAGE_KEY_FIELD
 from .env import graphql_endpoint, graphql_timeout_seconds, site_tenant_id
 from .guest_auth import refuse_guest_auth
 from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, graphql_request_headers
-from .operator_errors import GraphQLRequestError, credential_recovery_guidance
+from .operator_errors import GraphQLRequestError, GraphQLTimeoutError, credential_recovery_guidance
 from .tenancy import (
     TENANT_MODELS,
     TenantError,
@@ -21,6 +25,8 @@ from .tenancy import (
     tenant_scoped_index,
     tenant_scoped_record_id,
     tenant_scoped_value,
+    TENANT_FIELD_MODELS,
+    tenant_field_stamped_payload,
     tenant_stamped_payload,
     validate_tenant_id,
 )
@@ -95,7 +101,7 @@ MESSAGE_FIELDS = (
 MESSAGE_THREAD_FIELDS = (
     "id threadKind status title summary primaryAnchorKind primaryAnchorId primaryAnchorLineageId primaryAnchorKey "
     "createdBySub createdByUserProfileId createdByLabel messageCount lastMessageId lastMessageAt contextDigest "
-    "activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey"
+    "activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey sectionId"
 )
 PROCEDURE_DEFINITION_FIELDS = (
     "id procedureKey title category description enabled enabledStatus currentVersionId createdBy createdAt "
@@ -159,6 +165,7 @@ PUBLISHED_ITEM_FIELDS = (
     "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
     "title headline deck body byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
 )
+SUMMARY_PAGE_SIZE = 1000
 PUBLISHED_ITEM_SUMMARY_FIELDS = (
     "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
 )
@@ -429,9 +436,15 @@ PUBLISHED_STORY_LIST_FIELDS = (
 )
 
 STORY_SECTION_LINK_FIELDS = "id tenantId lineageId versionState stage status type section sectionStatus"
+HEAD_INDEX_ROW_FIELDS = "id tenantId lineageId versionNumber versionState versionCreatedAt stage type updatedAt"
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "itemsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": STORY_SECTION_LINK_FIELDS},
+    # One row per story: only the head row of a lineage carries headStageKey (docs/plans/story-head-stage-index.md). Tenant-prefixed (tenancy.py).
+    "itemsByHeadStage": {"field": "listItemsByHeadStageAndUpdatedAt", "partitionKey": "headStageKey", "fields": STORY_SECTION_LINK_FIELDS},
+    # The rows of one old stage partition with what `stories head-index` needs to pick each lineage's head (the WithKey form once the site has it).
+    "itemHeadFieldsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": HEAD_INDEX_ROW_FIELDS},
+    "itemHeadFieldsWithKeyByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": f"{HEAD_INDEX_ROW_FIELDS} headStageKey"},
     "itemsBySectionStatus": {"field": "listItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": STORY_SECTION_LINK_FIELDS},
     "messageThreadsByAnchor": {"field": "listMessageThreadsByAnchorAndUpdatedAt", "partitionKey": "primaryAnchorKey", "fields": MESSAGE_THREAD_FIELDS},
     "publishedItemsBySectionStatus": {"field": "listPublishedItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": PUBLISHED_STORY_LIST_FIELDS},
@@ -488,6 +501,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": ASSIGNMENT_EVENT_FIELDS,
         "partitionType": "ID",
     },
+    "newsroomSectionsByEnabledStatus": {   # the sections of one state ("enabled" or "disabled"): a small partition, read without scanning the table
+        "field": "listNewsroomSectionsByEnabledStatusAndSortOrder",
+        "partitionKey": "enabledStatus",
+        "fields": NEWSROOM_SECTION_FIELDS,
+    },
     "referencesByLineageAndVersion": {
         "field": "listReferencesByLineageAndVersion",
         "partitionKey": "lineageId",
@@ -525,6 +543,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "field": "listReferencesByCurationStatusKeyAndUpdatedAt",
         "partitionKey": "curationStatusKey",
         "fields": REFERENCE_FIELDS,
+    },
+    "publishedItemsByTypeStatus": {
+        "field": "listPublishedItemsByTypeStatusAndPublishedAt",
+        "partitionKey": "typeStatus",
+        "fields": "id itemLineageId slug title type status metadata",
     },
     "semanticRelationsByObjectState": {
         "field": "listSemanticRelationsByObjectState",
@@ -737,6 +760,21 @@ MEDIUM_REFERENCE_FIELDS = ("medium", "evidenceLevel", "playlistUrl", "mediumFeed
 _UNDEFINED_MEDIUM_INPUT = re.compile(r"field name '(?:" + "|".join(MEDIUM_REFERENCE_FIELDS) + r")'")
 
 
+# The head stage key (docs/plans/story-head-stage-index.md) is newer than some deployed sites, and one CLI install serves them all: a site whose Item
+# type has no headStageKey is written without it. Checked once per endpoint per process (graphql_type_field_names), and a write the schema refuses
+# anyway is sent again without it (a validation error means it never ran).
+_UNDEFINED_HEAD_STAGE_KEY_INPUT = re.compile(r"field name '" + HEAD_STAGE_KEY_FIELD + r"'")
+_HEAD_STAGE_KEY_SUPPORT: dict[str, bool] = {}
+TENANT_FIELD_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_FIELD"
+_HEAD_STAGE_KEY_NOTICE_SHOWN: set[str] = set()
+
+
+def _without_head_stage_key(variables: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not variables or not isinstance(variables.get("input"), dict) or HEAD_STAGE_KEY_FIELD not in variables["input"]:
+        return variables
+    return {**variables, "input": {key: value for key, value in variables["input"].items() if key != HEAD_STAGE_KEY_FIELD}}
+
+
 def _without_medium_fields(variables: dict[str, Any] | None) -> dict[str, Any] | None:
     if not variables or not isinstance(variables.get("input"), dict):
         return variables
@@ -781,6 +819,9 @@ class PapyrusGraphQLAuthoringClient:
         try:
             return self._send_graphql(query, variables)
         except GraphQLRequestError as error:
+            if _UNDEFINED_HEAD_STAGE_KEY_INPUT.search(str(error)) and _without_head_stage_key(variables) is not variables:
+                self._note_no_head_stage_key()   # the request never ran (a validation error), so sending it again cannot repeat a write
+                return self.graphql(query, _without_head_stage_key(variables))
             if not getattr(self, "_schema_lacks_medium_fields", False) and _UNDEFINED_MEDIUM_INPUT.search(str(error)):
                 self._schema_lacks_medium_fields = True   # the request never ran (a validation error), so sending it again cannot repeat a write
                 return self.graphql(query, variables)
@@ -819,6 +860,8 @@ class PapyrusGraphQLAuthoringClient:
                 if attempt == attempts - 1:
                     if isinstance(error, GraphQLRequestError):
                         raise
+                    if isinstance(error, TimeoutError):
+                        raise GraphQLTimeoutError(f"GraphQL request failed: {error}") from error
                     raise GraphQLRequestError(f"GraphQL request failed: {error}") from error
                 continue
         if body is None:
@@ -832,6 +875,18 @@ class PapyrusGraphQLAuthoringClient:
         if not isinstance(data, dict):
             raise GraphQLRequestError("GraphQL response did not include data.")
         return data
+
+    @contextlib.contextmanager
+    def long_call(self, seconds: float):
+        """Wait up to ``seconds`` (never less than the client's own timeout) for the answers inside the block, e.g. a page-building mutation."""
+        previous = self.timeout_seconds
+        self.timeout_seconds = max(previous, seconds)
+        self._reset_connection()
+        try:
+            yield
+        finally:
+            self.timeout_seconds = previous
+            self._reset_connection()
 
     def _open_connection(self) -> http.client.HTTPSConnection:
         connection = http.client.HTTPSConnection(
@@ -912,8 +967,35 @@ class PapyrusGraphQLAuthoringClient:
         fields = graphql_type.get("fields") or []
         return sorted(str(field.get("name")) for field in fields if field.get("name"))
 
-    def list_records(self, model_name: str) -> list[dict[str, Any]]:
-        """EVERY row of the model: a whole-table read that costs one request per 100 rows. Outside a named sweep (`request_meter.sweep`)
+    def has_head_stage_key(self) -> bool:
+        """Whether this site's Item type has ``headStageKey`` (the deploy that adds the head stage index). Asked once per endpoint per process; a
+        site that cannot be asked is assumed to have it, and a write it refuses is sent again without the field."""
+        if self.endpoint not in _HEAD_STAGE_KEY_SUPPORT:
+            try:
+                _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = HEAD_STAGE_KEY_FIELD in self.graphql_type_field_names("Item")
+            except Exception:   # noqa: BLE001 - a site that cannot answer (introspection off, a stand-in transport) is assumed to have it
+                _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = True
+            if not _HEAD_STAGE_KEY_SUPPORT[self.endpoint]:
+                self._note_no_head_stage_key()
+        return _HEAD_STAGE_KEY_SUPPORT[self.endpoint]
+
+    def has_tenant_field(self, model_name: str) -> bool:
+        """Whether this site's API has ``tenantId`` on its tenant-owned models: the deploy that adds it sets ``PAPYRUS_TENANT_FIELD`` (1/true).
+        No schema query is made (introspection is not granted to the workers or the router), and unset means off, so a write is never refused
+        for a field the site lacks."""
+        return os.environ.get(TENANT_FIELD_ENVIRONMENT_VARIABLE, "").strip().lower() in {"1", "true", "yes"}
+
+    def _note_no_head_stage_key(self) -> None:
+        _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = False
+        if self.endpoint in _HEAD_STAGE_KEY_NOTICE_SHOWN:
+            return
+        _HEAD_STAGE_KEY_NOTICE_SHOWN.add(self.endpoint)
+        host = self._parsed_endpoint.netloc or self.endpoint
+        print(f"papyrus: the data API at {host} has no {HEAD_STAGE_KEY_FIELD} yet (the deploy that adds the head stage index); stories are written "
+              "without it. After that deploy, `papyrus stories head-index --apply` fills it in.", file=sys.stderr)
+
+    def list_records(self, model_name: str, *, page_size: int = 100) -> list[dict[str, Any]]:
+        """EVERY row of the model: a whole-table read that costs one request per ``page_size`` rows (100). Outside a named sweep (`request_meter.sweep`)
         it is logged and counted as an unbounded list; read through an index (`list_by_index`, `index_many`) instead."""
         request_meter.note_unbounded_list(model_name)
         definition = LIST_DEFINITIONS[model_name]
@@ -922,7 +1004,7 @@ class PapyrusGraphQLAuthoringClient:
         next_token = None
         while True:
             with request_meter.model(model_name):
-                result = self.graphql(query, {"limit": 100, "nextToken": next_token})
+                result = self.graphql(query, {"limit": page_size, "nextToken": next_token})
             connection = result.get(definition["field"]) or {}
             items.extend(entry for entry in connection.get("items") or [] if entry)
             next_token = connection.get("nextToken")
@@ -937,7 +1019,10 @@ class PapyrusGraphQLAuthoringClient:
         return tenant_scoped_record_id(model_name, self.tenant_id, record_id)
 
     def list_published_item_summaries(self) -> list[dict[str, Any]]:
-        return rows_for_tenant("PublishedItem", self.tenant_id, self.list_records("PublishedItemSummary"))
+        """The listing fields of every published row (no body): what every projection reads. Pages of 1,000 rows (a summary is a few KB, well inside
+        a DynamoDB page of 1 MB), so a site of a few hundred Stories costs one request (PPY-3acc8d)."""
+        rows = self.list_records("PublishedItemSummary", page_size=SUMMARY_PAGE_SIZE)
+        return rows_for_tenant("PublishedItem", self.tenant_id, rows)
 
     def get_record(self, model_name: str, record_id: str) -> dict[str, Any] | None:
         definition = GET_DEFINITIONS[model_name]
@@ -988,6 +1073,8 @@ class PapyrusGraphQLAuthoringClient:
     def update_record_unscoped(self, model_name: str, input_payload: dict[str, Any]) -> None:
         if model_name not in MUTATIONS:
             raise ValueError(f"Unsupported model for update: {model_name}")
+        if model_name == "Item" and HEAD_STAGE_KEY_FIELD in input_payload and not self.has_head_stage_key():
+            input_payload = {key: value for key, value in input_payload.items() if key != HEAD_STAGE_KEY_FIELD}
         self.graphql(MUTATIONS[model_name]["update"], {"input": input_payload})
 
     def get_records_by_id(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -1178,7 +1265,11 @@ class PapyrusGraphQLAuthoringClient:
             raise TenantError(f"{model_name} {record_id} does not exist in tenant {self.tenant_id}.")
 
     def _prepared_payload(self, model_name: str, input_payload: dict[str, Any]) -> dict[str, Any]:
+        if model_name == "Item" and HEAD_STAGE_KEY_FIELD in input_payload and not self.has_head_stage_key():
+            input_payload = {key: value for key, value in input_payload.items() if key != HEAD_STAGE_KEY_FIELD}
         stamped = tenant_stamped_payload(model_name, self.tenant_id, input_payload)
+        if self.tenant_id and model_name in TENANT_FIELD_MODELS and self.has_tenant_field(model_name):
+            stamped = tenant_field_stamped_payload(model_name, self.tenant_id, stamped)
         return strip_unsupported_payload_fields(model_name, add_operational_index_fields(model_name, stamped))
 
     def create_record(self, model_name: str, input_payload: dict[str, Any]) -> None:

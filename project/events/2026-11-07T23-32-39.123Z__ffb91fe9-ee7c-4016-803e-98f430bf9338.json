@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "ffb91fe9-ee7c-4016-803e-98f430bf9338",
+  "issue_id": "PPY-9378c7d2-b2a7-4a65-84e9-ea50ea3d5be2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T23:32:39.123Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cut-over and rollback",
+    "description": "Stage the new build on the staging host, compare sitemap and sample pages, switch the production origin, keep the previous origin ready (the edge template infra/edge/threat-intelligence-amplify-origin.yaml pattern), and write the rollback steps. Watch the CloudFront TTL; no blanket invalidation.\nScenario: A bad cut-over can be reversed\n  Given the new site is live\n  When the previous origin is restored\n  Then readers see the old site within the TTL and no URL returns an error\n\nDepends on: PPY-1192d3 (staging tenant).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-fe8bc69c-453f-45f8-938d-eaabb8a366a8",
+    "labels": [
+      "standard-frontend-plan",
+      "threat-intelligence"
+    ]
+  }
+}

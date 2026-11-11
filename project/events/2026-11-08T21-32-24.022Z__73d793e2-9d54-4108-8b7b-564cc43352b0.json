@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "73d793e2-9d54-4108-8b7b-564cc43352b0",
+  "issue_id": "PPY-867f7628-647c-4939-8abb-d0bd9971ced4",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:32:24.022Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Sandbox only. A pre-token-generation (V2) Lambda adds papyrus_tenant_editor / _member claims from a hard-coded membership table; Item and Reference get allow.ownerDefinedIn(\"tenantId\").identityClaim(...) rules and NO group rules. Prove with two Google test users (never Cognito password users) that every operation across tenants is denied, and record the exact rule syntax that works. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) spike-tenant-claims-1, branch feature/<this issue id>-spike-tenant-claims-1 from origin/develop (spikes: branch spike/<this issue id>-spike-tenant-claims-1, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): throwaway copy of amplify/data/schema.ts (two models) and amplify/auth/resource.ts in an ampx sandbox (docs/aws-sandbox-personal.md).\n\nAcceptance (Gherkin feature file: features_backend/tenant-claims-spike.feature):\nScenario: A token for alpha cannot touch beta's Item\n    Given sandbox users acting for \"alpha\" and \"beta\"\n    When alpha gets, lists, creates with tenantId beta, updates and deletes beta's Item\n    Then every call is denied or returns nothing\n\nDependencies: blocked by nothing. Blocks PPY-cc8a4c. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: ampx sandbox; the scenario run by hand or a small script; findings and rule syntax on this issue.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: If the rule form fails, say so plainly: the fallback (custom resolvers reading claims) is decided from this result.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: none in production.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

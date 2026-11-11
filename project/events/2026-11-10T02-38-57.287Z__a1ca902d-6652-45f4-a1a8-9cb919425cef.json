@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "a1ca902d-6652-45f4-a1a8-9cb919425cef",
+  "issue_id": "PPY-e7da0051-47ee-4d13-99d6-7c38c156b790",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T02:38:57.287Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Gherkin specs: a story has one row in the stage indexes",
+    "description": "Write the scenarios first (features_backend for the writers and the backfill, features/ for the board), narrative and complete, before any code. Cover: create, save a new version, move stage, publish, publish an older version, unpublish, star, a muddled lineage with two current rows, tenant prefix, the board refresh replacing a lineage, the backfill dry run and apply, re-running the backfill (idempotent), and the CLI against a site that has no head index yet (falls back, says so). Acceptance: scenarios merged to develop as pending/failing steps, reviewed against docs/plans/story-head-stage-index.md.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+    "labels": [
+      "no-deploy",
+      "specs"
+    ]
+  }
+}

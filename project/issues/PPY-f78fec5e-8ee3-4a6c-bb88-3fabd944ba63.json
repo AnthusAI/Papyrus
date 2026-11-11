@@ -1,0 +1,32 @@
+{
+  "id": "PPY-f78fec5e-8ee3-4a6c-bb88-3fabd944ba63",
+  "title": "Docs: the head row and the head-stage index",
+  "description": "Update the data model docs (docs/ pages that describe Item versions and the board) with the rule: a lineage has one head, the row marked current; only the head carries headStageKey; every board, list and projection reads by headStageKey; versions are history. Record the backfill/verify command in the operations docs. Acceptance: docs merged with the reader switch; docs/plans/story-head-stage-index.md marked implemented.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+  "labels": [
+    "no-deploy",
+    "docs"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-52f3da00-bbc4-4a86-82e1-a85b2c662b28",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9281e475-96ea-4242-9e28-245a480c0ab7",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-10T02:38:58.074306Z",
+  "updated_at": "2026-11-10T02:39:04.477179Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

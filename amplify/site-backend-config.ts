@@ -35,7 +35,9 @@ export type PapyrusPublicationCacheConfig = {
   /** Shared-cache lifetime (seconds) of projected HTML. Default 300 with targeted invalidation, 60 with `invalidation: "off"`. */
   htmlSMaxAgeSeconds?: number;
   /** `targeted` (default): purge exactly the written paths after each projection. `off`: rely on the short lifetime alone. */
-  invalidation?: "targeted" | "off";
+  invalidation?: "targeted" | "off" | "all";
+  /** Most paths one explicit page-refresh call may invalidate (default 25). A larger call is refused unless the caller names `--force-paths N`. */
+  maxInvalidationPaths?: number;
 };
 
 export const MAXIMUM_HTML_S_MAXAGE_SECONDS = 86400;
@@ -125,8 +127,12 @@ export function validatePublicationConfig(publication: unknown): string[] {
     if (lifetime !== undefined && (!Number.isInteger(lifetime) || lifetime < 0 || lifetime > MAXIMUM_HTML_S_MAXAGE_SECONDS)) {
       problems.push(`publication.cache.htmlSMaxAgeSeconds must be an integer from 0 to ${MAXIMUM_HTML_S_MAXAGE_SECONDS}`);
     }
-    if (cache.invalidation !== undefined && cache.invalidation !== "targeted" && cache.invalidation !== "off") {
-      problems.push('publication.cache.invalidation must be "targeted" or "off"');
+    for (const name of ["maxInvalidationPaths"] as const) {
+      const value = cache[name];
+      if (value !== undefined && (!Number.isInteger(value) || value < 1)) problems.push(`publication.cache.${name} must be a positive integer`);
+    }
+    if (cache.invalidation !== undefined && cache.invalidation !== "targeted" && cache.invalidation !== "off" && cache.invalidation !== "all") {
+      problems.push('publication.cache.invalidation must be "targeted" (the default), "off" or "all" (billable, discouraged)');
     }
   }
   const distribution = config.distribution;
@@ -153,7 +159,46 @@ export function assertValidPublicationConfig(publication: unknown): void {
   if (problems.length > 0) throw new Error(`Invalid backend.publication: ${problems.join("; ")}`);
 }
 
+/**
+ * Tenancy mode (docs/multi-tenancy.md). `dedicated` (the default) is one stack per site, exactly as every site has been.
+ * `shared` is one stack serving several tenants. The mode reaches functions as PAPYRUS_TENANCY_MODE, which only the
+ * helpers `papyrus_content.tenancy` (Python) and `lib/tenant-keys.ts` (TypeScript) may read.
+ */
+export type PapyrusTenancyMode = "dedicated" | "shared";
+export type PapyrusTenancyConfig = { mode?: PapyrusTenancyMode };
+
+export const TENANCY_MODE_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANCY_MODE";
+
+export function validateTenancyConfig(tenancy: unknown): string[] {
+  if (tenancy === undefined) return [];
+  if (typeof tenancy !== "object" || tenancy === null || Array.isArray(tenancy)) return ["tenancy must be an object"];
+  const mode = (tenancy as { mode?: unknown }).mode;
+  if (mode !== undefined && mode !== "dedicated" && mode !== "shared") {
+    return [`tenancy.mode must be "dedicated" or "shared" (got ${JSON.stringify(mode)})`];
+  }
+  return [];
+}
+
+export function assertValidTenancyConfig(tenancy: unknown): void {
+  const problems = validateTenancyConfig(tenancy);
+  if (problems.length > 0) throw new Error(`Invalid backend.tenancy: ${problems.join("; ")}`);
+}
+
+export function resolveTenancyMode(tenancy: PapyrusTenancyConfig | undefined): PapyrusTenancyMode {
+  return tenancy?.mode === "shared" ? "shared" : "dedicated";
+}
+
+/**
+ * Environment every function gets. Dedicated sets nothing (an unset variable means dedicated), so a site
+ * without a tenancy setting synthesises the template it always did.
+ */
+export function tenancyFunctionEnvironment(mode: PapyrusTenancyMode): Record<string, string> {
+  return mode === "shared" ? { [TENANCY_MODE_ENVIRONMENT_VARIABLE]: "shared" } : {};
+}
+
 export type PapyrusSiteBackendConfig = {
+  /** One synth-time switch: `{ mode: "dedicated" | "shared" }`. Default dedicated; see `PapyrusTenancyMode`. */
+  tenancy?: PapyrusTenancyConfig;
   /** Brand id; namespaces account-global resources (S3 Vectors index name). */
   brandId?: string;
   /**

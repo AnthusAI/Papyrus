@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "af60971d-df15-4088-a39b-459415f04d7c",
+  "issue_id": "PPY-f40a022c-097b-465a-9ebb-c15e4d47c0a0",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:47.401Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Per the no-arbitrary-limits rule, limits come from data: each tenant's normal rate of editor actions, publishes and monitor deliveries is learned (scan statistic over its own history), and a burst well outside it is slowed (queued, not refused) and alerts the operator. The shared stack's functions get reserved concurrency so the shared tier cannot starve other workloads in the account (moot if the shared stack has its own account, owner decision 2). AppSync's per-API request rate is shared by every tenant, so its quota is checked and raised before launch.\n\nTouches (verified at origin/develop 23fabe1d): content-actions and other shared functions (reserved concurrency in amplify/site-backend.ts), the queue from PPY-994bd0, src/papyrus_content/request_meter.py (per-tenant rates), operator alerts (docs/operator-alerts.md).\n\nAcceptance (Gherkin feature file: features_backend/tenant-adaptive-throttle.feature):\nScenario: A burst far outside a tenant's normal rate is slowed and reported\n    Given \"alpha\" normally publishes 20 times a day\n    When a script makes 2,000 publish calls in ten minutes\n    Then the calls beyond the learned rate are queued, other tenants' latency is unchanged, and the operator is alerted\n\nDependencies: blocked by PPY-994bd0, PPY-9f929e. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Load test with one noisy tenant (I_LOAD).\nRollout: Shared stack.\nRisk and mitigation: Risk: a new tenant has no history. Mitigation: a new tenant starts from the median of tenants of its plan until it has two weeks of its own data.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

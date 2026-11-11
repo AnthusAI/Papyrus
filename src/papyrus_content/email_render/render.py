@@ -344,6 +344,7 @@ def render_transactional(
     preheader: str = "",
     action_url: str | None = None,
     action_label: str | None = None,
+    reason: str | None = None,
 ) -> RenderedEmail:
     subject = _one_line(subject)
     html_body, plain_body = _body(markus, theme, site_url)
@@ -352,7 +353,7 @@ def render_transactional(
         html_body += _button(action_url, label, theme)
         plain_body += f"\n\n{label}: {action_url}"
     ls = _link_style(theme)
-    reason = f"You received this because someone entered this address on {site_name}. If it was not you, ignore this email."
+    reason = reason or f"You received this because someone entered this address on {site_name}. If it was not you, ignore this email."
     footer_html = (
         f'<p style="margin:0 0 10px 0;">{escape(reason)}</p>'
         f'<p style="margin:0 0 10px 0;"><a href="{escape(site_url)}" {ls}>{escape(site_name)}</a></p>'

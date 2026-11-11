@@ -22,6 +22,8 @@ ALLOWED_NODE_WRITERS = {
     "semantic_node_writes.py",
     "knowledge_snapshot/entity_review.py",
     "knowledge_snapshot/entity_retype.py",
+    "knowledge_snapshot/entity_merge.py",
+    "knowledge_snapshot/entity_add.py",
     "rehydration_commands.py",
     "newsroom_commands.py",
     "site_sweep.py",

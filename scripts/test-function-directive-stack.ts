@@ -7,6 +7,7 @@
  */
 process.env.AWS_BRANCH = "main";
 process.env.AWS_APP_ID = "dtestapp0001";
+process.env.PAPYRUS_SITE_ID = "dtestsite";
 process.env.CDK_CONTEXT_JSON = JSON.stringify({
   "aws:cdk:bundling-stacks": [],
   "amplify-backend-namespace": "dtestapp0001",

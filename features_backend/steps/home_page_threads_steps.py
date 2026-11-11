@@ -21,6 +21,8 @@ from procedures.newsroom.tests.reader_privacy import scan_files  # noqa: E402
 from procedures.newsroom.tests.standard_frontend_support import FIXTURES, ProjectedSite  # noqa: E402
 
 SITE_DIRECTORY = FIXTURES / "home-page"
+SECTION_PAGES = REPO_ROOT / "features_backend" / "fixtures" / "home-page" / "section-pages"   # only these scenarios place them; the recorded home-page fixture stays as it was
+SECTION_PAGE_IDS = {"threads-tools": "Threads of one section.", "threads-plants": "Threads of a section only a Story is filed under."}
 REFERENCES_FIXTURE = REPO_ROOT / "features_backend" / "fixtures" / "home-page" / "references.json"
 THREADS_FIXTURE = REPO_ROOT / "features_backend" / "fixtures" / "home-page" / "threads.json"
 THREADS_KEY = "_data/home-page/threads.json"
@@ -52,6 +54,7 @@ class ThreadsClient:
         self.references = json.loads(REFERENCES_FIXTURE.read_text(encoding="utf-8"))
         self.threads = threads
         self.site_client = site_client
+        self.story_sections: dict[str, str] = {}
         self.profile_reads: list[str] = []
 
     def rows(self) -> list[dict]:
@@ -72,7 +75,10 @@ class ThreadsClient:
         if model_name == "UserProfile":
             self.profile_reads.append(record_id)
             return self.threads["profiles"].get(record_id)
-        return self.site_client.get_record(model_name, record_id)
+        row = self.site_client.get_record(model_name, record_id)
+        if model_name == "PublishedItem" and row and row.get("itemLineageId") in self.story_sections:
+            return {**row, "section": self.story_sections[row["itemLineageId"]]}
+        return row
 
     def list_semantic_relations_by_subject_state(self, subject_state_key: str) -> list[dict]:
         lineage = subject_state_key.removeprefix("reference#").removesuffix("#current")
@@ -89,6 +95,7 @@ class ThreadsClient:
 def project_site(context, *, settings: dict | None = None, threads: dict | None = None) -> None:
     settings = settings if settings is not None else settings_copy()
     extra_files = {f"pages/{path.name}": path.read_bytes() for path in sorted((SITE_DIRECTORY / "pages").glob("*.md"))}
+    extra_files.update({f"pages/{path.name}": path.read_bytes() for path in sorted(SECTION_PAGES.glob("*.md"))})
     context.build_error = None
     try:
         context.site = ProjectedSite(settings=settings, content=SITE_DIRECTORY / "content", extra_files=extra_files)
@@ -104,6 +111,8 @@ def project_site(context, *, settings: dict | None = None, threads: dict | None 
 def settings_copy() -> dict:
     settings = copy.deepcopy(json.loads((SITE_DIRECTORY / "projection.json").read_text(encoding="utf-8")))
     settings["homePage"]["threads"] = {"enabled": True}
+    for page_id, description in SECTION_PAGE_IDS.items():
+        settings["pages"].append({"id": page_id, "path": page_id, "title": page_id.replace("-", " ").title(), "description": description, "dependsOn": [], "source": f"pages/{page_id}.md"})
     return settings
 
 
@@ -228,6 +237,7 @@ def projected_with_attribute(context, attribute: str) -> None:
     attributes = {"select": "recent", "count": "3", "layout": "list", name: value.strip('"')}
     line = "::include{kind=\"threads\" " + " ".join(f'{key}="{given}"' for key, given in attributes.items()) + "}"
     extra_files = {f"pages/{path.name}": path.read_bytes() for path in sorted((SITE_DIRECTORY / "pages").glob("*.md"))}
+    extra_files.update({f"pages/{path.name}": path.read_bytes() for path in sorted(SECTION_PAGES.glob("*.md"))})
     extra_files["pages/threads-list.md"] = ('::band{size="bare"}\n' + line + "\n").encode("utf-8")
     context.build_error = None
     try:
@@ -488,7 +498,7 @@ def no_thread_file(context) -> None:
 def thread_file_shape(context, title: str, count: int) -> None:
     summary = thread_titled(context, title)
     document = thread_file(context, summary["key"])
-    assert list(document) == ["key", "title", "anchor", "messages"], list(document)
+    assert [name for name in document if name != "section"] == ["key", "title", "anchor", "messages"], list(document)   # "section" is optional
     assert document["title"] == title and document["anchor"] == summary["anchor"]
     ordered = [message["at"] for message in document["messages"]]
     assert len(ordered) == count and ordered == sorted(ordered), ordered
@@ -646,3 +656,47 @@ def scanner_clean_on_thread_pages(context) -> None:
     files = {key: body for key, body in context.site.tree.items() if key.startswith(f"{THREAD_BASE}/")}
     assert len(files) >= 8, sorted(files)
     assert scan_files(files, []) == {}, scan_files(files, [])
+
+
+@given('the Story "{title}" is filed under the section "{section}"')
+def story_filed_under(context, title: str, section: str) -> None:
+    lineage = {"Fungi Underground": "item-fungi"}[title]
+    context.client.story_sections[lineage] = section
+
+
+def thread_entry(context, title: str) -> dict:
+    return thread_titled(context, title)
+
+
+@then('the thread "{title}" is in the section "{section}"')
+def thread_in_section(context, title: str, section: str) -> None:
+    entry = thread_entry(context, title)
+    assert entry.get("section") == section, entry
+    assert thread_file(context, entry["key"]).get("section") == section
+
+
+@then('the thread "{title}" has no section')
+def thread_without_section(context, title: str) -> None:
+    entry = thread_entry(context, title)
+    assert "section" not in entry, entry
+    assert "section" not in thread_file(context, entry["key"])
+
+
+@then("no published file names a section by its id")
+def no_section_id(context) -> None:
+    for name, body in published_files(context).items():
+        assert b"record-017" not in body and b"record-004" not in body and b"sectionId" not in body, name
+
+
+def twin_titles(context, path: str) -> list[str]:
+    found = []
+    for line in context.site.text(path).splitlines():
+        match = re.match(r"^- (?:\[(?P<linked>[^\]]*)\]\([^)]*\)|(?P<plain>.*?)) \(\d+ messages?\)$", line)
+        if match:
+            found.append(match["linked"] or match["plain"])
+    return found
+
+
+@then('the Markdown twin "{path}" lists {titles}')
+def twin_lists(context, path: str, titles: str) -> None:
+    assert twin_titles(context, path) == quoted(titles), twin_titles(context, path)

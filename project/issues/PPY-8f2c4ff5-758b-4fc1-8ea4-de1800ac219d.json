@@ -1,0 +1,23 @@
+{
+  "id": "PPY-8f2c4ff5-758b-4fc1-8ea4-de1800ac219d",
+  "title": "GSI ledger check: CI refuses two new indexes on one table in one release, and warns near the table limit",
+  "description": "Outcome: There is no automated guard for the one-new-index-per-table-per-deploy rule today (only comments in scripts/test-reference-feed-keys.ts). Add a CI check that compares the indexes of every model with origin/develop's last release tag and fails when a table gains more than one index, when an index changes its keys in place, or when a table passes 18 indexes (DynamoDB's default limit is 20; Reference is at 15, 16 with PR #1239). It also prints the release order the upgrade planner (PPY-d2cab9) needs.\n\nTouches (verified at origin/develop 23fabe1d): new scripts/test-gsi-ledger.ts, package.json test script, CI workflow, docs/releasing.md.\n\nAcceptance (Gherkin feature file: features_backend/gsi-ledger.feature):\nScenario: Two new indexes on one table fail the build\n    Given a change that adds two indexes to Reference\n    When CI runs\n    Then the GSI ledger check fails naming Reference and both indexes\n\nDependencies: blocked by nothing. Blocks PPY-1ce06f, PPY-297ebe. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Unit tests with schema fixtures.\nRollout: CI only; releasable immediately.\nRisk and mitigation: Low. Risk: false failures on renamed indexes. Mitigation: a rename is reported as remove plus add, which is what DynamoDB does anyway.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:21.022483Z",
+  "updated_at": "2026-11-08T18:46:45.627242Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
