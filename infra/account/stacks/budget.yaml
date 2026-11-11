@@ -2,8 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Papyrus account stack: the monthly cost budget for the account.
   Made by hand before the pipeline existed and adopted by import. The alert
-  address is a deploy-time parameter supplied from a GitHub variable, never
-  from Git.
+  address is read from an SSM parameter at deploy time, never from Git.
 
 Parameters:
   BudgetName:
@@ -13,9 +12,13 @@ Parameters:
     Default: "200"
     AllowedPattern: "^[0-9]+$"
   AlertEmail:
-    Type: String
+    Type: AWS::SSM::Parameter::Value<String>
     NoEcho: true
-    Description: Where budget alerts go. Supplied by the pipeline from the BUDGET_ALERT_EMAIL variable.
+    Description: >-
+      The NAME of an SSM String parameter (for example /<prefix>/budget-alert-email) that holds the alert address. CloudFormation
+      resolves it at deploy time, so the address is never in Git, in a GitHub variable or in a workflow log. A person creates the
+      parameter once. For an adopted budget its value must equal the live subscriber: NotificationsWithSubscribers cannot be updated
+      in place (a difference replaces the budget, which the deployer refuses).
 
 Resources:
   MonthlyBudget:

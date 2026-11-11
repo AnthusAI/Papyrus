@@ -32,7 +32,7 @@ jobs:
       aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
 ```
 
-The repository variables are `AWS_ACCOUNT_ID` and, if the budget stack is used, `BUDGET_ALERT_EMAIL` (variables, not Git: the account id and the alert address never go in the repository).
+The repository variable is `AWS_ACCOUNT_ID` (a variable, not Git). The budget alert address is never a GitHub variable or secret either: workflow logs on a public repository are public. The budget stack reads it from an SSM String parameter, `/<prefix>/budget-alert-email`, at deploy time (`AWS::SSM::Parameter::Value<String>`), and a person creates that parameter once.
 
 A stack that must wait (a certificate before the registrar delegates the domain) is `"enabled": false` with a `reason`.
 
@@ -75,7 +75,8 @@ Nothing else can be automated:
 1. The one baseline apply above, and the `pipeline-roles` environment.
 2. Giving the registrar the zone's four name servers.
 3. Creating the Google OAuth client for sign-in.
-4. Secret values. `AWS::SSM::Parameter` cannot create a `SecureString`, and values never go in Git, so a person (or `papyrus site google-secrets set`) puts the value. The pipeline may manage everything around it.
+4. The SSM String parameter `/<prefix>/budget-alert-email` with the alert address (for an adopted budget it must equal the live subscriber: `NotificationsWithSubscribers` and `BudgetName` are create-only properties of `AWS::Budgets::Budget`, so a difference would replace the budget; the deployer refuses any Replace).
+5. Secret values. `AWS::SSM::Parameter` cannot create a `SecureString`, and values never go in Git, so a person (or `papyrus site google-secrets set`) puts the value. The pipeline may manage everything around it.
 
 ## Not covered yet
 

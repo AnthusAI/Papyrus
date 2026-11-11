@@ -152,7 +152,6 @@ jobs:
         env:
           AWS_ACCOUNT_ID: ${{ inputs.aws-account-id }}
           CONFIG: ${{ inputs.config }}
-          BUDGET_ALERT_EMAIL: ${{ vars.BUDGET_ALERT_EMAIL }}
         run: python .papyrus-tool/infra/pipeline/stack_deploy.py deploy --config "$CONFIG"
       - name: Does the account baseline differ from Git
         id: roles

@@ -146,6 +146,10 @@ Resources:
                 Effect: Allow
                 Action: budgets:ViewBudget
                 Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${BudgetName}"
+              - Sid: ReadTheBudgetAlertAddress
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${Prefix}/budget-alert-email"
 
   # ---------------------------------------------------------------------------
   # Plan role: any pull request in this repository (not forks). Read only.
@@ -299,6 +303,10 @@ Resources:
                   - budgets:ViewBudget
                   - budgets:ModifyBudget
                 Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/*"
+              - Sid: ReadTheBudgetAlertAddress
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${Prefix}/budget-alert-email"
               - Sid: Certificates
                 Effect: Allow
                 Action:
