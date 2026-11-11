@@ -270,10 +270,10 @@ def step_profile_document(context):
     assert context.answer["ok"] and result["kind"] == "image" and result["document"]["schemaVersion"] == 2 and result["profile"] == result["document"]
 
 
-@then("resolving image guidelines points at the image profile resolver")
+@then("resolving image guidelines gives the layered profile")
 def step_image_resolve(context):
     answer = door(context.backend, "guidelinesRead", EDITOR, "guidelines_resolve", input={"kind": "image"})
-    assert answer["error"]["code"] == "resolver_not_available" and "papyrus images profile resolve" in answer["error"]["details"]["use"]
+    assert answer["ok"] and answer["result"]["found"] and answer["result"]["kind"] == "image" and answer["result"]["document"]["schemaVersion"] == 2, answer
 
 
 @given("the door's S3 files")
