@@ -98,7 +98,7 @@ function previewNotesFor(lineageId: string, key: string): StoryStepNote[] {
 function previewChecklistFor(stageKey: string, headlineIndex: number, lineageId: string): StoryStepRecord[] {
   const stageOrder = ["idea", "assignment", "reporting", "copywriting", "illustration", "typesetting", "published"];
   const reached = Math.max(0, stageOrder.indexOf(stageKey));
-  const doneBy = (key: string): number => ({ choose: 1, direction: 1, research: 2, outline: 2, draft: 3, copy_edit: 3, publish: 6 } as Record<string, number>)[key] ?? 99;
+  const doneBy = (key: string): number => ({ choose: 1, direction: 1, research: 2, outline: 2, draft: 3, copy_edit: 3, concepts: 6, related_content: 6, illustration: 6, publish: 6 } as Record<string, number>)[key] ?? 99;
   return PREVIEW_CHECKLIST_TEMPLATE.map((entry, index): StoryStepRecord => {
     const base = {
       id: `step-${lineageId}-${entry.key}`, storyLineageId: lineageId, stepKey: entry.key, stepOrder: index, templateVersion: PREVIEW_CHECKLIST_TEMPLATE_VERSION,
