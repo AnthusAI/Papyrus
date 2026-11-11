@@ -163,7 +163,7 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${BudgetName}"
               - Sid: ReadTheBudgetAlertAddress
                 Effect: Allow
-                Action: ssm:GetParameter
+                Action: [ssm:GetParameter, ssm:GetParameters]
                 Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${Prefix}/budget-alert-email"
 
   # ---------------------------------------------------------------------------
@@ -333,7 +333,7 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/*"
               - Sid: ReadTheBudgetAlertAddress
                 Effect: Allow
-                Action: ssm:GetParameter
+                Action: [ssm:GetParameter, ssm:GetParameters]
                 Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${Prefix}/budget-alert-email"
               - Sid: Certificates
                 Effect: Allow
