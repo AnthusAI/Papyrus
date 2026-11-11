@@ -67,15 +67,31 @@ def step_fake_busy(context):
 
 
 def handlers(context):
+    clock = lambda: "2026-11-10T12:00:00Z"  # noqa: E731
+    if getattr(context, "persistent", False):
+        from papyrus_content.images.candidate_store import ItemCandidateStore
+        from papyrus_content.images.profile_fakes import FakeFiles
+        from papyrus_content.images.story_media import StoryMediaWriter
+
+        if not hasattr(context, "put_calls"):
+            context.put_calls, context.deleted_objects = [], []
+        files = backend(context).document_files
+        context.candidate_store = ItemCandidateStore(backend(context), files, now=clock, delete_object=context.deleted_objects.append)
+        context.writer = StoryMediaWriter(backend(context), lambda path, data, kind, sha: context.put_calls.append((path, data, kind, sha)))
+        return {**with_client(backend(context)),
+                **generation_handlers(backend(context), context.candidate_store, {"fake": context.provider}, media=context.writer, stories=context.writer, now=clock)}
     if not hasattr(context, "candidate_store"):
         context.candidate_store, context.media, context.stories = InMemoryCandidateStore(), FakeMedia(), FakeStories()
-    clock = lambda: "2026-11-10T12:00:00Z"  # noqa: E731
     return {**with_client(backend(context)),
             **generation_handlers(backend(context), context.candidate_store, {"fake": context.provider}, media=context.media, stories=context.stories, now=clock)}
 
 
 def run(context, name, arguments, caller=PERSON):
     context.answer = execute(name, arguments, caller, handlers(context))
+    if name == "image_generate" and context.answer["ok"]:
+        if not hasattr(context, "all_ids"):
+            context.all_ids = []
+        context.all_ids.extend(row["id"] for row in context.answer["result"]["candidates"])
     return context.answer
 
 
@@ -132,7 +148,7 @@ def candidates(context):
 
 
 def nth(context, number):
-    return list(context.candidate_store.candidates.values())[number - 1]
+    return context.candidate_store.get_candidate(context.all_ids[number - 1])
 
 
 @then('generation is refused with "{code}" because "{reason}"')
@@ -341,7 +357,7 @@ def step_apply_ok(context, review):
 @then("the Story got a new version with the cover set and nothing was published")
 def step_story_saved(context):
     saved = context.stories.saved
-    assert len(saved) == 1 and saved[0]["patch"]["frontMatter"]["image"].startswith("media/assets/story-1/"), saved
+    assert len(saved) == 1 and saved[0]["patch"]["frontMatter"]["image"].startswith("assets/story-1/"), saved
     assert "published" not in str(saved[0]).lower()
     assert context.answer["result"]["savedVersion"]["versionNumber"] == 2
 
@@ -378,12 +394,10 @@ def step_read_missing(context, code):
     assert context.answer["error"]["code"] == code
 
 
-@then("the default image handlers answer not implemented for generate, round, discard and apply")
+@then("the default image handlers are the real ones, not the not-implemented stubs")
 def step_defaults(context):
-    arguments = {"image_generate": {"use": "cover", "brief": "x"}, "image_round_get": {"roundId": "r"}, "image_discard": {"candidateId": "c", "reason": "x"},
-                 "image_apply": {"candidateId": "c", "target": {"kind": "story", "lineageId": "s"}, "use": "cover", "expectedCurrentVersionId": "v"}}
-    for name, given in arguments.items():
-        assert execute(name, given, PERSON, HANDLERS)["error"]["code"] == "not_implemented", name
+    for name in ("image_capabilities", "image_generate", "image_round_get", "image_discard", "image_apply"):
+        assert not getattr(HANDLERS[name], "not_implemented", False), name
 
 
 # --- the OpenAI provider, with a fake network ---------------------------------------------------------------------------------------------------------

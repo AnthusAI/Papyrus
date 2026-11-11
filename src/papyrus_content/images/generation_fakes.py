@@ -7,8 +7,8 @@ class FakeMedia:
         self.assets: list[dict] = []
         self.review_requests: list[dict] = []
 
-    def add_media(self, *, path: str, data: bytes, media_type: str, alt: str, caption: str | None, provenance: dict) -> dict:
-        asset = {"id": f"media-asset-{len(self.assets) + 1}", "path": path, "mediaType": media_type, "alt": alt, "caption": caption, "bytes": len(data), "provenance": provenance}
+    def add_media(self, *, target: dict, src_path: str, data: bytes, media_type: str, alt: str, caption: str | None, provenance: dict) -> dict:
+        asset = {"id": f"media-asset-{len(self.assets) + 1}", "srcPath": src_path, "mediaType": media_type, "alt": alt, "caption": caption, "bytes": len(data), "provenance": provenance}
         self.assets.append(asset)
         return {key: value for key, value in asset.items()}
 

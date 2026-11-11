@@ -474,7 +474,7 @@ OPERATIONS: tuple[Operation, ...] = (
                 "savedVersion": record({"versionId": text(), "versionNumber": whole()})}, ("patch", "mediaAsset", "reviewStatus")),
         ("candidate_closed", "candidate_not_ready", "checks_failed", "image_type_unknown", "not_found", "source_not_allowed", "stale_version"),
         (Example({"candidateId": "candidate-1", "target": _STORY, "use": "cover", "imageType": "cover-illustration", "expectedCurrentVersionId": _GUARD},
-                 {"patch": {"bodyDirective": "::image{src=\"media/assets/containment/cover.png\"}", "frontMatter": {"image": "media/assets/containment/cover.png"}},
+                 {"patch": {"bodyDirective": "::image{src=\"assets/containment/cover.png\"}", "frontMatter": {"image": "assets/containment/cover.png"}},
                   "mediaAsset": {"id": "media-asset-1"}, "imageType": "cover-illustration", "reviewStatus": "unreviewed", "reviewRequestId": "review-1",
                   "savedVersion": {"versionId": "item-story-containment-note-v8", "versionNumber": 8}}),),
         positional=("candidateId",),

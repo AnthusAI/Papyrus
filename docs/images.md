@@ -1516,9 +1516,9 @@ Example result:
 ```json
 {
   "patch": {
-    "bodyDirective": "::image{src=\"media/assets/containment/cover.png\"}",
+    "bodyDirective": "::image{src=\"assets/containment/cover.png\"}",
     "frontMatter": {
-      "image": "media/assets/containment/cover.png"
+      "image": "assets/containment/cover.png"
     }
   },
   "mediaAsset": {

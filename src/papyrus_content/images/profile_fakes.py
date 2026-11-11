@@ -73,6 +73,7 @@ class FakeBackend:
         self.document_bodies: dict[str, bytes] = {}
         self.document_files = FakeFiles(self)
         self.attachments: dict[str, dict] = {}
+        self.media_assets: list[dict] = []
         if profile is not None:
             self.save_profile_version(profile, by="admin-account", reason="First profile.")
 
@@ -101,6 +102,7 @@ class FakeBackend:
     def add_story(self, lineage: str, *, section: str | None = None, image_style: dict | None = None, version: int = 1) -> dict:
         metadata = {"imageStyle": image_style} if image_style else {}
         row = {"id": f"{lineage}-v{version}", "lineageId": lineage, "versionNumber": version, "versionState": "current", "type": "article", "section": section,
+               "slug": lineage, "status": "draft", "title": lineage, "bodyMarkus": "The story.", "versionCreatedAt": "2026-11-07T00:00:00Z",
                "tenantId": self.tenant_id, "metadata": json.dumps(metadata)}
         self.items.append(row)
         return row
@@ -118,6 +120,10 @@ class FakeBackend:
             return copy.deepcopy([row for row in self.items if row.get("slug") == key])
         if index == "modelAttachmentsByOwnerRoleAndSortKey":
             return copy.deepcopy([row for row in self.document_attachments if row.get("ownerId") == key])
+        if index == "itemsByParent":
+            return copy.deepcopy([row for row in self.items if row.get("parentLineageId") == key])
+        if index == "mediaAssetsByItemAndSortKey":
+            return copy.deepcopy([row for row in self.media_assets if row.get("itemId") == key])
         if index == "itemsByLineageAndVersion":
             return copy.deepcopy([row for row in self.items if row.get("lineageId") == key])
         raise AssertionError(f"unexpected index {index}")
@@ -145,7 +151,17 @@ class FakeBackend:
         self.writes.append(("create", model, copy.deepcopy(record)))
         self.items.append({**copy.deepcopy(record), "tenantId": self.tenant_id})
 
+    def upsert(self, model: str, record: dict) -> str:
+        assert model == "MediaAsset"
+        self.writes.append(("upsert", model, copy.deepcopy(record)))
+        self.media_assets = [row for row in self.media_assets if row["id"] != record["id"]] + [copy.deepcopy(record)]
+        return "created"
+
     def update_record(self, model: str, record: dict) -> None:
+        if model == "ModelAttachment":
+            self.writes.append(("update", model, copy.deepcopy(record)))
+            next(row for row in self.document_attachments if row["id"] == record["id"]).update(copy.deepcopy(record))
+            return
         assert model == "Item"
         self.writes.append(("update", model, copy.deepcopy(record)))
         next(row for row in self.items if row["id"] == record["id"]).update(copy.deepcopy(record))
