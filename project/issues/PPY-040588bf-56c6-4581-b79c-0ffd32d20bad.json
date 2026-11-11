@@ -3,17 +3,25 @@
   "title": "Document the account pipeline and the person-only steps",
   "description": "docs/account-pipeline.md; pointer from infra/pipeline/README.md and bootstrap.sh.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3556ce45-7948-4609-8202-d6fa2ed101e3",
+      "author": "home",
+      "text": "Merged to Papyrus develop in PR #1404 (merge 179512c6): stack_deploy.py import support, infra/account templates, reusable account-stacks workflow, docs/account-pipeline.md and features/account-pipeline.feature. 179 tests pass; no Papyrus release.",
+      "created_at": "2026-11-11T21:31:17.384375Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-11T20:37:05.603940Z",
-  "updated_at": "2026-11-11T20:37:05.603966Z",
-  "closed_at": null,
+  "updated_at": "2026-11-11T21:31:17.473286Z",
+  "closed_at": "2026-11-11T21:31:17.473250Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
