@@ -35,6 +35,7 @@ Each operation is a command and a tool with the same input and the same JSON res
 | `image_profile_diff` | `papyrus images profile diff` | Show what saving a style document would change, without saving it. | yes | `constraint_conflict` |
 | `image_profile_save` | `papyrus images profile save` | Save a style document as a new profile version. | yes | `human_required`, `stale_version`, `constraint_conflict` |
 | `image_profile_history` | `papyrus images profile history` | List the profile's versions, newest first, with who changed it and why. | yes | only the common ones |
+| `image_profile_init` | `papyrus images profile init` | Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing. | yes | only the common ones |
 | `image_profile_example_add` | `papyrus images profile example add` | Add an example or an avoid-this picture to the profile, as a new version. | yes | `human_required`, `image_type_unknown`, `not_found`, `stale_version` |
 | `image_profile_example_remove` | `papyrus images profile example remove` | Remove an example picture from the profile, as a new version. | yes | `not_found`, `stale_version` |
 | `image_capabilities` | `papyrus images capabilities` | Say which image models this site can use and whether spending is approved. | yes | only the common ones |

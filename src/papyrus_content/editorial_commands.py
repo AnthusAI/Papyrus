@@ -136,7 +136,8 @@ def import_style_profile(store, profile: Path, *, replace: bool) -> dict[str, in
 def editorial_import(flags: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog="papyrus editorial import",
-        description="Add a style profile's controls to the site as editorial policies (scope: publication).",
+        description="Add a style profile's controls to the site as editorial policies (scope: publication). To keep the checks in step with the writing guidelines "
+                    "instead, save them with `papyrus guidelines save --kind writing`.",
     )
     parser.add_argument("--profile", required=True, help="Style profile YAML/JSON, e.g. publications/anthus/style-profile.yml")
     parser.add_argument("--replace", action="store_true", help="Overwrite policies that already exist with the same key.")

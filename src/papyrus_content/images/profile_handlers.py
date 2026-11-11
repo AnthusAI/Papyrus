@@ -195,6 +195,13 @@ def save_profile(client, arguments: dict, caller: Caller) -> Outcome:
                                   details={"currentVersionId": row["id"] if row else NO_PROFILE_GUARD})
     if prepared.constraint_changes:
         _require_person_admin(caller, prepared.constraint_changes)
+    if caller.kind == "agent":
+        from .examples import provider_grants
+
+        allowed = sorted(provider_grants(merged) - provider_grants(old))
+        if allowed:
+            raise ImageOperationError("human_required", "Only a person may allow a picture to be sent to an image provider. Nothing was saved.",
+                                      details={"examples": [attachment for _, attachment in allowed]})
     if not caller.subject:
         raise ImageOperationError("not_authorized", "The caller is not identified, so the version cannot record who saved it.")
     now = utc_now_iso()
@@ -227,9 +234,13 @@ def profile_history(client, arguments: dict, caller: Caller) -> Outcome:
 
 # --- the signed-in lane ---------------------------------------------------------------------------------------------------------------------------------
 
+from .examples import example_add, example_remove  # noqa: E402  (they build on save_profile and the helpers above)
+from .profile_init import init_profile  # noqa: E402
+
 PROFILE_HANDLERS: dict[str, Callable[[Any, dict, Caller], Outcome]] = {
     "image_profile_get": get_profile, "image_profile_resolve": resolve_profile, "image_profile_diff": diff_profile,
     "image_profile_save": save_profile, "image_profile_history": profile_history,
+    "image_profile_init": init_profile, "image_profile_example_add": example_add, "image_profile_example_remove": example_remove,
 }
 
 

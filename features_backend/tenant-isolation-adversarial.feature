@@ -465,6 +465,27 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | Tag                      | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | Tag                      | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | Tag                      | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | get                             | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | list                            | no row of "beta" is returned and pages are not short                  |
+      | Tenant                   | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | get                             | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | list                            | no row of "beta" is returned and pages are not short                  |
+      | TenantDomain             | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | get                             | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | list                            | no row of "beta" is returned and pages are not short                  |
+      | TenantMembership         | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | UserIdentity             | get                             | reviewed: UserIdentity is global and holds no tenant data             |
       | UserIdentity             | list                            | reviewed: UserIdentity is global and holds no tenant data             |
       | UserIdentity             | create                          | reviewed: only the rule's own principals may create UserIdentity      |
@@ -664,6 +685,11 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listStoryVariationsByStoryAndNumber                  | returns nothing of "beta"        |
       | tagBySlug                                            | returns nothing of "beta"        |
       | listTagsByTypeAndLabel                               | returns nothing of "beta"        |
+      | listTenantsByAccount                                 | returns nothing of "beta"        |
+      | listTenantsByStateKey                                | returns nothing of "beta"        |
+      | listTenantDomainsByTenant                            | returns nothing of "beta"        |
+      | listTenantMembershipsByTenant                        | returns nothing of "beta"        |
+      | listTenantMembershipsByUserSub                       | returns nothing of "beta"        |
       | listUserIdentitiesByProfileAndLinkedAt               | reviewed: UserIdentity is global |
       | userIdentityByCognitoSub                             | reviewed: UserIdentity is global |
       | listUserIdentitiesByEmailAndStatus                   | reviewed: UserIdentity is global |

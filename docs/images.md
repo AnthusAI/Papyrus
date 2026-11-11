@@ -24,6 +24,7 @@ An agent (`PAPYRUS_ACTOR_KIND=agent`) may save a style document but not change a
 | [`image_profile_diff`](#image-profile-diff) | `papyrus images profile diff` | read | Show what saving a style document would change, without saving it. |
 | [`image_profile_save`](#image-profile-save) | `papyrus images profile save` | write | Save a style document as a new profile version. |
 | [`image_profile_history`](#image-profile-history) | `papyrus images profile history` | read | List the profile's versions, newest first, with who changed it and why. |
+| [`image_profile_init`](#image-profile-init) | `papyrus images profile init` | read | Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing. |
 | [`image_profile_example_add`](#image-profile-example-add) | `papyrus images profile example add` | write | Add an example or an avoid-this picture to the profile, as a new version. |
 | [`image_profile_example_remove`](#image-profile-example-remove) | `papyrus images profile example remove` | write | Remove an example picture from the profile, as a new version. |
 | [`image_capabilities`](#image-capabilities) | `papyrus images capabilities` | read | Say which image models this site can use and whether spending is approved. |
@@ -390,6 +391,74 @@ Example result:
 }
 ```
 
+## image_profile_init
+
+Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing.
+
+- Command: `papyrus images profile init`
+- MCP tool: `image_profile_init`
+- Effect: read
+- Agent may call: yes
+- Note: The draft holds the shape of a profile and the colours the brand names, and no style wording: an editor writes that. Nothing is saved; save the draft with image_profile_save after correcting it.
+
+Input:
+
+| Name | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `brand` | object | no | What the site's brand files say. Everything in it is optional. |
+
+Result:
+
+| Name | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `document` | object | yes | The visual style document: a full or partial profile (design section 5.2). |
+| `expectedCurrentVersionId` | string | yes | Pass this to image_profile_save when saving the draft. |
+| `notes` | array | yes | What an editor still has to write. |
+| `profileExists` | boolean | yes |  |
+
+Errors: only the common ones.
+
+Example input:
+
+```json
+{
+  "brand": {
+    "name": "Example Daily",
+    "palette": [
+      {
+        "name": "Ink blue",
+        "hex": "#1f2a44",
+        "token": "brand"
+      }
+    ]
+  }
+}
+```
+
+Example result:
+
+```json
+{
+  "document": {
+    "schemaVersion": 2,
+    "identity": {
+      "palette": [
+        {
+          "name": "Ink blue",
+          "hex": "#1f2a44",
+          "token": "brand"
+        }
+      ]
+    }
+  },
+  "expectedCurrentVersionId": "none",
+  "notes": [
+    "Write identity.summary and identity.masterPrompt."
+  ],
+  "profileExists": false
+}
+```
+
 ## image_profile_example_add
 
 Add an example or an avoid-this picture to the profile, as a new version.
@@ -398,13 +467,13 @@ Add an example or an avoid-this picture to the profile, as a new version.
 - MCP tool: `image_profile_example_add`
 - Effect: write
 - Agent may call: yes
-- Note: Only a person may set sendToProvider for a picture that shows identifiable people or logos.
+- Note: From the command line, --file PICTURE uploads the picture first (the same three steps the newsroom takes) and fills in attachmentId. Only a person may set sendToProvider: an agent asking for it gets human_required, because the service cannot tell whether a picture shows identifiable people or logos. An example belongs to one image type; a child type does not inherit its parent's examples.
 
 Input:
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `uploadId` | string | yes | The id of a picture already uploaded through the newsroom's upload step. |
+| `attachmentId` | string | yes | The id of a picture already uploaded through the newsroom's upload step (PNG, JPEG or WebP, at most 10 MB). |
 | `kind` | string | yes | One of: `exemplar`, `negative`. |
 | `note` | string | yes | Why this picture is a good example, or what to avoid. |
 | `imageType` | string | yes | The image type this example belongs to, or identity for a brand-wide example. |
@@ -419,6 +488,7 @@ Result:
 | `attachmentId` | string | yes |  |
 | `sha256` | string | yes |  |
 | `versionNumber` | integer | yes |  |
+| `imageType` | string | no |  |
 
 Errors: `human_required`, `image_type_unknown`, `not_found`, `stale_version`.
 
@@ -426,7 +496,7 @@ Example input:
 
 ```json
 {
-  "uploadId": "upload-1",
+  "attachmentId": "model-attachment-1",
   "imageType": "cover-illustration",
   "kind": "exemplar",
   "note": "The calm we want.",
@@ -441,7 +511,8 @@ Example result:
 {
   "attachmentId": "model-attachment-1",
   "sha256": "sha256:aa10",
-  "versionNumber": 4
+  "versionNumber": 4,
+  "imageType": "cover-illustration"
 }
 ```
 
@@ -453,13 +524,14 @@ Remove an example picture from the profile, as a new version.
 - MCP tool: `image_profile_example_remove`
 - Effect: write
 - Agent may call: yes
-- Note: The file stays for older profile versions.
+- Note: The file stays for older profile versions, so a picture made from an older version keeps the examples it was made with.
 
 Input:
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `attachmentId` | string | yes |  |
+| `imageType` | string | no | Remove it from this image type only (or identity). Left out, it is removed from every list that has it. |
 | `reason` | string | yes | Why, in plain words. It is recorded with who and when. |
 | `expectedCurrentVersionId` | string | yes | The profile's current version id when you read it. |
 
@@ -468,6 +540,7 @@ Result:
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `versionNumber` | integer | yes |  |
+| `removedFrom` | array | no | The image types (or identity) it was removed from. |
 
 Errors: `not_found`, `stale_version`.
 
@@ -485,7 +558,10 @@ Example result:
 
 ```json
 {
-  "versionNumber": 5
+  "versionNumber": 5,
+  "removedFrom": [
+    "cover-illustration"
+  ]
 }
 ```
 
