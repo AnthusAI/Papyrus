@@ -8,6 +8,10 @@ description: Use when a Story or Reference needs a picture: finding stock images
 This skill is for any agent that adds a picture to a Story or Reference, through the `papyrus images` commands or the `image_*` MCP tools. They are
 the same operations, with the same input and the same JSON result.
 
+Read the resolved guidelines first. The agent context pack's `visual_style` layer (`papyrus assignments context-pack --story LINEAGE --profile illustrator`) carries the publication's image
+style with the section's own image guidelines laid over it, and the version and hash of each; `papyrus images profile resolve` says the same for a use from the command line. The
+wording of the style is the site's data: do not add style wording of your own.
+
 Start from the publication's style. `image_profile_resolve` says which image types the publication has for a use (`availableTypes`, each with a plain description and its
 allowed sources, best first), which one applies, and where every rule came from. Name an image type for anything inside the article; for a cover or social card you may leave it out
 and the publication's default is used and said so. Write a brief about what the picture should show, never about its style: the style comes from the profile. A publication with no
