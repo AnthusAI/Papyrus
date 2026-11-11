@@ -345,6 +345,25 @@ Resources:
                   - acm:RemoveTagsFromCertificate
                   - acm:ListTagsForCertificate
                 Resource: "*"
+              - Sid: CloudFrontPlaceholderSite
+                Effect: Allow
+                Action:
+                  - cloudfront:CreateDistribution
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:DeleteDistribution
+                  - cloudfront:GetDistribution
+                  - cloudfront:GetDistributionConfig
+                  - cloudfront:ListTagsForResource
+                  - cloudfront:TagResource
+                  - cloudfront:UntagResource
+                  - cloudfront:CreateFunction
+                  - cloudfront:UpdateFunction
+                  - cloudfront:DeleteFunction
+                  - cloudfront:DescribeFunction
+                  - cloudfront:GetFunction
+                  - cloudfront:PublishFunction
+                  - cloudfront:ListFunctions
+                Resource: "*"
               - Sid: SesIdentities
                 Effect: Allow
                 Action:

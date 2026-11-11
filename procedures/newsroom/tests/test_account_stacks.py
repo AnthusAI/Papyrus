@@ -734,7 +734,7 @@ ACCOUNT_DIR = ROOT / "infra" / "account"
 def test_account_templates_are_generic_and_carry_no_ids():
     """The account baseline and stacks are for any deployment: no Anthus repository or domain, no account ids, no emails."""
     files = [ACCOUNT_DIR / "baseline.yaml", *sorted((ACCOUNT_DIR / "stacks").glob("*.yaml"))]
-    assert len(files) == 5
+    assert len(files) == 6
     for path in files:
         text = path.read_text(encoding="utf-8")
         assert not re.search(r"\b\d{12}\b", text), path
@@ -785,3 +785,276 @@ def test_baseline_trust_supports_the_repository_subject_prefix():
     assert "GithubSubjectPrefix:" in text and "CustomSubject:" in text
     assert text.count("Subject: !If [CustomSubject, !Ref GithubSubjectPrefix") == 3  # deploy, plan, roles-apply
     assert 'repo:${GithubRepository}:' not in text
+
+
+# --- `when.delegated`: a stack that waits for the registrar -------------------------------------------------------------------------------
+
+
+WHEN = {"delegated": {"zone": "example.test", "expectedFile": "expected-nameservers.json"}}
+GATED = stack_cfg("acct-cert", "cert.yaml", parameters={"HostedZoneId": "Z9"}, when=WHEN)
+OLD = ["ns-1.old-host.example", "ns-2.old-host.example"]
+
+
+def fake_resolver(answers, calls=None):
+    def resolve(zone):
+        if calls is not None:
+            calls.append(zone)
+        return list(answers)
+    return resolve
+
+
+def gated_main(tmp_path, monkeypatch, cloud, command, answers, stacks=None, **config):
+    """main() with the public lookup replaced; `answers` is what the public resolvers say for the zone."""
+    (tmp_path / "expected-nameservers.json").write_text(json.dumps({"example.test": NS}))
+    monkeypatch.setattr(sd, "public_name_servers", lambda zone, run=None: list(answers))
+    return run_main(tmp_path, monkeypatch, cloud, command, stacks or [GATED], pipelineCheck=False, **config)
+
+
+def test_deploy_skips_a_stack_waiting_for_delegation_with_a_notice_and_exit_zero(tmp_path, monkeypatch, capsys):
+    cloud = AccountCloud(changes={"create": []})
+    assert gated_main(tmp_path, monkeypatch, cloud, "deploy", OLD) == 0
+    out = capsys.readouterr().out
+    assert cloud.created == [] and cloud.log == []
+    assert "acct-cert skipped" in out and "waiting for delegation: public NS answers are" in out and OLD[0] in out and NS[0] in out
+
+
+def test_plan_skips_a_waiting_stack_without_reading_anything_about_it(tmp_path, monkeypatch, capsys):
+    cloud = AccountCloud()
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    assert gated_main(tmp_path, monkeypatch, cloud, "plan", []) == 0
+    assert "| acct-cert | skipped | waiting for delegation: public NS answers are [] (expected" in summary.read_text()
+    assert cloud.log == [] and cloud.template_reads == []
+
+
+def test_changed_leaves_a_waiting_stack_out_and_exits_zero(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "out.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    assert gated_main(tmp_path, monkeypatch, AccountCloud(), "changed", OLD) == 0
+    text = capsys.readouterr().out
+    assert "acct-cert skipped" in text and "acct-cert: changed" not in text and out.read_text() == "changed=false\n"
+
+
+def test_scope_leaves_a_waiting_stack_out_and_needs_no_cloud(tmp_path, monkeypatch, capsys):
+    run = write_repo(tmp_path, {"README": "x"})
+    run("init", "-q", "-b", "main")
+    run("add", "."), run("commit", "-qm", "one")
+    config = {"region": "r", "root": "..", "stacks": [
+        {"name": "dns", "template": "stacks/dns.yaml", "paths": ["stacks/dns.yaml"]},
+        {"name": "cert", "template": "stacks/cert.yaml", "paths": ["stacks/cert.yaml"], "when": WHEN}]}
+    write_repo(tmp_path, {"infra/stacks.json": json.dumps(config), "infra/expected-nameservers.json": json.dumps({"example.test": NS}), "stacks/dns.yaml": "a", "stacks/cert.yaml": "b"})
+    run("add", "."), run("commit", "-qm", "two")
+    out = tmp_path / "out.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    monkeypatch.setattr(sd, "AwsCli", lambda region: pytest.fail("scope must not build an AWS client"))
+    answers = list(OLD)
+    monkeypatch.setattr(sd, "public_name_servers", lambda zone, run=None: list(answers))
+    cfg = str(tmp_path / "infra" / "stacks.json")
+    assert sd.main(["scope", "--config", cfg, "--base", "HEAD~1", "--head", "HEAD"]) == 0
+    assert "stacks=dns\n" in out.read_text() and "acct-cert" not in out.read_text() and "cert skipped" in capsys.readouterr().out
+    out.write_text("")
+    answers[:] = NS
+    sd.main(["scope", "--config", cfg, "--base", "HEAD~1", "--head", "HEAD"])
+    assert "stacks=dns,cert\n" in out.read_text()
+
+
+def test_the_gate_opens_when_the_answers_match_whatever_the_case_and_dots(tmp_path, monkeypatch):
+    cloud = AccountCloud(changes={"create": []})
+    assert gated_main(tmp_path, monkeypatch, cloud, "deploy", [h.upper() + "." for h in reversed(NS)]) == 0
+    assert [c["stack"] for c in cloud.created] == ["acct-cert"]
+
+
+def test_old_and_new_name_servers_mixed_do_not_open_the_gate(tmp_path, monkeypatch, capsys):
+    cloud = AccountCloud(changes={"create": []})
+    assert gated_main(tmp_path, monkeypatch, cloud, "deploy", NS[:2] + OLD) == 0
+    assert cloud.created == [] and "waiting for delegation" in capsys.readouterr().out
+    cloud = AccountCloud(changes={"create": []})
+    assert gated_main(tmp_path, monkeypatch, cloud, "deploy", NS[:3]) == 0   # a subset is not enough either
+    assert cloud.created == []
+
+
+def test_an_opened_gate_behaves_like_any_enabled_stack(tmp_path):
+    cloud = AccountCloud(changes={"create": []})
+    (tmp_path / "expected-nameservers.json").write_text(json.dumps({"example.test": NS}))
+    ctx = make(tmp_path, cloud, [GATED])
+    ctx.resolver = fake_resolver(NS)
+    assert sd.in_scope(ctx, [GATED]) == [GATED]
+    sd.deploy_stack(ctx, GATED)
+    assert cloud.created[0]["stack"] == "acct-cert"
+
+
+def test_the_answers_are_looked_up_once_per_zone(tmp_path):
+    (tmp_path / "expected-nameservers.json").write_text(json.dumps({"example.test": NS}))
+    ctx = make(tmp_path, AccountCloud(), [GATED])
+    calls = []
+    ctx.resolver = fake_resolver(OLD, calls)
+    sd.in_scope(ctx, [GATED, {**GATED, "name": "acct-two"}])
+    assert calls == ["example.test"]
+
+
+def test_a_missing_dig_is_said_in_the_notice(tmp_path, monkeypatch, capsys):
+    def no_dig(args, **kw):
+        raise FileNotFoundError("dig")
+    answers = sd.public_name_servers("example.test", run=no_dig)
+    assert list(answers) == [] and "dig is not installed" in answers.note
+    (tmp_path / "expected-nameservers.json").write_text(json.dumps({"example.test": NS}))
+    real = sd.public_name_servers
+    monkeypatch.setattr(sd, "public_name_servers", lambda zone, run=None: real(zone, run=no_dig))
+    cloud = AccountCloud(changes={"create": []})
+    assert run_main(tmp_path, monkeypatch, cloud, "deploy", [GATED], pipelineCheck=False) == 0
+    out = capsys.readouterr().out
+    assert cloud.created == [] and "dig is not installed" in out and "public NS answers are []" in out
+
+
+def test_public_name_servers_asks_one_one_one_one_then_eight_eight_eight_eight():
+    calls = []
+
+    def run(args, **kw):
+        calls.append(args)
+        text = "" if "@1.1.1.1" in args else "NS-2.Example.COM.\nns-1.example.com.\n;; a comment\n"
+        return SimpleNamespace(returncode=0, stdout=text, stderr="")
+    assert sd.public_name_servers("example.test.", run=run) == ["ns-1.example.com", "ns-2.example.com"]
+    assert calls == [["dig", "+short", "NS", "example.test", "@1.1.1.1"], ["dig", "+short", "NS", "example.test", "@8.8.8.8"]]
+    failing = lambda args, **kw: SimpleNamespace(returncode=9, stdout="", stderr="no")
+    assert sd.public_name_servers("example.test", run=failing) == []
+
+
+def test_when_is_validated_at_load():
+    def bad(when):
+        with pytest.raises(sd.Stop, match="when"):
+            sd.validate_config({"stacks": [{"name": "a", "when": when}]})
+    bad({"nope": {}})
+    bad({"delegated": {"zone": "example.test"}})
+    bad({"delegated": {"zone": "example.test", "expectedFile": "f.json", "extra": 1}})
+    bad({"delegated": {"zone": "", "expectedFile": "f.json"}})
+    bad({"delegated": {"zone": "example.test", "expectedFile": 3}})
+    bad({"delegated": WHEN["delegated"], "also": 1})
+    bad("delegated")
+    sd.validate_config({"stacks": [{"name": "a", "when": WHEN}, {"name": "b", "enabled": False, "reason": "later", "when": WHEN}]})
+
+
+def test_a_bad_when_stops_main_with_exit_two(tmp_path, monkeypatch):
+    assert run_main(tmp_path, monkeypatch, AccountCloud(), "plan", [{**GATED, "when": {"delegated": {"zone": "example.test"}}}], pipelineCheck=False) == 2
+
+
+def test_an_expected_file_without_the_zone_is_a_stop_not_an_open_gate(tmp_path, monkeypatch):
+    (tmp_path / "expected-nameservers.json").write_text(json.dumps({"other.test": NS}))
+    ctx = make(tmp_path, AccountCloud(), [GATED])
+    ctx.resolver = fake_resolver([])
+    with pytest.raises(sd.Stop, match="no name servers"):
+        sd.in_scope(ctx, [GATED])
+
+
+def test_a_stack_that_reads_a_skipped_stack_that_does_not_exist_is_skipped_too(tmp_path, monkeypatch, capsys):
+    gated_dns = stack_cfg("acct-dns", "zone.yaml", parameters={"DomainName": "example.test"}, when=WHEN)
+    reader = stack_cfg("acct-reader", "cert.yaml", parameters={"HostedZoneId": {"fromStackOutput": {"stack": "acct-dns", "output": "ZoneId"}}})
+    free = stack_cfg("acct-free", "cert.yaml", parameters={"HostedZoneId": "Z1"})
+    cloud = AccountCloud(changes={"create": []})
+    assert gated_main(tmp_path, monkeypatch, cloud, "deploy", OLD, stacks=[gated_dns, reader, free]) == 0
+    out = capsys.readouterr().out
+    assert [c["stack"] for c in cloud.created] == ["acct-free"] and "acct-reader skipped: needs acct-dns" in out
+
+
+def test_a_stack_that_reads_a_skipped_stack_that_exists_is_not_skipped(tmp_path, monkeypatch):
+    gated_dns = stack_cfg("acct-dns", "zone.yaml", parameters={"DomainName": "example.test"}, when=WHEN)
+    reader = stack_cfg("acct-reader", "cert.yaml", parameters={"HostedZoneId": {"fromStackOutput": {"stack": "acct-dns", "output": "ZoneId"}}})
+    live = {"StackStatus": "UPDATE_COMPLETE", "Parameters": [], "Outputs": [{"OutputKey": "ZoneId", "OutputValue": "Z7"}]}
+    cloud = AccountCloud(stacks={"acct-dns": live}, changes={"create": []})
+    assert gated_main(tmp_path, monkeypatch, cloud, "deploy", OLD, stacks=[gated_dns, reader]) == 0
+    assert [c["stack"] for c in cloud.created] == ["acct-reader"]
+
+
+def test_a_waiting_stack_named_with_stack_is_still_skipped_with_exit_zero(tmp_path, monkeypatch):
+    (tmp_path / "expected-nameservers.json").write_text(json.dumps({"example.test": NS}))
+    cloud = AccountCloud(changes={"create": []})
+    monkeypatch.setattr(sd, "public_name_servers", lambda zone, run=None: [])
+    free = stack_cfg("acct-free", "cert.yaml", parameters={"HostedZoneId": "Z1"})
+    run_main(tmp_path, monkeypatch, cloud, "plan", [GATED, free], pipelineCheck=False)   # writes stacks.json
+    assert sd.main(["deploy", "--config", str(tmp_path / "stacks.json"), "--stack", "acct-cert"]) == 0
+    assert cloud.created == []
+
+
+# --- the `delegation` command: no AWS ---------------------------------------------------------------------------------------------------------
+
+
+def delegation_setup(tmp_path, monkeypatch, answers, extra_stacks=()):
+    monkeypatch.delenv("AWS_ACCOUNT_ID", raising=False)
+    monkeypatch.setattr(sd, "AwsCli", lambda region: pytest.fail("the delegation command must not build an AWS client"))
+    monkeypatch.setattr(sd, "public_name_servers", lambda zone, run=None: list(answers.get(zone, [])))
+    (tmp_path / "expected-nameservers.json").write_text(json.dumps({"example.test": NS, "other.test": ["ns-5.awsdns-05.com"]}))
+    stacks = [GATED, {**ZONE, "checks": [CHECK]}, *extra_stacks]
+    (tmp_path / "stacks.json").write_text(json.dumps({"region": "r", "serviceRoleName": "svc", "root": ".", "stacks": stacks}))
+    return str(tmp_path / "stacks.json")
+
+
+def test_delegation_reports_waiting_and_writes_outputs_without_aws(tmp_path, monkeypatch, capsys):
+    cfg = delegation_setup(tmp_path, monkeypatch, {"example.test": OLD})
+    out, summary = tmp_path / "out.txt", tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    assert sd.main(["delegation", "--config", cfg]) == 0
+    text = capsys.readouterr().out
+    assert text.count("example.test:") == 1 and "example.test: waiting (public answers" in text and OLD[0] in text   # one line per distinct zone
+    assert out.read_text() == "delegated=false\nzones=example.test\n"
+    assert "example.test" in summary.read_text() and "waiting" in summary.read_text()
+
+
+def test_delegation_reports_delegated_and_covers_zones_from_both_kinds_of_entry(tmp_path, monkeypatch, capsys):
+    second = stack_cfg("acct-two", "cert.yaml", checks=[{"kind": "nameservers", "zone": "other.test", "expectedFile": "expected-nameservers.json"}])
+    cfg = delegation_setup(tmp_path, monkeypatch, {"example.test": [h.upper() + "." for h in NS], "other.test": ["ns-5.awsdns-05.com"]}, [second])
+    out = tmp_path / "out.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    assert sd.main(["delegation", "--config", cfg]) == 0
+    text = capsys.readouterr().out
+    assert "example.test: delegated" in text and "other.test: delegated" in text
+    assert out.read_text() == "delegated=true\nzones=example.test,other.test\n"
+
+
+def test_delegation_is_false_when_any_zone_waits_and_still_exits_zero(tmp_path, monkeypatch, capsys):
+    second = stack_cfg("acct-two", "cert.yaml", checks=[{"kind": "nameservers", "zone": "other.test", "expectedFile": "expected-nameservers.json"}])
+    cfg = delegation_setup(tmp_path, monkeypatch, {"example.test": NS}, [second])
+    out = tmp_path / "out.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    assert sd.main(["delegation", "--config", cfg]) == 0
+    assert "other.test: waiting" in capsys.readouterr().out and out.read_text().startswith("delegated=false\n")
+
+
+def test_delegation_needs_no_outputs_environment_and_survives_an_unreadable_expected_file(tmp_path, monkeypatch, capsys):
+    cfg = delegation_setup(tmp_path, monkeypatch, {"example.test": NS})
+    (tmp_path / "expected-nameservers.json").unlink()
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    assert sd.main(["delegation", "--config", cfg]) == 0
+    assert "example.test: waiting" in capsys.readouterr().out
+
+
+def test_delegation_on_a_config_with_no_zones_is_delegated(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("AWS_ACCOUNT_ID", raising=False)
+    monkeypatch.setattr(sd, "AwsCli", lambda region: pytest.fail("no AWS"))
+    (tmp_path / "stacks.json").write_text(json.dumps({"region": "r", "root": ".", "stacks": [stack_cfg("a", "zone.yaml")]}))
+    out = tmp_path / "out.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    assert sd.main(["delegation", "--config", str(tmp_path / "stacks.json")]) == 0
+    assert out.read_text() == "delegated=true\nzones=\n"
+
+
+# --- a config without `when` behaves exactly as before ---------------------------------------------------------------------------------------
+
+
+def test_a_config_without_when_never_asks_the_resolver(tmp_path, monkeypatch):
+    monkeypatch.setattr(sd, "public_name_servers", lambda *a, **k: pytest.fail("no stack has a `when`: nothing may be looked up"))
+    cloud = AccountCloud(changes={"create": []})
+    stacks = [stack_cfg("acct-a", "cert.yaml", parameters={"HostedZoneId": "Z"}), stack_cfg("acct-b", "cert.yaml", parameters={"HostedZoneId": {"fromStackOutput": {"stack": "acct-a", "output": "O"}}})]
+    ctx = make(tmp_path, cloud, stacks)
+    assert sd.in_scope(ctx, stacks) == stacks and ctx.messages == [] and cloud.log == []
+    assert run_main(tmp_path, monkeypatch, AccountCloud(changes={"create": []}), "changed", stacks, pipelineCheck=False) == 0
+
+
+def test_placeholder_and_mail_templates_have_no_site_text_baked_in():
+    """The placeholder page text, name and label are parameters; the mail stack sets no DMARC report address (an address must not be committed)."""
+    placeholder = (ACCOUNT_DIR / "stacks" / "placeholder.yaml").read_text(encoding="utf-8")
+    for name in ("SiteName", "Label", "Message"):
+        assert f"  {name}:\n    Type: String" in placeholder and f"${{{name}}}" in placeholder
+    ses = (ACCOUNT_DIR / "stacks" / "ses.yaml").read_text(encoding="utf-8")
+    assert "rua=" not in ses and "mailto:" not in ses
+    assert "MailFromAttributes" in ses and "v=spf1 include:amazonses.com" in ses

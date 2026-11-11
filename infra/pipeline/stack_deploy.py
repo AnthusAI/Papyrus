@@ -7,6 +7,8 @@ Subcommands (all read `infra/pipeline/stacks.json`):
   requirements                    pip requirements for the vendored packages at the poetry.lock versions (a reproducible zip)
   plan [--stack NAME ...]         READ-ONLY dry run: what a release would change, as a job summary (pull requests)
   deploy [--stack NAME ...]       build, upload, create a change set, read it, execute it, watch it (push to main)
+  delegation [--config PATH]      are the public name servers of each zone in the config the expected ones? Needs NO AWS credentials and no
+                                  AWS_ACCOUNT_ID; writes `delegated=` and `zones=` to $GITHUB_OUTPUT; always exits 0
   pipeline-check                  does the deployed papyrus-stack-pipeline match infra/pipeline/papyrus-stack-pipeline.yaml (exit 1 if not)
 
 Safety, in this file and nowhere else:
@@ -20,7 +22,14 @@ A deployment repository (another organisation, a client account) uses the same f
 `--allowed PATH`. The config may set `root` (where templates and paths resolve; a template `papyrus:<path>` resolves in this repository),
 `pipelineCheck`, `changeSetPrefix`; omit `templateBucketFrom` to pass templates inline; and per stack `enabled`/`reason`, parameters from the
 environment (`fromEnv`) or another stack's output (`fromStackOutput`), `import` (adopt a hand-made resource by CloudFormation IMPORT, then
-update, never replace) and `checks` (name servers of a zone against an expected file). Nothing here changes for a config without them.
+update, never replace) and `checks` (name servers of a zone against an expected file) and `when` (see below). Nothing here changes for a config without them.
+
+A stack may wait for DNS delegation: `"when": {"delegated": {"zone": "<domain>", "expectedFile": "<path relative to the config dir>"}}`. A
+DNS-validated certificate cannot validate while the registrar still points at old name servers, and CloudFormation would wait for hours and
+roll back. The stack is in scope only when the PUBLIC name-server answers for the zone (`dig +short NS`, through 1.1.1.1 then 8.8.8.8) equal,
+as a lowercase set without trailing dots, the list in expectedFile[zone] (the file the nameservers check uses). Until then `scope`, `changed`,
+`plan` and `deploy` skip the stack with a notice and a summary row ("waiting for delegation: ..."); that is not an error and does not change
+the exit code. A stack that reads a `fromStackOutput` from a skipped stack that does not exist is skipped too ("needs <stack>").
 
 Exit codes: 0 done or nothing to do, 1 an update failed, 2 a safety check refused.
 Needs the AWS CLI. `plan` and `scope` need PyYAML only for templates.
@@ -383,10 +392,13 @@ class AwsCli:
 class Context:
     def __init__(self, cloud, config: dict, allowed: list[dict], run_tag: str, root: Path = ROOT, runner=subprocess.run, out=print,
                  summary: Path | None = None, check_pipeline: bool = False, change_set_timeout: float = 600, execute_timeout: float = 3000, poll: float = 10, start_grace: float = 180,
-                 config_dir: Path | None = None, env=None):
+                 config_dir: Path | None = None, env=None, resolver=None):
         self.cloud, self.config, self.allowed, self.run_tag, self.root, self.runner, self.out = cloud, config, allowed, run_tag, root, runner, out
         self.config_dir = config_dir if config_dir is not None else root
         self.env = os.environ if env is None else env
+        # resolver(zone) -> list of public name servers; late-bound so a test can replace public_name_servers or pass its own.
+        self.resolver = resolver if resolver is not None else (lambda zone: public_name_servers(zone))
+        self.dns_answers: dict[str, list[str]] = {}
         self.failed_checks: list[str] = []
         self.summary, self.check_pipeline, self.pipeline_said = summary, check_pipeline, None
         self.change_set_timeout, self.execute_timeout, self.poll, self.start_grace = change_set_timeout, execute_timeout, poll, start_grace
@@ -577,6 +589,86 @@ def nameserver_check(ctx: Context, check: dict) -> tuple[bool | None, str]:
     if live == expected:
         return True, f"name servers of {zone} match"
     return False, f"name servers of {zone} differ: live {sorted(live)}, expected {sorted(expected)}"
+
+
+class Answers(list):
+    """The public name servers found for a zone (sorted, lowercase, no trailing dot); `note` says why there are none, when that is known."""
+
+    def __init__(self, items=(), note: str = ""):
+        super().__init__(items)
+        self.note = note
+
+
+def public_name_servers(zone: str, run=subprocess.run) -> Answers:
+    """NS answers for `zone` from public resolvers: 1.1.1.1 first, then 8.8.8.8 when that gives nothing. [] when neither does or dig is missing."""
+    for server in ("1.1.1.1", "8.8.8.8"):
+        try:
+            done = run(["dig", "+short", "NS", zone.rstrip("."), f"@{server}"], capture_output=True, text=True, timeout=30)
+        except FileNotFoundError:
+            return Answers(note="dig is not installed")
+        except subprocess.TimeoutExpired:
+            continue
+        if done.returncode != 0:
+            continue
+        hosts = normalise_hosts(line for line in (done.stdout or "").splitlines() if line.strip() and not line.lstrip().startswith(";"))
+        if hosts:
+            return Answers(sorted(hosts))
+    return Answers()
+
+
+def expected_name_servers(ctx: Context, spec: dict) -> list[str]:
+    zone = spec["zone"]
+    expected = sorted(normalise_hosts(load_json(ctx.config_dir / spec["expectedFile"]).get(zone, [])))
+    if not expected:
+        raise Stop(f"{spec['expectedFile']} lists no name servers for {zone}")
+    return expected
+
+
+def zone_answers(ctx: Context, zone: str) -> list[str]:
+    if zone not in ctx.dns_answers:
+        ctx.dns_answers[zone] = ctx.resolver(zone)
+    return ctx.dns_answers[zone]
+
+
+def delegation_state(ctx: Context, spec: dict) -> tuple[bool, str, list[str]]:
+    """(delegated, message, public answers). Delegated only when the public answers equal the expected set exactly: a mix of old and new does not count."""
+    expected = expected_name_servers(ctx, spec)
+    answers = zone_answers(ctx, spec["zone"])
+    note = getattr(answers, "note", "")
+    if answers and normalise_hosts(answers) == set(expected):
+        return True, f"name servers of {spec['zone']} are delegated", list(answers)
+    return False, f"waiting for delegation: public NS answers are {sorted(normalise_hosts(answers))} (expected {expected})" + (f"; {note}" if note else ""), list(answers)
+
+
+def skip_reason(ctx: Context, cfg: dict, dependents: bool = True) -> str | None:
+    """Why this stack is out of scope right now (None when it is in): its own delegation gate, or a `fromStackOutput` source that the gate
+    skips and that does not exist yet. `dependents` needs ctx.cloud (the source's existence is read from AWS)."""
+    when = cfg.get("when")
+    if when:
+        ok, message, _ = delegation_state(ctx, when["delegated"])
+        if not ok:
+            return message
+    if dependents and ctx.cloud is not None:
+        by_name = {s["name"]: s for s in ctx.config["stacks"]}
+        for spec in cfg.get("parameters", {}).values():
+            if isinstance(spec, dict) and "fromStackOutput" in spec:
+                source = spec["fromStackOutput"]["stack"]
+                if source in by_name and skip_reason(ctx, by_name[source]) is not None and ctx.cloud.describe_stack(source) is None:
+                    return f"needs {source}"
+    return None
+
+
+def in_scope(ctx: Context, stacks: list[dict], dependents: bool = True) -> list[dict]:
+    """The stacks that are not waiting for something; each skipped one gets a notice line and a summary row. Never an error."""
+    kept = []
+    for cfg in stacks:
+        reason = skip_reason(ctx, cfg, dependents)
+        if reason is None:
+            kept.append(cfg)
+            continue
+        ctx.out(f"::notice::{cfg['name']} skipped: {reason}")
+        ctx.write_summary(f"| {cfg['name']} | skipped | {reason} |")
+    return kept
 
 
 def run_checks(ctx: Context, cfg: dict) -> None:
@@ -803,12 +895,56 @@ def changed_stack(ctx: Context, cfg: dict) -> tuple[bool, str]:
     return bool(reasons), ", ".join(reasons) or "same as Git and the config"
 
 
+def validate_when(name: str, when) -> None:
+    if not isinstance(when, dict) or set(when) != {"delegated"}:
+        raise Stop(f"stack {name}: `when` must be {{\"delegated\": {{\"zone\": ..., \"expectedFile\": ...}}}}")
+    spec = when["delegated"]
+    if not isinstance(spec, dict) or set(spec) != {"zone", "expectedFile"}:
+        raise Stop(f"stack {name}: `when.delegated` must have exactly the keys zone and expectedFile")
+    for key in ("zone", "expectedFile"):
+        if not isinstance(spec[key], str) or not spec[key].strip():
+            raise Stop(f"stack {name}: `when.delegated.{key}` must be a non-empty string")
+
+
+def config_zones(config: dict) -> list[tuple[str, str]]:
+    """(zone, expectedFile) for each distinct zone named by a `when.delegated` or a nameservers check, in config order (disabled stacks included)."""
+    found: dict[str, str] = {}
+    for stack in config["stacks"]:
+        specs = ([stack["when"]["delegated"]] if "when" in stack else []) + [c for c in stack.get("checks", []) if c.get("kind") == "nameservers"]
+        for spec in specs:
+            found.setdefault(spec["zone"], spec["expectedFile"])
+    return list(found.items())
+
+
+def delegation_command(ctx: Context) -> int:
+    """No AWS: ask the public resolvers about each zone. Always exits 0; the answer is in the output."""
+    lines, states = [], {}
+    for zone, expected_file in config_zones(ctx.config):
+        try:
+            ok, _, answers = delegation_state(ctx, {"zone": zone, "expectedFile": expected_file})
+        except (Stop, OSError, ValueError):
+            ok, answers = False, list(zone_answers(ctx, zone))
+        states[zone] = ok
+        note = getattr(ctx.dns_answers.get(zone), "note", "")
+        lines.append(f"{zone}: {'delegated' if ok else 'waiting'} (public answers {sorted(normalise_hosts(answers))})" + (f" [{note}]" if note else ""))
+    print("\n".join(lines) or "no zones in the config")
+    github_output("delegated", "true" if all(states.values()) else "false")
+    github_output("zones", ",".join(states))
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary and states:
+        with open(summary, "a", encoding="utf-8") as handle:
+            handle.write("**Delegation:** " + "; ".join(f"`{z}` {'delegated' if ok else 'waiting'}" for z, ok in states.items()) + "\n")
+    return 0
+
+
 def validate_config(config: dict) -> None:
     """Config rules that only the optional keys have; a config without them passes untouched."""
     seen = set()
     for stack in config["stacks"]:
         if not stack.get("enabled", True) and not str(stack.get("reason", "")).strip():
             raise Stop(f"stack {stack['name']} is disabled and needs a non-empty reason")
+        if "when" in stack:
+            validate_when(stack["name"], stack["when"])
         for pname, spec in stack.get("parameters", {}).items():
             if isinstance(spec, dict) and "fromStackOutput" in spec and spec["fromStackOutput"]["stack"] not in seen:
                 raise Stop(f"parameter {pname} of {stack['name']} reads the output of {spec['fromStackOutput']['stack']}, which must come earlier in the config")
@@ -841,6 +977,7 @@ def main(argv: list[str] | None = None) -> int:
     scope.add_argument("--head", required=True)
     sub.add_parser("requirements", parents=[common])
     sub.add_parser("pipeline-check", parents=[common])
+    sub.add_parser("delegation", parents=[common])
     for command in ("plan", "deploy"):
         p = sub.add_parser(command, parents=[common])
         p.add_argument("--stack", action="append")
@@ -859,6 +996,12 @@ def main(argv: list[str] | None = None) -> int:
         done = subprocess.run(["git", "-C", str(root), "diff", "--name-only", "--relative", args.base, args.head], capture_output=True, text=True)
         # A base git cannot resolve (first run, force push) means every stack is in scope; the live comparison then decides.
         names = [s["name"] for s in enabled] if done.returncode != 0 else changed_stacks(config, done.stdout.split())
+        try:
+            gate = Context(None, config, [], "scope", root=root, config_dir=config_path.parent)   # no cloud: only a stack's own delegation gate applies
+            names = [s["name"] for s in in_scope(gate, [s for s in enabled if s["name"] in names], dependents=False)]
+        except Stop as stop:
+            print(f"::error::STOPPED, nothing executed: {stop}")
+            return 2
         github_output("stacks", ",".join(names))
         github_output("deploy", "true" if names else "false")
         print(f"stacks in scope: {names or 'none'}")
@@ -869,6 +1012,9 @@ def main(argv: list[str] | None = None) -> int:
 
         print("\n".join(vendored_requirements((ROOT / "poetry.lock").read_text(encoding="utf-8"), build.VENDORED)))
         return 0
+
+    if args.command == "delegation":
+        return delegation_command(Context(None, config, [], "delegation", root=root, config_dir=config_path.parent))
 
     cloud = AwsCli(config["region"])
     expected = os.environ.get("AWS_ACCOUNT_ID", "")
@@ -887,13 +1033,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "changed":
             flags = []
-            for cfg in selected(config, None, args.group):
+            for cfg in in_scope(ctx, selected(config, None, args.group)):
                 differs, why = changed_stack(ctx, cfg)
                 flags.append(differs)
                 print(f"{cfg['name']}: {'changed' if differs else 'unchanged'} ({why})")
             github_output("changed", "true" if any(flags) else "false")
             return 0
-        for cfg in selected(config, args.stack, args.group):
+        for cfg in in_scope(ctx, selected(config, args.stack, args.group)):
             (plan_stack if args.command == "plan" else deploy_stack)(ctx, cfg)
         if ctx.failed_checks:
             print("::error::CHECK FAILED: " + "; ".join(ctx.failed_checks))
