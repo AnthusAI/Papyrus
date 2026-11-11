@@ -1,0 +1,25 @@
+{
+  "id": "PPY-1a6aa6c3-b5eb-4e52-839c-2c101343a97f",
+  "title": "A deployment in another AWS organisation needs nothing from ours",
+  "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-e9e96f.\n\nRemove default domains, the family footer registry and the default privacy link from core; make the monitoring stack and its seed scripts take the account from configuration; let Cyclotron support run in the deployment's own account.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T17:16:00.428184Z",
+  "updated_at": "2026-11-11T17:16:00.428217Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Fable 5.2",
+    "name": "Humorus Planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

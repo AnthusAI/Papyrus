@@ -1,0 +1,25 @@
+{
+  "id": "PPY-cbc0f319-5ed9-4280-ae5d-e4629bb5c338",
+  "title": "Figure and image rules are per site",
+  "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-0cb875.\n\n`data/figures/rules.md` is one file for every site. Each site's prompts are built only from its own rules. Humorus keeps the rule that no generated image shows a real person.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T17:15:59.896114Z",
+  "updated_at": "2026-11-11T17:15:59.896152Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Fable 5.2",
+    "name": "Humorus Planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

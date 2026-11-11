@@ -1,0 +1,25 @@
+{
+  "id": "PPY-10a5e524-b3ec-4986-84c9-454fdb2845bc",
+  "title": "Idea rules are site settings, with a premise-led idea mode",
+  "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-e7f023 and HUM-e155f8.\n\nThe two-citation minimum and the point check's verdicts are code. Make them per-site settings, and add an idea mode that starts from one real Reference and states an invented premise separately.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T17:15:59.632259Z",
+  "updated_at": "2026-11-11T17:15:59.632294Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Fable 5.2",
+    "name": "Humorus Planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
