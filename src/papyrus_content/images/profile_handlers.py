@@ -227,6 +227,11 @@ def save_profile(client, arguments: dict, caller: Caller, files: DocumentFiles |
     if prepared.constraint_changes:
         _require_person_admin(caller, prepared.constraint_changes)
     if caller.kind == "agent":
+        from .generation_settings import spend_fields_of
+
+        if spend_fields_of(merged) != spend_fields_of(old):
+            raise ImageOperationError("human_required", "Only a person may change whether spending on image generation is approved, or its ceilings. Nothing was saved.",
+                                      details={"fields": [name for name, value in spend_fields_of(merged).items() if value != spend_fields_of(old)[name]]})
         from .examples import provider_grants
 
         allowed = sorted(provider_grants(merged) - provider_grants(old))

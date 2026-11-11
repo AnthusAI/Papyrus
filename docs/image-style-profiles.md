@@ -88,3 +88,7 @@ An editor shows the style as well as describing it: **good examples** and **avoi
 ## What is not built yet
 
 The Administration screens (Policies > Visual style) are the next piece, and purging an example file nothing lists. The command line still runs the profile operations itself on the signed-in lane (it does not call the door yet). Both lanes lay the same section layer over the profile: the section's image document, else its `visualStyle` and `visualGuidance` fields. When a site's data API cannot yet read the `visualStyle` field, the answer carries the warning `section_style_unreadable` and the document and the prose still apply.
+
+## Generation settings
+
+The `generation` field of the publication's image guidelines says whether the site may generate pictures: `models` (provider, name and optional quality, most preferred first), `spendApproved` (default false), `unreviewedMayPublish`, `perRoundCeilingUsd` and `perDayCeilingUsd`. Only the publication's guidelines hold it; a section's document cannot set it. Only a person may change `spendApproved` or a ceiling; an agent saving such a change gets `human_required`. With nothing configured, or spending not approved, `papyrus images generate` refuses with `generation_not_configured` and calls no provider. `papyrus images capabilities` reads the setting. Prices come from `src/papyrus_content/data/image_model_prices.json`; a picture's cost is worked out from the tokens the provider reports.

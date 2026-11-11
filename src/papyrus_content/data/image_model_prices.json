@@ -1,6 +1,18 @@
 {
   "version": 1,
   "currency": "USD",
-  "note": "Estimated list prices per generated image, used to show a cost before anything is made. An estimate, not a bill. A model missing here, or listed without usdPerImage, is reported as unpriced, never as free. Edit this file to add a price once it is read from the provider's price page; no code changes.",
-  "models": {}
+  "note": "Rates read from the provider's published pricing. An estimate, not a bill. A model missing here is reported as unpriced, never as free. A model with tokenRates but no usdPerImage has no published per-image price: its estimate stays unpriced and each picture's cost is worked out from the tokens the provider reports.",
+  "models": {
+    "gpt-image-2.5-flare": {
+      "tokenRates": {
+        "inputUsdPerMtok": 8,
+        "cachedInputUsdPerMtok": 2,
+        "outputUsdPerMtok": 30,
+        "batchOutputUsdPerMtok": 15
+      },
+      "source": "https://developers.openai.com/api/docs/models/gpt-image-2.5-flare",
+      "retrieved": "2026-11-10",
+      "notes": "Image tokens. Batch input rates are not published on that page, so Batch cost is not computed. No per-image table is published for this model."
+    }
+  }
 }

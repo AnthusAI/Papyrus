@@ -73,6 +73,7 @@ Every operation may return `invalid_input`, `not_authorized`, `service_unavailab
 | `capability_unsupported` | The configured model cannot do what was asked. | no | alternatives lists fallbacks the caller may opt into |
 | `provider_failed` | The image provider refused or failed. | yes | providerMessage, retryable |
 | `provider_busy` | The image provider is busy. Try again shortly. | yes | retryAfterSeconds |
+| `spend_ceiling_exceeded` | The site's spending ceiling for a round or a day is reached, so this picture was not made. | no | the ceiling |
 | `batch_expired` | The picture was not ready within the batch window (24 hours). Nothing was charged. | yes |  |
 | `stale_version` | The Story has a newer version than the one you named. Read it again. | no |  |
 | `candidate_not_ready` | The picture is still being made. | no |  |
@@ -585,6 +586,9 @@ Result:
 | `configured` | boolean | yes |  |
 | `models` | array | yes |  |
 | `approvedForSpend` | boolean | yes |  |
+| `unreviewedMayPublish` | boolean | no |  |
+| `spendCeilings` | object | no |  |
+| `spentTodayUsd` | number | no |  |
 
 Errors: only the common ones.
 
@@ -844,7 +848,7 @@ Result:
 | `candidates` | array | yes |  |
 | `estimate` | object | no | What it would cost; spends nothing. |
 
-Errors: `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `provider_busy`, `set_needs_person`, `source_not_allowed`.
+Errors: `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `provider_busy`, `set_needs_person`, `source_not_allowed`, `spend_ceiling_exceeded`.
 
 Example input:
 
@@ -971,7 +975,7 @@ Result:
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `roundId` | string | yes |  |
-| `target` | object | yes | What the picture is for: a Story or a Reference. |
+| `target` | object | no | What the picture is for: a Story or a Reference. |
 | `use` | string | yes | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
 | `imageType` | string | no |  |
 | `brief` | string | no |  |
