@@ -629,3 +629,83 @@ def test_an_ordinary_change_set_is_still_reviewed_the_old_way():
     changes = [change("A", "Remove"), change("B", "Modify", replacement="True")]
     violations, lines = sd.review_changes("s", changes, [])
     assert len(violations) == 2 and sd.review_changes("s", [change("I", "Import")], []) == ([], ["| Import | `I` | AWS::Route53::HostedZone | False |"])
+
+
+# --- serviceRoleName per stack, groups, and `changed` -------------------------------------------------------------------------------------
+
+
+def test_a_stack_service_role_overrides_the_config_one(tmp_path):
+    cloud = AccountCloud(changes={"create": []})
+    sd.deploy_stack(make(tmp_path, cloud, [CERT]), stack_cfg("acct-cert", "cert.yaml", parameters={"HostedZoneId": "Z9"}, serviceRoleName="roles-svc"))
+    assert cloud.created[0]["role"] == f"arn:aws:iam::{ACCOUNT}:role/roles-svc"
+    sd.deploy_stack(make(tmp_path, cloud, [CERT]), stack_cfg("acct-two", "cert.yaml", parameters={"HostedZoneId": "Z9"}))
+    assert cloud.created[1]["role"] == f"arn:aws:iam::{ACCOUNT}:role/svc"
+
+
+def test_group_selection_defaults_to_default_and_explicit_stacks_must_belong(tmp_path):
+    a, b = stack_cfg("a", "zone.yaml"), stack_cfg("b", "zone.yaml", group="roles")
+    config = {"stacks": [a, b]}
+    assert sd.selected(config, None, "default") == [a] and sd.selected(config, None, "roles") == [b]
+    assert sd.selected(config, None) == [a, b]
+    assert sd.selected(config, ["b"], "roles") == [b]
+    with pytest.raises(sd.Stop, match="not in group default"):
+        sd.selected(config, ["b"], "default")
+
+
+def test_plan_and_deploy_take_a_group(tmp_path, monkeypatch):
+    cloud = AccountCloud(changes={"create": []})
+    stacks = [stack_cfg("acct-a", "cert.yaml", parameters={"HostedZoneId": "Z"}), stack_cfg("acct-b", "cert.yaml", parameters={"HostedZoneId": "Z"}, group="roles")]
+    run_main(tmp_path, monkeypatch, cloud, "deploy", stacks, pipelineCheck=False)
+    assert [c["stack"] for c in cloud.created] == ["acct-a"]
+    monkeypatch.setattr(sd, "AwsCli", lambda region: cloud)
+    assert sd.main(["deploy", "--config", str(tmp_path / "stacks.json"), "--group", "roles"]) == 0
+    assert [c["stack"] for c in cloud.created] == ["acct-a", "acct-b"]
+    assert sd.main(["deploy", "--config", str(tmp_path / "stacks.json"), "--group", "roles", "--stack", "acct-a"]) == 2
+
+
+def changed_cloud(tmp_path, template=CERT_TEMPLATE, params=None):
+    class Cloud(AccountCloud):
+        def get_template(self, name):
+            return template
+    return Cloud(stacks={"acct-cert": {"StackStatus": "UPDATE_COMPLETE", "Parameters": [{"ParameterKey": k, "ParameterValue": v} for k, v in (params or {"HostedZoneId": "Z9"}).items()]}})
+
+
+def test_changed_compares_template_and_parameters_and_writes_the_output(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "out.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    cfg = stack_cfg("acct-cert", "cert.yaml", parameters={"HostedZoneId": "Z9"})
+    assert run_main(tmp_path, monkeypatch, changed_cloud(tmp_path), "changed", [cfg], pipelineCheck=False) == 0
+    assert "acct-cert: unchanged" in capsys.readouterr().out and out.read_text() == "changed=false\n"
+    out.write_text("")
+    assert run_main(tmp_path, monkeypatch, changed_cloud(tmp_path, template=CERT_TEMPLATE + "# x\n"), "changed", [cfg], pipelineCheck=False) == 0
+    assert "template differs" in capsys.readouterr().out and out.read_text() == "changed=true\n"
+    out.write_text("")
+    assert run_main(tmp_path, monkeypatch, changed_cloud(tmp_path, params={"HostedZoneId": "Z1"}), "changed", [cfg], pipelineCheck=False) == 0
+    assert "parameter HostedZoneId differs" in capsys.readouterr().out and out.read_text() == "changed=true\n"
+
+
+def test_changed_ignores_noecho_values_unresolved_env_disabled_stacks_and_other_groups(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "out.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    monkeypatch.delenv("ALERT_TO", raising=False)
+    cfg = stack_cfg("acct-cert", "cert.yaml", parameters={"HostedZoneId": "Z9", "Other": {"fromEnv": "ALERT_TO"}})
+    noecho = changed_cloud(tmp_path, params={"HostedZoneId": "****", "Other": "x"})
+    other = {**stack_cfg("acct-x", "cert.yaml"), "group": "roles"}
+    off = {**stack_cfg("acct-y", "cert.yaml"), "enabled": False, "reason": "later"}
+    assert run_main(tmp_path, monkeypatch, noecho, "changed", [cfg, other, off], pipelineCheck=False) == 0
+    out_text = capsys.readouterr().out
+    assert "acct-x" not in out_text and "acct-y" not in out_text and out.read_text() == "changed=false\n"
+
+
+def test_changed_counts_a_missing_stack_as_changed_and_still_exits_zero(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "out.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    assert run_main(tmp_path, monkeypatch, AccountCloud(), "changed", [stack_cfg("acct-cert", "cert.yaml")], pipelineCheck=False) == 0
+    assert "does not exist" in capsys.readouterr().out and out.read_text() == "changed=true\n"
+    assert AccountCloud().created == []
+
+
+def test_default_group_and_role_leave_the_existing_config_alone():
+    config, _ = sd.load_config(sd.CONFIG_PATH)
+    assert sd.selected(config, None, "default") == config["stacks"] == sd.selected(config, None)
+    assert all("group" not in s and "serviceRoleName" not in s for s in config["stacks"])

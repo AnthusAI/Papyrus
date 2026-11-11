@@ -599,7 +599,7 @@ def run_change_set(ctx: Context, cfg: dict, stack: dict | None, kind: str, text:
     validate_parameters({p["ParameterKey"]: p["ParameterValue"] for p in plan if "ParameterValue" in p})
 
     change_set = (f"{ctx.prefix}{ctx.run_tag}"[:128 - len(suffix)]) + suffix
-    role = f"arn:aws:iam::{cloud.account()}:role/{ctx.config['serviceRoleName']}"
+    role = f"arn:aws:iam::{cloud.account()}:role/{cfg.get('serviceRoleName', ctx.config['serviceRoleName'])}"
     if ctx.inline:
         cloud.create_change_set(name, change_set, kind, None, plan, cfg.get("capabilities", []), cfg.get("tags", {}), role, template_path=template_path,
                                 **({"resources": resources} if resources else {}))
@@ -757,11 +757,37 @@ def load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def selected(config: dict, names: list[str] | None) -> list[dict]:
+def selected(config: dict, names: list[str] | None, group: str | None = None) -> list[dict]:
+    """Enabled stacks, in config order. `group` (None = every group) limits them to one `group` (a stack's default is "default");
+    a stack named explicitly must belong to that group."""
     chosen = [s for s in config["stacks"] if not names or s["name"] in names]
     if names and len(chosen) != len(set(names)):
         raise Stop(f"unknown stack in {names}")
+    if group is not None:
+        outside = [s["name"] for s in chosen if s.get("group", "default") != group]
+        if names and outside:
+            raise Stop(f"stack {', '.join(outside)} is not in group {group}")
+        chosen = [s for s in chosen if s.get("group", "default") == group]
     return [s for s in chosen if s.get("enabled", True)]
+
+
+def changed_stack(ctx: Context, cfg: dict) -> tuple[bool, str]:
+    """Read-only: does the live stack differ from Git and the config? A missing stack counts as changed. NoEcho values (shown as ****)
+    cannot be compared and are ignored; a parameter that cannot be resolved here (an unset fromEnv) counts as unchanged."""
+    name = cfg["name"]
+    stack = ctx.cloud.describe_stack(name)
+    if stack is None:
+        return True, "stack does not exist"
+    reasons = []
+    live = ctx.cloud.get_template(name).replace("\r\n", "\n")
+    if live != template_file(ctx, cfg).read_text(encoding="utf-8").replace("\r\n", "\n"):
+        reasons.append("template differs")
+    current = param_map(stack) or {}
+    resolved, _ = resolve_parameters(ctx, cfg, strict=False)
+    for key, value in resolved.items():
+        if current.get(key, "") != "****" and current.get(key) != value:
+            reasons.append(f"parameter {key} differs")
+    return bool(reasons), ", ".join(reasons) or "same as Git and the config"
 
 
 def validate_config(config: dict) -> None:
@@ -805,6 +831,8 @@ def main(argv: list[str] | None = None) -> int:
     for command in ("plan", "deploy"):
         p = sub.add_parser(command, parents=[common])
         p.add_argument("--stack", action="append")
+        p.add_argument("--group", default="default")
+    sub.add_parser("changed", parents=[common]).add_argument("--group", default="default")
     args = parser.parse_args(argv)
     config_path = args.config.resolve()
     try:
@@ -844,7 +872,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{state}: {detail}")
         return 0 if state == "same" else 1
     try:
-        for cfg in selected(config, args.stack):
+        if args.command == "changed":
+            flags = []
+            for cfg in selected(config, None, args.group):
+                differs, why = changed_stack(ctx, cfg)
+                flags.append(differs)
+                print(f"{cfg['name']}: {'changed' if differs else 'unchanged'} ({why})")
+            github_output("changed", "true" if any(flags) else "false")
+            return 0
+        for cfg in selected(config, args.stack, args.group):
             (plan_stack if args.command == "plan" else deploy_stack)(ctx, cfg)
         if ctx.failed_checks:
             print("::error::CHECK FAILED: " + "; ".join(ctx.failed_checks))
