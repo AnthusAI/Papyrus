@@ -23,6 +23,10 @@ class FakeBackend:
         self.reads.append((index, key))
         if index == "itemsByLineageAndVersion":
             return copy.deepcopy([row for row in self.items.values() if row["lineageId"] == key])
+        if index == "knowledgeCorporaByRoleAndName":
+            return [{"id": "knowledge-corpus-mom", "name": "Machines on Machines", "role": "canonical"}]
+        if index in ("itemBySlug", "modelAttachmentsByOwnerRoleAndSortKey"):
+            return []
         raise AssertionError(f"unexpected index {index}")
 
     def get_record(self, model: str, record_id: str) -> dict | None:
@@ -67,10 +71,20 @@ class FakeBackend:
 
 
 class MemoryFiles:
-    def __init__(self) -> None:
+    """The document store. Refuses what the upload function refuses: a role or media type it does not allow, and an owner row that does not exist yet."""
+
+    def __init__(self, backend: FakeBackend | None = None) -> None:
         self.documents: dict[str, dict] = {}
+        self.backend = backend
 
     def put(self, row_id: str, document: Any, *, now: str) -> None:
+        from papyrus_content.upload_rules_fake import assert_upload_accepted
+
+        from .store import ROLE
+
+        assert_upload_accepted({"role": ROLE, "mediaType": "application/json"})
+        if self.backend is not None and row_id not in self.backend.records.get("Announcement", {}):
+            raise RuntimeError(f"GraphQL request failed: Cannot attach payload to missing Announcement {row_id}.")
         self.documents[row_id] = copy.deepcopy(dict(document))
 
     def get(self, row_id: str) -> dict | None:

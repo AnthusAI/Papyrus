@@ -41,7 +41,7 @@ class Price:
 
 def setup(context):
     context.backend = FakeBackend()
-    context.files = MemoryFiles()
+    context.files = MemoryFiles(context.backend)
     context.store = AnnouncementStore(context.backend, context.files)
     context.x = FakeX()
     context.floor = 3
@@ -600,3 +600,133 @@ def _index_only(context):
 @then('the events handed over are the Article\'s event and its "r2" event')
 def _events(context):
     assert context.x.submissions == [f"story.announce:mom:{context.lineage}", f"story.announce:mom:{context.lineage}:r2"], context.x.submissions
+
+
+# --- the command line -------------------------------------------------------------------------------------------------------------------------------
+
+import io  # noqa: E402
+import shlex  # noqa: E402
+
+from papyrus_content.announcements import cli as announcements_cli  # noqa: E402
+from papyrus_content.announcements.handlers import signed_in_handlers  # noqa: E402
+
+
+def cli_judge(claim, cited, info=None):
+    return {"verdict": "supported", "quotes": [" ".join(cited.values()).split("\n")[0]], "explanation": "", "attribution_lost": False, "claim_is_only_about_source_limits": False}
+
+
+def run_cli(context, line, *, agent=False, guidelines="Voice: plain and kind."):
+    words = shlex.split(line)
+    assert words[:2] == ["papyrus", "announcements"], line
+    handlers = signed_in_handlers(lambda: context.backend, {"SITE_ORIGIN": "https://machines.example", "ITEM_URL_STYLE": "clean"},
+                                  llm=lambda system, user, schema: {"text": DEFAULT_DRAFT}, judge=cli_judge, guidelines_text=guidelines, files=context.files)
+    out = io.StringIO()
+    status = announcements_cli.command(words[2:], handlers=handlers, environ={"PAPYRUS_ACTOR_KIND": "agent"} if agent else {}, stdout=out)
+    context.cli_status, context.cli_answer = status, json.loads(out.getvalue())
+    return context.cli_answer
+
+
+@given("the announcement commands run against the site's backend")
+def _cli_backend(context):
+    pass
+
+
+@given('the announcement settings are saved for the account "{account}" in Dry run at {stars:d} stars')
+def _cli_settings(context, account, stars):
+    mom(context, mode="dry_run", stars=stars)
+
+
+@given('a published {stars:d}-star Article "{lineage}"')
+def _cli_story(context, stars, lineage):
+    context.lineage = lineage
+    context.backend.add_story(lineage, stars=stars, summary=SUMMARY)
+
+
+@given('a published {stars:d}-star Article "{lineage}" that was announced')
+def _cli_announced(context, stars, lineage):
+    _cli_story(context, stars, lineage)
+    announce(context)
+
+
+@when('a person types "{line}"')
+def _person_runs(context, line):
+    run_cli(context, line)
+
+
+@when('an agent types "{line}"')
+def _agent_runs(context, line):
+    run_cli(context, line, agent=True)
+
+
+@when('a person types "{line}" with no writing guidelines')
+def _no_guidelines_cli(context, line):
+    run_cli(context, line, guidelines="")
+
+
+@when("a person saves the announcement settings for the account \"{account}\" in Dry run at {stars:d} stars with a budget of ${amount}")
+def _save_cli(context, account, stars, amount):
+    path = Path(context.tmpdir if hasattr(context, "tmpdir") else "/tmp") / "announcements-prices.json"
+    path.write_text(json.dumps({"prices": PRICES}))
+    run_cli(context, f"papyrus announcements settings set --mode dry_run --min-stars {stars} --story-types article --account-id {account} --budget {amount} "
+                     f"--billing-cycle-day 1 --prices-as-of 2026-11-12 --label-confirmed --input-file {path}")
+
+
+@then("the announcement command succeeds")
+def _cli_ok(context):
+    assert context.cli_status == 0 and context.cli_answer["ok"], context.cli_answer
+
+
+@then('the announcement command fails with "{code}"')
+def _cli_fails(context, code):
+    assert context.cli_status == 2 and context.cli_answer["error"]["code"] == code, context.cli_answer
+
+
+@then('the announcement answer shows mode "{mode}" and a quality floor of {floor:d}')
+def _cli_mode(context, mode, floor):
+    assert context.cli_answer["result"]["settings"]["mode"] == mode and context.cli_answer["result"]["qualityFloor"] == floor
+
+
+@then("the problems name minStars, storyTypes, accountId, budget, billingCycleDay, prices and labelConfirmed")
+def _cli_problems(context):
+    fields = {problem["field"] for problem in context.cli_answer["error"]["details"]["problems"]}
+    assert {"minStars", "storyTypes", "accountId", "budget", "billingCycleDay", "prices", "labelConfirmed"} <= fields, fields
+
+
+@then('"{line}" shows mode "{mode}" and minStars {stars:d}')
+def _cli_shows(context, line, mode, stars):
+    answer = run_cli(context, line)
+    assert answer["result"]["settings"]["mode"] == mode and answer["result"]["settings"]["minStars"] == stars, answer
+
+
+@then('"{line}" shows paused {value}')
+def _cli_paused(context, line, value):
+    assert run_cli(context, line)["result"]["paused"] is (value == "true")
+
+
+@then("the announcement answer has the exact post with the tagged link and sent false")
+def _cli_post(context):
+    result = context.cli_answer["result"]
+    assert result["post"].startswith(DEFAULT_DRAFT) and "utm_source=x" in result["post"] and result["sent"] is False and result["passed"], result
+
+
+@then("no announcement row is recorded")
+def _cli_none(context):
+    assert not context.backend.records.get("Announcement")
+
+
+@then('the announcement answer is not passed and says "{message}"')
+def _cli_refused_preview(context, message):
+    result = context.cli_answer["result"]
+    assert result["passed"] is False and message in result["failures"][0], result
+
+
+@then('the announcement list has one announcement labelled "{text}"')
+def _cli_list(context, text):
+    rows = context.cli_answer["result"]["announcements"]
+    assert len(rows) == 1 and rows[0]["label"] == text, rows
+
+
+@then("the announcement answer has the announcement and its stored post text")
+def _cli_show(context):
+    result = context.cli_answer["result"]
+    assert result["announcement"]["storyLineageId"] == "story-1" and result["document"]["text"] == DEFAULT_DRAFT, result

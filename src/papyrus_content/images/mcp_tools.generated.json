@@ -3325,6 +3325,841 @@
           "versions"
         ]
       }
+    },
+    {
+      "name": "announcements_list",
+      "audience": "staff",
+      "description": "List the account's announcements, newest first, optionally one state.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "posting",
+              "posted",
+              "failed",
+              "blocked",
+              "dry_run",
+              "withdrawn"
+            ],
+            "description": "One state of an announcement."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many to return; 50 when left out."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "announcements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "accountId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "storyLineageId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "storyVersionNumber": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "posting",
+                    "posted",
+                    "failed",
+                    "blocked",
+                    "dry_run",
+                    "withdrawn"
+                  ],
+                  "description": "One state of an announcement."
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The state in plain words, such as Dry run: not sent."
+                },
+                "blockedReason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "mode": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "link": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "weight": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "draftedBy": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "checks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "passed": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "passed"
+                    ]
+                  }
+                },
+                "postId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "postedAt": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "cost": {
+                  "type": "string",
+                  "description": "Dollars Caducus charged on this announcement so far, as a decimal string."
+                },
+                "attempts": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "error": {
+                  "type": "string"
+                },
+                "history": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "at": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "by": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "state": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "note": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "at",
+                      "by",
+                      "state",
+                      "note"
+                    ]
+                  }
+                },
+                "withdrawnBy": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "createdAt": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "id",
+                "state",
+                "label"
+              ]
+            }
+          }
+        },
+        "required": [
+          "announcements"
+        ]
+      }
+    },
+    {
+      "name": "announcements_show",
+      "audience": "staff",
+      "description": "Show one Story's announcement: its row, its history, and the post text and checks kept in S3.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The lineage id of the Story."
+          }
+        },
+        "required": [
+          "story"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "announcement": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "accountId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "storyLineageId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "storyVersionNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "posting",
+                  "posted",
+                  "failed",
+                  "blocked",
+                  "dry_run",
+                  "withdrawn"
+                ],
+                "description": "One state of an announcement."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The state in plain words, such as Dry run: not sent."
+              },
+              "blockedReason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "mode": {
+                "type": "string",
+                "minLength": 1
+              },
+              "link": {
+                "type": "string",
+                "minLength": 1
+              },
+              "weight": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "draftedBy": {
+                "type": "string",
+                "minLength": 1
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "passed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "passed"
+                  ]
+                }
+              },
+              "postId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "postedAt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cost": {
+                "type": "string",
+                "description": "Dollars Caducus charged on this announcement so far, as a decimal string."
+              },
+              "attempts": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "error": {
+                "type": "string"
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "at": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "by": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "state": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "note": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "by",
+                    "state",
+                    "note"
+                  ]
+                }
+              },
+              "withdrawnBy": {
+                "type": "string",
+                "minLength": 1
+              },
+              "createdAt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "updatedAt": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "id",
+              "state",
+              "label"
+            ]
+          },
+          "document": {
+            "type": "object",
+            "description": "The stored post: text, post, link, weight, model and every check's problems."
+          }
+        },
+        "required": [
+          "announcement"
+        ]
+      }
+    },
+    {
+      "name": "announcements_dry_run",
+      "audience": "staff",
+      "description": "Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The lineage id of the Story."
+          }
+        },
+        "required": [
+          "story"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "lineageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "post": {
+            "type": "string",
+            "minLength": 1
+          },
+          "link": {
+            "type": "string",
+            "minLength": 1
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "sent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lineageId",
+          "post",
+          "weight",
+          "passed",
+          "sent"
+        ]
+      }
+    },
+    {
+      "name": "announcements_pause",
+      "audience": "staff",
+      "description": "Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is shown beside who paused and when."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "paused": {
+            "type": "boolean"
+          },
+          "pausedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pausedAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pauseReason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "paused"
+        ]
+      }
+    },
+    {
+      "name": "announcements_resume",
+      "audience": "staff",
+      "description": "Resume announcements and announce the Stories that waited.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "released": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "paused": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "released",
+          "paused"
+        ]
+      }
+    },
+    {
+      "name": "announcements_settings_show",
+      "audience": "staff",
+      "description": "Show the site's announcement settings: mode, bar, Story types, sections, account, budget, prices and the pause.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "dry_run",
+                  "on"
+                ]
+              },
+              "minStars": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "storyTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "accountId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "accountHandle": {
+                "type": "string",
+                "minLength": 1
+              },
+              "budget": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Dollars for each X billing cycle, such as 10.00."
+              },
+              "billingCycleDay": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "prices": {
+                "type": "object",
+                "description": "X's price list: post, postWithLink, delete, read, each in dollars."
+              },
+              "pricesAsOf": {
+                "type": "string",
+                "minLength": 1
+              },
+              "labelConfirmed": {
+                "type": "boolean"
+              },
+              "paused": {
+                "type": "boolean"
+              },
+              "pausedBy": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pausedAt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pauseReason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "qualityFloor": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The site's quality floor in stars; the bar cannot go below it."
+          }
+        },
+        "required": [
+          "settings",
+          "qualityFloor"
+        ]
+      }
+    },
+    {
+      "name": "announcements_settings_set",
+      "audience": "staff",
+      "description": "Change announcement settings. Every rule is checked and every problem listed; nothing is saved when any fails.",
+      "agentAllowed": false,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "dry_run",
+              "on"
+            ],
+            "description": "Off (default), Dry run (builds the post, sends nothing) or On."
+          },
+          "minStars": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The lowest star rating that is announced, 1 to 5, never below the quality floor."
+          },
+          "storyTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Story types that are announced, such as article. References are never announced."
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Limit to these sections."
+          },
+          "accountId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The connected X account's id."
+          },
+          "accountHandle": {
+            "type": "string",
+            "minLength": 1
+          },
+          "budget": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Dollars for each X billing cycle, such as 10.00. No default."
+          },
+          "billingCycleDay": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The day of the month your X billing cycle starts."
+          },
+          "prices": {
+            "type": "object",
+            "description": "X's price list as dollars: post, postWithLink, delete, read."
+          },
+          "pricesAsOf": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The date you copied the prices from X, YYYY-MM-DD."
+          },
+          "labelConfirmed": {
+            "type": "boolean",
+            "description": "The account shows X's Automated label, managed by a person's account."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "dry_run",
+                  "on"
+                ]
+              },
+              "minStars": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "storyTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "accountId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "accountHandle": {
+                "type": "string",
+                "minLength": 1
+              },
+              "budget": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Dollars for each X billing cycle, such as 10.00."
+              },
+              "billingCycleDay": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "prices": {
+                "type": "object",
+                "description": "X's price list: post, postWithLink, delete, read, each in dollars."
+              },
+              "pricesAsOf": {
+                "type": "string",
+                "minLength": 1
+              },
+              "labelConfirmed": {
+                "type": "boolean"
+              },
+              "paused": {
+                "type": "boolean"
+              },
+              "pausedBy": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pausedAt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pauseReason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "released": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "settings",
+          "released"
+        ]
+      }
+    },
+    {
+      "name": "announcements_account_status",
+      "audience": "staff",
+      "description": "Show mode, pause, the cycle's spend against the budget, and the connected account.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "minLength": 1
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "accountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "accountHandle": {
+            "type": "string",
+            "minLength": 1
+          },
+          "standing": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For example $0.60 spent of $10.00 this cycle."
+          },
+          "pauseReason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pricesAsOf": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "mode",
+          "paused"
+        ]
+      }
     }
   ]
 }

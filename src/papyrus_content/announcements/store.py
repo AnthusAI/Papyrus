@@ -112,19 +112,19 @@ class AnnouncementStore:
         return dict(row) if row else None
 
     def create(self, row: Mapping[str, Any], document: Mapping[str, Any] | None = None) -> dict[str, Any]:
-        """Take the row for this account and Story, or raise ``AlreadyAnnounced`` with the row that holds it. The document (text, link, checks) is stored first, so a
-        row never names a document that is missing."""
+        """Take the row for this account and Story, or raise ``AlreadyAnnounced`` with the row that holds it. The row comes first (the upload function refuses a
+        document whose owner does not exist), then the document (text, link, checks)."""
         found = self.get_by_id(row["id"])
         if found:
             raise AlreadyAnnounced(found)
-        if document is not None:
-            self.files.put(row["id"], document, now=row["createdAt"])
         try:
             self.client.create_record(ANNOUNCEMENT_MODEL, dict(row))
         except RuntimeError as error:
             if "conditional" in str(error).lower():
                 raise AlreadyAnnounced(self.get_by_id(row["id"]) or row) from error
             raise
+        if document is not None:
+            self.files.put(row["id"], document, now=row["createdAt"])
         return dict(row)
 
     def update(self, row: Mapping[str, Any], changes: Mapping[str, Any], *, note: str, by: str, now: str | None = None, document: Mapping[str, Any] | None = None) -> dict[str, Any]:

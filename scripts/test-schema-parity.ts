@@ -5,7 +5,7 @@ const SCHEMA_FILES = ["amplify/data/schema.ts", "amplify/data/resource.ts"];
 // The deployed schema (schema.ts) and the typed schema (resource.ts) must agree
 // for every model the Python authoring client reads with a fixed field list.
 const MODEL_NAMES = [
-  "Item", "PublishedItem", "StoryVariation", "SemanticNode", "SemanticRelation", "Reference", "Message",
+  "Item", "PublishedItem", "StoryVariation", "Announcement", "AnnouncementSettings", "AnnouncementSpend", "SemanticNode", "SemanticRelation", "Reference", "Message",
   "Assignment", "KnowledgeRawPayload", "CurationDelegationRecord", "ModelAttachment", "MediaAsset", "PublishedMediaAsset", "NewsroomSection", "Automation", "ProcedureRun", "ReviewRequest", "ReviewReadMark", "ReviewRecipientRule",
 ];
 const REQUIRED_FIELDS: Record<string, string[]> = {
@@ -103,7 +103,7 @@ const TENANT_FIELD_SOURCES = [
 ];
 const TENANT_FIELD_MODELS = [
   "UserRoleAssignment", "Assignment", "AssignmentEvent", "ProcedureDefinition", "ProcedureVersion", "ProcedureRun", "Automation",
-  "ReviewRequest", "ReviewReadMark", "StoryVariation", "ReviewRecipientRule", "KnowledgeCorpus", "KnowledgeImportRun",
+  "ReviewRequest", "ReviewReadMark", "StoryVariation", "Announcement", "AnnouncementSettings", "AnnouncementSpend", "ReviewRecipientRule", "KnowledgeCorpus", "KnowledgeImportRun",
   "KnowledgeRawPayload", "CurationDelegationRecord", "KnowledgeArtifact", "CategorySet", "Category", "CategoryKeyword",
   "LexicalSteeringRule", "SteeringProposal", "SteeringDecision", "Reference", "ReferenceAttachment", "SemanticNode", "Message",
   "MessageThread", "ModelAttachment", "SemanticRelationType", "SemanticRelation", "Tag", "ItemTag", "Edition", "EditionItem",

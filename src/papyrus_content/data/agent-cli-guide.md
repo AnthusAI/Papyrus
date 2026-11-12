@@ -510,6 +510,31 @@ papyrus guidelines save --kind procedure --file ./procedure.yml --reason "Our St
 - `history` lists the versions newest first with who saved each, whether a person or an agent, when, and why.
 - `--kind image` runs the image profile operations (`papyrus images profile ...` keeps working). With `--section` it reads and saves that section's image document, the section layer `papyrus images profile resolve` lays over the profile; a section without one keeps using its old visual style and visual guidance fields.
 
+## Announcements
+<!-- guide:announcements -->
+
+### Announce Stories on the publication's X account, safely
+**Lane:** editor (signed in with `papyrus login`). **Version:** the release after 5.107.2 that carries the announcement models; a site gets it with its data API deploy. `list`, `show`, `dry-run`, `settings show` and `account status` only read (`dry-run` makes one model call to draft). `pause` and `resume` write at once, and so does `settings set`, which only a person may call (an agent gets `human_required`) and only an admin may save. Nothing posts until Caducus's `x` channel is deployed on the site.
+
+A site announces a Story on its own X account once, automatically, when the Story is published and rated at or above the owner's bar (never below the quality floor, 3 stars by default). Only Stories are announced, never References. There is **no approval step**: the text is drafted from the Story's title, dek and summary under the site's writing guidelines and `announcement` rules, and is posted if it passes the automatic checks (length as X counts it, no invented mention or link, the editorial rule lane, and a fact check against the Story). A draft that fails is not posted: it is `Blocked: check failed` with the reason, and the editors are told. Mode is Off (default), Dry run (builds and records the exact post as `Dry run: not sent`, sends nothing, spends nothing) or On. The owner sets a budget for each X billing cycle (no default) and X's price list with its date; announcements pause by themselves before passing the budget.
+
+```sh
+papyrus announcements account status
+papyrus announcements settings show
+papyrus announcements settings set --mode dry_run --min-stars 5 --story-types article --account-id mom --budget 10.00 --billing-cycle-day 1 --prices-as-of 2026-11-12 --label-confirmed --input-file ./prices.json
+papyrus announcements dry-run story-containment-note
+papyrus announcements list --state dry_run
+papyrus announcements show story-containment-note
+papyrus announcements pause --reason "Checking the first posts"
+papyrus announcements resume
+```
+
+- `prices.json` holds `{"prices": {"post": "0.015", "postWithLink": "0.200", "delete": "0.010", "read": "0.005"}}` copied from X's price list (docs.x.com/x-api/getting-started/pricing); `--input-file` is how an object is given. Every rule is checked and every problem is listed in `details.problems`; nothing is saved when one fails.
+- `dry-run STORY` prints the exact post, its link with the UTM tags, its weight and every check, for any Story in any mode, and records nothing. `eligible` and `reason` say whether the rules would announce it.
+- `list` and `show` give the plain `label` (`Dry run: not sent`, `Posting`, `Posted`, `Failed`, `Blocked: paused`, `Blocked: budget reached`, `Blocked: check failed`, `Withdrawn`) beside the state, the post id, the cost and the history of who did what and when. The post text is in S3; `show` returns it in `document`.
+- `pause` stops all posting and says who and why; `resume` announces the Stories that waited. A pause the budget caused ends by itself when the budget has room (a new cycle, or a raised budget); a pause a person made never does.
+- Connecting the X account needs the browser (OAuth): the newsroom's Administration, Announcements page. The CLI never accepts a token or secret.
+
 ## Ideas
 <!-- guide:ideas -->
 

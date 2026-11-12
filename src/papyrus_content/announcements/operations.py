@@ -7,7 +7,7 @@ from itertools import islice
 from typing import Any, Mapping
 
 from . import settings as settings_module
-from .drafting import draft_announcement
+from .drafting import DraftRefused, draft_announcement
 from .eligibility import load_story, verdict
 from .engine import SYSTEM_ACTOR, Services, _iso, pause, release_blocked, resume, standing, sync_row
 from .post import tagged_link
@@ -49,7 +49,11 @@ def preview(services: Services, lineage_id: str) -> dict[str, Any]:
     story = load_story(services.client, lineage_id, item_url_style=services.item_url_style)
     decision = verdict(story, {**settings, "mode": settings.get("mode") if settings.get("mode", OFF) != OFF else "dry_run"})
     link = tagged_link(services.site_origin.rstrip("/") + story.path)
-    draft = draft_announcement(story, link, guidelines=services.guidelines_for(story), llm=services.llm, judge=services.judge, rule_lane=services.rule_lane, model=services.model)
+    try:
+        draft = draft_announcement(story, link, guidelines=services.guidelines_for(story), llm=services.llm, judge=services.judge, rule_lane=services.rule_lane, model=services.model)
+    except DraftRefused as refused:
+        return {"lineageId": lineage_id, "eligible": decision.eligible, "reason": decision.reason, "text": "", "post": "", "link": link, "weight": 0, "checks": [], "passed": False,
+                "failures": [str(refused)], "sent": False}
     return {"lineageId": lineage_id, "eligible": decision.eligible, "reason": decision.reason, "text": draft.text, "post": draft.post, "link": link,
             "weight": draft.weight, "checks": draft.checks, "passed": draft.passed, "failures": draft.failures, "sent": False}
 

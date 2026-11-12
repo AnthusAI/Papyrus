@@ -250,6 +250,19 @@ _ENTRIES = dict([
      "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
      "--kind KIND [--section KEY] [--input-file PATH]", "editor", "reads", "guidelines"),
+  # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------
+  _e("announcements list", "List the account's announcements, newest first, with plain labels (Dry run: not sent, Posted, Blocked: budget reached, ...).",
+     "[--state posting|posted|failed|blocked|dry_run|withdrawn] [--limit N] [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements show", "Show one Story's announcement: row, history, cost and the stored post text and checks.", "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements dry-run", "Build the exact post a Story would get (text, UTM link, weight, every check) without sending or recording anything. One model call.",
+     "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements pause", "Pause announcements: nothing posts, eligible Stories wait as Blocked: paused.", "[--reason TEXT] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements resume", "Resume announcements and announce the Stories that waited.", "[--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements settings show", "Show mode, bar, Story types, sections, account, budget, prices and the pause.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements settings set", "Change announcement settings (a person only; admins save). Every rule is checked and every problem listed.",
+     "[--mode off|dry_run|on] [--min-stars N] [--story-types TEXT ...] [--sections TEXT ...] [--account-id TEXT] [--account-handle TEXT] [--budget TEXT] "
+     "[--billing-cycle-day N] [--prices-as-of TEXT] [--label-confirmed | --no-label-confirmed] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements account status", "Show mode, pause, the cycle's spend against the budget and the connected account.", "[--input-file PATH]", "editor", "reads", "announcements"),
   # ---- figures (render reads the site's design system and writes local files only) -------------------------------------
   _e("figures render", "Check a figure and render its light and dark pictures (always both) with the site's design system. Needs Playwright and Chromium or Chrome.",
      "FOLDER... [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json]  "
@@ -361,6 +374,7 @@ GROUP_SUMMARIES = {
 }
 GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
+GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
 GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 
 

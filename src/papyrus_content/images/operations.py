@@ -132,7 +132,7 @@ class Operation:
     file_field: str | None = None          # the property the CLI fills from --file (a JSON or YAML document)
     picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
-    group: Literal["images", "guidelines"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
+    group: Literal["images", "guidelines", "announcements"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
 
     @property
     def mcp_name(self) -> str:
@@ -176,6 +176,8 @@ ERRORS = (
     ErrorCode("stale_version", "The Story has a newer version than the one you named. Read it again."),
     ErrorCode("candidate_not_ready", "The picture is still being made."),
     ErrorCode("candidate_closed", "The picture was already discarded, expired or applied."),
+    ErrorCode("settings_refused", "The announcement settings break a rule, so nothing was saved.", details="problems lists each field and what is wrong"),
+    ErrorCode("channel_not_available", "Announcements are On but this site has no X channel wired (the Caducus x channel is not deployed here)."),
     ErrorCode("unknown_kind", "There is no such kind of guidelines.", details="kinds lists the kinds this site knows"),
     ErrorCode("resolver_not_available", "This kind of guidelines is resolved by its own command, not this one.", details="use names the command"),
     ErrorCode("document_hash_mismatch", "The stored guideline document does not match its recorded hash, so it was not used.", details="itemId"),
@@ -574,6 +576,92 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
 )
 
 OPERATIONS = OPERATIONS + GUIDELINE_OPERATIONS
+
+# --- announcements (PPY-09ee86): the same table serves `papyrus announcements ...`, the MCP tools and the console ----------------------------------------
+STATE = choice("posting", "posted", "failed", "blocked", "dry_run", "withdrawn", description="One state of an announcement.")
+STORY_LINEAGE = text("The lineage id of the Story.")
+ANNOUNCEMENT = record({
+    "id": text(), "accountId": text(), "storyLineageId": text(), "storyVersionNumber": whole(), "state": STATE, "label": text("The state in plain words, such as Dry run: not sent."),
+    "blockedReason": text(), "mode": text(), "link": text(), "weight": whole(minimum=0), "draftedBy": text(), "checks": many(record({"name": text(), "passed": flag()}, ("name", "passed"))),
+    "postId": text(), "postedAt": text(), "cost": {"type": "string", "description": "Dollars Caducus charged on this announcement so far, as a decimal string."},
+    "attempts": whole(minimum=0), "error": {"type": "string"}, "history": many(record({"at": text(), "by": text(), "state": text(), "note": text()}, ("at", "by", "state", "note"))),
+    "withdrawnBy": text(), "createdAt": text(), "updatedAt": text(),
+}, ("id", "state", "label"))
+SETTINGS = record({
+    "mode": choice("off", "dry_run", "on"), "minStars": whole(), "storyTypes": many(text()), "sections": many(text()), "accountId": text(), "accountHandle": text(),
+    "budget": text("Dollars for each X billing cycle, such as 10.00."), "billingCycleDay": whole(), "prices": {"type": "object", "description": "X's price list: post, postWithLink, delete, read, each in dollars."},
+    "pricesAsOf": text(), "labelConfirmed": flag(), "paused": flag(), "pausedBy": text(), "pausedAt": text(), "pauseReason": text(),
+}, ("mode",))
+_EX_ROW = {"id": "mom#story-1", "accountId": "mom", "storyLineageId": "story-1", "state": "dry_run", "label": "Dry run: not sent", "mode": "dry_run", "weight": 120, "cost": "0",
+           "attempts": 0, "history": [{"at": "2026-11-13T09:00:00Z", "by": "system:announcements", "state": "dry_run", "note": "Dry run: not sent"}],
+           "createdAt": "2026-11-13T09:00:00Z", "updatedAt": "2026-11-13T09:00:00Z"}
+_EX_SETTINGS = {"mode": "dry_run", "minStars": 5, "storyTypes": ["article"], "accountId": "mom", "budget": "10.00", "billingCycleDay": 1, "pricesAsOf": "2026-11-12", "paused": False}
+
+ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "announcements_list", ("list",), "List the account's announcements, newest first, optionally one state.", "read",
+        obj({"state": STATE, "limit": whole("How many to return; 50 when left out.")}),
+        record({"announcements": many(ANNOUNCEMENT)}, ("announcements",)), (),
+        (Example({"state": "dry_run"}, {"announcements": [_EX_ROW]}),), group="announcements",
+        notes="Read from the account's own index, newest first; nothing scans a table. A site with no account yet gets an empty list.",
+    ),
+    Operation(
+        "announcements_show", ("show",), "Show one Story's announcement: its row, its history, and the post text and checks kept in S3.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)),
+        record({"announcement": ANNOUNCEMENT, "document": {"type": "object", "description": "The stored post: text, post, link, weight, model and every check's problems."}}, ("announcement",)),
+        ("not_found",), (Example({"story": "story-1"}, {"announcement": _EX_ROW, "document": {"text": "A look at secrets.", "weight": 120}}),), positional=("story",), group="announcements",
+        notes="A posting announcement is first brought up to date from Caducus's delivery log.",
+    ),
+    Operation(
+        "announcements_dry_run", ("dry-run",), "Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)),
+        record({"lineageId": text(), "eligible": flag(), "reason": text(), "text": text(), "post": text(), "link": text(), "weight": whole(minimum=0),
+                "checks": many({"type": "object"}), "passed": flag(), "failures": many(text()), "sent": flag()}, ("lineageId", "post", "weight", "passed", "sent")),
+        ("not_found",), (Example({"story": "story-1"}, {"lineageId": "story-1", "eligible": True, "reason": "eligible", "text": "A look at secrets.", "post": "A look at secrets.\n\nhttps://example.org/s?utm_source=x",
+                                                          "link": "https://example.org/s?utm_source=x", "weight": 45, "checks": [], "passed": True, "failures": [], "sent": False}),),
+        positional=("story",), group="announcements",
+        notes="Makes one model call to draft the text. Works for any Story, announced or not, in any mode; `eligible` and `reason` say whether the site's rules would announce it.",
+    ),
+    Operation(
+        "announcements_pause", ("pause",), "Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused.", "write",
+        obj({"reason": text("Why, in plain words. It is shown beside who paused and when.")}),
+        record({"paused": flag(), "pausedBy": text(), "pausedAt": text(), "pauseReason": text()}, ("paused",)), (),
+        (Example({"reason": "Checking the first posts"}, {"paused": True, "pausedBy": "Ada Admin", "pausedAt": "2026-11-13T10:02:00Z", "pauseReason": "Checking the first posts"}),), group="announcements",
+        notes="Admins write the settings row, so only an admin can pause.",
+    ),
+    Operation(
+        "announcements_resume", ("resume",), "Resume announcements and announce the Stories that waited.", "write",
+        obj({}), record({"released": many({"type": "object"}), "paused": flag()}, ("released", "paused")), (),
+        (Example({}, {"released": [], "paused": False}),), group="announcements",
+    ),
+    Operation(
+        "announcements_settings_show", ("settings", "show"), "Show the site's announcement settings: mode, bar, Story types, sections, account, budget, prices and the pause.", "read",
+        obj({}), record({"settings": SETTINGS, "qualityFloor": whole(description="The site's quality floor in stars; the bar cannot go below it.")}, ("settings", "qualityFloor")), (),
+        (Example({}, {"settings": _EX_SETTINGS, "qualityFloor": 3}),), group="announcements",
+    ),
+    Operation(
+        "announcements_settings_set", ("settings", "set"), "Change announcement settings. Every rule is checked and every problem listed; nothing is saved when any fails.", "write",
+        obj({"mode": choice("off", "dry_run", "on", description="Off (default), Dry run (builds the post, sends nothing) or On."),
+             "minStars": whole("The lowest star rating that is announced, 1 to 5, never below the quality floor."),
+             "storyTypes": many(text(), "Story types that are announced, such as article. References are never announced."), "sections": many(text(), "Limit to these sections."),
+             "accountId": text("The connected X account's id."), "accountHandle": text(), "budget": text("Dollars for each X billing cycle, such as 10.00. No default."),
+             "billingCycleDay": whole("The day of the month your X billing cycle starts."), "prices": {"type": "object", "description": "X's price list as dollars: post, postWithLink, delete, read."},
+             "pricesAsOf": text("The date you copied the prices from X, YYYY-MM-DD."), "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account.")}),
+        record({"settings": SETTINGS, "released": many({"type": "object"})}, ("settings", "released")), ("settings_refused", "human_required", "channel_not_available"),
+        (Example({"minStars": 5}, {"settings": _EX_SETTINGS, "released": []}),), group="announcements", agent_allowed=False,
+        notes="A person only: it sets what the publication says in public and how much it may spend. There is no approval setting: a draft that passes the automatic checks is posted. "
+              "prices is given with --input-file. Raising the budget, or any change while Stories wait on a guard, announces the Stories that waited.",
+    ),
+    Operation(
+        "announcements_account_status", ("account", "status"), "Show mode, pause, the cycle's spend against the budget, and the connected account.", "read",
+        obj({}), record({"mode": text(), "paused": flag(), "accountId": text(), "accountHandle": text(), "standing": text("For example $0.60 spent of $10.00 this cycle."),
+                         "pauseReason": text(), "pricesAsOf": text()}, ("mode", "paused")), (),
+        (Example({}, {"mode": "dry_run", "paused": False, "accountId": "mom", "standing": "$0.00 spent of $10.00 this cycle"}),), group="announcements",
+        notes="Connecting an X account needs the browser (OAuth): the newsroom's Administration > Announcements page. The CLI never accepts a secret.",
+    ),
+)
+
+OPERATIONS = OPERATIONS + ANNOUNCEMENT_OPERATIONS
 
 BY_NAME = {operation.name: operation for operation in OPERATIONS}
 BY_CLI = {(operation.group, operation.cli): operation for operation in OPERATIONS}
