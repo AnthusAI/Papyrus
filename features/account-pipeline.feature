@@ -41,3 +41,16 @@ Feature: A deployment's account is seeded once and then changed only from Git
   Scenario: Nothing changes for the running Anthus deployments
     Given the existing stacks.json and the papyrus-pipeline-approver stack
     Then stack_deploy.py behaves exactly as before for monitoring and the operators stack
+
+  Scenario: The app shell is synthesized without AWS and a second stack is refused
+    Given a deployment repository that calls app-shell-deploy.yml with the expected stack name
+    When the synth job runs on a pull request
+    Then papyrus-infra synth runs with no AWS credentials
+    And check_cdk_manifest.py fails the job unless the manifest holds exactly one CloudFormation stack with that name
+    And a synth that also names another stack, such as the account baseline, never reaches the deploy job
+
+  Scenario: The app shell deploys only from main
+    Given the synth job passed
+    When the run is a pull request or any ref other than main
+    Then the deploy and build jobs are skipped
+    And on a push to main the deploy job assumes the github-deploy role, runs one at a time per repository and is never cancelled

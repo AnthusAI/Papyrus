@@ -71,6 +71,49 @@ Review first with `--no-execute-changeset`. Add `CreateOidcProvider=false` if `a
 
 Residual risk: whoever can merge to `main` can change, through the roles job, what the pipeline may do. The safety is the main-only trust on every role, branch protection on `main` (a pull request and the `ci` check), the roles service role's narrow IAM rights, and the deployer refusing any Replace or Remove that `allowed-changes.json` does not list. The change set is in the job summary after the fact.
 
+## The app shell
+
+A site's Amplify app, Cognito pool and the rest live in one per-site CDK stack, defined in `infra/amplify-app-shell` and synthesized by the published command `papyrus-infra synth --site infra/site.json --out cdk.out`. The reusable workflow `.github/workflows/app-shell-deploy.yml` deploys it on merge to `main`, with GitHub OIDC and no person involved:
+
+```yaml
+jobs:
+  app-shell:
+    permissions: { contents: read, id-token: write }
+    uses: AnthusAI/Papyrus/.github/workflows/app-shell-deploy.yml@<papyrus tag>
+    with:
+      prefix: myco
+      papyrus-ref: <the same tag>
+      aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
+      stack-name: <the stack name infra/site.json produces>
+      site-id: <siteId>
+```
+
+- **`synth`** runs on pull requests, pushes and manual runs, with no AWS credentials. It installs the repository's dependencies, synthesizes, and runs `infra/pipeline/check_cdk_manifest.py`, which fails unless the cloud assembly holds exactly one CloudFormation stack and its name is `stack-name`.
+- **`deploy`** runs only for a push or manual run on `main`. It assumes `<prefix>-github-deploy`, runs `aws-cdk deploy` on the already synthesized assembly. It reads the stack output `CmsAppId` and passes it on as the job output `app-id`.
+- **`build`** (only when `start-amplify-build` is true; the default is false) starts the Amplify release job through `amplify-deploy.yml`, as `<site-id>-github-deploy`. Leave it off until the app has a build source (below). It calls the `main` copy of `amplify-deploy.yml`, because `./` in a reusable workflow resolves in the caller's repository.
+
+### The roles, and the power, in plain English
+
+The baseline's `<prefix>-github-deploy` role gains permission to assume exactly the CDK bootstrap deploy role and file-publishing role (`cdk-<CdkQualifier>-deploy-role-...` and `cdk-<CdkQualifier>-file-publishing-role-...`, never the image-publishing or lookup roles; the qualifier parameter defaults to `hnb659fds`).
+
+What that means: **a push to `main` can run any CloudFormation change as the CDK CloudFormation execution role.** Read-only checks of the Humorus account on 2026-11-11 found the `CDKToolkit` bootstrap at version 33 with qualifier `hnb659fds`, the `CloudFormationExecutionPolicies` parameter empty, and so the AWS-managed `AdministratorAccess` policy attached to `cdk-hnb659fds-cfn-exec-role`; the roles `cdk-hnb659fds-{cfn-exec,deploy,file-publishing,image-publishing,lookup}-role` exist. For that account the execution role **is** `AdministratorAccess`. The baseline's explicit deny on the baseline stack does not bind the CDK path, because the change set is made by the CDK deploy role, not by the pipeline role. Three things hold it in check: main-only trust on the role, branch protection on `main`, and the manifest check, which is what stops a synth from naming another stack (the baseline, say). The Replace/Remove refusal of `stack_deploy.py` does not apply to CDK deploys. A tighter bootstrap (`CloudFormationExecutionPolicies` set to a narrow policy) is a follow-up.
+
+### How the Amplify app gets its code (the Machines on Machines mechanism)
+
+This is how every Papyrus Amplify site works today, checked read-only on the Machines on Machines app:
+
+- The app-shell stack creates the Amplify app with **no repository**. Amplify's own auto-build is off (`enableBranchAutoBuild: false`), there are no webhooks, and the production branch builds only when told to.
+- The app is then **connected to its GitHub repository once**, in the Amplify console, by an organisation administrator authorizing the Amplify GitHub App for that repository ("Connect repository", see [site-hosting.md](site-hosting.md#one-time-github-app-connection-per-app)). Afterwards `get-app` shows the repository and `repositoryCloneMethod: TOKEN`: Amplify holds the GitHub App's installation access. **We hold no token** (no PAT, nothing in SSM or GitHub secrets), and there is no API for this handshake.
+- Every deploy after that is started by the repository's own workflow: a push to `main` signs in with GitHub OIDC as `<siteId>-github-deploy` (main only) and runs `amplify start-job --job-type RELEASE --commit-id <sha>`, then waits for it ([amplify-deploy.yml](../.github/workflows/amplify-deploy.yml)). That role is created by the app-shell stack. The Amplify build runs the backend (`ampx pipeline-deploy`) and the Next build.
+
+So the one hand step is the **connection**: an authorization, like giving the registrar the name servers or creating the Google client, not a resource. It is a person-only step, once per app. Everything else is codified: the app, its roles, the branch, the OIDC role and each deploy. The `app-shell-deploy.yml` workflow can run `start-amplify-build` after the stack deploys; leave it false until the app has been connected, because a job on an unconnected app fails.
+
+If a deployment must have no such step at all, the route to evaluate is a token-free CodeCommit mirror (Actions pushes each commit to an AWS CodeCommit repository with short-lived OIDC credentials, and the app builds from CodeCommit with an IAM service role). A spike has to prove it first; nothing here builds it. Amplify Hosting does not support manual deploys for server-side rendered apps (AWS documentation), so the Git-less route is not available for these apps.
+
+### Google sign-in (person-only)
+
+Signing in with Google also needs a person once: the Cognito domain prefix, the two redirect URIs in the Google console, and `papyrus site google-secrets set`. Follow [google-oauth-setup.md](google-oauth-setup.md).
+
 ## Adopting what already exists
 
 A zone, budget or role made by hand is **imported**, never replaced:
@@ -92,6 +135,7 @@ Nothing else can be automated:
 
 ## Not covered yet
 
+- A tighter CloudFormation execution policy for the app shell (see "The app shell").
 - The CDK bootstrap stack (`CDKToolkit`) is CDK's own template, usually made by `cdk bootstrap`. It is a hand-made resource in most accounts. Adopting it means importing it with the template version the CDK CLI ships; see the epic.
 - The Anthus accounts' hand-made roles, zones and providers (story PPY-b5ddec): design and dry-run only, each import read by Ryan first.
 - Seeding accounts from the organisation level with StackSets (story PPY-a41df9) and the client-owned-account access stack (story PPY-1f6e73): designs in the Humorus epic HUM-be87f4.
