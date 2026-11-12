@@ -86,7 +86,7 @@ def publish_story(context) -> None:
 
     from papyrus_content.publishing import project_item_to_published
 
-    published, _ = project_item_to_published(context.pub_item, [], published_at="2026-02-01T00:00:00Z", version_number=1)
+    published, _ = project_item_to_published(context.pub_item, [], published_at="2026-02-01T00:00:00Z", version_published_at="2026-02-01T00:00:00Z", version_published_by="behave", version_number=1)
     metadata = published["metadata"]
     context.published_metadata = json.loads(metadata) if isinstance(metadata, str) else metadata
 

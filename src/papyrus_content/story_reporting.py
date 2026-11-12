@@ -218,7 +218,9 @@ def save_story_version(
         "bodyIr": to_aws_json(envelope),
         "metadata": to_aws_json(metadata),
         "contentHash": _source_content_hash(fields),
-        "publishedAt": None,
+        "publishedAt": latest.get("publishedAt"),   # the Story's first publication, carried to every version
+        "versionPublishedAt": None,                 # this version has not gone live yet
+        "versionPublishedBy": None,
         "type": fields.type,
     }
     if stage:

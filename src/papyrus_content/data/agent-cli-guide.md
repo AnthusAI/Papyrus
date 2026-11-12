@@ -424,6 +424,18 @@ papyrus stories head-index --apply --rate 5
 - Unlike most commands it is a **dry run unless `--apply`**. A dry run with `heads to set 0` and `keys to remove 0` is the health check. `--apply` writes only rows that differ, keeps each row's own `updatedAt`, never writes a superseded version, and writes at most `--rate` a second (default 5); a second run writes nothing.
 - On a site whose data API has no `headStageKey` yet the dry run counts every Story as needing it and `--apply` refuses: the site needs the backend deploy that adds the index first, and that deploy and the `--apply` run each need Ryan's approval.
 
+### Backfill published dates (operators)
+**Lane:** both. **Version:** the release after 5.101.0. **Writes:** only with `--apply`; a dry run otherwise.
+
+```sh
+papyrus stories backfill-published-dates
+papyrus stories backfill-published-dates --apply --rate 5
+```
+
+- A Story's `publishedAt` is its first publication, carried to every later version, and `versionPublishedAt` / `versionPublishedBy` say when and by whom the served version went live (docs/site-hosting.md, "Published and updated dates"). The command moves Stories published before that change to the new meaning, using only what their versions recorded: the earliest version whose `changeReason` is `publish`, never later than the date the Story already has.
+- It prints one `set` line per row it would change, an `unclear` line per Story whose first publication cannot be derived (a version was taken down, which overwrote its publish time, or no version recorded a publish) and a summary: `stories`, `rows to write`, `already right`, `unclear`. Unclear Stories keep their `publishedAt`; a person decides.
+- It is a **dry run unless `--apply`**. `--apply` writes only rows that differ, keeps each row's own `updatedAt`, and writes at most `--rate` a second (default 5); a second run writes nothing. It needs the backend deploy that adds `versionPublishedAt` and `versionPublishedBy` to Item and PublishedItem first.
+
 ## Draw a figure
 <!-- guide:figures -->
 

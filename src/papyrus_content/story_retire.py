@@ -68,8 +68,10 @@ def _retired_into(row: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _was_published(row: dict[str, Any]) -> bool:
-    """A version that was live: the published row, or one an unpublish left (``publishedAt`` alone proves nothing: a draft takes it from its front matter date)."""
-    return row.get("status") == "published" or row.get("changeReason") in ("publish", "unpublish")
+    """A version that was live: the published row, or one that recorded when it went live (``publishedAt`` alone proves nothing: every version carries the Story's
+    first publication, and a draft takes it from its front matter date). ``changeReason`` ``publish`` / ``unpublish`` marks the versions published before publishing
+    stopped overwriting it."""
+    return row.get("status") == "published" or bool(row.get("versionPublishedAt")) or row.get("changeReason") in ("publish", "unpublish")
 
 
 def _served_rows(versions: list[dict[str, Any]], head: dict[str, Any], live: dict[str, Any] | None) -> list[dict[str, Any]]:
