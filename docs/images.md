@@ -688,7 +688,8 @@ Input:
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `target` | object | yes | What the picture is for: a Story or a Reference. |
+| `target` | object | no | What the picture is for: a Story or a Reference. |
+| `sectionId` | string | no | A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from. |
 | `use` | string | yes | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
 | `imageType` | string | no | A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. |
 | `brief` | string | yes | What the picture should show. The publication's style rules are added by the service, never written here. |
@@ -730,7 +731,7 @@ Example result:
 {
   "plans": [
     {
-      "planVersion": "image-prompt/v1",
+      "planVersion": "image-prompt/v2",
       "imageType": "cover-illustration",
       "segments": [],
       "avoid": []
@@ -820,7 +821,8 @@ Input:
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `target` | object | yes | What the picture is for: a Story or a Reference. |
+| `target` | object | no | What the picture is for: a Story or a Reference. |
+| `sectionId` | string | no | A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from. |
 | `use` | string | yes | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
 | `imageType` | string | no | A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. |
 | `brief` | string | yes | What the picture should show. The publication's style rules are added by the service, never written here. |

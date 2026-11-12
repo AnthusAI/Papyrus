@@ -295,11 +295,13 @@ export type ImageBriefDraftResult = {
 /** Show exactly what would be asked of the image model, and what it would cost, without making anything. */
 export type ImagePromptPreviewInput = {
   /** What the picture is for: a Story or a Reference. */
-  target: {
+  target?: {
     kind: "story" | "reference";
     /** The lineage id of the Story or Reference. */
     lineageId: string;
   };
+  /** A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from. */
+  sectionId?: string;
   /** Where the picture goes: the cover, inline in the body, or a social card. */
   use: "cover" | "inline" | "social";
   /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */
@@ -388,11 +390,13 @@ export type ImageSearchResult = {
 /** Make pictures from a brief in the publication's style. The pictures arrive later. */
 export type ImageGenerateInput = {
   /** What the picture is for: a Story or a Reference. */
-  target: {
+  target?: {
     kind: "story" | "reference";
     /** The lineage id of the Story or Reference. */
     lineageId: string;
   };
+  /** A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from. */
+  sectionId?: string;
   /** Where the picture goes: the cover, inline in the body, or a social card. */
   use: "cover" | "inline" | "social";
   /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */

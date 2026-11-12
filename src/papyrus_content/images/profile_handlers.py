@@ -275,10 +275,12 @@ def profile_history(client, arguments: dict, caller: Caller, files: DocumentFile
 
 from .examples import example_add, example_remove  # noqa: E402  (they build on save_profile and the helpers above)
 from .profile_init import init_profile  # noqa: E402
+from .prompt_preview import preview_prompt  # noqa: E402
 
 PROFILE_HANDLERS: dict[str, Callable[..., Outcome]] = {
     "image_profile_get": get_profile, "image_profile_resolve": resolve_profile, "image_profile_diff": diff_profile,
     "image_profile_save": save_profile, "image_profile_history": profile_history,
+    "image_prompt_preview": preview_prompt,
     "image_profile_init": init_profile, "image_profile_example_add": example_add, "image_profile_example_remove": example_remove,
 }
 

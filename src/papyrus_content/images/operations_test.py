@@ -302,7 +302,7 @@ def test_the_routes_and_their_usage_come_from_the_generated_spec():
                          "review", "review-queue", "apply", "discard", "figure"}
     assert set(tree["figure"]) == {"add"}
     assert set(tree["profile"]) == {"get", "resolve", "diff", "save", "history", "init", "example"} and set(tree["profile"]["example"]) == {"add", "remove"}
-    assert images_cli.usage_for(["generate"]).startswith("Usage: papyrus images generate (--story ID | --reference ID)")
+    assert images_cli.usage_for(["generate"]).startswith("Usage: papyrus images generate [--story ID | --reference ID] [--section TEXT]")
     assert "[--dry-run]" in images_cli.usage_for(["generate"]) and "[--dry-run]" not in images_cli.usage_for(["round"])
 
 
