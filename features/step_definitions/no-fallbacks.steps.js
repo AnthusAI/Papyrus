@@ -14,6 +14,7 @@ const run = async () => {
 Given("the console chat client source", function () {});
 Given("the content repository source", function () {});
 Given("the news desk client source", function () {});
+Given("the inbound email settings", function () {});
 for (const when of [
   "it is read for schema probing and reduced-field queries",
   "it is read for how it authorizes a request",
@@ -21,6 +22,7 @@ for (const when of [
   "it is read for how it finds the newest published editions",
   "it is read for how it treats a layout block whose item did not load",
   "it is read for how it loads a page of References",
+  "a site turns inbound email on without one of them",
 ]) When(when, function () {});
 
 // Each outcome is one test in scripts/test-no-fallbacks.ts.
@@ -31,5 +33,6 @@ const outcomes = [
   ["it asks the published-at index directly and never checks whether the index exists or falls back to the edition-date index", /✔ content repository: one edition index/],
   ["the plan is validated as written, no block is dropped with a warning, and no invented fallback image exists", /✔ content repository: a layout plan is validated as written/],
   ["each ordering and status filter reads its own index, an empty page is an empty page, and no table scan or older feed query takes over", /✔ news desk client: References come from their indexes/],
+  ["the synth fails naming the missing setting, and no domain, corpus, hosted zone or site address of Papyrus's own is written into the engine", /✔ inbound email: no site's domain/],
 ];
 for (const [then, pattern] of outcomes) Then(then, async function () { assert.match(await run(), pattern); });
