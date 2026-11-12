@@ -31,7 +31,7 @@ from .graphql_authoring import create_authoring_client
 from .ids import hash_short, knowledge_corpus_id, safe_id
 from .model_attachments import attachment_record, build_model_payload_attachment, upload_attachment_body
 from .options import normalize_positive_integer, normalize_string, parse_boolean_option, parse_options, resolve_mutation_apply
-from .records import apply_record_changes, build_record_changes_tolerating_optional_models
+from .records import apply_record_changes, build_record_changes
 from .newsroom_summary import update_newsroom_summary_after_analysis_import, update_newsroom_summary_after_assignment_creates
 from .relations_commands import print_category_import_summary
 from .steering import require_corpus_config, require_steering_config, load_steering_config
@@ -251,7 +251,7 @@ def analysis_create_reindex_assignment(flags: list[str]) -> None:
             {"plan": plan, "assignment": assignment_plan["assignment"], "records": assignment_plan["records"]},
         )
     print_analysis_reindex_plan(plan)
-    assignment_changes = build_record_changes_tolerating_optional_models(
+    assignment_changes = build_record_changes(
         client,
         [{"modelName": record["modelName"], "expected": record["expected"]} for record in assignment_plan["records"]],
     )
@@ -298,7 +298,7 @@ def analysis_run_now(flags: list[str]) -> None:
     from .assignments import apply_assignment_action
     from .assignment_executors import execute_assignment_by_type
 
-    assignment_changes = build_record_changes_tolerating_optional_models(
+    assignment_changes = build_record_changes(
         client,
         [{"modelName": record["modelName"], "expected": record["expected"]} for record in assignment_plan["records"]],
     )
@@ -883,7 +883,7 @@ def _analysis_publish_graph_snapshot_internal(
         )
     )
     records = [*publish_plan["records"], graph_attachment]
-    changes = build_record_changes_tolerating_optional_models(client, records)
+    changes = build_record_changes(client, records)
     changed_records = sum(1 for change in changes if change.get("action") != "noop")
     if apply:
         print("analysis-publish\tphase\trecords-apply\tstart", flush=True)
