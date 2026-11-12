@@ -10,9 +10,17 @@
   "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e6cbc69f-7b50-4e0d-8b54-ac7192f5fa97",
+      "author": "home",
+      "text": "Merged in #1419. Decision: the byline policy is a site-rule guideline kind 'byline' (mode honest | pen-names, penNames, note); the honest rule is the default; it reaches the copywriter as a core 'byline' context-pack layer. No code enforces authorship beyond that guidance (none existed before).",
+      "created_at": "2026-11-12T11:55:55.081454Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-11T17:16:00.027861Z",
-  "updated_at": "2026-11-11T17:16:00.027908Z",
+  "updated_at": "2026-11-12T11:55:55.081698Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

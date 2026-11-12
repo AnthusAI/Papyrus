@@ -10,9 +10,17 @@
   "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "604154da-6b19-4612-9a31-013269458df7",
+      "author": "home",
+      "text": "Merged in #1420. Decision: idea rules live in the router publication's monitorStories policy as 'ideaRules' (minimumReferences, requireJointSentence, passingVerdicts, checkRepeats, checkProcessTalk, mode evidence|premise-led), not a guideline document, because the router has no read access to site documents and this needed no new grants. Premise-led: one real Reference, an invented premise stored apart (evidence.premise, an 'Invented premise' section), no point check. The CLI monitor-stories run still uses the default rules (no flag; YAGNI).",
+      "created_at": "2026-11-12T11:55:55.173548Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-11T17:15:59.632259Z",
-  "updated_at": "2026-11-11T17:15:59.632294Z",
+  "updated_at": "2026-11-12T11:55:55.173748Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
