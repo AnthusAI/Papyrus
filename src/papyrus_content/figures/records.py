@@ -37,6 +37,7 @@ SETTINGS_FILE = "settings.json"        # in a design system folder only: the sit
 SETTINGS = {
     "requireDarkFigures": "refuse to save a figure that has no dark picture",
     "illustrationRequiredTypes": "the Story types whose checklist needs an approved cover before publishing (a list; articles when unset)",
+    "illustrationRequireApprovalCredit": "also require the cover's image line to say 'Approved by NAME' (off when unset; the approval itself is always metadata)",
 }
 LIST_SETTINGS = ("illustrationRequiredTypes",)   # the other settings are true or false
 TOP_LEVEL = ("schemaVersion", "publication", "files", "media", "settings")

@@ -55,7 +55,7 @@ The checker cannot tell whether a figure makes sense. Open **both** pictures and
 
 ## 6. Get a person's approval
 
-Show the person both pictures and say what they are: the acceptance criteria, the alt text, the caption and the credit. A person confirms each figure before it is published. Set `approved_by` in `figure.json` to the name of the person who approved it (never your own name or an invented one), then render again so the credit is right.
+Show the person both pictures and say what they are: the acceptance criteria, the alt text, the caption and the credit. A person confirms each figure before it is published. Set `approved_by` in `figure.json` to the name of the person who approved it (never your own name or an invented one), then render again. The approval is metadata and is not a visible credit: a generated figure carries no credit line, and a site shows an `Approved by NAME` line only if it opted in with `illustrationRequireApprovalCredit`.
 
 ## 7. Save it into the Story
 
@@ -63,7 +63,7 @@ Show the person both pictures and say what they are: the acceptance criteria, th
 papyrus figures directive ./figures/SLUG
 ```
 
-Put the printed `::image{}` line where the figure belongs in the draft. Put `SLUG.png`, `SLUG.dark.png` and `SLUG.figure.json` in the pictures folder and save with `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures --reason "..."`. `save-version` pairs the dark file automatically, and prints a `figure-light-only` warning if you forgot it (a site can set `requireDarkFigures` so that the save is refused instead): fix that rather than ignoring it. Show the editor the console link of the saved version, as the other steps do. A figure used as the cover (front matter `image`) closes the checklist's `illustration` step once its credit names the approving person and, where the site requires dark figures, its dark picture is saved too; you cannot mark that step done by hand, and only a person can record an exception with a reason. Never publish without the person's confirmation.
+Put the printed `::image{}` line where the figure belongs in the draft. Put `SLUG.png`, `SLUG.dark.png` and `SLUG.figure.json` in the pictures folder and save with `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures --reason "..."`. `save-version` pairs the dark file automatically, and prints a `figure-light-only` warning if you forgot it (a site can set `requireDarkFigures` so that the save is refused instead): fix that rather than ignoring it. Show the editor the console link of the saved version, as the other steps do. A figure used as the cover (front matter `image`) closes the checklist's `illustration` step once the Story's front matter `coverImage` record for it names the approving person (`coverImage: {srcPath: assets/SLUG.png, approvedBy: NAME, approvedAt: DATE}`) and, where the site requires dark figures, its dark picture is saved too; you cannot mark that step done by hand, and only a person can record an exception with a reason. Never publish without the person's confirmation.
 
 ## What you must not do
 

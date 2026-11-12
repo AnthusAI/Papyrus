@@ -4,12 +4,15 @@ Pure over a small dict of inputs read once (``inputs_for_item``), so the checkli
 A cover is proved by records, never by hand:
 
 * the Story's front matter names a cover picture (``image``, or ``cover``) that is a stored asset (a ``MediaAsset`` row of the version, matched by ``srcPath``);
-* a person approved it, which is an existing record: the stock cover record ``coverImage`` (``pickedBy``, written by the newsroom's Cover image) or a figure's
-  credit line ``Approved by NAME`` on the body's ``::image{}`` of that picture (a figure's ``approved_by``, written by ``papyrus figures render``);
+* a person approved it, recorded as metadata in the front matter record ``coverImage`` for that picture (``srcPath``): ``approvedBy`` and ``approvedAt`` for any
+  cover, or ``pickedBy`` and ``pickedAt`` for a stock picture picked in the newsroom's Cover image. The image line's credit is never read for approval, so a
+  generated cover carries no credit line at all and a third-party picture keeps its own credit;
 * where the site requires dark figures (the design system's ``requireDarkFigures``), a figure cover also has a stored dark picture (``imageDark``/``coverDark``
   or the directive's ``srcDark``). A stock photograph has no dark twin and is never asked for one.
 
 Which Story types need a cover is the design-system setting ``illustrationRequiredTypes`` (a list of Item types), ``["article"]`` when unset.
+A site can opt in to a visible approval line with the design-system setting ``illustrationRequireApprovalCredit`` (off when unset): the cover's image line must
+then also say ``Approved by NAME``, with the approver named in the metadata.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ import re
 from typing import Any
 
 SETTING_REQUIRED_TYPES = "illustrationRequiredTypes"
+SETTING_APPROVAL_CREDIT = "illustrationRequireApprovalCredit"
 DEFAULT_REQUIRED_TYPES = ("article",)
 
 # The states mirror newsroom_process (not imported here: it imports this module lazily).
@@ -35,7 +39,7 @@ def normalize_path(value: Any) -> str:
 
 
 def default_policy() -> dict[str, Any]:
-    return {"requiredTypes": list(DEFAULT_REQUIRED_TYPES), "requireDark": False, "unreadable": False}
+    return {"requiredTypes": list(DEFAULT_REQUIRED_TYPES), "requireDark": False, "requireApprovalCredit": False, "unreadable": False}
 
 
 def read_policy(client) -> dict[str, Any]:
@@ -48,11 +52,12 @@ def read_policy(client) -> dict[str, Any]:
 
         settings = DesignSystemRecords(client).settings()
     except Exception:  # noqa: BLE001 - say so in the evidence instead of guessing at the dark rule
-        return {"requiredTypes": list(DEFAULT_REQUIRED_TYPES), "requireDark": False, "unreadable": True}
+        return {"requiredTypes": list(DEFAULT_REQUIRED_TYPES), "requireDark": False, "requireApprovalCredit": False, "unreadable": True}
     types = settings.get(SETTING_REQUIRED_TYPES)
     return {
         "requiredTypes": [str(item) for item in types] if isinstance(types, list) else list(DEFAULT_REQUIRED_TYPES),
         "requireDark": bool(settings.get("requireDarkFigures")),
+        "requireApprovalCredit": bool(settings.get(SETTING_APPROVAL_CREDIT)),
         "unreadable": False,
     }
 
@@ -119,25 +124,23 @@ def cover_evidence(inputs: dict[str, Any] | None) -> tuple[str, str]:
     if cover not in stored:
         return NOT_DONE, f"the cover {cover} is not a stored asset of this version"
     record = front_matter.get("coverImage")
-    picked_by = str(record.get("pickedBy") or "").strip() if isinstance(record, dict) else ""
-    stock = isinstance(record, dict) and normalize_path(record.get("srcPath")) == cover
+    record = record if isinstance(record, dict) and normalize_path(record.get("srcPath")) == cover else {}
+    picked_by = str(record.get("pickedBy") or "").strip()
+    approver = picked_by or str(record.get("approvedBy") or "").strip()
+    if not approver:
+        return NOT_DONE, f"the cover {cover} is stored but no person approved it (the front matter `coverImage` record for it has no `approvedBy`)"
+    approved_at = record.get("pickedAt") if picked_by else record.get("approvedAt")
     directive = _directive_for(inputs["body"], cover)
-    approved = _APPROVED_BY.search(directive["credit"]) if directive else None
-    approver = approved.group(1).strip() if approved else ""
-    if approver in ("", "<name>", "{approved_by}"):
-        approver = ""
+    policy = inputs["policy"]
+    if policy.get("requireApprovalCredit") and not _APPROVED_BY.search((directive or {}).get("credit", "")):
+        return NOT_DONE, f"this site shows who approved a cover (illustrationRequireApprovalCredit): the image line of {cover} needs a credit saying `Approved by {approver}`"
     dark = normalize_path((directive or {}).get("srcDark") or front_matter.get("imageDark") or front_matter.get("coverDark"))
-    if stock and picked_by:
-        if dark and dark not in stored:
-            return NOT_DONE, f"the dark picture {dark} is not a stored asset of this version"
-        return DONE, f"cover {cover}, stock picture picked by {picked_by}" + (f" on {record['pickedAt']}" if record.get("pickedAt") else "")
-    if approver:
-        policy = inputs["policy"]
+    if dark and dark not in stored:
+        return NOT_DONE, f"the dark picture {dark} is not a stored asset of this version"
+    if not picked_by:   # a figure or generated picture; a stock photograph has no dark twin and is never asked for one
         if policy.get("unreadable") and not dark:
             return UNKNOWN, "the site's requireDarkFigures setting could not be read, so a figure with no dark picture cannot be checked"
         if not dark and policy["requireDark"]:
             return NOT_DONE, f"the figure cover {cover} has no dark picture, and this site requires one (requireDarkFigures): run `papyrus figures render` and save SLUG.dark.png with it"
-        if dark and dark not in stored:
-            return NOT_DONE, f"the dark picture {dark} is not a stored asset of this version"
-        return DONE, f"cover {cover}, figure approved by {approver}" + (f", dark {dark}" if dark else "")
-    return NOT_DONE, f"the cover {cover} is stored but no person approved it (no stock pick record and no `Approved by NAME` credit on its image)"
+    kind = "stock picture picked by" if picked_by else "approved by"
+    return DONE, f"cover {cover}, {kind} {approver}" + (f" on {approved_at}" if approved_at else "") + (f", dark {dark}" if dark and not picked_by else "")

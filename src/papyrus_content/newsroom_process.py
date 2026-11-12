@@ -108,7 +108,7 @@ STEPS: tuple[Step, ...] = (
     Step("illustration", "illustration", "Editor, or an agent following the figures skill", "Illustrate",
          "papyrus stories save-version --story {story} --body-file draft.md --images ./pictures", LIVE, False,
          "Required for the Story types the site lists in its design-system setting illustrationRequiredTypes (articles by default). Done only when the records prove it: the current version has a cover "
-         "(front matter image) that is a stored asset a person approved (a stock cover picked in the newsroom's Cover image, or a figure with 'Approved by NAME' in its credit; papyrus guide figures, "
+         "(front matter image) that is a stored asset a person approved (recorded as metadata: the front matter coverImage record with approvedBy, or pickedBy for a stock cover picked in the newsroom's Cover image; never a credit line unless the site opts in with illustrationRequireApprovalCredit; papyrus guide figures, "
          ".agents/skills/figures/SKILL.md), with its dark picture where the site requires dark figures. It cannot be marked done by hand. A person can record an exception instead: "
          "papyrus stories step --story {story} --step illustration --state skipped --reason <why>.", versioned=True),
     Step("typesetting", "typesetting", "Editor", "Typeset", "", NOT_BUILT, True, "Not built yet."),

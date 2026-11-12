@@ -487,10 +487,11 @@ COVER = "assets/board/cover.png"
 COVER_DARK = "assets/board/cover.dark.png"
 
 
-def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False, stored: bool = True, remote: bool = False, approved: bool = True) -> None:
+def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False, stored: bool = True, remote: bool = False, approved: bool = True, credit_line: bool = False) -> None:
     """Gives the current version of the Story a cover the way the newsroom and the figures workflow do: front matter ``image``, the picture first in the body,
-    and a ``MediaAsset`` row per stored picture. ``kind`` is ``stock`` (a picked stock picture: the ``coverImage`` record) or ``figure`` (a credit that says who
-    approved it, and an optional dark picture)."""
+    and a ``MediaAsset`` row per stored picture. ``kind`` is ``stock`` (a picked stock picture: the ``coverImage`` record, with its third-party credit) or
+    ``figure`` (a generated picture: the ``coverImage`` record names who approved it, the image line has no credit; an optional dark picture).
+    ``credit_line`` adds an ``Approved by`` line to the image, for a site that opted in."""
     import yaml
 
     client = client_of(context)
@@ -504,7 +505,10 @@ def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False
                                "pickedAt": AT, "pickedBy": picked_by}
         attributes += ' credit="Image: A. Photographer, CC BY 4.0, via Wikimedia Commons"'
     if kind == "figure":
-        attributes += f' credit="Drafted by AI. Approved by {picked_by}."' if approved else ' credit="Drafted by AI. Approved by <name>."'
+        if approved:
+            front["coverImage"] = {"srcPath": COVER, "approvedAt": AT, "approvedBy": picked_by}
+        if credit_line:
+            attributes += f' credit="Approved by {picked_by}."'
         if dark:
             front["imageDark"] = "/" + COVER_DARK
             attributes += f' srcDark="{COVER_DARK}"'
@@ -537,6 +541,33 @@ def figure_cover(context, name):
 @given('the Story has a figure cover approved by "{name}" with a dark picture')
 def figure_cover_dark(context, name):
     add_cover(context, "figure", picked_by=name, dark=True)
+
+
+@given('the Story has a figure cover approved by "{name}" and an "Approved by" line on its image')
+def figure_cover_with_line(context, name):
+    add_cover(context, "figure", picked_by=name, credit_line=True)
+
+
+@given('the Story has a figure cover with an "Approved by {name}" line on its image but no approval in metadata')
+def figure_cover_line_only(context, name):
+    add_cover(context, "figure", picked_by=name, approved=False, credit_line=True)
+
+
+@given("the site shows who approved a cover")
+def site_shows_approval(context):
+    use_policy(context, requireApprovalCredit=True)
+
+
+@then('the cover shows no credit line and no approval text')
+def cover_shows_nothing(context):
+    body = client_of(context).get_record("Item", f"{LINEAGE}-v{context.world.version_number}")["bodyMarkus"]
+    assert "credit=" not in body and "Approved by" not in body, body
+
+
+@then("the cover keeps its third-party credit line")
+def cover_keeps_credit(context):
+    body = client_of(context).get_record("Item", f"{LINEAGE}-v{context.world.version_number}")["bodyMarkus"]
+    assert 'credit="Image: A. Photographer, CC BY 4.0, via Wikimedia Commons"' in body, body
 
 
 @given("the Story has a cover that nobody approved")

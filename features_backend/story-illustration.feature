@@ -3,8 +3,10 @@ Feature: Illustration is a checklist step and a publish gate
   A Story that needs a cover must not publish without one. "Illustrate" is a live, required step of the Story procedure,
   so it is on every Story's checklist, counted in its progress, shown by "papyrus stories next" and by the newsroom panel,
   and checked when a Story publishes. It is closed by evidence, never by hand: the current version has a cover (front matter
-  "image") that is a stored asset a person approved, which is either a stock picture picked in the newsroom (the coverImage record
-  names who picked it) or a figure whose credit says "Approved by NAME". Where the site requires dark figures, a figure cover
+  "image") that is a stored asset a person approved. The approval is metadata: the front matter coverImage record names who
+  approved it (or who picked it, for a stock picture picked in the newsroom). It is never a visible credit: a generated cover has no
+  credit line, a third-party picture keeps its own, and the image line is not read for approval. A site can opt in to also requiring
+  an "Approved by NAME" line with the setting illustrationRequireApprovalCredit, which is off unless the site sets it. Where the site requires dark figures, a figure cover
   also has a stored dark picture. The only other way to close the step is an exception: a person skips it, or marks it not
   applicable, with a reason. Which Story types need a cover is a site setting, and articles do by default. A Story published
   before the step existed is not marked as failing, but a revision of it cannot publish until the step is closed.
@@ -42,6 +44,49 @@ Feature: Illustration is a checklist step and a publish gate
     When the checklist is brought up to date after a change
     Then the checklist item "illustration" is "done"
     And the checklist item "illustration" has evidence naming "approved by Sierra"
+
+  Scenario: A cover with only an "Approved by" line on its image and no approval in metadata leaves the step open
+    Given a Story at the "copywriting" stage
+    And the Story's checklist exists
+    And the Story has a figure cover with an "Approved by Sierra" line on its image but no approval in metadata
+    When the checklist is brought up to date after a change
+    Then the checklist item "illustration" is "open"
+
+  Scenario: A Story whose cover has no "Approved by" line publishes when the other conditions pass
+    Given a Story at the "copywriting" stage
+    And the Story has a figure cover approved by "Sierra"
+    And every required step is closed
+    When the Story is published by an editor
+    Then publishing succeeded
+    And the checklist item "illustration" is "done"
+    And the cover shows no credit line and no approval text
+
+  Scenario: A site that opts in to the approval credit holds a cover with no "Approved by" line
+    Given a Story at the "copywriting" stage
+    And the site shows who approved a cover
+    And the Story's checklist exists
+    And the Story has a figure cover approved by "Sierra"
+    And every required step except Illustration is closed
+    When the Story is published by an editor
+    Then publishing was refused saying "illustrationRequireApprovalCredit"
+    And publishing was refused saying "Approved by Sierra"
+
+  Scenario: A site that opts in publishes once the cover's image line says who approved it
+    Given a Story at the "copywriting" stage
+    And the site shows who approved a cover
+    And the Story has a figure cover approved by "Sierra" and an "Approved by" line on its image
+    And every required step is closed
+    When the Story is published by an editor
+    Then publishing succeeded
+    And the checklist item "illustration" is "done"
+
+  Scenario: A third-party picture keeps its credit and needs no approval line by default
+    Given a Story at the "copywriting" stage
+    And the Story's checklist exists
+    And the Story has a stock cover picked by "Ryan"
+    When the checklist is brought up to date after a change
+    Then the checklist item "illustration" is "done"
+    And the cover keeps its third-party credit line
 
   Scenario Outline: A cover without proof leaves the step open
     Given a Story at the "copywriting" stage
