@@ -329,7 +329,7 @@ def run_step(
     try:
         run = draft_monitor_stories(
             client=client, site=publication_id, corpus_key=publication["corpusKey"], context=context, json_store=None,
-            idea_store=ItemStore(client, gate=gate, drafts=proposals), review_client=None, transport=transport, limit=None, dry_run=False, now=moment,
+            idea_store=ItemStore(client, gate=gate, drafts=proposals, checklist=False), review_client=None, transport=transport, limit=None, dry_run=False, now=moment,
             fetch=fetch or monitor_stories.fetch_source, explorer=explorer, out_of_time=None, maximum_cost_usd=MAXIMUM_STEP_COST_USD, read_workers=1,
             signal_run=stub, knowledge=knowledge, retry_memory=router_retry_memory(store, monitor_id, publication_id), suggestions_waiting=bool(head_row.get("suggestionsWaiting")),
             count_pending=False, run_id=plan_id, prepared=prepared, threshold=float(head_row["duplicateThreshold"]) if head_row.get("duplicateThreshold") is not None else None,

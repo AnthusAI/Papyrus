@@ -1,0 +1,20 @@
+{
+  "id": "PPY-73222876-04e6-42e6-aa30-ff2528319f37",
+  "title": "Carry-forward of a picture copies the day file but not its srcDark file, which blocks publishing",
+  "description": "Reported by the Machines on Machines story-development session on CLI 5.105.0.\n\nRelated: PPY-99dcfaf6 (srcDark / .dark pairing), PPY-d92e3ba1 (Illustration step and publish gate).\n\nObserved: when a new Story version carries a picture forward from the previous version, the light (day) file is copied but the srcDark file named by the picture is not. The publish check then refuses because the dark file is missing from the new version. The session worked around it with a byte-identical re-save of the lineage content-item-when-ai-writes-the-code-understanding-becomes-the-job-fbccd97c3948e3ce (v14 to v17). That workaround must not be needed.\n\nFeature: Carry-forward keeps both pictures of a pair\n  Scenario: A picture with a dark variant is carried into a new version\n    Given a Story version whose cover has a day file and a srcDark file\n    When an editor saves a new version without touching the cover\n    Then the new version holds both the day file and the srcDark file\n    And a publish dry run of the new version passes the picture check\n  Scenario: The pair is carried as one unit\n    Given a carried-forward picture whose srcDark file is missing from the source version\n    When the new version is saved\n    Then the save names the missing file instead of producing a version that cannot publish\n\nDesign: wherever carry-forward copies a picture, it copies every file the picture names (day and srcDark) through the same code path. No re-save workaround, no fallback.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T16:30:18.074144Z",
+  "updated_at": "2026-11-12T16:30:18.074235Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

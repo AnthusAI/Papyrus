@@ -10,9 +10,17 @@
   "parent": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b7d7c4e2-673d-48fa-97a0-d4bc938745ac",
+      "author": "home",
+      "text": "Blocked 2026-11-12: script ready (spikes/multilingual/translate_spike.py on PR #1450; sources read from MoM's public Markdown twins). The shell OPENAI_API_KEY is expired (401 expired_secret_key) and the AWS session needed to read the site key from SSM is expired. Offline estimate: the 10 Stories are 10,079 tokens; about $0.0015 per Story per language for translate plus judge at list price, before reasoning tokens. Needs a valid key or aws login to measure and produce samples.",
+      "created_at": "2026-11-12T16:22:40.242349Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T15:39:05.130631Z",
-  "updated_at": "2026-11-12T15:39:05.237919Z",
+  "updated_at": "2026-11-12T16:22:40.242665Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
