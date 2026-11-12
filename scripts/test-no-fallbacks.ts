@@ -41,3 +41,10 @@ test("content repository: a layout plan is validated as written", () => {
   assert.doesNotMatch(repository, /getFallbackImage|Fallback editorial image/);
   assert.match(repository, /validateEditionLayoutPlanForItems\(layoutPlan, items,/);
 });
+
+test("news desk client: References come from their indexes", () => {
+  const client = read("components/news-desk-taxonomy-client.ts");
+  assert.doesNotMatch(client, /loadReferencePageByFallbackList|loadReferencePageByLegacyFeed|LIST_REFERENCES_FALLBACK_QUERY/);
+  assert.doesNotMatch(client, /isMissingGraphQLQueryFieldError|falling back to legacy/);
+  assert.match(client, /if \(order === "imported"\) return loadReferencePageByImportedFeed\(options\);/);
+});
