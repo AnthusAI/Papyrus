@@ -430,7 +430,7 @@ papyrus stories head-index --apply --rate 5
 ### Render a figure in light and dark
 **Lane:** both (it reads the signed-in site's design system and writes only local picture files). **Version:** the release after 5.101.0.
 
-A figure is a folder with `figure.svg` (colors as `{role}` names, type as `t-<role>` classes) and `figure.json` (the acceptance criteria, alt text and credit). The skill `.agents/skills/figures` says when to draw, how to choose a form, and how to get approval; the rules are `papyrus figures rules` and the shape library `papyrus figures primitives`. Both light and dark are mandatory: `render` always writes both from the one source.
+A figure is a folder with `figure.svg` (colors as `{role}` names, type as `t-<role>` classes) and `figure.json` (the acceptance criteria, alt text and credit). The skill `.agents/skills/figures` says when to draw, how to choose a form, and how to get approval; the rules are `papyrus figures rules` (the signed-in site's own text when it saved figure rules, otherwise the general rules; it says which on stderr; `--packaged` prints the general ones) and the shape library `papyrus figures primitives`. Both light and dark are mandatory: `render` always writes both from the one source.
 
 ```sh
 papyrus figures rules
