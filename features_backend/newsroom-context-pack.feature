@@ -437,3 +437,9 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     Then the save is refused naming the unknown agent
     When an admin saves agent instructions with an empty role for the agent "editor"
     Then the save is refused naming the role of editor
+
+  Scenario: Agent instructions that cannot be read stop the pack rather than falling back to the default role
+    Given the site wrote the copywriter's role as "ROLE-WRITE-THE-JOKE. You write satire for readers who know it is satire."
+    And the site's agent instructions document cannot be read
+    When the copywriter's context pack is built for the Story, which fails
+    Then no pack is made and the failure says the document could not be read

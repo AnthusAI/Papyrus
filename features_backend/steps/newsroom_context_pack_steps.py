@@ -1751,3 +1751,22 @@ def step_refused_unknown(context):
 @then("the save is refused naming the role of editor")
 def step_refused_empty(context):
     assert context.instructions_refusal and "role of editor" in context.instructions_refusal, context.instructions_refusal
+
+
+@given("the site's agent instructions document cannot be read")
+def step_unreadable_instructions(context):
+    context.guideline_files.get = lambda _attachment: None
+
+
+@when("the copywriter's context pack is built for the Story, which fails")
+def step_pack_fails(context):
+    context.pack_error = None
+    try:
+        context.pack = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1")
+    except GuidelineError as error:
+        context.pack_error = str(error)
+
+
+@then("no pack is made and the failure says the document could not be read")
+def step_pack_failed(context):
+    assert context.pack_error and "could not be read" in context.pack_error, context.pack_error
