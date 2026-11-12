@@ -102,12 +102,25 @@ def step_refused(context, text):
     assert context.refusal and text in context.refusal, context.refusal
 
 
-@given("the Story's checklist was made by a role that could not read the site's documents")
-def step_made_blind(context):
-    from papyrus_content import story_checklist as checklist
+@given("a site whose procedure document cannot be read")
+def step_unreadable(context):
+    use_procedure(context, [{"key": "choose"}, {"key": "draft"}, own_step(), {"key": "publish"}])
+
+    def broken(_attachment):
+        return None   # the file is gone: the catalog row exists, the document does not
+
+    context.site_files.get = broken
+    context.client_procedure_cache_cleared = getattr(client_of(context), "_papyrus_story_procedure", None) is None
+
+
+@then("publishing is refused rather than judged against the default list")
+def step_publish_refused(context):
+    from papyrus_content.publishing import PublishError, publish_item
 
     client = client_of(context)
-    with mock.patch("papyrus_content.editorial_commands.read_item_check_run", lambda _item_id: None):
-        checklist.sync_checklist(client, "story-1", now="2026-11-07T10:00:00.000000Z", read_procedure=False)
-    names = {row["stepKey"] for row in checklist.read_steps(client, "story-1")}
-    assert "review_people" in names and "label_check" not in names, names
+    try:
+        publish_item(client, f"story-1-v{context.world.version_number}", actor="editor", approved_by="editor-sub")
+    except (PublishError, GuidelineError) as error:
+        assert "could not be read" in str(error), str(error)
+        return
+    raise AssertionError("the Story was published")

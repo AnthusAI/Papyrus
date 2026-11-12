@@ -275,14 +275,14 @@ def _reopened_by_person(row: dict[str, Any]) -> bool:
 
 
 def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None, assessment: dict[str, Any] | None = None,
-                   now: str | None = None, write_summary: bool = True, read_procedure: bool = True) -> dict[str, Any]:
+                   now: str | None = None, write_summary: bool = True) -> dict[str, Any]:
     """Brings the Story's checklist up to date once, after a change: creates a missing item (the whole checklist for a new Story, a new
     template step for an unpublished one), marks an open item done when its evidence exists, and refreshes the summary.
 
     A published Story gets no new template steps: its checklist is a record of what happened. An item a person reopened is not marked done
     again by evidence, and an item already skipped, not applicable or done is left as it is."""
     now = now or utc_now()
-    facts = facts or story_facts(client, lineage, read_procedure=read_procedure)
+    facts = facts or story_facts(client, lineage)
     procedure = Procedure.from_spec(facts.get("procedureSpec"))
     assessment = assessment or assess(facts)
     states = {row["key"]: row.get("evidence", row["state"]) for row in assessment["steps"]}   # what the records prove, never the stored answer
@@ -320,31 +320,24 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
             _write(client, row, supersede=write_summary)
             rows[step.key] = row
             completed.append(step.key)
-    if procedure.source == "site" and facts["stage"] != "published":
-        # A checklist made by a role that could not read the site's procedure holds the default steps: the ones the site left out are retired, not left open.
-        for key, row in list(rows.items()):
-            if key not in procedure.by_key and row["state"] == OPEN:
-                row = _apply(row, NOT_APPLICABLE, TEMPLATE_ACTOR, now, reason="not in the site's procedure", story_version=version)
-                _write(client, row, supersede=write_summary)
-                rows[key] = row
     ordered = sorted(rows.values(), key=lambda row: (int(row.get("stepOrder") or 0), row["stepKey"]))
     # The research worker's role may create Items but not update them: it leaves the card summary (and the old version's mark) for the next change by an editor.
     summary = refresh_summary(client, lineage, ordered, now=now, procedure=procedure) if write_summary else summary_of(ordered, procedure)
     return {"created": created, "completed": completed, "summary": summary}
 
 
-def sync_quietly(client, lineage: str, *, facts=None, assessment=None, write_summary: bool = True, read_cover: bool = True, read_procedure: bool = True) -> dict[str, Any] | None:
+def sync_quietly(client, lineage: str, *, facts=None, assessment=None, write_summary: bool = True, read_cover: bool = True) -> dict[str, Any] | None:
     """``sync_checklist`` for a write that has already happened: a failure prints one line to stderr and never changes the write's result."""
     try:
-        return sync_checklist(client, lineage, facts=facts, assessment=assessment, write_summary=write_summary, read_procedure=read_procedure)
+        return sync_checklist(client, lineage, facts=facts, assessment=assessment, write_summary=write_summary)
     except Exception as error:  # noqa: BLE001 - the checklist follows the write; the write stands
         print(f"checklist\tnot updated\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
         return None
 
 
-def ensure_for_new_story(client, lineage: str, *, read_procedure: bool = True) -> dict[str, Any] | None:
-    """Called by every path that creates a Story, once, right after the Story exists. ``read_procedure=False`` for a role that cannot read the site's documents."""
-    return sync_quietly(client, lineage, read_procedure=read_procedure)
+def ensure_for_new_story(client, lineage: str) -> dict[str, Any] | None:
+    """Called by every path that creates a Story, once, right after the Story exists, under a role that can read the site's documents (the checklist follows the site's procedure)."""
+    return sync_quietly(client, lineage)
 
 
 def _current_version_number(client, lineage: str) -> int | None:
@@ -509,7 +502,7 @@ def require_checklist_closed(client, item: dict[str, Any]) -> None:
     if not is_story_item_type(item.get("type")):
         return
     lineage = item.get("lineageId") or item["id"]
-    procedure = procedure_of(client, strict=True)   # the publish rule never guesses which procedure the site has
+    procedure = procedure_of(client)   # a procedure that cannot be read stops the publish: nothing guesses which one the site has
     rows = read_steps(client, lineage)
     if not rows or any(step.key not in {row["stepKey"] for row in rows} for step in template_steps(procedure) if step.key != PUBLISH_KEY):
         sync_checklist(client, lineage)

@@ -204,29 +204,23 @@ def procedure_from_document(document: dict[str, Any], version: int | None = None
     return Procedure(tuple(steps), "site", version)
 
 
-def procedure_of(client, *, strict: bool = False) -> Procedure:
-    """The Story procedure of the site ``client`` is signed in to: its saved ``procedure`` document, else the default.
+def procedure_of(client) -> Procedure:
+    """The Story procedure of the site ``client`` is signed in to: its saved ``procedure`` document, else the default (the site saved none).
 
-    One read (two index queries and a download) is kept on the client for a minute. When the document cannot be read, ``strict`` raises (the publish rule must not
-    guess); otherwise a line goes to stderr and the default is used, so a reminder never fails for want of a role that can read it."""
+    One read (two index queries and a download) is kept on the client for a minute. A document that cannot be read raises: nothing guesses which procedure
+    the site has, so a reminder is not computed and a Story is not published on the wrong list. A role that cannot read the site's documents does not ask."""
     import time
 
     kept = getattr(client, "_papyrus_story_procedure", None)
     if kept and time.monotonic() - kept[0] < 60:
         return kept[1]
-    try:
-        from .guidelines import GuidelineStore
+    from .guidelines import GuidelineStore
 
-        found = GuidelineStore(client).read("procedure")
-        procedure = DEFAULT_PROCEDURE if found is None else procedure_from_document(found["document"], found["reference"].get("versionNumber"))
-    except Exception as error:  # noqa: BLE001 - see the docstring
-        if strict:
-            raise
-        print(f"procedure\tthe site's Story procedure could not be read, so the default is used\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
-        return DEFAULT_PROCEDURE
+    found = GuidelineStore(client).read("procedure")
+    procedure = DEFAULT_PROCEDURE if found is None else procedure_from_document(found["document"], found["reference"].get("versionNumber"))
     try:
         client._papyrus_story_procedure = (time.monotonic(), procedure)
-    except Exception:  # noqa: BLE001 - a client that cannot hold it reads again next time
+    except AttributeError:   # a client that cannot hold it reads again next time
         pass
     return procedure
 
@@ -241,15 +235,12 @@ def _metadata_of(row: dict[str, Any]) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, Any] | None] | None = None, *, read_cover: bool = True, read_procedure: bool = True) -> dict[str, Any]:
+def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, Any] | None] | None = None, *, read_cover: bool = True) -> dict[str, Any]:
     """Reads the records once: the current version, the lineage's Assignments with their direction and research packets, and the stored check run.
 
     The cover evidence (the version's media and the site's design-system settings) is read only from the copywriting stage on (``read_cover=False`` skips it
     anywhere): before a draft there is no cover to find, and the router and the research worker, which work on Stories then, run under roles that cannot read media.
-    Until then the cover reads as missing, and the next change to the Story (an editor's, past that stage) reads the records.
-
-    ``read_procedure=False`` is for the roles that cannot read the site's documents (the router's filing of an idea, the research worker): the default procedure is
-    used, and the next write by a role that can read the site's own procedure brings the checklist in line with it (``story_checklist.sync_checklist``)."""
+    Until then the cover reads as missing, and the next change to the Story (an editor's, past that stage) reads the records."""
     from .assignments import assignment_metadata
     from .assignments_workflow import load_assignment_research_packet_entries
     from .story_reporting import _current_of, story_versions
@@ -285,7 +276,7 @@ def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, 
     except Exception:
         check_run_error = True
     return {
-        "procedureSpec": procedure_of(client).spec() if read_procedure else None,
+        "procedureSpec": procedure_of(client).spec(),
         "lineage": lineage,
         "stage": current.get("stage") or "idea",
         "versionId": current["id"],
