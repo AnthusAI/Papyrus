@@ -37,6 +37,10 @@ assert.equal(mediaTypeAllowedForRole("visual_example", "image/png", general), tr
 assert.equal(mediaTypeAllowedForRole("visual_example", "application/json", general), false);
 assert.equal(mediaTypeAllowedForRole("metadata", "image/png", general), false);
 assert.equal(mediaTypeAllowedForRole("metadata", "application/json", general), true);
+assert.equal(mediaTypeAllowedForRole("image_candidate_file", "image/png", general), true);
+assert.equal(mediaTypeAllowedForRole("image_candidate_file", "image/svg+xml", general), false);
+assert.equal(mediaTypeAllowedForRole("image_record", "application/json", general), true);
+assert.equal(mediaTypeAllowedForRole("image_record", "image/png", general), false);
 assert.equal(byteLimitForRole("visual_example", 25 * 1024 * 1024), MAX_VISUAL_BYTES);
 assert.equal(byteLimitForRole("metadata", 25 * 1024 * 1024), 25 * 1024 * 1024);
 

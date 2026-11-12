@@ -9,6 +9,9 @@ export const MAX_VISUAL_BYTES = 10 * 1024 * 1024; // the newsroom editor's own M
 // Providers take raster images, so SVG is not accepted.
 export const VISUAL_MEDIA_TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 
+// A generated picture kept with its round (src/papyrus_content/images/candidate_store.py PICTURE_ROLE); it takes the same raster types and the general size cap.
+export const CANDIDATE_PICTURE_ROLE = "image_candidate_file";
+
 export function isVisualRole(role: string): boolean {
   return VISUAL_ROLES.has(role);
 }
@@ -28,9 +31,9 @@ export function assertVisualUpload(input: VisualInput): void {
   if (input.filename !== expected) throw new Error(`An example picture's filename must be ${expected}.`);
 }
 
-/** The image media types are for the visual roles only; no other role may start taking pictures. */
+/** The image media types are for the visual roles and generated candidate pictures only; no other role may start taking pictures. */
 export function mediaTypeAllowedForRole(role: string, mediaType: string, generalTypes: Set<string>): boolean {
-  return isVisualRole(role) ? mediaType in VISUAL_MEDIA_TYPES : generalTypes.has(mediaType);
+  return isVisualRole(role) || role === CANDIDATE_PICTURE_ROLE ? mediaType in VISUAL_MEDIA_TYPES : generalTypes.has(mediaType);
 }
 
 /** Image file sizes have their own cap; every other role keeps the general one. */
