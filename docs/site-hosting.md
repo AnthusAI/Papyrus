@@ -1027,6 +1027,10 @@ A value that is absent is absent: nothing substitutes a default. `updatedAt` sta
 
 `papyrus stories backfill-published-dates` moves Stories published before this change to the meaning above, using only what their versions recorded (the earliest version whose `changeReason` is `publish`; an imported Story's earlier front matter date is kept). It is a dry run unless `--apply`, writes only rows that differ with each row's own `updatedAt`, and lists as `unclear` the Stories whose first publication cannot be derived, for a person to decide. See the agent CLI guide.
 
+A publish at a scheduled time is a normal publish (PPY-085d0b, `docs/scheduled-publishing.md`): `publishedAt` stays the first publication, and `versionPublishedAt` is the moment it actually went live (not the scheduled moment), with `versionPublishedBy` reading `scheduled by <person>`.
+
+`publication.timeZone` (an IANA name such as `America/New_York`) in the site's publication settings turns scheduled publishing on and is the zone editors pick times in; the deploy wires the EventBridge Scheduler role, a dead letter queue and its alarm for it. It needs the S3 projection publication. See `docs/scheduled-publishing.md`.
+
 ### What `content publish` reports, and its exit codes
 
 `papyrus ops content publish --id ID [--verify] [--verify-seconds N] [--json]` reports four stages on their own (PPY-f3b296). A purge or a check that fails never looks like a failed write.
