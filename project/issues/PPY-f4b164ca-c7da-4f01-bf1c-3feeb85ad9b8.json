@@ -1,7 +1,7 @@
 {
   "id": "PPY-f4b164ca-c7da-4f01-bf1c-3feeb85ad9b8",
   "title": "Machines on Machines newsletter launch on the unified system",
-  "description": "**Goal.** Machines on Machines launches its newsletter directly on the unified system: weekly cadence, Ryan as the sole approver, and signup opens only after deliverability readiness passes.\n\n**Build.** Enable the notifications plugin on MoM with a public roundup kind (weekly), Story types declared for articles, sole approver Ryan, sending identity `mail.machines-on-machines.anth.us` (PPY-c522bf). The signup placements stay hidden until the readiness check passes; then they appear in one deploy together with the subscribe and manage pages. Outward-facing sends: the first issue and every issue need Ryan's explicit approval; no automated send.\n\n**Specification.**\n```gherkin\nFeature: Machines on Machines newsletter\n  Scenario: Signup closed until ready\n    Given deliverability readiness has not passed\n    Then no signup form or subscribe page link is shown on the site\n\n  Scenario: Signup opens\n    When the readiness check passes\n    Then signup placements appear and a confirmed reader joins the weekly roundup\n\n  Scenario: Weekly draft\n    When the week ends\n    Then a draft of that week's articles in quality order is made and Ryan is told\n\n  Scenario: Sole approver\n    When anyone but Ryan tries to approve\n    Then it is refused\n\n  Scenario: First send\n    Given Ryan approved the first issue\n    Then it goes to the warm-up cohort only, then widens by the warm-up plan\n```\n\n**Depends on:** public audiences, ownership, issue kind, selection, Analytics events, deliverability readiness.\n**Related:** PPY-31455f.\n\n**Open questions for Ryan:** (1) Which day and hour is the weekly send, in what time zone? (2) Do the first subscribers come only from the site, or also a list you hold?",
+  "description": "**Goal.** Machines on Machines launches its newsletter directly on the unified system: weekly cadence, Ryan as the sole approver, and signup opens only after deliverability readiness passes.\n\n**Build.** Enable the notifications plugin on MoM with a public roundup kind (weekly), Story types declared for articles, sole approver Ryan, sending identity `mail.machines-on-machines.anth.us` (PPY-c522bf). The signup placements stay hidden until the readiness check passes; then they appear in one deploy together with the subscribe and manage pages. Outward-facing sends: the first issue and every issue need Ryan's explicit approval; no automated send.\n\n**Specification.**\n```gherkin\nFeature: Machines on Machines newsletter\n  Scenario: Signup closed until ready\n    Given deliverability readiness has not passed\n    Then no signup form or subscribe page link is shown on the site\n\n  Scenario: Signup opens\n    When the readiness check passes\n    Then signup placements appear and a confirmed reader joins the weekly roundup\n\n  Scenario: Living weekly issue\n    When the weekly period begins (Monday 04:00 in the America/New_York publication zone)\n    Then that period's issue Story is created automatically and fills with qualifying three-star articles through the week\n    And Ryan is told when it is ready to approve\n\n  Scenario: Send time across daylight saving\n    Given the weekly send is Monday 04:00 America/New_York\n    When the clocks change in spring or autumn\n    Then the issue still goes out at 04:00 local time on Monday, stored as UTC and shown in the publication zone\n\n  Scenario: Sole approver\n    When anyone but Ryan tries to approve\n    Then it is refused\n\n  Scenario: First send\n    Given Ryan approved the first issue\n    Then it goes to the warm-up cohort only, then widens by the warm-up plan\n```\n\n**Depends on:** public audiences, ownership, issue kind, selection, Analytics events, deliverability readiness.\n**Related:** PPY-31455f.\n\n**Answered (Ryan, 2026-11-12):** (1) The weekly send is Monday 04:00 Eastern for now, and it may change. The zone is America/New_York; the scheduler works in the publication time zone, handles daylight saving there, stores the time as UTC and shows it in the publication zone (umbrella decisions). The send time is list configuration, not code. Still blocked by the DMARC task PPY-6bcae9.\n\n**Open questions for Ryan:** (1) Do the first subscribers come only from the site, or also a list you hold?",
   "type": "story",
   "status": "open",
   "priority": 2,
@@ -25,11 +25,15 @@
     {
       "target": "PPY-4108efc0-7a86-4947-9ee2-1d3a74998563",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-6bcae926-4710-4471-b65f-47739bc0007f",
+      "type": "blocked-by"
     }
   ],
   "comments": [],
   "created_at": "2026-11-12T12:46:03.801571Z",
-  "updated_at": "2026-11-12T12:46:14.368050Z",
+  "updated_at": "2026-11-12T13:04:03.840914Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
