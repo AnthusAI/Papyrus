@@ -5,7 +5,7 @@ row instead of making another. A row is the audit record: who (the actor), what 
 call cost, the mode and the outcome. The post's text, the link and every check's detail are one JSON document in S3 (a ModelAttachment owned by the row), never in
 DynamoDB. The rows of one account are read through the one index (``accountId`` + ``createdAt``), newest first; nothing lists a table.
 
-``AnnouncementSettings`` is one row, id ``settings``.
+The settings document and the X connection are not here: ``settings.py`` and ``x_account.py`` own them (PPY-ae9d06, PPY-2deb63).
 """
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 from typing import Any, Iterator, Mapping, Protocol
 
 from . import budget as budget_module
-from . import settings as settings_module
 
 ANNOUNCEMENT_MODEL = "Announcement"
 SPEND_MODEL = "AnnouncementSpend"
@@ -27,12 +26,13 @@ POSTING, POSTED, FAILED, BLOCKED, DRY_RUN, WITHDRAWN = "posting", "posted", "fai
 STATES = (POSTING, POSTED, FAILED, BLOCKED, DRY_RUN, WITHDRAWN)
 STATE_LABELS = {POSTING: "Posting", POSTED: "Posted", FAILED: "Failed", BLOCKED: "Blocked", DRY_RUN: "Dry run: not sent", WITHDRAWN: "Withdrawn"}
 
-PAUSED, BUDGET_REACHED, ACCOUNT_NEEDS_RECONNECTING, CHECK_FAILED = "paused", "budget_reached", "account_needs_reconnecting", "check_failed"
+PAUSED, BUDGET_REACHED, ACCOUNT_NEEDS_RECONNECTING, CHECK_FAILED, SETTINGS_INCOMPLETE = "paused", "budget_reached", "account_needs_reconnecting", "check_failed", "settings_incomplete"
 BLOCK_LABELS = {
     PAUSED: "Blocked: paused",
     BUDGET_REACHED: "Blocked: budget reached",
     ACCOUNT_NEEDS_RECONNECTING: "Blocked: account needs reconnecting",
     CHECK_FAILED: "Blocked: check failed",
+    SETTINGS_INCOMPLETE: "Blocked: settings incomplete",
 }
 
 
@@ -87,19 +87,6 @@ class AnnouncementStore:
     def __init__(self, client: Any, files: DocumentFiles | None = None):
         self.client = client
         self.files = files or AttachmentFiles(client)
-
-    # --- settings -----------------------------------------------------------------------------------------------------------------------------------
-
-    def settings(self) -> dict[str, Any]:
-        row = self.client.get_record(settings_module.MODEL, settings_module.SETTINGS_ID)
-        return dict(row) if row else settings_module.blank()
-
-    def save_settings(self, values: Mapping[str, Any], *, actor: str, now: str | None = None) -> dict[str, Any]:
-        """Write the settings row whole (create the first time). ``values`` are already checked."""
-        existing = self.client.get_record(settings_module.MODEL, settings_module.SETTINGS_ID)
-        record = {**{key: value for key, value in values.items() if value is not None}, "id": settings_module.SETTINGS_ID, "updatedBy": actor, "updatedAt": now or now_iso()}
-        (self.client.update_record if existing else self.client.create_record)(settings_module.MODEL, record)
-        return record
 
     # --- announcements ------------------------------------------------------------------------------------------------------------------------------
 

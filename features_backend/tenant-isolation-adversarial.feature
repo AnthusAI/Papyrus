@@ -524,6 +524,13 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | UserRoleAssignment       | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | UserRoleAssignment       | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | UserRoleAssignment       | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | XConnection              | get                             | denied, or returns nothing of "beta"                                  |
+      | XConnection              | list                            | no row of "beta" is returned and pages are not short                  |
+      | XConnection              | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | XConnection              | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | XConnection              | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | XConnection              | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | XConnection              | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
 
   @isolation-pending
   Scenario Outline: Tenant A cannot read tenant B through any index
@@ -748,6 +755,15 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | operation                            | outcome                              |
       | abortModelAttachmentUpload           | denied, or returns nothing of "beta" |
       | addStoryAgentNote                    | denied, or returns nothing of "beta" |
+      | announcementsPause                   | denied, or returns nothing of "beta" |
+      | announcementsSaveSettings            | denied, or returns nothing of "beta" |
+      | announcementsSettings                | denied, or returns nothing of "beta" |
+      | announcementsXBegin                  | denied, or returns nothing of "beta" |
+      | announcementsXComplete               | denied, or returns nothing of "beta" |
+      | announcementsXDisconnect             | denied, or returns nothing of "beta" |
+      | announcementsXSaveApp                | denied, or returns nothing of "beta" |
+      | announcementsXStatus                 | denied, or returns nothing of "beta" |
+      | announcementsXUsage                  | denied, or returns nothing of "beta" |
       | applyKnowledgeReview                 | denied, or returns nothing of "beta" |
       | approveCurationDelegation            | denied, or returns nothing of "beta" |
       | archiveDraftCategory                 | denied, or returns nothing of "beta" |
@@ -879,6 +895,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
     Examples: generated from the schema
       | function                   | outcome                            |
       | alexa/function             | reads and writes nothing of "beta" |
+      | announcements              | reads and writes nothing of "beta" |
       | assignment-action          | reads and writes nothing of "beta" |
       | automation-view            | reads and writes nothing of "beta" |
       | category-action            | reads and writes nothing of "beta" |

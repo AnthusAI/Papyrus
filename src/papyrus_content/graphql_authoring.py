@@ -131,9 +131,6 @@ ANNOUNCEMENT_FIELDS = (
     "id accountId accountHandle storyLineageId storyItemId storyVersionNumber channel state blockedReason mode trigger link weight draftedBy checks postId postedAt cost "
     "attempts round error history withdrawnBy withdrawnAt createdAt updatedAt"
 )
-ANNOUNCEMENT_SETTINGS_FIELDS = (
-    "id mode minStars storyTypes sections accountId accountHandle budget billingCycleDay prices pricesAsOf labelConfirmed paused pausedBy pausedAt pauseReason updatedBy updatedAt"
-)
 ANNOUNCEMENT_SPEND_FIELDS = "id accountId cycleStart total updatedAt"
 REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"
 EDITORIAL_CHECK_SETTINGS_FIELDS = "id settings"
@@ -221,7 +218,6 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "ReviewReadMark": {"field": "listReviewReadMarks", "fields": REVIEW_READ_MARK_FIELDS},
     "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
     "Announcement": {"field": "listAnnouncements", "fields": ANNOUNCEMENT_FIELDS},
-    "AnnouncementSettings": {"field": "listAnnouncementSettings", "fields": ANNOUNCEMENT_SETTINGS_FIELDS},
     "AnnouncementSpend": {"field": "listAnnouncementSpends", "fields": ANNOUNCEMENT_SPEND_FIELDS},
     "ReviewRecipientRule": {"field": "listReviewRecipientRules", "fields": REVIEW_RECIPIENT_RULE_FIELDS},
     "EditorialCheckSettings": {"field": "listEditorialCheckSettings", "fields": EDITORIAL_CHECK_SETTINGS_FIELDS},

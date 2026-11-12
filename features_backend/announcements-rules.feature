@@ -57,9 +57,13 @@ Feature: The site owner decides what is announced
     When the Article is announced again because a corrected version was published
     Then there is still exactly one announcement for it
 
-  Scenario: Turning announcements on needs everything the owner must decide
-    When the owner turns the mode On without a budget, an account label confirmation or prices
-    Then the announcement settings are refused with every missing decision listed
+  Scenario: On needs the Automated label confirmed
+    When the owner turns the mode On without confirming the Automated label
+    Then the announcement settings are refused with "Confirm that the account shows X's Automated label before turning announcements on."
+
+  Scenario: On needs a budget
+    When the owner turns the mode On without a budget
+    Then the announcement settings are refused with "Enter a budget per X billing cycle before turning announcements on."
 
   Scenario: A retired Story is not announced
     Given the site announces Articles rated 5 stars, in Dry run

@@ -17,7 +17,7 @@ from papyrus_content.item_stars import effective_rating
 from papyrus_content.newsletter.roundup import _front_matter, item_path
 from papyrus_content.story_reporting import current_story_version, published_story_version
 
-from .settings import OFF
+from .rules import OFF
 
 
 @dataclass(frozen=True)

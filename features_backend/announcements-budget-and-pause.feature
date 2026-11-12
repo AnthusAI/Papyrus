@@ -7,11 +7,11 @@ Feature: Announcements never cost more than the owner allowed
     And an X account "mom" is connected to the site
     And the site announces Articles rated 5 stars with a budget of $10.00, in Dry run
 
-  Scenario: Pausing stops everything and says why
-    When the owner pauses announcements with the reason "Checking the first posts"
+  Scenario: Pausing stops everything and says who and why
+    When the owner pauses announcements
     And a 5-star Article is published
     Then the Article is "Blocked: paused"
-    And the settings say the pause was made by "ryan" with the reason "Checking the first posts"
+    And the settings say the pause was made by "ryan" with the reason "Paused by hand."
 
   Scenario: Resuming announces what waited
     Given announcements are paused
@@ -43,11 +43,11 @@ Feature: Announcements never cost more than the owner allowed
     When a 5-star Article is published
     Then the Article is recorded as "Dry run: not sent"
 
-  Scenario: An account that needs reconnecting pauses announcements
+  Scenario: An account that needs reconnecting holds the Story
     Given the account needs reconnecting
     When a 5-star Article is published
     Then the Article is "Blocked: account needs reconnecting"
-    And announcements are paused
+    And the editors are told the account needs reconnecting
 
   Scenario: The guard Caducus asks refuses a post that would pass the budget
     Given $9.90 is already spent this cycle

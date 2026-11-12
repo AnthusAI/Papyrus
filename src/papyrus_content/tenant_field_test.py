@@ -29,7 +29,7 @@ def tenant_field_flag(monkeypatch):
 
 
 def test_the_field_models_exclude_global_identity_and_the_fully_tenant_models():
-    assert len(TENANT_FIELD_MODELS) == 55
+    assert len(TENANT_FIELD_MODELS) == 52
     assert not TENANT_FIELD_MODELS & {"UserProfile", "UserIdentity", "PublicHandleClaim"}
     assert not TENANT_FIELD_MODELS & TENANT_MODELS
 

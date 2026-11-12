@@ -3774,13 +3774,7 @@
       "effect": "write",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Why, in plain words. It is shown beside who paused and when."
-          }
-        },
+        "properties": {},
         "required": [],
         "additionalProperties": false
       },
@@ -3865,81 +3859,47 @@
                   "on"
                 ]
               },
-              "minStars": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "storyTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "sections": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "accountId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "accountHandle": {
-                "type": "string",
-                "minLength": 1
+              "rules": {
+                "type": "object",
+                "description": "minStars, storyTypes and sections: what is announced."
               },
               "budget": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Dollars for each X billing cycle, such as 10.00."
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Dollars for each X billing cycle. No default."
               },
               "billingCycleDay": {
-                "type": "integer",
-                "minimum": 1
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "prices": {
                 "type": "object",
-                "description": "X's price list: post, postWithLink, delete, read, each in dollars."
-              },
-              "pricesAsOf": {
-                "type": "string",
-                "minLength": 1
+                "description": "X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied."
               },
               "labelConfirmed": {
                 "type": "boolean"
               },
-              "paused": {
-                "type": "boolean"
-              },
-              "pausedBy": {
-                "type": "string",
-                "minLength": 1
-              },
-              "pausedAt": {
-                "type": "string",
-                "minLength": 1
-              },
-              "pauseReason": {
-                "type": "string",
-                "minLength": 1
+              "pause": {
+                "type": "object",
+                "description": "paused, reason (budget, disconnected or manual), detail, by and at."
               }
             },
             "required": [
               "mode"
             ]
           },
-          "qualityFloor": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "The site's quality floor in stars; the bar cannot go below it."
+          "connection": {
+            "type": "object",
+            "description": "The X connection's status: connection, handle, accountId and refresh health. Never a secret."
           }
         },
         "required": [
           "settings",
-          "qualityFloor"
+          "connection"
         ]
       }
     },
@@ -3964,7 +3924,7 @@
           "minStars": {
             "type": "integer",
             "minimum": 1,
-            "description": "The lowest star rating that is announced, 1 to 5, never below the quality floor."
+            "description": "The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars)."
           },
           "storyTypes": {
             "type": "array",
@@ -3972,7 +3932,7 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Story types that are announced, such as article. References are never announced."
+            "description": "Story types that are announced: article, post. References are never announced."
           },
           "sections": {
             "type": "array",
@@ -3981,15 +3941,6 @@
               "minLength": 1
             },
             "description": "Limit to these sections."
-          },
-          "accountId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "The connected X account's id."
-          },
-          "accountHandle": {
-            "type": "string",
-            "minLength": 1
           },
           "budget": {
             "type": "string",
@@ -4003,12 +3954,7 @@
           },
           "prices": {
             "type": "object",
-            "description": "X's price list as dollars: post, postWithLink, delete, read."
-          },
-          "pricesAsOf": {
-            "type": "string",
-            "minLength": 1,
-            "description": "The date you copied the prices from X, YYYY-MM-DD."
+            "description": "X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it)."
           },
           "labelConfirmed": {
             "type": "boolean",
@@ -4032,66 +3978,33 @@
                   "on"
                 ]
               },
-              "minStars": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "storyTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "sections": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "accountId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "accountHandle": {
-                "type": "string",
-                "minLength": 1
+              "rules": {
+                "type": "object",
+                "description": "minStars, storyTypes and sections: what is announced."
               },
               "budget": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Dollars for each X billing cycle, such as 10.00."
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Dollars for each X billing cycle. No default."
               },
               "billingCycleDay": {
-                "type": "integer",
-                "minimum": 1
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "prices": {
                 "type": "object",
-                "description": "X's price list: post, postWithLink, delete, read, each in dollars."
-              },
-              "pricesAsOf": {
-                "type": "string",
-                "minLength": 1
+                "description": "X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied."
               },
               "labelConfirmed": {
                 "type": "boolean"
               },
-              "paused": {
-                "type": "boolean"
-              },
-              "pausedBy": {
-                "type": "string",
-                "minLength": 1
-              },
-              "pausedAt": {
-                "type": "string",
-                "minLength": 1
-              },
-              "pauseReason": {
-                "type": "string",
-                "minLength": 1
+              "pause": {
+                "type": "object",
+                "description": "paused, reason (budget, disconnected or manual), detail, by and at."
               }
             },
             "required": [

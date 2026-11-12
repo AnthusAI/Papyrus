@@ -66,7 +66,6 @@ export type ImageErrorCode =
   | "candidate_not_ready"
   | "candidate_closed"
   | "settings_refused"
-  | "channel_not_available"
   | "unknown_kind"
   | "resolver_not_available"
   | "document_hash_mismatch"
@@ -1057,10 +1056,7 @@ export type AnnouncementsDryRunResult = {
 };
 
 /** Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused. */
-export type AnnouncementsPauseInput = {
-  /** Why, in plain words. It is shown beside who paused and when. */
-  reason?: string;
-};
+export type AnnouncementsPauseInput = Record<string, unknown>;
 
 export type AnnouncementsPauseResult = {
   paused: boolean;
@@ -1083,48 +1079,37 @@ export type AnnouncementsSettingsShowInput = Record<string, unknown>;
 export type AnnouncementsSettingsShowResult = {
   settings: {
     mode: "off" | "dry_run" | "on";
-    minStars?: number;
-    storyTypes?: string[];
-    sections?: string[];
-    accountId?: string;
-    accountHandle?: string;
-    /** Dollars for each X billing cycle, such as 10.00. */
-    budget?: string;
-    billingCycleDay?: number;
-    /** X's price list: post, postWithLink, delete, read, each in dollars. */
+    /** minStars, storyTypes and sections: what is announced. */
+    rules?: Record<string, unknown>;
+    /** Dollars for each X billing cycle. No default. */
+    budget?: number | null;
+    billingCycleDay?: number | null;
+    /** X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied. */
     prices?: Record<string, unknown>;
-    pricesAsOf?: string;
     labelConfirmed?: boolean;
-    paused?: boolean;
-    pausedBy?: string;
-    pausedAt?: string;
-    pauseReason?: string;
+    /** paused, reason (budget, disconnected or manual), detail, by and at. */
+    pause?: Record<string, unknown>;
   };
-  /** The site's quality floor in stars; the bar cannot go below it. */
-  qualityFloor: number;
+  /** The X connection's status: connection, handle, accountId and refresh health. Never a secret. */
+  connection: Record<string, unknown>;
 };
 
 /** Change announcement settings. Every rule is checked and every problem listed; nothing is saved when any fails. */
 export type AnnouncementsSettingsSetInput = {
   /** Off (default), Dry run (builds the post, sends nothing) or On. */
   mode?: "off" | "dry_run" | "on";
-  /** The lowest star rating that is announced, 1 to 5, never below the quality floor. */
+  /** The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars). */
   minStars?: number;
-  /** Story types that are announced, such as article. References are never announced. */
+  /** Story types that are announced: article, post. References are never announced. */
   storyTypes?: string[];
   /** Limit to these sections. */
   sections?: string[];
-  /** The connected X account's id. */
-  accountId?: string;
-  accountHandle?: string;
   /** Dollars for each X billing cycle, such as 10.00. No default. */
   budget?: string;
   /** The day of the month your X billing cycle starts. */
   billingCycleDay?: number;
-  /** X's price list as dollars: post, postWithLink, delete, read. */
+  /** X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it). */
   prices?: Record<string, unknown>;
-  /** The date you copied the prices from X, YYYY-MM-DD. */
-  pricesAsOf?: string;
   /** The account shows X's Automated label, managed by a person's account. */
   labelConfirmed?: boolean;
 };
@@ -1132,22 +1117,16 @@ export type AnnouncementsSettingsSetInput = {
 export type AnnouncementsSettingsSetResult = {
   settings: {
     mode: "off" | "dry_run" | "on";
-    minStars?: number;
-    storyTypes?: string[];
-    sections?: string[];
-    accountId?: string;
-    accountHandle?: string;
-    /** Dollars for each X billing cycle, such as 10.00. */
-    budget?: string;
-    billingCycleDay?: number;
-    /** X's price list: post, postWithLink, delete, read, each in dollars. */
+    /** minStars, storyTypes and sections: what is announced. */
+    rules?: Record<string, unknown>;
+    /** Dollars for each X billing cycle. No default. */
+    budget?: number | null;
+    billingCycleDay?: number | null;
+    /** X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied. */
     prices?: Record<string, unknown>;
-    pricesAsOf?: string;
     labelConfirmed?: boolean;
-    paused?: boolean;
-    pausedBy?: string;
-    pausedAt?: string;
-    pauseReason?: string;
+    /** paused, reason (budget, disconnected or manual), detail, by and at. */
+    pause?: Record<string, unknown>;
   };
   released: Record<string, unknown>[];
 };

@@ -72,6 +72,20 @@ class Broadcaster(Protocol):
 
 
 def prices_from_settings(settings: Mapping[str, Any]) -> dict[str, tuple[Decimal, str]]:
-    """The site's X price table as ``{name: (amount, note)}`` for Caducus's ``PriceTable``; each note names X's list and the date it was copied."""
-    note = f"X API price list (docs.x.com/x-api/getting-started/pricing), copied {settings.get('pricesAsOf')}"
-    return {name: (Decimal(str(amount)), note) for name, amount in (settings.get("prices") or {}).items()}
+    """The site's X price table (the settings document's ``prices``) as ``{field: (amount, note)}`` for Caducus's ``PriceTable(post, post_with_url, delete, read_per_post)``;
+    each note names X's list and the date it was copied."""
+    prices = settings.get("prices") or {}
+    note = f"X API price list (docs.x.com/x-api/getting-started/pricing), copied {prices.get('asOf')}"
+    names = {"post": "createPost", "post_with_url": "createPostWithUrl", "delete": "deletePost", "read_per_post": "readPost"}
+    return {caducus_name: (Decimal(str(prices[name])), note) for caducus_name, name in names.items()}
+
+
+class CaducusTokens:
+    """Caducus's ``TokenProvider`` over the account connection: one account per site, so the account Caducus names is the connected one. The connection keeps the rotating
+    refresh token and refreshes under its own lease; this never sees either."""
+
+    def __init__(self, accounts: Any):
+        self._accounts = accounts
+
+    def access_token(self, account: Any) -> str:
+        return self._accounts.access_token()

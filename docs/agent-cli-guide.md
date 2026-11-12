@@ -521,19 +521,19 @@ A site announces a Story on its own X account once, automatically, when the Stor
 ```sh
 papyrus announcements account status
 papyrus announcements settings show
-papyrus announcements settings set --mode dry_run --min-stars 5 --story-types article --account-id mom --budget 10.00 --billing-cycle-day 1 --prices-as-of 2026-11-12 --label-confirmed --input-file ./prices.json
+papyrus announcements settings set --mode dry_run --min-stars 5 --story-types article --budget 10.00 --billing-cycle-day 1 --label-confirmed --input-file ./prices.json
 papyrus announcements dry-run story-containment-note
 papyrus announcements list --state dry_run
 papyrus announcements show story-containment-note
-papyrus announcements pause --reason "Checking the first posts"
+papyrus announcements pause
 papyrus announcements resume
 ```
 
-- `prices.json` holds `{"prices": {"post": "0.015", "postWithLink": "0.200", "delete": "0.010", "read": "0.005"}}` copied from X's price list (docs.x.com/x-api/getting-started/pricing); `--input-file` is how an object is given. Every rule is checked and every problem is listed in `details.problems`; nothing is saved when one fails.
+- `prices.json` holds `{"prices": {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}}` copied from X's price list (docs.x.com/x-api/getting-started/pricing); `--input-file` is how an object is given. The site's `announcements` function checks every rule and refuses with the plain sentence (`settings_refused`); nothing is saved when one fails. `--billing-cycle-day` is the day of the month your X billing cycle starts: the budget is per cycle.
 - `dry-run STORY` prints the exact post, its link with the UTM tags, its weight and every check, for any Story in any mode, and records nothing. `eligible` and `reason` say whether the rules would announce it.
 - `list` and `show` give the plain `label` (`Dry run: not sent`, `Posting`, `Posted`, `Failed`, `Blocked: paused`, `Blocked: budget reached`, `Blocked: check failed`, `Withdrawn`) beside the state, the post id, the cost and the history of who did what and when. The post text is in S3; `show` returns it in `document`.
-- `pause` stops all posting and says who and why; `resume` announces the Stories that waited. A pause the budget caused ends by itself when the budget has room (a new cycle, or a raised budget); a pause a person made never does.
-- Connecting the X account needs the browser (OAuth): the newsroom's Administration, Announcements page. The CLI never accepts a token or secret.
+- `pause` stops all posting and says who and when; `resume` announces the Stories that waited (a dry run does this at once; with mode On the site's own function hands them to X). A pause the budget caused ends by itself when the budget has room (a new cycle, or a raised budget); a pause a person made, and one a broken X connection caused, never does.
+- Connecting the X account needs the browser (OAuth): the newsroom's Administration, Announcements page (`docs/x-announcements-setup.md`). The CLI never accepts a token or secret.
 
 ## Ideas
 <!-- guide:ideas -->

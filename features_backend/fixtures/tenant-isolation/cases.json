@@ -1,13 +1,13 @@
 {
   "generatedBy": "scripts/generate-tenant-isolation-cases.ts",
   "summary": {
-    "models": 66,
+    "models": 67,
     "globalModels": 3,
-    "modelCases": 456,
+    "modelCases": 463,
     "indexCases": 186,
     "subscriptionCases": 9,
-    "operationCases": 123,
-    "functionCases": 30,
+    "operationCases": 132,
+    "functionCases": 31,
     "surfaceCases": 9
   },
   "cases": [
@@ -3660,6 +3660,62 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "model:XConnection:get",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s XConnection by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:XConnection:list",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "list",
+      "probe": "alpha lists XConnection rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:XConnection:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists XConnection rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:XConnection:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a XConnection with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:XConnection:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own XConnection setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:XConnection:update-foreign-row",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s XConnection",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:XConnection:delete-foreign-row",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s XConnection",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "index:listAnnouncementsByAccountAndCreatedAt",
       "kind": "index",
       "subject": "listAnnouncementsByAccountAndCreatedAt",
@@ -5236,6 +5292,78 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "operation:announcementsPause",
+      "kind": "operation",
+      "subject": "announcementsPause",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsPause with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsSaveSettings",
+      "kind": "operation",
+      "subject": "announcementsSaveSettings",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsSaveSettings with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsSettings",
+      "kind": "operation",
+      "subject": "announcementsSettings",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsSettings with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXBegin",
+      "kind": "operation",
+      "subject": "announcementsXBegin",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXBegin with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXComplete",
+      "kind": "operation",
+      "subject": "announcementsXComplete",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXComplete with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXDisconnect",
+      "kind": "operation",
+      "subject": "announcementsXDisconnect",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXDisconnect with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXSaveApp",
+      "kind": "operation",
+      "subject": "announcementsXSaveApp",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXSaveApp with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXStatus",
+      "kind": "operation",
+      "subject": "announcementsXStatus",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXStatus with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXUsage",
+      "kind": "operation",
+      "subject": "announcementsXUsage",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXUsage with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "operation:applyKnowledgeReview",
       "kind": "operation",
       "subject": "applyKnowledgeReview",
@@ -6212,6 +6340,14 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:announcements",
+      "kind": "function",
+      "subject": "announcements",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/announcements (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
       "id": "function:assignment-action",
       "kind": "function",
       "subject": "assignment-action",
@@ -6526,11 +6662,6 @@
       "code": "index-not-tenant-prefixed",
       "subject": "itemBySlug",
       "note": "partition key slug on Item is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
-    },
-    {
-      "code": "index-not-tenant-prefixed",
-      "subject": "listAnnouncementsByAccountAndCreatedAt",
-      "note": "partition key accountId on Announcement is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",
@@ -7394,23 +7525,28 @@
     },
     {
       "code": "model-without-tenantId",
+      "subject": "Announcement",
+      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
+    },
+    {
+      "code": "model-without-tenantId",
+      "subject": "AnnouncementSettings",
+      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
+    },
+    {
+      "code": "model-without-tenantId",
+      "subject": "AnnouncementSpend",
+      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
+    },
+    {
+      "code": "model-without-tenantId",
       "subject": "Tenant",
       "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
     },
     {
-      "code": "no-tenant-claim-rule",
-      "subject": "Announcement",
-      "note": "access rests on group rules, none compares tenantId with a token claim"
-    },
-    {
-      "code": "no-tenant-claim-rule",
-      "subject": "AnnouncementSettings",
-      "note": "access rests on group rules, none compares tenantId with a token claim"
-    },
-    {
-      "code": "no-tenant-claim-rule",
-      "subject": "AnnouncementSpend",
-      "note": "access rests on group rules, none compares tenantId with a token claim"
+      "code": "model-without-tenantId",
+      "subject": "XConnection",
+      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
     },
     {
       "code": "no-tenant-claim-rule",
@@ -7776,21 +7912,6 @@
       "code": "subscriptions-enabled",
       "subject": "Reference",
       "note": "realtime subscriptions are not covered by an offline check; run them against the shared stack"
-    },
-    {
-      "code": "tenantId-can-be-changed",
-      "subject": "Announcement",
-      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
-    },
-    {
-      "code": "tenantId-can-be-changed",
-      "subject": "AnnouncementSettings",
-      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
-    },
-    {
-      "code": "tenantId-can-be-changed",
-      "subject": "AnnouncementSpend",
-      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
     },
     {
       "code": "tenantId-can-be-changed",

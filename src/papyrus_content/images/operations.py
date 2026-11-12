@@ -176,8 +176,7 @@ ERRORS = (
     ErrorCode("stale_version", "The Story has a newer version than the one you named. Read it again."),
     ErrorCode("candidate_not_ready", "The picture is still being made."),
     ErrorCode("candidate_closed", "The picture was already discarded, expired or applied."),
-    ErrorCode("settings_refused", "The announcement settings break a rule, so nothing was saved.", details="problems lists each field and what is wrong"),
-    ErrorCode("channel_not_available", "Announcements are On but this site has no X channel wired (the Caducus x channel is not deployed here)."),
+    ErrorCode("settings_refused", "The announcement settings break a rule, so nothing was saved.", details="code names the rule"),
     ErrorCode("unknown_kind", "There is no such kind of guidelines.", details="kinds lists the kinds this site knows"),
     ErrorCode("resolver_not_available", "This kind of guidelines is resolved by its own command, not this one.", details="use names the command"),
     ErrorCode("document_hash_mismatch", "The stored guideline document does not match its recorded hash, so it was not used.", details="itemId"),
@@ -588,14 +587,17 @@ ANNOUNCEMENT = record({
     "withdrawnBy": text(), "createdAt": text(), "updatedAt": text(),
 }, ("id", "state", "label"))
 SETTINGS = record({
-    "mode": choice("off", "dry_run", "on"), "minStars": whole(), "storyTypes": many(text()), "sections": many(text()), "accountId": text(), "accountHandle": text(),
-    "budget": text("Dollars for each X billing cycle, such as 10.00."), "billingCycleDay": whole(), "prices": {"type": "object", "description": "X's price list: post, postWithLink, delete, read, each in dollars."},
-    "pricesAsOf": text(), "labelConfirmed": flag(), "paused": flag(), "pausedBy": text(), "pausedAt": text(), "pauseReason": text(),
+    "mode": choice("off", "dry_run", "on"), "rules": {"type": "object", "description": "minStars, storyTypes and sections: what is announced."},
+    "budget": {"type": ["number", "null"], "description": "Dollars for each X billing cycle. No default."}, "billingCycleDay": {"type": ["integer", "null"]},
+    "prices": {"type": "object", "description": "X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied."},
+    "labelConfirmed": flag(), "pause": {"type": "object", "description": "paused, reason (budget, disconnected or manual), detail, by and at."},
 }, ("mode",))
 _EX_ROW = {"id": "mom#story-1", "accountId": "mom", "storyLineageId": "story-1", "state": "dry_run", "label": "Dry run: not sent", "mode": "dry_run", "weight": 120, "cost": "0",
            "attempts": 0, "history": [{"at": "2026-11-13T09:00:00Z", "by": "system:announcements", "state": "dry_run", "note": "Dry run: not sent"}],
            "createdAt": "2026-11-13T09:00:00Z", "updatedAt": "2026-11-13T09:00:00Z"}
-_EX_SETTINGS = {"mode": "dry_run", "minStars": 5, "storyTypes": ["article"], "accountId": "mom", "budget": "10.00", "billingCycleDay": 1, "pricesAsOf": "2026-11-12", "paused": False}
+_EX_SETTINGS = {"mode": "dry_run", "rules": {"minStars": 5, "storyTypes": ["article"], "sections": []}, "budget": 10, "billingCycleDay": 1,
+                "prices": {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}, "labelConfirmed": True,
+                "pause": {"paused": False, "reason": None, "detail": None, "by": None, "at": None}}
 
 ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
     Operation(
@@ -624,10 +626,10 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "announcements_pause", ("pause",), "Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused.", "write",
-        obj({"reason": text("Why, in plain words. It is shown beside who paused and when.")}),
+        obj({}),
         record({"paused": flag(), "pausedBy": text(), "pausedAt": text(), "pauseReason": text()}, ("paused",)), (),
-        (Example({"reason": "Checking the first posts"}, {"paused": True, "pausedBy": "Ada Admin", "pausedAt": "2026-11-13T10:02:00Z", "pauseReason": "Checking the first posts"}),), group="announcements",
-        notes="Admins write the settings row, so only an admin can pause.",
+        (Example({}, {"paused": True, "pausedBy": "Ada Admin", "pausedAt": "2026-11-13T10:02:00Z", "pauseReason": "Paused by hand."}),), group="announcements",
+        notes="The site's announcements function lets only an admin change the pause. Announcements also pause by themselves, for the budget or a broken X connection, and say why.",
     ),
     Operation(
         "announcements_resume", ("resume",), "Resume announcements and announce the Stories that waited.", "write",
@@ -636,21 +638,21 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "announcements_settings_show", ("settings", "show"), "Show the site's announcement settings: mode, bar, Story types, sections, account, budget, prices and the pause.", "read",
-        obj({}), record({"settings": SETTINGS, "qualityFloor": whole(description="The site's quality floor in stars; the bar cannot go below it.")}, ("settings", "qualityFloor")), (),
-        (Example({}, {"settings": _EX_SETTINGS, "qualityFloor": 3}),), group="announcements",
+        obj({}), record({"settings": SETTINGS, "connection": {"type": "object", "description": "The X connection's status: connection, handle, accountId and refresh health. Never a secret."}}, ("settings", "connection")), (),
+        (Example({}, {"settings": _EX_SETTINGS, "connection": {"connection": "connected", "handle": "@mom_test", "accountId": "mom"}}),), group="announcements",
     ),
     Operation(
         "announcements_settings_set", ("settings", "set"), "Change announcement settings. Every rule is checked and every problem listed; nothing is saved when any fails.", "write",
         obj({"mode": choice("off", "dry_run", "on", description="Off (default), Dry run (builds the post, sends nothing) or On."),
-             "minStars": whole("The lowest star rating that is announced, 1 to 5, never below the quality floor."),
-             "storyTypes": many(text(), "Story types that are announced, such as article. References are never announced."), "sections": many(text(), "Limit to these sections."),
-             "accountId": text("The connected X account's id."), "accountHandle": text(), "budget": text("Dollars for each X billing cycle, such as 10.00. No default."),
-             "billingCycleDay": whole("The day of the month your X billing cycle starts."), "prices": {"type": "object", "description": "X's price list as dollars: post, postWithLink, delete, read."},
-             "pricesAsOf": text("The date you copied the prices from X, YYYY-MM-DD."), "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account.")}),
-        record({"settings": SETTINGS, "released": many({"type": "object"})}, ("settings", "released")), ("settings_refused", "human_required", "channel_not_available"),
+             "minStars": whole("The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars)."),
+             "storyTypes": many(text(), "Story types that are announced: article, post. References are never announced."), "sections": many(text(), "Limit to these sections."),
+             "budget": text("Dollars for each X billing cycle, such as 10.00. No default."), "billingCycleDay": whole("The day of the month your X billing cycle starts."),
+             "prices": {"type": "object", "description": "X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it)."},
+             "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account.")}),
+        record({"settings": SETTINGS, "released": many({"type": "object"})}, ("settings", "released")), ("settings_refused", "human_required"),
         (Example({"minStars": 5}, {"settings": _EX_SETTINGS, "released": []}),), group="announcements", agent_allowed=False,
         notes="A person only: it sets what the publication says in public and how much it may spend. There is no approval setting: a draft that passes the automatic checks is posted. "
-              "prices is given with --input-file. Raising the budget, or any change while Stories wait on a guard, announces the Stories that waited.",
+              "prices is given with --input-file. The X account is connected in the browser, never here. Raising the budget, or any change while Stories wait on a guard, announces the Stories that waited.",
     ),
     Operation(
         "announcements_account_status", ("account", "status"), "Show mode, pause, the cycle's spend against the budget, and the connected account.", "read",

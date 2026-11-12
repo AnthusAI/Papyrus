@@ -27,7 +27,7 @@ TENANT_MODELS = frozenset(
 #: Global identity models (UserProfile, UserIdentity, PublicHandleClaim) stay out.
 TENANT_FIELD_MODELS = frozenset({
     "UserRoleAssignment", "Assignment", "AssignmentEvent", "ProcedureDefinition", "ProcedureVersion", "ProcedureRun", "Automation",
-    "ReviewRequest", "ReviewReadMark", "StoryVariation", "Announcement", "AnnouncementSettings", "AnnouncementSpend", "ReviewRecipientRule", "KnowledgeCorpus", "KnowledgeImportRun",
+    "ReviewRequest", "ReviewReadMark", "StoryVariation", "ReviewRecipientRule", "KnowledgeCorpus", "KnowledgeImportRun",
     "KnowledgeRawPayload", "CurationDelegationRecord", "KnowledgeArtifact", "CategorySet", "Category", "CategoryKeyword",
     "LexicalSteeringRule", "SteeringProposal", "SteeringDecision", "Reference", "ReferenceAttachment", "SemanticNode", "Message",
     "MessageThread", "ModelAttachment", "SemanticRelationType", "SemanticRelation", "Tag", "ItemTag", "Edition", "EditionItem",

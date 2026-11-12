@@ -26,15 +26,15 @@ from .channel import FAILED, QUEUED, REFUSED, SENT, WITHDRAWN, Broadcaster, Chan
 from .drafting import Draft, DraftRefused, Llm, RuleLane, draft_announcement
 from .eligibility import StoryFacts, load_story, verdict
 from .post import tagged_link
-from .settings import DRY_RUN, OFF, ON
+from .rules import DRY_RUN, OFF, ON, PAUSE_BUDGET, SYSTEM, post_price, view
 from .store import (ACCOUNT_NEEDS_RECONNECTING, BLOCKED, BUDGET_REACHED, CHECK_FAILED, DRY_RUN as DRY_RUN_STATE, FAILED as FAILED_STATE, PAUSED, POSTED, POSTING,
-                    WITHDRAWN as WITHDRAWN_STATE, AlreadyAnnounced, AnnouncementStore, announcement_id)
+                    SETTINGS_INCOMPLETE, WITHDRAWN as WITHDRAWN_STATE, AlreadyAnnounced, AnnouncementStore, announcement_id)
 
-SYSTEM_ACTOR = "system:announcements"
+SYSTEM_ACTOR = SYSTEM
 BUDGET_PAUSE_REASON = "Budget reached for this cycle"
 CHANNEL = "x"
 #: Blocked rows the engine tries again on its own when a guard lifts. A row blocked by a failed check waits for an editor.
-GUARD_REASONS = (PAUSED, BUDGET_REACHED, ACCOUNT_NEEDS_RECONNECTING)
+GUARD_REASONS = (PAUSED, BUDGET_REACHED, ACCOUNT_NEEDS_RECONNECTING, SETTINGS_INCOMPLETE)
 
 
 @dataclass
@@ -49,12 +49,19 @@ class Services:
     judge: fact_check.Judge | None = None
     rule_lane: RuleLane | None = None
     broadcaster: Broadcaster | None = None
-    #: ``account_id -> None`` when the account can post, or the plain reason it cannot (the connection owns this: PPY-2deb63).
-    account_problem: Callable[[str], str | None] = lambda account_id: None
+    #: The settings document (``settings.AnnouncementSettings``: ``read``, ``pause``, ``resume``, ``resume_if``) and the account connection's status
+    #: (``x_account.XAccounts.status``): the two things this package reads and never keeps a copy of.
+    settings: Any = None
+    connection: Callable[[], Mapping[str, Any]] = lambda: {}
     #: ``(kind, facts)``: tells the editors (a Caducus operator-class event). None tells no one.
     notify: Callable[[str, Mapping[str, Any]], None] | None = None
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
     model: str = ""
+
+
+def current(services: Services) -> dict[str, Any]:
+    """The settings and the connection as one flat view (``rules.view``)."""
+    return view(services.settings.read(), services.connection())
 
 
 def _iso(moment: datetime) -> str:
@@ -80,34 +87,37 @@ def standing(services: Services, settings: Mapping[str, Any]) -> budget_module.S
 
 def lift_budget_pause(services: Services, settings: dict[str, Any]) -> dict[str, Any]:
     """A pause the budget caused ends by itself when the budget has room again (a new cycle, or the owner raised it). A pause a person made never does."""
-    if not (settings.get("paused") and settings.get("pausedBy") == SYSTEM_ACTOR and settings.get("pauseReason") == BUDGET_PAUSE_REASON):
+    if not (settings["paused"] and settings["pauseKind"] == PAUSE_BUDGET and settings["pausedBy"] == SYSTEM):
         return settings
-    if standing(services, settings).would_pass(budget_module.post_price(settings)):
+    if standing(services, settings).would_pass(post_price(settings)):
         return settings
-    return services.store.save_settings({**settings, "paused": False, "pausedBy": None, "pausedAt": None, "pauseReason": None}, actor=SYSTEM_ACTOR, now=_iso(services.now()))
+    services.settings.resume_if(PAUSE_BUDGET)
+    return current(services)
 
 
 def guard(services: Services, settings: dict[str, Any]) -> tuple[str, str] | None:
     """The first guard that stops a post: ``(reason code, plain words)``, or None when the Story may go on."""
-    if settings.get("paused"):
-        who = settings.get("pausedBy") or "someone"
-        return PAUSED, f"Paused by {who}" + (f", {settings['pausedAt']}" if settings.get("pausedAt") else "") + (f": {settings['pauseReason']}" if settings.get("pauseReason") else "")
-    problem = services.account_problem(settings["accountId"])
-    if problem:
-        return ACCOUNT_NEEDS_RECONNECTING, problem
-    if standing(services, settings).would_pass(budget_module.post_price(settings)):
+    if settings["paused"]:
+        who = settings["pausedBy"] or "someone"
+        return PAUSED, f"Paused by {who}" + (f", {settings['pausedAt']}" if settings["pausedAt"] else "") + (f": {settings['pauseReason']}" if settings["pauseReason"] else "")
+    if not settings["connected"]:
+        return ACCOUNT_NEEDS_RECONNECTING, "The X account needs connecting again" if settings["connectionStatus"] == "needs_reconnecting" else "No X account is connected"
+    if settings["budget"] is None or settings["billingCycleDay"] is None:
+        return SETTINGS_INCOMPLETE, "Enter a budget and the day your X billing cycle starts"
+    if standing(services, settings).would_pass(post_price(settings)):
         return BUDGET_REACHED, BUDGET_PAUSE_REASON
     return None
 
 
-def pause(services: Services, settings: dict[str, Any], *, by: str, reason: str | None) -> dict[str, Any]:
-    return services.store.save_settings({**settings, "paused": True, "pausedBy": by, "pausedAt": _iso(services.now()), "pauseReason": reason}, actor=by, now=_iso(services.now()))
+def pause_for_budget(services: Services) -> dict[str, Any]:
+    services.settings.pause(PAUSE_BUDGET, BUDGET_PAUSE_REASON, SYSTEM, _iso(services.now()))
+    return current(services)
 
 
 # --- the pipeline ------------------------------------------------------------------------------------------------------------------------------------
 
 def process_story(services: Services, lineage_id: str, *, trigger: str, by: str = SYSTEM_ACTOR) -> dict[str, Any]:
-    settings = services.store.settings()
+    settings = current(services)
     if settings.get("mode", OFF) == OFF:
         return result("ignored", "off")
     if settings["mode"] == ON and services.broadcaster is None:
@@ -117,6 +127,8 @@ def process_story(services: Services, lineage_id: str, *, trigger: str, by: str 
     if not decision.eligible:
         return result("ignored", decision.reason)
     account = settings["accountId"]
+    if not account:
+        return result("ignored", "no_account")
     row = services.store.get(account, lineage_id)
     if row is not None and row["state"] == POSTING:
         return sync_row(services, row, by=by)
@@ -142,10 +154,9 @@ def _block(services: Services, settings: dict[str, Any], story: StoryFacts, link
     code, words = stopped
     now = _iso(services.now())
     if code == BUDGET_REACHED:
-        settings = pause(services, settings, by=SYSTEM_ACTOR, reason=BUDGET_PAUSE_REASON)
+        settings = pause_for_budget(services)
         _tell(services, "announcement.budget-reached", story=story.title, spent=standing(services, settings).sentence())
-    if code == ACCOUNT_NEEDS_RECONNECTING and not settings.get("paused"):
-        settings = pause(services, settings, by=SYSTEM_ACTOR, reason=words)
+    if code == ACCOUNT_NEEDS_RECONNECTING:
         _tell(services, "announcement.account-needs-reconnecting", reason=words)
     if row is None:
         try:
@@ -257,16 +268,15 @@ def sync_row(services: Services, row: dict[str, Any], *, by: str = SYSTEM_ACTOR)
 
 def release_blocked(services: Services, *, by: str = SYSTEM_ACTOR) -> list[dict[str, Any]]:
     """Try again every Story that was waiting on a guard. Such rows are newer than the pause that blocked them, so the read stops at the pause."""
-    settings = services.store.settings()
+    settings = current(services)
     if settings.get("mode", OFF) == OFF or not settings.get("accountId"):
         return []
     settings = lift_budget_pause(services, settings)
-    since = settings.get("pausedAt") or "0000-00-00T00:00:00Z"
+    since = settings["pausedAt"] or "0000-00-00T00:00:00Z"
     waiting = [row for row in services.store.since(settings["accountId"], since) if row.get("state") == BLOCKED and row.get("blockedReason") in GUARD_REASONS]
     return [process_story(services, row["storyLineageId"], trigger="resume", by=by) for row in reversed(waiting)]
 
 
 def resume(services: Services, *, by: str) -> list[dict[str, Any]]:
-    settings = services.store.settings()
-    services.store.save_settings({**settings, "paused": False, "pausedBy": None, "pausedAt": None, "pauseReason": None}, actor=by, now=_iso(services.now()))
+    services.settings.resume()
     return release_blocked(services, by=by)

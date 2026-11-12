@@ -52,7 +52,6 @@ export const OPTIONAL_MODEL_GROUPS = {
   editorial: ["EditorialCheckRun", "EditorialFeedback", "EditorialPolicy", "EditorialCheckSettings"],
   steering: ["SteeringProposal", "SteeringDecision", "LexicalSteeringRule"],
   variations: ["StoryVariation"],
-  announcements: ["Announcement", "AnnouncementSettings", "AnnouncementSpend"],
   tenancy: ["Tenant", "TenantMembership", "TenantDomain"],
 } as const;
 
@@ -1601,84 +1600,6 @@ const definitions = {
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups).to(["read", "create", "update"]),
-    ]),
-
-  /** One announcement of a Story on the publication's X account: the audit row (who, what, when, post id, cost, mode, outcome). id = "<accountId>#<storyLineageId>", created with a condition so a Story is announced once per account. The post text is in S3 (ModelAttachment role announcement_document). Group "announcements". */
-  Announcement: modelWithoutSubscriptions({
-      id: a.id().required(),
-      tenantId: a.string(),
-      accountId: a.string().required(),
-      accountHandle: a.string(),
-      storyLineageId: a.id().required(),
-      storyItemId: a.id(),
-      storyVersionNumber: a.integer(),
-      channel: a.string().required(),
-      state: a.string().required(),
-      blockedReason: a.string(),
-      mode: a.string().required(),
-      trigger: a.string(),
-      link: a.string(),
-      weight: a.integer(),
-      draftedBy: a.string(),
-      checks: a.json(),
-      postId: a.string(),
-      postedAt: a.datetime(),
-      cost: a.string(),
-      attempts: a.integer(),
-      round: a.integer(),
-      error: a.string(),
-      history: a.json(),
-      withdrawnBy: a.string(),
-      withdrawnAt: a.datetime(),
-      createdAt: a.datetime().required(),
-      updatedAt: a.datetime().required(),
-    })
-    .secondaryIndexes((index) => [
-      index("accountId").sortKeys(["createdAt"]).queryField("listAnnouncementsByAccountAndCreatedAt"),
-    ])
-    .authorization((allow) => [
-      allow.groups(contentWriteGroups).to(["read", "create", "update"]),
-    ]),
-
-  /** The site's announcement settings: one row, id "settings". Mode Off (default), Dry run or On; the owner's bar, budget and prices; the pause. No secrets. Admins write. Group "announcements". */
-  AnnouncementSettings: modelWithoutSubscriptions({
-      id: a.id().required(),
-      tenantId: a.string(),
-      mode: a.string().required(),
-      minStars: a.integer(),
-      storyTypes: a.string().array(),
-      sections: a.string().array(),
-      accountId: a.string(),
-      accountHandle: a.string(),
-      budget: a.string(),
-      billingCycleDay: a.integer(),
-      prices: a.json(),
-      pricesAsOf: a.string(),
-      labelConfirmed: a.boolean(),
-      paused: a.boolean(),
-      pausedBy: a.string(),
-      pausedAt: a.datetime(),
-      pauseReason: a.string(),
-      updatedBy: a.string(),
-      updatedAt: a.datetime().required(),
-    })
-    .authorization((allow) => [
-      allow.groups(contentWriteGroups).to(["read"]),
-      allow.group(adminGroup).to(authoringOperations),
-    ]),
-
-  /** What an account spent on X in one billing cycle: id = "<accountId>#<cycle start date>", raised once for every charge Caducus records. Group "announcements". */
-  AnnouncementSpend: modelWithoutSubscriptions({
-      id: a.id().required(),
-      tenantId: a.string(),
-      accountId: a.string().required(),
-      cycleStart: a.string().required(),
-      total: a.string().required(),
-      updatedAt: a.datetime().required(),
-    })
-    .authorization((allow) => [
-      allow.groups(contentWriteGroups).to(["read"]),
-      allow.group(adminGroup).to(authoringOperations),
     ]),
 
   /** Who is told about review requests: scope default, mode or automation. Changed by data, not code. */

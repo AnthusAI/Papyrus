@@ -16,7 +16,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any, Mapping
 
-from .settings import money, price
+from .rules import money, post_price
 
 def _clamped(year: int, month: int, day: int) -> date:
     return date(year, month, min(day, calendar.monthrange(year, month)[1]))
@@ -65,11 +65,6 @@ def standing(settings: Mapping[str, Any], spent_so_far: Any, now: datetime) -> S
         raise ValueError("The site has no budget or billing cycle day.")
     start = cycle_start(now, int(settings["billingCycleDay"]))
     return Standing(money_sum(spent_so_far), budget, start, next_cycle_start(start, int(settings["billingCycleDay"])))
-
-
-def post_price(settings: Mapping[str, Any]) -> Decimal:
-    """Announcements always carry a link, so a post costs the link price."""
-    return price(settings, "postWithLink")
 
 
 def suggestion(eligible_count: int, window_days: int, settings: Mapping[str, Any]) -> dict[str, Any]:

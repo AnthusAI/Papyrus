@@ -10,7 +10,8 @@ A Story that qualifies is announced once on the publication's own X account, aut
 
 | Module | What it owns |
 | --- | --- |
-| `settings.py` | The `AnnouncementSettings` row (id `settings`): mode Off (default) / Dry run / On, the minimum stars (1 to 5, never below the quality floor, 3 by default, `quality.floor_stars` in `projection.json`), Story types, optional sections, the account, the budget for each X billing cycle (no default), the billing cycle day, X's price list with the date it was copied, the label confirmation, and the pause. Every rule is checked and every problem listed. |
+| `settings.py`, `x_account.py`, `stores.py`, `actions.py` | The account connection and the settings document (PPY-2deb63, PPY-ae9d06): mode Off (default) / Dry run / On, the pause switch with reason, the bar (minimum stars, never below the 3-star quality floor), Story types, sections, the budget for each X billing cycle (no default), the billing cycle day, X's price list with its date, the Automated-label confirmation; the write-only app keys in SSM SecureString, the refresh under a DynamoDB lease, `needs_reconnecting` with an automatic pause. The `announcements` function serves them to the console and the CLI. |
+| `rules.py` | One flat read of the settings document and the connection, so the pipeline never learns the document's nesting and keeps no copy. |
 | `eligibility.py` | Published, not retired, type and section announced, effective human rating at or above the bar. Unrated and predicted never qualify; References are never announced. A Story that is not eligible leaves no row. |
 | `drafting.py`, `post.py` | The post: drafted by the policy default model (GPT-6 Luna) from title, dek and summary under the site's `writing` guidelines and `announcement` rules (`papyrus guidelines save --kind announcement`), then checked: length as X counts it (links weigh 23, a link carries `utm_source=x&utm_medium=social&utm_campaign=announcement`, no shortener, no media), no invented mention, hashtag or link, the editorial rule lane when wired, and the layered fact check against the Story. A failed draft is `Blocked: check failed` and is never retried by itself. |
 | `budget.py`, `guard.py` | One `AnnouncementSpend` counter per account and cycle, raised for every charge Caducus records. `SpendGuard` is the `Guard` Caducus asks before every post (`refusal`) and after each charge (`charged`). Reaching the budget pauses announcements with the reason; a budget pause ends by itself when there is room, a person's pause never does. |
@@ -18,7 +19,7 @@ A Story that qualifies is announced once on the publication's own X account, aut
 | `store.py` | `Announcement` rows (id `<accountId>#<lineageId>`, created with a condition), the post document in S3 (ModelAttachment role `announcement_document`), the account index. |
 | `channel.py` | The contract with Caducus's `x` channel (PR #13 in AnthusAI/Caducus). |
 
-Storage follows the standing rules: catalog rows only, text in S3, no table is listed (the account's rows are read newest first through the one index on the new `Announcement` table, the other two models are read by id), no AppSync subscription, no new index on an existing table.
+Settings are never stored twice: this package reads the document `settings.py` owns. The token provider for Caducus is `channel.CaducusTokens`, over `XAccounts.access_token`. Storage follows the standing rules: catalog rows only, text in S3, no table is listed (the account's rows are read newest first through the one index on the new `Announcement` table (declared with the function's other models in `amplify/functions/announcements/schema.ts`), the spend counter is read by id), no AppSync subscription, no new index on an existing table.
 
 ## States
 

@@ -131,3 +131,49 @@ class FakeX:
         d = self.deliveries[event_id]
         d.update(status=WITHDRAWN, withdrawnBy=by, withdrawnAt="2026-11-13T12:00:00Z")
         return self.delivery(event_id)
+
+
+class MemoryDocument:
+    """The settings document store (``stores.DynamoSettings`` in the function): ``get`` and ``put`` of one JSON document."""
+
+    def __init__(self) -> None:
+        self.document: dict | None = None
+
+    def get(self) -> dict | None:
+        return copy.deepcopy(self.document)
+
+    def put(self, settings: dict) -> None:
+        self.document = copy.deepcopy(settings)
+
+
+class FakeFunctions:
+    """What ``handlers.Functions`` is, for the specs: the settings class of the ``announcements`` function over an in-memory document, and a connection status that a
+    spec changes. Same methods, so the pipeline and the commands cannot tell the difference."""
+
+    def __init__(self, clock: Any) -> None:
+        from .settings import AnnouncementSettings
+
+        self.clock = clock
+        self.settings = AnnouncementSettings(MemoryDocument(), clock)
+        self.connected = {"connection": "connected", "accountId": "mom", "handle": "@mom_test"}
+
+    def read(self) -> dict:
+        return self.settings.read()
+
+    def save(self, proposed: dict, connection_status: str) -> dict:
+        return self.settings.save(proposed, connection_status)
+
+    def manual_pause(self, paused: bool, by: str) -> dict:
+        return self.settings.manual_pause(paused, by)
+
+    def pause(self, reason: str, detail: str, by: str, at: str) -> None:
+        self.settings.pause(reason, detail, by, at)
+
+    def resume(self) -> None:
+        self.settings.resume()
+
+    def resume_if(self, reason: str) -> None:
+        self.settings.resume_if(reason)
+
+    def status(self) -> dict:
+        return dict(self.connected)

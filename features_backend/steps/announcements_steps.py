@@ -15,16 +15,15 @@ if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from papyrus_content.announcements import budget, operations, post  # noqa: E402
-from papyrus_content.announcements import settings as settings_module  # noqa: E402
 from papyrus_content.announcements.channel import ChannelNotAvailable  # noqa: E402
 from papyrus_content.announcements.engine import Services, process_story, standing  # noqa: E402
-from papyrus_content.announcements.fakes import FakeBackend, FakeX, MemoryFiles  # noqa: E402
+from papyrus_content.announcements.fakes import FakeBackend, FakeFunctions, FakeX, MemoryFiles  # noqa: E402
 from papyrus_content.announcements.guard import SpendGuard  # noqa: E402
-from papyrus_content.announcements.settings import SettingsRefused  # noqa: E402
+from papyrus_content.announcements.x_account import AnnouncementError  # noqa: E402
 from papyrus_content.announcements.store import AnnouncementStore, announcement_id  # noqa: E402
 
 NOW = datetime(2026, 11, 13, 9, 0, tzinfo=timezone.utc)
-PRICES = {"post": "0.015", "postWithLink": "0.200", "delete": "0.010", "read": "0.005"}
+PRICES = {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}
 SUMMARY = "Whether a system can keep a secret from itself."
 DEFAULT_DRAFT = "A look at whether a system can keep a secret from itself."
 
@@ -44,7 +43,6 @@ def setup(context):
     context.files = MemoryFiles(context.backend)
     context.store = AnnouncementStore(context.backend, context.files)
     context.x = FakeX()
-    context.floor = 3
     context.told = []
     context.model_calls = []
     context.model_input = None
@@ -52,7 +50,7 @@ def setup(context):
     context.unsupported = []
     context.rule_problems = []
     context.guidelines = "Voice: plain and kind."
-    context.account_problem = None
+    context.functions = FakeFunctions(lambda: NOW.timestamp())
     context.wired = True
     context.failure = None
     context.last = None
@@ -77,18 +75,17 @@ def services(context):
     return Services(
         client=context.backend, store=context.store, site_origin="https://machines.example", item_url_style="clean",
         guidelines_for=lambda story: context.guidelines, llm=llm, judge=judge, rule_lane=(lambda text: context.rule_problems) if context.rule_problems else None,
-        broadcaster=context.x if context.wired else None, account_problem=lambda account: context.account_problem,
+        broadcaster=context.x if context.wired else None, settings=context.functions, connection=context.functions.status,
         notify=lambda kind, facts: context.told.append((kind, dict(facts))), now=lambda: NOW, model="gpt-6-luna",
     )
 
 
 def save(context, **changes):
-    operations.update_settings(services(context), changes, by="ryan", quality_floor=context.floor)
+    operations.update_settings(services(context), changes, by="ryan")
 
 
 def mom(context, *, mode, stars=5, sections=None, budget_amount="10.00"):
-    changes = {"mode": mode, "minStars": stars, "storyTypes": ["article"], "accountId": "mom", "accountHandle": "@mom_test", "budget": budget_amount,
-               "billingCycleDay": 1, "prices": PRICES, "pricesAsOf": "2026-11-12", "labelConfirmed": True}
+    changes = {"mode": mode, "minStars": stars, "storyTypes": ["article"], "budget": budget_amount, "billingCycleDay": 1, "prices": PRICES, "labelConfirmed": True}
     if sections:
         changes["sections"] = list(sections)
     save(context, **changes)
@@ -118,7 +115,7 @@ def label(context):
 
 
 def guard(context):
-    return SpendGuard(context.store, lambda: NOW)
+    return SpendGuard(context.store, context.functions, lambda: NOW)
 
 
 ACCOUNT = Account("CHANNELACCT#x#mom")
@@ -129,8 +126,7 @@ ACCOUNT = Account("CHANNELACCT#x#mom")
 @given("a site whose quality floor is {floor:d} stars")
 def _floor(context, floor):
     setup(context)
-    context.floor = floor
-
+    
 
 @given('an X account "{account}" is connected to the site')
 def _account(context, account):
@@ -174,7 +170,7 @@ def _refuse(context, message):
 
 @given("the account needs reconnecting")
 def _reconnect(context):
-    context.account_problem = "The X account needs reconnecting"
+    context.functions.connected = {"connection": "needs_reconnecting", "accountId": "mom", "handle": "@mom_test"}
 
 
 @given('the model drafts "{text}"')
@@ -200,7 +196,7 @@ def _no_guidelines(context):
 
 @given("announcements are paused")
 def _paused(context):
-    operations.pause_announcements(services(context), by="ryan", reason=None)
+    operations.pause_announcements(services(context), by="ryan")
 
 
 @given("${amount} is already spent this cycle")
@@ -295,7 +291,7 @@ def _try_save(context, **changes):
     try:
         save(context, **changes)
         context.refusal = None
-    except SettingsRefused as error:
+    except AnnouncementError as error:
         context.refusal = error
 
 
@@ -304,14 +300,19 @@ def _low(context, stars):
     _try_save(context, minStars=stars)
 
 
-@when("the owner turns the mode On without a budget, an account label confirmation or prices")
-def _incomplete(context):
-    _try_save(context, mode="on", minStars=5, storyTypes=["article"], accountId="mom")
+@when("the owner turns the mode On without confirming the Automated label")
+def _no_label(context):
+    _try_save(context, mode="on", minStars=5, storyTypes=["article"], prices=PRICES, budget="10.00", billingCycleDay=1)
 
 
-@when('the owner pauses announcements with the reason "{reason}"')
-def _pause(context, reason):
-    operations.pause_announcements(services(context), by="ryan", reason=reason)
+@when("the owner turns the mode On without a budget")
+def _no_budget(context):
+    _try_save(context, mode="on", minStars=5, storyTypes=["article"], prices=PRICES, labelConfirmed=True)
+
+
+@when("the owner pauses announcements")
+def _pause(context):
+    operations.pause_announcements(services(context), by="ryan")
 
 
 @when("the owner resumes announcements")
@@ -369,12 +370,6 @@ def _none_listed(context):
 @then('the announcement settings are refused with "{message}"')
 def _refused(context, message):
     assert context.refusal is not None and message in str(context.refusal), context.refusal
-
-
-@then("the announcement settings are refused with every missing decision listed")
-def _missing(context):
-    fields = {name for name, _ in context.refusal.problems}
-    assert {"budget", "billingCycleDay", "prices", "labelConfirmed"} <= fields, fields
 
 
 @then('the Article is recorded as "{text}"')
@@ -467,34 +462,39 @@ def _unwired_failed(context):
 
 @then('the settings say the pause was made by "{who}" with the reason "{reason}"')
 def _pause_says(context, who, reason):
-    settings = context.store.settings()
-    assert settings["paused"] and settings["pausedBy"] == who and settings["pauseReason"] == reason, settings
+    pause = context.functions.read()["pause"]
+    assert pause["paused"] and pause["by"] == who and pause["detail"] == reason, pause
 
 
 @then('announcements are paused with "{reason}"')
 def _paused_with(context, reason):
-    settings = context.store.settings()
-    assert settings["paused"] and settings["pauseReason"] == reason and settings["pausedBy"] == "system:announcements", settings
+    pause = context.functions.read()["pause"]
+    assert pause["paused"] and pause["detail"] == reason and pause["by"] == "system" and pause["reason"] == "budget", pause
 
 
 @then("announcements are paused")
 def _is_paused(context):
-    assert context.store.settings()["paused"]
+    assert context.functions.read()["pause"]["paused"]
 
 
 @then("announcements are still paused")
 def _still_paused(context):
-    assert context.store.settings()["paused"]
+    assert context.functions.read()["pause"]["paused"]
 
 
 @then("announcements are no longer paused")
 def _not_paused(context):
-    assert not context.store.settings().get("paused")
+    assert not context.functions.read()["pause"]["paused"]
 
 
 @then("the editors are told the budget was reached")
 def _told_budget(context):
     assert any(kind == "announcement.budget-reached" for kind, _ in context.told), context.told
+
+
+@then("the editors are told the account needs reconnecting")
+def _told_reconnect(context):
+    assert any(kind == "announcement.account-needs-reconnecting" for kind, _ in context.told), context.told
 
 
 @then("the editors are told a check failed")
@@ -530,12 +530,12 @@ def _spend_is(context, amount):
 
 @then('the standing reads "{sentence}"')
 def _standing(context, sentence):
-    assert standing(services(context), context.store.settings()).sentence() == sentence
+    assert standing(services(context), operations.current(services(context))).sentence() == sentence
 
 
 @then('{count:d} eligible Stories in {days:d} days at ${price} a post suggests "{sentence}"')
 def _suggest(context, count, days, price, sentence):
-    assert budget.suggestion(count, days, {"prices": {"postWithLink": price}})["sentence"] == sentence
+    assert budget.suggestion(count, days, {"prices": {"createPostWithUrl": price}})["sentence"] == sentence
 
 
 @then("the model was given only the title, the dek and the summary")
@@ -550,7 +550,7 @@ def _asked_once(context):
 
 @then("no approval step exists anywhere in the settings")
 def _no_approval(context):
-    assert not [name for name in settings_module.EDITABLE if "approv" in name.lower()] and "approval" not in str(context.store.settings()).lower()
+    assert "approv" not in str(context.functions.read()).lower()
 
 
 @then('"{text}" weighs 23 for the link plus its other characters')
@@ -619,7 +619,7 @@ def run_cli(context, line, *, agent=False, guidelines="Voice: plain and kind."):
     words = shlex.split(line)
     assert words[:2] == ["papyrus", "announcements"], line
     handlers = signed_in_handlers(lambda: context.backend, {"SITE_ORIGIN": "https://machines.example", "ITEM_URL_STYLE": "clean"},
-                                  llm=lambda system, user, schema: {"text": DEFAULT_DRAFT}, judge=cli_judge, guidelines_text=guidelines, files=context.files)
+                                  llm=lambda system, user, schema: {"text": DEFAULT_DRAFT}, judge=cli_judge, guidelines_text=guidelines, files=context.files, functions=context.functions)
     out = io.StringIO()
     status = announcements_cli.command(words[2:], handlers=handlers, environ={"PAPYRUS_ACTOR_KIND": "agent"} if agent else {}, stdout=out)
     context.cli_status, context.cli_answer = status, json.loads(out.getvalue())
@@ -663,12 +663,15 @@ def _no_guidelines_cli(context, line):
     run_cli(context, line, guidelines="")
 
 
-@when("a person saves the announcement settings for the account \"{account}\" in Dry run at {stars:d} stars with a budget of ${amount}")
-def _save_cli(context, account, stars, amount):
-    path = Path(context.tmpdir if hasattr(context, "tmpdir") else "/tmp") / "announcements-prices.json"
-    path.write_text(json.dumps({"prices": PRICES}))
-    run_cli(context, f"papyrus announcements settings set --mode dry_run --min-stars {stars} --story-types article --account-id {account} --budget {amount} "
-                     f"--billing-cycle-day 1 --prices-as-of 2026-11-12 --label-confirmed --input-file {path}")
+@when("a person saves the announcement settings in Dry run at {stars:d} stars with a budget of ${amount}")
+def _save_cli(context, stars, amount):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "prices.json"
+        path.write_text(json.dumps({"prices": PRICES}))
+        run_cli(context, f"papyrus announcements settings set --mode dry_run --min-stars {stars} --story-types article --budget {amount} "
+                         f"--billing-cycle-day 1 --label-confirmed --input-file {path}")
 
 
 @then("the announcement command succeeds")
@@ -681,21 +684,21 @@ def _cli_fails(context, code):
     assert context.cli_status == 2 and context.cli_answer["error"]["code"] == code, context.cli_answer
 
 
-@then('the announcement answer shows mode "{mode}" and a quality floor of {floor:d}')
-def _cli_mode(context, mode, floor):
-    assert context.cli_answer["result"]["settings"]["mode"] == mode and context.cli_answer["result"]["qualityFloor"] == floor
+@then('the announcement answer shows mode "{mode}" and the account "{account}"')
+def _cli_mode(context, mode, account):
+    result = context.cli_answer["result"]
+    assert result["settings"]["mode"] == mode and result["connection"]["accountId"] == account, result
 
 
-@then("the problems name minStars, storyTypes, accountId, budget, billingCycleDay, prices and labelConfirmed")
-def _cli_problems(context):
-    fields = {problem["field"] for problem in context.cli_answer["error"]["details"]["problems"]}
-    assert {"minStars", "storyTypes", "accountId", "budget", "billingCycleDay", "prices", "labelConfirmed"} <= fields, fields
+@then('the announcement answer says "{message}"')
+def _cli_says(context, message):
+    assert message in context.cli_answer["error"]["message"], context.cli_answer
 
 
 @then('"{line}" shows mode "{mode}" and minStars {stars:d}')
 def _cli_shows(context, line, mode, stars):
     answer = run_cli(context, line)
-    assert answer["result"]["settings"]["mode"] == mode and answer["result"]["settings"]["minStars"] == stars, answer
+    assert answer["result"]["settings"]["mode"] == mode and answer["result"]["settings"]["rules"]["minStars"] == stars, answer
 
 
 @then('"{line}" shows paused {value}')
