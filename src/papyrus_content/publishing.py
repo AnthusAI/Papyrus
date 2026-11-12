@@ -281,6 +281,8 @@ def project_item_to_published(
     media: list[dict],
     *,
     published_at: str,
+    version_published_at: str,
+    version_published_by: str,
     version_number: int,
 ) -> tuple[dict, list[dict]]:
     lineage_id = item.get("lineageId") or item["id"]
@@ -310,6 +312,8 @@ def project_item_to_published(
         "byline": item.get("byline"),
         "dateline": item.get("dateline"),
         "publishedAt": published_at,
+        "versionPublishedAt": version_published_at,
+        "versionPublishedBy": version_published_by,
         "sortTitle": item.get("sortTitle"),
         "pullQuotes": [],
         "layout": to_aws_json({"source": "cms"}),
@@ -385,7 +389,9 @@ def publish_item(
     published, published_media = project_item_to_published(
         projectable,
         media,
-        published_at=item.get("publishedAt") or now,
+        published_at=item.get("publishedAt") or now,   # the first publication: save_story_version carries it to every later version
+        version_published_at=now,
+        version_published_by=actor,
         version_number=version_number,
     )
 
@@ -406,10 +412,9 @@ def publish_item(
             "stage": "published",
             **_status_keys(item.get("type") or "", item.get("section"), "published"),
             "publishedAt": published["publishedAt"],
+            "versionPublishedAt": now,
+            "versionPublishedBy": actor,
             "versionState": "current",
-            "versionCreatedAt": now,
-            "versionCreatedBy": actor,
-            "changeReason": "publish",
             "bodyIr": to_aws_json(envelope),
             **head_stage_fields({"versionState": "current", "stage": "published"}),   # the published record is the head
         },
@@ -452,9 +457,6 @@ def unpublish_item(client, item_id: str, *, actor: str, now: str | None = None) 
             "status": "draft",
             "stage": "copywriting",
             **_status_keys(item.get("type") or "", item.get("section"), "draft"),
-            "versionCreatedAt": now,
-            "versionCreatedBy": actor,
-            "changeReason": "unpublish",
             **head_stage_fields({**item, "stage": "copywriting"}),
         },
     )

@@ -242,6 +242,25 @@ def stories_head_index(flags: list[str]) -> None:
     run_head_index(client, apply=apply, stages=stages, rate=rate)
 
 
+def stories_backfill_published_dates(flags: list[str]) -> None:
+    """papyrus stories backfill-published-dates [--apply] [--rate <writes per second>]
+
+    Gives every published Story the dates it now means (docs/site-hosting.md, "Published and updated dates"): `publishedAt` = the Story's first publication and
+    `versionPublishedAt` / `versionPublishedBy` = when and by whom the served version went live, derived only from what its versions recorded. A Story whose first
+    publication cannot be derived (a version was taken down, or no version recorded a publish) is printed as an `unclear` line for a person to decide and its
+    `publishedAt` is left alone. A DRY RUN unless --apply: it prints one `set` line per row it would change, the `unclear` lines, and a summary (stories, rows to write,
+    already right, unclear). --apply writes only rows that differ, keeps each row's own updatedAt, and writes at most --rate a second (default 5); a second run
+    writes nothing. It needs the deploy that adds the two fields to Item and PublishedItem."""
+    from .story_published_dates import DEFAULT_RATE, run_backfill_published_dates
+
+    options = parse_options(flags)
+    apply = parse_boolean_option(options.get("apply"), default=False, label="--apply")
+    if apply and parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run"):
+        raise ValueError("Pass --apply or --dry-run, not both.")
+    client, _ = create_authoring_client()
+    run_backfill_published_dates(client, apply=apply, rate=float(options.get("rate") or DEFAULT_RATE))
+
+
 def stories_repair_image_paths(flags: list[str]) -> None:
     """papyrus stories repair-image-paths --story <lineage> [--write] [--bucket <bucket>] [--identity-pool-id <id>]
 
