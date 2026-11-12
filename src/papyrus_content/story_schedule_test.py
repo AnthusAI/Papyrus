@@ -312,7 +312,7 @@ def test_the_listing_reads_the_index_by_state_and_range_and_marks_overdue() -> N
 
 
 def test_the_operation_table_has_one_tool_and_one_command_per_operation() -> None:
-    assert {name: (operation.mcp, operation.cli) for name, operation in OPERATIONS.items()} == {"schedule": ("stories_schedule", "schedule"), "schedule_list": ("stories_schedule_list", "schedule-list")}
+    assert {name: (operation.mcp, operation.cli) for name, operation in OPERATIONS.items()} == {"schedule": ("stories_schedule", "schedule"), "schedule_settings": ("stories_schedule_settings", ""), "schedule_list": ("stories_schedule_list", "schedule-list")}
     from papyrus_content.story_signals_mcp import story_signal_descriptions, story_signal_tools
 
     tools = story_signal_tools()
@@ -457,3 +457,39 @@ def test_a_site_that_requires_a_rating_says_so_instead_of_promising_a_publish() 
     with mock.patch("papyrus_content.story_rating.read_required", return_value=True):
         notes = service.schedule({"storyLineageId": LINEAGE, "at": "2026-11-13 09:00"}, SAM)["notes"]
     assert len(notes) == 1 and "requires a rating" in notes[0] and "overdue" in notes[0]
+
+
+def test_every_schedule_write_stamps_updated_at_so_the_board_refreshes() -> None:
+    client, _scheduler, clock, service, newest = setup()
+    client.update_record("Item", {"id": newest, "updatedAt": "2026-11-01T00:00:00Z"})
+    service.schedule({"storyLineageId": LINEAGE, "at": "2026-11-13 09:00"}, SAM)
+    assert item(client, newest)["updatedAt"] == "2026-11-10T15:00:00Z"
+    clock.set("2026-11-10T16:00:00Z")
+    service.schedule({"storyLineageId": LINEAGE, "clear": True}, SAM)
+    assert item(client, newest)["updatedAt"] == "2026-11-10T16:00:00Z"
+    clock.set("2026-11-10T17:00:00Z")
+    service.schedule({"storyLineageId": LINEAGE, "at": "2026-11-13 09:00"}, SAM)
+    clock.set("2026-11-13T14:00:01Z")
+    run_at(client, service, newest, "2026-11-13T14:00:00Z", [])
+    assert item(client, newest)["updatedAt"] >= "2026-11-13T14:00:01Z"
+
+
+def test_one_story_read_names_the_head_and_says_when_a_newer_version_exists() -> None:
+    client, _scheduler, clock, service, first = setup()
+    service.schedule({"storyLineageId": LINEAGE, "at": "2026-11-13 09:00"}, SAM)
+    assert service.listing({"storyLineageId": LINEAGE})["schedules"][0]["newerVersionExists"] is False
+    from papyrus_content.story_reporting import save_story_version
+
+    second = save_story_version(client, LINEAGE, front_matter_yaml="title: Robots\n", body_markus="Newer.\n", actor="Alex", change_reason="edit", now="2026-11-11T12:00:00Z")["id"]
+    entry = service.listing({"storyLineageId": LINEAGE})["schedules"][0]
+    assert (entry["itemId"], entry["headItemId"], entry["newerVersionExists"], entry["headVersionNumber"]) == (first, second, True, 2)
+
+
+def test_the_publication_zone_comes_with_every_answer_and_from_the_settings_read() -> None:
+    _client, _scheduler, _clock, service, _newest = setup()
+    assert run_operation("schedule_settings", {}, service, SAM) == {"ok": True, "enabled": True, "timeZone": ZONE, "now": "2026-11-10T15:00:00Z"}
+    assert run_operation("schedule", {"storyLineageId": LINEAGE, "at": "2026-11-13 09:00"}, service, SAM)["timeZone"] == ZONE
+    assert run_operation("schedule_list", {}, service, SAM)["timeZone"] == ZONE
+    assert run_operation("schedule", {"storyLineageId": LINEAGE, "clear": True}, service, SAM)["timeZone"] == ZONE
+    _c, _s, _k, off, _n = setup(zone=None)
+    assert run_operation("schedule_settings", {}, off, SAM)["enabled"] is False

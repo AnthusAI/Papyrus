@@ -210,13 +210,10 @@ def scheduler_from_environment(environment: Mapping[str, str] | None = None, *, 
 # --- rows --------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def clearing_update(row: Mapping[str, Any]) -> dict[str, Any]:
-    """The update that removes a schedule from its row. A null removes the attribute, so the row leaves the sparse index; the row's own ``updatedAt`` goes
-    back so the update does not stamp the Story as freshly changed (AppSync sets ``updatedAt`` to now when the input has none)."""
-    update: dict[str, Any] = {"id": row["id"], **{name: None for name in SCHEDULE_FIELDS}}
-    if row.get("updatedAt"):
-        update["updatedAt"] = row["updatedAt"]
-    return update
+def clearing_update(row: Mapping[str, Any], now: str) -> dict[str, Any]:
+    """The update that removes a schedule from its row. A null removes the attribute, so the row leaves the sparse index. Every schedule write stamps
+    ``updatedAt`` with ``now``, so the newsroom board's refresh picks the card up."""
+    return {"id": row["id"], **{name: None for name in SCHEDULE_FIELDS}, "updatedAt": now}
 
 
 def effective_state(row: Mapping[str, Any], now: datetime) -> str:
@@ -349,7 +346,7 @@ class ScheduleService:
         replaced = [other for other in rows if other["id"] != row["id"] and other.get("scheduleState")]
         result: dict[str, Any] = {
             "ok": True, "scheduled": not dry_run, "dryRun": dry_run, "itemId": row["id"], "lineageId": lineage_id, "versionNumber": row.get("versionNumber"),
-            "title": _title(row), "scheduledPublishAt": at, "scheduledBy": caller.actor, "replaced": [other["id"] for other in replaced], **local_view(at, zone_name),
+            "title": _title(row), "scheduledPublishAt": at, "scheduledBy": caller.actor, "replaced": [other["id"] for other in replaced], "timeZone": zone_name, **local_view(at, zone_name),
         }
         from .item_stars import effective_rating
 
@@ -371,7 +368,7 @@ class ScheduleService:
         written = self.client.update_record_if(
             "Item",
             {"id": row["id"], "scheduledPublishAt": at, "scheduledBy": caller.actor, "scheduledAt": utc_text(self.now()), "scheduleState": SCHEDULED, "scheduleName": name,
-             **({"updatedAt": row["updatedAt"]} if row.get("updatedAt") else {})},
+             "updatedAt": utc_text(self.now())},
             {"or": [{"scheduleState": {"attributeExists": False}}, {"scheduleState": {"ne": PUBLISHING}}]},
         )
         if not written:
@@ -388,13 +385,13 @@ class ScheduleService:
         if not dry_run:
             for row in scheduled:
                 self._remove(row)
-        return {"ok": True, "cleared": not dry_run, "dryRun": dry_run, "lineageId": lineage_id, "itemIds": [row["id"] for row in scheduled]}
+        return {"ok": True, "cleared": not dry_run, "dryRun": dry_run, "lineageId": lineage_id, "timeZone": self.zone_name, "itemIds": [row["id"] for row in scheduled]}
 
     def _remove(self, row: Mapping[str, Any]) -> None:
         """Delete the row's Scheduler schedule, then its fields (a timer that outlives its row only fires harmlessly)."""
         if row.get("scheduleName"):
             self._require_scheduler().delete(str(row["scheduleName"]))
-        self.client.update_record("Item", clearing_update(row))
+        self.client.update_record("Item", clearing_update(row, utc_text(self.now())))
 
     def clear_through(self, lineage_id: str, version_number: int | None = None) -> list[str]:
         """Remove the schedules a publish or a takedown makes meaningless: every version's up to ``version_number`` (all of them when None). Returns the version ids."""
@@ -412,8 +409,11 @@ class ScheduleService:
         unknown = [state for state in wanted if state not in (*STATES, OVERDUE)]
         if unknown:
             raise ScheduleError("bad-state", f"Unknown state {unknown[0]!r}; use scheduled, publishing, blocked or overdue.")
+        head: dict[str, Any] | None = None
         if arguments.get("storyLineageId"):
-            found = [row for row in self.lineage_rows(str(arguments["storyLineageId"])) if row.get("scheduleState")]
+            versions = self.lineage_rows(str(arguments["storyLineageId"]))
+            head = versions[-1] if versions else None
+            found = [row for row in versions if row.get("scheduleState")]
         else:
             zone_name = self.zone_name or "UTC"
             start = utc_text(resolve_instant(str(arguments["from"]), zone_name)) if arguments.get("from") else None
@@ -423,7 +423,14 @@ class ScheduleService:
             stored = [state for state in STATES if state in wanted or (state != BLOCKED and OVERDUE in wanted)]
             found = [row for state in stored for row in self.client.list_schedule(state, start, end)]
         entries = [self.entry(row) for row in sorted(found, key=lambda row: str(row.get("scheduledPublishAt")))]
+        if head is not None:   # one Story's read has every version, so it can say what the newest one is
+            for entry in entries:
+                entry.update({"headItemId": head["id"], "headVersionNumber": head.get("versionNumber"), "newerVersionExists": head["id"] != entry["itemId"]})
         return {"ok": True, "timeZone": self.zone_name, "now": utc_text(self.now()), "schedules": [entry for entry in entries if entry["state"] in wanted]}
+
+    def settings(self) -> dict[str, Any]:
+        """Whether this site schedules, and in which zone: the one place the publication's time zone is read from (the site's backend settings)."""
+        return {"ok": True, "enabled": self.zone_name is not None, "timeZone": self.zone_name, "now": utc_text(self.now())}
 
     # the run at the scheduled time
 
@@ -433,7 +440,7 @@ class ScheduleService:
         if row is None or row.get("scheduleState") != SCHEDULED or row.get("scheduledPublishAt") != scheduled_at:
             return {"ok": True, "published": False, "reason": "no longer scheduled for this time", "itemId": item_id}
         claimed = self.client.update_record_if(
-            "Item", {"id": item_id, "scheduleState": PUBLISHING, **({"updatedAt": row["updatedAt"]} if row.get("updatedAt") else {})},
+            "Item", {"id": item_id, "scheduleState": PUBLISHING, "updatedAt": utc_text(self.now())},
             {"scheduleState": {"eq": SCHEDULED}, "scheduledPublishAt": {"eq": scheduled_at}},
         )
         if not claimed:
@@ -442,7 +449,7 @@ class ScheduleService:
         newest = max(int(other.get("versionNumber") or 0) for other in self.lineage_rows(lineage_id))
         if newest > int(row.get("versionNumber") or 0):
             self.client.update_record_if(
-                "Item", {"id": item_id, "scheduleState": BLOCKED, **({"updatedAt": row["updatedAt"]} if row.get("updatedAt") else {})},
+                "Item", {"id": item_id, "scheduleState": BLOCKED, "updatedAt": utc_text(self.now())},
                 {"scheduleState": {"eq": PUBLISHING}},
             )
             self._tell_editors(row, newest)
@@ -452,7 +459,7 @@ class ScheduleService:
         except Exception:
             # Nothing was published (or the publish is safe to repeat): hand the schedule back so the retry can claim it. It stays overdue until it publishes.
             self.client.update_record_if(
-                "Item", {"id": item_id, "scheduleState": SCHEDULED, **({"updatedAt": row["updatedAt"]} if row.get("updatedAt") else {})}, {"scheduleState": {"eq": PUBLISHING}}
+                "Item", {"id": item_id, "scheduleState": SCHEDULED, "updatedAt": utc_text(self.now())}, {"scheduleState": {"eq": PUBLISHING}}
             )
             raise
         self.clear_through(lineage_id, int(row.get("versionNumber") or 0))
@@ -503,6 +510,11 @@ OPERATIONS: dict[str, Operation] = {
         _closed({"storyLineageId": _STR, "itemId": {"type": "string", "description": "One version's id (the newest); storyLineageId names the Story instead."},
                  "at": _TIME, "clear": {"type": "boolean"}, "dryRun": {"type": "boolean"}}),
     ),
+    "schedule_settings": Operation(
+        "schedule_settings", "stories_schedule_settings", "", False,
+        "Read only. Whether the site schedules and its publication time zone (an IANA name): the one source of that fact. Every schedule answer carries the same timeZone.",
+        _closed({}),
+    ),
     "schedule_list": Operation(
         "schedule_list", "stories_schedule_list", "schedule-list", False,
         "Read only. The scheduled, publishing, blocked and overdue versions soonest first, from the schedule index: of one Story (storyLineageId) or of the site between from and to. "
@@ -533,6 +545,8 @@ def run_operation(name: str, arguments: Mapping[str, Any], service: ScheduleServ
         validate_arguments(operation, arguments)
         if name == "schedule":
             return service.schedule(arguments, caller)
+        if name == "schedule_settings":
+            return service.settings()
         return service.listing(arguments)
     except ScheduleError as error:
         return error.to_response()
