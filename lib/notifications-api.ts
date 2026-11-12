@@ -270,7 +270,7 @@ function offeredLists(plugin: Enabled): Array<{ id: string; name: string; descri
   );
 }
 
-/** GET /api/notifications/state: JSON for the pages' script (`kind=offered` lists the site's lists for the subscribe form). Failures answer 400, 502 or 503 with a status word, never 403 or 404. */
+/** GET /api/notifications/state: JSON for the pages' script (`kind=offered` lists the site's lists and its consent wording for the subscribe form). Failures answer 400, 502 or 503 with a status word, never 403 or 404. */
 export async function handleNotificationsState(request: NextRequest, options: NotificationsApiOptions = {}): Promise<NextResponse> {
   const { plugin } = context(request, options);
   if (!plugin) return notFoundJson();
@@ -279,7 +279,11 @@ export async function handleNotificationsState(request: NextRequest, options: No
   const json = (status: number, body: Record<string, unknown>) => NextResponse.json(body, { status, headers: NO_STORE });
   if (kind === "lists") return json(200, { status: "ready", lists: configuredLists(plugin, listIds(params.get("lists") ?? "")) });
   // Every list the site offers, for the subscribe form. Public settings only; nothing about any reader.
-  if (kind === "offered") return json(200, { status: "ready", lists: offeredLists(plugin) });
+  if (kind === "offered") {
+    // The form shows exactly this sentence and posts it back; the function refuses any other wording (consent evidence).
+    const consent = typeof plugin.settings.consent === "string" ? plugin.settings.consent : "";
+    return json(200, { status: "ready", lists: offeredLists(plugin), consent });
+  }
   if (kind !== "confirm" && kind !== "preferences") return json(400, { status: "invalid" });
   const token = manageTokenFrom(params.get("t"));
   if (!token) return json(400, { status: "invalid" });

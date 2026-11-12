@@ -160,11 +160,13 @@ def run_component(replies: dict, body: str):
     return _run(code)
 
 
-OFFERED_ONE = {"status": 200, "body": {"status": "ready", "lists": [{"id": "stories", "name": "New stories", "description": ""}]}}
+CONSENT = "I agree to get the emails I choose from Example News and can unsubscribe at any time."
+OFFERED_ONE = {"status": 200, "body": {"status": "ready", "consent": CONSENT, "lists": [{"id": "stories", "name": "New stories", "description": ""}]}}
 OFFERED_TWO = {
     "status": 200,
     "body": {
         "status": "ready",
+        "consent": CONSENT,
         "lists": [
             {"id": "stories", "name": "New stories", "description": "Each new story as it is published."},
             {"id": "weekly", "name": "Weekly roundup", "description": ""},

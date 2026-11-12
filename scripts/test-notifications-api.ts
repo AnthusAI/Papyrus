@@ -21,6 +21,7 @@ const outputs = {
         fromName: "Example News",
         basePath: "posts",
         lists: [{ id: "stories", name: "New stories", description: "" }],
+        consent: "I agree to get the emails I choose from Example News and can unsubscribe at any time.",
         theme: { accent: "#aa3300", text: "#111111", background: "#ffffff" },
       },
     },
@@ -180,7 +181,11 @@ const location = (response: Response) => new URL(response.headers.get("location"
     assert.deepEqual(await lists.json(), { status: "ready", lists: [{ id: "stories", name: "New stories" }] });
     const offered = await handleNotificationsState(request("GET", "/api/notifications/state?kind=offered"), options);
     assert.equal(offered.status, 200);
-    assert.deepEqual(await offered.json(), { status: "ready", lists: [{ id: "stories", name: "New stories", description: "" }] });
+    assert.deepEqual(await offered.json(), {
+      status: "ready",
+      lists: [{ id: "stories", name: "New stories", description: "" }],
+      consent: "I agree to get the emails I choose from Example News and can unsubscribe at any time.",
+    }, "the form shows the site's own consent wording");
     assert.equal(calls.length, 0, "the offered lists come from the site's settings and ask the function nothing");
     assert.equal((await handleNotificationsState(request("GET", "/api/notifications/state?kind=other"), options)).status, 400);
     assert.equal((await handleNotificationsState(request("GET", "/api/notifications/state?kind=confirm"), options)).status, 400);

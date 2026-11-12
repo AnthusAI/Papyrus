@@ -7,7 +7,7 @@ import unittest
 
 import pytest
 
-from procedures.newsroom.tests.notifications_js_support import HAS_NODE, OFFERED_ONE, OFFERED_TWO, run_component, run_page
+from procedures.newsroom.tests.notifications_js_support import CONSENT, HAS_NODE, OFFERED_ONE, OFFERED_TWO, run_component, run_page
 from procedures.newsroom.tests.standard_frontend_support import ProjectedSite
 
 pytestmark = pytest.mark.skipif(not HAS_NODE, reason="node is not installed")
@@ -165,13 +165,14 @@ def submit(attributes, replies, email="reader@example.com", before=""):
 ACCEPTED = {"status": 202, "body": {"status": "check_email"}}
 
 
-def test_subscribing_with_one_list_says_to_check_email_and_posts_the_consent_and_page():
-    result = submit({"consent": "Send it."}, {STATE: OFFERED_ONE, "/api/notifications/subscribe": ACCEPTED})
+def test_subscribing_with_one_list_says_to_check_email_and_posts_the_sites_consent_and_page():
+    result = submit({"consent": "An attribute is ignored."}, {STATE: OFFERED_ONE, "/api/notifications/subscribe": ACCEPTED})
     assert result["reads"] == [f"{STATE}?kind=offered"]
     url, body = result["posts"][0]
     assert url == "/api/notifications/subscribe"
-    assert body["lists"] == ["stories"] and body["email"] == "reader@example.com" and body["consent"] == "Send it."
+    assert body["lists"] == ["stories"] and body["email"] == "reader@example.com" and body["consent"] == CONSENT
     assert body["page"] == "https://news.example.com/notifications/" and body["website"] == "" and body["formId"] == "notifications"
+    assert "renderedAt" not in body
     assert result["status"] == "Check your email to confirm your subscription."
     assert result["state"] == "check_email" and result["icon"] == "circle-check"
     assert result["events"] == [{"status": "check_email"}]
@@ -202,6 +203,27 @@ def test_an_unreachable_service_is_said_in_words():
         assert result["status"] == "Notifications are not available right now. Please try again later.", reply
     odd = submit({}, {STATE: OFFERED_ONE, "/api/notifications/subscribe": {"status": 200, "broken": True}})
     assert odd["status"] == "Something went wrong. Please try again later."
+
+
+def test_the_form_shows_exactly_the_sites_consent_wording():
+    shown = run_component(
+        {STATE: OFFERED_ONE},
+        'const el = mount({}); await settle(); console.log(JSON.stringify(byClass(el, "markus-notifications-consent")[0].textContent));',
+    )
+    assert shown == CONSENT
+
+
+def test_a_site_without_consent_wording_says_the_form_is_not_set_up():
+    no_consent = {"status": 200, "body": {"status": "ready", "lists": OFFERED_ONE["body"]["lists"]}}
+    result = submit({}, {STATE: no_consent})
+    assert result["posts"] == [] and result["status"] == "This form is not set up."
+
+
+def test_a_network_limit_and_an_outdated_form_are_said_in_words():
+    slow = submit({}, {STATE: OFFERED_ONE, "/api/notifications/subscribe": {"status": 429, "body": {"status": "slow_down"}}})
+    assert slow["status"] == "Too many signups from your network just now. Please try again later." and slow["icon"] == "triangle-alert"
+    stale = submit({}, {STATE: OFFERED_ONE, "/api/notifications/subscribe": {"status": 400, "body": {"status": "invalid_consent"}}})
+    assert stale["status"] == "This form is out of date. Please reload the page and try again."
 
 
 def test_a_site_that_offers_no_lists_says_the_form_is_not_set_up():

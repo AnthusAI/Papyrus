@@ -14,7 +14,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 
 from papyrus_content.projection.plugins import PLUGIN_PAGE_PREFIXES, PLUGIN_STATIC_ASSETS  # noqa: E402
 from papyrus_content.projection.standard import notifications_pages  # noqa: E402
-from procedures.newsroom.tests.notifications_js_support import OFFERED_ONE, OFFERED_TWO, run_component, run_page  # noqa: E402
+from procedures.newsroom.tests.notifications_js_support import CONSENT, OFFERED_ONE, OFFERED_TWO, run_component, run_page  # noqa: E402
 from procedures.newsroom.tests.standard_frontend_support import FIXTURES, ProjectedSite, fixture_settings  # noqa: E402
 
 PAGES_SCRIPT = "_plugins/papyrus-notifications-pages@1.js"
@@ -176,7 +176,9 @@ def subscribe(context, before: str = "") -> None:
         await el.queryAll("form")[0].listeners.submit({{ preventDefault() {{}} }}); await settle();
         const states = byClass(el, "markus-notifications-toggle").map((b) => b.queryAll(".markus-notifications-state")[0].textContent);
         console.log(JSON.stringify({{ status: byClass(el, "markus-notifications-status")[0].textContent,
-          posts: requests.filter((r) => r.method === "POST").map((r) => r.url), states }}));""",
+          posts: requests.filter((r) => r.method === "POST").map((r) => r.url), states,
+          bodies: requests.filter((r) => r.method === "POST").map((r) => r.body),
+          consent: byClass(el, "markus-notifications-consent")[0].textContent }}));""",
     )
 
 
@@ -212,6 +214,28 @@ def lists_start_off(context) -> None:
 def must_choose(context) -> None:
     assert context.outcome["status"] == "Choose at least one thing to get."
     assert context.outcome["posts"] == []
+
+
+@then("the form shows exactly the site's consent wording")
+def shows_consent(context) -> None:
+    assert context.outcome["consent"] == CONSENT
+
+
+@then("the subscription request carries that wording")
+def carries_consent(context) -> None:
+    assert context.outcome["bodies"][0]["consent"] == CONSENT
+
+
+@when("the service answers that the reader's network should slow down")
+def slow_down(context) -> None:
+    context.subscribe_reply = {"status": 429, "body": {"status": "slow_down"}}
+    project(context, ("notifications",))
+    subscribe(context)
+
+
+@then("the subscribe page says in words to try again later")
+def says_slow_down(context) -> None:
+    assert context.outcome["status"] == "Too many signups from your network just now. Please try again later."
 
 
 @when("the service answers that notifications are not available")

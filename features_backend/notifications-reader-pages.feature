@@ -44,7 +44,18 @@ Feature: Notification pages for readers, on the site
     Then each list is a button that says Off until it is pressed
     And pressing Subscribe without choosing a list asks them to choose at least one
 
-  Scenario: The service is not available yet
+  Scenario: The form shows the site's own consent wording, which is what the server records
+    Given a site with notifications on that offers one list
+    When a reader opens its notifications page and enters an address
+    Then the form shows exactly the site's consent wording
+    And the subscription request carries that wording
+
+  Scenario: Too many signups from one network are said in words
+    Given a site with notifications on that offers one list
+    When the service answers that the reader's network should slow down
+    Then the subscribe page says in words to try again later
+
+  Scenario: The service cannot be reached
     Given a site with notifications on that offers one list
     When the service answers that notifications are not available
     Then the subscribe page says in words that notifications are not available right now

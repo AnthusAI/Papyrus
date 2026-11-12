@@ -9,7 +9,6 @@
  *
  * Attributes (all optional)
  *   lists       comma separated list ids to offer                                             default: every list the site offers
- *   consent     the consent sentence shown under the form and recorded with the signup        default: a plain sentence
  *   endpoint    where to post                                                                 default "/api/notifications/subscribe"
  *   state       where to read the offered lists (GET, kind=offered)                           default "/api/notifications/state"
  *   form-id     recorded with the consent evidence                                            default "notifications"
@@ -17,10 +16,12 @@
  *   button      button text                                                                   default "Subscribe"
  *   success     message after a request was accepted                                          default "Check your email to confirm your subscription."
  *
+ * The consent sentence is the site's own (`consent` in the offered state): the form shows it exactly and posts it back, and the server
+ * refuses any other wording, so what is stored as consent is what the reader saw. Until it arrives the button stays disabled.
+ *
  * One list: no choice to make, the consent sentence and the button are the opt-in. Several lists: one button per list, each Off until
  * pressed (nothing is pre-chosen), and at least one must be On. On and Off are words as well as a Lucide bell or bell-off. The request
- * carries a hidden field that people never fill (`website`) and the time the form rendered; the server drops requests from bots without
- * saying so. Whatever the server knows about the address, the answer is the same, so the message never says whether it was already subscribed.
+ * carries a hidden field that people never fill (`website`); the server drops requests from bots without saying so. Whatever the server knows about the address, the answer is the same, so the message never says whether it was already subscribed.
  *
  * Styling hooks (the element renders into its own light DOM): form.markus-notifications-form, label.markus-notifications-label,
  * input.markus-notifications-input, button.markus-notifications-toggle[aria-pressed], button.markus-button, p.markus-notifications-consent,
@@ -32,10 +33,11 @@
 
   var DEFAULT_ENDPOINT = "/api/notifications/subscribe";
   var DEFAULT_STATE = "/api/notifications/state";
-  var DEFAULT_CONSENT = "I agree to receive these emails and understand that I can unsubscribe at any time.";
   var MESSAGES = {
     invalid_email: "Please enter a valid email address.",
     invalid_lists: "Choose at least one thing to get.",
+    invalid_consent: "This form is out of date. Please reload the page and try again.",
+    slow_down: "Too many signups from your network just now. Please try again later.",
     no_lists: "Choose at least one thing to get.",
     unavailable: "Notifications are not available right now. Please try again later.",
     failed: "Something went wrong. Please try again later.",
@@ -60,6 +62,7 @@
       return response.json().catch(function () { return {}; }).then(function (body) {
         if (response.status === 202 && body.status === "check_email") return { status: "check_email" };
         if (response.status === 400 && MESSAGES[body.status]) return { status: body.status };
+        if (response.status === 429 && body.status === "slow_down") return { status: "slow_down" };
         if (response.status === 503 || response.status === 502) return { status: "unavailable" };
         return { status: "failed" };
       });
@@ -68,8 +71,12 @@
 
   function offered(stateUrl) {
     return fetch(stateUrl + "?kind=offered", { credentials: "same-origin", cache: "no-store", headers: { accept: "application/json" } }).then(function (response) {
-      return response.json().then(function (body) { return response.ok && Array.isArray(body.lists) ? body.lists : []; });
-    }).catch(function () { return []; });
+      return response.json().then(function (body) {
+        return response.ok && Array.isArray(body.lists)
+          ? { lists: body.lists, consent: typeof body.consent === "string" ? body.consent : "" }
+          : { lists: [], consent: "" };
+      });
+    }).catch(function () { return { lists: [], consent: "" }; });
   }
 
   function element(tag, className, attributes) {
@@ -93,9 +100,8 @@
       if (this.firstChild) return;
       counter += 1;
       this.endpoint = this.getAttribute("endpoint") || DEFAULT_ENDPOINT;
-      this.consent = this.getAttribute("consent") || DEFAULT_CONSENT;
+      this.consent = "";
       this.formId = this.getAttribute("form-id") || "notifications";
-      this.renderedAt = Date.now();
       this.base = "papyrus-notifications-" + counter;
       this.lists = [];
       this.boxes = [];
@@ -128,9 +134,9 @@
       text.textContent = this.getAttribute("button") || "Subscribe";
       this.button.appendChild(text);
       form.appendChild(this.button);
-      var consent = element("p", "markus-notifications-consent");
-      consent.textContent = this.consent;
-      form.appendChild(consent);
+      this.consentLine = element("p", "markus-notifications-consent");
+      form.appendChild(this.consentLine);
+      this.button.disabled = true;
       this.status = element("p", "markus-notifications-status", { role: "status", "aria-live": "polite" });
       form.appendChild(this.status);
       form.addEventListener("submit", this.onSubmit.bind(this));
@@ -138,7 +144,11 @@
 
       var wanted = (this.getAttribute("lists") || "").split(",").map(function (id) { return id.trim(); }).filter(Boolean);
       var self = this;
-      this.ready = offered(this.getAttribute("state") || DEFAULT_STATE).then(function (known) {
+      this.ready = offered(this.getAttribute("state") || DEFAULT_STATE).then(function (state) {
+        var known = state.lists;
+        self.consent = state.consent;
+        self.consentLine.textContent = state.consent;
+        self.button.disabled = !state.consent;
         self.lists = known.filter(function (entry) { return entry && entry.id && (wanted.length === 0 || wanted.indexOf(entry.id) >= 0); });
         if (self.lists.length > 1) self.lists.forEach(function (entry, index) { self.addChoice(entry, index); });
       });
@@ -189,7 +199,7 @@
       event.preventDefault();
       var self = this;
       return this.ready.then(function () {
-        if (self.lists.length === 0) return self.show("unconfigured", MESSAGES.unconfigured);
+        if (self.lists.length === 0 || !self.consent) return self.show("unconfigured", MESSAGES.unconfigured);
         var value = self.input.value.trim();
         if (!value || !self.input.checkValidity()) return self.show("invalid_email", MESSAGES.invalid_email);
         var chosen = self.chosenLists();
@@ -203,8 +213,7 @@
           page: window.location.origin + window.location.pathname,
           consent: self.consent,
           formId: self.formId,
-          website: self.trap.value,
-          renderedAt: self.renderedAt
+          website: self.trap.value
         })
           .catch(function () { return { status: "failed" }; })
           .then(function (outcome) {
