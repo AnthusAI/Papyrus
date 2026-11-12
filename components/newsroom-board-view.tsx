@@ -20,8 +20,8 @@ import {
   projectContentItemBoard,
   type NativeBoardIssue,
 } from "../lib/newsroom-board";
-import type { AssignmentRecord, NewsroomSectionRecord } from "../lib/category-repository";
-import { displayNewsroomSectionShortTitle, newsroomDeskOptions } from "../lib/newsroom-sections";
+import type { AssignmentRecord } from "../lib/category-repository";
+import { newsroomDeskOptions } from "../lib/newsroom-sections";
 import { getContentItemName, getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { loadNewsroomAssignmentPage, saveNewsroomAssignmentDesk } from "./news-desk-taxonomy-client";
@@ -147,7 +147,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const loadMoreWhenColumnIsNearItsEnd = (columnKey: string) => {
     if (showsContentItems && columnKey.startsWith(contentItemColumnKeyPrefix)) pagedContentItems.loadMoreForStage(columnKey.slice(contentItemColumnKeyPrefix.length));
   };
-  const deskTitle = session?.shell.dashboard?.newsroomSections?.find(section => section.id === deskId)?.title ?? (deskId ? displayNewsroomSectionShortTitle({ id: deskId } as NewsroomSectionRecord) : "Desk");
+  const deskTitle = session?.shell.dashboard?.newsroomSections?.find(section => section.id === deskId)?.title ?? deskId ?? "Desk";
   const pageTitle = subject === "contentItem" ? getContentItemName().plural : subject === "desk" ? deskTitle : "Assignments";
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
   const changeAssignmentDesk = async (record: AssignmentRecord, deskId: string | null) => {

@@ -389,23 +389,6 @@ type LexicalRuleDraft = {
 
 const REFERENCE_PAGE_SIZE = 25;
 const TOPIC_REFERENCE_PAGE_SIZE = 12;
-const NEWSROOM_SECTION_SHORT_TITLE_FALLBACKS: Record<string, string> = {
-  arts: "Creative Work",
-  business: "Market Structure",
-  education: "Learning Systems",
-  health: "Clinical Systems",
-  history: "Prior Lineage",
-  "law-policy": "Rules & Power",
-  labor: "Work Change",
-  methods: "Applied Practice",
-  news: "Trends & Analysis",
-  opinion: "Editorial Voice",
-  science: "New Findings",
-  security: "Threat Awareness",
-  sports: "Signal & Edge",
-  technology: "Infrastructure Landscape",
-  world: "Global Affairs",
-};
 const ANALYSIS_REINDEX_MODES: AnalysisReindexMode[] = [
   "online-update",
   "classifier-retrain",
@@ -641,19 +624,7 @@ export function NewsDeskWorkspace({
   initialSelection?: NewsDeskSelection;
 }) {
   const session = useOptionalNewsDeskClient();
-  const sessionDashboard = useMemo(() => {
-    if (!session?.shell.dashboard) return null;
-    const fallbackSections = dashboard?.newsroomSections ?? [];
-    const fallbackProposals = dashboard?.proposals ?? [];
-    const needsSectionFallback = session.shell.dashboard.newsroomSections.length === 0 && fallbackSections.length > 0;
-    const needsProposalFallback = session.shell.dashboard.proposals.length === 0 && fallbackProposals.length > 0;
-    if (!needsSectionFallback && !needsProposalFallback) return session.shell.dashboard;
-    return {
-      ...session.shell.dashboard,
-      newsroomSections: needsSectionFallback ? fallbackSections : session.shell.dashboard.newsroomSections,
-      proposals: needsProposalFallback ? fallbackProposals : session.shell.dashboard.proposals,
-    };
-  }, [dashboard?.newsroomSections, dashboard?.proposals, session?.shell.dashboard]);
+  const sessionDashboard = session?.shell.dashboard ?? null;
   const showSectionTabs = initialTab === "overview";
 
   if (dashboard?.isDemo) {
@@ -839,11 +810,7 @@ function NewsDeskDashboard({
   const [assignmentEvents, setAssignmentEvents] = useState(dashboard.assignmentEvents);
   const [editionSlots, setEditionSlots] = useState(dashboard.editionSlots ?? []);
   const [doctrineRecords, setDoctrineRecords] = useState(dashboard.doctrineRecords);
-  const fallbackNewsroomSections = useMemo(
-    () => normalizeNewsroomSectionsWithFallback(dashboard.newsroomSections),
-    [dashboard.newsroomSections],
-  );
-  const [newsroomSections, setNewsroomSections] = useState(fallbackNewsroomSections);
+  const [newsroomSections, setNewsroomSections] = useState(() => sortNewsroomSections(dashboard.newsroomSections));
   const sectionChoices = useMemo(
     () => newsroomSections
       .filter((section) => section.enabled !== false && section.enabledStatus !== "disabled")
@@ -1042,18 +1009,11 @@ function NewsDeskDashboard({
   const canLoadPrivateCorpus = !dashboard.isDemo && editorShellReady && authState.status === "signedIn";
   const refreshNewsroomSections = useCallback(async () => {
     if (dashboard.isDemo || !canRefreshNewsroomSections) {
-      setNewsroomSections(fallbackNewsroomSections);
+      setNewsroomSections(sortNewsroomSections(dashboard.newsroomSections));
       return;
     }
-    const nextSections = await listNewsroomSectionsFromApi(dataClient);
-    setNewsroomSections((current) => {
-      const mergedNextSections = normalizeNewsroomSectionsWithFallback(
-        nextSections,
-        current.length > 0 ? current : fallbackNewsroomSections,
-      );
-      return mergedNextSections.length === 0 && current.length > 0 ? current : mergedNextSections;
-    });
-  }, [canRefreshNewsroomSections, dashboard.isDemo, fallbackNewsroomSections, dataClient]);
+    setNewsroomSections(sortNewsroomSections(await listNewsroomSectionsFromApi(dataClient)));
+  }, [canRefreshNewsroomSections, dashboard.isDemo, dashboard.newsroomSections, dataClient]);
 
   useEffect(() => {
     setCorpora(dashboard.corpora);
@@ -1135,10 +1095,7 @@ function NewsDeskDashboard({
   }, [dashboard.doctrineRecords]);
 
   useEffect(() => {
-    setNewsroomSections((current) => normalizeNewsroomSectionsWithFallback(
-      dashboard.newsroomSections,
-      current.length > 0 ? current : undefined,
-    ));
+    setNewsroomSections(sortNewsroomSections(dashboard.newsroomSections));
   }, [dashboard.newsroomSections]);
 
   useEffect(() => {
@@ -1368,10 +1325,7 @@ function NewsDeskDashboard({
           setAssignments(nextDashboard.assignments);
           setAssignmentEvents(nextDashboard.assignmentEvents);
           setDoctrineRecords(nextDashboard.doctrineRecords);
-          setNewsroomSections((current) => normalizeNewsroomSectionsWithFallback(
-            nextDashboard.newsroomSections,
-            current.length > 0 ? current : fallbackNewsroomSections,
-          ));
+          setNewsroomSections(sortNewsroomSections(nextDashboard.newsroomSections));
           setUserDirectory(nextDashboard.userDirectory);
         })
         .catch((error) => {
@@ -1389,7 +1343,6 @@ function NewsDeskDashboard({
     newsroomSections.length,
     hasRefreshedNewsroomSections,
     canRefreshNewsroomSections,
-    fallbackNewsroomSections,
     loadedSections.assignments,
     loadedSections.fullDashboard,
     loadedSections.messages,
@@ -12037,26 +11990,8 @@ function sortNewsroomSections(sections: NewsroomSectionRecord[]): NewsroomSectio
   });
 }
 
-function normalizeNewsroomSectionsWithFallback(
-  sections: NewsroomSectionRecord[],
-  fallbackSections: NewsroomSectionRecord[] = [],
-): NewsroomSectionRecord[] {
-  const fallbackById = new Map(fallbackSections.map((section) => [section.id, section]));
-  return sortNewsroomSections(sections.map((section) => {
-    const fallback = fallbackById.get(section.id);
-    return {
-      ...section,
-      shortTitle: section.shortTitle?.trim() || fallback?.shortTitle || defaultNewsroomSectionShortTitle(section.id),
-    };
-  }));
-}
-
-function defaultNewsroomSectionShortTitle(sectionId: string): string {
-  return NEWSROOM_SECTION_SHORT_TITLE_FALLBACKS[sectionId] ?? "";
-}
-
 function displayNewsroomSectionShortTitle(section: NewsroomSectionRecord): string {
-  return section.shortTitle?.trim() || defaultNewsroomSectionShortTitle(section.id);
+  return section.shortTitle?.trim() || section.title;
 }
 
 function normalizeNewsroomSectionType(value: string | null | undefined): "canonical" | "floating" {

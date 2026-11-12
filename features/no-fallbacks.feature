@@ -35,3 +35,8 @@ Feature: One correct path that fails clearly
     Given the news desk client source
     When it is read for how it loads a page of References
     Then each ordering and status filter reads its own index, an empty page is an empty page, and no table scan or older feed query takes over
+
+  Scenario: A section is called by its own stored name and the page has one list of sections
+    Given the steering workspace source
+    When it is read for how it names a section and where its sections and proposals come from
+    Then a section shows its stored short title or its title, no table of section names is written into the engine, and the page does not borrow a second snapshot when the first is empty

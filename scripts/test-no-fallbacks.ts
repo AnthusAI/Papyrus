@@ -48,3 +48,12 @@ test("news desk client: References come from their indexes", () => {
   assert.doesNotMatch(client, /isMissingGraphQLQueryFieldError|falling back to legacy/);
   assert.match(client, /if \(order === "imported"\) return loadReferencePageByImportedFeed\(options\);/);
 });
+
+test("newsroom sections: one source for names and lists", () => {
+  const workspace = read("components/topic-steering-workspace.tsx");
+  const sections = read("lib/newsroom-sections.ts");
+  assert.doesNotMatch(workspace, /SHORT_TITLE_FALLBACKS|normalizeNewsroomSectionsWithFallback|fallbackNewsroomSections|needsSectionFallback|needsProposalFallback/);
+  assert.doesNotMatch(sections, /SHORT_TITLE_FALLBACKS/);
+  assert.doesNotMatch(workspace, /Creative Work|Market Structure/);
+  assert.match(sections, /return section\.shortTitle\?\.trim\(\) \|\| section\.title;/);
+});
