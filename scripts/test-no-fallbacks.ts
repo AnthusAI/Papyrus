@@ -84,4 +84,9 @@ test("inbound email: no site's domain, corpus or hosted zone is written into the
   }
   const receive = read("amplify/functions/ses-inbound-receive/handler.ts");
   assert.doesNotMatch(receive, /PAPYRUS_INBOUND_EMAIL_(DOMAIN|LOCAL_PARTS|CORPUS_KEY)\s*\?\?/);
+test("steering workspace: References refresh on open and after the editor's own writes, not by subscription", () => {
+  const workspace = read("components/topic-steering-workspace.tsx");
+  assert.doesNotMatch(workspace, /referenceSubscriptionClient|referencesRealtime|formatReferencesRealtimeStatusMessage/);
+  assert.doesNotMatch(workspace, /typeof \w+\.(onCreate|onUpdate|onDelete)\s*[!=]==\s*"function"/);
+  assert.doesNotMatch(workspace, /models\.(Reference|SemanticRelation) as unknown as/);
 });
