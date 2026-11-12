@@ -6,7 +6,7 @@ Feature: Notifications send as the site, through the newsletter's identity and c
   SES later says about a message reaches the delivery log.
 
   Background:
-    Given a site "alpha" with the notifications plugin and one operator
+    Given a site "alpha" with the notifications plugin and one confirmed subscriber
 
   Scenario: Mail is tagged and sent through the site's configuration set
     When the story "Rates held steady" is published in the "news" section
@@ -21,10 +21,9 @@ Feature: Notifications send as the site, through the newsletter's identity and c
     Then the site sent no mail
     And the delivery is "failed" because "sending is paused for configuration set papyrus-alpha"
 
-  Scenario: Public mail is refused without a postal address
+  Scenario: Public mail to readers is refused without a postal address
     Given the site has no postal address
     When the story "Rates held steady" is published in the "news" section
-    And the delivery is marketing mail
     And the email queue is played through the sender
     Then the site sent no mail
     And the delivery is "failed" because "postal address missing"
@@ -32,7 +31,6 @@ Feature: Notifications send as the site, through the newsletter's identity and c
   Scenario: Public mail carries the postal address in its footer
     Given the site has the postal address "1 Example Way"
     When the story "Rates held steady" is published in the "news" section
-    And the delivery is marketing mail
     And the email queue is played through the sender
     Then the email footer shows "1 Example Way"
 

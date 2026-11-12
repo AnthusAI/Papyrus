@@ -34,6 +34,7 @@ const base = {
   fromName: "Example News",
   theme: { accent: "#aa3300", text: "#111111", background: "#ffffff" },
   lists: [{ id: "stories", name: "New stories", description: "Every published story.", rule: { sections: ["News"] } }],
+  consent: "I agree to get the emails I choose from Example News and can unsubscribe at any time.",
 };
 const refuses = (request: Record<string, unknown>, pattern: RegExp, message?: string) =>
   assert.throws(() => resolveNotificationsConfig(request as never), pattern, message);
@@ -52,6 +53,10 @@ const config = resolvePlugins([base])[0].config as NotificationsConfig;
 assert.equal(config.configurationSet, "papyrus-example");
 assert.equal(config.itemUrlStyle, "html");
 assert.equal(config.basePath, "");
+assert.equal(config.confirmWindowHours, 72, "the newsletter's promise to readers by default");
+assert.equal(resolveNotificationsConfig({ ...base, confirmWindowHours: 24 } as never).confirmWindowHours, 24);
+refuses({ ...base, confirmWindowHours: 1.5 }, /confirmWindowHours must be a whole number of hours/);
+refuses({ ...base, consent: undefined }, /notifications plugin consent/, "the form's consent wording is required");
 assert.deepEqual(config.lists, [{ id: "stories", name: "New stories", description: "Every published story.", rule: { sections: ["News"] }, approval: "admin" }]);
 assert.equal(resolveNotificationsConfig({ ...base, lists: [{ ...base.lists[0], approval: "none" }] } as never).lists[0].approval, "none");
 refuses({ ...base, siteId: "Bad Id" }, /notifications plugin siteId/);
@@ -75,7 +80,7 @@ refuses({ ...base, extra: 1 }, /unknown settings: extra/);
 }
 
 // Caducus is pinned exactly; the requirement file the bundler installs says the same.
-assert.equal(CADUCUS_REQUIREMENT, "caducus[notify]==0.2.0");
+assert.equal(CADUCUS_REQUIREMENT, "caducus[notify]==0.3.0");
 assert.ok(NOTIFICATIONS_REQUIREMENTS.includes(CADUCUS_REQUIREMENT));
 const requirements = readFileSync(new URL("../amplify/plugins/notifications/function/requirements.txt", import.meta.url), "utf8").split("\n");
 assert.ok(requirements.includes(CADUCUS_REQUIREMENT), "requirements.txt pins the same Caducus");
@@ -86,6 +91,9 @@ assert.equal(environment.SITE_ID, "example");
 assert.equal(environment.OPERATORS_PARAMETER, "/papyrus/example/notifications/operators");
 assert.deepEqual(JSON.parse(environment.THEME_JSON), base.theme);
 assert.deepEqual(JSON.parse(environment.LISTS_JSON), config.lists);
+assert.equal(environment.CONSENT, base.consent);
+assert.equal(environment.CONFIRM_WINDOW_SECONDS, "259200");
+assert.equal((notificationsPlugin.publicSettings(config) as { consent: string }).consent, base.consent, "the subscribe form shows the stored wording");
 assert.ok(!JSON.stringify(environment).includes("@example.com") || environment.FROM_ADDRESS === "notifications@example.com");
 
 // A site without plugins touches nothing.
@@ -118,7 +126,7 @@ function synthesize(settings: NotificationsConfig = config) {
 const { template, dataTemplate, outputs, stacks } = synthesize();
 assert.deepEqual(stacks.map((stack) => stack.node.id), ["notifications"], "one stack, and only where the plugin is enabled");
 
-// The table: retained, customer-managed key, TTL, byRecipient, no point-in-time recovery.
+// The table: retained, customer-managed key, TTL, byRecipient and byList, no point-in-time recovery.
 template.resourceCountIs("AWS::DynamoDB::Table", 1);
 template.hasResource("AWS::DynamoDB::Table", {
   DeletionPolicy: "Retain",
@@ -135,6 +143,7 @@ template.hasResource("AWS::DynamoDB::Table", {
         KeySchema: [{ AttributeName: "recipientKey", KeyType: "HASH" }, { AttributeName: "queuedAt", KeyType: "RANGE" }],
         Projection: { ProjectionType: "ALL" },
       },
+      { IndexName: "byList", KeySchema: [{ AttributeName: "gsiList", KeyType: "HASH" }], Projection: { ProjectionType: "KEYS_ONLY" } },
     ],
   },
 });
@@ -237,7 +246,7 @@ assert.match(JSON.stringify(dataTemplate.findResources("AWS::IAM::Policy")), /fu
 // Outputs: public settings (no secrets) and the function the routes invoke.
 assert.equal(outputs.length, 2);
 const published = (outputs[1] as { custom: { papyrusPlugins: { notifications: Record<string, unknown> } } }).custom.papyrusPlugins.notifications;
-assert.deepEqual(Object.keys(published).sort(), ["basePath", "contract", "fromName", "lists", "theme"]);
+assert.deepEqual(Object.keys(published).sort(), ["basePath", "consent", "contract", "fromName", "lists", "theme"]);
 assert.deepEqual(published.lists, [{ id: "stories", name: "New stories", description: "Every published story." }]);
 assert.ok(!JSON.stringify(published).includes("computeRoleArn"));
 assert.deepEqual(Object.keys((outputs[0] as { custom: { notifications: object } }).custom.notifications), ["actionsFunction"]);

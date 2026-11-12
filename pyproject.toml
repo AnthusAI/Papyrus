@@ -82,7 +82,7 @@ requests = "^2.32.3"
 kanbus = ">=0.18.3"
 moto = {version = ">=5,<6", extras = ["dynamodb"]}
 # The notifications plugin's Lambdas install this exact version (amplify/plugins/notifications/function/requirements.txt); tests run against the same one.
-caducus = {version = "==0.2.0", extras = ["notify"]}
+caducus = {version = "==0.3.0", extras = ["notify"]}
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
