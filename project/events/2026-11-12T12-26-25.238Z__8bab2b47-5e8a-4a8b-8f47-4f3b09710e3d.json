@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8bab2b47-5e8a-4a8b-8f47-4f3b09710e3d",
+  "issue_id": "PPY-0b546d45-e0b3-4fae-891a-e3d7f08824dd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T12:26:25.238Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Optional backend features default to off, and synth fails when one lacks its prerequisites",
+    "description": "From Humorus HUM-4bca14. PAPYRUS_ENABLE_CONSOLE_RESPONDER defaulted to ON when unset, pulling in a container image the package does not build (ECR ImageNotFoundException at asset publish). Slack, inbound email and storage backups are the same kind of opt-in feature. Ryan 2026-11-12: no workarounds, no fallbacks; change the default itself and make papyrus-infra synth fail clearly (naming the flag and what is missing). The scaffold (PPY-f30ad5) writes the four flags explicitly.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+    "labels": []
+  }
+}
