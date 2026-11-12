@@ -619,18 +619,19 @@ def stories_next(flags: list[str]) -> None:
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
     facts = story_facts(client, lineage_id)
-    from .newsroom_process import hint_lines, remaining_lines, resolve, status_lines, version_lines
+    from .newsroom_process import Procedure, hint_lines, remaining_lines, resolve, status_lines, version_lines
     from .story_checklist import checklist_lines, progress_text, read_steps, steps_for_display, summary_of
 
     raw = read_steps(client, lineage_id)   # one index read by Story lineage
     assessment = resolve(assess(facts), raw, facts)   # the stored checklist decides; the records only hint
-    stored = steps_for_display(raw, lineage_id)
+    procedure = Procedure.from_spec(facts.get("procedureSpec"))
+    stored = steps_for_display(raw, lineage_id, procedure)
     stale_count = len(assessment["stale"])
     states = {row["key"]: row["state"] for row in assessment["steps"] if row["source"] == "checklist"}   # the lens steps as resolved, stale included
     if options.get("json"):
         print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
                           "currentVersion": facts["versionNumber"], "checklist": stored,
-                          "progress": progress_text(summary_of(stored), stale_count) if stored else None}, indent=2))
+                          "progress": progress_text(summary_of(stored, procedure), stale_count) if stored else None}, indent=2))
         return
     print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
     lines = (status_lines(assessment) + step_lines(assessment) + version_lines(assessment) + hint_lines(assessment) + checklist_lines(stored, stale_count)
