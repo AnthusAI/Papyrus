@@ -84,18 +84,27 @@ def item_reopened(context, key):
         checklist.set_step(client_of(context), lineage_of(context), key, "open", actor=EDITOR, now=AT)
 
 
-@given("every required step is closed")
-def required_closed(context):
+def close_required(context, *, except_keys=()):
     with evidence_patches(context):
         client = client_of(context)
         checklist.sync_checklist(client, LINEAGE, now=AT)
         for row in checklist.read_steps(client, LINEAGE):
-            if row["state"] != "open" or row["stepKey"] not in checklist.required_keys():
+            if row["state"] != "open" or row["stepKey"] not in checklist.required_keys() or row["stepKey"] in except_keys:
                 continue
             if row["stepKey"].startswith("review_"):
                 checklist.set_step(client, LINEAGE, row["stepKey"], "done", actor=EDITOR, note="Read it through.", now=AT)
             else:
                 checklist.set_step(client, LINEAGE, row["stepKey"], "skipped", actor=EDITOR, reason="Covered elsewhere.", now=AT)
+
+
+@given("every required step is closed")
+def required_closed(context):
+    close_required(context)
+
+
+@given("every required step except Illustration is closed")
+def required_closed_but_illustration(context):
+    close_required(context, except_keys=("illustration",))
 
 
 @given('the Story has the type "{item_type}"')
@@ -370,6 +379,8 @@ def no_recorded_version(context, key):
 
 
 def close_every_step(context, *, except_keys=()):
+    if "illustration" not in except_keys:
+        add_cover(context, "stock")   # the Illustration step closes only on a cover a person approved
     with evidence_patches(context):
         client = client_of(context)
         checklist.sync_checklist(client, LINEAGE, now=AT)
@@ -468,3 +479,146 @@ def json_answer(context, status, key):
 @when("a finished check of the current version with no violation passes")
 def check_passes(context):
     context.world.check_run = {"id": f"{LINEAGE}-v{context.world.version_number}", "lanes": {"humanus": {"status": "ran"}}, "findings": []}
+
+
+# --- Illustration (features_backend/story-illustration.feature) -------------------------------------------------------------------
+
+COVER = "assets/board/cover.png"
+COVER_DARK = "assets/board/cover.dark.png"
+
+
+def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False, stored: bool = True, remote: bool = False, approved: bool = True) -> None:
+    """Gives the current version of the Story a cover the way the newsroom and the figures workflow do: front matter ``image``, the picture first in the body,
+    and a ``MediaAsset`` row per stored picture. ``kind`` is ``stock`` (a picked stock picture: the ``coverImage`` record) or ``figure`` (a credit that says who
+    approved it, and an optional dark picture)."""
+    import yaml
+
+    client = client_of(context)
+    version_id = f"{LINEAGE}-v{context.world.version_number}"
+    row = client.get_record("Item", version_id)
+    metadata = json.loads(row["metadata"])
+    front = {"title": "Board refuses", "image": ("https://example.test/cover.png" if remote else "/" + COVER)}
+    attributes = f'src="{"https://example.test/cover.png" if remote else COVER}" alt="The board room"'
+    if kind == "stock" and approved:
+        front["coverImage"] = {"source": "wikimedia-commons", "creator": "A. Photographer", "licence": "CC BY 4.0", "srcPath": COVER,
+                               "pickedAt": AT, "pickedBy": picked_by}
+        attributes += ' credit="Image: A. Photographer, CC BY 4.0, via Wikimedia Commons"'
+    if kind == "figure":
+        attributes += f' credit="Drafted by AI. Approved by {picked_by}."' if approved else ' credit="Drafted by AI. Approved by <name>."'
+        if dark:
+            front["imageDark"] = "/" + COVER_DARK
+            attributes += f' srcDark="{COVER_DARK}"'
+    metadata["frontMatterYaml"] = yaml.safe_dump(front, sort_keys=False)
+    client.update_record("Item", {"id": version_id, "metadata": json.dumps(metadata), "bodyMarkus": f"::image{{{attributes}}}\n\nFirst."})
+    if stored and not remote:
+        for path in [COVER, *([COVER_DARK] if dark else [])]:
+            client.upsert("MediaAsset", {"id": f"media-{version_id}-{path}", "itemId": version_id, "type": "image", "role": "body", "sortKey": f"000#{path}",
+                                         "alt": "The board room", "metadata": json.dumps({"srcPath": path})})
+
+
+def remove_cover(context) -> None:
+    client = client_of(context)
+    version_id = f"{LINEAGE}-v{context.world.version_number}"
+    metadata = json.loads(client.get_record("Item", version_id)["metadata"])
+    metadata["frontMatterYaml"] = 'title: "Board refuses"'
+    client.update_record("Item", {"id": version_id, "metadata": json.dumps(metadata), "bodyMarkus": "First."})
+
+
+@given('the Story has a stock cover picked by "{name}"')
+def stock_cover(context, name):
+    add_cover(context, "stock", picked_by=name)
+
+
+@given('the Story has a figure cover approved by "{name}"')
+def figure_cover(context, name):
+    add_cover(context, "figure", picked_by=name)
+
+
+@given('the Story has a figure cover approved by "{name}" with a dark picture')
+def figure_cover_dark(context, name):
+    add_cover(context, "figure", picked_by=name, dark=True)
+
+
+@given("the Story has a cover that nobody approved")
+def unapproved_cover(context):
+    add_cover(context, "figure", approved=False)
+
+
+@given("the Story has a cover that is not a stored asset")
+def unstored_cover(context):
+    add_cover(context, "stock", stored=False)
+
+
+@given("the Story has a remote cover address")
+def remote_cover(context):
+    add_cover(context, "stock", remote=True)
+
+
+@given("the cover is taken off the Story in a new version")
+def cover_removed_in_new_version(context):
+    new_version(context)
+    remove_cover(context)
+
+
+@given("the site requires dark figures")
+def site_requires_dark(context):
+    use_policy(context, requireDark=True)
+
+
+@given('the site requires a cover for "{item_type}" Stories')
+def site_requires_type(context, item_type):
+    use_policy(context, requiredTypes=[item_type])
+
+
+def use_policy(context, **changes) -> None:
+    from papyrus_content import story_illustration
+
+    policy = {"requiredTypes": ["article"], "requireDark": False, "unreadable": False, **getattr(context, "policy", {}), **changes}
+    first = not hasattr(context, "policy")
+    context.policy = policy
+    if first:
+        patcher = patch.object(story_illustration, "read_policy", lambda _client: dict(context.policy))
+        patcher.start()
+        context.add_cleanup(patcher.stop)
+
+
+@given('a revision of the published Story is saved at the "{stage}" stage')
+def revision_of_published(context, stage):
+    new_version(context)
+    client_of(context).update_record("Item", {"id": f"{LINEAGE}-v{context.world.version_number}", "stage": stage, "headStageKey": stage, "status": "draft", "bodyMarkus": "Revised."})
+
+
+@when('a person marks the step "{key}" done')
+def person_marks_done(context, key):
+    mark(context, key, "done", EDITOR)
+
+
+@when('an agent marks the step "{key}" skipped with the reason "{reason}"')
+def agent_marks_skipped(context, key, reason):
+    mark(context, key, "skipped", {"kind": "agent", "label": "AI"}, reason=reason)
+
+
+@when('a person marks the step "{key}" skipped with the reason "{reason}"')
+def person_marks_skipped(context, key, reason):
+    mark(context, key, "skipped", EDITOR, reason=reason)
+
+
+def mark(context, key, state, actor, **fields) -> None:
+    context.succeeded, context.error = True, None
+    with evidence_patches(context):
+        try:
+            checklist.set_step(client_of(context), lineage_of(context), key, state, actor=actor, now=AT, **fields)
+        except Exception as error:
+            context.succeeded, context.error = False, error
+
+
+@then('the stored step "{key}" is a sub-task the newsroom lists as "{title}" in position {position:d} of {total:d}')
+def ui_reads_the_stored_step(context, key, title, position, total):
+    """What the newsroom panel reads (lib/story-checklist.ts, storyStepsFromItems): the sub-task Item's title, state, sort order and metadata.checklist."""
+    rows = [row for row in client_of(context).tables["Item"].values() if row.get("type") == "sub-task" and row.get("parentLineageId") == lineage_of(context)]
+    assert len(rows) == total, len(rows)
+    ordered = sorted(rows, key=lambda row: row["sortTitle"])
+    keys = [json.loads(row["metadata"])["checklist"]["stepKey"] for row in ordered]
+    stored = ordered[keys.index(key)]
+    assert stored["title"] == title and stored["status"] in checklist.STATES, stored
+    assert keys.index(key) + 1 == position, keys

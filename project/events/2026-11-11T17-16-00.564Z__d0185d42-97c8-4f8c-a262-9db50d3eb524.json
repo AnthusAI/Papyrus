@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "d0185d42-97c8-4f8c-a262-9db50d3eb524",
+  "issue_id": "PPY-e69d63bc-7509-4ae6-8747-3566f3ab7d8f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T17:16:00.564Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Two friendly sites share one deployment before permission isolation",
+    "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-265b5b.\n\nAn early milestone for PPY-6a6357: two sites with the same editors on one deployment. It needs tenant scoping in every list, host-to-site routing at the edge, per-site output folders and per-site policy data. It does not need permission isolation or billing.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Fable 5.2",
+      "name": "Humorus Planning"
+    }
+  }
+}

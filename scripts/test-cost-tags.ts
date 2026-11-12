@@ -239,8 +239,11 @@ const offTemplates = synthBackend(path.join(scratch, "off"), {});
   // The pipeline's deploy roles (its only resources, nothing costed) change only through their own reviewed approval
   // flow and never send usage, so their templates are not checked.
   const PIPELINE = "infra/pipeline/";
+  // infra/account/ is the account baseline and account stacks for ANY deployment account (PPY-9bd776): roles, a zone, a budget, a certificate.
+  // A deployment in another organisation has no Prospectus and sends no usage, so Anthus cost tags do not apply to these templates.
+  const ACCOUNT = "infra/account/";
   const files = spawnSync("git", ["ls-files", "infra/*.yaml", "infra/**/*.yaml"], { cwd: repo, encoding: "utf8" }).stdout
-    .split("\n").filter((file) => file && !file.includes("/node_modules/") && !NOT_PAPYRUS.has(file) && !file.startsWith(PIPELINE));
+    .split("\n").filter((file) => file && !file.includes("/node_modules/") && !NOT_PAPYRUS.has(file) && !file.startsWith(PIPELINE) && !file.startsWith(ACCOUNT));
   let templates = 0;
   for (const file of [...new Set(files)]) {
     const document = parse(fs.readFileSync(path.join(repo, file), "utf8"), { logLevel: "silent" });

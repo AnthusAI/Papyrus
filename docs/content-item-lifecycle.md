@@ -130,6 +130,11 @@ the page) sets or changes it. The type is not locked after creation; it follows 
   (the redirect store of the site), and the publish result says `typeChangedFrom`. The editor shows both addresses before that happens. Publishing a version whose
   type has no page would remove the live page, so the editor turns Publish off in that case (unpublish is the explicit way).
 
+**Retired** (`retired`, not a board column). `papyrus stories retire --story X --redirect-to Y` unpublishes X and moves its head version to this stage, the stage a
+machine write that was undone also uses (`machine_writes.RETIRED_STAGE`; `CONTENT_ITEM_STAGES` is unchanged). X keeps every version and records `metadata.retiredInto`
+(the lineage it redirects to); the projection redirects every address X was served at, including the ones before a type change (`typeChangedFrom`), to Y's current
+address, and follows Y when it moves. `--undo` publishes the retired version again. See [story reporting](story-reporting.md#retiring-a-story-and-redirecting-its-address-stories-retire).
+
 **A type with no public URL.** A page is built for a Story only when its section is declared in `urls.sections`, or its type has a `urls.types` entry, or it has
 no section and its type is projected at all (`article`, `page`, and the types in `listings.types` or `urls.types`). A Story of any other type, or in a section
 the site does not declare, is recorded as published but gets no page. The editor says so under the Type field ("No public URL"), and the publish result carries

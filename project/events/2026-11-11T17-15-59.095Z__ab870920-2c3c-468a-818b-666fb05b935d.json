@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "ab870920-2c3c-468a-818b-666fb05b935d",
+  "issue_id": "PPY-6702e2cc-ad4b-4d9d-8de3-d7fe5d071d4d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T17:15:59.095Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Papyrus ships a neutral public theme and two example themes",
+    "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-1be843.\n\nFactor the useful parts of the Machines on Machines design (cards, layout preset, tokens at final sizes) into core as the default theme. A site with only a name looks finished; a brand pack of tokens restyles it; a brand pack cannot carry code. Pulls forward PPY-31efef, PPY-3aa10f, PPY-e572de, PPY-0f4e10 and PPY-2a44b2. Machines on Machines must look the same afterwards.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Fable 5.2",
+      "name": "Humorus Planning"
+    }
+  }
+}

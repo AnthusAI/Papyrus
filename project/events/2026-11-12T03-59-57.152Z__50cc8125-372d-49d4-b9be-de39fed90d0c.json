@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "50cc8125-372d-49d4-b9be-de39fed90d0c",
+  "issue_id": "PPY-e5d1fb6c-120f-4ad5-9c89-9ee110369023",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T03:59:57.152Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The per-site app shell is deployed by the account pipeline",
+    "description": "For a deployment such as Humorus, the app-shell CDK stack (Amplify CMS app, roles, edge) is deployed from Git on merge, not by a person running cdk deploy. The Amplify GitHub connection and the Google OAuth client are the person-only parts. Plan in the comments.\n\n```gherkin\nFeature: The app shell is deployed by the account pipeline\n\n  Scenario: A merge to main deploys the app shell\n    Given a deployment repository with infra/site.json\n    When a change is merged to main\n    Then the pipeline synthesizes the app-shell stack without AWS access\n    And it asserts the manifest holds exactly the expected stack\n    And it deploys it with the main-only deploy role through the CDK bootstrap roles\n    And the stack output with the CMS app id is available to later steps\n\n  Scenario: A pull request never needs AWS access to be checked\n    Given a pull request that changes infra/site.json\n    When CI runs\n    Then the stack is synthesized and checked with no AWS credentials\n\n  Scenario: The CMS never takes the public apex\n    Given a site whose public domain is served by another stack\n    When the app shell is deployed without a domain name\n    Then the CMS is served on the Amplify default URL only",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+    "labels": []
+  }
+}
