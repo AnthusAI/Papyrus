@@ -220,5 +220,5 @@ test("a stored Rated step is shown like any other, named by the command that rat
   assert.ok(rated, "the panel has a Rated step");
   assert.equal(rated.title, "Rate the Story");
   assert.equal(rated.state, "open");
-  assert.match(rated.command, /papyrus stories set-stars --story preview-item-lineage-copywriting-0 --stars/);
+  assert.match(String(rated.command), /papyrus stories set-stars --story preview-item-lineage-copywriting-0 --stars/);
 });

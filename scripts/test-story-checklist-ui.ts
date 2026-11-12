@@ -133,7 +133,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         await progress(page, COPYWRITING.lineage).waitFor();
         assert.equal(await progress(page, COPYWRITING.lineage).innerText(), "6/15 · 1 skipped", "done and not-applicable over all, then the skipped count");
         assert.equal(await progress(page, COPYWRITING.lineage).locator("svg").count(), 1, "a Lucide icon");
-        assert.match(await progress(page, COPYWRITING.lineage).getAttribute("aria-label") ?? "", /Checklist: 6\/14 · 1 skipped/, "the words for a screen reader");
+        assert.match(await progress(page, COPYWRITING.lineage).getAttribute("aria-label") ?? "", /Checklist: 6\/15 · 1 skipped/, "the words for a screen reader");
         assert.equal(await progress(page, IDEA.lineage).innerText(), "0/15", "an idea has done nothing yet");
         assert.equal(await card(page, COPYWRITING.lineage).locator(".issue-card-owner [data-story-checklist-progress]").count(), 1, "in the card's owner row");
         await shot(page, `card-${mode}-1440-v5`);
@@ -223,7 +223,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         await actions(page, "review_social").locator("textarea").fill("No image on this Story.");
         await actions(page, "review_social").locator('[data-step-action="save"]').click();
         await step(page, "review_social").locator('.issue-accent-priority:has-text("Skipped")').waitFor();
-        assert.match(await panel(page).locator(".story-checklist-progress").innerText(), /^7\/14 · 2 skipped$/, "the panel's progress follows");
+        assert.match(await panel(page).locator(".story-checklist-progress").innerText(), /^7\/15 · 2 skipped$/, "the panel's progress follows");
         // Not applicable also needs a reason; a done step is reopened by a person.
         await actions(page, "review_reader_agents").locator('[data-step-action="not_applicable"]').click();
         await actions(page, "review_reader_agents").locator("textarea").fill("Agents do not read this page.");
