@@ -1,0 +1,65 @@
+{
+  "id": "PPY-4007c86a-102f-42cd-9039-0504f71db285",
+  "title": "MoM rollout: scheduling, then 5-star announcements (dry run, then one watched live post)",
+  "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md (\"Testing safely\", \"Questions for Ryan\").\n\nGoal: Machines on Machines uses scheduling, then announces 5-star Stories on X from its own account: dry run first, then one live post Ryan watches, with a $10 budget per X billing cycle; then Ryan reviews the rate and the floor. No test account (Ryan, 2026-11-12).\n\nSteps: set `publication.timeZone`; deploy scheduling; schedule one real Story; Ryan confirms MoM's X account exists (open item) and follows docs/x-announcements-setup.md: developer app, $10 credits, $10 console spending limit, keys entered in Administration, connect, Automated label; set rules (Stories, 5 stars) and budget $10; mode Dry run and review the built posts; prove pause, budget and disconnected guards in dry run; Ryan rates a Story 5 stars, schedules it for a time he is watching, sets mode On, checks the post on X with Pause and Withdraw at hand; retirement handling (PPY-bf9d26) shipped before mode stays On; after a month, review the rate (about zero today) and the floor.\n\nCannot be tested without posting: X accepting the post (tweet.write), X's length and link handling, the link card on X, duplicate refusals, rate-limit answers, the delete path, the Automated label display, X's bill versus our counter. The watched first post covers the first four. Only the site under test is bumped; other sites follow in one batch once it works.\n\nDepends on: all other stories in this epic; the notifications plugin on MoM (PPY-824c14).\n\n```gherkin\nFeature: Machines on Machines schedules and announces its best Stories\n  MoM proves the feature: scheduled Stories go out on time and its 5-star Stories\n  are announced on X, safely, within budget.\n\n  Scenario: Dry run first\n    Given MoM is connected and its mode is Dry run\n    When a 5-star Article is published\n    Then Ryan sees the exact post that would be made\n    And nothing is posted or spent\n\n  Scenario: The guards hold before going live\n    Given MoM's mode is Dry run\n    When Ryan pauses announcements, or the budget is below one post's price, or the account is disconnected\n    Then the next eligible Story is recorded as blocked with that reason\n\n  Scenario: One watched live post\n    Given Ryan rated an Article 5 stars and scheduled it for 10:00\n    And MoM's mode is On\n    When 10:00 arrives\n    Then one post appears on MoM's X account with the Article's link\n    And its $0.20 cost shows in MoM's spend\n    And Ryan can pause or withdraw it from the same page\n\n  Scenario: Reviewing the rate\n    Given a month of announcements on MoM\n    Then the admin page shows how many Stories qualified, how many were posted and what they cost\n    And Ryan decides whether to keep 5 stars or include 4\n```\n\nOpen questions: does MoM's X account exist, and its handle (Ryan)?",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-085d0bab-c631-430f-934a-ef42fa454646",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-92164e3c-3520-4678-acc2-f889123c52b1",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-38f01637-98c3-4b55-a64d-06715d51baa7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9f4d661c-8dac-4ab9-84ae-ea62b0963b93",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2deb6371-09ac-4b9d-a2f6-2bd8acd8b4e2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ae9d06e5-5d2a-4f51-acff-c611ab48d75e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-64378cc0-375d-4d86-9943-2c16febc4fd2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a326aa2d-4ef1-4efc-a285-b72ea61775f8",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8037b884-33b7-4dd4-b052-922707f0a04d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-bf9d2658-3f3d-4740-8bb0-4698f5ab8a49",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-24358c02-16fb-4f9c-aed8-0a913baa1e6c",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T18:41:39.850997Z",
+  "updated_at": "2026-11-12T18:51:02.928082Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -102,7 +102,8 @@ def stories_save_version(flags: list[str]) -> None:
     plan and writes nothing. Re-running is idempotent: a file whose content is already stored for the story keeps its exact
     srcPath, so the S3 key and the body reference do not change; a name that holds different content gets -2, -3 (never
     overwritten). MediaAsset rows are keyed by story VERSION (media-<version id>-<hash of srcPath>, as the editor and
-    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. The path is
+    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. A save without --images carries forward, from the earlier
+    versions, every stored picture the new body and front matter name: each image's src and srcDark and the front matter image keys (and their ...Dark twins). The path is
     media/assets/<slug>/<file> with the slug the story has when the file is first stored (a story without a slug has
     draft-unsectioned-<hash>, exactly what the editor uses). It does NOT move: publishing, set-slug and a later section
     change never rewrite media keys or body references (the body keeps the stored srcPath), so the path is stable after
@@ -240,6 +241,25 @@ def stories_head_index(flags: list[str]) -> None:
     stages = tuple(parse_repeated_option(flags, "stage")) or None
     client, _ = create_authoring_client()
     run_head_index(client, apply=apply, stages=stages, rate=rate)
+
+
+def stories_backfill_published_dates(flags: list[str]) -> None:
+    """papyrus stories backfill-published-dates [--apply] [--rate <writes per second>]
+
+    Gives every published Story the dates it now means (docs/site-hosting.md, "Published and updated dates"): `publishedAt` = the Story's first publication and
+    `versionPublishedAt` / `versionPublishedBy` = when and by whom the served version went live, derived only from what its versions recorded. A Story whose first
+    publication cannot be derived (a version was taken down, or no version recorded a publish) is printed as an `unclear` line for a person to decide and its
+    `publishedAt` is left alone. A DRY RUN unless --apply: it prints one `set` line per row it would change, the `unclear` lines, and a summary (stories, rows to write,
+    already right, unclear). --apply writes only rows that differ, keeps each row's own updatedAt, and writes at most --rate a second (default 5); a second run
+    writes nothing. It needs the deploy that adds the two fields to Item and PublishedItem."""
+    from .story_published_dates import DEFAULT_RATE, run_backfill_published_dates
+
+    options = parse_options(flags)
+    apply = parse_boolean_option(options.get("apply"), default=False, label="--apply")
+    if apply and parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run"):
+        raise ValueError("Pass --apply or --dry-run, not both.")
+    client, _ = create_authoring_client()
+    run_backfill_published_dates(client, apply=apply, rate=float(options.get("rate") or DEFAULT_RATE))
 
 
 def stories_repair_image_paths(flags: list[str]) -> None:

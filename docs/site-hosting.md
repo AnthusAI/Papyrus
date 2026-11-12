@@ -1013,6 +1013,20 @@ What an editor can expect from a Save of a live item, as measured on the product
 
 Say "seconds", not "instant". Browsers always revalidate HTML (`max-age=0`).
 
+### Published and updated dates
+
+A Story has two public times, both stored on the Item and copied to its PublishedItem (PPY-271940, epic PPY-156614, plan `docs/plans/revision-history-and-published-dates.md`):
+
+| Field | Meaning | Changes when |
+| --- | --- | --- |
+| `publishedAt` | The moment the Story was first published. Every list orders by it (the `typeStatus` and `sectionStatus` indexes on `publishedAt`). | Never after the first publish. `save_story_version` carries it to every later version; a takedown and a republish keep it. |
+| `versionPublishedAt`, `versionPublishedBy` | When, and by whom, the version now served went live. The public "Updated" time. | Publishing writes a PublishedItem (a new version, or changed content). Notes, section moves, links, ratings and re-renders never change it. A saved draft has neither field until it is published. |
+| `versionCreatedAt`, `versionCreatedBy`, `changeReason` | The version's own record: who saved it, when, and the editor's "What changed" text. | Only when the version is saved. Publishing and unpublishing no longer overwrite them. |
+
+A value that is absent is absent: nothing substitutes a default. `updatedAt` stays the last write of any kind and belongs to the newsroom work queues; nothing public reads it.
+
+`papyrus stories backfill-published-dates` moves Stories published before this change to the meaning above, using only what their versions recorded (the earliest version whose `changeReason` is `publish`; an imported Story's earlier front matter date is kept). It is a dry run unless `--apply`, writes only rows that differ with each row's own `updatedAt`, and lists as `unclear` the Stories whose first publication cannot be derived, for a person to decide. See the agent CLI guide.
+
 ### What `content publish` reports, and its exit codes
 
 `papyrus ops content publish --id ID [--verify] [--verify-seconds N] [--json]` reports four stages on their own (PPY-f3b296). A purge or a check that fails never looks like a failed write.
