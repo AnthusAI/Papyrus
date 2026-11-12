@@ -54,3 +54,22 @@ Feature: A deployment's account is seeded once and then changed only from Git
     When the run is a pull request or any ref other than main
     Then the deploy and build jobs are skipped
     And on a push to main the deploy job assumes the github-deploy role, runs one at a time per repository and is never cancelled
+
+  Scenario: The account keeps a management-events audit trail
+    Given the cloudtrail account stack
+    Then it creates one multi-region trail that records management events only, with no data events and no Insights
+    And log file validation is on and global service events are included
+    And its log bucket blocks all public access, is encrypted, refuses plain HTTP and is retained if the stack is deleted
+    And log files expire after the retention days, 400 by default and never fewer than 30
+    And the first copy of management events is free, so only S3 storage is billed
+
+  Scenario: Mail events are captured before any mail is sent
+    Given the ses account stack
+    Then it creates a configuration set and an SNS topic that only SES in this account may publish to
+    And the event destination carries bounce, complaint, delivery-delay and reject events and nothing else
+    And no send, open or click events are recorded
+
+  Scenario: The mail event names cannot be forgotten
+    Given the ses account stack
+    Then the configuration set name and the event topic name are required parameters with no default
+    And the service role can manage configuration sets, topics, the trail and the trail bucket only when they are named with the deployment prefix

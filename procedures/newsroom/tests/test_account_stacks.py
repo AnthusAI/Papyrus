@@ -734,7 +734,7 @@ ACCOUNT_DIR = ROOT / "infra" / "account"
 def test_account_templates_are_generic_and_carry_no_ids():
     """The account baseline and stacks are for any deployment: no Anthus repository or domain, no account ids, no emails."""
     files = [ACCOUNT_DIR / "baseline.yaml", *sorted((ACCOUNT_DIR / "stacks").glob("*.yaml"))]
-    assert len(files) == 6
+    assert len(files) == 7
     for path in files:
         text = path.read_text(encoding="utf-8")
         assert not re.search(r"\b\d{12}\b", text), path
@@ -1058,3 +1058,64 @@ def test_placeholder_and_mail_templates_have_no_site_text_baked_in():
     ses = (ACCOUNT_DIR / "stacks" / "ses.yaml").read_text(encoding="utf-8")
     assert "rua=" not in ses and "mailto:" not in ses
     assert "MailFromAttributes" in ses and "v=spf1 include:amazonses.com" in ses
+
+
+# --- audit trail and mail events -------------------------------------------------------------------------------------------------------
+
+
+def load_template(path):
+    class Loader(yaml.SafeLoader):
+        pass
+    Loader.add_multi_constructor("!", lambda loader, suffix, node: None)   # intrinsic functions are not needed for these checks
+    return yaml.load(path.read_text(encoding="utf-8"), Loader=Loader)
+
+
+def test_cloudtrail_stack_is_one_multi_region_management_events_trail():
+    doc = load_template(ACCOUNT_DIR / "stacks" / "cloudtrail.yaml")
+    res = doc["Resources"]
+    trail = next(r for r in res.values() if r["Type"] == "AWS::CloudTrail::Trail")["Properties"]
+    assert trail["IsMultiRegionTrail"] is True and trail["IncludeGlobalServiceEvents"] is True
+    assert trail["EnableLogFileValidation"] is True and trail["IsLogging"] is True
+    assert trail["EventSelectors"] == [{"ReadWriteType": "All", "IncludeManagementEvents": True, "DataResources": []}]
+    assert "InsightSelectors" not in trail and "AdvancedEventSelectors" not in trail
+    assert doc["Parameters"]["RetentionDays"]["Default"] == 400 and doc["Parameters"]["RetentionDays"]["MinValue"] == 30
+    assert "AllowedPattern" in doc["Parameters"]["TrailName"] and set(doc["Outputs"]) == {"TrailName", "TrailArn", "BucketName"}
+
+
+def test_cloudtrail_bucket_is_private_retained_expiring_and_tls_only():
+    doc = load_template(ACCOUNT_DIR / "stacks" / "cloudtrail.yaml")
+    bucket = next(r for r in doc["Resources"].values() if r["Type"] == "AWS::S3::Bucket")
+    assert bucket["DeletionPolicy"] == "Retain" and bucket["UpdateReplacePolicy"] == "Retain"
+    props = bucket["Properties"]
+    assert "BucketName" not in props
+    assert all(props["PublicAccessBlockConfiguration"][k] is True for k in ("BlockPublicAcls", "BlockPublicPolicy", "IgnorePublicAcls", "RestrictPublicBuckets"))
+    rule = props["BucketEncryption"]["ServerSideEncryptionConfiguration"][0]
+    assert rule["ServerSideEncryptionByDefault"]["SSEAlgorithm"] == "AES256" and rule["BucketKeyEnabled"] is True
+    assert props["OwnershipControls"]["Rules"][0]["ObjectOwnership"] == "BucketOwnerEnforced"
+    life = props["LifecycleConfiguration"]["Rules"][0]
+    assert life["Status"] == "Enabled" and "ExpirationInDays" in life and life["AbortIncompleteMultipartUpload"]["DaysAfterInitiation"] == 7
+    text = (ACCOUNT_DIR / "stacks" / "cloudtrail.yaml").read_text(encoding="utf-8")
+    deny = next(st for r in doc["Resources"].values() if r["Type"] == "AWS::S3::BucketPolicy" for st in r["Properties"]["PolicyDocument"]["Statement"] if st["Effect"] == "Deny")
+    assert deny["Condition"] == {"Bool": {"aws:SecureTransport": "false"}} and deny["Action"] == "s3:*"
+    assert "DependsOn: TrailBucketPolicy" in text and "bucket-owner-full-control" in text and "DataResources: []" in text
+
+
+def test_ses_stack_has_config_set_topic_and_only_four_event_types():
+    doc = load_template(ACCOUNT_DIR / "stacks" / "ses.yaml")
+    types = {r["Type"] for r in doc["Resources"].values()}
+    assert {"AWS::SES::ConfigurationSet", "AWS::SNS::Topic", "AWS::SNS::TopicPolicy", "AWS::SES::ConfigurationSetEventDestination", "AWS::SES::EmailIdentity"} <= types
+    dest = next(r for r in doc["Resources"].values() if r["Type"] == "AWS::SES::ConfigurationSetEventDestination")["Properties"]["EventDestination"]
+    assert sorted(dest["MatchingEventTypes"]) == ["BOUNCE", "COMPLAINT", "DELIVERY_DELAY", "REJECT"]
+    cs = next(r for r in doc["Resources"].values() if r["Type"] == "AWS::SES::ConfigurationSet")["Properties"]
+    assert cs["ReputationOptions"]["ReputationMetricsEnabled"] is True and cs["SuppressionOptions"]["SuppressedReasons"] == ["BOUNCE", "COMPLAINT"]
+    for name in ("ConfigurationSetName", "EventTopicName"):
+        assert "Default" not in doc["Parameters"][name]
+        assert name in doc["Outputs"]
+
+
+def test_baseline_service_role_can_manage_the_trail_and_mail_event_resources():
+    text = (ACCOUNT_DIR / "baseline.yaml").read_text(encoding="utf-8")
+    for sid in ("CloudTrailTrail", "TrailBucket", "SesConfigurationSets", "SnsEventTopics"):
+        assert f"Sid: {sid}\n" in text
+    assert 'trail/${Prefix}-*"' in text and 'arn:${AWS::Partition}:s3:::${Prefix}-*"' in text
+    assert 'configuration-set/${Prefix}-*"' in text and '${AWS::AccountId}:${Prefix}-*"' in text

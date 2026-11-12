@@ -3,11 +3,22 @@ Description: >-
   Papyrus account stack: the SES sending identity for a site's domain, with Easy DKIM, a custom MAIL FROM
   domain, SPF and a DMARC policy, all as records in the Route 53 zone. Creating the identity does not wait
   for DNS: SES verifies by itself (it keeps checking for 72 hours) once the registrar delegates the domain to
-  the zone. Moving SES out of the sandbox is a request to AWS that a person makes.
+  the zone. The stack also creates a configuration set and an SNS topic that receives bounce, complaint,
+  delivery-delay and reject events (no open or click tracking), so they exist before any mail is sent. Moving SES out of the sandbox is a request to AWS that a person makes.
 
 Parameters:
   DomainName:
     Type: String
+  ConfigurationSetName:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9_-]{1,64}$"
+    Description: >-
+      Required, no default, so a configuration cannot forget it. Start it with the deployment prefix so the pipeline's
+      service role may manage it. Bounces, complaints, delivery delays and rejects are published to the event topic.
+  EventTopicName:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9_-]{1,256}$"
+    Description: Required, no default. Start it with the deployment prefix. The SNS topic that receives the mail events.
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
     Description: Supplied by the pipeline from the DNS stack's zone.
@@ -23,6 +34,54 @@ Parameters:
     Description: Start with none (monitor only). No report address is set here, because an address must not be committed to Git.
 
 Resources:
+  ConfigurationSet:
+    Type: AWS::SES::ConfigurationSet
+    Properties:
+      Name: !Ref ConfigurationSetName
+      ReputationOptions:
+        ReputationMetricsEnabled: true
+      SendingOptions:
+        SendingEnabled: true
+      SuppressionOptions:
+        SuppressedReasons: [BOUNCE, COMPLAINT]
+
+  EventTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Ref EventTopicName
+
+  EventTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref EventTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: SesPublishesEvents
+            Effect: Allow
+            Principal:
+              Service: ses.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref EventTopic
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+              ArnLike:
+                "aws:SourceArn": !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${ConfigurationSetName}"
+
+  # No SEND, OPEN or CLICK events: nothing here tracks readers.
+  EventDestination:
+    Type: AWS::SES::ConfigurationSetEventDestination
+    DependsOn: EventTopicPolicy
+    Properties:
+      ConfigurationSetName: !Ref ConfigurationSet
+      EventDestination:
+        Name: mail-problems
+        Enabled: true
+        MatchingEventTypes: [BOUNCE, COMPLAINT, DELIVERY_DELAY, REJECT]
+        SnsDestination:
+          TopicARN: !Ref EventTopic
+
   EmailIdentity:
     Type: AWS::SES::EmailIdentity
     Properties:
@@ -92,3 +151,11 @@ Resources:
       TTL: "1800"
       ResourceRecords:
         - !Sub '"v=DMARC1; p=${DmarcPolicy}; adkim=r; aspf=r"'
+
+Outputs:
+  ConfigurationSetName:
+    Description: The SES configuration set to name on every send.
+    Value: !Ref ConfigurationSet
+  EventTopicName:
+    Description: Name of the SNS topic that receives bounce, complaint, delivery-delay and reject events.
+    Value: !GetAtt EventTopic.TopicName
