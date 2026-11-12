@@ -783,7 +783,7 @@ def test_baseline_trust_supports_the_repository_subject_prefix():
     """A repository with immutable OIDC subjects has a different prefix; every trust statement must use the parameter when it is set."""
     text = (ACCOUNT_DIR / "baseline.yaml").read_text(encoding="utf-8")
     assert "GithubSubjectPrefix:" in text and "CustomSubject:" in text
-    assert text.count("Subject: !If [CustomSubject, !Ref GithubSubjectPrefix") == 3  # deploy, plan, roles-apply
+    assert text.count("Subject: !If [CustomSubject, !Ref GithubSubjectPrefix") == 4  # deploy, plan, roles-apply, watch
     assert 'repo:${GithubRepository}:' not in text
 
 
