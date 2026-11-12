@@ -6,7 +6,8 @@
  * state. Pure, so the rules are tested without a browser (scripts/test-story-schedule.ts).
  */
 
-export const SCHEDULE_STATES = ["scheduled", "superseded", "overdue", "published", "cleared"] as const;
+/** The stored `scheduleState` (docs/scheduled-publishing.md): present only while a schedule exists. Overdue is derived from the time, never stored. */
+export const SCHEDULE_STATES = ["scheduled", "publishing", "blocked"] as const;
 export type ScheduleState = (typeof SCHEDULE_STATES)[number];
 
 /** The schedule fields of an Item row. All absent on a version that was never scheduled (the index on them is sparse). */
@@ -30,19 +31,25 @@ export type StorySchedule = {
 
 export function scheduleFromFields(fields: ScheduleFields): StorySchedule | undefined {
   const state = fields.scheduleState;
-  if (!fields.scheduledPublishAt || !state || state === "cleared") return undefined;
+  if (!fields.scheduledPublishAt || !state) return undefined;
   if (!(SCHEDULE_STATES as readonly string[]).includes(state)) throw new Error(`Unknown schedule state "${state}".`);
   return { at: fields.scheduledPublishAt, state: state as ScheduleState, by: fields.scheduledBy ?? null, scheduledAt: fields.scheduledAt ?? null };
 }
 
-/** What a reader sees: a scheduled time that has passed while the version is still scheduled is Overdue, as the plan words it. */
-export type ScheduleKind = "scheduled" | "overdue" | "superseded" | "published";
+/** The schedule a successful `schedule` call recorded: none after a clear, else scheduled for the instant that was sent. */
+export function scheduleFromResult(result: { scheduledPublishAt: string | null; scheduledBy: string | null }, at: Date = new Date()): StorySchedule | undefined {
+  return result.scheduledPublishAt ? { at: result.scheduledPublishAt, state: "scheduled", by: result.scheduledBy, scheduledAt: at.toISOString() } : undefined;
+}
+
+/**
+ * What a reader sees. A time that has passed while the version is still scheduled or being published is Overdue (derived, as the backend derives it); a blocked
+ * schedule is Superseded: a newer version was saved after it was scheduled.
+ */
+export type ScheduleKind = "scheduled" | "overdue" | "superseded";
 
 export function scheduleKind(schedule: StorySchedule, now: Date): ScheduleKind {
-  if (schedule.state === "overdue") return "overdue";
-  if (schedule.state === "scheduled") return Date.parse(schedule.at) <= now.getTime() ? "overdue" : "scheduled";
-  if (schedule.state === "superseded") return "superseded";
-  return "published";
+  if (schedule.state === "blocked") return "superseded";
+  return Date.parse(schedule.at) <= now.getTime() ? "overdue" : "scheduled";
 }
 
 const part = (parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes) => parts.find(candidate => candidate.type === type)?.value ?? "";
@@ -74,8 +81,7 @@ export function scheduleWording(schedule: StorySchedule, zone: string, now: Date
   const time = formatScheduleTime(schedule.at, zone);
   if (kind === "scheduled") return { kind, text: `Scheduled: ${time}`, label: `Scheduled to publish ${time}` };
   if (kind === "overdue") return { kind, text: "Overdue", label: `Overdue: it was scheduled to publish ${time} and has not been published` };
-  if (kind === "superseded") return { kind, text: "Superseded: a newer version was saved", label: `Superseded: a newer version was saved after this was scheduled for ${time}. Schedule it again.` };
-  return { kind, text: `Published as scheduled: ${time}`, label: `Published as scheduled, ${time}` };
+  return { kind, text: "Superseded: a newer version was saved", label: `Superseded: a newer version was saved after this was scheduled for ${time}. Schedule it again.` };
 }
 
 /** The drawer's line: `Scheduled for Thu 13 Nov 2026, 9:00 AM ET (New York), by Sam`. */

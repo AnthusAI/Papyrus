@@ -42,9 +42,13 @@ export type UnpublishItemResult = { ok: true; changed: boolean };
 export type MoveStoryStageInput = { lineageId: string; stage: string; reason?: string | null };
 export type MoveStoryStageResult = { ok: true; changed: boolean; stage: string };
 
-/** Sets, changes or clears (`scheduledPublishAt: null`) the time the Story's version goes live. The instant is UTC: the console turns the publication-zone time an editor picked into it (lib/story-schedule.ts). */
-export type ScheduleStoryInput = { lineageId: string; scheduledPublishAt: string | null };
-export type ScheduleStoryResult = { ok: true; scheduledPublishAt: string | null; scheduleState: string | null; scheduledBy: string | null; scheduledAt: string | null };
+/**
+ * Sets, changes or clears (`scheduledPublishAt: null`) the time a Story's version goes live: the `schedule` operation of the site's `scheduleItem` mutation
+ * (docs/scheduled-publishing.md). `itemId` is the version being scheduled (the newest); clearing names the Story, whose schedule may sit on an earlier version. The
+ * instant is UTC: the console turns the publication-zone time an editor picked into it (lib/story-schedule.ts), so the backend never has to read a wall-clock time.
+ */
+export type ScheduleStoryInput = { itemId: string; lineageId: string; scheduledPublishAt: string | null };
+export type ScheduleStoryResult = { ok: true; scheduledPublishAt: string | null; scheduledBy: string | null };
 
 export type CreateStoryFromReferenceInput = {
   referenceId: string;
@@ -110,7 +114,7 @@ export type ContentActionsTransport = {
     unpublishItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     moveStoryStage: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     setStoryStep: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
-    scheduleStory: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
+    scheduleItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     createStoryFromReference: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     correctReferenceCapture: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
   };
@@ -152,7 +156,11 @@ export function createContentActionsClient(transport: ContentActionsTransport) {
       return parseActionResponse(await transport.mutations.moveStoryStage({ input: JSON.stringify(input) }, USER_POOL));
     },
     async scheduleStory(input: ScheduleStoryInput): Promise<ScheduleStoryResult> {
-      return parseActionResponse(await transport.mutations.scheduleStory({ input: JSON.stringify(input) }, USER_POOL));
+      const operation = input.scheduledPublishAt === null
+        ? { operation: "schedule", arguments: { storyLineageId: input.lineageId, clear: true } }
+        : { operation: "schedule", arguments: { itemId: input.itemId, at: input.scheduledPublishAt } };
+      const result = parseActionResponse<{ scheduledPublishAt?: string; scheduledBy?: string }>(await transport.mutations.scheduleItem({ input: JSON.stringify(operation) }, USER_POOL));
+      return { ok: true, scheduledPublishAt: result.scheduledPublishAt ?? null, scheduledBy: result.scheduledBy ?? null };
     },
     async setStoryStep(input: SetStoryStepInput): Promise<SetStoryStepResult> {
       return parseActionResponse(await transport.mutations.setStoryStep({ input: JSON.stringify(input) }, USER_POOL));

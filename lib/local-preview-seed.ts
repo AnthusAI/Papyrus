@@ -173,7 +173,7 @@ const DAY = 24 * HOUR;
 
 /**
  * Fake schedules for the sample Stories, placed relative to the start of today (UTC) so the board and the Schedule page always have something this week:
- * four states, and several Stories in one week. The sample people are fictional.
+ * scheduled, overdue (a scheduled time that has passed) and blocked (superseded by a newer version), and several Stories in one week. The sample people are fictional.
  */
 function seededScheduleFields(now: Date = new Date()): Record<string, ScheduleFields> {
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
@@ -183,8 +183,7 @@ function seededScheduleFields(now: Date = new Date()): Record<string, ScheduleFi
     "preview-item-lineage-copywriting-0": { scheduledPublishAt: at(1, 14), scheduleState: "scheduled", scheduledBy: by, scheduledAt: at(0, 1) },
     "preview-item-lineage-copywriting-1": { scheduledPublishAt: at(2, 18), scheduleState: "scheduled", scheduledBy: by, scheduledAt: at(0, 1) },
     "preview-item-lineage-illustration-0": { scheduledPublishAt: at(0, -6), scheduleState: "scheduled", scheduledBy: by, scheduledAt: at(-2, 1) },
-    "preview-item-lineage-illustration-1": { scheduledPublishAt: at(3, 13), scheduleState: "superseded", scheduledBy: by, scheduledAt: at(-1, 1) },
-    "preview-item-lineage-published-0": { scheduledPublishAt: at(-1, 14), scheduleState: "published", scheduledBy: by, scheduledAt: at(-3, 1) },
+    "preview-item-lineage-illustration-1": { scheduledPublishAt: at(3, 13), scheduleState: "blocked", scheduledBy: by, scheduledAt: at(-1, 1) },
   };
 }
 

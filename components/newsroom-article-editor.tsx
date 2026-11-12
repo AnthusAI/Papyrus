@@ -68,7 +68,7 @@ import { EditorialFindingsPanel } from "./editorial-findings-panel";
 import { StarRating } from "./star-rating";
 import { StorySchedulePanel } from "./story-schedule-panel";
 import { publicationTimeZone } from "../lib/site-publication";
-import { scheduleFromFields, type StorySchedule } from "../lib/story-schedule";
+import { scheduleFromResult, type StorySchedule } from "../lib/story-schedule";
 import { useStoryStars, type StoryStarsController } from "./use-story-stars";
 import { EditorialPreviewPopover, type PreviewPopoverTarget } from "./editorial-preview-popover";
 import { MarkusBodyEditor, type MarkusBodyEditorHandle } from "./markus-body-editor";
@@ -750,8 +750,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               schedule={schedule}
               blockedReason={editor.dirty ? "Save your changes first: a schedule publishes the saved version." : isOlderVersion ? "This is an older version of the Story." : null}
               save={async (scheduledPublishAt) => {
-                const result = await backend.actions.scheduleStory({ lineageId, scheduledPublishAt });
-                const saved = scheduleFromFields(result);
+                const saved = scheduleFromResult(await backend.actions.scheduleStory({ itemId: editor.id!, lineageId, scheduledPublishAt }));
                 setSchedule(saved);
                 onScheduleChanged?.();
                 return saved;

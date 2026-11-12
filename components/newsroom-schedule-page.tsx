@@ -28,7 +28,7 @@ const ScheduleCalendar = dynamic(() => import("./schedule-calendar"), {
   loading: () => <p className="schedule-zone-note" role="status">Loading the calendar…</p>,
 });
 
-const STATE_WORD = { scheduled: "Scheduled", overdue: "Overdue", superseded: "Superseded", published: "Published" } as const;
+const STATE_WORD = { scheduled: "Scheduled", overdue: "Overdue", superseded: "Superseded" } as const;
 const EMPTY_TEXT: Record<ScheduleView, string> = { day: "Nothing is scheduled today.", week: "Nothing is scheduled this week.", month: "Nothing is scheduled this month." };
 
 /** A phone shows the lists: the seven-day grid does not fit 375 pixels. */
@@ -45,7 +45,7 @@ function usePhone(): boolean | null {
 }
 
 /**
- * The Schedule page: the Stories that are scheduled, overdue, superseded or published as scheduled, by day, week or month in the publication's time zone, with a
+ * The Schedule page: the Stories that are scheduled, overdue or superseded, by day, week or month in the publication's time zone, with a
  * plain list of the same items under the calendar for keyboard and screen-reader use. It reads one time range of the schedule index at a time.
  */
 export function NewsroomSchedulePage() {

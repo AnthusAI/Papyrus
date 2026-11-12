@@ -11,8 +11,8 @@ for (const given of [
   "the Stories board with a scheduled Story",
   "the Stories board with an unscheduled Story open in its drawer",
   "the Stories board with a scheduled Story open in its drawer",
-  "the Schedule page with four Stories this week and one the week after",
-  "the Schedule page with four Stories this week",
+  "the Schedule page with three Stories this week and one the week after",
+  "the Schedule page with three Stories this week",
   "the Schedule page on a screen 375 pixels wide",
   "the Schedule page, the board and an open drawer in light and dark",
 ]) Given(given, function () {});
@@ -44,10 +44,10 @@ const outcomes = {
   'the second lists "01:30 EDT" and "01:30 EST", sends nothing until one is chosen, and then schedules the one chosen': "dst",
   "the current week is shown in New York time with each Story's time, state in words, icon and title": "calendar",
   "a plain list of the same Stories follows the calendar": "calendar",
-  'choosing Month shows all five and choosing Day shows an empty day with "Nothing is scheduled today."': "calendar",
+  'choosing Month shows all four and choosing Day shows an empty day with "Nothing is scheduled today."': "calendar",
   'only one week of the schedule index is read at a time, and an empty week says "Nothing is scheduled this week." and offers "Schedule a Story"': "calendar",
   "every event is a focusable button, the list has a link for each Story, and Enter on an event opens its Story": "keyboard",
-  "the week is shown as a list by day with the same four Stories and nothing scrolls sideways": "phone",
+  "the week is shown as a list by day with the same three Stories and nothing scrolls sideways": "phone",
   "the badge and the drawer's schedule row fit the phone, with targets at least 36 pixels tall": "phone",
   "no element of the badge, the schedule row or the calendar draws a visible outline": "no_borders",
 };

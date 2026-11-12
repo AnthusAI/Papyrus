@@ -7,8 +7,8 @@
 import { storyItemTypeFilter, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { SCHEDULE_ROW_FIELDS } from "./story-schedule";
 
-/** The states the page shows. `cleared` rows are gone from the index's point of view: an editor cleared them. */
-export const SCHEDULE_PAGE_STATES = ["scheduled", "overdue", "superseded", "published"] as const;
+/** The stored states, each one partition of the sparse index. Overdue is a scheduled or publishing row whose time has passed, so it is read with them. */
+export const SCHEDULE_PAGE_STATES = ["scheduled", "publishing", "blocked"] as const;
 
 export type ScheduleQueryFetch = (request: { query: string; field: string; variables: Record<string, unknown> }) => Promise<{ items: ContentItemVersionRecord[]; nextToken: string | null }>;
 

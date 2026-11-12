@@ -96,7 +96,7 @@ export function StorySchedulePanel({ zone, schedule, blockedReason, save, onChan
     {shown ? <div className="story-schedule-current" data-story-schedule-current={kind ?? undefined}>
       <StoryScheduleBadge schedule={shown} zone={zone} now={now} />
       <p className="story-schedule-sentence" data-story-schedule-sentence>
-        {kind === "published" ? "Published as scheduled" : kind === "overdue" ? "Was scheduled for" : kind === "superseded" ? "Was scheduled for" : "Scheduled for"} {scheduleSentence(shown, zone)}
+        {kind === "scheduled" ? "Scheduled for" : "Was scheduled for"} {scheduleSentence(shown, zone)}
       </p>
       {own ? <p className="story-schedule-own" data-story-schedule-own>{own}</p> : null}
       {kind === "superseded" ? <p className="story-schedule-note">A newer version was saved after this was scheduled. Schedule it again.</p> : null}
@@ -124,9 +124,9 @@ export function StorySchedulePanel({ zone, schedule, blockedReason, save, onChan
       </div>
     </form> : <div className="story-schedule-buttons">
       <button type="button" className="story-schedule-button" disabled={controlsOff} onClick={open} data-story-schedule-open>
-        {shown ? <Pencil aria-hidden size={14} /> : <CalendarClock aria-hidden size={14} />}{shown && kind !== "published" ? "Change time" : "Schedule…"}
+        {shown ? <Pencil aria-hidden size={14} /> : <CalendarClock aria-hidden size={14} />}{shown ? "Change time" : "Schedule…"}
       </button>
-      {shown && kind !== "published" ? <button type="button" className="story-schedule-button" disabled={controlsOff} onClick={() => void apply(null)} data-story-schedule-clear>
+      {shown ? <button type="button" className="story-schedule-button" disabled={controlsOff} onClick={() => void apply(null)} data-story-schedule-clear>
         <CalendarX2 aria-hidden size={14} />Unschedule
       </button> : null}
     </div>}

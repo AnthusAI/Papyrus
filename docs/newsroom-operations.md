@@ -250,7 +250,7 @@ Schedule page. Everything an editor reads or types is in that zone; the backend 
   The Story drawer has a Schedule row (`components/story-schedule-panel.tsx`) with a date and time picker in the publication's zone, Change time, Unschedule, and the
   editor's own zone in small type when it differs. The Publish button and the Published state are unchanged. A change shows at once and goes back to what was saved if
   the backend refuses it, and the form keeps what was typed. A wall-clock time that does not exist (the spring-forward gap) is refused in plain words; one that happens
-  twice asks which. The console sends the UTC instant through the `scheduleStory` content action (`lib/content-actions-client.ts`).
+  twice asks which. The console sends the UTC instant through the `schedule` operation of the `scheduleItem` mutation (`lib/content-actions-client.ts`, [scheduled publishing](scheduled-publishing.md)); the stored states are `scheduled`, `publishing` and `blocked` (shown as Superseded), and Overdue is derived from the time.
 - **Schedule page** (`/newsroom/schedule`, `components/newsroom-schedule-page.tsx`). FullCalendar 7 (`@fullcalendar/react`, MIT), loaded only on that route: week by
   default, Day and Month, the publication's named zone, focusable events (`eventInteractive`), lists instead of the week grid on a phone, and a plain list of the same
   items under the calendar. It reads one range of the `scheduleState` + `scheduledPublishAt` index per state (`lib/story-schedule-query.ts`), never the whole table.

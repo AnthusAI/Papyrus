@@ -19,8 +19,7 @@ const CLOCK = new Date("2026-11-12T15:00:00Z");
 const SCHEDULED = "preview-item-lineage-copywriting-0";   // Fri 13 Nov, 9:00 AM ET
 const SECOND = "preview-item-lineage-copywriting-1";      // Sat 14 Nov, 1:00 PM ET
 const OVERDUE = "preview-item-lineage-illustration-0";    // scheduled for Wed 11 Nov, 1:00 PM ET, never published
-const SUPERSEDED = "preview-item-lineage-illustration-1"; // Sun 15 Nov, 8:00 AM ET
-const PUBLISHED = "preview-item-lineage-published-0";     // Wed 11 Nov, 9:00 AM ET
+const SUPERSEDED = "preview-item-lineage-illustration-1"; // Sun 15 Nov, 8:00 AM ET (blocked: a newer version was saved)
 const UNSCHEDULED = "preview-item-lineage-idea-0";
 const UNSCHEDULED_TWO = "preview-item-lineage-idea-1";
 const shots = process.env.PAPYRUS_STORY_SCHEDULE_SHOTS;
@@ -220,7 +219,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await fillAndSave(page, "2026-11-20", "07:30");
       await panel(page).locator("[data-story-schedule-sentence]").waitFor();
       assert.equal(await panel(page).locator("[data-story-schedule-sentence]").innerText(), "Scheduled for Fri 20 Nov 2026, 7:30 AM ET (New York), by Preview editor");
-      assert.deepEqual(await calls(page), [{ action: "scheduleStory", lineageId: UNSCHEDULED, scheduledPublishAt: "2026-11-20T12:30:00.000Z" }], "UTC is sent, nothing else is");
+      assert.deepEqual(await calls(page), [{ action: "scheduleStory", itemId: "preview-item-version-idea-0", lineageId: UNSCHEDULED, scheduledPublishAt: "2026-11-20T12:30:00.000Z" }], "the version and the UTC instant are sent, nothing else is");
       await badge(page, UNSCHEDULED).waitFor();
       assert.equal(await badge(page, UNSCHEDULED).innerText(), "Scheduled: Fri 20 Nov, 7:30 AM ET", "the card follows");
       // Change it.
@@ -283,7 +282,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await panel(page).locator("[data-story-schedule-choices] label", { hasText: "EST" }).locator("input").check();
       await panel(page).locator("[data-story-schedule-save]").click();
       await panel(page).locator("[data-story-schedule-sentence]").waitFor();
-      assert.deepEqual(await scheduleCalls(page), [{ action: "scheduleStory", lineageId: UNSCHEDULED_TWO, scheduledPublishAt: "2027-11-07T06:30:00.000Z" }], "the second 01:30, which is 06:30 UTC");
+      assert.deepEqual(await scheduleCalls(page), [{ action: "scheduleStory", itemId: "preview-item-version-idea-1", lineageId: UNSCHEDULED_TWO, scheduledPublishAt: "2027-11-07T06:30:00.000Z" }], "the second 01:30, which is 06:30 UTC");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
@@ -298,18 +297,17 @@ const scenarios: Record<string, () => Promise<void>> = {
         const events = page.locator("[data-schedule-calendar] .schedule-event");
         const text = (await events.allInnerTexts()).map((entry) => entry.replace(/\s+/g, " ").trim());
         assert.deepEqual(text.map((entry) => entry.replace(/ (News|Features)$/i, "")), [
-          "9:00 AM Published Three sources confirm the zoning reversal",
           "1:00 PM Overdue Layout pass: front page lead and rail",
           "9:00 AM Scheduled Illustration brief: flooded streets, aerial view",
           "1:00 PM Scheduled Illustration brief: the market at dawn",
         ].map((entry) => entry), "the week, in New York time (9:00 AM is 14:00 UTC), each with its state in words and its title");
         assert.equal(await events.evaluateAll((nodes) => nodes.every((node) => node.querySelector("svg"))), true, "every event has an icon");
-        assert.equal(await page.locator("[data-schedule-list] [data-schedule-item]").count(), 4, "the same four in the list");
+        assert.equal(await page.locator("[data-schedule-list] [data-schedule-item]").count(), 3, "the same three in the list");
         assert.equal(await page.locator("[data-schedule-empty]").count(), 0);
         await shot(page, `calendar-week-${mode}-1440`);
         // Day, then Month.
         await page.getByRole("tab", { name: "Month view" }).click();
-        await page.waitForFunction(() => document.querySelectorAll("[data-schedule-item]").length === 5);
+        await page.waitForFunction(() => document.querySelectorAll("[data-schedule-item]").length === 4);
         await shot(page, `calendar-month-${mode}-1440`);
         await page.getByRole("tab", { name: "Day view" }).click();
         await page.locator("[data-schedule-empty]").waitFor();
@@ -340,9 +338,9 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await page.locator("[data-schedule-item]").first().waitFor();
       const focusable = page.locator('[data-schedule-calendar] [role="button"][tabindex="0"]');
-      assert.equal(await focusable.count(), 4, "every event is a focusable button");
+      assert.equal(await focusable.count(), 3, "every event is a focusable button");
       const links = page.locator("[data-schedule-list] a");
-      assert.equal(await links.count(), 4);
+      assert.equal(await links.count(), 3);
       const first = (await links.first().getAttribute("href")) ?? "";
       assert.match(first, /^\/newsroom\/articles\//);
       await focusable.first().focus();
@@ -359,7 +357,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       try {
         await page.locator("[data-schedule-item]").first().waitFor();
         assert.equal(await page.locator("[data-schedule-calendar]").getAttribute("data-schedule-layout"), "list");
-        assert.equal(await page.locator("[data-schedule-calendar] .schedule-event").count(), 4);
+        assert.equal(await page.locator("[data-schedule-calendar] .schedule-event").count(), 3);
         assert.equal(await noSideScroll(page), true, "calendar: nothing scrolls sideways");
         await shot(page, `calendar-${mode}-375`);
         assert.deepEqual(errors, []);
@@ -401,7 +399,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         await onPage.page.locator("[data-schedule-item]").first().waitFor();
         assert.deepEqual(await onPage.page.evaluate(sample), [], `calendar page (${mode}): every border is the page colour or the element's own fill`);
         await onPage.page.getByRole("tab", { name: "Month view" }).click();
-        await onPage.page.waitForFunction(() => document.querySelectorAll("[data-schedule-item]").length === 5);
+        await onPage.page.waitForFunction(() => document.querySelectorAll("[data-schedule-item]").length === 4);
         assert.deepEqual(await onPage.page.evaluate(sample), [], `month view (${mode})`);
       } finally { await onPage.browser.close(); }
       const onBoard = await setup(board, { mode });

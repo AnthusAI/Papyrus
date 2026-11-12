@@ -232,7 +232,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
       async scheduleStory(input: ScheduleStoryInput): Promise<ScheduleStoryResult> {
         try {
           const fields = setLocalPreviewSchedule(input.lineageId, input.scheduledPublishAt);
-          return { ok: true, scheduledPublishAt: fields.scheduledPublishAt ?? null, scheduleState: fields.scheduleState ?? null, scheduledBy: fields.scheduledBy ?? null, scheduledAt: fields.scheduledAt ?? null };
+          return { ok: true, scheduledPublishAt: fields.scheduledPublishAt ?? null, scheduledBy: fields.scheduledBy ?? null };
         } catch (error) {
           throw new ContentActionFailure([{ code: "schedule-refused", message: error instanceof Error ? error.message : String(error), line: null }]);
         }

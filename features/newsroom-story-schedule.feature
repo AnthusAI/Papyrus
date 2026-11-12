@@ -43,21 +43,21 @@ Feature: Editors see and change when a Story goes live, and see the whole schedu
     And the second lists "01:30 EDT" and "01:30 EST", sends nothing until one is chosen, and then schedules the one chosen
 
   Scenario: The Schedule page shows the week in the publication's zone
-    Given the Schedule page with four Stories this week and one the week after
+    Given the Schedule page with three Stories this week and one the week after
     When the editor opens it
     Then the current week is shown in New York time with each Story's time, state in words, icon and title
     And a plain list of the same Stories follows the calendar
-    And choosing Month shows all five and choosing Day shows an empty day with "Nothing is scheduled today."
+    And choosing Month shows all four and choosing Day shows an empty day with "Nothing is scheduled today."
     And only one week of the schedule index is read at a time, and an empty week says "Nothing is scheduled this week." and offers "Schedule a Story"
 
   Scenario: Events and the list work from the keyboard
-    Given the Schedule page with four Stories this week
+    Given the Schedule page with three Stories this week
     When the editor tabs through the page
     Then every event is a focusable button, the list has a link for each Story, and Enter on an event opens its Story
 
   Scenario: On a phone the week is a list
     Given the Schedule page on a screen 375 pixels wide
-    Then the week is shown as a list by day with the same four Stories and nothing scrolls sideways
+    Then the week is shown as a list by day with the same three Stories and nothing scrolls sideways
     And the badge and the drawer's schedule row fit the phone, with targets at least 36 pixels tall
 
   Scenario: Flat fills, no outlines
