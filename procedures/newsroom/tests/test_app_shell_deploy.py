@@ -157,3 +157,16 @@ def test_baseline_has_no_token_statement_but_keeps_the_cdk_roles():
     assert "github-amplify-token" not in text and "CdkQualifier" in text
     assert "cdk-${CdkQualifier}-deploy-role" in text and "file-publishing-role" in text
     assert "image-publishing" not in text and "lookup-role" not in text
+
+
+def test_the_stack_name_is_the_artifact_property_not_the_construct_id(tmp_path):
+    """The real synth names the artifact after the construct (AmplifyAppShell-<site>) and puts the CloudFormation name in properties.stackName."""
+    art = {"AmplifyAppShell-demo": {"type": "aws:cloudformation:stack", "properties": {"stackName": STACK, "templateFile": "x.template.json"}}}
+    assert ccm.check(assembly(tmp_path, art), STACK) is None
+    other = {"AmplifyAppShell-demo": {"type": "aws:cloudformation:stack", "properties": {"stackName": "something-else", "templateFile": "x"}}}
+    assert "something-else" in ccm.check(assembly(tmp_path / "b", other) if (tmp_path / "b").mkdir() is None else tmp_path, STACK)
+
+
+def test_deploy_uses_all_because_the_manifest_check_allows_one_stack():
+    text = (ROOT / ".github" / "workflows" / "app-shell-deploy.yml").read_text(encoding="utf-8")
+    assert "deploy --all --app cdk.out" in text

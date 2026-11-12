@@ -137,8 +137,9 @@ jobs:
           STACK: ${{ inputs.stack-name }}
         run: |
           set -euo pipefail
-          # --app points at the already synthesized assembly, so the CLI deploys it as it is and does not synthesize again.
-          npx --yes aws-cdk@2.1146.0 deploy "$STACK" --app cdk.out --require-approval never --method direct --no-notices
+          # --app points at the already synthesized assembly, so the CLI deploys it as it is and does not synthesize again. --all is safe because the
+          # manifest check above allows exactly one stack; CDK selects stacks by construct id, not by the CloudFormation stack name.
+          npx --yes aws-cdk@2.1146.0 deploy --all --app cdk.out --require-approval never --method direct --no-notices
       - name: Read the Amplify app id
         id: outputs
         env:
