@@ -56,7 +56,7 @@ export default function ScheduleCalendar({ items, zone, phone, onRange, onOpen }
       events={items.map(item => ({ id: item.id, title: item.title, start: item.at, extendedProps: item }))}
       eventInteractive
       eventDisplay="block"
-      defaultTimedEventDuration="01:30"
+      defaultTimedEventDuration="02:00"
       height="auto"
       datesSet={arg => onRange({ from: new Date(arg.startStr).toISOString(), to: new Date(arg.endStr).toISOString(), view: (views.of as Record<string, ScheduleView>)[arg.view.type] ?? "week" })}
       eventClick={arg => { arg.jsEvent.preventDefault(); onOpen(arg.event.id); }}
