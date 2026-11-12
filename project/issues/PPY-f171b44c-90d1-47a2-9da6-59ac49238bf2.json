@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f171b44c-90d1-47a2-9da6-59ac49238bf2",
+  "title": "Retire and unpublish report a timeout for work that finished",
+  "description": "Seen 2026-11-12 on Machines on Machines (Papyrus 5.105.0): both 'stories retire' projection runs and a re-run of 'ops content unpublish' returned 'Execution timed out' (AppSync timeout), yet the work finished in the background and the 301 redirects appeared within about a minute. The CLI reports a failure for a retire that succeeded. Fix: poll for the result (or the projection's completion marker) instead of reporting the timeout, and say 'still running' when it has not finished. Reported by the MoM story-development session.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T11:33:10.257604Z",
+  "updated_at": "2026-11-12T11:33:10.257707Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
