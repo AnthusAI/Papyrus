@@ -39,6 +39,8 @@ import { automationView } from "./functions/automation-view/resource";
 import { imageService } from "./functions/image-service/resource";
 import { wireImageService } from "./functions/image-service/wire";
 import { wireAutomationView } from "./functions/automation-view/wire";
+import { announcements } from "./functions/announcements/resource";
+import { wireAnnouncements } from "./functions/announcements/wire";
 import { proposalActions } from "./functions/proposal-actions/resource";
 import { wireProposalActions } from "./functions/proposal-actions/wire";
 import { monitoringView } from "./functions/monitoring-view/resource";
@@ -144,6 +146,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const cliFederationCallbackUrls = cliFederationClientCallbackUrls(featureFlags.cliOnFederationClient, process.env);
   const backend = defineBackend({
     ...pluginFunctions,
+    announcements,
     assignmentAction,
     automationView,
     auth: defineSiteAuth(authConfig, cliRemoteLoginPlan ? [cliRemoteLoginPlan.callbackUri] : []),
@@ -900,6 +903,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   wireAutomationView(backend);
   wireImageService(backend);
   wireProposalActions(backend);
+  // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
+  wireAnnouncements(backend, siteBackendIdentity.brandId);
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
 
   return backend;

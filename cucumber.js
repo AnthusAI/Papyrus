@@ -170,6 +170,11 @@ module.exports = {
     require: ["features/step_definitions/newsroom-writing-guidelines-admin.steps.js"],
     format: ["summary"],
   },
+  newsroomAnnouncements: {
+    paths: ["features/newsroom-announcements.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/newsroom-announcements.steps.js"],
+    format: ["summary"],
+  },
   coverImagePicker: {
     paths: ["features/cover-image-picker.feature"],
     require: ["features/step_definitions/cover-image-picker.steps.js"],

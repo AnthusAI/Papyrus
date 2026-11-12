@@ -611,3 +611,65 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .newsroom-organizer [data-news-desk-admin-panel="visual-style"] input:not([type=file]),.newsroom-organizer [data-news-desk-admin-panel="visual-style"] textarea{background:var(--org-paper) !important;color:var(--org-ink) !important;min-height:0;padding:8px 12px;font-size:14px;line-height:1.5}
 .newsroom-organizer [data-news-desk-admin-panel="visual-style"] input:focus-visible,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] textarea:focus-visible,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] button:focus-visible{outline:2px solid var(--org-ink);outline-offset:2px}
 .newsroom-organizer [data-news-desk-admin-panel="visual-style"] h3,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h4,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h5,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h6{text-transform:none;letter-spacing:0}
+
+/* Announcements panel (components/announcements-panel.tsx). Flat tone fills and rounded rectangles: no borders, no rules (Ryan's design rule).
+   Selection is told by an icon and a word as well as by tone, because colour is never the only signal. */
+.news-desk-columns--administration .announcements{--ann-tone:color-mix(in srgb,var(--administration-strong) 7%,transparent);--ann-tone-strong:color-mix(in srgb,var(--administration-strong) 15%,transparent);--ann-radius:10px;display:grid;gap:20px;align-content:start;min-width:0}
+.announcements :is(h2,h3,p,ol,ul,dl,dd,table,caption){margin:0}
+.announcements__heading{display:grid;gap:4px}
+.announcements__heading h2{display:flex;align-items:center;gap:10px;font:700 26px/1.2 var(--kb-theme-title-font)}
+.announcements__heading p,.announcements__quiet,.announcements__card>header>span{font:400 13px/1.45 var(--kb-theme-ui-font);color:var(--administration-quiet)}
+.announcements__card{display:grid;gap:16px;padding:20px;border:0;border-radius:var(--ann-radius);background:var(--ann-tone);min-width:0}
+.announcements__card>header{display:grid;gap:2px}
+.announcements__card h3{font:700 18px/1.25 var(--kb-theme-title-font)}
+.announcements__card p,.announcements__steps{font:400 14px/1.55 var(--kb-theme-ui-font)}
+.announcements__steps{display:grid;gap:12px;padding-left:24px;list-style:decimal}
+.announcements__steps>li{display:list-item}
+.announcements__pause{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px 16px;padding:16px 20px;border-radius:var(--ann-radius);background:var(--ann-tone-strong)}
+.announcements__pause p{font:400 13px/1.45 var(--kb-theme-ui-font)}
+.announcements__pause strong{font:700 15px/1.3 var(--kb-theme-ui-font)}
+.announcements__notice{display:flex;align-items:flex-start;gap:8px;padding:12px 16px;border-radius:var(--ann-radius);background:var(--ann-tone-strong);font:600 14px/1.45 var(--kb-theme-ui-font)}
+.announcements__notice svg,.announcements__status svg,.announcements__saved svg{flex:none;margin-top:1px}
+.announcements__button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:6px 14px;border:0;border-radius:8px;background:var(--ann-tone-strong);color:var(--administration-strong);font:600 13px/1.2 var(--kb-theme-ui-font);cursor:pointer}
+.announcements__button--primary{background:var(--administration-strong);color:var(--kb-theme-paper,#fff)}
+.announcements__button:disabled,.announcements__choice:disabled,.announcements__toggle:disabled{opacity:.55;cursor:default}
+.announcements__button:focus-visible,.announcements__choice:focus-visible,.announcements__toggle:focus-visible,.announcements__field input:focus-visible,.announcements__prices input:focus-visible{outline:2px solid var(--administration-strong);outline-offset:2px}
+.announcements__fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;align-items:start}
+.announcements__field{display:grid;gap:6px;min-width:0}
+.announcements__field--narrow{max-width:320px}
+.announcements__field>span,.announcements__label{font:600 11px/1.4 var(--kb-theme-ui-font);letter-spacing:.07em;text-transform:uppercase;color:var(--administration-quiet)}
+.announcements :is(.announcements__field,.announcements__prices) input{width:100%;min-height:40px;padding:8px 12px;border:0;border-radius:8px;background:var(--ann-tone-strong);color:var(--administration-strong);font:400 14px/1.4 var(--kb-theme-ui-font)}
+.announcements__prices input{max-width:140px}
+.announcements__saved,.announcements__status{display:flex;align-items:center;gap:8px}
+.announcements__actions,.announcements__savebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.announcements__savebar{justify-content:space-between;padding:12px 20px;border-radius:var(--ann-radius);background:var(--ann-tone-strong)}
+.announcements__copy{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.announcements__copy code{flex:1 1 260px;min-width:0;padding:8px 12px;border-radius:8px;background:var(--ann-tone-strong);font:400 12px/1.4 ui-monospace,monospace;overflow-wrap:anywhere}
+.announcements__facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 20px}
+.announcements__facts dt{font:600 11px/1.4 var(--kb-theme-ui-font);letter-spacing:.07em;text-transform:uppercase;color:var(--administration-quiet)}
+.announcements__facts dd{font:400 14px/1.45 var(--kb-theme-ui-font);overflow-wrap:anywhere}
+.announcements__choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.announcements__choices--row{display:flex;flex-wrap:wrap}
+.announcements__choice{display:grid;gap:4px;justify-items:start;padding:12px 14px;border:0;border-radius:8px;background:var(--ann-tone);color:var(--administration-strong);text-align:left;cursor:pointer;font:400 13px/1.4 var(--kb-theme-ui-font)}
+.announcements__choice--small{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:6px 14px}
+.announcements__choice[data-selected=true]{background:var(--ann-tone-strong);box-shadow:inset 4px 0 0 var(--administration-strong)}
+.announcements__selected{display:inline-flex;align-items:center;gap:4px;font:600 12px/1.2 var(--kb-theme-ui-font)}
+.announcements__toggle{display:flex;align-items:center;gap:10px;padding:12px 14px;border:0;border-radius:8px;background:var(--ann-tone);color:var(--administration-strong);font:400 14px/1.45 var(--kb-theme-ui-font);text-align:left;cursor:pointer}
+.announcements__toggle em{font-style:normal;font-weight:700;margin-left:auto;white-space:nowrap}
+.announcements__toggle[data-selected=true]{background:var(--ann-tone-strong)}
+.announcements__blockers{display:grid;gap:6px;list-style:none;padding:0}
+.announcements__blockers li{display:flex;align-items:center;gap:8px;font:600 13px/1.4 var(--kb-theme-ui-font)}
+.announcements__group{display:grid;gap:8px}
+.announcements__prices{border-collapse:separate;border-spacing:0 6px;font:400 14px/1.4 var(--kb-theme-ui-font);width:100%}
+.announcements__prices caption{text-align:left;padding-bottom:6px;font:600 13px/1.4 var(--kb-theme-ui-font)}
+.announcements__prices :is(th,td){text-align:left;padding:4px 8px 4px 0;font-weight:400;border:0}
+.announcements__prices thead th{font:600 11px/1.4 var(--kb-theme-ui-font);letter-spacing:.07em;text-transform:uppercase;color:var(--administration-quiet)}
+.announcements__rows{display:grid;gap:10px;list-style:none;padding:0}
+.announcements__rows>li{display:grid;gap:6px;padding:14px;border-radius:8px;background:var(--ann-tone)}
+.announcements__rowhead{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.announcements__state{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:8px;background:var(--ann-tone-strong);font:600 12px/1.6 var(--kb-theme-ui-font)}
+.announcements__post{font:400 15px/1.5 var(--kb-theme-ui-font);overflow-wrap:anywhere}
+.announcements-callback{display:grid;gap:16px;max-width:520px;margin:15vh auto;padding:0 16px;font:400 16px/1.5 var(--kb-theme-ui-font,system-ui)}
+.announcements-callback p{display:flex;gap:8px;align-items:center}
+@container (max-width:640px){.announcements__pause{grid-template-columns:auto minmax(0,1fr)}.announcements__pause .announcements__button{grid-column:1/-1}}
+@media (max-width:640px){.announcements__pause{grid-template-columns:auto minmax(0,1fr)}.announcements__pause .announcements__button{grid-column:1/-1}.announcements__card{padding:16px}.announcements__toggle em{margin-left:0}}
