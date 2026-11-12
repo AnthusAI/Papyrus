@@ -31,10 +31,17 @@
       "text": "Ryan 2026-11-12, second possible exception: we might explicitly associate related References that are only one or two stars with a Story, or with another Reference. Record as a scenario once confirmed: an editor's explicit association (a relation an editor created) can show a one- or two-star Reference as related to a Story or Reference, while the same Reference stays off lists, feeds, the sitemap, search and notifications under the floor. Open questions for Ryan: does this apply only to explicit editor associations (not AI-suggested links)? May such a Reference appear on the public related-sources list of a Story, on the Reference's own page, or both? Does the association count when the associated Story or Reference is itself public?",
       "created_at": "2026-11-12T13:08:14.365528Z",
       "comment_type": "default"
+    },
+    {
+      "id": "24c347ca-cf41-47f1-8764-6caf28fbe926",
+      "author": "home",
+      "text": "Ryan 2026-11-12 answers on the explicit-association exception: (1) applies to both editor-created and AI-suggested associations; (2) the one- or two-star Reference may show both on a Story's related-sources list and on the associated Reference's own page; (3) it counts only when the Story or Reference it hangs off is itself public (Ryan: 'I guess so?', tentative: treat as the default, revisit if it proves wrong). Still to pin down in the Gherkin: whether a pending AI suggestion nobody has accepted counts, or only a stored relation; I read 'AI-suggested' as an association that exists as a stored relation.",
+      "created_at": "2026-11-12T13:09:23.789170Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T13:02:39.475666Z",
-  "updated_at": "2026-11-12T13:08:14.366077Z",
+  "updated_at": "2026-11-12T13:09:23.789871Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
