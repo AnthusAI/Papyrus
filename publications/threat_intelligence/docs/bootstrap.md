@@ -7,7 +7,7 @@ Anthus Threat Intelligence uses the standard Papyrus publication bootstrap path 
 | File | Purpose |
 |------|---------|
 | `corpora/example-publication-doctrine.yml` | Global mission and policy |
-| `corpora/example-newsroom-sections.yml` | TI desk definitions (Mission, Cloud, Data & AI Assets, …) |
+| `corpora/threat-intelligence-newsroom-sections.yml` | TI desk definitions (Mission, Cloud, Data & AI Assets, …) |
 | `corpora/papyrus-steering.yml` | Canonical corpus `threat-intelligence` |
 | `corpora/papyrus-public-topics.yml` | Public topic teasers |
 | `corpora/papyrus-analysis-profiles.yml` | Biblicus re-index profiles for TI |
@@ -32,7 +32,7 @@ AWS_PROFILE=<profile> PYTHONPATH=src python -m papyrus.cli ops content inspect
 
 ```bash
 PYTHONPATH=src python -m papyrus.cli sections import-doctrine --config corpora/example-publication-doctrine.yml
-PYTHONPATH=src python -m papyrus.cli sections import --config corpora/example-newsroom-sections.yml
+PYTHONPATH=src python -m papyrus.cli sections import --config corpora/threat-intelligence-newsroom-sections.yml
 PYTHONPATH=src python -m papyrus.cli ops categories import-config --config corpora/papyrus-steering.yml
 PYTHONPATH=src python -m papyrus.cli knowledge concepts import-types --config corpora/papyrus-semantic-relation-types.yml
 PAPYRUS_SEED_PROFILE=threat-intelligence npm run seed:amplify

@@ -25,6 +25,7 @@ from ..reference_links import link_item_concept
 from ..story_from_reference import REFERENCE_TARGET_PREFIX
 from . import connections as connection_rules, dedupe, point_check, synthesis, trends
 from .context_packs import ACCEPTED, Pack, evidence_of, trim_pack
+from .rules import DEFAULT as DEFAULT_RULES, IdeaRules
 from .items import DEFAULT_ACTOR, Gate, IdeaRefused, ItemStore, file_idea_item
 from .digest import iso
 
@@ -171,8 +172,17 @@ def kind_of(handle: str) -> str | None:
     return found.group(1) if found else None
 
 
-def call_model(transport: synthesis.Transport, model: str, model_input: dict[str, Any]) -> tuple[list[Any], synthesis.Usage]:
-    payload = synthesis.request_payload(model, model_input) | {"instructions": SYSTEM_PROMPT, "text": {"format": SCHEMA}, "max_output_tokens": MAXIMUM_OUTPUT_TOKENS}
+def prompt_for(rules: IdeaRules) -> str:
+    """The prompt, with this publication's count of References and joint-sentence rule stated when they differ from the ones the prompt names (two, and a joint sentence)."""
+    if rules.minimum_references == MINIMUM_REFERENCES and rules.require_joint_sentence:
+        return SYSTEM_PROMPT
+    joint = (f"At least one sentence must cite {rules.minimum_references} of them together." if rules.require_joint_sentence else
+             "No sentence has to cite several of them together.")
+    return SYSTEM_PROMPT + f"\n\nThis publication's rules replace the count above: an idea must cite at least {rules.minimum_references} different accepted References. {joint}"
+
+
+def call_model(transport: synthesis.Transport, model: str, model_input: dict[str, Any], rules: IdeaRules = DEFAULT_RULES) -> tuple[list[Any], synthesis.Usage]:
+    payload = synthesis.request_payload(model, model_input) | {"instructions": prompt_for(rules), "text": {"format": SCHEMA}, "max_output_tokens": MAXIMUM_OUTPUT_TOKENS}
     body = transport(synthesis.RESPONSES_URL, {"Content-Type": "application/json"}, payload)
     text = synthesis.response_text(body)
     if body.get("status") == "incomplete" or text is None:
@@ -197,7 +207,7 @@ def sentence_handle_problems(sentence: Mapping[str, Any], raw_cites: Sequence[st
     return found
 
 
-def check_idea(raw: Any, handles: PackHandles, allowed_sections: Sequence[str]) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+def check_idea(raw: Any, handles: PackHandles, allowed_sections: Sequence[str], rules: IdeaRules = DEFAULT_RULES) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """(the checked idea or None, the citation check record). Sentence rules are ``trends.check_sentence``; the idea must cite at least two
     accepted References, never a pending one, and a Message only together with a Reference in the same sentence.
 
@@ -243,15 +253,16 @@ def check_idea(raw: Any, handles: PackHandles, allowed_sections: Sequence[str]) 
     if attempted < MINIMUM_BODY_SENTENCES:
         problems.append(trends._problem("body", "", "fewer_than_two_body_sentences"))
     cited_references = list(dict.fromkeys(handle for _, entry in checked_entries for handle in entry["handles"] if kind_of(handle) == "R"))
-    if len(cited_references) < MINIMUM_REFERENCES:
-        problems.append(trends._problem("idea", "", f"fewer_than_{MINIMUM_REFERENCES}_accepted_references_cited"))
+    minimum = rules.minimum_references
+    if len(cited_references) < minimum:
+        problems.append(trends._problem("idea", "", f"fewer_than_{minimum}_accepted_references_cited"))
     for handle in cited_references:
         if handle in handles.without_summary:
             problems.append(trends._problem("idea", handle, "cites_reference_without_summary"))
     joint = any(
-        len({handle for handle in entry["handles"] if kind_of(handle) == "R"}) >= MINIMUM_REFERENCES for where, entry in checked_entries if where.startswith("paragraph ")
+        len({handle for handle in entry["handles"] if kind_of(handle) == "R"}) >= minimum for where, entry in checked_entries if where.startswith("paragraph ")
     )
-    if not joint:
+    if rules.require_joint_sentence and not joint:
         problems.append(trends._problem("idea", "", "no_joint_sentence"))
     sections = {name.strip().lower(): name for name in allowed_sections}
     section = str(raw.get("section") or "").strip()
@@ -274,6 +285,7 @@ def idea_sentences(idea: Mapping[str, Any]) -> list[str]:
 
 def judged_to_add(
     idea: Mapping[str, Any], pack: Pack, handles: PackHandles, title: str, transport: synthesis.Transport, model: str, cost_meter: CostMeter, result: PackIdeasResult,
+    rules: IdeaRules = DEFAULT_RULES,
 ) -> bool:
     """Asks ``point_check.judge`` whether the idea claims anything none of the References it cites claims on its own; records the answer in ``result``.
     False (and the idea is dropped) when the verdict fails it or there is no usable verdict: no clear answer, no idea."""
@@ -290,7 +302,7 @@ def judged_to_add(
     result.model_calls += 1
     result.cost_usd += usage.cost_usd or 0.0
     cost_meter.add(usage.cost_usd)
-    failed = point_check.failures(verdict)
+    failed = point_check.failures(verdict, rules)
     result.point_checks.append({"packId": pack.pack_id, "title": title, "failures": failed, "verdict": verdict, "sentences": sentences})
     if failed:
         result.dropped.append({"title": title, "reason": "point_check_failed", "failures": failed, "verdict": verdict})
@@ -413,6 +425,7 @@ def draft_pack_ideas(
     model: str = synthesis.DEFAULT_MODEL,
     threshold: float = dedupe.DEFAULT_THRESHOLD,
     now: datetime | None = None,
+    rules: IdeaRules = DEFAULT_RULES,
 ) -> PackIdeasResult:
     """One model call for ``pack``; returns what was filed, refused by the editorial gate, and dropped (citation check, duplicate, already filed).
 
@@ -429,14 +442,14 @@ def draft_pack_ideas(
     moment = now or datetime.now(timezone.utc)
     result = PackIdeasResult(pack.pack_id, dry_run=dry_run)
     summarised = sum(1 for row in pack.references if row.get("status") == ACCEPTED and str(row.get("summary") or "").strip())
-    if summarised < MINIMUM_REFERENCES:
+    if summarised < rules.minimum_references:
         result.dropped.append({"title": pack.anchor, "reason": connection_rules.NOTHING_TO_ADD, "found": {"referencesWithSummary": summarised}})
         return result
     fitted = trim_pack(pack)
     handles = handles_of(fitted)
     model_input = fitted.as_json()
     try:
-        raw_ideas, usage = call_model(transport, model, model_input)
+        raw_ideas, usage = call_model(transport, model, model_input, rules)
     except synthesis.SynthesisError as error:
         result.error = str(error)[:300]
         return result
@@ -449,11 +462,11 @@ def draft_pack_ideas(
         if position >= MAXIMUM_IDEAS:
             result.dropped.append({"title": title, "reason": "more_than_three_ideas"})
             continue
-        checked, record = check_idea(raw, handles, fitted.allowed_sections)
+        checked, record = check_idea(raw, handles, fitted.allowed_sections, rules)
         if checked is None:
             result.dropped.append({"title": title, "reason": "citation_check_failed", "citationCheck": record})
             continue
-        if not judged_to_add(checked, fitted, handles, title, transport, model, cost_meter, result):
+        if not judged_to_add(checked, fitted, handles, title, transport, model, cost_meter, result, rules):
             continue
         built.append(idea_record(fitted, checked, handles, run_id=run_id, now=moment) | {"_checked": checked})
     documents = comparison_documents(fitted, store, existing_titles)

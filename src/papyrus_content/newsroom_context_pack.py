@@ -116,7 +116,7 @@ SHARED_LAYERS = ("related_references",)
 PROFILES: dict[str, dict[str, Any]] = {
     "reporter": {"role": REPORTER_ROLE, "needsStory": True, "layers": (*STORY_BLOCK, *SECTION_BLOCK, *PUBLICATION_BLOCK)},
     "copywriter": {"role": COPYWRITER_ROLE, "needsStory": True, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"),
-                   "layers": ("writing_guidelines", "editorial_policies", *STORY_BLOCK, "voice_examples", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
+                   "layers": ("writing_guidelines", "editorial_policies", "byline", *STORY_BLOCK, "voice_examples", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
     "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"), "layers": ("writing_guidelines", "visual_style", *STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
     "illustrator": {"role": ILLUSTRATOR_ROLE, "needsStory": True, "sheds": ("story_references", "story_conversation"),
                     "layers": ("visual_style", "assignment", "story", "process", "story_references", "story_conversation")},
@@ -906,6 +906,20 @@ def editorial_policies_layer(situation: Situation) -> tuple[list[Entry], str | N
     return entries, None if entries else "the site has no editorial policies"
 
 
+def byline_layer(situation: Situation) -> tuple[list[Entry], str | None]:
+    """Who the story may be credited to: the site's byline policy, or the honest default (agent work is attributed to AI, no invented author)."""
+    from .guidelines.byline import byline_policy, byline_text
+
+    try:
+        policy = byline_policy(situation.store, guidelines_store(situation.store))
+    except GuidelineError as error:
+        situation.warnings.append(f"The byline policy could not be read ({error.code}): {error.message}")
+        return [], "the byline policy could not be read"
+    reference = policy["reference"] or {}
+    return [_entry("byline", str(reference.get("itemId") or "default"), byline_text(policy["document"]), source=policy["source"],
+                   **({"slug": reference["slug"], "versionNumber": reference["versionNumber"], "contentHash": reference["contentHash"]} if reference else {}))], None
+
+
 def visual_style_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     """The publication's image style for the Story's section and its image types, one plain line each. The editor only needs to know what kinds of picture exist."""
     from .images.profile_store import read_current_profile
@@ -1062,6 +1076,7 @@ class Layer:
 LAYERS: dict[str, Layer] = {
     "writing_guidelines": Layer("The publication's writing guidelines for this section", True, writing_guidelines_layer),
     "editorial_policies": Layer("The site's editorial policies", True, editorial_policies_layer),
+    "byline": Layer("Who the story may be credited to", True, byline_layer),
     "visual_style": Layer("The publication's image style and image types", True, visual_style_layer),
     "assignment": Layer("The editor's assignment", True, assignment_layer),
     "story": Layer("The Story", True, story_layer, needs_story=True),

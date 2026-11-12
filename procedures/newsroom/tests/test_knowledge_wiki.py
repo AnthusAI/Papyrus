@@ -709,66 +709,38 @@ def test_the_kinds_of_a_vocabulary_are_read_in_one_form_and_a_file_without_kinds
         sync(None, "--vocabulary", vocabulary(tmp_path, "version: 1\n"))
 
 
-def test_sync_reports_but_keeps_a_page_nothing_generates_any_more_unless_asked_to_retire(mixed, tmp_path, capsys):
+def test_sync_reports_but_never_takes_down_a_page_nothing_generates_any_more(mixed, tmp_path, capsys):
     sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
     publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
     assert live(mixed, AUTHOR_SLUG)
+    before = len(mixed.write_calls())
     out = sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path), capsys=capsys)
-    assert f"warning\twiki/{AUTHOR_SLUG}: no longer generated" in out and "pass --retire" in out
-    assert live(mixed, AUTHOR_SLUG)
-
-
-def test_a_dry_run_lists_the_pages_it_would_retire_and_changes_nothing(mixed, tmp_path, capsys):
-    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
-    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
-    before = len(mixed.write_calls())
-    out = sync(mixed, "--vocabulary", vocabulary(tmp_path), "--retire", capsys=capsys)
-    assert f"retire\twiki/{AUTHOR_SLUG}\tlive: taken down" in out and "plan\tretire\t1" in out and "mode\tdry-run" in out
+    assert f"warning\twiki/{AUTHOR_SLUG}: no longer generated; left as it is" in out and "retire" not in out
     assert len(mixed.write_calls()) == before and live(mixed, AUTHOR_SLUG)
-
-
-def test_retiring_takes_a_live_page_down_marks_it_and_a_publish_never_brings_it_back(mixed, tmp_path):
-    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
     publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
-    taken_down = tmp_path / "retired.json"
-    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path), "--retire", "--retired-out", str(taken_down))
-    page = pages(mixed)[AUTHOR_SLUG]
-    assert not live(mixed, AUTHOR_SLUG) and page["status"] == "draft" and front_matter_of(page)["retired"] is True
-    assert json.loads(taken_down.read_text()) == [page["id"]]
-    assert live(mixed, ACME_SLUG) and live(mixed, SPOOL_SLUG)
+    assert live(mixed, AUTHOR_SLUG) and "retired" not in front_matter_of(pages(mixed)[AUTHOR_SLUG])
+
+
+def test_a_page_an_undo_retired_stays_down_through_a_sync_and_a_publish(mixed, tmp_path):
+    from papyrus_content.machine_writes import RETIRED_STAGE
+
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path))
+    page = pages(mixed)[ACME_SLUG]
+    mixed.update_record("Item", {"id": page["id"], "stage": RETIRED_STAGE})
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path))
     publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
-    assert not live(mixed, AUTHOR_SLUG)
+    assert pages(mixed)[ACME_SLUG]["stage"] == RETIRED_STAGE and not live(mixed, ACME_SLUG) and live(mixed, SPOOL_SLUG)
 
 
-def test_a_draft_that_was_never_live_is_marked_so_the_next_publish_skips_it(mixed, tmp_path):
-    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
-    taken_down = tmp_path / "retired.json"
-    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path), "--retire", "--retired-out", str(taken_down))
-    assert json.loads(taken_down.read_text()) == [] and front_matter_of(pages(mixed)[AUTHOR_SLUG])["retired"] is True
-    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
-    assert not live(mixed, AUTHOR_SLUG) and live(mixed, ACME_SLUG)
-
-
-def test_a_second_retire_run_changes_nothing_and_a_retry_keeps_what_the_first_took_down(mixed, tmp_path, capsys):
-    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
-    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
-    taken_down = tmp_path / "retired.json"
-    flags = ("--apply", "--vocabulary", vocabulary(tmp_path), "--retire", "--retired-out", str(taken_down))
-    sync(mixed, *flags)
-    first = json.loads(taken_down.read_text())
-    capsys.readouterr()
-    before = len(mixed.write_calls())
-    out = sync(mixed, *flags, capsys=capsys)
-    assert len(mixed.write_calls()) == before and "wiki-sync\tretire" not in out and "plan\tretire" not in out
-    assert json.loads(taken_down.read_text()) == first != []
-
-
-def test_a_retired_page_whose_entity_becomes_eligible_again_comes_back_as_a_draft(mixed, tmp_path):
+def test_a_page_marked_retired_by_an_earlier_run_comes_back_as_a_draft_when_its_entity_is_eligible_again(mixed, tmp_path):
     named = vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n")
     sync(mixed, "--apply", "--vocabulary", named)
+    page = pages(mixed)[AUTHOR_SLUG]
+    marked = {**front_matter_of(page), "retired": True}
+    save_item(mixed, ItemFields(type="wiki_page", slug=AUTHOR_SLUG, section="wiki", front_matter_yaml=yaml.safe_dump(marked, sort_keys=False), body_markus=page["bodyMarkus"], aliases=[], id=page["id"]), actor="t", now=NOW)
     publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
-    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path), "--retire")
-    sync(mixed, "--apply", "--vocabulary", named, "--retire")
+    assert not live(mixed, AUTHOR_SLUG)
+    sync(mixed, "--apply", "--vocabulary", named)
     assert "retired" not in front_matter_of(pages(mixed)[AUTHOR_SLUG])
     publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
     assert live(mixed, AUTHOR_SLUG)

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bf40ec0a-8802-44ec-a4af-f414b540c9a1",
+  "issue_id": "PPY-0e8d6676-a27d-4458-9799-ad2b8917c084",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T13:02:39.475Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Three stars is the minimum for anything on a public page or in a notification",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+    "labels": []
+  }
+}

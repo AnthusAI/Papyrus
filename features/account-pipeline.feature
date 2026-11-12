@@ -54,3 +54,45 @@ Feature: A deployment's account is seeded once and then changed only from Git
     When the run is a pull request or any ref other than main
     Then the deploy and build jobs are skipped
     And on a push to main the deploy job assumes the github-deploy role, runs one at a time per repository and is never cancelled
+
+  Scenario: The account keeps a management-events audit trail
+    Given the cloudtrail account stack
+    Then it creates one multi-region trail that records management events only, with no data events and no Insights
+    And log file validation is on and global service events are included
+    And its log bucket blocks all public access, is encrypted, refuses plain HTTP and is retained if the stack is deleted
+    And log files expire after the retention days, 400 by default and never fewer than 30
+    And the first copy of management events is free, so only S3 storage is billed
+
+  Scenario: Mail events are captured before any mail is sent
+    Given the ses account stack
+    Then it creates a configuration set and an SNS topic that only SES in this account may publish to
+    And the event destination carries bounce, complaint, delivery-delay and reject events and nothing else
+    And no send, open or click events are recorded
+
+  Scenario: The mail event names cannot be forgotten
+    Given the ses account stack
+    Then the configuration set name and the event topic name are required parameters with no default
+    And the service role can manage configuration sets, topics, the trail and the trail bucket only when they are named with the deployment prefix
+
+  Scenario: The first build waits for the two person-only steps
+    Given the app-shell stack deployed and the first-build-watch workflow runs on the default branch
+    When the Amplify app has no repository connected, or the Google client parameters are missing from SSM
+    Then the watcher prints which step is missing, without the app id, and reads only parameter names, never a value
+    And it dispatches no build and stays enabled
+
+  Scenario: The first build starts by itself and the watcher turns itself off
+    Given the repository is connected and the Google client parameters exist
+    When the watcher runs as the read-only github-watch role, which trusts the default branch only
+    Then it dispatches first-build.yml on main and disables its own workflow so it never runs again
+
+  Scenario: The first build runs the two-pass bootstrap and can be resumed
+    Given the first-build workflow runs on main as the github-deploy role
+    Then it sets PAPYRUS_BOOTSTRAP_STAGE=1 keeping every other branch variable, starts pass 1 and waits
+    And on success it removes the variable, starts pass 2 and waits, then disables the watcher
+    And a run that finds pass 1 succeeded starts only pass 2, a run that finds a running job waits for it, and a run that finds pass 2 succeeded does nothing
+
+  Scenario: A failed first-build pass stops and waits for a person
+    Given a first-build job failed or was cancelled
+    When the workflow runs again
+    Then it starts nothing and exits with an error telling a person to read the Amplify job log
+    And only a manual dispatch with retry-failed starts the pass again
