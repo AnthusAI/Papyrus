@@ -163,6 +163,10 @@ jobs:
 
 The deploy role's first-build rights are limited to that one app and branch (`GetApp`, `GetBranch`, `UpdateBranch`, `ListJobs`, `StartJob`, `GetJob`) plus `ssm:DescribeParameters`. `UpdateBranch` can change that branch's environment variables, so it stays on the main-only role.
 
+### Narrowing the Amplify rights to the one app
+
+The baseline's `AmplifyAppId` parameter sets which Amplify app the deploy and first-build rights cover; the seed leaves it `*` because the app does not exist yet. Once the app-shell stack has deployed, the stack config reads the id from the stack output instead, so no id is in Git: `"AmplifyAppId": {"fromStackOutput": {"stack": "<prefix>-app-shell", "output": "CmsAppId", "default": "*"}}`. A source stack that is not in the config (deployed by another workflow) is only read, and `default` keeps a fresh account working until the app exists. The roles-apply role can read stack outputs for this, and the roles job re-applies the baseline when the id appears.
+
 ### Google sign-in (person-only)
 
 Signing in with Google also needs a person once: the Cognito domain prefix, the two redirect URIs in the Google console, and `papyrus site google-secrets set`. Follow [google-oauth-setup.md](google-oauth-setup.md).

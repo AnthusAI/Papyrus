@@ -519,7 +519,7 @@ def template_file(ctx: Context, cfg: dict) -> Path:
 
 
 def resolve_parameters(ctx: Context, cfg: dict, strict: bool) -> tuple[dict[str, str], list[str]]:
-    """Configured parameter values: a string, {"fromEnv": NAME} or {"fromStackOutput": {"stack", "output"}}.
+    """Configured parameter values: a string, {"fromEnv": NAME} or {"fromStackOutput": {"stack", "output", "default"?}}; with a "default" a missing stack or output yields the default instead of a Stop (a fresh account whose source stack is not deployed yet).
     strict (deploy): an unset or empty variable, a missing stack or output is a Stop. Not strict (plan): it becomes a note and the parameter is left out."""
     values, notes = {}, []
     for name, spec in cfg.get("parameters", {}).items():
@@ -535,12 +535,18 @@ def resolve_parameters(ctx: Context, cfg: dict, strict: bool) -> tuple[dict[str,
         elif isinstance(spec, dict) and "fromStackOutput" in spec:
             source = spec["fromStackOutput"]
             stack = ctx.cloud.describe_stack(source["stack"])
+            if stack is None and "default" in source:
+                values[name] = str(source["default"])   # the source does not exist yet (a fresh account): use the stated default
+                continue
             if stack is None:
                 if strict:
                     raise Stop(f"parameter {name} comes from stack {source['stack']}, which does not exist")
                 notes.append(f"parameter `{name}`: stack `{source['stack']}` does not exist yet, so output `{source['output']}` is not known")
                 continue
             found = [o["OutputValue"] for o in stack.get("Outputs", []) if o.get("OutputKey") == source["output"]]
+            if not found and "default" in source:
+                values[name] = str(source["default"])
+                continue
             if not found:
                 if strict:
                     raise Stop(f"parameter {name} comes from output {source['output']} of stack {source['stack']}, which has no such output")
@@ -940,14 +946,18 @@ def delegation_command(ctx: Context) -> int:
 def validate_config(config: dict) -> None:
     """Config rules that only the optional keys have; a config without them passes untouched."""
     seen = set()
+    all_names = {stack["name"] for stack in config["stacks"]}
     for stack in config["stacks"]:
         if not stack.get("enabled", True) and not str(stack.get("reason", "")).strip():
             raise Stop(f"stack {stack['name']} is disabled and needs a non-empty reason")
         if "when" in stack:
             validate_when(stack["name"], stack["when"])
         for pname, spec in stack.get("parameters", {}).items():
-            if isinstance(spec, dict) and "fromStackOutput" in spec and spec["fromStackOutput"]["stack"] not in seen:
-                raise Stop(f"parameter {pname} of {stack['name']} reads the output of {spec['fromStackOutput']['stack']}, which must come earlier in the config")
+            # A source stack in this config must come earlier; a stack outside the config (deployed by another workflow, e.g. the app shell)
+            # is only read.
+            source = spec["fromStackOutput"]["stack"] if isinstance(spec, dict) and "fromStackOutput" in spec else None
+            if source is not None and source in all_names and source not in seen:
+                raise Stop(f"parameter {pname} of {stack['name']} reads the output of {source}, which must come earlier in the config")
         seen.add(stack["name"])
 
 
