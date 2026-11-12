@@ -16,7 +16,7 @@ Parameters:
     AllowedPattern: "^[a-z][a-z0-9]{1,15}$"
     Description: >-
       Names this deployment. Roles are <Prefix>-github-deploy, -github-plan,
-      -github-roles-apply, -cloudformation and -cloudformation-roles; the
+      -github-roles-apply, -github-watch, -cloudformation and -cloudformation-roles; the
       stacks the pipeline manages are named <Prefix>-*; this stack is
       <Prefix>-github-deploy.
   GithubRepository:
@@ -36,6 +36,13 @@ Parameters:
     Default: main
     AllowedPattern: "^[A-Za-z0-9_.-]+$"
     Description: The one branch whose pushes may assume the deploy role. Also the Amplify branch it may build.
+  DefaultBranch:
+    Type: String
+    Default: develop
+    AllowedPattern: "^[A-Za-z0-9_.-]+$"
+    Description: >-
+      The repository's default branch. GitHub runs scheduled workflows only from there, so the read-only watch role (the first-build
+      watcher) trusts exactly this branch.
   CdkQualifier:
     Type: String
     Default: hnb659fds
@@ -114,6 +121,25 @@ Resources:
                   - amplify:StartJob
                   - amplify:GetJob
                 Resource: !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/${ProductionBranch}/jobs/*"
+        - PolicyName: run-the-first-build
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadAndUpdateTheProductionBranch
+                Effect: Allow
+                Action:
+                  - amplify:GetApp
+                  - amplify:GetBranch
+                  - amplify:UpdateBranch
+                  - amplify:ListJobs
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}"
+                  - !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/${ProductionBranch}"
+                  - !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/${ProductionBranch}/jobs/*"
+              - Sid: ListParameterNamesToSeeTheGoogleClientExists
+                Effect: Allow
+                Action: ssm:DescribeParameters
+                Resource: "*"
         - PolicyName: deploy-app-shell-with-cdk
           PolicyDocument:
             Version: "2012-10-17"
@@ -243,6 +269,51 @@ Resources:
                 Effect: Allow
                 Action: budgets:ViewBudget
                 Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${BudgetName}"
+
+  # ---------------------------------------------------------------------------
+  # Watch role: the scheduled first-build watcher on the repository's default
+  # branch. Read only, and it reads no secret: parameter NAMES only.
+  # ---------------------------------------------------------------------------
+  GithubWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-github-watch"
+      Description: !Sub "Read-only first-build watcher for ${GithubRepository}: GitHub OIDC on ${DefaultBranch} only; describes the app stacks and the Amplify app and lists SSM parameter names; reads no parameter value"
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: GithubActionsOnTheDefaultBranchOnly
+            Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateProvider
+                - !Ref GithubOidcProvider
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub
+                  - "${Subject}:ref:refs/heads/${DefaultBranch}"
+                  - Subject: !If [CustomSubject, !Ref GithubSubjectPrefix, !Sub "repo:${GithubRepository}"]
+      Policies:
+        - PolicyName: read-only-first-build-watch
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: DescribeAppStacks
+                Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-*/*"
+              - Sid: ReadTheAmplifyApp
+                Effect: Allow
+                Action: amplify:GetApp
+                Resource: !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}"
+              - Sid: ListParameterNamesOnly
+                Effect: Allow
+                Action: ssm:DescribeParameters
+                Resource: "*"
 
   # ---------------------------------------------------------------------------
   # Roles-apply role: only the GitHub environment pipeline-roles (main only;
