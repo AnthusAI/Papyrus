@@ -1119,3 +1119,36 @@ def test_baseline_service_role_can_manage_the_trail_and_mail_event_resources():
         assert f"Sid: {sid}\n" in text
     assert 'trail/${Prefix}-*"' in text and 'arn:${AWS::Partition}:s3:::${Prefix}-*"' in text
     assert 'configuration-set/${Prefix}-*"' in text and '${AWS::AccountId}:${Prefix}-*"' in text
+
+
+# --- fromStackOutput with a default, and a source outside the config ------------------------------------------------------------------------
+
+
+def test_from_stack_output_default_is_used_when_the_source_stack_or_output_is_missing(tmp_path):
+    spec = {"AmplifyAppId": {"fromStackOutput": {"stack": "acct-app", "output": "CmsAppId", "default": "*"}}}
+    cfg = stack_cfg("acct-roles", "zone.yaml", parameters=spec)
+    ctx = make(tmp_path, AccountCloud(), [cfg])
+    assert sd.resolve_parameters(ctx, cfg, strict=True) == ({"AmplifyAppId": "*"}, [])
+    cloud = AccountCloud(stacks={"acct-app": {"StackStatus": "CREATE_COMPLETE", "Parameters": [], "Outputs": [{"OutputKey": "Other", "OutputValue": "x"}]}})
+    assert sd.resolve_parameters(make(tmp_path, cloud, [cfg]), cfg, strict=True)[0] == {"AmplifyAppId": "*"}
+    cloud = AccountCloud(stacks={"acct-app": {"StackStatus": "CREATE_COMPLETE", "Parameters": [], "Outputs": [{"OutputKey": "CmsAppId", "OutputValue": "dEXAMPLE0001"}]}})
+    assert sd.resolve_parameters(make(tmp_path, cloud, [cfg]), cfg, strict=True)[0] == {"AmplifyAppId": "dEXAMPLE0001"}
+
+
+def test_without_a_default_a_missing_source_is_still_a_stop(tmp_path):
+    cfg = stack_cfg("acct-roles", "zone.yaml", parameters={"X": {"fromStackOutput": {"stack": "acct-app", "output": "CmsAppId"}}})
+    with pytest.raises(sd.Stop):
+        sd.resolve_parameters(make(tmp_path, AccountCloud(), [cfg]), cfg, strict=True)
+
+
+def test_a_source_stack_outside_the_config_is_allowed_but_a_later_one_is_not():
+    outside = {"stacks": [{"name": "acct-roles", "parameters": {"X": {"fromStackOutput": {"stack": "acct-app", "output": "O"}}}}]}
+    sd.validate_config(outside)   # acct-app is deployed by another workflow: only read
+    later = {"stacks": [{"name": "acct-a", "parameters": {"X": {"fromStackOutput": {"stack": "acct-b", "output": "O"}}}}, {"name": "acct-b", "parameters": {}}]}
+    with pytest.raises(sd.Stop):
+        sd.validate_config(later)
+
+
+def test_the_roles_apply_role_can_read_the_other_stacks_outputs():
+    text = (ROOT / "infra" / "account" / "baseline.yaml").read_text(encoding="utf-8")
+    assert "ReadTheOutputsOfTheOtherStacks" in text

@@ -365,6 +365,10 @@ Resources:
                 Effect: Allow
                 Action: cloudformation:DescribeEvents
                 Resource: "*"
+              - Sid: ReadTheOutputsOfTheOtherStacks
+                Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-*/*"
               - Sid: ChangeSetsOnlyThroughTheRolesServiceRole
                 Effect: Deny
                 Action: cloudformation:CreateChangeSet
