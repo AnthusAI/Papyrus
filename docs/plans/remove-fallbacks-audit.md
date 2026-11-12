@@ -36,13 +36,13 @@ decision is his; blank means left alone (class d).
 | 16 | lib/amplify-server-runtime.ts:79-93 | Reads Cognito ids from the old snake_case `auth` block of amplify_outputs when `Auth.Cognito` lacks them | c | Require the current shape | low-medium: sites with old outputs files fail at build with a clear message | sites pinned to old Amplify outputs | Ryan (released sites) |
 | 17 | lib/newsroom-section-routing.ts:6-10 | Old `?tab=categories` query reads as `topics` | c | Delete the alias | low | bookmarked URLs | PR 5 |
 | 18 | components/news-desk-taxonomy-client.ts:3211-3227, amplify/functions/newsroom-summary/handler.ts:192-206 | Summary facets merge the old flat count fields into the new shape | c | Read the new shape only (both sides ship together) | low if the summary function is deployed with the client | newsroom summary | PR 5 |
-| 19 | components/needs-me-feed.tsx:282,319,443 | `legacyAuto` list added to the auto count | c | Delete if no caller passes it | low | check callers | PR 5 |
+| 19 | components/needs-me-feed.tsx:282,319,443 | The `legacyAuto` prop is the live "Decided automatically" footer; the name is old, the feature is not | d | Rename later; not a fallback | none | notification center | d |
 | 20 | components/newsroom-assignment-detail.tsx:71 | Shows an "Old section" option for a desk value no longer offered | c | Keep: it shows data rather than hiding it | none | editors | d |
 | 21 | amplify/functions/category-action/reference-links.ts:229-233 | Looks up the old `related_to` relation id before the `tagged_with` one | c | Delete after `papyrus relations migrate-concept-tags` has run on every site | medium | live relations | Ryan |
 | 22 | src/papyrus_content/concept_tag_migration.py, concept_tags_commands.py, relations_commands.py, messages_commands.py (`migrate-insights`, `*-legacy-comments`), convert_bodies_commands.py | One-shot migration commands and their `legacy` readers | d | Remove each command after its migration has run everywhere | none now | operators | d (retire later) |
 | 23 | amplify/functions/shared/email-mime-intake.ts:164-174, src/papyrus_newsroom/email_mime_intake.py:219 | Second MIME parser substitutes text/subject/links when the first yields none | b | One parser, fix its gaps | medium: messy real mail | inbound email on every site | listed |
 | 24 | src/papyrus_newsroom/email_submission_replies.py:813-919 | `chat_fallback` reply mode when a filing reply cannot be built | b | Report the failure to the editor | medium | email intake | listed |
-| 25 | src/papyrus_newsroom/slack_agent.py:22-40 | Reads `SLACK_SIGNING_SECRET`/`SLACK_BOT_TOKEN` when the `PAPYRUS_` names are unset; returns "" when none | b | One name each; raise naming the missing setting | low | Slack agent deploys | PR 6 |
+| 25 | src/papyrus_newsroom/slack_agent.py:22-40 | Reads `SLACK_SIGNING_SECRET`/`SLACK_BOT_TOKEN` when the `PAPYRUS_` names are unset; returns "" when none | b | One name (`PAPYRUS_SLACK_BOT_TOKEN`); the call already raises naming it; delete the unused `slack_signing_secret` | low: no other repo file sets the old names | Slack agent deploys | PR 4 |
 | 26 | src/papyrus_content/assignments_workflow.py:64-75 | Run directory falls back to the system temp directory when the repo is not writable | b | Take the run directory from configuration; fail when unwritable | medium: Lambda must pass its writable dir | assignments workflow in Lambda | listed |
 | 27 | src/papyrus_content/steering.py:216-235, corpus_storage_paths.py:17-63, renditions_commands.py:82 | Tries the old mixed-case and token corpus folder names when the configured path does not exist | c | Migrate folders, then delete | medium | local corpus checkouts | Ryan |
 | 28 | src/papyrus_content/monitoring_router.py:87-94, :377 | Accepts the `cyclotron-publication/v1` contract and discoveries queued by "the earlier editor-gated path" | c | Delete once the queue has drained | low | in-flight jobs | listed |
@@ -85,8 +85,8 @@ Rows by class (a cluster counts once; rows 32 and 40 are split b/d and b/c and c
 |---|---|---|
 | a dead or unreachable | 1 | 8 |
 | b silent substitute | 29 | 1-7, 9-13, 23-26, 29, 32, 34-36, 40, 43, 51, 52, 55-58 |
-| c compatibility alias, live callers or data | 14 | 14-19, 21, 27, 28, 30, 31, 37, 42, 44 |
-| d legitimate | 14 | 20, 22, 33, 38, 39, 41, 45-50, 53, 54 |
+| c compatibility alias, live callers or data | 13 | 14-18, 21, 27, 28, 30, 31, 37, 42, 44 |
+| d legitimate | 15 | 19, 20, 22, 33, 38, 39, 41, 45-50, 53, 54 |
 
 The 1,311 raw lines reduce to these 58 clusters; about 900 of them fall in class d clusters (temporary files, `deprecated` status,
 layout penalties, font stacks, migration tooling, tests' own vocabulary).
@@ -96,8 +96,9 @@ layout penalties, font stacks, migration tooling, tests' own vocabulary).
 1. PR 1: console chat client (rows 1-4, 5 console part), this audit, the Gherkin feature.
 2. PR 2: lib/graphql-content-repository.ts shims and the dead image (rows 6-8), the Python `FieldUndefined` fallback (row 9).
 3. PR 3: the Reference page loader chain (row 10).
-4. PR 4: small aliases whose callers are all in this repo (rows 17-19) and Python substitutes (rows 25, 35, 36).
+4. PR 4: the Slack secret aliases (row 25).
 
 Needs Ryan (a released site, stored data or a design question depends on it, so it is listed, not removed): rows 5 (steering
-realtime), 12, 14-16, 21, 27, 30, 37, 42-44, 52, 56. Rows 11, 13, 23, 24, 26, 29, 32, 34, 40, 51, 55, 57, 58 are removable but
-each changes what an editor sees when something is broken; they are queued behind the four PRs above.
+realtime), 12, 14-16, 21, 27, 30, 37, 42-44, 52, 56, and 18 (the summary rows still store the old flat counts). Rows 11, 13, 17, 23,
+24, 26, 29, 32, 34-36, 40, 51, 55, 57, 58 are removable but each changes what an editor sees when something is broken or touches a
+URL people have bookmarked; they are queued behind the four PRs above.

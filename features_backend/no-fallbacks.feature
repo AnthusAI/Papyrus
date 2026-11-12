@@ -20,3 +20,8 @@ Feature: One correct path that fails clearly
     When the References are listed by import date for a corpus
     Then the listing fails and the error names listReferencesByNewsroomFeedAndImportedAt
     And the corpus index was not read for the import-date listing
+
+  Scenario: The Slack bot token has one name and a missing token says so
+    Given only an old unprefixed Slack bot token is set in the environment
+    When the Slack agent calls the Slack API
+    Then the call is refused and the error names PAPYRUS_SLACK_BOT_TOKEN
