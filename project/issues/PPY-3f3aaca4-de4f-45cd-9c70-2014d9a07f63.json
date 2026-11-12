@@ -1,0 +1,25 @@
+{
+  "id": "PPY-3f3aaca4-de4f-45cd-9c70-2014d9a07f63",
+  "title": "Spike: translation quality and cost on 10 MoM Stories",
+  "description": "Translate 10 real published Machines on Machines Stories into Spanish (es) and Simplified Chinese (zh-Hans) with GPT-6 Luna, block by block, with a draft glossary and protected Markus (links, citations, code, names). Nothing is published.\n\nMeasure per Story and language: tokens, cost from data/model_prices.json, bilingual judge findings, deterministic fidelity findings, Humanus findings with today's English packs (are they useful on Spanish?), and a human reviewer's time and corrections.\n\nOutput: cost per Story and per changed block, the first weekly budget proposal for MoM, and a recommendation on which checks transfer. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T15:39:05.130631Z",
+  "updated_at": "2026-11-12T15:39:05.237919Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

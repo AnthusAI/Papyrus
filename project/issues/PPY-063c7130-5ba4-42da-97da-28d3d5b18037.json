@@ -1,0 +1,25 @@
+{
+  "id": "PPY-063c7130-5ba4-42da-97da-28d3d5b18037",
+  "title": "Spike: count published Stories and reads per site to size backfill",
+  "description": "From indexes (no table scans), count published Stories per site and their read counts and star ratings, so backfill order (traffic and stars) and its budget can be sized for MoM Spanish. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T15:39:06.058844Z",
+  "updated_at": "2026-11-12T15:39:06.165473Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
