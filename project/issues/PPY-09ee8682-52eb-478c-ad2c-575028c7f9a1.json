@@ -1,7 +1,7 @@
 {
   "id": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
   "title": "Scheduled publishing and automated announcements",
-  "description": "Publish Stories at chosen times so a fast newsroom can spread its work out, and announce each qualifying Story on X as soon as it qualifies, automatically. A general Papyrus capability; Machines on Machines (MoM) proves it first, 5-star Stories only, on a private test account first.\n\nDesign: docs/plans/scheduled-publishing-and-announcements.md (plan PR into develop). Asked by Ryan, 2026-11-12.\n\n**Scheduling.** Four fields on the scheduled version's Item row (`scheduledPublishAt`, `scheduledBy`, `scheduledAt`, `scheduleState`, plus `scheduleName`), one sparse index `scheduleState+scheduledPublishAt`, one EventBridge Scheduler one-off schedule per scheduled version (the newsletter and home-page pattern). The schedule pins an immutable version; a newer version blocks the publish and tells the editor. UTC stored, publication time zone shown. Needs the first-publish-time fix (PPY-271940) so a scheduled republish keeps the first date.\n\n**Announcements.** Through Caducus (Ryan's one-notification-system decision, PPY-824c14): a new `x` channel, a `broadcast` recipient class and a cost field on deliveries (Caducus issue needed). Papyrus owns eligibility (published and rated at or above the site's announcement floor, never below the quality floor PPY-0e8d66), model-drafted text checked against the Story, optional approval, budget and pause, retirement.\n\n**Accounts.** The site owner's own X developer app (the owner pays X); OAuth 2.0 Authorization Code with PKCE; client secret and rotating refresh token in SSM SecureString per site and account.\n\n**Calendar.** FullCalendar 7 (MIT), client-only on the schedule page; spike in spikes/scheduling-calendar/.\n\n**Stories.** Scheduling backend; schedule field and badge; schedule view; channel framework + X adapter; account connection; eligibility rules + settings UI; drafting + approval; audit trail; cost, budget, pause; retirement and corrections; CLI/MCP parity; p.apyr.us page; MoM rollout.\n\n**Acceptance.** On MoM, an editor schedules a Story, it publishes at that time with the right dates, and if it is rated 5 stars a reviewed post with its link appears on MoM's X account once, with its cost recorded and visible; pausing stops all posting; retiring the Story deletes the post.\n",
+  "description": "**Decisions (Ryan, 2026-11-12).** One X account to start (MoM's own; Ryan reposts by hand). Floor 5 stars on MoM. No approval step: announcements are automatic and the text passes the automatic checks or is not posted. MoM budget $10 per X billing cycle, also X's console spending limit; the budget is a plain site setting with no default. No test account: dry-run mode, the budget and pause guards, then one live post Ryan watches. Stories only, never References. Owner setup guide: docs/x-announcements-setup.md. Open item for Ryan: does MoM's X account exist yet, and its handle?\n\nPublish Stories at chosen times so a fast newsroom can spread its work out, and announce each qualifying Story on X as soon as it qualifies, automatically. A general Papyrus capability; Machines on Machines (MoM) proves it first, 5-star Stories only, dry run first, then one watched live post.\n\nDesign: docs/plans/scheduled-publishing-and-announcements.md (plan PR into develop). Asked by Ryan, 2026-11-12.\n\n**Scheduling.** Four fields on the scheduled version's Item row (`scheduledPublishAt`, `scheduledBy`, `scheduledAt`, `scheduleState`, plus `scheduleName`), one sparse index `scheduleState+scheduledPublishAt`, one EventBridge Scheduler one-off schedule per scheduled version (the newsletter and home-page pattern). The schedule pins an immutable version; a newer version blocks the publish and tells the editor. UTC stored, publication time zone shown. Builds on the first-publish-time fix (PPY-271940, merged as #1455) so a scheduled republish keeps the first date.\n\n**Announcements.** Through Caducus (Ryan's one-notification-system decision, PPY-824c14): a new `x` channel, a `broadcast` recipient class and a cost field on deliveries (Caducus kanbus-ea2644 in AnthusAI/Caducus). Papyrus owns eligibility (published and rated at or above the site's announcement floor, never below the quality floor PPY-0e8d66), model-drafted text checked automatically against the Story (no approval step), budget and pause, retirement. Stories only.\n\n**Accounts.** The site owner's own X developer app (the owner pays X); OAuth 2.0 Authorization Code with PKCE; client secret and rotating refresh token in SSM SecureString per site and account.\n\n**Calendar.** FullCalendar 7 (MIT), client-only on the schedule page; spike in spikes/scheduling-calendar/.\n\n**Stories.** Scheduling backend; schedule field and badge; schedule view; channel framework + X adapter; account connection + setup guide; rules + mode (Off / Dry run / On) + pause; drafting + automatic checks; audit trail; cost, budget, pause; retirement and corrections; CLI/MCP parity; p.apyr.us page; MoM rollout.\n\n**First slice, in order.** (1) PPY-085d0b scheduling backend and Item index, then PPY-92164e and PPY-38f016 in parallel. (2) kanbus-ea2644 (Caducus release), PPY-9f4d66, then PPY-2deb63, PPY-ae9d06, PPY-a326aa, PPY-8037b8 in parallel, then PPY-64378c, then PPY-4007c8. (3) PPY-bf9d26 before mode stays On, then PPY-24358c and PPY-3c5468.\n**Can start now in parallel:** PPY-085d0b (Papyrus backend) and kanbus-ea2644 (Caducus repo only); the owner's X app setup from the guide needs no code.\n\n**Acceptance.** On MoM, an editor schedules a Story, it publishes at that time with the right dates, and if it is rated 5 stars a checked post with its link appears on MoM's X account once, with its cost recorded and visible; pausing stops all posting; retiring the Story deletes the post.",
   "type": "epic",
   "status": "open",
   "priority": 2,
@@ -11,21 +11,29 @@
   "labels": [],
   "dependencies": [
     {
-      "target": "PPY-27194088-20fa-4ef2-a8c4-2820ab7ccd75",
-      "type": "blocked-by"
-    },
-    {
       "target": "PPY-156614d5-c0b6-4f4e-a1c5-70873a94b1b3",
       "type": "relates-to"
     },
     {
       "target": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
       "type": "relates-to"
+    },
+    {
+      "target": "PPY-27194088-20fa-4ef2-a8c4-2820ab7ccd75",
+      "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7c248000-80c2-469b-b2cb-fcdce0b3cd1e",
+      "author": "home",
+      "text": "Caducus side filed: AnthusAI/Caducus kanbus-ea2644 (x channel, broadcast recipient class, cost on deliveries). PPY-9f4d66 waits on its release.",
+      "created_at": "2026-11-12T18:51:10.068670Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T18:41:38.078215Z",
-  "updated_at": "2026-11-12T18:41:40.350096Z",
+  "updated_at": "2026-11-12T18:51:10.068923Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
