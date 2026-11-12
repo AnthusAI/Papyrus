@@ -1684,3 +1684,22 @@ def step_refused_pen_names(context):
 @then("the save is refused because the byline rules belong to the publication")
 def step_refused_section(context):
     assert context.byline_refusal and "belong to the publication" in context.byline_refusal, context.byline_refusal
+
+
+@given("the site's byline policy document cannot be read")
+def step_unreadable_byline(context):
+    context.guideline_files.get = lambda _attachment: None
+
+
+@when("the copywriter's context pack build is attempted")
+def step_pack_attempt(context):
+    context.attempt_error = None
+    try:
+        context.pack = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1")
+    except GuidelineError as error:
+        context.attempt_error = str(error)
+
+
+@then("the attempt fails saying the document could not be read")
+def step_attempt_failed(context):
+    assert context.attempt_error and "could not be read" in context.attempt_error, context.attempt_error

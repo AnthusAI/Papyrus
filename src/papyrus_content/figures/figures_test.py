@@ -275,7 +275,7 @@ def run(*args: str) -> tuple[int, str]:
 
 
 def test_rules_state_outright_that_light_and_dark_are_both_mandatory():
-    status, text = run("rules")
+    status, text = run("rules", "--packaged")
     assert status == 0
     assert "## 0. Light and dark are both mandatory" in text
     assert "Every figure ships in a light picture and a dark picture, always." in text

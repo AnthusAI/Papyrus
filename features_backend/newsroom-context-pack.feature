@@ -410,3 +410,9 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
   Scenario: Only the publication has a byline policy
     When an admin saves a byline policy for the section "law-policy"
     Then the save is refused because the byline rules belong to the publication
+
+  Scenario: A byline policy that cannot be read stops the pack rather than telling the writer the default
+    Given the site's byline policy is pen names "Chip Hardcastle" and "Dolores Finch"
+    And the site's byline policy document cannot be read
+    When the copywriter's context pack build is attempted
+    Then the attempt fails saying the document could not be read
