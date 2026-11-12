@@ -30,3 +30,8 @@ Feature: One correct path that fails clearly
     Given the content repository source
     When it is read for how it treats a layout block whose item did not load
     Then the plan is validated as written, no block is dropped with a warning, and no invented fallback image exists
+
+  Scenario: The news desk lists References from their indexes only
+    Given the news desk client source
+    When it is read for how it loads a page of References
+    Then each ordering and status filter reads its own index, an empty page is an empty page, and no table scan or older feed query takes over

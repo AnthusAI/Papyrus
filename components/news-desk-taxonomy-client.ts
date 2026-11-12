@@ -280,15 +280,6 @@ const NEWSROOM_ASSIGNMENT_FEED_QUERY = `
   }
 `;
 
-const NEWSROOM_REFERENCE_FEED_QUERY = `
-  query ListReferencesByNewsroomFeedAndCreatedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
-    listReferencesByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
-      nextToken
-    }
-  }
-`;
-
 const NEWSROOM_REFERENCE_IMPORTED_FEED_QUERY = `
   query ListReferencesByNewsroomFeedAndImportedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByNewsroomFeedAndImportedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
@@ -310,15 +301,6 @@ const LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY = `
 const LIST_REFERENCES_BY_REVIEWED_FEED_AND_UPDATED_AT_QUERY = `
   query ListReferencesByReviewedFeedAndUpdatedAt($reviewedFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByReviewedFeedAndUpdatedAt(reviewedFeedKey: $reviewedFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
-      nextToken
-    }
-  }
-`;
-
-const LIST_REFERENCES_FALLBACK_QUERY = `
-  query ListReferencesFallback($limit: Int, $nextToken: String) {
-    listReferences(limit: $limit, nextToken: $nextToken) {
       items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
       nextToken
     }
@@ -2285,23 +2267,7 @@ export async function loadNewsroomReferencePage(options: NewsroomReferencePageOp
   if (isLocalPreviewEnabled()) return { items: createLocalPreviewReferences(), nextToken: null, hasMore: false };
   configureAmplifyClient();
   const order = normalizeNewsroomReferencePageOrder(options.order);
-  if (order === "imported") {
-    try {
-      const importedPage = await loadReferencePageByImportedFeed(options);
-      if (importedPage.items.length > 0 || options.nextToken) return importedPage;
-    } catch (error) {
-      if (!isMissingGraphQLQueryFieldError(error, "listReferencesByNewsroomFeedAndImportedAt")) {
-        throw error;
-      }
-      console.warn(
-        "listReferencesByNewsroomFeedAndImportedAt is not deployed in this environment; "
-        + "falling back to legacy reference queries with client-side import-date sort.",
-      );
-    }
-    const fallbackPage = await loadReferencePageByFallbackList(options);
-    if (fallbackPage.items.length > 0 || options.nextToken) return fallbackPage;
-    // Continue into status-index loaders below when the table scan is empty.
-  }
+  if (order === "imported") return loadReferencePageByImportedFeed(options);
   const normalizedStatus = normalizeReferenceStatusKey(options.status);
   if (normalizedStatus) {
     const indexedPage = await loadReferencePageByStatus({
@@ -2310,38 +2276,27 @@ export async function loadNewsroomReferencePage(options: NewsroomReferencePageOp
       nextToken: options.nextToken,
       corpusId: options.corpusId,
     });
-    if (indexedPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(indexedPage, order);
-    const legacyPage = await loadReferencePageByLegacyFeed(options);
-    if (legacyPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(legacyPage, order);
-    return loadReferencePageByFallbackList(options);
+    return sortReferencePageByOrder(indexedPage, order);
   }
   if (options.excludePending) {
     // Use the curation-status merge, not reviewedFeedKey. The reviewed-feed GSI is only
     // populated for references that went through backfill; treating it as authoritative
     // capped production at ~100 rows while thousands exist in the status indexes.
-    const mergedReviewedPage = await loadMergedReferenceStatusPage({
+    return loadMergedReferenceStatusPage({
       statuses: ["accepted", "rejected", "archived"],
       limit: options.limit,
       nextToken: options.nextToken,
       corpusId: options.corpusId,
       order,
     });
-    if (mergedReviewedPage.items.length > 0 || options.nextToken) return mergedReviewedPage;
-    const legacyPage = await loadReferencePageByLegacyFeed(options);
-    if (legacyPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(legacyPage, order);
-    return loadReferencePageByFallbackList(options);
   }
-  const mergedPage = await loadMergedReferenceStatusPage({
+  return loadMergedReferenceStatusPage({
     statuses: REFERENCE_STATUS_KEYS,
     limit: options.limit,
     nextToken: options.nextToken,
     corpusId: options.corpusId,
     order,
   });
-  if (mergedPage.items.length > 0 || options.nextToken) return mergedPage;
-  const legacyPage = await loadReferencePageByLegacyFeed(options);
-  if (legacyPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(legacyPage, order);
-  return loadReferencePageByFallbackList(options);
 }
 
 function referencePageMatchesFilters(
@@ -2357,18 +2312,6 @@ function referencePageMatchesFilters(
   return true;
 }
 
-async function loadReferencePageByLegacyFeed(options: NewsroomReferencePageOptions): Promise<NewsroomRecordPage<ReferenceRecord>> {
-  const normalizedStatus = normalizeReferenceStatusKey(options.status);
-  return loadNewsroomFeedPage<ReferenceRecord>({
-    query: NEWSROOM_REFERENCE_FEED_QUERY,
-    field: "listReferencesByNewsroomFeedAndCreatedAt",
-    newsroomFeedKey: "references",
-    limit: options.limit,
-    nextToken: options.nextToken,
-    matches: (reference) => referencePageMatchesFilters(reference, options, normalizedStatus),
-  });
-}
-
 async function loadReferencePageByImportedFeed(options: NewsroomReferencePageOptions): Promise<NewsroomRecordPage<ReferenceRecord>> {
   const normalizedStatus = normalizeReferenceStatusKey(options.status);
   return loadNewsroomFeedPage<ReferenceRecord>({
@@ -2379,68 +2322,6 @@ async function loadReferencePageByImportedFeed(options: NewsroomReferencePageOpt
     nextToken: options.nextToken,
     matches: (reference) => referencePageMatchesFilters(reference, options, normalizedStatus),
   });
-}
-
-async function loadReferencePageByFallbackList(options: NewsroomReferencePageOptions): Promise<NewsroomRecordPage<ReferenceRecord>> {
-  const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ReferenceRecord>>;
-  };
-  const limit = Math.max(1, Math.min(options.limit ?? NEWSROOM_PAGE_LIMIT, 200));
-  const normalizedStatus = normalizeReferenceStatusKey(options.status);
-  const items: ReferenceRecord[] = [];
-  let cursor = options.nextToken ?? null;
-  let connectionNextToken: string | null = null;
-  let pageCount = 0;
-
-  do {
-    pageCount += 1;
-    let response: GraphQLConnectionResponse<ReferenceRecord>;
-    try {
-      response = await client.graphql({
-        query: LIST_REFERENCES_FALLBACK_QUERY,
-        variables: {
-          limit,
-          nextToken: cursor,
-        },
-        authMode: USER_POOL_AUTH_MODE,
-      });
-    } catch (error) {
-      throw new Error(normalizeUnknownErrorMessage(error, "Failed to load listReferences fallback"));
-    }
-
-    const connection = response.data?.listReferences;
-    if (!connection) {
-      assertNoGraphQLErrors(response.errors);
-      throw new Error("Missing GraphQL connection payload for listReferences fallback.");
-    }
-    if (response.errors?.length) {
-      console.warn("GraphQL returned partial data for listReferences fallback.", response.errors);
-    }
-
-    connectionNextToken = connection.nextToken ?? null;
-    const pageItems = ((connection.items ?? []).filter(Boolean) as ReferenceRecord[])
-      .filter((reference) => {
-        if (reference.versionState && reference.versionState !== "current") return false;
-        if (options.corpusId && reference.corpusId !== options.corpusId) return false;
-        const status = normalizeReferenceStatusKey(reference.curationStatus) ?? "pending";
-        if (normalizedStatus) return status === normalizedStatus;
-        if (options.excludePending) return status !== "pending";
-        return true;
-      });
-    items.push(...pageItems);
-    cursor = connectionNextToken;
-  } while (items.length < limit && cursor && pageCount < 40);
-
-  const order = normalizeNewsroomReferencePageOrder(options.order);
-  const sorted = sortReferencePageByOrder({
-    items,
-    nextToken: connectionNextToken,
-    hasMore: Boolean(connectionNextToken),
-  }, order);
-  return {
-    ...sorted,
-    items: sorted.items.slice(0, limit),
-  };
 }
 
 /**
@@ -3699,11 +3580,6 @@ async function loadNewsroomFeedPage<T>({
     }
     const connection = response.data?.[field];
     if (!connection) {
-      if (isMissingGraphQLQueryFieldError(response.errors, field)) {
-        throw new Error(
-          `Validation error of type FieldUndefined: Field '${field}' in type 'Query' is undefined @ '${field}'`,
-        );
-      }
       assertNoGraphQLErrors(response.errors);
       throw new Error(`Missing GraphQL connection payload for ${field}.`);
     }
@@ -4193,14 +4069,6 @@ function assertNoGraphQLErrors(errors?: unknown[] | null) {
     })
     .join("; ");
   throw new Error(details);
-}
-
-function isMissingGraphQLQueryFieldError(error: unknown, fieldName: string): boolean {
-  if (Array.isArray(error)) {
-    return error.some((entry) => isMissingGraphQLQueryFieldError(entry, fieldName));
-  }
-  const message = normalizeUnknownErrorMessage(error, "");
-  return message.includes("FieldUndefined") && message.includes(fieldName);
 }
 
 function normalizeUnknownErrorMessage(error: unknown, fallback: string): string {
