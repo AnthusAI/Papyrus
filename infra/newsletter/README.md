@@ -58,9 +58,9 @@ Before the first deploy, list the zone's records for the sending domain and make
 
 ### Sites that send notifications (PPY-c522bf)
 
-A site's notifications function sends from this stack's identity and configuration set (`docs/notifications.md`, "Sending as the site"). [sending-identities.json](sending-identities.json) says which sites have a stack. For each site that will send notifications, a person with the production profile does, after reading the change set:
+A site's notifications function sends from this stack's identity and configuration set (`docs/notifications.md`, "Sending as the site"). [newsletter-sending-identities.json](../config/newsletter-sending-identities.json) says which sites have a stack. For each site that will send notifications, a person with the production profile does, after reading the change set:
 
-1. Sites with no stack yet (Anth.us and Threat Intelligence on 2026-11-04): run the deploy command above with the site's `SiteId`, `SendingDomain` and zone, adding `EventTransport=both`, then set the site's `sendingDomain` in `sending-identities.json` and the postal address parameter.
+1. Sites with no stack yet (Anth.us and Threat Intelligence on 2026-11-04): run the deploy command above with the site's `SiteId`, `SendingDomain` and zone, adding `EventTransport=both`, then set the site's `sendingDomain` in `newsletter-sending-identities.json` and the postal address parameter.
 2. Sites with a stack: re-run the same command with the stack's existing parameters plus `EventTransport=both`. The change adds one EventBridge event destination (`eventbridge-events`) to the configuration set and nothing else; the SNS topic and its destination stay as they are.
 3. `aws sesv2 get-email-identity --email-identity <domain>` still reads `True SUCCESS SUCCESS`, and `aws sesv2 get-configuration-set-event-destinations --configuration-set-name papyrus-<siteId>` lists `sns-events`, `eventbridge-events` and `cloudwatch-metrics`.
 

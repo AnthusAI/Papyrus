@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 
 const read = (path: string) => JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8"));
-const identities = read("../infra/newsletter/sending-identities.json") as { sites: Record<string, { sendingDomain: string | null }> };
+const identities = read("../config/newsletter-sending-identities.json") as { sites: Record<string, { sendingDomain: string | null }> };
 
 const sites = readdirSync(new URL("../infra/amplify-app-shell/examples/", import.meta.url))
   .filter((name) => name.endsWith(".site.json"))
@@ -10,7 +10,7 @@ const sites = readdirSync(new URL("../infra/amplify-app-shell/examples/", import
   .sort();
 
 // Every site in the repository is accounted for, and the list names no site that is not here.
-assert.deepEqual(Object.keys(identities.sites).sort(), sites, "sending-identities.json lists exactly the sites under infra/amplify-app-shell/examples");
+assert.deepEqual(Object.keys(identities.sites).sort(), sites, "newsletter-sending-identities.json lists exactly the sites under infra/amplify-app-shell/examples");
 
 const DOMAIN = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 for (const [site, { sendingDomain }] of Object.entries(identities.sites)) {
