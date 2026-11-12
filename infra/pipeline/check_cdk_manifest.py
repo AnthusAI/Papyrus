@@ -30,8 +30,12 @@ def check(out: Path, expect: str) -> str | None:
     artifacts = data.get("artifacts") if isinstance(data, dict) else None
     if not isinstance(artifacts, dict):
         return f"{manifest} has no artifacts object"
+    # The CloudFormation stack name is the artifact's `properties.stackName`; the artifact key is the construct id, which differs
+    # (found on the first Humorus synth: key AmplifyAppShell-the-hallucinator, stackName humorus-app-shell).
     names = sorted(
-        name for name, art in artifacts.items() if isinstance(art, dict) and art.get("type") == STACK_TYPE
+        (art.get("properties") or {}).get("stackName") or name
+        for name, art in artifacts.items()
+        if isinstance(art, dict) and art.get("type") == STACK_TYPE
     )
     if not names:
         return f"the manifest holds no CloudFormation stack; expected exactly one named {expect}"
