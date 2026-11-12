@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ORGANIZER_NAV_GROUPS } from "../lib/newsroom-organizer-nav";
-import { publicationTimeZone } from "../lib/site-publication";
 import { ownZoneTime, resolveWallTime, scheduleFromFields, scheduleKind, scheduleFromResult, scheduleSentence, scheduleWording, wallTimeOf } from "../lib/story-schedule";
 import { readScheduledRange, SCHEDULE_PAGE_STATES, type ScheduleQueryFetch } from "../lib/story-schedule-query";
-import { projectionTypesSlice } from "../packages/papyrus/src/with-papyrus.mjs";
 
 const NY = "America/New_York";
 const NOW = new Date("2026-11-12T15:00:00Z");
@@ -48,19 +46,25 @@ test("a wall-clock time becomes one UTC instant, none (the spring-forward gap) o
   assert.throws(() => resolveWallTime("", "09:00", NY), /Pick a date and a time/);
 });
 
-test("the publication's time zone is read from the site's projection slice, and a bad name is an error", () => {
-  const env = (publication: unknown) => ({ NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES: JSON.stringify({ publication }) });
-  assert.equal(publicationTimeZone(env({ timeZone: NY })), NY);
-  assert.equal(publicationTimeZone(env({})), null, "a site that sets none has no scheduling");
-  assert.equal(publicationTimeZone({}), null);
-  assert.throws(() => publicationTimeZone(env({ timeZone: "Mars/Olympus" })), /not a time zone name/);
-  assert.throws(() => publicationTimeZone(env({ timeZone: 5 })), /time zone name such as/);
-  assert.deepEqual(projectionTypesSlice({ publication: { timeZone: NY, other: 1 } }).publication, { timeZone: NY }, "withPapyrus copies only the zone");
+test("the publication's time zone comes from the backend's schedule_settings, and the writes are the schedule operation", async () => {
+  const { createContentActionsClient } = await import("../lib/content-actions-client");
+  const sent: string[] = [];
+  const answer = (data: unknown) => async (args: { input: string }) => { sent.push(args.input); return { data: JSON.stringify(data) }; };
+  const transport = (response: ReturnType<typeof answer>) => ({ queries: { deriveMarkus: async () => ({}) }, mutations: new Proxy({ scheduleItem: response }, { get: (target, name) => (target as Record<string, unknown>)[name as string] ?? (async () => ({})) }) }) as never;
+  const on = createContentActionsClient(transport(answer({ ok: true, enabled: true, timeZone: NY, now: "2026-11-12T15:00:00Z" })));
+  assert.deepEqual(await on.scheduleZone(), { ok: true, enabled: true, timeZone: NY });
+  assert.equal(JSON.parse(sent[0]).operation, "schedule_settings");
+  const off = createContentActionsClient(transport(answer({ ok: true, enabled: false })));
+  assert.deepEqual(await off.scheduleZone(), { ok: true, enabled: false, timeZone: null });
+  const written = createContentActionsClient(transport(answer({ ok: true, scheduledPublishAt: "2026-11-13T14:00:00.000Z", scheduledBy: "Sam" })));
+  assert.deepEqual(await written.scheduleStory({ itemId: "v1", lineageId: "l1", scheduledPublishAt: "2026-11-13T14:00:00.000Z" }), { ok: true, scheduledPublishAt: "2026-11-13T14:00:00.000Z", scheduledBy: "Sam" });
+  assert.deepEqual(JSON.parse(sent[sent.length - 1]), { operation: "schedule", arguments: { itemId: "v1", at: "2026-11-13T14:00:00.000Z" } });
+  await written.scheduleStory({ itemId: "v1", lineageId: "l1", scheduledPublishAt: null });
+  assert.deepEqual(JSON.parse(sent[sent.length - 1]), { operation: "schedule", arguments: { storyLineageId: "l1", clear: true } });
 });
 
-test("the Schedule destination is in the newsroom navigation only for a publication with a time zone", () => {
-  const keys = ORGANIZER_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.key));
-  assert.equal(keys.includes("schedule"), Boolean(publicationTimeZone()));
+test("the Schedule destination is always in the newsroom navigation", () => {
+  assert.ok(ORGANIZER_NAV_GROUPS.flatMap((group) => group.items).some((item) => item.key === "schedule"));
 });
 
 test("the page reads one query per state on the schedule index, limited to the range, and follows every page", async () => {

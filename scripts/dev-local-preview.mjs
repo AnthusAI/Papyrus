@@ -30,7 +30,6 @@ const previewStoryTypes = {
   storyTypes: { types: ["article", "post", "guide"] },
   urls: { types: { article: { base: "articles" }, post: { base: "posts" } } },
   listings: { types: ["article", "post"] },
-  publication: { timeZone: "America/New_York" },
 };
 
 const previewEnvironment = {

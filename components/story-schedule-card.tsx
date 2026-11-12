@@ -3,7 +3,7 @@
 import { useEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { NativeBoardIssue } from "../lib/newsroom-board";
-import { publicationTimeZone } from "../lib/site-publication";
+import { useScheduleZone } from "../lib/schedule-zone";
 import { StoryScheduleBadge } from "./story-schedule-badge";
 
 const STORY_CARD_SELECTOR = '.issue-card[data-issue-id^="contentItem:"]';
@@ -49,7 +49,7 @@ export function useStoryScheduleSlots(root: RefObject<HTMLElement | null>, enabl
 
 /** One line on each scheduled Story card: an icon and the time in the publication's zone, or Overdue, or Superseded. */
 export function StoryCardSchedule({ issues, slots }: { issues: readonly NativeBoardIssue[]; slots: Map<string, HTMLElement> }) {
-  const zone = publicationTimeZone();
+  const { zone } = useScheduleZone();
   if (!zone) return null;
   const now = new Date();
   return <>{issues.map(issue => {

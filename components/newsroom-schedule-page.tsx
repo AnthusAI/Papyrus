@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarClock } from "lucide-react";
 import "./newsroom-theme";
 import { canReadNewsroomBoard, contentItemBoardPathSegment } from "../lib/newsroom-board";
@@ -11,7 +11,7 @@ import { displayNewsroomSectionShortTitle } from "../lib/newsroom-sections";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import { SITE_BRAND } from "../lib/site-brand";
-import { publicationTimeZone } from "../lib/site-publication";
+import { useScheduleZone } from "../lib/schedule-zone";
 import { formatScheduleTime, scheduleFromFields, scheduleWording, zoneCity } from "../lib/story-schedule";
 import type { ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import type { NewsroomSectionRecord } from "../lib/category-repository";
@@ -53,8 +53,7 @@ export function NewsroomSchedulePage() {
   const allowed = canReadNewsroomBoard(session?.shell.phase);
   const router = useRouter();
   const phone = usePhone();
-  const zoneResult = useMemo(() => { try { return { zone: publicationTimeZone(), error: null }; } catch (reason) { return { zone: null, error: reason instanceof Error ? reason.message : String(reason) }; } }, []);
-  const zone = zoneResult.zone;
+  const { zone, error: zoneError } = useScheduleZone();
   const [range, setRange] = useState<{ from: string; to: string; view: ScheduleView } | null>(null);
   const [rows, setRows] = useState<ReturnType<typeof scheduleRows> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,8 +76,9 @@ export function NewsroomSchedulePage() {
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
   return <NewsroomOpsShell activeTab="schedule" appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle="Schedule">
     <div className="schedule-page" data-schedule-page>
-      {zoneResult.error ? <p className="schedule-problem" role="alert">{zoneResult.error}</p>
-        : !zone ? <p className="schedule-problem" role="status">Scheduling is off: this publication has no time zone. Set publication.timeZone in the site&apos;s projection.json.</p>
+      {zoneError ? <p className="schedule-problem" role="alert">{zoneError}</p>
+        : zone === undefined ? <p className="schedule-zone-note" role="status">Loading the schedule…</p>
+        : zone === null ? <p className="schedule-problem" role="status">Scheduling is off for this publication: its backend has no time zone set.</p>
         : <>
           <p className="schedule-zone-note" data-schedule-zone>All times are {zoneCity(zone)} time.</p>
           {error ? <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner> : null}

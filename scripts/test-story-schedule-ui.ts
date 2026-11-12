@@ -78,14 +78,13 @@ const STUBS: Record<string, string> = {
   "newsroom-assignment-detail": "export const NewsroomAssignmentDetail = () => null;",
   "newsroom-ops-shell": "export const NewsroomOpsShell = ({ children, headerActions, pageTitle }) => <div className='newsroom-organizer' data-kanbus-theme='newspaper-gothic' data-color-mode={document.documentElement.dataset.colorMode || 'light'} data-sidebar-collapsed='true'><div className='organizer-workspace'><header className='organizer-topbar'><h1>{pageTitle}</h1><div className='organizer-header-actions'>{headerActions}</div></header><main className='organizer-main'>{children}</main></div></div>; export const NewsroomOpsStatusBanner = ({ children }) => <p role='alert'>{children}</p>;",
 };
-const PROJECTION = JSON.stringify({ publication: { timeZone: "America/New_York" } });
 
 function browserBundle(): Promise<string> {
   bundle ??= build({
     absWorkingDir: root, bundle: true, write: false, platform: "browser", jsx: "automatic", logLevel: "silent",
     loader: { ".css": "empty", ".woff2": "empty", ".woff": "empty" },
     define: { "process.env.NODE_ENV": '"development"' },
-    banner: { js: `window.process = { env: { NODE_ENV: "development", NEXT_PUBLIC_PAPYRUS_LOCAL_PREVIEW: "1", NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES: ${JSON.stringify(PROJECTION)} } };` },
+    banner: { js: `window.process = { env: { NODE_ENV: "development", NEXT_PUBLIC_PAPYRUS_LOCAL_PREVIEW: "1" } };` },
     plugins: [{ name: "fixture-boundaries", setup(builder) {
       builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
       builder.onResolve({ filter: /^next\/dynamic$/ }, () => ({ path: "dynamic", namespace: "fixture" }));

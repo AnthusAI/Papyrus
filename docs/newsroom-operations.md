@@ -241,10 +241,10 @@ agent before workers rely on it.
 
 ### Scheduling in the newsroom (PPY-92164e, PPY-38f016)
 
-A site that sets `publication.timeZone` (an IANA name such as `America/New_York`) in its `web/projection.json` has scheduling in the console: `withPapyrus` copies the
-zone into `NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES` with the Story types (`lib/site-publication.ts`); a site that sets none has no schedule badge, drawer row, board link or
-Schedule page. Everything an editor reads or types is in that zone; the backend keeps one UTC instant on the version's Item row
-(`scheduledPublishAt`, `scheduledBy`, `scheduledAt`, `scheduleState`).
+The publication's time zone is set once, in the backend's publication settings (docs/scheduled-publishing.md); the `schedule_settings` operation returns it with whether scheduling
+is on, and the console asks once per page load (`lib/schedule-zone.ts`). Everything an editor reads or types is in that zone, so the badge, the picker, the calendar and the DST
+refusals agree with how the backend reads a time. A site whose backend has scheduling off shows no badge or drawer row, and its Schedule page says so. The backend keeps one UTC
+instant on the version's Item row (`scheduledPublishAt`, `scheduledBy`, `scheduledAt`, `scheduleState`).
 
 - **Card and drawer.** A scheduled Story's board card shows an icon and words (`Scheduled: Mon 16 Nov, 4:00 AM ET`, `Overdue`, `Superseded: a newer version was saved`).
   The Story drawer has a Schedule row (`components/story-schedule-panel.tsx`) with a date and time picker in the publication's zone, Change time, Unschedule, and the

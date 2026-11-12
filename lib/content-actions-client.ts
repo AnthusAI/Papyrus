@@ -50,6 +50,9 @@ export type MoveStoryStageResult = { ok: true; changed: boolean; stage: string }
 export type ScheduleStoryInput = { itemId: string; lineageId: string; scheduledPublishAt: string | null };
 export type ScheduleStoryResult = { ok: true; scheduledPublishAt: string | null; scheduledBy: string | null };
 
+/** The `schedule_settings` operation of `scheduleItem`: whether scheduling is on and the publication's time zone, which the backend owns (docs/scheduled-publishing.md). */
+export type ScheduleZoneResult = { ok: true; enabled: boolean; timeZone: string | null };
+
 export type CreateStoryFromReferenceInput = {
   referenceId: string;
   /** A Story type of the site. Omitted, the site's default type (`storyTypes.default`, else `article`). */
@@ -162,6 +165,10 @@ export function createContentActionsClient(transport: ContentActionsTransport) {
       const result = parseActionResponse<{ scheduledPublishAt?: string; scheduledBy?: string }>(await transport.mutations.scheduleItem({ input: JSON.stringify(operation) }, USER_POOL));
       return { ok: true, scheduledPublishAt: result.scheduledPublishAt ?? null, scheduledBy: result.scheduledBy ?? null };
     },
+    async scheduleZone(): Promise<ScheduleZoneResult> {
+      const result = parseActionResponse<{ enabled: boolean; timeZone?: string | null }>(await transport.mutations.scheduleItem({ input: JSON.stringify({ operation: "schedule_settings", arguments: {} }) }, USER_POOL));
+      return { ok: true, enabled: result.enabled, timeZone: result.timeZone ?? null };
+    },
     async setStoryStep(input: SetStoryStepInput): Promise<SetStoryStepResult> {
       return parseActionResponse(await transport.mutations.setStoryStep({ input: JSON.stringify(input) }, USER_POOL));
     },
@@ -190,6 +197,7 @@ export const publishItem = (id: string) => contentActionsClient().publishItem(id
 export const createStoryFromReference = (input: CreateStoryFromReferenceInput) => contentActionsClient().createStoryFromReference(input);
 export const moveStoryStage = (input: MoveStoryStageInput) => contentActionsClient().moveStoryStage(input);
 export const scheduleStory = (input: ScheduleStoryInput) => contentActionsClient().scheduleStory(input);
+export const scheduleZone = () => contentActionsClient().scheduleZone();
 export const setStoryStep = (input: SetStoryStepInput) => contentActionsClient().setStoryStep(input);
 export const unpublishItem = (id: string) => contentActionsClient().unpublishItem(id);
 

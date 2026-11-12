@@ -67,7 +67,7 @@ import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
 import { StarRating } from "./star-rating";
 import { StorySchedulePanel } from "./story-schedule-panel";
-import { publicationTimeZone } from "../lib/site-publication";
+import { useScheduleZone } from "../lib/schedule-zone";
 import { scheduleFromResult, type StorySchedule } from "../lib/story-schedule";
 import { useStoryStars, type StoryStarsController } from "./use-story-stars";
 import { EditorialPreviewPopover, type PreviewPopoverTarget } from "./editorial-preview-popover";
@@ -151,7 +151,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const [aliases, setAliases] = useState<string[]>([]);
   /** The rating the Story had when it was loaded; the store shows what was tapped since. */
   const [schedule, setSchedule] = useState<StorySchedule | undefined>(undefined);
-  const scheduleZone = useMemo(() => publicationTimeZone(), []);
+  const { zone: scheduleZone } = useScheduleZone();
   const [savedStars, setSavedStars] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationState>({ status: "checking" });

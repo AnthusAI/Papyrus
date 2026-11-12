@@ -69,7 +69,6 @@ console.warn = warn;
 // withPapyrus copies only the Story-type settings of the site's projection.json.
 const slice = projectionTypesSlice({ site: { name: "x" }, nav: [], urls: { style: "directory", types: { post: { base: "posts", label: "Posts" } }, sections: { a: { base: "a", aliases: ["A"], pages: false } } }, listings: { types: ["post"], pageSize: 9 }, storyTypes: { default: "post" } });
 assert.deepEqual(slice, { storyTypes: { default: "post" }, urls: { types: { post: { base: "posts" } }, sections: { a: { base: "a", aliases: ["A"] } } }, listings: { types: ["post"] } });
-assert.deepEqual(projectionTypesSlice({ publication: { timeZone: "America/New_York", name: "x" } }).publication, { timeZone: "America/New_York" }, "and the publication's time zone, for scheduling");
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "story-types-"));
 assert.deepEqual(projectionTypesEnvironment(directory), {}, "a site with no projection.json sets nothing");
 fs.mkdirSync(path.join(directory, "web"));
