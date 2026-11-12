@@ -44,6 +44,8 @@ A site rule is a small guideline kind that belongs to the publication alone (no 
 
 - **`byline`** (PPY-804b7b): who a story may be credited to. `mode` is `honest` (the default: attribute agent work to "AI", name a human in `author` only if that person worked on it, never invent an author) or `pen-names` (with `penNames`, a non-empty list the writer picks from, and an optional `note`). It reaches the copywriter as the core `byline` layer, which says whether it is the default or the site's own version.
 
+- **`figure-rules`** (PPY-cbc0f3): the whole text of the site's figure rules, in one field, `bodyMarkus`. It replaces the packaged general rules (`data/figures/rules.md`) for that site and is never merged with them; `papyrus figures rules` prints the site's text when it has saved one, the packaged text otherwise (and says which). A site that must keep a rule of its own, for example that no generated image shows a real person, writes it here or as a binding constraint of its image profile; image prompts are built from the image profile only.
+
 ## Core concepts of a section
 
 An editor lists, for each section, the concepts it should be especially aware of (for example the confinement problem and the containment problem in a security section). The list is the `coreConcepts` field of the section: `{conceptLineageId, note, addedBy, addedAt}` for each concept. A site whose data API predates the field reads as having none.
