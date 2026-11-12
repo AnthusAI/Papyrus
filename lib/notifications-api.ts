@@ -261,7 +261,16 @@ function configuredLists(plugin: Enabled, ids: string[]): Array<{ id: string; na
   });
 }
 
-/** GET /api/notifications/state: JSON for the pages' script. Failures answer 400, 502 or 503 with a status word, never 403 or 404. */
+function offeredLists(plugin: Enabled): Array<{ id: string; name: string; description: string }> {
+  const known = Array.isArray(plugin.settings.lists) ? (plugin.settings.lists as Array<{ id?: unknown; name?: unknown; description?: unknown }>) : [];
+  return known.flatMap((entry) =>
+    typeof entry.id === "string" && typeof entry.name === "string"
+      ? [{ id: entry.id, name: entry.name, description: typeof entry.description === "string" ? entry.description : "" }]
+      : [],
+  );
+}
+
+/** GET /api/notifications/state: JSON for the pages' script (`kind=offered` lists the site's lists for the subscribe form). Failures answer 400, 502 or 503 with a status word, never 403 or 404. */
 export async function handleNotificationsState(request: NextRequest, options: NotificationsApiOptions = {}): Promise<NextResponse> {
   const { plugin } = context(request, options);
   if (!plugin) return notFoundJson();
@@ -269,6 +278,8 @@ export async function handleNotificationsState(request: NextRequest, options: No
   const kind = params.get("kind");
   const json = (status: number, body: Record<string, unknown>) => NextResponse.json(body, { status, headers: NO_STORE });
   if (kind === "lists") return json(200, { status: "ready", lists: configuredLists(plugin, listIds(params.get("lists") ?? "")) });
+  // Every list the site offers, for the subscribe form. Public settings only; nothing about any reader.
+  if (kind === "offered") return json(200, { status: "ready", lists: offeredLists(plugin) });
   if (kind !== "confirm" && kind !== "preferences") return json(400, { status: "invalid" });
   const token = manageTokenFrom(params.get("t"));
   if (!token) return json(400, { status: "invalid" });
