@@ -213,3 +213,12 @@ test("a stored Illustration step is shown like any other, and counts in the prog
   assert.equal(illustration.state, "open");
   assert.equal(steps.length, PREVIEW_CHECKLIST_TEMPLATE.length, "the denominator includes it");
 });
+
+test("a stored Rated step is shown like any other, named by the command that rates the Story", () => {
+  const steps = createLocalPreviewStoryChecklist("preview-item-lineage-copywriting-0");
+  const rated = steps.find(entry => entry.stepKey === "rated");
+  assert.ok(rated, "the panel has a Rated step");
+  assert.equal(rated.title, "Rate the Story");
+  assert.equal(rated.state, "open");
+  assert.match(rated.command, /papyrus stories set-stars --story preview-item-lineage-copywriting-0 --stars/);
+});

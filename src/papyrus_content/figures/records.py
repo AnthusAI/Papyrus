@@ -37,6 +37,7 @@ SETTINGS_FILE = "settings.json"        # in a design system folder only: the sit
 SETTINGS = {
     "requireDarkFigures": "refuse to save a figure that has no dark picture",
     "illustrationRequiredTypes": "the Story types whose checklist needs a stored cover before publishing (a list; articles when unset)",
+    "publishRequiresRating": "opt in to requiring an editor's star rating (papyrus stories set-stars) before a Story publishes or republishes (off when unset)",
     "illustrationRequireApprovalCredit": "opt in to requiring a recorded cover approval (coverImage approvedBy) and an 'Approved by NAME' line on the cover's image (off when unset)",
 }
 LIST_SETTINGS = ("illustrationRequiredTypes",)   # the other settings are true or false

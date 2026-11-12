@@ -63,7 +63,7 @@ TEMPLATE_ACTOR = {"kind": ACTOR_SYSTEM, "label": "Automatically, from the templa
 #: What proves each step, in the words an editor reads after "Automatically, from ".
 EVIDENCE_SOURCES = {
     "choose": "the Story's stage", "direction": "the research direction", "research": "the research packet", "outline": "the outline",
-    "draft": "the draft version", "copy_edit": "the copy-edit check", "illustration": "the cover", "publish": "publishing",
+    "draft": "the draft version", "copy_edit": "the copy-edit check", "illustration": "the cover", "rated": "the editor's star rating", "publish": "publishing",
 }
 
 
@@ -264,6 +264,10 @@ def evidence_text(key: str, facts: dict[str, Any]) -> str:
         from .story_illustration import cover_evidence
 
         return cover_evidence(facts.get("illustration"))[1]
+    if key == RATED_KEY:
+        from .story_rating import rating_evidence
+
+        return rating_evidence(facts.get("rating"))[1]
     if key == PUBLISH_KEY:
         return "Story is published"
     return f"Item {facts['versionId']}"
@@ -382,6 +386,31 @@ def _illustration_rules(client, lineage: str, key: str, state: str, actor: dict[
     return evidence
 
 
+RATED_KEY = "rated"
+
+
+def rated_resolution(lineage: str) -> str:
+    """How to resolve an unrated Story, in the words every refusal uses."""
+    return f"An editor rates the Story: `papyrus stories set-stars --story {lineage} --stars N` (N from 1 to 5); the step then closes by itself."
+
+
+def _rated_rules(client, lineage: str, key: str, state: str, evidence: str | None) -> str | None:
+    """The one rule only Rated has: it is closed only by the rating itself. It is done only when the records prove it, and it has no exception: a Story
+    a site requires rated is rated, never skipped. Returns the evidence reference to record when it is done."""
+    if key != RATED_KEY:
+        return evidence
+    if state == STEP_DONE:
+        from .story_rating import DONE as RATED_DONE, rating_evidence
+
+        found, text = rating_evidence(story_facts(client, lineage).get("rating"))
+        if found != RATED_DONE:
+            raise ChecklistError(f"Rated cannot be marked done by hand: {text}. {rated_resolution(lineage)}")
+        return text
+    if state in NEEDS_REASON:
+        raise ChecklistError(f"Rated cannot be {state.replace('_', ' ')}: a site that requires a rating publishes only rated Stories. {rated_resolution(lineage)}")
+    return evidence
+
+
 def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any], reason: str | None = None, note: str | None = None,
              evidence: str | None = None, now: str | None = None) -> dict[str, Any]:
     """Marks one step done, skipped, not applicable, or open again, and records who did it and when.
@@ -405,6 +434,7 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
     if state == OPEN and actor["kind"] != ACTOR_PERSON:
         raise ChecklistError("Only a person reopens a step.")
     evidence = _illustration_rules(client, lineage, key, state, actor, evidence)
+    evidence = _rated_rules(client, lineage, key, state, evidence)
     now = now or utc_now()
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     if not rows:
@@ -508,18 +538,23 @@ def require_checklist_closed(client, item: dict[str, Any]) -> None:
         sync_checklist(client, lineage)
         rows = read_steps(client, lineage)
     titles = {key: step.title for key, step in {**STEP_BY_KEY, **procedure.by_key}.items()}
-    blocking = [row for row in open_required(rows, procedure) if row["stepKey"] != ILLUSTRATION_KEY]
+    blocking = [row for row in open_required(rows, procedure) if row["stepKey"] not in (ILLUSTRATION_KEY, RATED_KEY)]
     lines = [f"{titles[row['stepKey']]} ({row['stepKey']})" for row in blocking]
     open_steps = [{"key": row["stepKey"], "label": titles[row["stepKey"]]} for row in blocking]
     problem = illustration_problem(client, item, rows) if ILLUSTRATION_KEY in procedure.by_key else None
     if problem:
         lines.append(f"{titles[ILLUSTRATION_KEY]} ({ILLUSTRATION_KEY}): {problem}")
         open_steps.append({"key": ILLUSTRATION_KEY, "label": titles[ILLUSTRATION_KEY]})
+    unrated = rated_problem(client, item) if RATED_KEY in procedure.by_key else None
+    if unrated:
+        lines.append(f"{titles[RATED_KEY]} ({RATED_KEY}): {unrated}")
+        open_steps.append({"key": RATED_KEY, "label": titles[RATED_KEY]})
     if lines:
         raise ChecklistError(
             "Publishing is blocked: these required steps are open: " + "; ".join(lines) + ". Mark each done, skipped with a reason or "
             f"not applicable with a reason: papyrus stories step --story {lineage} --step <step> --state <state> --reason <why>."
-            + (f" For Illustration: {illustration_resolution(lineage)}" if problem else ""),
+            + (f" For Illustration: {illustration_resolution(lineage)}" if problem else "")
+            + (f" For Rated: {rated_resolution(lineage)}" if unrated else ""),
             open_steps,
         )
 
@@ -537,6 +572,16 @@ def illustration_problem(client, item: dict[str, Any], rows: list[dict[str, Any]
     if found in (COVER_DONE, COVER_NOT_REQUIRED):
         return None
     return text
+
+
+def rated_problem(client, item: dict[str, Any]) -> str | None:
+    """Why the version being published is not rated where the site requires it, or None. Read from the rating on that very version, never from a stored
+    answer: a rating is carried onto every new version of a Story, so a republish of a rated Story passes, and clearing the rating makes the next publish
+    refuse. There is no exception to record. A Story already published stays published whatever its rating; only a publish or republish is gated."""
+    from .story_rating import DONE as RATED_DONE, NOT_APPLICABLE as RATED_NOT_REQUIRED, inputs_for_item, rating_evidence
+
+    found, text = rating_evidence(inputs_for_item(client, item))
+    return None if found in (RATED_DONE, RATED_NOT_REQUIRED) else text
 
 
 def mark_published(client, lineage: str, *, actor_label: str) -> None:
