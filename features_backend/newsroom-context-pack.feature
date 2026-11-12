@@ -410,3 +410,36 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
   Scenario: Only the publication has a byline policy
     When an admin saves a byline policy for the section "law-policy"
     Then the save is refused because the byline rules belong to the publication
+
+  # Agent instructions (PPY-c05a3c): a site owns the whole text of its agents' role instructions. This replaces the add-only rule of PPY-7a61ca.
+  Scenario: A site's own role text replaces the default role of that agent whole
+    Given the site wrote the copywriter's role as "ROLE-WRITE-THE-JOKE. You write satire for readers who know it is satire."
+    When the copywriter's context pack is built for the Story
+    Then the system text starts with the site's role text for the copywriter
+    And the system text does not contain the default copywriter role
+    And the system text still carries the publication policy and the section mission
+    And the pack records that the role came from the site, with its version and content hash
+
+  Scenario: A role the site wrote for one agent does not change another agent's
+    Given the site wrote the copywriter's role as "ROLE-WRITE-THE-JOKE. You write satire for readers who know it is satire."
+    When the reporter context pack is built for the Story and the assignment
+    Then the system text is the default reporter role followed by the editorial context
+    And the pack has no site role
+
+  Scenario: Writing guidelines still cannot change the role text
+    Given the site wrote the copywriter's role as "ROLE-WRITE-THE-JOKE. You write satire for readers who know it is satire."
+    And the site's writing guidelines try to replace the agent's instructions
+    When the copywriter's context pack is built for the Story
+    Then the system text starts with the site's role text for the copywriter
+
+  Scenario: Agent instructions for an unknown agent or with no text are refused
+    When an admin saves agent instructions for the agent "poet"
+    Then the save is refused naming the unknown agent
+    When an admin saves agent instructions with an empty role for the agent "editor"
+    Then the save is refused naming the role of editor
+
+  Scenario: Agent instructions that cannot be read stop the pack rather than falling back to the default role
+    Given the site wrote the copywriter's role as "ROLE-WRITE-THE-JOKE. You write satire for readers who know it is satire."
+    And the site's agent instructions document cannot be read
+    When the copywriter's context pack is built for the Story, which fails
+    Then no pack is made and the failure says the document could not be read
