@@ -1,7 +1,7 @@
 {
   "id": "PPY-75598618-de2b-48e6-a3b3-f3a729ed56e6",
-  "title": "Spike: home-page language redirect and hreflang on a preview stack",
-  "description": "Prototype the viewer-request branch for '/' in amplify/publication/redirect-and-index.js: explicit choice by '?lang=xx' sets the papyrus_lang cookie and redirects to the clean URL; cookie next; then Accept-Language matched to public languages; no header or no match means no redirect. Redirects are 302 with Cache-Control private, no-store and Vary Accept-Language, Cookie; page cache keys unchanged. Test with CloudFront function test tooling and a preview stack deployed through the pipeline (nothing by hand). Validate hreflang and x-default output with a search engine's testing tools. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+  "title": "Spike: countdown banner and hreflang prototype in preview",
+  "description": "The edge redirect is removed from the design (Ryan's decision 6). Prototype the client-side countdown banner and hreflang output on tools/preview_production.py: matching navigator.languages to page alternates (zh-CN/zh-SG to zh-Hans), the remembered reading language, location.replace and Back, pause on scroll, aria-live, reduced motion, and the 'never toward the primary' rule. Check with a search engine's URL inspection that a translated page is rendered without redirecting. Not started: the coordinator asked to hold anything needing a deployed preview stack. Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.",
   "type": "task",
   "status": "open",
   "priority": 2,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-11-12T15:39:05.599393Z",
-  "updated_at": "2026-11-12T15:39:05.693405Z",
+  "updated_at": "2026-11-12T16:22:14.616321Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

@@ -1,7 +1,7 @@
 {
   "id": "PPY-c0aebc1a-32b2-4418-ab59-e3f7fb481e1d",
-  "title": "AI-translated pages say so to readers and agents",
-  "description": "As a reader or an agent, I want every translated page to say it was translated by AI from a linked original and whether a person reviewed it, so I know what I am reading.\n\nReaders: a plain line under the byline in the page's language, linking the original. Agents: JSON-LD inLanguage, translationOfWork and translator; Markdown twin front matter language, translatedFrom, translation: machine, reviewed; llms.txt and the agent guide explain it. Translated quotations are marked and show the original wording. Plan: docs/plans/multilingual-publishing.md (PR #1450).\n\nFeature: Translation labels\n\nScenario: A reader sees the label\n  Given a published Spanish localization reviewed by a person\n  When a reader opens it\n  Then a line under the byline says it was translated by AI from the English original and reviewed, with a link to the original\n\nScenario: An agent reads the label\n  Given the same page\n  When an agent requests its Markdown twin\n  Then the front matter names the language, the original URL, machine translation and reviewed true\n\nScenario: A translated quotation shows its original\n  Given an English quotation in the original\n  When the Spanish page renders it\n  Then it is marked as translated and the original wording is available beside it",
+  "title": "AI-translated pages say so to readers and agents, and quotations show their original",
+  "description": "As a reader or an agent, I want every translated page to say it was translated by AI from a linked original, and whether a person has reviewed it, so I know what I am reading.\n\nReaders: a plain line under the byline in the page's language linking the original; it changes to 'translated by AI and reviewed by a person' once a corrector reviews the current version. Agents: JSON-LD inLanguage, translationOfWork, translator; Markdown twin language, translatedFrom, translation: machine, reviewed; llms.txt explains it. Quotations (Ryan's decision 9): translated, marked as translated, original one tap away (expand on touch, tooltip on hover, keyboard reachable, lang set), original kept in the quote's source-language field for agents; never a machine translation shown as a verbatim quote without the mark. Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.\n\nFeature: Translation labels\n\nScenario: An unreviewed translation\n  Given a published Spanish localization no corrector has reviewed\n  When a reader opens it\n  Then a line under the byline says it was translated by AI from the English original, with a link\n\nScenario: A reviewed translation\n  Given a corrector pressed Looks right on the current Spanish version\n  When a reader opens it\n  Then the line says it was translated by AI and reviewed by a person\n\nScenario: An agent reads the label\n  Given a published Spanish localization\n  When an agent requests its Markdown twin\n  Then the front matter names the language, the original URL, machine translation and whether it was reviewed\n\nScenario: A translated quotation\n  Given an English quotation in the original\n  When the Spanish page renders it\n  Then it is marked as translated and the original wording opens with one tap",
   "type": "story",
   "status": "open",
   "priority": 2,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-11-12T15:39:08.017783Z",
-  "updated_at": "2026-11-12T15:39:08.114323Z",
+  "updated_at": "2026-11-12T16:22:15.228612Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

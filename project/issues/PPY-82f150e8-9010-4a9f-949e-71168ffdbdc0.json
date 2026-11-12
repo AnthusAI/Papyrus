@@ -17,10 +17,17 @@
       "text": "Plan for agreement: docs/plans/multilingual-publishing.md (PR #1450, do not merge until Ryan agrees). Nothing of this initiative exists in code: the only language hook is site.language (html lang and feeds). Recommended: localizations are sibling Story lineages joined by a language group; human edits pin blocks; derive-from-primary default with propagate-any-edit as a site setting plus Story override; primary-at-root URLs for existing sites (zh-Hans at /zh/ recommended over /cn/); home-only edge redirect; layered fidelity checks plus a reader of each language; AI labels for readers and agents; data-driven weekly translation budget. New epics: spikes (PPY-df65d3) and Slice 1, one Spanish MoM Story in preview (PPY-dd2754). Open questions for Ryan are listed at the end of the plan. Note: PPY-4748b6 belongs to the newsroom-pod Slice 1, not this initiative; the multilingual specs task is PPY-9753e6.",
       "created_at": "2026-11-12T15:39:10.580981Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b599b05b-61d8-4f63-95be-34488b6229e2",
+      "author": "home",
+      "text": "Ryan answered the twelve questions (2026-11-12); plan revised on PR #1450. Key changes: JIT publish with layered checks and a hold on fact changes, no reviewer gate; correctors per language via a translation notification and a translator role; client-side countdown banner on any translated page (edge redirect removed); zh-Hans at /zh/; slugs tentative; trigger is a publication setting (published now); quotations marked with original one tap away; one rating and prediction per group; translations budget; wiki concepts, original-first reader messages and console language in the MVP; no RTL. New: PPY-bc1a38 (JIT procedure), PPY-ef71cd (correctors), PPY-fe246c (Caducus subscriptions), PPY-015147 (wiki), PPY-2c6abe (messages), PPY-452f1a (console language), PPY-61ee47 (budget), PPY-b0deff (Cyclotron English-only audit).",
+      "created_at": "2026-11-12T16:22:40.367202Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-07T16:00:12.041703Z",
-  "updated_at": "2026-11-12T15:39:10.581189Z",
+  "updated_at": "2026-11-12T16:22:40.367498Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
