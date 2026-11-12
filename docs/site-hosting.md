@@ -847,12 +847,24 @@ GraphQL schema and clients are unchanged.
 (`features` in `papyrus.config.ts` wins over the `PAPYRUS_ENABLE_*` branch
 variable): `consoleResponder` (`PAPYRUS_ENABLE_CONSOLE_RESPONDER`), `inboundEmail`
 (`PAPYRUS_ENABLE_INBOUND_EMAIL`), `slack` (`PAPYRUS_ENABLE_SLACK`) and
-`storageBackups` (`PAPYRUS_ENABLE_STORAGE_BACKUPS`). The app-shell template passes
-whatever is in `cms.environment`, so set all four explicitly in `site.json` (see
-`examples/p-apyr-us.site.json`). A flag that is off creates none of that feature's
-resources. The console responder defaults to ON when nothing is set, so a new site
-must say `"false"`. It also needs a container image that this package does not
-build, so enabling it needs separate work.
+`storageBackups` (`PAPYRUS_ENABLE_STORAGE_BACKUPS`). **All four are off unless a site
+turns them on**, for every site (the original p.apyr.us pipeline included); a flag that
+is off creates none of that feature's resources. Set all four explicitly in `site.json`
+anyway (`papyrus site init` writes them), so a site's choice is readable (see
+`examples/p-apyr-us.site.json`).
+
+A feature that is on must carry what it needs, and the build and `papyrus-infra synth`
+both fail, naming the flag and each missing variable, when it does not (nothing is
+defaulted or skipped): the console responder needs `PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI`,
+a prebuilt ARM64 ECR image, because it runs a container image that this package does not
+build (building it locally is an explicit developer choice,
+`PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD=true`, and no pipeline sets it for you);
+inbound email needs `PAPYRUS_INBOUND_EMAIL_DOMAIN`, `PAPYRUS_ROUTE53_HOSTED_ZONE_ID` and
+`PAPYRUS_ROUTE53_HOSTED_ZONE_NAME`, the site's own. Slack and storage backups need nothing
+more at synth (Slack's secrets are Amplify secrets). A flag value in `cms.environment` must be
+exactly `"true"` or `"false"`. Code: `assertFeaturePrerequisites` in
+`amplify/site-backend-names.ts`, `assertOptionalFeatures` in
+`infra/amplify-app-shell/lib/site-config.ts`.
 
 Names that are account-global or region-global are derived in
 `amplify/site-backend-names.ts`. Only the app named by `productionAppId` (the
