@@ -3,7 +3,7 @@
   "title": "Spike: translation quality and cost on 10 MoM Stories",
   "description": "Translate 10 real published Machines on Machines Stories into Spanish (es) and Simplified Chinese (zh-Hans) with GPT-6 Luna, block by block, with a draft glossary and protected Markus (links, citations, code, names). Nothing is published.\n\nMeasure per Story and language: tokens, cost from data/model_prices.json, bilingual judge findings, deterministic fidelity findings, Humanus findings with today's English packs (are they useful on Spanish?), and a human reviewer's time and corrections.\n\nOutput: cost per Story and per changed block, the first weekly budget proposal for MoM, and a recommendation on which checks transfer. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Blocked 2026-11-12: script ready (spikes/multilingual/translate_spike.py on PR #1450; sources read from MoM's public Markdown twins). The shell OPENAI_API_KEY is expired (401 expired_secret_key) and the AWS session needed to read the site key from SSM is expired. Offline estimate: the 10 Stories are 10,079 tokens; about $0.0015 per Story per language for translate plus judge at list price, before reasoning tokens. Needs a valid key or aws login to measure and produce samples.",
       "created_at": "2026-11-12T16:22:40.242349Z",
       "comment_type": "default"
+    },
+    {
+      "id": "96962bf8-74cd-4217-b78b-9b0d939ac147",
+      "author": "home",
+      "text": "Measured 2026-11-12 (results and 16 sample pairs in docs/plans/multilingual-publishing.md on PR #1450). GPT-6 Luna, 10 MoM Stories into es and zh-Hans, translate plus bilingual judge: total $0.047 for 20 translations; $0.0008-$0.0063 per Story per language, average $0.0024 (about $0.0027 per 1,000 words, reasoning tokens included); all of MoM into both languages about $0.46. Judge: fluency 4/5 and fidelity 4-5/5 for nearly all; 0 high, 25 medium, 51 low findings; no changed facts. Fixes to fold into the procedure: localize number/unit formats (Spanish kept 1,250; Chinese left '68 percent', '50 million'), date-aware rule checks (9 of 10 Chinese number findings were dates), renderer-added quotation markers (Chinese put the marker inside the quote and duplicated attribution), neutral-term guidance (parent became padre/madre and 父母), glossary for terms like abliteration/disclosure/soundtrack. Humanus target-language checks not run (no es/zh packs yet).",
+      "created_at": "2026-11-12T16:43:59.787243Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T15:39:05.130631Z",
-  "updated_at": "2026-11-12T16:22:40.242665Z",
-  "closed_at": null,
+  "updated_at": "2026-11-12T16:43:59.925376Z",
+  "closed_at": "2026-11-12T16:43:59.925154Z",
   "agent": {
     "platform": "claude_code",
     "model": "Opus 5.5",
