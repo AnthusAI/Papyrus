@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "12e945dd-63ec-40d9-80d8-25b4677824a0",
+  "issue_id": "PPY-0151470b-933a-473a-a205-fba0679f4af7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T16:22:17.635Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Concepts Wiki pages and concept names are localized just in time",
+    "description": "As a reader of a localized site, I want wiki pages and concept names in my language, so the Concepts Wiki works the same way as the articles.\n\nDesign (Ryan's decision 12): wiki pages are wiki_page Items, localized by the same JIT procedure once the primary page is published (the primary's review stamp remains the gate). Concepts get localized names and aliases on the shared concept, so a Spanish hashtag or link resolves to the same concept. Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.\n\nFeature: Localized wiki\n\nScenario: A published wiki page gets its Spanish version\n  Given Spanish is enabled and a wiki page is published with its review stamp\n  When the procedure runs\n  Then the Spanish wiki page is published at its Spanish address with the translation label\n\nScenario: A Spanish concept name resolves to the shared concept\n  Given a concept with a Spanish name\n  When a Spanish page links that name\n  Then the link opens the Spanish page of the same concept",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-75649552-f242-4ed9-9b93-d27bbb29e4ce",
+    "labels": []
+  }
+}
