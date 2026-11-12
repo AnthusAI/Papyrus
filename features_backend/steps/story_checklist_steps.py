@@ -543,6 +543,24 @@ def figure_cover_dark(context, name):
     add_cover(context, "figure", picked_by=name, dark=True)
 
 
+@when("an editor saves a new version that changes only the body")
+def save_body_only_version(context):
+    from papyrus_content.story_reporting import save_story_version
+
+    client = client_of(context)
+    current = client.get_record("Item", f"{LINEAGE}-v{context.world.version_number}")
+    saved = save_story_version(client, LINEAGE, front_matter_yaml=json.loads(current["metadata"])["frontMatterYaml"],
+                               body_markus=current["bodyMarkus"] + " Revised.", actor="editor", change_reason="body only", now=AT)
+    context.world.version_number = saved["versionNumber"]
+
+
+@then("the new version stores both the cover and its dark picture")
+def new_version_stores_both(context):
+    rows = client_of(context).list_by_index("mediaAssetsByItemAndSortKey", f"{LINEAGE}-v{context.world.version_number}")
+    stored = sorted(json.loads(row["metadata"])["srcPath"] for row in rows)
+    assert stored == sorted([COVER, COVER_DARK]), stored
+
+
 @given('the Story has a figure cover approved by "{name}" and an "Approved by" line on its image')
 def figure_cover_with_line(context, name):
     add_cover(context, "figure", picked_by=name, credit_line=True)
