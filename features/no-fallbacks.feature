@@ -20,3 +20,13 @@ Feature: One correct path that fails clearly
     Given the console chat client source
     When it is read for how it handles a failed thread or message operation
     Then a failed create, update or list raises the backend's error and no thread is made up from messages or from the input
+
+  Scenario: The reader reads editions through the published-at index only
+    Given the content repository source
+    When it is read for how it finds the newest published editions
+    Then it asks the published-at index directly and never checks whether the index exists or falls back to the edition-date index
+
+  Scenario: A layout plan that names an unpublished item stops the build
+    Given the content repository source
+    When it is read for how it treats a layout block whose item did not load
+    Then the plan is validated as written, no block is dropped with a warning, and no invented fallback image exists

@@ -27,3 +27,17 @@ test("console chat client: failures are raised", () => {
   assert.doesNotMatch(chat, /allowPartialData/);
   assert.doesNotMatch(chat, /Fall back to/i);
 });
+
+test("content repository: one edition index", () => {
+  const repository = read("lib/graphql-content-repository.ts");
+  assert.doesNotMatch(repository, /typeof \w+\.listPublishedEditionsByStatusAndPublishedAt/);
+  assert.doesNotMatch(repository, /getEditionPublishedAtIndexQuery|isMissingPublishedAtIndexError/);
+  assert.match(repository, /getPublishedEditionModel\(\)\.listPublishedEditionsByStatusAndPublishedAt/);
+});
+
+test("content repository: a layout plan is validated as written", () => {
+  const repository = read("lib/graphql-content-repository.ts");
+  assert.doesNotMatch(repository, /pruneLayoutPlanUnavailableItems|sanitizedLayoutPlan|Pruned/);
+  assert.doesNotMatch(repository, /getFallbackImage|Fallback editorial image/);
+  assert.match(repository, /validateEditionLayoutPlanForItems\(layoutPlan, items,/);
+});
