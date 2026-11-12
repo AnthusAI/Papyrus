@@ -671,3 +671,35 @@ def ui_reads_the_stored_step(context, key, title, position, total):
     stored = ordered[keys.index(key)]
     assert stored["title"] == title and stored["status"] in checklist.STATES, stored
     assert keys.index(key) + 1 == position, keys
+
+
+# --- Rated (features_backend/story-rated.feature) ---------------------------------------------------------------------------------
+
+
+@given("the site requires a rating before publishing")
+def site_requires_rating(context):
+    from papyrus_content import story_rating
+
+    patcher = patch.object(story_rating, "read_required", lambda _client: True)
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+
+
+@given('the Story is rated {stars:d} stars by "{person}"')
+def story_rated(context, stars, person):
+    client_of(context).update_record("Item", {"id": f"{LINEAGE}-v{context.world.version_number}", "starRating": stars, "starRatedAt": AT, "starRatedBy": person})
+
+
+@given("the Story has a star rating that no person is recorded as giving")
+def story_rated_by_nobody(context):
+    client_of(context).update_record("Item", {"id": f"{LINEAGE}-v{context.world.version_number}", "starRating": 4, "starRatedAt": AT, "starRatedBy": None})
+
+
+@given("the Story's rating is cleared")
+def story_rating_cleared(context):
+    client_of(context).update_record("Item", {"id": f"{LINEAGE}-v{context.world.version_number}", "starRating": None, "starRatedAt": None, "starRatedBy": None})
+
+
+@given("every required step except Rated is closed")
+def required_closed_but_rated(context):
+    close_required(context, except_keys=("rated",))

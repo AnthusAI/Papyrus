@@ -37,10 +37,10 @@ STAGES_WITHOUT_NEXT_STEP = ("spiked", "held", "published")
 
 #: Steps added after Stories were already published. A published Story that has no item for one is a record of what happened before the step existed, so it is
 #: never listed as remaining; a revision of it (not published as such) gets the step like any draft.
-ADDED_AFTER_PUBLISH_KEYS = ("illustration",)
+ADDED_AFTER_PUBLISH_KEYS = ("illustration", "rated")
 
 #: The version of this template. Raise it whenever a step is added, removed or changes its status, so each checklist item records the template it came from.
-TEMPLATE_VERSION = 5
+TEMPLATE_VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -113,6 +113,11 @@ STEPS: tuple[Step, ...] = (
          "(front matter image) that is a stored asset (no approval is required unless the site opts in with illustrationRequireApprovalCredit; an approval is recorded as metadata in the front matter coverImage record, never as a credit line; papyrus guide figures, "
          ".agents/skills/figures/SKILL.md), with its dark picture where the site requires dark figures. It cannot be marked done by hand. A person can record an exception instead: "
          "papyrus stories step --story {story} --step illustration --state skipped --reason <why>.", versioned=True),
+    Step("rated", "illustration", "An editor", "Rate the Story",
+         "papyrus stories set-stars --story {story} --stars <1-5>", LIVE, False,
+         "Required only for a site that turns on the design-system setting publishRequiresRating (off by default; a site without it has no item for this step). Done only when the records prove it: "
+         "the Story has an editor's star rating of 1 to 5 recorded by a person (a rating of 0 or a model's prediction does not count). It cannot be marked done, skipped or not applicable by hand; "
+         "an editor rates the Story with papyrus stories set-stars."),
     Step("typesetting", "typesetting", "Editor", "Typeset", "", NOT_BUILT, True, "Not built yet."),
     Step("publish", "published", "A person", "Publish the Story", "papyrus ops content publish --id <item id>", LIVE, False,
          "The only hard gate."),
@@ -268,6 +273,13 @@ def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, 
             illustration = {"type": current.get("type"), "frontMatter": {}, "body": "", "mediaPaths": [], "policy": default_policy()}
     except Exception:  # noqa: BLE001 - the step then reads unknown instead of the Story failing to load
         illustration = None
+    rating = None
+    try:
+        from .story_rating import inputs_for_item as rating_inputs, not_required
+
+        rating = rating_inputs(client, current) if read_cover and (current.get("stage") or "idea") not in EARLY_STAGES else not_required()
+    except Exception:  # noqa: BLE001 - the step then reads unknown instead of the Story failing to load
+        rating = None
     check_run, check_run_error = None, False
     try:
         if read_check_run is None:
@@ -287,6 +299,7 @@ def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, 
         "checkRun": check_run,
         "checkRunError": check_run_error,
         "illustration": illustration,
+        "rating": rating,
         "versionTimes": {int(row.get("versionNumber") or 0): row.get("versionCreatedAt") for row in versions},
     }
 
@@ -338,6 +351,10 @@ def _state_of(step: Step, facts: dict[str, Any]) -> str:
         from .story_illustration import cover_evidence
 
         return cover_evidence(facts.get("illustration"))[0]
+    if step.key == "rated":
+        from .story_rating import rating_evidence
+
+        return rating_evidence(facts.get("rating"))[0]
     if step.key == "publish":
         return DONE if stage == "published" else NOT_DONE
     if step.manual:

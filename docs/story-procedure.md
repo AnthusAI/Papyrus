@@ -21,12 +21,13 @@ One definition of how a Story moves through the newsroom. The command line reads
 | concepts | copywriting | Editor or reviewing agent | `papyrus stories link-concept --story LINEAGE --concept NAME --note WHY`, then `papyrus stories step --story LINEAGE --step concepts --state done --note FINDINGS` | live, by hand, required |
 | related_content | copywriting | Editor or reviewing agent | `papyrus stories suggest-links --story LINEAGE`, link the good ones with `stories link-story`, then `--step related_content --state done --note FINDINGS` | live, by hand, required |
 | illustration | illustration | Editor, or an agent following the [figures skill](../.agents/skills/figures/SKILL.md) | `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures` (a cover); or a person records an exception with `papyrus stories step --story LINEAGE --step illustration --state skipped --reason WHY` | live, by evidence, required for the Story types that need a cover |
+| rated | illustration | An editor | `papyrus stories set-stars --story LINEAGE --stars N` | live, by evidence, required only for a site that turns on `publishRequiresRating` |
 | typesetting | typesetting | Editor | none yet | not built, optional |
 | publish | published | A person | `papyrus ops content publish --id ITEM_ID` | live |
 
 The `concepts` and `related_content` steps come after the four review lenses and before publishing (template version 4). Both are required like the reviews: done with a findings note (the Concepts added and those left out; what was linked and what was left out and why), skipped with a reason, or not applicable with a reason. No Story command creates a Concept: make a missing one from a Reference (`references link --reference ID --concept NAME --create`) or in the newsroom.
 
-The `illustration` step comes after `related_content` and before publishing (template version 5). See [The Illustration step](#the-illustration-step). The illustration and typesetting stages are described in [story-illustration-typesetting.md](story-illustration-typesetting.md).
+The `illustration` step comes after `related_content` and before publishing (template version 5). See [The Illustration step](#the-illustration-step). The `rated` step follows it (template version 6). See [The Rated step](#the-rated-step). The illustration and typesetting stages are described in [story-illustration-typesetting.md](story-illustration-typesetting.md).
 
 ## The Illustration step
 
@@ -41,6 +42,17 @@ Added in template version 5 after a Story was published with no cover while its 
 - **The gate.** Publishing (a first publication or a revision of a published Story) refuses a Story whose step is unresolved: it checks the version being published, so a step recorded done before the cover was removed does not pass. The error names the step and says how to resolve it (add a stored cover with `papyrus stories save-version ... --images`, or record the exception with `stories step`).
 - **Published history is left alone.** A Story that was published before this step existed gets no item for it, `stories next` does not list it as remaining, and `stories checklist-backfill` does not add it. A revision of that Story (or a republish) is held to the step like any draft: it publishes once the step is closed by a cover or by an exception.
 - **Existing drafts.** The next change to an unpublished Story adds the item (open, or done where the cover already proves it), exactly as for every earlier template step; `papyrus stories checklist-backfill` does the same for all of them at once and is safe to run again.
+
+## The Rated step
+
+Added in template version 6 so that nothing arrives unrated: an unrated Story ranks below every rated one and is invisible on the indexes until someone rates it. It is a publish gate like the other steps, and **it applies only to a site that turns it on**.
+
+- **The setting.** `publishRequiresRating`, a true or false setting in the site's design-system `settings.json` (see [figures.md](figures.md); push it with `papyrus design-system push`). It is off when unset, so no site is held to it unless it sets it. Machines on Machines sets `{"publishRequiresRating": true}`. While it is off the step reads `not_applicable` in `stories next`, has no checklist item and never blocks publishing. Turning it on gives every unpublished Story the step at its next change.
+- **Done only by evidence, never by hand.** The step is done when the current version of the Story has an editor's star rating of 1 to 5 recorded by a person: the private rating that `papyrus stories set-stars --story LINEAGE --stars N` sets (`starRating` with `starRatedBy`). A rating of 0 clears it, and a model's prediction is a different record that never counts. `stories step --step rated --state done` is accepted only when the rating proves it. The step has no exception: a person cannot skip it or mark it not applicable.
+- **The gate.** Publishing judges the rating on the version being published, not a stored answer, and refuses with `Rate the Story (rated)`, what is missing, and the command: `papyrus stories set-stars --story LINEAGE --stars N`.
+- **Republishing and existing Stories.** A new version of a Story keeps its rating, so a republish of a rated Story passes. A Story that is already published stays published whatever its rating; only a publish or a republish is gated, so an unrated published Story cannot be republished until it is rated. A published Story gets no `rated` item.
+- **The checklist catches up at the next change.** `set-stars` does not touch the checklist, so the item reads open (with a hint that the records show it done) until the next write to the Story; the publish gate does not wait for that.
+- The star ranking is unchanged.
 
 ## Share a review link
 
@@ -100,6 +112,7 @@ How each step reads its record:
 - copy_edit is done when the stored editorial check of the current version has finished and has no error-level violation.
 - editor_review is done when the stored review is for the current version and approves it.
 - illustration is done when the current version has a stored cover (see [The Illustration step](#the-illustration-step)); not applicable for a Story type the site does not list.
+- rated is done when the current version has an editor's star rating of 1 to 5 recorded by a person (see [The Rated step](#the-rated-step)); not applicable for a site that has not turned on `publishRequiresRating`.
 - publish is done when the Story is published.
 
 `papyrus stories next` also prints one `lens` line for each of the four review steps (people, AI reader agents, search, social previews) that is not done or is stale, with its audience. Those steps and their checks are defined in [four-lens-review.md](four-lens-review.md).

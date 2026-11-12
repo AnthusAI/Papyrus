@@ -27,7 +27,7 @@ Feature: Illustration is a checklist step and a publish gate
     And the Story's checklist exists
     Then the stored step "illustration" is a sub-task the newsroom lists as "Illustrate" in position 13 of 14
     And the Story summary lists "illustration" among the required steps still open
-    And every checklist item records template version 5
+    And every checklist item records template version 6
 
   Scenario: A stock cover that a person picked closes the step by itself
     Given a Story at the "copywriting" stage

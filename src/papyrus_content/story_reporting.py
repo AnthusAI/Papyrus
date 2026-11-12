@@ -37,6 +37,7 @@ from .publishing import (
     utc_now_iso,
 )
 from .record_helpers import compact_dict, to_aws_json
+from .story_schedule import SCHEDULE_FIELDS
 from .story_types import require_story_type
 
 STORY_THREAD_KIND = "story_reporting"
@@ -202,7 +203,7 @@ def save_story_version(
     metadata["frontMatterYaml"] = fields.front_matter_yaml
     apply_stamp(metadata, machine_write, created=False, now=now)
     record = {
-        **_without_server_fields(latest),
+        **{name: value for name, value in _without_server_fields(latest).items() if name not in SCHEDULE_FIELDS},   # a schedule pins the version it was set on, never the next one
         **compact_dict(columns),
         "id": record_id,
         "lineageId": lineage_id,
