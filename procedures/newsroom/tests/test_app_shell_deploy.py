@@ -170,3 +170,9 @@ def test_the_stack_name_is_the_artifact_property_not_the_construct_id(tmp_path):
 def test_deploy_uses_all_because_the_manifest_check_allows_one_stack():
     text = (ROOT / ".github" / "workflows" / "app-shell-deploy.yml").read_text(encoding="utf-8")
     assert "deploy --all --app cdk.out" in text
+
+
+def test_the_deploy_role_may_read_the_cdk_bootstrap_version():
+    """The CDK CLI confirms the bootstrap version with the caller's own credentials (found on the first Humorus app-shell deploy)."""
+    text = (ROOT / "infra" / "account" / "baseline.yaml").read_text(encoding="utf-8")
+    assert "parameter/cdk-bootstrap/${CdkQualifier}/version" in text and "stack/CDKToolkit/*" in text
