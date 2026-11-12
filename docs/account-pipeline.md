@@ -9,7 +9,7 @@ This page is for a **deployment repository** (a publication group's own repo and
 | Piece | Where | What it is |
 | --- | --- | --- |
 | Account baseline | `infra/account/baseline.yaml` | One CloudFormation stack, `<prefix>-github-deploy`: the GitHub OIDC provider and five roles. Seeded once by a person, afterwards changed only by the pipeline, with no person's approval. |
-| Account stacks | `infra/account/stacks/` (`dns`, `budget`, `certificate`, `ses`, `placeholder`) | Templates a deployment repo references as `papyrus:infra/account/stacks/dns.yaml`. |
+| Account stacks | `infra/account/stacks/` (`dns`, `budget`, `certificate`, `ses`, `cloudtrail`, `placeholder`) | Templates a deployment repo references as `papyrus:infra/account/stacks/dns.yaml`. |
 | Deployer | `infra/pipeline/stack_deploy.py --config <path>` | The same deployer Papyrus releases use, with optional config for deployment repos: `root`, `papyrus:` templates, inline templates, `enabled`, `fromEnv` / `fromStackOutput` parameters, CloudFormation **import**, a name-server check, `group`, and a `changed` check. |
 | Workflow | `.github/workflows/account-stacks.yml` | Reusable (`workflow_call`): lint, read-only plan on pull requests, deploy on merge to `main`, apply of the baseline when it differs. |
 
@@ -38,6 +38,10 @@ A stack that must wait is `"enabled": false` with a `reason`. A stack that can o
 
 Mail: the `ses` stack creates the identity with Easy DKIM, a custom MAIL FROM domain (MX and SPF records) and a DMARC record in the zone. SES verifies by itself once the domain is delegated. It sets no DMARC report address (an address does not go in Git). SES production access is a request to AWS that a person makes.
 
+Mail events: the `ses` stack also creates, before any mail is sent, a configuration set (reputation metrics on, sending on, the suppression list for bounces and complaints), an SNS topic, and an event destination that publishes only BOUNCE, COMPLAINT, DELIVERY_DELAY and REJECT to the topic. SEND, OPEN and CLICK are not recorded: no tracking pixels. The topic policy lets only SES, from this account and this configuration set, publish. `ConfigurationSetName` and `EventTopicName` are required parameters with no default, so a config cannot forget them; start both with the deployment prefix (the service role is scoped to `<prefix>-*`).
+
+Audit trail: the `cloudtrail` stack creates one multi-region trail (management events only: no data events, no Insights; global service events included; log file validation on) and a private S3 bucket for its logs: all public access blocked, owner-enforced ownership, SSE-S3 encryption, TLS required, retained if the stack is deleted, no versioning (CloudTrail never overwrites a log object and validation proves integrity). Logs expire after `RetentionDays` (default 400, minimum 30) and incomplete multipart uploads after 7 days. Cost: the first copy of management events in an account is free; only the S3 storage of the logs is billed. Name the trail and stack with the prefix (`<prefix>-trail` in a stack named `<prefix>-cloudtrail`): the bucket gets a generated name that starts with the stack name.
+
 Placeholder: the `placeholder` stack serves one labelled HTML page on the apex and www from a CloudFront Function (no bucket, no upload), until the real site takes the domain over.
 
 ## Check the repository's OIDC subject before the apply
@@ -63,11 +67,12 @@ Review first with `--no-execute-changeset`. Add `CreateOidcProvider=false` if `a
 
 ## What the roles can do, in plain English
 
-- **`<prefix>-github-deploy`**: only a run of the repository started by a push to `main`. Starts and reads Amplify jobs on the production branch. Creates, reads and executes CloudFormation change sets on stacks named `<prefix>-*`, always through the service role (a change set made any other way is refused). Looks up a hosted zone and one budget by name, read-only. It is explicitly denied every write to the baseline stack. Cannot create or change IAM.
+- **`<prefix>-github-deploy`**: only a run of the repository started by a push to `main`. Starts and reads Amplify jobs on the production branch, and for the first build reads the app, reads and updates that one branch's variables, and lists SSM parameter names. Creates, reads and executes CloudFormation change sets on stacks named `<prefix>-*`, always through the service role (a change set made any other way is refused). Looks up a hosted zone and one budget by name, read-only. It is explicitly denied every write to the baseline stack. Cannot create or change IAM.
 - **`<prefix>-github-plan`**: any pull request in the repository (not forks). Read-only: describes `<prefix>-*` stacks, reads their templates, looks up the zone and budget. Creates nothing.
+- **`<prefix>-github-watch`**: only a run of the repository on its default branch (parameter `DefaultBranch`, default `develop`; GitHub runs scheduled workflows only from there). Read-only: describes `<prefix>-*` stacks, reads the Amplify app, and lists SSM parameter **names** (`ssm:DescribeParameters`). It cannot read a parameter value.
 - **`<prefix>-github-roles-apply`**: only a job in the GitHub environment `pipeline-roles`, whose deployment branch policy allows `main` only. It needs no person's approval. Can run a change set on the baseline stack only, through the roles service role.
-- **`<prefix>-cloudformation`**: what CloudFormation itself uses for the account stacks. Route 53 zones and records, one budget, ACM certificates, SES identities, CloudFront distributions and functions for the placeholder site. No IAM.
-- **`<prefix>-cloudformation-roles`**: what CloudFormation uses for the baseline stack. IAM on the five pipeline roles and the GitHub provider, and nothing else.
+- **`<prefix>-cloudformation`**: what CloudFormation itself uses for the account stacks. Route 53 zones and records, one budget, ACM certificates, SES identities, configuration sets and event destinations (named `<prefix>-*`), SNS topics named `<prefix>-*`, one CloudTrail trail named `<prefix>-*` and S3 buckets named `<prefix>-*` (create, policy, encryption, lifecycle; for the trail logs), CloudFront distributions and functions for the placeholder site. No IAM.
+- **`<prefix>-cloudformation-roles`**: what CloudFormation uses for the baseline stack. IAM on the six pipeline roles and the GitHub provider, and nothing else.
 
 Residual risk: whoever can merge to `main` can change, through the roles job, what the pipeline may do. The safety is the main-only trust on every role, branch protection on `main` (a pull request and the `ci` check), the roles service role's narrow IAM rights, and the deployer refusing any Replace or Remove that `allowed-changes.json` does not list. The change set is in the job summary after the fact.
 
@@ -109,6 +114,54 @@ This is how every Papyrus Amplify site works today, checked read-only on the Mac
 So the one hand step is the **connection**: an authorization, like giving the registrar the name servers or creating the Google client, not a resource. It is a person-only step, once per app. Everything else is codified: the app, its roles, the branch, the OIDC role and each deploy. The `app-shell-deploy.yml` workflow can run `start-amplify-build` after the stack deploys; leave it false until the app has been connected, because a job on an unconnected app fails.
 
 If a deployment must have no such step at all, the route to evaluate is a token-free CodeCommit mirror (Actions pushes each commit to an AWS CodeCommit repository with short-lived OIDC credentials, and the app builds from CodeCommit with an IAM service role). A spike has to prove it first; nothing here builds it. Amplify Hosting does not support manual deploys for server-side rendered apps (AWS documentation), so the Git-less route is not available for these apps.
+
+### The first build starts by itself
+
+A brand-new site backend is too big for one CloudFormation operation, so its first Amplify build runs twice: pass 1 with the branch variable `PAPYRUS_BOOTSTRAP_STAGE=1`, then pass 2 without it ([site-hosting.md](site-hosting.md#start-a-new-papyrus-site-the-two-deploy-first-backend)). Nobody has to start it or tell anyone. Once the two person-only steps are done, a watcher notices and the first build runs, and then the watcher turns itself off:
+
+1. the Amplify app has a repository connected (see above), and
+2. the Google client parameters exist in SSM (`papyrus site google-secrets set`, [google-oauth-setup.md](google-oauth-setup.md)).
+
+Two reusable workflows and one script do it, `infra/pipeline/amplify_first_build.py`:
+
+- **`first-build-watch.yml`** is called by a thin scheduled workflow on the repository's default branch every 15 minutes. It signs in as `<prefix>-github-watch` (read-only, default branch only) and runs `amplify_first_build.py check`: the app-shell stack has `CmsAppId`, `get-app` shows a repository, and SSM has parameters named `.../GOOGLE_CLIENT_ID` and `.../GOOGLE_CLIENT_SECRET` under `/amplify/<appId>/`. It reads names, never values, and prints only a plain status line (never the app id). Not ready is not an error: the run just says what is missing. When ready it dispatches `first-build.yml` on `main` and disables its own calling workflow, so it never runs again.
+- **`first-build.yml`** runs only for a push or manual dispatch on `main`, as `<prefix>-github-deploy`, and runs `amplify_first_build.py run --commit-id <sha>`. It is idempotent and resumable. It marks its Amplify jobs with the commit message `first-build pass 1` and `first-build pass 2` and decides from the branch's jobs: a pass-2 job succeeded means done; a running first-build job is waited for; a pass-1 job that succeeded means remove `PAPYRUS_BOOTSTRAP_STAGE` (update-branch replaces the whole variable map, so it reads the branch first and keeps every other variable exactly) and start pass 2; no first-build job yet means set the variable, start pass 1, wait, remove the variable, start pass 2, wait. It polls every 20 seconds with an overall timeout of 50 minutes. When pass 2 has succeeded it runs `gh workflow disable` on the watcher, with the job's own token.
+- A failed or cancelled pass stops the run with exit 1 and a message, and never loops. A person reads the Amplify job log and fixes the cause. A failed first create can also leave the Amplify backend root stack `amplify-<appId>-<branch>-branch-<hash>` in `ROLLBACK_COMPLETE`; CloudFormation cannot update it, so a person or the pipeline deletes it first. Then dispatch `first-build.yml` with `retry-failed` true to start again. If the timeout runs out, the Amplify job keeps running; running again resumes waiting.
+
+The callers (the file names are the caller's; `actions: write` is needed to dispatch and disable):
+
+```yaml
+# .github/workflows/first-build-watch.yml  (default branch)
+name: first-build-watch
+on: { schedule: [{ cron: "*/15 * * * *" }], workflow_dispatch: {} }
+jobs:
+  watch:
+    permissions: { contents: read, id-token: write, actions: write }
+    uses: AnthusAI/Papyrus/.github/workflows/first-build-watch.yml@<papyrus tag>
+    with:
+      prefix: myco
+      papyrus-ref: <the same tag>
+      aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
+      stack-name: <the app-shell stack name>
+      watcher-workflow-file: first-build-watch.yml
+      dispatch-workflow: first-build.yml
+---
+# .github/workflows/first-build.yml  (on main)
+name: first-build
+on: { workflow_dispatch: { inputs: { retry-failed: { type: boolean, default: false } } } }
+jobs:
+  first-build:
+    permissions: { contents: read, id-token: write, actions: write }
+    uses: AnthusAI/Papyrus/.github/workflows/first-build.yml@<papyrus tag>
+    with:
+      prefix: myco
+      papyrus-ref: <the same tag>
+      aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
+      stack-name: <the app-shell stack name>
+      retry-failed: ${{ inputs.retry-failed || false }}
+```
+
+The deploy role's first-build rights are limited to that one app and branch (`GetApp`, `GetBranch`, `UpdateBranch`, `ListJobs`, `StartJob`, `GetJob`) plus `ssm:DescribeParameters`. `UpdateBranch` can change that branch's environment variables, so it stays on the main-only role.
 
 ### Google sign-in (person-only)
 

@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Account baseline for a Papyrus deployment: the GitHub OIDC provider and the
   roles a deployment repository's pipeline uses to deploy the account's own
-  stacks (DNS, budget, certificate, SES), to start Amplify jobs, and to deploy
+  stacks (DNS, budget, certificate, SES, CloudTrail), to start Amplify jobs, and to deploy
   the site's app-shell stack through the CDK bootstrap roles (the deploy role
   may assume the CDK deploy and file-publishing roles). Applied by
   a person once (the single bootstrap exception); afterwards changed only by
@@ -16,7 +16,7 @@ Parameters:
     AllowedPattern: "^[a-z][a-z0-9]{1,15}$"
     Description: >-
       Names this deployment. Roles are <Prefix>-github-deploy, -github-plan,
-      -github-roles-apply, -cloudformation and -cloudformation-roles; the
+      -github-roles-apply, -github-watch, -cloudformation and -cloudformation-roles; the
       stacks the pipeline manages are named <Prefix>-*; this stack is
       <Prefix>-github-deploy.
   GithubRepository:
@@ -36,6 +36,13 @@ Parameters:
     Default: main
     AllowedPattern: "^[A-Za-z0-9_.-]+$"
     Description: The one branch whose pushes may assume the deploy role. Also the Amplify branch it may build.
+  DefaultBranch:
+    Type: String
+    Default: develop
+    AllowedPattern: "^[A-Za-z0-9_.-]+$"
+    Description: >-
+      The repository's default branch. GitHub runs scheduled workflows only from there, so the read-only watch role (the first-build
+      watcher) trusts exactly this branch.
   CdkQualifier:
     Type: String
     Default: hnb659fds
@@ -114,6 +121,25 @@ Resources:
                   - amplify:StartJob
                   - amplify:GetJob
                 Resource: !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/${ProductionBranch}/jobs/*"
+        - PolicyName: run-the-first-build
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadAndUpdateTheProductionBranch
+                Effect: Allow
+                Action:
+                  - amplify:GetApp
+                  - amplify:GetBranch
+                  - amplify:UpdateBranch
+                  - amplify:ListJobs
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}"
+                  - !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/${ProductionBranch}"
+                  - !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/${ProductionBranch}/jobs/*"
+              - Sid: ListParameterNamesToSeeTheGoogleClientExists
+                Effect: Allow
+                Action: ssm:DescribeParameters
+                Resource: "*"
         - PolicyName: deploy-app-shell-with-cdk
           PolicyDocument:
             Version: "2012-10-17"
@@ -245,6 +271,51 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${BudgetName}"
 
   # ---------------------------------------------------------------------------
+  # Watch role: the scheduled first-build watcher on the repository's default
+  # branch. Read only, and it reads no secret: parameter NAMES only.
+  # ---------------------------------------------------------------------------
+  GithubWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-github-watch"
+      Description: !Sub "Read-only first-build watcher for ${GithubRepository}: GitHub OIDC on ${DefaultBranch} only; describes the app stacks and the Amplify app and lists SSM parameter names; reads no parameter value"
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: GithubActionsOnTheDefaultBranchOnly
+            Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateProvider
+                - !Ref GithubOidcProvider
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub
+                  - "${Subject}:ref:refs/heads/${DefaultBranch}"
+                  - Subject: !If [CustomSubject, !Ref GithubSubjectPrefix, !Sub "repo:${GithubRepository}"]
+      Policies:
+        - PolicyName: read-only-first-build-watch
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: DescribeAppStacks
+                Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-*/*"
+              - Sid: ReadTheAmplifyApp
+                Effect: Allow
+                Action: amplify:GetApp
+                Resource: !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}"
+              - Sid: ListParameterNamesOnly
+                Effect: Allow
+                Action: ssm:DescribeParameters
+                Resource: "*"
+
+  # ---------------------------------------------------------------------------
   # Roles-apply role: only the GitHub environment pipeline-roles (main only;
   # no person approves). Can update this one stack, through the roles
   # service role, and nothing else.
@@ -311,13 +382,14 @@ Resources:
 
   # ---------------------------------------------------------------------------
   # Service role for the app stacks: what CloudFormation itself may do while it
-  # executes a change set. No IAM at all.
+  # executes a change set (DNS, budget, certificate, SES identity and event
+  # topic, CloudTrail trail and its log bucket). No IAM at all.
   # ---------------------------------------------------------------------------
   CloudFormationServiceRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${Prefix}-cloudformation"
-      Description: Assumed by CloudFormation when it executes the app stacks (DNS, budget, certificate, SES). No IAM permissions.
+      Description: Assumed by CloudFormation when it executes the app stacks (DNS, budget, certificate, SES, CloudTrail). No IAM permissions.
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -404,6 +476,78 @@ Resources:
                   - ses:UntagResource
                   - ses:ListTagsForResource
                 Resource: !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
+              - Sid: CloudTrailTrail
+                Effect: Allow
+                Action:
+                  - cloudtrail:CreateTrail
+                  - cloudtrail:UpdateTrail
+                  - cloudtrail:DeleteTrail
+                  - cloudtrail:StartLogging
+                  - cloudtrail:StopLogging
+                  - cloudtrail:PutEventSelectors
+                  - cloudtrail:GetEventSelectors
+                  - cloudtrail:GetTrail
+                  - cloudtrail:GetTrailStatus
+                  - cloudtrail:DescribeTrails
+                  - cloudtrail:AddTags
+                  - cloudtrail:RemoveTags
+                  - cloudtrail:ListTags
+                Resource: !Sub "arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/${Prefix}-*"
+              - Sid: TrailBucket
+                Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:ListBucket
+                  - s3:PutBucketPolicy
+                  - s3:GetBucketPolicy
+                  - s3:DeleteBucketPolicy
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:GetBucketPublicAccessBlock
+                  - s3:PutEncryptionConfiguration
+                  - s3:GetEncryptionConfiguration
+                  - s3:PutLifecycleConfiguration
+                  - s3:GetLifecycleConfiguration
+                  - s3:PutBucketOwnershipControls
+                  - s3:GetBucketOwnershipControls
+                  - s3:PutBucketVersioning
+                  - s3:GetBucketVersioning
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                  - s3:PutBucketTagging
+                  - s3:GetBucketTagging
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${Prefix}-*"
+              - Sid: SesConfigurationSets
+                Effect: Allow
+                Action:
+                  - ses:CreateConfigurationSet
+                  - ses:DeleteConfigurationSet
+                  - ses:GetConfigurationSet
+                  - ses:PutConfigurationSetReputationOptions
+                  - ses:PutConfigurationSetSendingOptions
+                  - ses:PutConfigurationSetSuppressionOptions
+                  - ses:PutConfigurationSetDeliveryOptions
+                  - ses:PutConfigurationSetTrackingOptions
+                  - ses:PutConfigurationSetVdmOptions
+                  - ses:CreateConfigurationSetEventDestination
+                  - ses:UpdateConfigurationSetEventDestination
+                  - ses:DeleteConfigurationSetEventDestination
+                  - ses:GetConfigurationSetEventDestinations
+                  - ses:TagResource
+                  - ses:UntagResource
+                  - ses:ListTagsForResource
+                Resource: !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${Prefix}-*"
+              - Sid: SnsEventTopics
+                Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:GetTopicAttributes
+                  - sns:SetTopicAttributes
+                  - sns:TagResource
+                  - sns:UntagResource
+                  - sns:ListTagsForResource
+                Resource: !Sub "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${Prefix}-*"
 
   # ---------------------------------------------------------------------------
   # Service role for this stack: IAM on the pipeline's own roles and provider,
