@@ -126,7 +126,7 @@ class SignedInProjectionTests(unittest.TestCase):
         publish_item(client, ITEM, actor="t", now=NOW)
         _out, _err, code, invoke = run(content_unpublish, client, ["--id", ITEM, "--json"], USER_LANE)
         self.assertEqual(code, 0)
-        self.assertEqual(client.mutations, [("unpublishItem", {"id": ITEM})])
+        self.assertEqual(client.mutations, [("unpublishItem", {"id": ITEM, "async": True})])
         invoke.assert_not_called()
 
     def test_iam_lane_is_unchanged(self) -> None:

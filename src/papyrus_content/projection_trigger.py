@@ -184,17 +184,16 @@ def trigger_projection_as_user(client, task: dict[str, Any], *, sleep=None, cloc
     It asks the newsroom's own ``publishItem`` (or ``unpublishItem``) mutation instead, as the console's Publish button does.
     Both are idempotent: the records are already written, so the function finds nothing to change.
 
-    A publish asks for the build to run in the background (``async``): the function answers at once with a job id (joining the build
+    A publish or unpublish asks for the build to run in the background (``async``): the function answers at once with a job id (joining the build
     already queued or running for this story, if any), and this lane asks about the job until it ends or
-    ``PAPYRUS_PROJECTION_TIMEOUT_SECONDS`` pass. A function that predates jobs builds the page while the call waits and returns the outcome
+    ``PAPYRUS_PROJECTION_TIMEOUT_SECONDS`` pass. A function that predates jobs (an unpublish only gained them with PPY-f171b4) builds the page while the call waits and returns the outcome
     (``projected``, ``paths``, ``live``, ``url``, ``error``), as before. Never raises.
     """
     mutation = "unpublishItem" if task.get("unpublished") else "publishItem"
     retry = retry_command(task["itemId"], unpublished=bool(task.get("unpublished")))
     long_call = getattr(client, "long_call", None)
     payload: dict[str, Any] = {"id": task["itemId"]}
-    if mutation == "publishItem":
-        payload["async"] = True
+    payload["async"] = True   # publish and unpublish alike: the function answers at once with a job, so AppSync's 30 s never cut a build off (PPY-f171b4)
     try:
         with (long_call(projection_timeout_seconds()) if callable(long_call) else contextlib.nullcontext()):
             response = _ask(client, mutation, payload)

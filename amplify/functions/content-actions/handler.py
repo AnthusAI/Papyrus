@@ -706,8 +706,9 @@ def projection_status_action(arguments: dict) -> dict:
     return {"ok": True, "itemId": arguments["id"], "lineageId": candidate.get("lineageId"), "projection": answer}
 
 
-def start_projection_job(client, item_id: str, *, version: int | None, published_item_id: str | None) -> dict:
-    """Start building a published story's pages in the background, or join the build already queued or running for it. Returns what the caller is told."""
+def start_projection_job(client, item_id: str, *, version: int | None, published_item_id: str | None, unpublished: bool = False) -> dict:
+    """Start building a story's pages (or, for ``unpublished``, taking them down) in the background, or join the build already queued or running for it.
+    Returns what the caller is told. The build decides from the stored state whether the page stays or goes, so a queued unpublish is built by the same drain."""
     context = projection_context(client)
     item_paths: list[str] = []
     row = context.source.published_row(item_id)
@@ -719,7 +720,7 @@ def start_projection_job(client, item_id: str, *, version: int | None, published
     url = public_item_url(os.environ, item_paths)
     if url:
         answer["url"] = url
-    task = {"task": "item", "itemId": item_id, "unpublished": False}
+    task = {"task": "item", "itemId": item_id, "unpublished": unpublished}
     if published_item_id:
         task[PUBLISHED_TASK_KEY] = {"publishedItemId": published_item_id}
     jobs = publish_jobs_from_environment()
@@ -769,6 +770,11 @@ def unpublish_item_action(arguments: dict, actor: str) -> dict:
     response = {"ok": True, "changed": result.changed}
     if result.changed:
         response.update(site_triggers_for(client, arguments["id"]))
+    if arguments.get("async") is True and projection_configured():
+        # As for a publish (PPY-f171b4): rewriting the listings, feeds and redirects can outlast AppSync's 30 seconds, so the data is saved now,
+        # the work runs in the background, and the caller asks for the job's status until it ends.
+        response.update(start_projection_job(client, arguments["id"], version=None, published_item_id=None, unpublished=True))
+        return response
     response.update(project_item_action(client, arguments["id"], unpublished=True))
     return response
 
