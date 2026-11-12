@@ -42,7 +42,7 @@ Each operation is a command and a tool with the same input and the same JSON res
 | `image_brief_draft` | `papyrus images brief` | Work out a starting brief and stock search from a Story's title and deck. | yes | `image_type_required`, `not_found` |
 | `image_prompt_preview` | `papyrus images prompt` | Show exactly what would be asked of the image model, and what it would cost, without making anything. | yes | `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `set_needs_person`, `source_not_allowed` |
 | `image_search` | `papyrus images search` | Find stock pictures for a Story, four at a time. | yes | `image_type_required`, `image_type_unknown`, `not_found`, `source_not_allowed` |
-| `image_generate` | `papyrus images generate` | Make pictures from a brief in the publication's style. The pictures arrive later. | yes | `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `provider_busy`, `set_needs_person`, `source_not_allowed` |
+| `image_generate` | `papyrus images generate` | Make pictures from a brief in the publication's style. The pictures arrive later. | yes | `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `provider_busy`, `set_needs_person`, `source_not_allowed`, `spend_ceiling_exceeded` |
 | `image_figure_add` | `papyrus images figure add` | Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing. | yes | `checks_failed`, `image_type_unknown`, `not_found`, `source_not_allowed` |
 | `image_round_get` | `papyrus images round` | Read a round of pictures and say whether they are all done. | yes | `not_found` |
 | `image_candidate_get` | `papyrus images show` | Read one picture's full record, with a short-lived preview address. | yes | `not_found` |
@@ -82,6 +82,7 @@ Success: `{"ok": true, "op": "...", "publication": "...", "result": {...}, "warn
 | `capability_unsupported` | The configured model cannot do what was asked. | no | alternatives lists fallbacks the caller may opt into |
 | `provider_failed` | The image provider refused or failed. | yes | providerMessage, retryable |
 | `provider_busy` | The image provider is busy. Try again shortly. | yes | retryAfterSeconds |
+| `spend_ceiling_exceeded` | The site's spending ceiling for a round or a day is reached, so this picture was not made. | no | the ceiling |
 | `batch_expired` | The picture was not ready within the batch window (24 hours). Nothing was charged. | yes |  |
 | `stale_version` | The Story has a newer version than the one you named. Read it again. | no |  |
 | `candidate_not_ready` | The picture is still being made. | no |  |
