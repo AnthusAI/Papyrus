@@ -2,7 +2,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Account baseline for a Papyrus deployment: the GitHub OIDC provider and the
   roles a deployment repository's pipeline uses to deploy the account's own
-  stacks (DNS, budget, certificate, SES) and to start Amplify jobs. Applied by
+  stacks (DNS, budget, certificate, SES), to start Amplify jobs, and to deploy
+  the site's app-shell stack through the CDK bootstrap roles (the deploy role
+  may assume the CDK deploy and file-publishing roles). Applied by
   a person once (the single bootstrap exception); afterwards changed only by
   the pipeline, and only by the roles job in the GitHub environment
   pipeline-roles. See docs/account-pipeline.md for what each role can and
@@ -34,6 +36,13 @@ Parameters:
     Default: main
     AllowedPattern: "^[A-Za-z0-9_.-]+$"
     Description: The one branch whose pushes may assume the deploy role. Also the Amplify branch it may build.
+  CdkQualifier:
+    Type: String
+    Default: hnb659fds
+    AllowedPattern: "^[a-z0-9]+$"
+    Description: >-
+      The qualifier of the account's CDK bootstrap (cdk bootstrap default is hnb659fds). The deploy role may assume exactly
+      cdk-<qualifier>-deploy-role and cdk-<qualifier>-file-publishing-role, so the pipeline can deploy the app-shell stack.
   AmplifyAppId:
     Type: String
     Default: "*"
@@ -75,7 +84,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${Prefix}-github-deploy"
-      Description: !Sub "Merge-to-${ProductionBranch} deploy for ${GithubRepository}: GitHub OIDC on that branch only; Amplify jobs and CloudFormation change sets on <Prefix>-* stacks through the service role"
+      Description: !Sub "Merge-to-${ProductionBranch} deploy for ${GithubRepository}: GitHub OIDC on that branch only; Amplify jobs, CloudFormation change sets on <Prefix>-* stacks through the service role, the CDK bootstrap deploy and file-publishing roles for the app shell"
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -105,6 +114,16 @@ Resources:
                   - amplify:StartJob
                   - amplify:GetJob
                 Resource: !Sub "arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/${ProductionBranch}/jobs/*"
+        - PolicyName: deploy-app-shell-with-cdk
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AssumeTheCdkDeployAndFilePublishingRoles
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-${CdkQualifier}-deploy-role-${AWS::AccountId}-${AWS::Region}"
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-${CdkQualifier}-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
         - PolicyName: deploy-app-stacks
           PolicyDocument:
             Version: "2012-10-17"
