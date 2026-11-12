@@ -1,297 +1,428 @@
 # Multilingual publishing: one publication in every supported language
 
-Status: plan for agreement, nothing built. Initiative: PPY-82f150. Epics: PPY-5deff0 (M1 model), PPY-251157 (M2 background sync), PPY-376e85 (M3 copy-edit and verify), PPY-756495 (M4 publish and navigate), PPY-6f91de (M5 backfill, operate, evaluate), plus the new epics filed with this plan: spikes before the design is frozen, and Slice 1 (one Spanish Story on Machines on Machines, preview only). Related: guidelines as data (`docs/plans/guidelines-as-data.md`, PPY-2a2a8a), fact-checking (`docs/fact-checking.md`), content item lifecycle (`docs/content-item-lifecycle.md`), how a publish flows (`docs/how-a-publish-flows.md`), multi-tenancy (`docs/multi-tenancy.md`).
+Status: plan, revised 2026-11-12 with Ryan's answers to the twelve questions. Nothing built. Initiative: PPY-82f150. Epics: PPY-5deff0 (M1 model), PPY-251157 (M2 background sync), PPY-376e85 (M3 copy-edit and verify), PPY-756495 (M4 publish and navigate), PPY-6f91de (M5 backfill, operate, evaluate), PPY-df65d3 (spikes), PPY-dd2754 (Slice 1). Related: guidelines as data (`docs/plans/guidelines-as-data.md`, PPY-2a2a8a), fact-checking (`docs/fact-checking.md`), content item lifecycle (`docs/content-item-lifecycle.md`), how a publish flows (`docs/how-a-publish-flows.md`), notifications (`docs/notifications.md`), multi-tenancy (`docs/multi-tenancy.md`).
 
-Note on the board: PPY-4748b6 "Write executable Slice 1 behavior specifications" belongs to the newsroom-pod Slice 1 (PPY-d0931707), not to this initiative. The multilingual specifications task is filed separately (see "Board changes").
+Note on the board: PPY-4748b6 belongs to the newsroom-pod Slice 1 (PPY-d0931707), not to this initiative. The multilingual specifications task is PPY-9753e6.
 
 ## What Ryan asked for
 
-1. **Primary language at the root.** A site can name a primary language. On Machines on Machines the primary is English, and `https://machines-on-machines.anth.us/` is the English root, not `/en/`. Spanish and Chinese go under a prefix (`/es/`, and Ryan wrote `/cn/`; see the Chinese decision below).
-2. **Language-prefixed mode.** Other sites may put every language under its code (`/en/`, `/es/`), and the bare base URL sends the visitor to the language their browser prefers (`Accept-Language`). Primary-at-root sites can also offer that redirect, from the primary base URL. The redirect must be right for search engines and caches: a language the visitor chose sticks, crawlers are never pushed away from the primary root, the CDN cache key is correct, there is no flash of the wrong language.
-3. **Two synchronization policies** per site, with an override for a Story (a section override is considered below):
-   - **Derive from primary.** Every localization is always derived from the primary-language copy. Edits happen in the primary and are re-translated.
-   - **Propagate any edit.** An edit to any localization updates all the others, except edits that are only a local readability tweak, which must not propagate. The editor says which kind an edit is; human-tuned local wording is protected from the next machine re-derivation; conflicts are shown and resolved; who, when and why is recorded; re-translation happens once per change without whole-table or O(N) reads.
+1. **Primary language at the root.** A site names a primary language. On Machines on Machines (MoM) the primary is English, and `https://machines-on-machines.anth.us/` is the English root, not `/en/`. Other languages go under a prefix.
+2. **Language-prefixed mode.** Other sites may put every language under its code, with the base URL sending visitors to their preferred language. Primary-at-root sites offer the same welcome.
+3. **Two synchronization policies** per site with a Story override: derive every localization from the primary, or propagate an edit in any language to the others, except local readability tweaks, which never propagate. Human wording is protected, conflicts are shown, who, when and why is recorded, and re-translation happens once per change without O(N) work.
 
-Standing rules that shape the design: fix causes, no workarounds, no fallbacks, no compatibility shims; simplest thing that meets the need; narrative Gherkin for every behaviour; no arbitrary fixed limits; DynamoDB is the catalog and text lives in S3; no whole-table reads or O(N) work per change, compute once on change and coalesce; no AppSync subscriptions; nothing made by hand in the cloud; plain UI text, Lucide icons, flat fills, no borders; everything a model writes gets a layered check and human review before publish; an AI-translated page says so to readers and agents; model spend is bounded by data-driven budgets and never silent.
+Standing rules that shape the design: fix causes; no workarounds, fallbacks or shims; simplest thing that meets the need; narrative Gherkin for every behaviour; no arbitrary fixed limits; DynamoDB is the catalog, text lives in S3; no whole-table reads or O(N) work per change; no AppSync subscriptions; nothing made by hand in the cloud; plain UI text, Lucide icons, flat fills, no borders; layered checks on everything a model writes; AI-translated pages say so; model spend bounded by data-driven budgets, never silent.
+
+## Ryan's decisions (2026-11-12)
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 1 | Chinese code and URL | Language tag `zh-Hans`, URL prefix `/zh/`, a configured setting so `/zh-hant/` can be added for Traditional readers. Never `/cn/`. Simplified versus Traditional audience stays an open item. |
+| 2 | Reviewers | A translation is **not** blocked on a reviewer. People responsible for catching translation flaws subscribe to a translation notification per site and language and get a link to correct the page. An authorized corrector role per language. With nobody subscribed the page still appears, clearly labelled AI-translated. Spanish has two reviewers; Chinese has none yet. |
+| 3 | When a localization appears | Just in time (JIT): generated automatically by a defined multi-step procedure at the trigger, not assembled by hand. |
+| 4 | English original corrected | The translation stays up with a subtle, brief "updating" notice that does not look like an error; it is re-translated promptly. |
+| 5 | Sync policy | Derive from primary by default; propagate as a site setting with a Story override; no section override for now. |
+| 6 | Language switching | On by default: a small, welcoming countdown banner in the visitor's language on **any** page (home, listings, articles) that exists in the language the visitor's browser prefers. Client-side; no server redirect. Off switch per site. |
+| 7 | Slugs | **Tentative** ("sure?"): translated slugs for Latin-script languages, fixed once published; Chinese uses the primary's slug. Ask again before Slice 2. |
+| 8 | Trigger | Translate when the English Story is published (cheapest), as a per-publication setting so a bilingual newsroom can later translate at approval. |
+| 9 | Quotations | Translate, label as translated, original wording one tap away; never present machine-translated words as the speaker's verbatim quote. |
+| 10 | Ratings and Cyclotron | One star rating and one Cyclotron prediction per Story across all languages. Audit and remove any English-only sources policy in Cyclotron training data. |
+| 11 | Budget | Tracked separately as "translations" spend per site, set from measured spend, pausing visibly when reached. |
+| 12 | Scope | In the MVP that follows: Concepts Wiki pages and concept names are JIT-localized; reader messages are localized with the original always shown first; the console gets its own language setting. Localized Caducus emails later. Right-to-left languages: not now. |
+
+Ryan's decisions 2 and 3 change one standing rule for this initiative: localized pages publish **before** a person reviews them. The layered automatic checks still run before publish and hold back anything that changes facts; people correct afterwards through the notification flow.
 
 ## What exists today
 
-Short version: Papyrus has **no language dimension** anywhere except one site-wide setting. Everything below that says "absent" is plan-only (it lives in the five epic descriptions and nowhere in code).
+Short version: Papyrus has **no language dimension** anywhere except one site-wide setting. Everything marked "absent" exists only in plans.
 
 | Area | In code today | Where |
 | --- | --- | --- |
-| Site language | `site.language` (default `"en"`) in `projection.json`. Used for `<html lang>`, RSS `<language>` and Atom `xml:lang`, nothing else | `src/papyrus_content/projection/standard/config.py:108,647`, `projector.py:1687`, `feeds.py:86,136` |
-| Story versions | Every version is an `Item` row on a lineage: `lineageId`, `versionNumber`, `previousVersionId`, `versionState`, `versionCreatedBy`, `changeReason`, `contentHash`, `stage`, `slug`, `section`. Body text in S3 through `ModelAttachment` (`item_body`) | `amplify/data/schema.ts:2345-2407,2234`, `src/papyrus_content/model_attachments.py` |
-| Published copy | `PublishedItem`, id = prefix + `lineageId`: exactly one published row per lineage | `schema.ts:2534`, `src/papyrus_content/publishing.py:80` |
-| Publish gate | Checklist closed, per-site publish approval keyed by record id + content hash, images present | `publishing.py:342-430`, `publish_gate.py:104` |
-| Checklists | Sub-task Items on `parentLineageId`, template `STEPS` (choose ... fact_check, copy_edit, editor_review ...), stale per Story version | `story_checklist.py`, `newsroom_process.py:60` |
-| Guidelines as data | `doctrine` Items with S3 attachments; resolver layers section over publication | `guidelines/store.py`, `docs/plans/guidelines-as-data.md` |
-| Language fields in the schema | **Absent** (no `language`, `locale`, `originalLanguage` on any model) | `amplify/data/schema.ts` |
-| Language in URLs | **Absent**. Only `urls.basePath`, `urls.style` (html, directory, clean), `urls.sections`, `urls.types` | `projection/standard/urls.py:20-75`, `config.py:36,660-673` |
-| hreflang, `x-default`, `og:locale` | **Absent**. Canonical exists (`head.py:105-112`); the only `rel=alternate` links are feeds and the Markdown twin | `projection/standard/head.py` |
-| Sitemap | One file or an index, `<loc>` and `<lastmod>` only | `projection/standard/sitemap.py` |
-| Search index | One flat `_data/search-index.json`. The client tokenizer splits on `[^a-z0-9]+` after NFD, so Chinese, Arabic and other non-Latin text is dropped | `projection/public_data.py`, `public_assets/papyrus-search.js:27-35` |
-| Edge | One CloudFront Function (viewer request): KeyValueStore redirects, pattern redirects, Markdown negotiation by `Accept`, directory index. No `Accept-Language`, no Lambda@Edge | `amplify/publication/redirect-and-index.js`, `amplify/publication/s3-projection.ts:91-143` |
-| Invalidation | Targeted only, capped by `publication.cache.maxInvalidationPaths` (default 25), over the cap raises | `src/papyrus_content/edge_invalidation.py`, `page_refresh/budget.py` |
-| Markus | No `lang` on spans or blocks, no stable block identifiers; citations format with en-US punctuation | `docs/markus-content-markup.md`, `markus_renderer/citations.py:208` |
-| Editorial checks | Humanus packs carry a `language` field that nothing selects on. `fact_check.py` is English-specific (number words, possessives, capitalised names) | `editorial_checks.py:381`, `fact_check.py:88-270` |
-| Model cost | Per-run estimates from a price table, `--max-cost-usd` in idea synthesis; no central spend budget | `model_cost.py`, `data/model_prices.json`, `ideas/synthesis.py:33` |
-| Email, newsletter, Messages, Cyclotron | No language dimension; email hard-codes `lang="en"` | `email_render/render.py:218` |
-| Alexa | `locales` setting, English variants only, one model for all | `amplify/plugins/alexa/config.ts:24-26,76-77` |
-| Console UI | No i18n library, `lang="en"` hard-coded; projection chrome strings are English literals (a few labels are configurable) | `app/layout.tsx:57`, `config.py:456` |
-| Gherkin | 427 feature files; none about languages | `features/`, `features_backend/` |
-| Site scaffold | No scaffold command; public-site config is `projection.json` in the site's static directory | `projector.py:226-231` |
+| Site language | `site.language` (default `"en"`) in `projection.json`; used for `<html lang>`, RSS and Atom only | `projection/standard/config.py:108,647`, `projector.py:1687`, `feeds.py:86,136` |
+| Story versions | Every version is an `Item` row on a lineage (`lineageId`, `versionNumber`, `versionState`, `versionCreatedBy`, `changeReason`, `contentHash`, `stage`, `slug`, `section`); body text in S3 via `ModelAttachment` | `amplify/data/schema.ts:2345-2407,2234`, `model_attachments.py` |
+| Published copy | `PublishedItem`, id = prefix + `lineageId`: one published row per lineage | `schema.ts:2534`, `publishing.py:80` |
+| Publish gate | Checklist closed, per-site approval keyed by record id and content hash, images present; slug locked once published | `publishing.py:209-216,342-430`, `publish_gate.py:104` |
+| Post-publish fan-out | `announce_published` after a successful projection (newsletter and the `story.published` notification), async, errors swallowed. No DynamoDB stream on `Item` or `PublishedItem` | `content-actions/handler.py:172-214`, `publish_alerts.py:59-89` |
+| Checklists | Sub-task Items from one code template `STEPS` (`TEMPLATE_VERSION=5`); no per-Story template choice | `newsroom_process.py:41-118`, `story_checklist.py` |
+| Guidelines as data | Designed, not built | `docs/plans/guidelines-as-data.md` |
+| Notifications | Built, off on every site. One Papyrus kind (`story.published`); recipients are an SSM operator list; Caducus 0.2.0 has no subscriptions for admin or public classes and no locale support | `notifications/data/notification-kinds.json`, `docs/notifications.md`, Caducus `notify/routing.py:228-234` |
+| Roles | Cognito groups admin, editor, curator; editing a Story is all-or-nothing by group; `UserRoleAssignment` has no scope field | `amplify/auth/resource.ts:90`, `schema.ts:28,149-169`, `manage-user-role/handler.ts:14` |
+| Sign-in from a link | Google sign-in returns to the saved path and query | `components/reader-auth-control.tsx:34-48,93-103` |
+| Language fields | **Absent** on every model | `schema.ts` |
+| Language in URLs, hreflang, `og:locale` | **Absent** | `projection/standard/urls.py`, `head.py` |
+| Listings | Driven by `typeStatus` and `sectionStatus` index keys, which have no language part, so a translation would appear in English listings | `publishing.py:170`, `schema.ts:2394-2404` |
+| Item ids | `item_id_for(section, slug)` builds ids from section and slug, so a Chinese localization sharing the English slug would collide | `publishing.py:71-73` |
+| Slug lookups | Seven call sites read `itemBySlug` and expect one match | `publish_commands.py:72`, `story_commands.py:768`, `section_editing.py:42`, others |
+| Sitemap, search | One sitemap; one search index whose tokenizer drops non-Latin scripts | `sitemap.py`, `papyrus-search.js:27-35` |
+| Edge | One CloudFront Function: KeyValueStore and pattern redirects, Markdown negotiation, directory index | `amplify/publication/redirect-and-index.js` |
+| Markus | No `lang` on spans, no block identifiers | `docs/markus-content-markup.md` |
+| Checks | Humanus packs carry an unused `language` field; `fact_check.py` is English-only | `editorial_checks.py:381`, `fact_check.py:88-270` |
+| Model cost | Per-run estimates from `data/model_prices.json`; no central spend budget | `model_cost.py` |
+| Messages | Public thread export for reference and story conversations | `home_page/threads.py`, `docs/home-page.md:154-177` |
+| Wiki | Wiki pages are ordinary `wiki_page` Items written by `knowledge wiki sync`, review-stamp gated | `knowledge_wiki/sync.py`, `docs/public-wiki.md` |
+| Console | No i18n; `lang="en"` hard-coded | `app/layout.tsx:57` |
 
 ## The model in one picture
 
 - A **language group** is one Story told in several languages. Its key is the primary Story's `lineageId`.
-- Each language is its own **localization**: an ordinary Story lineage with its own versions, slug, checklist, approval and published row, plus `language`, `languageGroupId` and, on each version, the exact source it came from (`sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`).
-- Each localization version carries an **alignment** in S3: for every block of the localized body, which source block it came from (by block hash), who owns it (`machine` or `human`), and whether it is pinned.
-- The site config declares its languages: BCP 47 tag, URL prefix (empty for the primary in primary-at-root mode), direction, display name, enabled state (`preview` or `public`), sync policy.
+- Each language is its own **localization**: an ordinary Story lineage with its own versions, checklist, published row and URL, plus `language`, `languageGroupId` and, on each version, the exact source it came from (`sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`).
+- Each localization version carries an **alignment** file in S3: for every block, the source block it came from, its owner (`machine` or `human`) and whether it is pinned.
+- The site config declares its languages: BCP 47 tag, URL prefix (empty for the primary in primary-at-root mode), display name in its own language, state (`off`, `preview`, `public`), and the publication's sync policy and translation trigger.
 
-## Hard problem 1: what a localization is (the version model)
+## Hard problem 1: what a localization is
 
-Options considered:
-
-| Option | What it means | For | Against |
-| --- | --- | --- | --- |
-| A. A version on the same lineage | Spanish is version N+1 of the English Story, with a `language` field | No new linkage | Breaks the version sequence (versions are a linear history of one text), `versionState: current` is per lineage, `PublishedItem` is one row per lineage so two languages cannot be published at once, checklists go stale per Story version so a Spanish edit would reopen English steps. Every one of these needs a special case: shims everywhere |
-| B. A sibling Story linked by a language group (**recommended**) | Each language is its own lineage; `languageGroupId` joins them; each localization version records its source version | Reuses everything that already works per lineage: versions, slugs, checklists, publish approval by content hash, `PublishedItem`, retire with redirect, projection per item. Approval of one language can never be mistaken for approval of another, because approvals are keyed by record and hash already | Group-level facts (section, rating, concepts, references, Cyclotron prediction) must be read from the primary, not copied; one new index to find a group's members |
-| C. A rendition table under the lineage | New `Rendition` model with its own versions | Clean separation | Rebuilds versions, approval, publish and projection for a second kind of record; two code paths forever |
-
-**Recommendation: B.** The primary stays exactly as it is today. A localization is a Story whose `language` differs from the primary's and whose `languageGroupId` is the primary lineage. Group-level data is never duplicated: section, concept tags, references, stars and Cyclotron predictions are read from the primary through the group key, so they cannot drift.
+| Option | For | Against |
+| --- | --- | --- |
+| A. A version on the same lineage | No new linkage | Breaks the linear version history, `versionState` per lineage, one `PublishedItem` per lineage, and checklists that go stale per version: special cases everywhere |
+| B. A sibling Story joined by a language group (**chosen**) | Reuses versions, checklists, approval by content hash, `PublishedItem`, retire with redirect and the projection unchanged | Group facts must be read from the primary; one new index |
+| C. A rendition table | Clean separation | A second copy of versions, publish and projection forever |
 
 Data changes (one new index per table per deploy):
 
-- `Item`: `language` (BCP 47 tag, required), `languageGroupId` (tenant-prefixed like the other keys in `tenancy.py`), and on localization versions `sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`, `syncState`. New GSI `languageGroupId + language`. Deploy 1.
+- `Item`: `language` (required), `languageGroupId` (tenant-prefixed), and on localization versions `sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`, `syncState`. New GSI `languageGroupId + language`. Deploy 1.
 - `PublishedItem`: the same fields and GSI. Deploy 2.
-- Every existing `Item` and `PublishedItem` gets `language` set explicitly to its site's primary by a bounded, resumable backfill before any code reads the field. No "missing means primary" default: that would be a hidden fallback.
-- `languageGroupId` is written on the primary when its first localization is created (compute once on change).
-- Slugs: no new slug index. `itemBySlug` already returns a handful of rows; the slug lookup filters by `language`, and uniqueness is checked per language.
-- Text stays in S3: the localized body and its alignment JSON are `ModelAttachment`s on the localization version.
+- **Listing keys carry the language.** `typeStatus`, `sectionStatus` and `headStageKey` gain the language for every row (`{tenant}#{language}#article#published`), so English listings, feeds, the board and the home page never pick up translations and Spanish listings list only Spanish Stories. No new index; the same keys, rewritten by the backfill.
+- **Localization ids are derived, not slug-based**: `{primaryLineageId}--{languageTag}`. Creating the same localization twice yields the same id, which makes JIT generation idempotent and avoids the slug collision in `item_id_for`.
+- **Slug lookups filter by language.** Every `itemBySlug` call site takes a language; uniqueness is per language. No new slug index.
+- Every existing `Item` and `PublishedItem` gets `language` and the language part of its listing keys written explicitly by one bounded, resumable backfill before any code reads them. No "missing means primary" default.
+- Group facts (section, concepts, references, stars, Cyclotron prediction) are read from the primary through `languageGroupId`, never copied.
+- The localized body and its alignment are `ModelAttachment`s in S3.
 
-## Hard problem 2: the two sync policies and protecting human wording
+## Hard problem 2: sync policies and protecting human wording
 
-### Blocks, alignment and ownership
+### Blocks, alignment and ownership (spike PPY-1e2f29 result below)
 
-Markus has no stable block identifiers, and adding them to every body is a large change to the markup that readers and agents see. The plan does not need them. Alignment is computed once when a localization version is saved and stored beside it:
-
-- Split the source body into blocks by Markus structure (paragraphs, headings, list items, quotes, captions, figure text). A block's identity is its normalised hash plus its position.
-- Each target block records the source block hash it was derived from, its owner (`machine` or `human`) and `pinned` (true for human-owned blocks).
-- When a person saves a localization version, diff the previous target text against the new one; changed or added blocks become `human`-owned and pinned. This is the rule "a human edit pins the machine block".
-- When the source changes, diff old source blocks against new ones. Only source blocks that changed produce work. For each affected target block:
-  - `machine`-owned: re-translate that block only.
-  - `human`-owned and its source block unchanged: keep it as is.
-  - `human`-owned and its source block changed: **conflict**. Nothing is overwritten. The localization goes to `needs review` with the old source, new source, current human wording and a machine proposal side by side.
-
-Translating changed blocks only (with neighbouring blocks as context) also keeps cost proportional to the change, not to the Story.
+- Split the body into blocks by Markus structure (paragraphs, headings, list items, quotes, containers). A block's identity is its normalised content hash **plus its occurrence number**, so identical blocks (rules, repeated lines) stay distinct.
+- Each target block records its source block identity, owner and pinned flag.
+- When a person saves a localization, diff old against new target text; changed or added blocks become `human` and pinned. A paragraph a person adds has no source block and rides after its preceding block.
+- When the source changes, diff old against new source blocks:
+  - unchanged or moved source block: keep the target block (moving it with its source);
+  - changed or new source block with a machine target: re-translate that block only;
+  - deleted source block with a machine target: drop it;
+  - changed or deleted source block with a pinned human target: **conflict**; nothing is overwritten.
 
 ### Derive from primary (default)
 
-- Edits in a localization are always local. They pin the blocks they touch, and the localization is marked `diverged` until an editor clears the pin or the source block changes and the conflict is resolved.
-- A primary version that reaches the translation trigger (see question 8) queues one job per enabled language.
+Edits in a localization are local and pin their blocks; the localization is `diverged` while pins exist. Each primary publish (the trigger, decision 8) queues one job per enabled language.
 
 ### Propagate any edit
 
-- Saving a localization asks one plain question with two answers: **Only this language** or **All languages**. There is no default when the policy is propagate; the editor must choose, and must give a reason (`changeReason` already exists).
-- **Only this language**: same as derive mode, the blocks are pinned locally.
-- **All languages**: the changed blocks are translated into the primary language, a new primary version is created and goes through the primary's own review, and once that version is accepted the normal derive flow updates every other language. Propagation always passes through the primary, so there is one source of truth per block and no language-to-language chains that can loop.
-- Conflicts arise when another language has a pinned human block on the same source block; they are shown exactly as in derive mode.
+Saving a localization asks **Only this language** or **All languages**, with no default and a reason. "All languages" translates the changed blocks into the primary as a new primary version that goes through the primary's own process; once it is published, the derive flow updates the other languages. All propagation passes through the primary, so there are no language-to-language chains or loops.
 
 ### Terminology memory
 
-- A per-site, per-language **glossary** (term, approved translation, do-not-translate flag, note) lives with the writing guidelines as data (`guideline document`, a new kind `glossary`, layered publication then section). It is the one place for rules such as "never translate *desk*" or product and person names.
-- Every translation job sends the glossary entries that occur in the blocks being translated, and the fidelity check verifies them.
-- A human change to a recurring term can be offered as a glossary entry (the person accepts or rejects it); it is never learned silently.
+A per-site, per-language glossary (term, approved translation, do-not-translate, note) is a guideline document kind `glossary`, layered publication then section. Translation receives the entries present in the blocks being translated; the rule checks verify them. A corrector's change to a recurring term can be offered as a glossary entry for a person to accept; nothing is learned silently.
 
 ### What is recorded
 
-Every localization version records who made it (person or agent), when, why (`changeReason`), its edit scope (`local` or `all`), its source version and hash, the model and prompt version for machine text, the glossary version, the alignment, and the checks that ran on it. Approval is keyed by the localization's own content hash, so approving English never approves Spanish.
+Each localization version records who (person or agent), when, why, edit scope (`local` or `all`), source version and hash, model and prompt version, glossary version, alignment and check results.
 
 ### Once per change, no O(N)
 
-- The trigger is the save of a primary version (a DynamoDB stream event or the existing post-save hook, whichever the slice spike shows is already in place). It reads the group's members with one query on `languageGroupId + language` (as many rows as languages) and writes one desired-state record per target language, keyed by `languageGroupId#language#sourceContentHash`.
-- A later save of the same primary replaces the desired state for that language (coalescing). A worker only translates the newest desired state, and a job whose source hash is older than the localization's current source is dropped, so out-of-order jobs cannot replace newer or human work.
-- Writes made by the translation worker never enqueue translation (the worker writes localizations, and only primary saves trigger).
+- There is no stream on `Item`. The trigger is a durable desired-state record written at the same point as `announce_published` (after a successful projection), keyed `languageGroupId#language`, holding the newest `sourceContentHash`. Unlike `announce_published`, a failure to write it fails the operation loudly.
+- The group's members are read with one query on `languageGroupId + language` (as many rows as languages).
+- A newer publish overwrites the desired state (coalescing); a worker drops a job whose source hash is older than the localization's current source, so out-of-order jobs cannot replace newer or human work.
+- Translation writes never enqueue translation: only primary publishes do.
+- The trigger point is the publication setting `translation.trigger` (`published` now; `approved` later for a bilingual newsroom). The desired-state record is the same either way.
 
-### Section override
-
-A Story override is enough for the cases Ryan named (a feature that is hand-written in each language). A section-level override adds a third layer to resolve for little gain. Recommendation: site setting plus Story override now; a section override only if a real section asks for it.
-
-## Hard problem 3: URLs, hreflang and the language redirect
+## Hard problem 3: URLs and hreflang
 
 ### Two URL modes
 
-- **Primary at root** (`urls.languages.mode: primaryAtRoot`): the primary language keeps today's URLs exactly. Other languages live under `/{prefix}/` with the same section structure: `/es/{section}/{slug}`. Existing indexed URLs never change. This is the only mode for an existing site, because moving existing pages under `/en/` would retire every published URL.
-- **Language prefixed** (`urls.languages.mode: prefixed`): every language under its prefix; `/` is only a redirector. For new sites.
+- **Primary at root**: the primary keeps today's URLs exactly; other languages live under `/{prefix}/` with the same structure (`/es/articles/{slug}/`). The only mode for an existing site, because published URLs are never retired.
+- **Language prefixed**: every language under its prefix, for new sites. `/` is a static redirect (the existing KeyValueStore) to the `x-default` language's home; the switching banner then works as on any page.
 
-The URL prefix is a configured string separate from the BCP 47 tag. `<html lang>`, `hreflang`, `og:locale`, JSON-LD `inLanguage` and the feeds use the tag; paths use the prefix.
+The URL prefix is configured separately from the BCP 47 tag. `<html lang>`, `hreflang`, `og:locale`, JSON-LD `inLanguage` and feeds use the tag; paths use the prefix.
 
-### Chinese: `zh`, not `cn`
+### Chinese: `zh-Hans` at `/zh/` (decision 1)
 
-`cn` is the country code for China, not a language. Chinese is `zh`, and what matters for readers is the script: `zh-Hans` (Simplified, mainland China and Singapore) or `zh-Hant` (Traditional, Taiwan and Hong Kong). Recommendation: tag `zh-Hans`, prefix `/zh/`; if Traditional is ever added it becomes `zh-Hant` at `/zh-hant/`. `/cn/` remains possible because the prefix is configurable, but it reads as "for China" and can put off readers in Taiwan, Hong Kong and elsewhere.
+Reasoning: `cn` is the ISO country code for China, not a language. Chinese is `zh`; what readers notice is the script. Simplified (`zh-Hans`) is read in mainland China, Singapore and Malaysia; Traditional (`zh-Hant`) in Taiwan, Hong Kong and Macau and much of the diaspora. `/zh/` says "Chinese" without naming a country, so it welcomes Chinese readers anywhere; `/cn/` reads as "for China" and can put off readers in Taiwan or Hong Kong. Browsers send `zh-CN`, `zh-SG` or `zh-Hans` for Simplified and `zh-TW`, `zh-HK` or `zh-Hant` for Traditional, so the banner maps those to the right script.
 
-### Slugs
+**Open item (later):** do we want Traditional readers? A Traditional edition is a separate localization (`zh-Hant`, `/zh-hant/`), not a character conversion, because vocabulary differs. Until then, visitors who prefer Traditional get no banner (there is no Traditional page) and can still choose 中文 (简体) in the switcher.
 
-Recommendation: each localization has its own slug, drafted in its language when it is first published and then frozen (titles can change, slugs do not). A later slug change uses the existing retire-with-redirect path for that language only. Shared English slugs are simpler but give Spanish readers English URLs and leak the source language into search results.
+### Slugs (decision 7, tentative)
+
+Translated slugs for Latin-script languages (Spanish), drafted in the language at first publish and then fixed (the existing slug lock). Chinese uses the primary's slug: Chinese characters in URLs become long percent-encoded strings when copied into chat or email, and pinyin slugs are hard to read. A later slug change uses retire with redirect for that language only. **Ask Ryan again before Slice 2.**
 
 ### hreflang, canonical, sitemap
 
-- Every published page of a group carries `<link rel="alternate" hreflang>` for each published language in the group, including itself, plus `x-default` pointing at the primary page (primary at root) or at `/` (prefixed mode). Only languages that are actually published appear.
-- Each page is canonical to itself, never to the primary (canonicalising a translation to its source tells search engines to drop it).
-- Per-language sitemaps listed in the sitemap index. hreflang is in the page head only (not duplicated in sitemaps) so there is one place to keep correct.
-- Publishing or retiring a localization re-renders its siblings, because their language switcher and hreflang change. That is O(languages) per change and coalesced by the existing publish queue.
+- Every published page of a group lists `<link rel="alternate" hreflang>` for each published language in the group, including itself, plus `x-default` (the primary page, or `/` in prefixed mode). Only published languages appear.
+- Each page is canonical to itself (canonicalising a translation to its source tells search engines to drop it).
+- One sitemap per language in the sitemap index. hreflang lives in the page head only.
+- Publishing or retiring a localization re-renders its siblings (their switcher and hreflang change): O(languages), coalesced by the publish queue.
 
 ### Missing localizations (no fallbacks)
 
-A Story without a Spanish localization has no Spanish page. The language switcher lists only languages that exist for that page. Spanish listings (`/es/`, `/es/{section}/`) list only Spanish Stories. A language is shown publicly only when the site sets it `public`, which requires its interface strings to be complete and reviewed. Nothing ever shows English text inside a Spanish page.
+No Spanish localization means no Spanish page. The switcher lists only languages that exist for that page; Spanish listings list only Spanish Stories (the listing keys carry the language). A language becomes `public` only when its interface strings are complete. English text never appears inside a Spanish page.
 
-### The language redirect
+## Hard problem 4: welcoming language switching (decision 6, revised)
 
-Design, for both modes:
+### What the visitor sees
 
-1. Only the bare root `/` is ever redirected. Deep pages are never redirected, so a shared link always opens what was shared, and crawlers that follow links see what was linked.
-2. The decision runs in the existing CloudFront viewer-request function, before the cache. The function reads, in order: an explicit choice in the query (`/?lang=es`, which the language switcher uses), the `papyrus_lang` cookie, then `Accept-Language`, matched against the site's public languages.
-3. `/?lang=xx` sets `papyrus_lang=xx` (one year, `SameSite=Lax`) and redirects to the clean URL for that language. This makes a choice stick with or without JavaScript.
-4. No `Accept-Language` header, or no public language that matches, means no redirect: the visitor gets the primary root (primary at root) or the `x-default` language (prefixed). Search engine crawlers generally send no `Accept-Language`, so they are never pushed off the primary root. No user-agent sniffing (that would be cloaking).
-5. The redirect is a `302` with `Cache-Control: private, no-store` and `Vary: Accept-Language, Cookie`. It is generated by the function and never stored in CloudFront, and the `no-store` keeps browsers and shared proxies from caching it. Pages themselves are unchanged: the CloudFront cache key does not include `Accept-Language` or the cookie, and page responses need no `Vary`, because each URL always returns the same language.
-6. Primary-at-root sites: the redirect from the English root is a site setting, off by default. The English root stays a real, indexable English page; a visitor who prefers Spanish and has made no choice is sent to `/es/`.
-7. No client-side redirect at all, so there is no flash of the wrong language.
+On any page (home, section and listing pages, articles, wiki pages) that **also exists** in the language the visitor's browser prefers, a small banner appears at the top of the page, written in that language:
 
-The function grows by one small branch on `/`; the public languages are spliced in at deploy time like the pattern rules already are.
+> 我们注意到您偏好中文。15 秒后切换到中文版… [立即切换] [留在此页] [暂停]
 
-## Hard problem 4: quality, review and labelling
+The number counts down from 15 with a thin progress bar, like a streaming service's next-episode countdown. **Switch now** switches immediately; **Stay here** closes the banner; **Pause** stops the clock. When the clock reaches zero the page switches to the same page in the preferred language. If that exact page does not exist in the preferred language there is no banner (no fallback to that language's home page).
 
-- **Translation engine**: GPT-6 Luna (the LLM default) through the existing OpenAI path, one call per changed block set, with the publication voice, the language's writing guidelines, the glossary hits and protected Markus (links, citations, code, equations, entity names) as placeholders the model cannot alter. Background backfill uses the Batch API.
-- **Layered check on every localization version** (the fact-checking standard applied to translation):
-  1. Deterministic fidelity: numbers, dates, units, URLs, citation anchors, quotation count, Markus structure, glossary terms and do-not-translate names preserved. This needs language-aware rules; `fact_check.py` is English-only today.
-  2. Model judge, bilingual: changed meaning, certainty or qualifiers ("may" becoming "will"), omissions, additions, block by block against the exact source version.
-  3. Humanus editorial checks in the target language with that language's policies. English detectors are not assumed to transfer; the spike measures them.
-  4. Human review by a person who reads that language, recorded on the checklist. The publish gate already refuses without approval for the exact content hash.
-- **Per-language checklist**: a localization's checklist is drawn from a translation procedure template: translate, glossary check, fidelity check, copy-edit, language review, editor approval. Steps with no person who reads the language cannot be closed, so a language without a reviewer stays in preview.
-- **Labelling for readers**: a plain line under the byline: "Traducido por IA del original en inglés. Revisado por [name/role]." with a link to the original page. The wording per language lives in the interface strings and is reviewed like them.
-- **Labelling for agents**: JSON-LD `translationOfWork` (the original page) and `inLanguage`, `translator` as the software agent; the Markdown twin's front matter gains `language`, `translatedFrom` (URL), `translation: machine` and `reviewed: true|false`; `llms.txt` and the agent-readable guide state that localized pages are AI translations of the linked original.
-- **Quotations**: translated, marked as translated in the rendering, with the original wording available beside it (Markus attribute rendered as a note). A Story can be marked "do not localize" (legal sensitivity, satire, wordplay).
+### How it decides
 
-## Hard problem 5: cost
+1. The page already lists its translations in `<link rel="alternate" hreflang>`. The projection also inlines the banner's strings for each of those languages (a few short lines each, from the interface strings).
+2. A small script matches `navigator.languages` against the page's own language and its translations (`zh-CN` and `zh-SG` match `zh-Hans`; any `es-*` matches `es`).
+3. If the best match is the page's own language, nothing happens.
+4. If the visitor has a remembered reading language (below), that wins over the browser preference.
+5. Otherwise, if the best match is another language this page exists in, the banner appears.
 
-- Each job's cost is estimated before it runs from token counts and `data/model_prices.json` (`model_cost.py`), and recorded after it runs.
-- Each site gets a translation spend budget per rolling week, set from measured spend (the spike gives the first numbers; afterwards it follows the site's actual publishing rate). When the budget is reached, new jobs wait, the console shows "Translation paused: budget reached" with the backlog and the amount, and the operator can raise it. Never silent, never a fixed cap in code.
-- Translating changed blocks only, coalescing rapid edits, and starting translation at the agreed trigger (not on every draft) keep spend proportional to real change.
+### The remembered choice
+
+- The choice is stored as a **reading language** in `localStorage` (`papyrus.readingLanguage`), set only by a visitor's action: Switch now, letting the countdown finish, Stay here, Undo, or picking a language in the switcher. Stay here stores the current page's language.
+- On later pages:
+  - Page is in the reading language: nothing happens.
+  - Page exists in the reading language: switch at once, without a countdown, and show a quiet note on the arriving page: "Switched to 中文 · Undo" (fades after a few seconds, stays reachable by keyboard). Undo returns to the page the visitor came from and stores that page's language.
+  - Page does not exist in the reading language: nothing happens (no banner, no fallback).
+- A visitor who clicked **Stay here** on English pages is never asked again on any English page: their reading language is English, so English pages match it.
+- The language switcher stores the language picked, so it is always the way to change one's mind.
+- Why `localStorage`, not a cookie: no server or cache needs it (nothing at the edge reads it), it never travels with requests, and it is a preference the visitor asked for, which is "strictly necessary" under the EU ePrivacy rules and needs no consent banner. Private windows and cleared storage simply forget the choice; the banner then appears again, once.
+
+### Never frustrating
+
+- Never blocks reading: the banner sits above the content, pushes nothing off screen on phones beyond one short line, and has no overlay.
+- Scrolling, typing or selecting text on the page pauses the countdown (the visitor has started reading); the banner stays with Switch now and Stay here.
+- Switching uses `location.replace`, so the page left behind is not in the history. Back goes where the visitor came from (search results, the sharing app), never into a loop between two languages.
+- Arriving from search or a shared link is treated the same way: the banner appears if this page exists in the preferred language.
+- Never loops: the banner appears at most once per page view, and only until the visitor makes a choice; after that, the remembered choice decides silently with Undo.
+- Off switch per site (`languages.switchBanner: false`), default on.
+
+### Never toward the primary by countdown (the one concrete exception)
+
+The countdown never switches **to the site's primary language** automatically. When an English-preferring visitor opens a Chinese or Spanish page, they see a quiet "Read in English" link at the top instead. Reason: search engine renderers execute JavaScript, run timers and report an English browser preference. Without this rule, Google's renderer would watch every Spanish and Chinese page count down and redirect itself to English, conclude the translated pages redirect, and drop them from the index. The rule needs no user-agent sniffing and costs English readers only one tap on a page someone deliberately shared with them in another language. Crawlers that render with a Chinese preference (Baidu) could follow a countdown from an English page to its Chinese twin; that only helps them index the Chinese page, which also has its own URL and hreflang.
+
+### Accessibility
+
+- Timing is adjustable (WCAG 2.2.1): Pause, Stay here and Switch now are all available, and scrolling pauses the clock.
+- The banner is announced once by an `aria-live="polite"` region when it appears ("Chinese version available; switching in 15 seconds; press Pause to stop"), not on every tick.
+- Focus is not moved into the banner (that would interrupt reading); the controls are the first items after the skip link, reachable by keyboard, with visible focus. The banner's text and buttons carry `lang` for their language so screen readers pronounce them correctly.
+- `prefers-reduced-motion`: no animated progress bar and no fade; the number still counts down in text.
+- Buttons are plain text with Lucide icons (`Languages`, `Pause`, `X`), flat fills, no borders.
+
+### Trade-offs
+
+SEO: pages stay one language per URL with self-canonical and hreflang, so indexing is unaffected; the "never toward the primary by countdown" rule keeps renderers from following translated pages to English, and a Chinese-preferring renderer at most finds a page that is already in hreflang. Caching: nothing changes at the edge; no `Vary`, no cookie, no cache key change; the CloudFront function redirect and `?lang=` handling in the first draft are **removed from the design**. Sharing: a URL always means the same language; the recipient may be offered their own language, and the sender's link is never rewritten. Back button: `location.replace` keeps history clean, at the cost that a visitor cannot use Back to return to the language they were auto-switched from (Undo and the switcher cover that). Analytics: an auto-switch produces two page views (a short one on the first page); a GA4 event `language_switch {from, to, method: countdown|button|remembered|undo|switcher}` and the `page_language` custom dimension keep reporting honest. The costs of being client-side: the banner needs JavaScript (without it, the switcher still works), and a visitor briefly sees the first page before switching (a choice Ryan made in favour of a visible, welcoming switch over a silent redirect).
+
+## Hard problem 5: JIT generation, checks and corrections
+
+### The translation procedure (per language, as data)
+
+A localization's checklist comes from a **translation procedure** stored as data (a guideline document kind `translation-procedure`, publication scope with an optional per-language overlay). It is the first consumer of guidelines as data (PPY-2a2a8a P1), which must land first or be built in this work. Each step becomes a sub-task on the localization lineage, run by the worker, never by hand. Costs below are estimates for a 1,000-word Story at the GPT-6 Luna list price ($0.10 per million input tokens, $0.50 per million output tokens) and must be replaced by measured numbers from spike PPY-3f3aac.
+
+| Step | What it does | Model cost (est.) |
+| --- | --- | --- |
+| 1. Collect | Source version, changed blocks (or all blocks the first time), glossary hits, language guidelines, the previous alignment | none |
+| 2. Translate | Changed blocks with neighbouring blocks as context, Markus protected, quotations marked | about $0.001 |
+| 3. Rule checks | Numbers, dates, units, URLs, citation keys, quotation count and markers, Markus structure, glossary and do-not-translate names | none |
+| 4. Bilingual judge | Block by block against the exact source version: meaning, certainty, omissions, additions, fluency | about $0.0006 |
+| 5. Target-language copy-edit | Humanus with the language's policies (rule lane free; judgment lane as configured) | about $0.0005 |
+| 6. Repair | If steps 3 to 5 found high-severity problems, one re-translation of those blocks with the findings; if they persist, **hold**: the localization is not published and subscribers are told it needs a person | about $0.0003 when needed |
+| 7. Render and publish | Projection of the localization and its siblings (hreflang, switcher), targeted invalidation | none |
+| 8. Notify | Translation notification to the language's subscribers with the correction link | none |
+
+Estimated total: about $0.002 to $0.003 per Story per language, before reasoning tokens. Step 6's hold is the fact-checking gate: a page whose numbers or claims differ from the source is never published automatically.
+
+### Labels for readers and agents
+
+- Readers: one plain line under the byline in the page's language: "Traducido por IA del original en inglés" with a link to the original, becoming "Traducido por IA y revisado por una persona" once a corrector has reviewed the current version.
+- Agents: JSON-LD `inLanguage`, `translationOfWork` and `translator`; Markdown twin front matter `language`, `translatedFrom`, `translation: machine`, `reviewed`; `llms.txt` and the agent guide explain it.
+
+### Correctors and the translation notification (decision 2)
+
+- **Notification kind** `translation.published` (class `admin`), with facts title, language, page URL and correction link, grouped by site. Subscriptions are per site and language. Caducus 0.2.0 delivers only to the operator list, so this needs Caducus subscriptions with a scope (`language:es`) from its "preferences" milestone. That Caducus work is a dependency, filed on this board.
+- **Corrector role**: a managed role `translator` with a list of languages, granted through the existing `manage-user-role` operations (Administration and CLI). The Cognito group `translator` lets the person open the correction view only; the correction mutation (a Lambda operation, because group rules cannot express "Spanish only") checks the person's languages. Editors and admins can correct every language.
+- **Correction flow**: the email link opens `/newsroom/translations/{localizationLineage}` (with `?block=` when the notice is about one block). Google sign-in returns to that link (the existing return path). The view shows source and translation side by side, block by block, with the check findings beside the blocks they concern. The corrector edits a block in place and saves, or presses **Looks right** to record a review without edits.
+- **What a correction records**: a new localization version by that person, the changed blocks pinned as human, an optional reason, the rule checks re-run on the changed blocks, and immediate JIT publish. A reviewed-without-edits press records the review on the current version and updates the label.
+
+### Corrections of the original (decision 4)
+
+When a new primary version is published, each localization keeps its page and gets a one-line notice in its language, styled as quiet secondary text (no warning colour, no icon of alarm): "Actualizando según la última versión del original." It disappears when the re-translated version publishes, which normally takes minutes because generation is JIT.
+
+### Quotations (decision 9)
+
+Journalism practice is that a quotation is the speaker's words; translating them is acceptable when the reader is told. So:
+
+- The quotation is translated and marked "(traducción)" / "（译文）" right after it.
+- The original wording is one tap away: an expandable note on touch screens and a tooltip on hover, both keyboard reachable, with `lang` set on the original text.
+- Markus keeps the original in the quotation's source-language field, which the Markdown twin and JSON-LD expose to agents.
+- Never: a machine translation presented as a verbatim quote without the mark.
+- A Story can be marked **do not localize** (legal sensitivity, satire, wordplay).
+
+## Hard problem 6: cost (decision 11)
+
+- Each job's cost is estimated before it runs and recorded after, under the spend category **translations** per site (`model_cost.py`, price table, and the cost-allocation tag `papyrus:spend=translations`).
+- Each site has a translations budget per rolling week, set from its measured spend and publishing rate. When it is reached, new jobs wait, the console shows "Translations paused: weekly budget reached" with the backlog and amount, and the operators get a notification. An operator can raise it. Never silent and no fixed cap in code.
+- Changed blocks only, coalescing, and the publish trigger keep spend proportional to real change.
+
+## Ratings, Cyclotron and the English-only audit (decision 10)
+
+- Stars belong to the language group: rated once, on the primary; the localized page shows the group's rating and voting on it records the vote against the group. Cyclotron predictions are per group; votes on localized pages train the same site Cyclotron through the group.
+- **Audit result (read-only, 2026-11-12)**: no English-only sources rule was found in:
+  - Papyrus code: the rejection reason codes have no language code (`reference_policy.py:8-18`) and no relevance or curation prompt mentions language;
+  - Cyclotron main (`04ae377`): no factor, rubric or label about language;
+  - site repositories;
+  - the live writing guidelines and editorial context of MoM, Anth.us, Threat Intelligence, Shipped and Pilobolus (read with `papyrus guidelines show` and `papyrus editorial context`);
+  - the titles of the 72 rejected References on those five sites (none rejected for language).
+- **English bias that does exist** and must change for non-English sources:
+  - the topic model's English stop words (`knowledge_snapshot/topic_config.py:28`);
+  - Cyclotron lexical retrieval's English stop words `en-v1` and the `ascii-v1` tokenizer option (`decision_flywheel/lexical_retrieval.py:56-65`);
+  - the search tokenizer (`papyrus-search.js`);
+  - the YouTube transcript preference for English (`references_transcripts.py:127`);
+  - the English-only fact checker.
+- **Not readable from the editor lane**, so still to check with an operator sign-in:
+  - the free-text rejection notes (`curationStatusReason`), which the priming export copies into Cyclotron explanations (`priming_export.py:127`);
+  - each site Cyclotron's learned rubric in its runtime store;
+  - Data Parade and p.apyr.us, which had no CLI session.
+- **Change plan:** (1) operator read of rejection notes matching language words, and language detection on rejected References' titles; (2) read each Cyclotron's learned rubric for language criteria; (3) for each hit, `papyrus references approve --reference ID --dry-run`, then a person confirms the relabel; (4) retrain through the existing retrain trigger; (5) switch the stop-word and tokenizer settings above to language-aware ones. No live Cyclotron data is changed until the list is confirmed.
+- **Change list today: empty.** No confirmed English-only label exists yet.
+
+## In scope for the MVP that follows (decision 12)
+
+- **Concepts Wiki**: wiki pages are `wiki_page` Items, so they localize with the same JIT procedure once the primary page is published (the primary's review stamp remains the gate). Concept names and aliases get localized names on the shared concept (short catalog fields), so a Spanish hashtag or link resolves to the same concept.
+- **Reader messages, original first**: a thread page always shows each message exactly as posted, in its own language, first. Beneath it, when its language differs from the page's, a secondary "Traducción automática" line, expanded on demand. Translations are generated once when the message is exported (compute once on change), stored in S3 by message id, content hash and language, and only for the site's public languages.
+- **Console language**: a per-person setting, separate from content language, with interface strings in a catalog per language (plural rules through `Intl.PluralRules`). Sequenced after Spanish is public.
+- **Later**: localized Caducus emails; Alexa per language; share images with text.
+- **Not now (YAGNI)**: right-to-left languages.
+
+### Is right-to-left relevant for Chinese?
+
+No. Modern Chinese on the web is written left to right, horizontally; vertical writing is not needed. What Chinese does need:
+- CJK fonts (system fonts first);
+- line breaking between characters (`line-break: strict`, no hyphenation);
+- full-width punctuation (，。「」), with no stray spaces around it;
+- no synthetic italics (emphasis by weight instead);
+- reading-time estimates by characters, not words;
+- a search tokenizer that indexes characters or pairs of characters (today's drops them);
+- careful typography where Latin words and numbers sit inside Chinese text.
 
 ## Everything else that must be sorted out
 
 ### Language and locale
 
-- **Tags**: BCP 47 tags in config (`en`, `es`, `zh-Hans`). Regional variants (`es-ES` versus `es-419`) only when a site really writes two; recommendation: one neutral Spanish (`es`), written for a Latin American and Spanish readership.
-- **Right-to-left**: `dir` comes from the language config. The projection's CSS must use logical properties (`margin-inline-start`, not `margin-left`) before any right-to-left language is enabled; mixed-direction runs (English names inside Arabic) need `<bdi>`. Fixture tests with Arabic text from the start, enablement later.
-- **Fonts and Chinese**: a CJK font stack (system fonts first, Noto Sans SC as a web font only if the spike shows system fonts are poor), no synthetic italics for CJK, `line-break: strict`, reading-time by characters not words, line-length settings per script.
-- **Formats**: dates, numbers, currencies and plurals per language. The projection is Python, so dates and numbers need CLDR data (Babel); interface strings need plural forms (ICU message format) in the string catalog.
+- BCP 47 tags in config (`en`, `es`, `zh-Hans`). One neutral Spanish (`es`) for readers in Latin America and Spain.
+- Dates, numbers, currencies and plurals per language: the projection is Python, so dates and numbers use CLDR data (Babel); interface strings carry plural forms.
+- The projection's CSS should use logical properties as it is touched, so right-to-left stays cheap later; no right-to-left work now.
 
 ### What is translated and what is not
 
 | Translated | Not translated |
 | --- | --- |
-| Title, dek, blurb, body, captions, image alt text, pull quotes, section names and descriptions, navigation, interface strings, AI labels, `<title>` and meta description, Open Graph text, JSON-LD text, figure text (SVG text nodes, as a localized figure variant; Slice 1 avoids figures with text) | Names of people, organisations and products; code, commands, equations; citations and bibliography entries (stay in the source's language, with the title translated in brackets later if wanted); Reference records and their titles in Slice 1; URLs of sources; user-written Messages and forum posts (original wording is kept; reader-side translation is a later, explicit feature) |
+| Title, dek, blurb, body, captions, image alt text, pull quotes, section names, navigation, interface strings, labels, `<title>`, meta description, Open Graph and JSON-LD text, wiki pages and concept names, reader messages (secondary to the original), figure text as a localized variant (Slice 1 avoids figures with text) | Names of people, organisations and products; code, commands, equations; citations and bibliography entries; Reference records; source URLs |
 
-Later, each as its own epic: Concepts Wiki pages and concept names (shared concept identity, localized names and aliases); newsletters and notifications per subscriber language (the living issue Story gets localizations like any Story); RSS and Atom per language (`/es/feed.xml`, simple, in M4); search index per language with a tokenizer that handles CJK (bigrams) and accents; Alexa per language (Spanish locales need their own interaction model); share images with text; email templates.
+Feeds per language (`/es/feed.xml`) and a search index per language belong to M4.
 
 ### Editorial process
 
-- A localization is published when its own checklist closes and its own approval exists; it can go out later than the primary.
-- Corrections: a correction to the primary marks localizations stale. A stale localization stays published with an automatic notice ("The original was corrected on [date]; this translation is being updated" with a link to the original) and its re-translation jumps the queue. Taking pages down would break URLs; silently leaving them would leave readers with a wrong fact.
-- Retirement: retiring a primary retires every localization; each language redirects to the target Story's localization in the same language, and where the target has none, to the target's primary page (an explicit redirect rule, recorded per URL).
-- Ratings and the three-star floor: stars belong to the language group (rated once, on the primary); translation quality is judged by the per-language review, not by stars. One Cyclotron per site, as today; localized Stories show the group's prediction. Votes on localized pages train the same model through the group.
-- References and ideas: localized Stories cite the same References (the group's). Reference dedupe groups are unaffected, because References are not localized in Slice 1.
+- Retirement: retiring a primary retires every localization; each language redirects to the target Story's localization in the same language, or to the target's primary page when it has none (an explicit, recorded redirect per URL).
+- References and ideas: localized Stories cite the group's References; dedupe groups are unaffected.
 
 ### Surfaces and operations
 
-- **Console**: a Languages panel on each Story (each language with state: missing, translating, needs review, conflict, approved, published, stale, diverged), a side-by-side source and translation view by block, conflict resolution (keep mine, take the new translation, edit), the "Only this language / All languages" choice on save, and a translation budget and backlog view. Console UI language stays English (separate from content language; YAGNI).
-- **CLI, MCP, skill parity** (one operation table): `papyrus stories localize`, `papyrus stories localizations`, `papyrus stories localization-review`, `papyrus translations status`, `papyrus glossary ...`. Writes by default, `--dry-run` to preview, as all mutation commands.
-- **Analytics**: a GA4 `page_language` custom dimension (GA4's built-in `language` is the browser's, not the page's).
-- **Ads and consent**: the consent banner and its legal text per language need reviewed translations before a language goes public; ad networks' language support checked per language.
-- **Accessibility**: `lang` on the page and on any foreign-language span inside it; the language switcher names each language in its own language ("Español", "中文") with the `lang` attribute set.
-- **Render and edge cost**: each publish now touches the localized page, its siblings and per-language listings. This must stay under `maxInvalidationPaths`; the slice measures it. No new cache behaviours: languages are path prefixes in the same bucket. No bulk invalidation.
-- **Multi-tenant (Humorus)**: languages are per site config and every new key is tenant-prefixed. Satire is adaptation, not translation: Humorus stays single-language until someone decides otherwise.
-- **Site defaults**: Machines on Machines first (primary-at-root, English, Spanish then Chinese); Anth.us and the other sites unchanged until they opt in. When a scaffold command exists it writes a single-language config with the language block present and one language listed.
-- **SEO risks**: search engines accept machine translation that people have reviewed and that adds value; unreviewed bulk translation is treated as scaled low-value content. Human review before publish (already required) and self-canonical pages with correct hreflang are the protection.
+- **Console**: a Languages panel on each Story (each language: generating, published, held, updating, diverged, conflict), the correction view, conflict resolution (keep mine, take the new translation, edit), the "Only this language / All languages" choice on save, and the translations budget and backlog.
+- **CLI, MCP, skill parity** (one operation table): `papyrus stories localize`, `papyrus stories localizations`, `papyrus translations status|correct|review`, `papyrus glossary ...`. Writes by default, `--dry-run` to preview.
+- **Analytics**: GA4 `page_language` custom dimension and the `language_switch` event.
+- **Consent and ads**: the consent banner's legal text per language must be reviewed by a person before a language goes public; ad network language support checked per language.
+- **Render and edge cost**: each publish touches the localization, its siblings and per-language listings; it must stay under `maxInvalidationPaths` (measured in Slice 1). No new cache behaviours, no bulk invalidation.
+- **Multi-tenant (Humorus)**: languages are per site and every key is tenant-prefixed; satire stays single-language until decided otherwise.
+- **SEO**: search engines accept machine translation that adds value; scaled unhelpful translation is penalised. Mitigations: the fact-checking hold, correctors, self-canonical pages, hreflang only for published languages, and the countdown rule above.
 
 ### Test strategy
 
-- Narrative Gherkin for every behaviour: version model and alignment (backend), sync policies and conflicts, URL modes and hreflang (projection golden HTML), the edge redirect (CloudFront Function unit tests against `cloudfront-js` semantics), missing-language behaviour, labelling, budget pause.
-- Fixtures with Spanish, Simplified Chinese and Arabic text (accents, CJK line breaking, right-to-left), and golden HTML for one localized Story, its English twin and a localized section page.
+Narrative Gherkin for: the version model, listing keys and ids; alignment and pinning; sync policies and conflicts; the JIT procedure, hold and notification; correction and corrector permission; URL modes and hreflang (golden HTML); the switching banner (browser tests with fake timers, reduced motion, keyboard, Back, remembered choice); missing-language behaviour; labels and quotations; the budget pause. Fixtures in Spanish and Simplified Chinese, and the alignment fixtures from the spike.
 
 ## How could we screw this up? (inversion)
 
-| Failure | Prevention in this plan |
+| Failure | Prevention |
 | --- | --- |
-| Break existing English URLs or indexed pages | Primary-at-root keeps every existing URL; prefixed mode only for new sites |
-| Redirect Googlebot off the English root, or serve the wrong language from cache | Only `/` redirects; no `Accept-Language` means no redirect; redirects are `no-store`; page cache keys unchanged |
-| A machine re-translation silently overwrites a human's careful wording | Pinned human blocks; conflicts instead of overwrites; jobs drop when their source is older |
-| Approving English is taken as approving Spanish | Approval keyed by each localization's own content hash (already how the gate works) |
-| A Spanish page keeps an error the English page corrected | Stale notice plus priority re-translation |
-| Translation spend runs away during backfill | Per-site weekly budget from measured data, visible pause, changed blocks only |
-| English-only checks wave through bad Spanish | Language-aware deterministic checks, bilingual judge, target-language Humanus measured in the spike, human reader of the language |
-| Half-translated site chrome (English buttons on a Spanish page) | A language goes public only when its strings are complete and reviewed |
-| Language-to-language propagation loops | All propagation passes through the primary |
-| Per-change cost multiplies with languages | Group query is O(languages); coalesced desired state; incremental projection |
-| Chinese search silently returns nothing | Search per language with CJK tokenizing before Chinese goes public |
-| Quotes from real people change meaning in translation | Quotes marked as translated with the original beside them; "do not localize" per Story |
+| Break existing English URLs | Primary at root keeps every URL; prefixed mode only for new sites |
+| Spanish Stories appear in English listings and feeds | Listing keys carry the language, written for every row by the backfill |
+| A Chinese localization overwrites the English record | Localization ids derived from the primary lineage and language, not from the slug |
+| Search engines see translated pages redirect to English | The countdown never switches toward the primary; static pages, self-canonical, hreflang |
+| A Back-button loop between languages | `location.replace`, choice remembered |
+| A visitor is asked on every page | A remembered reading language, set only by the visitor's actions |
+| A machine silently overwrites a corrector's wording | Pinned human blocks, conflicts, stale jobs dropped (spike: 0 lost edits in 100 runs) |
+| A translation publishes a changed number or claim | Rule checks and judge before publish; hold on persistent high-severity findings |
+| Nobody ever corrects Chinese | The label says "translated by AI" until a corrector reviews; the translation notification makes subscribing one step |
+| Translation spend runs away | Translations budget per site from measured spend, visible pause |
+| A Spanish page keeps an error the English page corrected | Quiet "updating" notice and prompt JIT re-translation |
+| Chinese search returns nothing | Per-language search with CJK tokenizing before Chinese is public |
+| Quotes from real people change meaning | Marked as translated, original one tap away, "do not localize" per Story |
+
+## Spike results (2026-11-12)
+
+### PPY-063c71: published Stories per site (read-only, `papyrus stories list --stage published`)
+
+| Site | Published | Articles | Posts | Words |
+| --- | --- | --- | --- | --- |
+| Machines on Machines | 138 | 66 | 71 | 85,302 |
+| Anth.us | 120 | 119 | 0 | 145,877 |
+| Shipped | 74 | 73 | 0 | 14,679 |
+| Threat Intelligence | 19 | 18 | 0 | 7,790 |
+| Pilobolus | 11 | 10 | 0 | 15,023 |
+| Data Parade, p.apyr.us | not read (no CLI session) | | | |
+
+At the estimated $0.002 to $0.003 per 1,000 words per language, backfilling all of MoM into Spanish and Chinese is well under one dollar before reasoning tokens. Budgets will matter for the ongoing judge and repair loops and for reasoning tokens, not for the backfill itself.
+
+### PPY-1e2f29: alignment and pinning without Markus block identifiers
+
+Prototype at `spikes/multilingual/align_spike.py` (pure Python, no model). Ten real MoM Stories (195 blocks), ten scenarios each:
+- a person tweaks blocks while the source edits others;
+- the source rewrites or deletes a tweaked block;
+- the source adds, reorders, splits or merges paragraphs;
+- a person adds a local-only paragraph;
+- duplicate identical blocks;
+- no change.
+
+Result: **0 human edits silently lost in 100 runs**. Rewrites and deletions under a pinned block became conflicts, moved blocks kept their wording, and only changed blocks were re-translated. One defect found and fixed: identical blocks (two `---` rules) shared a hash and were duplicated; identity is now the hash plus the occurrence number. Remaining weakness: inserting a new copy of a repeated block before others renumbers later copies (a re-translation of a separator, harmless). Conclusion: Markus block identifiers are not needed.
+
+### PPY-d50d27: publish path review (no writes)
+
+Option B fits `publish_item` and the projection unchanged per lineage, with three required changes found by reading the code:
+- language in the listing keys;
+- derived localization ids instead of `item_id_for(section, slug)`;
+- a language filter on the seven `itemBySlug` call sites.
+
+Also, the translation trigger must be a durable record written where `announce_published` runs, because there is no stream on `Item` and `announce_published` swallows errors. Invalidation paths per publish still need measuring on a sandbox (part of Slice 1).
+
+### PPY-3f3aac: translation quality and cost: **blocked**
+
+The script is ready (`spikes/multilingual/translate_spike.py`: block-by-block GPT-6 Luna translation with glossary and protected Markus, rule checks, bilingual judge, cost per Story). The ten source Stories were read from MoM's public Markdown twins (the editor lane has no body-read command). The run could not start: the shell's `OPENAI_API_KEY` is expired (401 `expired_secret_key`), and the AWS session needed to read the site's key from SSM is expired. Offline token count: the ten Stories are 10,079 tokens, which estimates $0.0015 per Story per language for translate plus judge at list price, excluding reasoning tokens. Measured cost and real sample sentences need a valid key or `aws login`.
 
 ## First slice
 
-**Slice 1: one Spanish Story on Machines on Machines, preview only.**
+**Slice 1: one Story on MoM, Spanish, JIT, preview only.**
+- One editor-chosen published MoM Story without text-bearing figures.
+- Derive from primary; Spanish only; the full translation procedure (steps 1 to 8, with notify going to the operator list until Caducus subscriptions exist).
+- Version model B with listing keys, derived ids and the alignment attachment, on a sandbox backend.
+- `/es/articles/{slug}/` with lang, AI label, hreflang pair and self-canonical, rendered by `tools/preview_production.py` only.
+- The countdown banner on the English page in preview.
+- A correction by one of the two Spanish reviewers through the correction view, recorded and pinned.
+- Gherkin written first (PPY-9753e6) and seen to fail. No live publish.
 
-- One existing published MoM Story without text-bearing figures, chosen by an editor.
-- Derive-from-primary only. Spanish only. Started by a command (`papyrus stories localize --story X --language es`), no background trigger yet.
-- Version model B with the alignment attachment; human edits pin blocks.
-- Layered check (deterministic fidelity, bilingual judge, Spanish copy-edit) and human review recorded on the localization's checklist.
-- Projection renders `/es/{section}/{slug}` with Spanish `<html lang>`, the AI label, hreflang pair and self-canonical, on the preview tool (`tools/preview_production.py`) only. The English page gains the switcher and hreflang only in preview. No live publish, no edge redirect, no Spanish home or section pages yet.
-- Gherkin specs written first and seen to fail.
-
-Slice 2 (after Ryan sees Slice 1): Spanish public on MoM for a handful of reviewed Stories, with `/es/` home and section pages, interface strings, per-language feed and sitemap. Slice 3: background sync (M2) and budget. Then propagate-any-edit, the edge redirect, Chinese.
-
-## Spikes before the design is frozen
-
-1. **Translation quality and cost**: 10 real MoM Stories into Spanish and Simplified Chinese with GPT-6 Luna, block by block with glossary; measure tokens, cost per Story, judge and Humanus findings, and a human reviewer's time and corrections. Output: the first budget numbers and whether English Humanus checks are useful on Spanish. No publishing.
-2. **Alignment and pinning**: pure Python on fixtures: split, align, pin, re-derive after source edits (paragraph added, removed, reordered, rewritten), show conflicts. Output: whether hash-plus-position alignment is stable enough without Markus block identifiers.
-3. **Edge redirect and hreflang**: the CloudFront Function branch tested with CloudFront's function test tooling and a deployed preview stack (through the pipeline, nothing by hand): cookie, query choice, `Accept-Language` matching, no-header case, cache headers.
-4. **Version model**: the `language` and `languageGroupId` fields and the group index in a sandbox backend, with one localization published beside its primary through the real publish path; measure invalidation paths per publish.
-5. **Story counts**: how many published Stories each site has, and read counts, to size backfill and its budget (read from indexes, not scans).
+Slice 2 (after Ryan sees Slice 1 and reconfirms slugs): Spanish public on MoM for new Stories at publish, with Spanish home, section pages, interface strings, feed and sitemap, and the banner live. Slice 3: backfill MoM Spanish by traffic and stars within budget; wiki pages; reader messages. Then Chinese (after CJK search and typography), propagate-any-edit, console language.
 
 ## Order of work
 
-1. Ryan agrees this plan and answers the questions below.
-2. Spikes 1, 2 and 5 (no deploy), then 3 and 4.
-3. M1: `language` field and backfill (deploy 1), group index on `Item` (deploy 1), on `PublishedItem` (deploy 2), alignment, localization versions, provenance.
+1. Run PPY-3f3aac once a valid key exists (small spend); show Ryan sample sentences.
+2. M1 deploy 1: `language`, listing-key language, derived ids, group index on `Item`, backfill; deploy 2: `PublishedItem`.
+3. Guidelines as data P1 (or its minimal part) for the glossary and translation procedure documents.
 4. Slice 1 in preview on MoM.
-5. M4 for Spanish on MoM (Slice 2): URLs, hreflang, switcher, interface strings, labels, listings, feeds, sitemaps.
-6. M3 in full: language-aware checks, translation checklist template, glossary as data.
-7. M2: background trigger, desired state, coalescing, budget, Batch for backfill.
-8. Propagate-any-edit policy and conflicts UI.
-9. Edge redirect (opt-in on MoM; default for new prefixed sites).
-10. M5: backfill MoM Spanish by traffic and stars within budget; then Chinese after CJK search and typography.
-11. Later epics: wiki and concepts, newsletters, Alexa, right-to-left languages, reader Messages.
+5. Caducus scoped subscriptions; translation notification; corrector role and correction view.
+6. M4 for Spanish (Slice 2): URLs, hreflang, banner, interface strings, listings, feeds, sitemaps, labels.
+7. M2: desired-state trigger, worker, coalescing, translations budget.
+8. Slice 3: MoM Spanish backfill, wiki pages, reader messages.
+9. Chinese: CJK search and typography, then `zh-Hans` at `/zh/`.
+10. Propagate-any-edit and the conflict view; console language; Cyclotron English-bias settings and any relabels confirmed by the audit.
 
-## Questions for Ryan
+## Open items
 
-1. Chinese: use the language tag `zh-Hans` (Simplified) with the URL prefix `/zh/` rather than `/cn/`? Recommended: yes.
-2. Who reads and approves Spanish, and who reads and approves Chinese? Recommended: a named reviewer per language; a language without one stays preview-only.
-3. When a Story has no translation, show no page in that language and list only existing languages in the switcher? Recommended: yes, no English stand-in.
-4. When the English original is corrected, keep the translation up with a "being updated" notice and re-translate first? Recommended: yes.
-5. Default sync policy "derive from primary", "propagate any edit" as a site setting with a per-Story override, and no section override for now? Recommended: yes.
-6. Language redirect: only from the home page, off by default on MoM, never on article pages? Recommended: yes.
-7. Article addresses: translated slugs, fixed once published? Recommended: yes.
-8. When should translation start: when the English Story is published, or when an editor approves it (so both can launch together)? Recommended: on publish for now.
-9. Quotations: translate them, marked as translated, with the original wording shown beside them? Recommended: yes.
-10. Stars and Cyclotron: one rating and one prediction per Story across all its languages? Recommended: yes.
-11. Budget: a weekly translation budget per site set from the spike's measured costs, pausing visibly when reached? Recommended: yes.
-12. Out of the first rounds: Concepts Wiki, newsletters, Alexa, reader messages, the console's own language, right-to-left languages? Recommended: yes, each later as its own epic.
-
-## Board changes filed with this plan
-
-- Initiative PPY-82f150: comment linking this plan and the questions.
-- New epic: spikes before freezing the multilingual design (five tasks above).
-- New epic: Slice 1, one Spanish Story on MoM in preview, with narrative Gherkin stories, and a task to write its executable specifications first.
-- New stories under M1, M3 and M4 for the language group model, block ownership and pinning, sync policies, the translation fidelity check and checklist, URL modes and hreflang, the language redirect, and labelling.
-- Dependencies: M2, M3 and M4 blocked by M1; M5 blocked by M2, M3 and M4; M1 blocked by the spikes; Slice 1 blocked by the spikes.
+1. Slugs (tentative): confirm translated Latin-script slugs and the primary's slug for Chinese before Slice 2.
+2. Traditional Chinese audience: is a `zh-Hant` edition wanted, and when?
+3. A valid OpenAI key (or AWS sign-in) to run the quality and cost spike.
+4. An operator read of rejection notes and each Cyclotron's learned rubric to finish the English-only audit.
+5. Who reviews Chinese (nobody yet; pages will appear labelled as AI-translated).
