@@ -14,7 +14,7 @@ to the new meaning, using only what the rows recorded:
 * A Story with a version whose ``changeReason`` is ``unpublish`` lost the publish time of that version when it was taken down, so its first publication cannot be
   derived; a Story with no recorded publish at all has no evidence. Both are listed ("unclear") for a person to decide and their ``publishedAt`` is not changed.
 
-Nothing is invented. Reads: one listing of the published summaries (what every projection reads), then one ``itemsByLineageAndVersion`` read per published Story.
+Nothing is invented. Reads: the head stage index for the ``published`` stage, then one ``itemsByLineageAndVersion`` read and one PublishedItem get per published Story.
 Writes only rows that differ, each carrying its own ``updatedAt`` so no card jumps in a work queue, at most ``rate`` a second. A dry run unless ``apply``; a second
 run writes nothing.
 """
@@ -25,6 +25,8 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
+
+from .publishing import published_item_id_for
 
 DEFAULT_RATE = 5.0
 SWEEP_NAME = "stories-backfill-published-dates"
@@ -86,10 +88,17 @@ def plan_story(published: dict[str, Any], versions: list[dict[str, Any]]) -> tup
 
 
 def plan_published_dates(client: Any) -> PublishedDatesPlan:
+    """Reads the head stage index once for the ``published`` stage (one row per published Story), then each Story's versions and its PublishedItem by key."""
+    from .story_head_index import read_stage_rows
+
     plan = PublishedDatesPlan()
-    for published in sorted(client.list_published_item_summaries(), key=lambda row: str(row.get("itemLineageId"))):
+    for lineage_id in sorted({str(row["lineageId"]) for row in read_stage_rows(client, ["published"], with_key=False)}):
         plan.stories += 1
-        versions = client.list_by_index("itemsByLineageAndVersion", str(published["itemLineageId"]))
+        published = client.get_record("PublishedItem", published_item_id_for(lineage_id))
+        versions = client.list_by_index("itemsByLineageAndVersion", lineage_id)
+        if published is None:
+            plan.unclear.append({"lineageId": lineage_id, "reason": "the Story is in the published stage but has no published row", "evidence": sorted(recorded_publishes(versions))})
+            continue
         writes, unclear = plan_story(published, versions)
         plan.writes += writes
         if unclear:

@@ -136,7 +136,7 @@ def old_style_story(client, versions: list[dict], *, served_number: int, publish
             "id": row_id, "lineageId": LINEAGE, "versionNumber": index, "versionState": "superseded" if index != served_number else "current",
             "type": "article", "status": "published" if index == served_number else "draft", "slug": "dated", "section": "articles", "title": "Dated",
             "versionCreatedAt": spec.get("at"), "versionCreatedBy": spec.get("by", "Alex"), "changeReason": spec.get("reason", "edited"),
-            "updatedAt": f"2026-11-1{index}T00:00:00Z", "publishedAt": published_at if index == served_number else None,
+            "updatedAt": f"2026-11-1{index}T00:00:00Z", "stage": "published" if index == served_number else "copywriting", "publishedAt": published_at if index == served_number else None,
         }
         client.tables.setdefault("Item", {})[row_id] = row
         previous = row
