@@ -102,7 +102,8 @@ def stories_save_version(flags: list[str]) -> None:
     plan and writes nothing. Re-running is idempotent: a file whose content is already stored for the story keeps its exact
     srcPath, so the S3 key and the body reference do not change; a name that holds different content gets -2, -3 (never
     overwritten). MediaAsset rows are keyed by story VERSION (media-<version id>-<hash of srcPath>, as the editor and
-    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. The path is
+    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. A save without --images carries forward, from the earlier
+    versions, every stored picture the new body and front matter name: each image's src and srcDark and the front matter image keys (and their ...Dark twins). The path is
     media/assets/<slug>/<file> with the slug the story has when the file is first stored (a story without a slug has
     draft-unsectioned-<hash>, exactly what the editor uses). It does NOT move: publishing, set-slug and a later section
     change never rewrite media keys or body references (the body keeps the stored srcPath), so the path is stable after
