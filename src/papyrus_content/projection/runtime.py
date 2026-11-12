@@ -18,6 +18,7 @@ from .source import PublishedContentSource
 from .story_stars import star_store_from_environment
 from .writers import (
     DEFAULT_HTML_S_MAXAGE_SECONDS,
+    DEFAULT_LIVE_S_MAXAGE_SECONDS,
     FALLBACK_HTML_S_MAXAGE_SECONDS,
     CloudFrontInvalidator,
     KeyValueStoreRedirects,
@@ -34,6 +35,9 @@ EDGE_DISTRIBUTION_ENV = "PAPYRUS_EDGE_DISTRIBUTION_ID"
 REDIRECTS_KVS_ENV = "PAPYRUS_REDIRECTS_KVS_ARN"
 DEAD_LETTER_QUEUE_ENV = "PAPYRUS_PROJECTION_DLQ_URL"
 HTML_S_MAXAGE_ENV = "PAPYRUS_HTML_S_MAXAGE_SECONDS"
+LIVE_PREFIXES_ENV = "PAPYRUS_HTML_LIVE_PREFIXES"   # comma-separated site-key prefixes; the backend refuses a prefix that holds a comma
+LIVE_S_MAXAGE_ENV = "PAPYRUS_HTML_LIVE_S_MAXAGE_SECONDS"
+LIVE_PREFIX_SEPARATOR = ","
 EDGE_INVALIDATION_ENV = "PAPYRUS_EDGE_INVALIDATION"
 EDGE_INVALIDATION_OFF = "off"
 EDGE_INVALIDATION_TARGETED = "targeted"
@@ -159,6 +163,16 @@ def html_s_maxage_seconds(environment: Mapping[str, str]) -> int:
     return DEFAULT_HTML_S_MAXAGE_SECONDS if invalidation_enabled(environment) else FALLBACK_HTML_S_MAXAGE_SECONDS
 
 
+def live_prefixes(environment: Mapping[str, str]) -> tuple[str, ...]:
+    configured = environment.get(LIVE_PREFIXES_ENV) or ""
+    return tuple(prefix.strip() for prefix in configured.split(LIVE_PREFIX_SEPARATOR) if prefix.strip())
+
+
+def live_s_maxage_seconds(environment: Mapping[str, str]) -> int:
+    configured = (environment.get(LIVE_S_MAXAGE_ENV) or "").strip()
+    return int(configured) if configured else DEFAULT_LIVE_S_MAXAGE_SECONDS
+
+
 def context_from_environment(
     client: Any,
     environ: Mapping[str, str] | None = None,
@@ -187,7 +201,9 @@ def context_from_environment(
     return ProjectionContext(
         source=source,
         projector=load_projector(environment),
-        writer=S3PageWriter(bucket, s3_client, html_s_maxage_seconds(environment), output_prefix),
+        writer=S3PageWriter(
+            bucket, s3_client, html_s_maxage_seconds(environment), output_prefix, live_prefixes(environment), live_s_maxage_seconds(environment)
+        ),
         invalidate=invalidator.invalidate if invalidator else None,
         redirect_store=KeyValueStoreRedirects(kvs_arn, kvs_client) if kvs_arn else None,
         lease=lease_from_environment(environment, store_name(environment)),
