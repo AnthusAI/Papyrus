@@ -118,9 +118,8 @@ poetry run papyrus references decide-relevance --apply --doctrine <path>    # de
 ```
 
 > **Always name the doctrine with `--apply`.** `--doctrine` defaults to
-> `corpora/example-publication-doctrine.yml`, which in this repository is the
-> Threat Intelligence doctrine. A sweep for any other site that fell back to it
-> would seed that site's new cyclotron store with Threat Intelligence's mission
+> `corpora/example-publication-doctrine.yml`, which is a neutral placeholder. A sweep for any other site that fell back to it
+> would seed that site's new cyclotron store with a placeholder mission
 > (this happened to p.apyr.us). So `--apply` refuses to run without an explicit
 > `--doctrine <path>` and exits non-zero before any GraphQL write or model call.
 > The dry run keeps the default but prints which doctrine file it would use and
