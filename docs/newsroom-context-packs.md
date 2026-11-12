@@ -38,6 +38,12 @@ A site's guidelines ([guidelines as data](plans/guidelines-as-data.md)) reach an
 
 To add a signal, change the layer or the ranking it belongs to (`reference_rank` for References). To add an agent, add a profile. To add a kind of context, add a row to `LAYERS` and name it in the profiles that need it.
 
+## Site rules
+
+A site rule is a small guideline kind that belongs to the publication alone (no section layer) and that Papyrus reads instead of deciding for itself. It is saved like the other guidelines (`papyrus guidelines save --kind NAME`), versioned, stored as a catalog row plus one S3 file, and a site that has saved none gets the neutral default named below. Code: `guidelines/site_rules.py` (`register_rule_kind`, `read_rule`).
+
+- **`byline`** (PPY-804b7b): who a story may be credited to. `mode` is `honest` (the default: attribute agent work to "AI", name a human in `author` only if that person worked on it, never invent an author) or `pen-names` (with `penNames`, a non-empty list the writer picks from, and an optional `note`). It reaches the copywriter as the core `byline` layer, which says whether it is the default or the site's own version.
+
 ## Core concepts of a section
 
 An editor lists, for each section, the concepts it should be especially aware of (for example the confinement problem and the containment problem in a security section). The list is the `coreConcepts` field of the section: `{conceptLineageId, note, addedBy, addedAt}` for each concept. A site whose data API predates the field reads as having none.

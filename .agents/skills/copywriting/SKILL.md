@@ -11,7 +11,7 @@ Stories live in the publication's newsroom backend, not in Git. Resolve the
 publication and the story lineage from its configuration and live records (an
 item version id is not a lineage). Read the story's current version, its linked
 References (`papyrus stories show --story LINEAGE`), and any reporting packets.
-Do not substitute assumptions for missing reporting. Name the site when several are signed in (`papyrus --site SITE_HOST <group> <command>`). Use only documented commands and never invent a command, flag or relation name. A post has no byline: never write "By ..." or an invented author into a post.
+Do not substitute assumptions for missing reporting. Name the site when several are signed in (`papyrus --site SITE_HOST <group> <command>`). Use only documented commands and never invent a command, flag or relation name. A post has no byline: never write "By ..." into a post body.
 
 The order of the steps for a Story, and what comes next, is defined once in [docs/story-procedure.md](../../../docs/story-procedure.md); run `papyrus stories next --story LINEAGE` to see it. Every Story has a checklist made from it: record a step you skip or find not applicable with `papyrus stories step --story LINEAGE --step KEY --state skipped|not_applicable --reason "why" --agent NAME` (a skip without a reason is refused), and a review step is done only with a findings note. An open required step blocks publishing.
 
@@ -111,7 +111,7 @@ papyrus stories save-version --story LINEAGE --body-file draft.md \
 ```
 
 Then save without `--dry-run`. Every substantial change is a new version; earlier
-versions are kept. Attribute your work as "AI" and never invent human authorship.
+versions are kept. Follow the byline policy in your context pack (the default: attribute your work as "AI" and never invent human authorship).
 
 - **Record provenance on the record, not in Messages.** Messages come only from
   people. Put the context hash and source revisions in the version's change

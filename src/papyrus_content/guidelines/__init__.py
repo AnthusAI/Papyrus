@@ -3,6 +3,7 @@ from .document import GuidelineError, KindSpec, Field, Problem, digest, kind_nam
 from .layering import resolve_guidelines
 from .store import GuidelineStore
 from .writing import resolve_writing
+from . import byline as _byline  # noqa: F401  (registers the byline kind)
 
 __all__ = ["Field", "GuidelineError", "GuidelineStore", "KindSpec", "Problem", "digest", "kind_names", "kind_spec", "register_kind", "resolve_guidelines",
            "resolve_writing", "slug_for", "unregister_kind", "validate_document"]
