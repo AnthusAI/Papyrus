@@ -59,12 +59,13 @@ Raw MIME is **retained until processing completes successfully**. On success the
 
 Intake is **idempotent per S3 object**: the `Message` id is derived from the bucket/key, and re-running intake for the same MIME re-invokes the processor instead of creating duplicates.
 
-Inbound email is enabled automatically only on the legacy production Amplify `main`
-pipeline (`AWS_APP_ID=dbsyytcm9drqa`, the `productionAppId` of Papyrus's own config).
-A site built from the packages turns it on with `features.inboundEmail` in
-`papyrus.config.ts` or `PAPYRUS_ENABLE_INBOUND_EMAIL=true`; the config wins over the
-environment. Sandboxes never create SES receipt resources. Disable explicitly with
-`PAPYRUS_ENABLE_INBOUND_EMAIL=false`. How a second site coexists with the live rule
+Inbound email is off for every site unless the site turns it on, the legacy production Amplify `main`
+pipeline (the `productionAppId` of Papyrus's own config) included.
+A site turns it on with `features.inboundEmail` in `papyrus.config.ts` or
+`PAPYRUS_ENABLE_INBOUND_EMAIL=true`; the config wins over the environment. It then must also
+set `PAPYRUS_INBOUND_EMAIL_DOMAIN`, `PAPYRUS_ROUTE53_HOSTED_ZONE_ID` and
+`PAPYRUS_ROUTE53_HOSTED_ZONE_NAME`, or the build and the infrastructure synth fail naming what is
+missing. Sandboxes never create SES receipt resources. How a second site coexists with the live rule
 set is in [Backend features and account-global names](site-hosting.md#backend-features-and-account-global-names).
 
 ## DNS and SES setup

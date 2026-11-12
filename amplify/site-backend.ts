@@ -72,8 +72,8 @@ import {
   deriveReceiptRuleName,
   deriveReceiptRuleSetName,
   deriveStorageBackupVaultName,
-  isLegacyProductionPipeline,
   planInboundEmailSes,
+  assertFeaturePrerequisites,
   resolveSiteBackendFeatureFlags,
   type SiteBackendIdentity,
 } from "./site-backend-names";
@@ -107,9 +107,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     amplifyBranch,
     productionAppId,
   };
-  const isAmplifyProductionPipeline = isLegacyProductionPipeline(siteBackendIdentity);
   const knowledgeVectorIndexName = deriveKnowledgeVectorIndexName(siteBackendIdentity);
   const featureFlags = resolveSiteBackendFeatureFlags(site.features, process.env, siteBackendIdentity);
+  assertFeaturePrerequisites(featureFlags, process.env);
   const enableInboundEmail = featureFlags.inboundEmail;
   const enableSlackAgent = featureFlags.slack;
   const enableStorageBackups = featureFlags.storageBackups;
@@ -233,14 +233,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const projectRoot = resolve(amplifyBackendDir, "..");
   const enableConsoleResponder = featureFlags.consoleResponder;
 
-  if (
-    enableConsoleResponder
-    && !process.env.PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI?.trim()
-    && !process.env.PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD?.trim()
-    && !isAmplifyProductionPipeline
-  ) {
-    process.env.PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD = "true";
-  }
+  assertFeaturePrerequisites(featureFlags, process.env);
   const inboundEmailDomain = (process.env.PAPYRUS_INBOUND_EMAIL_DOMAIN ?? "p.apyr.us").trim().toLowerCase();
   const inboundEmailLocalParts = (process.env.PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS ?? "submissions,suggestions")
     .split(",")

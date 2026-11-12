@@ -34,6 +34,17 @@ assert.equal(staticConfig.reader?.domainName, "pilobol.us");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.reader.includeWww = true)), "includeWww");
 
 
+// Optional features are off unless a site turns them on, and one that is on must carry what it needs (PPY optional-features-off).
+const withEnvironment = (extra: Record<string, string>) => mutated("pilobol-us.site.json", (c) => Object.assign(c.cms.environment, extra));
+parseCmsSite(withEnvironment({ PAPYRUS_ENABLE_SLACK: "true", PAPYRUS_ENABLE_STORAGE_BACKUPS: "true" }));   // these two need nothing at synth
+assertRejects(withEnvironment({ PAPYRUS_ENABLE_CONSOLE_RESPONDER: "true" }), "PAPYRUS_ENABLE_CONSOLE_RESPONDER");
+assertRejects(withEnvironment({ PAPYRUS_ENABLE_CONSOLE_RESPONDER: "true" }), "PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI");
+parseCmsSite(withEnvironment({ PAPYRUS_ENABLE_CONSOLE_RESPONDER: "true", PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI: "123456789012.dkr.ecr.us-east-1.amazonaws.com/responder:1" }));
+parseCmsSite(withEnvironment({ PAPYRUS_ENABLE_CONSOLE_RESPONDER: "false" }));
+assertRejects(withEnvironment({ PAPYRUS_ENABLE_INBOUND_EMAIL: "true" }), "PAPYRUS_INBOUND_EMAIL_DOMAIN");
+assertRejects(withEnvironment({ PAPYRUS_ENABLE_INBOUND_EMAIL: "true", PAPYRUS_INBOUND_EMAIL_DOMAIN: "mail.example.com" }), "PAPYRUS_ROUTE53_HOSTED_ZONE_ID");
+assertRejects(withEnvironment({ PAPYRUS_ENABLE_SLACK: "yes" }), "must be the string");
+
 const awsConfig = parseCmsSite(mutated("pilobol-us.site.json", (c) => (c.aws = { profile: "papyrus-production", accountId: "123456789012", region: "us-east-1" })));
 assert.deepEqual(awsConfig.aws, { profile: "papyrus-production", accountId: "123456789012", region: "us-east-1" });
 assert.equal(staticConfig.aws?.accountId, "712236451410", "examples record their deploy account");

@@ -555,6 +555,7 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
       fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on, the Cognito domain comes from cms.cognitoDomainPrefix, the revalidation secret parameter is derived from siteId and the Prospectus endpoint comes from cms.prospectusAccountsApiStageArn and the public site origin comes from the site host");
     }
   }
+  assertOptionalFeatures(cms.environment);
   const privateChatEnabled = cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED;
   if (privateChatEnabled !== undefined && privateChatEnabled !== "true" && privateChatEnabled !== "false") {
     fail("cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED", "must be the string \"true\" or \"false\"");
@@ -665,6 +666,31 @@ function parseCi(raw: unknown, autoDeploy: boolean): CiGateConfig | undefined {
   if (typeof requireSignature !== "boolean") fail("ci.requireSignature", "must be a boolean");
   if (requireSignature) fail("ci.requireSignature", "true is not supported yet: signature verification arrives with the LeftBlock verify-ci story (PPY-466bdd)");
   return { gate: gate as CiGateConfig["gate"], statusContext, requireSignature: false };
+}
+
+/**
+ * The four optional backend features are off unless a site turns them on. A flag must be exactly "true" or "false", and a feature that is on must carry what
+ * it needs, so a missing prerequisite fails here, at synth, and not as a half-built backend: the console responder needs a prebuilt image, inbound email its
+ * own domain and hosted zone. The same rule is `assertFeaturePrerequisites` in amplify/site-backend-names.ts, which the backend build applies.
+ */
+const OPTIONAL_FEATURES: ReadonlyArray<{ flag: string; needs: readonly string[]; why: string }> = [
+  { flag: "PAPYRUS_ENABLE_CONSOLE_RESPONDER", needs: ["PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI"], why: "the console responder runs a container image that this package does not build: publish an ARM64 image to ECR and name it" },
+  { flag: "PAPYRUS_ENABLE_INBOUND_EMAIL", needs: ["PAPYRUS_INBOUND_EMAIL_DOMAIN", "PAPYRUS_ROUTE53_HOSTED_ZONE_ID", "PAPYRUS_ROUTE53_HOSTED_ZONE_NAME"], why: "inbound email receives mail for a domain of the site's own and publishes its DNS records in the site's own hosted zone" },
+  { flag: "PAPYRUS_ENABLE_SLACK", needs: [], why: "" },
+  { flag: "PAPYRUS_ENABLE_STORAGE_BACKUPS", needs: [], why: "" },
+];
+
+function assertOptionalFeatures(environment: Record<string, string>): void {
+  for (const { flag, needs, why } of OPTIONAL_FEATURES) {
+    const value = environment[flag];
+    if (value === undefined) continue;
+    if (value !== "true" && value !== "false") fail(`cms.environment.${flag}`, `must be the string "true" or "false", got ${JSON.stringify(value)}`);
+    if (value !== "true") continue;
+    const missing = needs.filter((name) => (environment[name] ?? "").trim() === "");
+    if (missing.length > 0) {
+      fail(`cms.environment.${flag}`, `is "true" but ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} missing from cms.environment: ${why}. Add ${missing.length === 1 ? "it" : "them"} or set the flag to "false"`);
+    }
+  }
 }
 
 export function parseSiteConfig(raw: unknown, environment: Record<string, string | undefined> = process.env): AmplifyAppShellSiteConfig {
