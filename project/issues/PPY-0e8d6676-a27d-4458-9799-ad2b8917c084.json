@@ -17,10 +17,17 @@
       "text": "Filed 2026-11-12 from Ryan's decision. Blocks PPY-85fdba and PPY-849bf1; the issue Story PPY-4108ef depends on it. This drops content on anth.us and Machines on Machines; see Impact and the rollout (report first, per-site switch second).",
       "created_at": "2026-11-12T13:04:33.286777Z",
       "comment_type": "default"
+    },
+    {
+      "id": "3634b138-aa29-48ef-b6db-18868d7dcc00",
+      "author": "home",
+      "text": "Ryan 2026-11-12: exception to the three-star floor. The Concepts pages (the wiki concept index and concept pages) list ALL accepted concepts, not only those at three stars or above. Concepts are accepted by editors, not star-rated like References, Posts and Articles. Add a scenario: with the floor on, a concept with no stars that an editor accepted still appears on the Concepts pages, and only on them (concept mentions elsewhere, such as related-concept links on an article, follow the same accepted rule; feeds, sitemap and notifications stay under the floor unless a concept page is itself being listed as a concept).",
+      "created_at": "2026-11-12T13:07:34.228020Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T13:02:39.475666Z",
-  "updated_at": "2026-11-12T13:04:33.287069Z",
+  "updated_at": "2026-11-12T13:07:34.228632Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
