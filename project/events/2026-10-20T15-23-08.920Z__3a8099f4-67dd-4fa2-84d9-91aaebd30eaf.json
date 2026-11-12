@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "3a8099f4-67dd-4fa2-84d9-91aaebd30eaf",
+  "issue_id": "PPY-90711b3b-4684-4782-bb7e-9d788794a373",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-20T15:23:08.920Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "assignee": {
+        "from": "dataparade-preparation",
+        "to": "claude-continuation"
+      }
+    }
+  }
+}

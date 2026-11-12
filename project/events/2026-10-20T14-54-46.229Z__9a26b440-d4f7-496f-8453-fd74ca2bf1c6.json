@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "9a26b440-d4f7-496f-8453-fd74ca2bf1c6",
+  "issue_id": "PPY-b9c2ff5e-008c-45a0-9a41-88a85d15135f",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-20T14:54:46.229Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "8c646beb-d629-4c88-8c5c-e1443fadaec9",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6",
+      "name": "dataparade-preparation"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "0f7890fb-043f-4dd9-92b0-c7d86a7efa77",
+  "issue_id": "PPY-b9c2ff5e-008c-45a0-9a41-88a85d15135f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T14:27:21.356Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Validate tenant-aware two-stage publication routing preparation",
+    "description": "Feature: Separate publication routing stages\nScenario: Prepare without editorial choices\nGiven the domain, SaaS account, publication, central grant and section criteria are not yet supplied\nWhen an operator validates a prepared site plan\nThen it remains inactive and lists unresolved fields without inventing them\nScenario: Preserve two stages and tenant provenance\nGiven distinct owner and consumer SaaS accounts and a consumer-owned section router\nWhen a matched central output is handed to section routing\nThen source revision, publication, central decision and owner/consumer identities are retained\nAnd feedback and undecided labels remain separate\nScenario: Refuse implicit tenant reuse\nGiven central owner account differs from the publication account\nWhen the internal router is bound to the central owner or the same central engine\nThen validation rejects the plan.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": "dataparade-preparation",
+    "parent": "PPY-9822fdeb-f07c-495a-a035-66f9e81f3d30",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6",
+      "name": "dataparade-preparation"
+    }
+  }
+}

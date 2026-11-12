@@ -1,0 +1,28 @@
+{
+  "id": "PPY-9822fdeb-f07c-495a-a035-66f9e81f3d30",
+  "title": "Prepare a separate publication with shared central and internal section routing",
+  "description": "Owner: dataparade-preparation. As a publication operator I want a new separately owned SaaS publication that receives its central match from an owner-authorized shared Cyclotron and assigns sections using its own integrated Cyclotron. Keep the original four-output central priming independent. Prepare config/code/synthetic tests; never infer actual SaaS account, perspective, domain, criteria, taxonomy or labels. Domain and criteria will be supplied later today. Existing Data Parade product/landing websites and local pod are not authority to replace or migrate them. Deployment, DNS, identity registration and sharing grants require exact scope approval.",
+  "type": "epic",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": "dataparade-preparation",
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T14:27:20.172281Z",
+  "updated_at": "2026-10-20T14:27:20.642856Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6",
+    "name": "dataparade-preparation"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
