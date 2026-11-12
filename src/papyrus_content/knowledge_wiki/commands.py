@@ -6,7 +6,6 @@ import json
 import sys
 from collections import Counter
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from ..graphql_authoring import create_authoring_client
@@ -14,6 +13,7 @@ from ..machine_writes import RETIRED_STAGE
 from ..knowledge_snapshot.commands import announce_backend, load_knowledge_data, select_backend
 from ..knowledge_snapshot.keys import slug
 from ..knowledge_snapshot.loaders import CURRENT, beats_from_categories
+from ..tenancy import require_tenant_for_tenanted_rows, tenant_id_from_options
 from ..options import normalize_string, parse_comma_list, parse_options
 from ..projection_trigger import retry_command
 from ..publish_commands import DEFAULT_ACTOR, run_site_triggers
@@ -86,12 +86,6 @@ def _category_context(client: Any, options: dict[str, Any], data) -> tuple[list[
     return rows, {key: text for key, text in descriptions.items() if text}, children
 
 
-def _retired_entry(page) -> dict[str, Any]:
-    front = front_matter_of({"metadata": {"frontMatterYaml": page.front_matter_yaml}})
-    kind = "entity" if front.get("entityKey") else (front.get("topicKind") or "topic")
-    return {"section": page.section, "slug": page.slug, "kind": kind, "live": page.live, "title": front.get("title"), "entityKind": front.get("kind")}
-
-
 def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int], run_id: str | None = None) -> None:
     if as_json:
         print(
@@ -107,7 +101,6 @@ def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int], run_i
                         }
                         for page in plan.pages
                     ],
-                    "retired": [_retired_entry(page) for page in plan.retired],
                     "warnings": list(plan.warnings),
                     "written": written,
                 },
@@ -121,8 +114,6 @@ def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int], run_i
         if page.action != UNCHANGED:
             note = f"\t{page.note}" if page.note else ""
             print(f"knowledge\twiki-sync\t{page.action}\t{page.spec.kind}\t{page.section}/{page.spec.slug}{note}")
-    for page in plan.retired:
-        print(f"knowledge\twiki-sync\tretire\t{page.section}/{page.slug}\t{'live: taken down' if page.live else 'draft: marked'}")
     for name, count in plan.counts.items():
         print(f"knowledge\twiki-sync\tplan\t{name}\t{count}")
     for warning in plan.warnings:
@@ -135,7 +126,6 @@ def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int], run_i
 def knowledge_wiki_sync(flags: list[str]) -> None:
     options = parse_options(flags)
     public_kinds = public_kinds_of(options)
-    retire = options.get("retire") is True
     apply = options.get("apply") is True
     section = normalize_string(options.get("section")) or DEFAULT_WIKI_SECTION
     topics_section = normalize_string(options.get("topics-section")) or DEFAULT_TOPICS_SECTION
@@ -148,12 +138,13 @@ def knowledge_wiki_sync(flags: list[str]) -> None:
     )
     run_id = normalize_string(options.get("run-id")) or (f"wiki-sync-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}" if apply else None)
     select_backend(options)
-    client, claims = create_authoring_client()
+    client, claims = create_authoring_client(tenant_id_from_options(options))
     announce_backend()
     if apply:
         print(f"knowledge\twiki-sync\trun\t{run_id}\tundo with `papyrus knowledge run undo --run-id {run_id}`", file=sys.stderr)
     data = load_knowledge_data(client, _NoPages(), options)
     rows = client.list_records("Item")
+    require_tenant_for_tenanted_rows(client.tenant_id, rows)
     specs = entity_specs(data, wiki_lineages(rows, section), public_kinds)
     section_of = {KIND_ENTITY: section}
     if with_topics:
@@ -161,15 +152,10 @@ def knowledge_wiki_sync(flags: list[str]) -> None:
         specs += topic_specs(data, wiki_lineages(rows, topics_section), topic_options, descriptions=descriptions, subtopics_of=children)
         section_of |= {KIND_BEAT: topics_section, KIND_SUBTOPIC: topics_section}
     lineages = {lineage for name in set(section_of.values()) for lineage in wiki_lineages(rows, name)}
-    plan = plan_sync(specs, section_of, rows, live_sources(client, lineages), retire=retire)
+    plan = plan_sync(specs, section_of, rows, live_sources(client, lineages))
     written: dict[str, int] = {}
     if apply:
         written = apply_plan(client, plan, actor=normalize_string((claims or {}).get("sub")) or SYNC_ACTOR, run_id=run_id)
-        taken_down = normalize_string(options.get("retired-out"))
-        if taken_down:  # the pages the projection must remove: the source items that were live
-            target = Path(taken_down)  # a retry of the same run keeps what an earlier attempt took down
-            earlier = set(json.loads(target.read_text(encoding="utf-8"))) if target.exists() else set()
-            target.write_text(json.dumps(sorted(earlier | {page.live_item_id for page in plan.retired if page.live_item_id})) + "\n", encoding="utf-8")
     _print_plan(plan, apply, bool(options.get("json")), written, run_id)
 
 
@@ -214,10 +200,11 @@ def knowledge_wiki_publish(flags: list[str]) -> None:
     review = review_mapping(actor, name, on)
     section = normalize_string(options.get("section"))
     select_backend(options)
-    client, claims = create_authoring_client()
+    client, claims = create_authoring_client(tenant_id_from_options(options))
     announce_backend()
     who = normalize_string((claims or {}).get("sub")) or DEFAULT_ACTOR
     rows = client.list_records("Item")
+    require_tenant_for_tenanted_rows(client.tenant_id, rows)
     if identifier:
         targets = [_find_target(rows, identifier, section)]
     else:
