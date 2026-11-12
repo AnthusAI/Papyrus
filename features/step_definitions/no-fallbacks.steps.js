@@ -12,10 +12,13 @@ const run = async () => {
 };
 
 Given("the console chat client source", function () {});
+Given("the content repository source", function () {});
 for (const when of [
   "it is read for schema probing and reduced-field queries",
   "it is read for how it authorizes a request",
   "it is read for how it handles a failed thread or message operation",
+  "it is read for how it finds the newest published editions",
+  "it is read for how it treats a layout block whose item did not load",
 ]) When(when, function () {});
 
 // Each outcome is one test in scripts/test-no-fallbacks.ts.
@@ -23,5 +26,7 @@ const outcomes = [
   ["it runs no introspection query, keeps no legacy field set, and names every field of the message and thread queries once", /✔ console chat client: no schema probing/],
   ["every request uses the signed-in editor's credential and there is no retry under the public key", /✔ console chat client: one credential/],
   ["a failed create, update or list raises the backend's error and no thread is made up from messages or from the input", /✔ console chat client: failures are raised/],
+  ["it asks the published-at index directly and never checks whether the index exists or falls back to the edition-date index", /✔ content repository: one edition index/],
+  ["the plan is validated as written, no block is dropped with a warning, and no invented fallback image exists", /✔ content repository: a layout plan is validated as written/],
 ];
 for (const [then, pattern] of outcomes) Then(then, async function () { assert.match(await run(), pattern); });

@@ -22,11 +22,11 @@ decision is his; blank means left alone (class d).
 | 2 | lib/console-chat-client.ts (old :291-317, :1097-1131) | Every read retried under `apiKey` after a `userPool` failure | b | userPool only (Message and MessageThread grant no public key) | low | console shell | PR 1 |
 | 3 | lib/console-chat-client.ts (old :486-504, :523-571, :904-1005) | A failed thread list derives threads from messages; failed `createMessageThread` returns the input as if saved; failed `updateMessageThread` invents a thread; `isUnavailableQueryError` treats "unauthorized" as "schema missing" | b | Raise the backend error | low | console shell | PR 1 |
 | 4 | lib/console-chat-client.ts (old :510-521) | If no message has a thread id, every message is shown in every thread | b | Query `listMessagesByThreadAndSequence` for the thread | low | console shell | PR 1 |
-| 5 | lib/console-chat-client.ts (old :659-670), components/topic-steering-workspace.tsx:1502,1507 | `typeof model.onCreate !== "function"` returns a no-op subscription / "model unavailable" | b | Delete the probe; a missing model throws | low | topic steering workspace, console shell | PR 1 (console), PR 2 (steering) |
-| 6 | lib/graphql-content-repository.ts:564 | `typeof editionModel.listPublishedEditionsByStatusAndPublishedAt === "function"` else the editionDate index | b | Use the deployed index (schema.ts) | low | every reader | PR 2 |
+| 5 | lib/console-chat-client.ts (old :659-670), components/topic-steering-workspace.tsx:1502,1507,1582-1587 | `typeof model.onCreate !== "function"` returns a no-op subscription / "model unavailable". In the steering workspace the probe is not harmless: `SemanticRelation` is `modelWithoutSubscriptions`, so the probe always trips and References realtime never starts on any site | b | Console: delete the probe. Steering: delete the whole realtime effect, or make SemanticRelation realtime (against the avoid-AppSync-realtime rule); removing only the probe would loop reconnects | low for the console; the steering workspace is different, see below | topic steering workspace, console shell | PR 1 (console); steering is Ryan's decision |
+| 6 | lib/graphql-content-repository.ts:564 | `typeof editionModel.listPublishedEditionsByStatusAndPublishedAt === "function"` else the editionDate index | b | Use the deployed index (schema.ts); the drafts source maps the same query to its edition-date index explicitly | low | every reader | PR 2 |
 | 7 | lib/graphql-content-repository.ts:460-492 | `pruneLayoutPlanUnavailableItems` drops plan blocks whose items did not load and only warns | b | Throw: a missing plan item is a publishing error (AGENTS.md) | medium: a plan that points at an unpublished item now fails the build instead of rendering without it | every publication build | PR 2 |
 | 8 | lib/graphql-content-repository.ts:1174 | `getFallbackImage` ("Fallback editorial image.", credit "Fallback image"), no callers | a | Delete | none | none | PR 2 |
-| 9 | src/papyrus_newsroom/reference_curation_signals.py:2749-2759 | Catches `FieldUndefined` for `listReferencesByNewsroomFeedAndImportedAt`, falls back to `list_references_by_corpus` | b | Call the index; let a mismatch raise | low | newsroom CLI | PR 3 |
+| 9 | src/papyrus_newsroom/reference_curation_signals.py:2749-2759 | Catches `FieldUndefined` for `listReferencesByNewsroomFeedAndImportedAt`, falls back to `list_references_by_corpus` | b | Call the index; let a mismatch raise; an empty feed is an empty list, not a corpus scan | low: new References carry `newsroomFeedKey: references` | newsroom CLI | PR 2 |
 | 10 | components/news-desk-taxonomy-client.ts:2285-2345, :319-330, :2360-2420 | Reference page loader: imported-feed query, on failure or empty a "legacy feed" query, then a table-scan `listReferences` fallback with client-side sort; empty indexed result silently triggers the next | b | Keep the indexed loaders (imported feed, status index, merged status page); delete the legacy-feed and table-scan loaders | medium: a corpus whose rows lack the index keys now shows empty instead of a slow scan; also removes an O(N) read (indexes-over-scans rule) | news desk reference list in every site | PR 4 |
 | 11 | components/news-desk-taxonomy-client.ts:1022 | `loadDashboardSlice` logs and substitutes an empty slice when a dashboard query fails | b | Fail the slice with a visible error | medium: the dashboard shows an error state instead of partial numbers | news desk dashboard | listed; PR 5 if time |
 | 12 | lib/story-stage-query.ts:10-30 | Board column reads the `stage` index "for a site whose backend has no head stage index, or whose index is not filled yet" | b | Head index only | medium: needs the head backfill done on every site first | news board on every site | Ryan (confirm backfill) |
@@ -72,6 +72,10 @@ decision is his; blank means left alone (class d).
 | 52 | lib/prospectus-publication-access.ts:7, src/papyrus_content/prospectus_publication_access.py:4 | "For now every member gets their role's capabilities on all publications" | b | Real per-publication grants (Prospectus work, not a removal) | n/a | | Ryan |
 | 53 | tempfile / TemporaryDirectory / `.queue-` temp files across src (about 30 lines) | Scratch files | d | | | | d |
 | 54 | `deprecated` category status (categories_commands.py, news-desk-taxonomy-client.ts, topic-steering-workspace.tsx) | A category lifecycle state | d | | | | d |
+| 55 | src/papyrus_content/records.py:31 | `FieldUndefined` for a model's list/get field is treated as "model not deployed" and answered with an empty result | b | Raise | medium: sites on an older backend | record readers | listed |
+| 56 | src/papyrus_content/graphql_authoring.py:755,1240 | `NEWER_REFERENCE_FIELDS`: retries a Reference query without fields the backend lacks | b | One query; deploy the fields | medium: released sites on older backends | every CLI call on References | Ryan |
+| 57 | src/papyrus_content/references_thumbnails.py:212, references_transcripts.py:290 | A `FieldUndefined` error means "skip this step" | b | Raise | low | thumbnail and transcript steps | listed |
+| 58 | src/papyrus_content/story_reporting.py:492 | `setStoryReferenceRole` missing on the backend is answered with a client-side substitute | b | Raise | medium | story reporting | listed |
 
 ## Counts
 
@@ -80,21 +84,20 @@ Rows by class (a cluster counts once; rows 32 and 40 are split b/d and b/c and c
 | class | rows | which |
 |---|---|---|
 | a dead or unreachable | 1 | 8 |
-| b silent substitute | 25 | 1-7, 9-13, 23-26, 29, 32, 34-36, 40, 43, 51, 52 |
+| b silent substitute | 29 | 1-7, 9-13, 23-26, 29, 32, 34-36, 40, 43, 51, 52, 55-58 |
 | c compatibility alias, live callers or data | 14 | 14-19, 21, 27, 28, 30, 31, 37, 42, 44 |
 | d legitimate | 14 | 20, 22, 33, 38, 39, 41, 45-50, 53, 54 |
 
-The 1,311 raw lines reduce to these 54 clusters; about 900 of them fall in class d clusters (temporary files, `deprecated` status,
+The 1,311 raw lines reduce to these 58 clusters; about 900 of them fall in class d clusters (temporary files, `deprecated` status,
 layout penalties, font stacks, migration tooling, tests' own vocabulary).
 
 ## Removal order
 
-1. PR 1 (this one): console chat client (rows 1-5 console part).
-2. PR 2: lib/graphql-content-repository.ts shims and the dead image (rows 5 steering part, 6-8).
-3. PR 3: the Python `FieldUndefined` fallback (row 9).
-4. PR 4: the Reference page loader chain (row 10).
-5. PR 5: small aliases with every caller in this repo (rows 17-19).
-6. PR 6: Python substitutes (rows 25, 35, 36).
+1. PR 1: console chat client (rows 1-4, 5 console part), this audit, the Gherkin feature.
+2. PR 2: lib/graphql-content-repository.ts shims and the dead image (rows 6-8), the Python `FieldUndefined` fallback (row 9).
+3. PR 3: the Reference page loader chain (row 10).
+4. PR 4: small aliases whose callers are all in this repo (rows 17-19) and Python substitutes (rows 25, 35, 36).
 
-Class c rows 14-16, 21, 27, 30, 37, 42, 44 and class b rows 12, 43, 52 need Ryan's decision because a released site or stored
-data still depends on them; they are listed, not removed.
+Needs Ryan (a released site, stored data or a design question depends on it, so it is listed, not removed): rows 5 (steering
+realtime), 12, 14-16, 21, 27, 30, 37, 42-44, 52, 56. Rows 11, 13, 23, 24, 26, 29, 32, 34, 40, 51, 55, 57, 58 are removable but
+each changes what an editor sees when something is broken; they are queued behind the four PRs above.
