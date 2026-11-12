@@ -50,7 +50,7 @@ test("news desk client: References come from their indexes", () => {
   assert.match(client, /if \(order === "imported"\) return loadReferencePageByImportedFeed\(options\);/);
 });
 
-const inboundEnvironment = {
+const inboundEnvironment: Record<string, string> = {
   PAPYRUS_INBOUND_EMAIL_DOMAIN: "Mail.Example.org",
   PAPYRUS_INBOUND_EMAIL_CORPUS_KEY: "example-corpus",
   PAPYRUS_PUBLIC_SITE_BASE_URL: "https://example.org",
