@@ -1,0 +1,20 @@
+{
+  "id": "PPY-156614d5-c0b6-4f4e-a1c5-70873a94b1b3",
+  "title": "Publication transparency: published and updated dates and a public revision history",
+  "description": "Make publishing honest about time and change, for any Papyrus publication, proven first on Machines on Machines (openness and transparency is its brand).\n\nDesign: docs/plans/revision-history-and-published-dates.md (plan PR into develop).\n\n- **Dates.** `publishedAt` exists and is indexed, but today it means \"when the version now served was published\": every new version is saved with `publishedAt: null` and publishing it stamps the current time. So a republished article jumps back to the top of every list, lands in \"this week\" again, and shows its republish date as its publication date, with `dateModified` equal to it. Live proof: the MoM containment article, live by 4 November, now says `datePublished: 2026-11-11` and `dateModified: 2026-11-11`. The fix is at the cause: `publishedAt` becomes the time the Story was first published and is carried to every later version, and a new field `versionPublishedAt` records when the version now served went live. Public \"Updated\" is `versionPublishedAt`. No new index is needed: the two existing `publishedAt` indexes become right once the value is.\n- **Version descriptions.** Versions carry `versionCreatedAt`, `versionCreatedBy` and `changeReason`, but publishing and unpublishing overwrite all three on the published row (`changeReason` becomes `\"publish\"`), so the editor's \"What changed in this version\" text is lost at the moment it matters. `changeReason` is also mostly machine codes (`copywriting-assignment-run`, `created`). It stays internal. Publishing stops overwriting version fields.\n- **Editor's notes.** One new Message kind, `revision_note`, on the Story's existing reporting thread (anchored to the Story lineage). Writing one is the act of making it public. Its text is a Message body in S3. No new table and no new index.\n- **Revision history.** Published versions plus revision notes, merged by time, kept as one small JSON file per Story in the site store, written once when that Story is published or gets a note, and drawn at the foot of the article in a native `<details>` element, closed by default. A per-publication setting, off by default, on for MoM.\n\nRules: no new table, no new index, no subscriptions, no whole-table reads, text in S3, narrative Gherkin per behaviour, Lucide icons, no 'edited by AI' labels (who or what made a change appears only as the entry's actor).\n\nStories, in order: dates fix (1), public dates (2), revision notes record and tools (3, parallel with 1), automatic notes (4), combined history projection and page (5), publication setting and MoM rollout with a preview on real data (6), p.apyr.us page (7).",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T17:36:11.158672Z",
+  "updated_at": "2026-11-12T17:36:11.159033Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

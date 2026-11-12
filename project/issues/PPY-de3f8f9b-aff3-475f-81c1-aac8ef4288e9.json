@@ -1,0 +1,20 @@
+{
+  "id": "PPY-de3f8f9b-aff3-475f-81c1-aac8ef4288e9",
+  "title": "Public dates: Published and Updated on pages, feeds, structured data, sitemap and Markdown",
+  "description": "Part of the publication transparency epic. Design: docs/plans/revision-history-and-published-dates.md (story 2).\n\nDepends on: 1.\n\n```gherkin\nFeature: Readers see when a page was published and when it last changed\n  Scenario: A revised article shows both dates\n    Given an article first published on 4 November and last revised on 11 November\n    When a reader opens it\n    Then the header says \"Published 4 Nov 2026 · Updated 11 Nov 2026\"\n    And its structured data says it was published on 4 November and modified on 11 November\n\n  Scenario: An article revised the same day shows one date\n    Given an article published and revised on 4 November\n    When a reader opens it\n    Then the header says only \"Published 4 Nov 2026\"\n\n  Scenario: Cards show only the publication date\n    When a reader opens the home page\n    Then each card shows the date its Story was first published\n\n  Scenario: Feeds and the sitemap carry both times\n    Then the Atom entry is published on 4 November and updated on 11 November\n    And the RSS item's date is 4 November\n    And the sitemap's last change for the page is 11 November\n\n  Scenario: The Markdown copy carries both dates\n    Then the Markdown copy says \"Published 2026-11-04 · Updated 2026-11-11\"\n```\n\nOpen question: none.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-156614d5-c0b6-4f4e-a1c5-70873a94b1b3",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T17:36:11.460519Z",
+  "updated_at": "2026-11-12T17:36:11.460568Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

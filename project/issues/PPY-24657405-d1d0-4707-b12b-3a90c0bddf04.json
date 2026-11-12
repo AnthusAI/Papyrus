@@ -1,0 +1,20 @@
+{
+  "id": "PPY-24657405-d1d0-4707-b12b-3a90c0bddf04",
+  "title": "Automatic revision notes for section, source, link and concept changes, takedowns and merges",
+  "description": "Part of the publication transparency epic. Design: docs/plans/revision-history-and-published-dates.md (story 4).\n\nDepends on: 3.\n\n```gherkin\nFeature: Changes readers can see on a page are noted without a person writing it\n  Scenario: Moving a published Story to another section\n    Given a published Story in Research\n    When an editor moves it to Security\n    Then its revision history gains \"Moved from Research to Security\" by that editor\n\n  Scenario: Adding a cited source names it\n    When a cited Reference \"A paper on agent memory\" is added to a published Story\n    Then the revision history gains \"Added a source: A paper on agent memory\", linked\n\n  Scenario: One pass that adds several links writes one note\n    When an association review links three related articles to a published Story at once\n    Then the revision history gains one note naming the three articles\n\n  Scenario: Private changes write nothing\n    When a Reference is added as consulted only, or the Story is rated, or its page is rebuilt\n    Then the revision history does not change\n\n  Scenario: Drafts are not noted\n    Given a Story that has never been published\n    When its section changes\n    Then no revision note is written\n\n  Scenario: A takedown needs a reason\n    When an editor takes down a published Story without a reason\n    Then the takedown is refused and asks for the reason\n\n  Scenario: Merging a Story is noted on the Story it joined\n    When a published Story is retired into another Story\n    Then the other Story's revision history gains \"Merged <title> into this article\" with the reason\n```\n\nOpen question: none.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-156614d5-c0b6-4f4e-a1c5-70873a94b1b3",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T17:36:11.760142Z",
+  "updated_at": "2026-11-12T17:36:11.760171Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
