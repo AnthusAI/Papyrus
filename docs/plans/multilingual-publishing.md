@@ -389,9 +389,56 @@ Option B fits `publish_item` and the projection unchanged per lineage, with thre
 
 Also, the translation trigger must be a durable record written where `announce_published` runs, because there is no stream on `Item` and `announce_published` swallows errors. Invalidation paths per publish still need measuring on a sandbox (part of Slice 1).
 
-### PPY-3f3aac: translation quality and cost: **blocked**
+### PPY-3f3aac: translation quality and cost (measured 2026-11-12)
 
-The script is ready (`spikes/multilingual/translate_spike.py`: block-by-block GPT-6 Luna translation with glossary and protected Markus, rule checks, bilingual judge, cost per Story). The ten source Stories were read from MoM's public Markdown twins (the editor lane has no body-read command). The run could not start: the shell's `OPENAI_API_KEY` is expired (401 `expired_secret_key`), and the AWS session needed to read the site's key from SSM is expired. Offline token count: the ten Stories are 10,079 tokens, which estimates $0.0015 per Story per language for translate plus judge at list price, excluding reasoning tokens. Measured cost and real sample sentences need a valid key or `aws login`.
+Script: `spikes/multilingual/translate_spike.py`. GPT-6 Luna translated each Story block by block, with a glossary, protected Markus and quotation markers; then the rule checks and a bilingual GPT-6 Luna judge ran. Inputs were ten MoM Stories (six articles, four posts) read from the public Markdown twins, because the editor lane has no command that reads a body. Translated into Spanish and Simplified Chinese. Nothing was written to any backend.
+
+**Cost**:
+- Total: **$0.047** for 20 translations, translation plus judge.
+- Per Story per language: $0.0008 to $0.0063, average **$0.0024**, about $0.0027 per 1,000 words.
+- Output tokens (74k against 101k input) include the model's reasoning.
+- Translating all of MoM (85k words) into both languages: about **$0.46**.
+- Budgets matter only for repair loops and runaway retries, not for volume.
+
+**Quality**:
+- Judge scores: fluency 4/5 and fidelity 4 to 5/5 for nearly every Story; one Chinese post scored fluency 3.
+- Judge findings: 0 high, 25 medium, 51 low.
+- No changed facts. The medium findings are meaning nuances and formatting.
+
+**Defects the spike found, and their fixes (prompt and checks, not workarounds):**
+1. **Number formats.** The prompt said "convert nothing", so Spanish kept English separators (`1,250 entrevistas` reads as 1.25 in Spain) and Chinese left English unit words (`低 68 percent`, `约 50 million`). Fix: localize number and unit formatting per language (CLDR); the rule check compares the normalised values.
+2. **Rule-check false positives in Chinese.** Nine of the ten Chinese "number" findings were dates rendered with digits (`December 2025` became `2025年12月`). Fix: date-aware, language-aware number comparison.
+3. **Gender and number of neutral words.** `parent` became `padre`/`madre` in Spanish and `父母` ("both parents") in Chinese. `one professor's classroom` became the masculine `un profesor` for a woman named earlier. `credential` became plural. Fix: a glossary and guideline note on neutral terms, and the judge already catches these.
+4. **Quotation marker placement.** In Chinese, the marker landed inside the quote and duplicated the attribution (`“我还没看过 UI 代码，”[译文] 他写道。`). Fix: the marker becomes Markus markup added by the renderer, not text the model writes.
+5. **Markup.** One Chinese citation gained a space (`[ @floorplan; …]`), which the rule check caught. Repair or hold handles it.
+6. **Term choice.** `abliteration` became `消融` (that is "ablation"); `disclosure` became `泄露` ("leak", more negative than the original); `soundtrack` became `配乐` ("music score"). These are glossary candidates for correctors.
+
+**Samples for Ryan to judge** (source → translation; ✓ = judge and I find no problem):
+
+| Language | Source | Translation | Note |
+| --- | --- | --- | --- |
+| es | The sound that can give away where you live | El sonido que puede revelar dónde vives | ✓ |
+| es | An anonymous leak, a plane overhead and a company employee list show how the boundary between sharing and disclosure is moving. | Una filtración anónima, un avión que pasa por encima y la lista de empleados de una empresa muestran cómo se está desplazando el límite entre compartir y revelar. | ✓ |
+| es | She checks the screen for her reflection. She checks the frame for a window. | Mira la pantalla para comprobar si se refleja. Revisa el encuadre para ver si aparece una ventana. | ✓ natural |
+| es | The original Transformer was built to translate sentences | El Transformer original se diseñó para traducir oraciones | ✓ |
+| es | …involved in police-reportable crashes… | …tuvieron choques que debían reportarse a la policía… | ✗ implies a legal duty ("had to be reported") |
+| es | Anthropic released 1,250 interviews | Anthropic publicó 1,250 entrevistas | ✗ number format (should be 1250 or 1.250) |
+| es | Tom is Ann's parent, that Ann is Joe's parent… | Tom es el padre de Ann, que Ann es la madre de Joe… | ✗ invented genders |
+| es | The open question is how much a refusal edit changes either one. | La pregunta pendiente es cuánto cambia cada uno una edición para eliminar rechazos. | ✗ garbled subject |
+| zh-Hans | The sound that can give away where you live | 能泄露你住在哪里的声音 | ✓ |
+| zh-Hans | Waymo's driverless cars crashed 68% less often than human drivers in four cities | Waymo 无人驾驶汽车在四座城市的碰撞率比人类驾驶员低 68% | ✓ |
+| zh-Hans | She checks the screen for her reflection… Then she films the demonstration… | 她检查屏幕，看看能不能映出自己的倒影……然后，她拍下工作笔记本电脑上播放的演示视频，并用一个新账号发布了视频。 | ✓ natural |
+| zh-Hans | The original Transformer puts an encoder on the left and a decoder on the right. (alt text) | 最初的 Transformer 左侧是编码器，右侧是解码器。 | ✓ |
+| zh-Hans | …at a rate 68 percent lower per mile… about 50 million miles | …比人类驾驶员低 68 percent……约 50 million m… | ✗ English unit words left in |
+| zh-Hans | the boundary between sharing and disclosure | 分享与泄露之间的界限 | ✗ "leak" instead of "disclosure" (披露) |
+| zh-Hans | The edits are often called abliteration. | 这类改动通常称为消融（abliteration）。 | ✗ 消融 means "ablation" |
+| zh-Hans | “I still haven't looked at the UI code,” he wrote. | 他写道：“我还没看过 UI 代码，”[译文] 他写道。 | ✗ marker inside the quote, attribution duplicated |
+
+**Conclusions:**
+- GPT-6 Luna is good enough to publish JIT behind the layered checks once fixes 1, 2 and 4 are made.
+- Its remaining errors are the kind a corrector fixes in seconds and a glossary prevents next time.
+- The judge is worth its cost: it found every defect above, except the separator errors it rated medium.
+- Humanus target-language checks were not run in this spike. The English packs need Spanish and Chinese policies first.
 
 ## First slice
 
@@ -408,7 +455,7 @@ Slice 2 (after Ryan sees Slice 1 and reconfirms slugs): Spanish public on MoM fo
 
 ## Order of work
 
-1. Run PPY-3f3aac once a valid key exists (small spend); show Ryan sample sentences.
+1. Fold the PPY-3f3aac fixes into the procedure design: localized number formats, date-aware rule checks, renderer-added quotation markers, a neutral-terms note in the glossary.
 2. M1 deploy 1: `language`, listing-key language, derived ids, group index on `Item`, backfill; deploy 2: `PublishedItem`.
 3. Guidelines as data P1 (or its minimal part) for the glossary and translation procedure documents.
 4. Slice 1 in preview on MoM.
@@ -423,6 +470,6 @@ Slice 2 (after Ryan sees Slice 1 and reconfirms slugs): Spanish public on MoM fo
 
 1. Slugs (tentative): confirm translated Latin-script slugs and the primary's slug for Chinese before Slice 2.
 2. Traditional Chinese audience: is a `zh-Hant` edition wanted, and when?
-3. A valid OpenAI key (or AWS sign-in) to run the quality and cost spike.
+3. Ryan's verdict on the translation samples in the PPY-3f3aac results.
 4. An operator read of rejection notes and each Cyclotron's learned rubric to finish the English-only audit.
 5. Who reviews Chinese (nobody yet; pages will appear labelled as AI-translated).
