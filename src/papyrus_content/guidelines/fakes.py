@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from papyrus_content.upload_rules_fake import assert_upload_accepted
+from papyrus_content.upload_rules_fake import assert_owner_exists, assert_upload_accepted
 
 
 class FakePolicies:
@@ -75,6 +75,8 @@ class FakeFiles:
 
     def put(self, attachment: dict, body: bytes) -> dict:
         assert_upload_accepted(attachment)
+        assert_owner_exists(attachment, self.backend.items)
+        self.backend.attachments = [row for row in self.backend.attachments if row["id"] != attachment["id"]]   # the same slot again replaces its row
         self.backend.attachments.append(copy.deepcopy(attachment))
         self.backend.bodies[attachment["storagePath"]] = bytes(body)
         return attachment
