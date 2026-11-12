@@ -76,3 +76,35 @@ def _fails(context):
 @then("the corpus index was not read for the import-date listing")
 def _no_corpus(context):
     assert not any(signals.LIST_REFERENCES_BY_CORPUS_QUERY == query for query in held(context).queries), "the corpus index was read"
+
+
+@given("only an old unprefixed Slack bot token is set in the environment")
+def _old_slack_token(context):
+    state = held(context)
+    patcher = mock.patch.dict("os.environ", {"SLACK_BOT_TOKEN": "xoxb-old-name"}, clear=False)
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+    removal = mock.patch.dict("os.environ", {}, clear=False)
+    removal.start()
+    context.add_cleanup(removal.stop)
+    import os
+
+    os.environ.pop("PAPYRUS_SLACK_BOT_TOKEN", None)
+    os.environ.pop("AMPLIFY_SSM_ENV_CONFIG", None)
+    state.queries = []
+
+
+@when("the Slack agent calls the Slack API")
+def _slack_call(context):
+    from papyrus_newsroom import slack_agent
+
+    state = held(context)
+    try:
+        slack_agent.slack_api_request("chat.postMessage", {})
+    except Exception as error:
+        state.error = error
+
+
+@then("the call is refused and the error names PAPYRUS_SLACK_BOT_TOKEN")
+def _slack_refused(context):
+    assert held(context).error is not None and "PAPYRUS_SLACK_BOT_TOKEN" in str(held(context).error)
