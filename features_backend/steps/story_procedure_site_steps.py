@@ -124,3 +124,29 @@ def step_publish_refused(context):
         assert "could not be read" in str(error), str(error)
         return
     raise AssertionError("the Story was published")
+
+
+@when("the monitor files an idea")
+def step_files_idea(context):
+    from papyrus_content.ideas.items import file_idea_item
+
+    draft = {"ideaId": "idea-1", "title": "A router picks the model", "angle": "A router picks the model.", "body": "A new family of routers decides which model answers.\n",
+             "section": "Articles", "origin": "monitor", "runId": "run-1", "monitorId": "hn", "targets": [], "evidence": {"signals": 1}, "citedItems": []}
+    try:
+        context.filed = file_idea_item(client_of(context), draft, now="2026-11-11T10:00:00Z")
+        context.refusal = None
+    except Exception as error:  # noqa: BLE001 - the step records whatever stopped the filing
+        context.refusal = str(error)
+
+
+@then('filing the idea stopped saying "{text}"')
+def step_filing_stopped(context, text):
+    assert context.refusal and text in context.refusal, context.refusal
+
+
+@then("the filed idea has {count:d} checklist items")
+def step_filed_count(context, count):
+    from papyrus_content.story_checklist import read_steps
+
+    assert context.refusal is None, context.refusal
+    assert len(read_steps(client_of(context), context.filed["lineageId"])) == count

@@ -152,9 +152,9 @@ def _checklist_for_new_content_item(client, new_content_item_version: dict[str, 
 def _sync_checklist_of_assignment(client, assignment: dict[str, Any]) -> None:
     """A research packet is evidence for its Story's research step: bring the checklist up to date once."""
     if assignment.get("itemLineageId"):
-        from .story_checklist import sync_quietly
+        from .story_checklist import sync_checklist
 
-        sync_quietly(client, assignment["itemLineageId"], write_summary=False)   # this runs under the research worker role: no Item writes
+        sync_checklist(client, assignment["itemLineageId"], write_summary=False)   # this runs under the research worker role: no Item writes
 
 
 def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> dict[str, Any]:
