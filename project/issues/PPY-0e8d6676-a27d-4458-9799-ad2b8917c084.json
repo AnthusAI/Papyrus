@@ -10,9 +10,17 @@
   "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2f7d524d-e437-4437-a4c9-d3048a7a203b",
+      "author": "home",
+      "text": "Filed 2026-11-12 from Ryan's decision. Blocks PPY-85fdba and PPY-849bf1; the issue Story PPY-4108ef depends on it. This drops content on anth.us and Machines on Machines; see Impact and the rollout (report first, per-site switch second).",
+      "created_at": "2026-11-12T13:04:33.286777Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T13:02:39.475666Z",
-  "updated_at": "2026-11-12T13:03:11.179526Z",
+  "updated_at": "2026-11-12T13:04:33.287069Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

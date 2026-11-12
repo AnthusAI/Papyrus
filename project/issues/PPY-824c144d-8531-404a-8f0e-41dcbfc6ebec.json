@@ -10,9 +10,17 @@
   "parent": "PPY-31455fd1-82ca-4dbf-a1be-fd91aec680e0",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7d76b583-9397-4e61-b4ae-b7d28a3c10c7",
+      "author": "home",
+      "text": "Decisions (Ryan, 2026-11-12): Shipped/Distinctive send freeze during migration is fine (PPY-6b2d35); no issue_open and GA4 from the page only (PPY-5a1607); no DMARC mailbox exists yet, task PPY-6bcae9 filed (priority 1, blocks MoM launch); MoM weekly send Monday 04:00 America/New_York for now (PPY-f4b164); the console responder is off on DataParade, no issue needed. Also filed PPY-0e8d66 (three-star floor, under PPY-1b83d3) and reshaped PPY-4108ef/PPY-849bf1 into the living issue Story and its inserter rules.",
+      "created_at": "2026-11-12T13:04:32.866963Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T12:44:57.478234Z",
-  "updated_at": "2026-11-12T12:44:57.478308Z",
+  "updated_at": "2026-11-12T13:04:32.867186Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

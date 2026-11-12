@@ -23,9 +23,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c6d0819a-bef1-47a6-8d5a-8a87ca29e865",
+      "author": "home",
+      "text": "Decision (Ryan, 2026-11-12): a short freeze of Shipped and Distinctive sends during each move is fine. Open-questions list updated: question 1 answered, question 2 (old link lifetime) remains.",
+      "created_at": "2026-11-12T13:04:32.335678Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T12:46:02.655226Z",
-  "updated_at": "2026-11-12T13:04:03.353554Z",
+  "updated_at": "2026-11-12T13:04:32.335915Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

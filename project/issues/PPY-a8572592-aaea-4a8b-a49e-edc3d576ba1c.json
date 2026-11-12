@@ -23,9 +23,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "fc300a8e-55ae-4e59-a814-376b8de88c88",
+      "author": "home",
+      "text": "Decision (2026-11-12): the DMARC report mailbox does not exist yet. Filed PPY-6bcae9 (task, priority 1) to set it up and publish DMARC through the Git template; it blocks this story and PPY-f4b164. Ryan decides the mailbox. Questions 2 and 3 remain open.",
+      "created_at": "2026-11-12T13:04:32.550312Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T12:46:03.581608Z",
-  "updated_at": "2026-11-12T13:04:03.737799Z",
+  "updated_at": "2026-11-12T13:04:32.550549Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

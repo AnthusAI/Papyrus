@@ -27,9 +27,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7a5309cb-3a16-44b4-8c1f-f2d3d54a7c94",
+      "author": "home",
+      "text": "Rewritten 2026-11-12: now the inserter's standing rules (type, three-star floor, recency learned from the cadence, non-duplication by dedupe groups, quality order, exclusions, run on change). Blocked by the three-star floor PPY-0e8d66. The living Story, blocks and contribution rules live in PPY-4108ef, not duplicated here.",
+      "created_at": "2026-11-12T13:04:33.073195Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T12:46:03.122275Z",
-  "updated_at": "2026-11-12T13:04:04.357194Z",
+  "updated_at": "2026-11-12T13:04:33.073441Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

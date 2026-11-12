@@ -17,11 +17,23 @@
     {
       "target": "PPY-19a098f4-0ad8-49f5-9c00-40d0fb330d4d",
       "type": "relates-to"
+    },
+    {
+      "target": "PPY-0e8d6676-a27d-4458-9799-ad2b8917c084",
+      "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "428d81c8-a557-4bee-b543-cede449e0142",
+      "author": "home",
+      "text": "Rewritten 2026-11-12 after Ryan: the issue is a living Story open all week, with machine-owned slots, human-owned copy, pins, an exclusion record, below-floor removal, and admin approval with hash recheck and exactly-once send. Depends on the three-star floor PPY-0e8d66. Five open questions for Ryan at the end of the description.",
+      "created_at": "2026-11-12T13:04:32.969397Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T12:46:02.872481Z",
-  "updated_at": "2026-11-12T13:04:04.198433Z",
+  "updated_at": "2026-11-12T13:04:33.447961Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

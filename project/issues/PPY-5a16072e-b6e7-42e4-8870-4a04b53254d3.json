@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "19ba979f-b58e-4f00-95b1-8377cb3f28e7",
+      "author": "home",
+      "text": "Decision (Ryan, 2026-11-12): no issue_open event, and GA4 events fire from the page only, never from the server. Both open questions answered; description updated.",
+      "created_at": "2026-11-12T13:04:32.447375Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T12:46:03.322044Z",
-  "updated_at": "2026-11-12T13:04:03.633153Z",
+  "updated_at": "2026-11-12T13:04:32.447623Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

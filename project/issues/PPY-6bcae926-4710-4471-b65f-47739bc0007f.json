@@ -10,9 +10,17 @@
   "parent": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "dab0a32d-9b52-45ea-a4f6-f46861daf945",
+      "author": "home",
+      "text": "Filed 2026-11-12 from the deliverability findings. Blocks PPY-a85725 and the MoM launch PPY-f4b164. Owner decision pending: Ryan chooses the mailbox or aggregate-report service.",
+      "created_at": "2026-11-12T13:04:32.653163Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T13:02:07.491996Z",
-  "updated_at": "2026-11-12T13:03:11.449454Z",
+  "updated_at": "2026-11-12T13:04:32.653416Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
