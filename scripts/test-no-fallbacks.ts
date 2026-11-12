@@ -48,3 +48,10 @@ test("news desk client: References come from their indexes", () => {
   assert.doesNotMatch(client, /isMissingGraphQLQueryFieldError|falling back to legacy/);
   assert.match(client, /if \(order === "imported"\) return loadReferencePageByImportedFeed\(options\);/);
 });
+
+test("steering workspace: References refresh on open and after the editor's own writes, not by subscription", () => {
+  const workspace = read("components/topic-steering-workspace.tsx");
+  assert.doesNotMatch(workspace, /referenceSubscriptionClient|referencesRealtime|formatReferencesRealtimeStatusMessage/);
+  assert.doesNotMatch(workspace, /typeof \w+\.(onCreate|onUpdate|onDelete)\s*[!=]==\s*"function"/);
+  assert.doesNotMatch(workspace, /models\.(Reference|SemanticRelation) as unknown as/);
+});
