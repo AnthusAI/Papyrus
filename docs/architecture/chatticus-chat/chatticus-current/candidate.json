@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Chatticus today: durable per-turn chat",
+    "output": "docs/architecture/chatticus-chat/chatticus-current/chatticus-current.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:AnthusAI/Chatticus.git",
+      "revision": "9562cccaacbb97c545100e14132538a29e6f0e68",
+      "link_mode": "local-only"
+    }
+  },
+  "components": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Chatticus web workspace",
+      "sublabel": "Assistant UI + reconnect reducer",
+      "pos": [
+        40,
+        150
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "web/components/assistant-ui/ChatticusAssistantRuntime.tsx",
+          "line": 1,
+          "end_line": 42
+        },
+        {
+          "path": "web/lib/resumable-turn-stream.ts",
+          "line": 25,
+          "end_line": 98
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Authenticated HTTP API",
+      "sublabel": "POST message + GET turn SSE",
+      "pos": [
+        440,
+        150
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "conversation/src/http/routes/messages.ts",
+          "line": 89,
+          "end_line": 119
+        },
+        {
+          "path": "conversation/src/http/routes/turn-stream.ts",
+          "line": 85,
+          "end_line": 105
+        }
+      ]
+    },
+    {
+      "id": "executor",
+      "type": "backend",
+      "label": "Queued turn executor",
+      "sublabel": "Pi Durable TypeScript harness",
+      "pos": [
+        840,
+        150
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "conversation/src/turn/executor.ts",
+          "line": 191,
+          "end_line": 236
+        },
+        {
+          "path": "conversation/src/turn/types.ts",
+          "line": 81,
+          "end_line": 108
+        }
+      ]
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "DynamoDB turn events",
+      "sublabel": "Replay with Last-Event-ID",
+      "pos": [
+        440,
+        430
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "conversation/src/http/routes/turn-stream.ts",
+          "line": 106,
+          "end_line": 168
+        },
+        {
+          "path": "conversation/src/store/turn-events.ts",
+          "line": 1,
+          "end_line": 60
+        }
+      ]
+    },
+    {
+      "id": "sessions",
+      "type": "database",
+      "label": "DynamoDB + S3 sessions",
+      "sublabel": "Fenced durable session storage",
+      "pos": [
+        840,
+        430
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "conversation/src/pi/session.ts",
+          "line": 10,
+          "end_line": 27
+        },
+        {
+          "path": "conversation/src/pi/session.ts",
+          "line": 64,
+          "end_line": 75
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "ui-api",
+      "from": "ui",
+      "to": "api",
+      "label": "POST / SSE"
+    },
+    {
+      "id": "api-executor",
+      "from": "api",
+      "to": "executor",
+      "label": "admit / enqueue"
+    },
+    {
+      "id": "api-state",
+      "from": "api",
+      "to": "state",
+      "label": "read replay"
+    },
+    {
+      "id": "executor-sessions",
+      "from": "executor",
+      "to": "sessions",
+      "label": "open / commit"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Extraction is still work",
+      "items": [
+        "Computerless execution exists, but computer tools remain registered.",
+        "The executor still depends on bot/channel and product policy state.",
+        "PPY Python terminology is stale; current core uses TypeScript Pi Durable."
+      ]
+    }
+  ]
+}

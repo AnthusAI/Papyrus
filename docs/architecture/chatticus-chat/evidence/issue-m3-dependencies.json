@@ -1,0 +1,20 @@
+{
+  "id": "PPY-7962e353-86cb-4f89-abb7-48e39ed22a1c",
+  "title": "M3 Pop-out chat pane in the newsroom for signed-in editors",
+  "description": "A chat pane any signed-in editor can open from anywhere in the newsroom, docked or popped out, using the Chatticus client components. Auth bridges the newsroom's Cognito session to the chat turn API so the agent acts as that editor. Transcripts are kept per editor and site.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-de11ec53-e594-4e18-a016-95c436aacfcb",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:14:25.451252Z",
+  "updated_at": "2026-10-21T12:14:25.451280Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

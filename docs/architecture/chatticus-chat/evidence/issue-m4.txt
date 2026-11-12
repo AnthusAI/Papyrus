@@ -1,0 +1,11 @@
+ID: PPY-ce758e
+Title: M4 Agent tools for every backend feature, with the editor's permissions and approvals
+Type: epic
+Status: open
+Priority: 1
+Assignee: -
+Parent: PPY-de11ec53-e594-4e18-a016-95c436aacfcb
+Labels: -
+Right now: (no right-now summary)
+Description:
+Expose the newsroom's capabilities to the chat agent as tools: stories (create, save version, move stage, set slug), references, sections and doctrine, editorial checks and Humanus, publishing, messages, procedures. Generate or map them from the same operations the CLI and GraphQL API use so there is one source of truth, enforce the signed-in editor's group (editor vs admin), and require in-pane approval for publish, unpublish, delete and send.

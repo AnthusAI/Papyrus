@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "7ac65787-f376-4d42-bbc7-b38014b96242",
+  "issue_id": "PPY-61ee2322-b395-4deb-9174-a08bae0d4c62",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-23T19:14:30.230Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "84c62197-3583-4b36-9e49-ce1b559cbac1",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "Shared chat integration",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}

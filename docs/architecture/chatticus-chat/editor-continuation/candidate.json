@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Proposal: job completion, approval and replay",
+    "output": "docs/architecture/chatticus-chat/editor-continuation/editor-continuation.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1080,
+      640
+    ],
+    "column_fit": "spread"
+  },
+  "participants": [
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "Editor pane",
+      "sublabel": "shared client"
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "Auth API",
+      "sublabel": "Papyrus adapter"
+    },
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "Chat core",
+      "sublabel": "Chatticus"
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "Chat store",
+      "sublabel": "private state"
+    },
+    {
+      "id": "tools",
+      "type": "security",
+      "label": "Tool gate",
+      "sublabel": "Papyrus"
+    },
+    {
+      "id": "jobs",
+      "type": "backend",
+      "label": "Backend job",
+      "sublabel": "Papyrus"
+    }
+  ],
+  "messages": [
+    {
+      "id": "step-12",
+      "from": "jobs",
+      "to": "tools",
+      "y": 165,
+      "label": "Completion with jobId",
+      "variant": "dashed"
+    },
+    {
+      "id": "step-13",
+      "from": "tools",
+      "to": "core",
+      "y": 205,
+      "label": "Authorized continuation",
+      "variant": "security"
+    },
+    {
+      "id": "step-14",
+      "from": "core",
+      "to": "store",
+      "y": 245,
+      "label": "Commit result / approval",
+      "variant": "default"
+    },
+    {
+      "id": "step-15",
+      "from": "editor",
+      "to": "api",
+      "y": 285,
+      "label": "Approve exact action digest",
+      "variant": "security"
+    },
+    {
+      "id": "step-16",
+      "from": "api",
+      "to": "tools",
+      "y": 325,
+      "label": "Recheck role + revision",
+      "variant": "security"
+    },
+    {
+      "id": "step-17",
+      "from": "tools",
+      "to": "jobs",
+      "y": 365,
+      "label": "Execute once if authorized",
+      "variant": "security"
+    },
+    {
+      "id": "step-18",
+      "from": "editor",
+      "to": "api",
+      "y": 405,
+      "label": "Reload + Last-Event-ID",
+      "variant": "emphasis"
+    },
+    {
+      "id": "step-19",
+      "from": "api",
+      "to": "editor",
+      "y": 445,
+      "label": "Replay / committed result",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Proposal, not a verified live flow",
+      "items": [
+        "Example: check a draft, then approve a consequential action.",
+        "The first turn can finish while a long backend job continues.",
+        "Approval binds tool arguments, target revision, editor and expiry.",
+        "Denied, stale or revoked approval never reaches an execution sink."
+      ]
+    }
+  ]
+}

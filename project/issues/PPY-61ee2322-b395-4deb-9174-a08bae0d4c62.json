@@ -1,0 +1,104 @@
+{
+  "id": "PPY-61ee2322-b395-4deb-9174-a08bae0d4c62",
+  "title": "Consume shared Chatticus chat presentation in the newsroom console",
+  "description": "As a signed-in editor, I want the newsroom console to consume the shared Chatticus chat surface so that chat UI is reused without cloning an agent engine.\n\nFeature: Shared newsroom chat presentation\n  Scenario: Render an editorial conversation\n    Given a signed-in editor has an active console conversation\n    When the newsroom renders its messages using the shared package\n    Then the editor sees their conversation and can send a message once\n    And Papyrus retains its current auth and editorial context adapter\n  Scenario: Preserve host context actions\n    Given a console conversation includes a Papyrus navigation action\n    When the editor selects that action\n    Then Papyrus handles the navigation without a Chatticus product dependency\n\nFirst slice of PPY-a438d0 / PPY-7962e3. Chatticus tracking: chatticus-abde29 / chatticus-080b0e. UI/client extraction is independent of the later server-runtime migration. Shared server, per-editor isolation and delegated tools remain separate acceptance gates. No deployment or registry publication authorized.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7962e353-86cb-4f89-abb7-48e39ed22a1c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c8099aed-cf2e-4d33-a026-06018b0c23c2",
+      "author": "home",
+      "text": "User reviewed the architectural plan, briefly approved implementation, then requested that implementation stop and planning be filed/pushed for a Mac agent. No production code changed. Full plan: docs/chatticus-chat-integration-plan.md; five checked Archify illustrations: docs/architecture/chatticus-chat/. Resume instructions: docs/architecture/chatticus-chat/handoff.md.\n\nClarification: current Chatticus uses TypeScript Pi Durable 1.0.2; no Python package was identified. UI/client extraction does not depend on a Python migration. Later shared-server extraction should reuse the existing TypeScript implementation, with an explicit Papyrus backend-hosting/policy decision. Earlier PyAgents/PyDurable wording should not cause a new Python chat engine to be built.\n\nChatticus planning branch: docs/chatticus-080b0e-papyrus-chat-handoff (chatticus-abde29 / chatticus-080b0e). Papyrus branch: docs/PPY-eeb023-chatticus-chat-plan. Keep all implementation records open. No package publication, merge, deployment or security-access change is authorized by this handoff. Coordinate with the other task owning loading states, Notification Center focus/removal of Go to, and mobile navigation alignment; the chat slice owns shared packages and the console adapter.",
+      "created_at": "2026-10-23T18:37:53.024995Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Papyrus chat planning handoff",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "644540be-b840-497d-b662-c054194044cc",
+      "author": "home",
+      "text": "Implementation resumed on BlackbookM1 after user direction. Feature branch feature/PPY-61ee23-shared-chat consumes version-pinned Chatticus chat UI-kit exports and adapts console records/context. PR660 files and loading/Notification Center/mobile-navigation behavior stay untouched. Core extraction, delegated authority and private transcript migration remain later gates; no server migration, merge, registry publication or deployment in this increment.",
+      "created_at": "2026-10-23T18:45:52.727707Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Shared chat integration",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "8bad30cd-1d60-428c-8ed3-04a98ea14e58",
+      "author": "home",
+      "text": "First implementation increment pushed: draft Papyrus PR https://github.com/AnthusAI/Papyrus/pull/662 at 6bb5634e, consuming exact Chatticus f94ece3f from draft https://github.com/AnthusAI/Chatticus/pull/636. Shared transcript/composer/markdown and controlled host presentation hooks replace duplicated rendering; current Papyrus auth, AppSync persistence, model selection and editorial actions remain host-owned. BlackbookM1 verification: 2 browser Gherkin scenarios / 7 steps pass against exact installed archive; typecheck, ESLint, withPapyrus transpilation check and local production build pass. Read-only merge check against PR660 4d9a9b0 has no conflict markers; only package.json overlaps. Combined browser UX and live Cognito/AppSync/model flows not tested. Chatticus has 396 passing web tests and 3 passing Gherkin scenarios. Full server integration, private transcript isolation, delegated tool policy and continuation semantics remain later gates, so story remains in_progress. No merge, publication or deployment performed.",
+      "created_at": "2026-10-23T19:11:27.586943Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Shared chat integration",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "84c62197-3583-4b36-9e49-ce1b559cbac1",
+      "author": "home",
+      "text": "CI follow-up inspection found the fixture helper matches the broad scripts/test-* glob and defaults to only reference mode when called without an argument. Correcting the harness placement, requiring an explicit mode and wiring both existing Gherkin scenarios into the CI job after its existing Chromium installation. Use the standard PAPYRUS_CHROMIUM_PATH override locally; no product behavior or access changes.",
+      "created_at": "2026-10-23T19:14:30.230895Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Shared chat integration",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "ff4ef60c-e3b8-4079-a8ec-b74b955a8cb6",
+      "author": "home",
+      "text": "CI coverage correction pushed at 7b445844d90e26bd85d92faa33e4a51399084fd4 on PR662: helper moved outside broad test glob, explicit mode required, standard Chromium override supported, both Gherkin scenarios run as an explicit CI step. Local 2 scenarios / 7 steps and lint pass; hosted Shared chat browser acceptance step and package smoke/consumer checks now pass. Full current-head ts/python jobs still running. Superseded pre-correction tests run was cancelled; old package smoke finished green. New docs/chatticus-chat-implementation-status.md records exact draft heads, unmerged package dependencies and M2b/M3/M4/M5/M6 gates. Chatticus admission follow-up PR637 is separately stacked on PR636 and is not yet consumed by Papyrus.",
+      "created_at": "2026-10-23T19:22:47.929154Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Shared chat integration",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ],
+  "created_at": "2026-10-23T18:30:23.561107Z",
+  "updated_at": "2026-10-23T19:22:47.929197Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol",
+    "name": "Papyrus chat integration",
+    "settings": {
+      "reasoning_effort": "medium"
+    }
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
