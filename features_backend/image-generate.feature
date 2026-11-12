@@ -129,8 +129,8 @@ Feature: Pictures are generated from the publication's guidelines, only where a 
     Then the round read says it is done with 2 candidates
     And reading a round that does not exist is refused with "not_found"
 
-  Scenario: The default handlers cannot spend
-    Then the default image handlers answer not implemented for generate, round, discard and apply
+  Scenario: The default handler table has the real handlers, which still refuse unless the site approves spending
+    Then the default image handlers are the real ones, not the not-implemented stubs
 
   Scenario: The OpenAI provider shapes its request and reports what the provider says, without reaching the network
     Given an OpenAI provider whose network is a fake that answers with a picture and 30000 output tokens

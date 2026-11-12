@@ -55,6 +55,8 @@ const ALLOWED_ROLES = new Set([
   "priming_attempts",
   "visual_example",
   "visual_negative",
+  "image_record",
+  "image_candidate_file",
 ]);
 const ALLOWED_MEDIA_TYPES = new Set([
   "application/json",

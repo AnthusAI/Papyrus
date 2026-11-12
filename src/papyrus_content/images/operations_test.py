@@ -180,16 +180,17 @@ def test_the_cli_and_the_mcp_tool_give_identical_json(item, tmp_path):
 
 
 def test_every_handler_answers_not_implemented_until_its_step():
+    from papyrus_content.images.generation_binding import OPERATION_METHODS   # built in step 5
     from papyrus_content.images.profile_handlers import PROFILE_HANDLERS   # built in step 2; the rest wait for their own steps
 
-    for item in (item for item in OPERATIONS if item.name not in PROFILE_HANDLERS):
+    for item in (item for item in OPERATIONS if item.name not in PROFILE_HANDLERS and item.name not in OPERATION_METHODS):
         envelope = execute(item.name, item.examples[0].input, Caller())
         assert envelope["error"]["code"] == "not_implemented" and envelope["error"]["details"] == {"operation": item.name}
     assert set(HANDLERS) == set(ALL_NAMES)
 
 
 def test_the_cli_exits_with_the_shared_code_and_prints_json():
-    status, envelope = run_cli(["round", "round-1"])
+    status, envelope = run_cli(["show", "candidate-1"])
     assert status == 2 and envelope["ok"] is False and envelope["error"]["code"] == "not_implemented"
 
 

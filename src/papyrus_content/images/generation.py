@@ -24,7 +24,7 @@ SIGNATURES = {b"\x89PNG\r\n\x1a\n": "image/png", b"\xff\xd8\xff": "image/jpeg", 
 
 
 class MediaSink(Protocol):
-    def add_media(self, *, path: str, data: bytes, media_type: str, alt: str, caption: str | None, provenance: dict) -> dict: ...
+    def add_media(self, *, target: dict, src_path: str, data: bytes, media_type: str, alt: str, caption: str | None, provenance: dict) -> dict: ...
     def open_review_request(self, *, media_asset_id: str, target: dict, candidate_id: str, applied_by: str) -> str: ...
 
 
@@ -211,14 +211,16 @@ class Generation:
                                       details={"checks": checks})
         if self.media is None:
             raise ImageOperationError("service_unavailable", "Media cannot be written from here.")
-        path = f"media/assets/{arguments['target']['lineageId']}/{candidate['id']}.{candidate['mediaType'].split('/')[-1]}"
+        from papyrus_content.story_images import src_path_for
+
+        src_path = src_path_for(arguments["target"]["lineageId"], f"{candidate['id']}.{candidate['mediaType'].split('/')[-1]}")
         person = caller.kind == "person"
         provenance = {"origin": "generated", "candidateId": candidate["id"], "model": candidate["model"], "resolutionHash": candidate["resolutionHash"], "profile": candidate["profile"],
                       "generatedNote": True, "reviewStatus": "human-verified" if person else "unreviewed"}
-        asset = self.media.add_media(path=path, data=data, media_type=candidate["mediaType"], alt=alt, caption=arguments.get("caption"), provenance=provenance)
+        asset = self.media.add_media(target=arguments["target"], src_path=src_path, data=data, media_type=candidate["mediaType"], alt=alt, caption=arguments.get("caption"), provenance=provenance)
         review_id = None if person else self.media.open_review_request(media_asset_id=asset["id"], target=arguments["target"], candidate_id=candidate["id"], applied_by=caller.subject)
-        directive = f'::image{{src="{path}" alt="{alt}"}}'
-        patch = {"bodyDirective": directive, "frontMatter": {"image": path} if arguments["use"] == "cover" else {}}
+        directive = f'::image{{src="{src_path}" alt="{alt}"}}'
+        patch = {"bodyDirective": directive, "frontMatter": {"image": src_path} if arguments["use"] == "cover" else {}}
         result: dict = {"patch": patch, "mediaAsset": asset, "imageType": candidate["imageType"], "reviewStatus": provenance["reviewStatus"]}
         if review_id:
             result["reviewRequestId"] = review_id
