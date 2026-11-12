@@ -48,3 +48,9 @@ test("news desk client: References come from their indexes", () => {
   assert.doesNotMatch(client, /isMissingGraphQLQueryFieldError|falling back to legacy/);
   assert.match(client, /if \(order === "imported"\) return loadReferencePageByImportedFeed\(options\);/);
 });
+
+test("news desk dashboard: a slice that fails fails the dashboard", () => {
+  const client = read("components/news-desk-taxonomy-client.ts");
+  assert.doesNotMatch(client, /loadDashboardSlice|Newsroom dashboard slice failed/);
+  assert.doesNotMatch(client, /loadEditorProcedureData\(\)\.catch/);
+});

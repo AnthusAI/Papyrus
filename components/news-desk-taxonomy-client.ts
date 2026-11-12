@@ -903,7 +903,7 @@ export async function loadEditorNewsDeskDashboard({ isAdmin }: { isAdmin: boolea
 
 export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: boolean }): Promise<CategorySteeringDashboard> {
   const procedureDataPromise = isAdmin
-    ? loadEditorProcedureData().catch(() => ({ definitions: [], versions: [], runs: [] }))
+    ? loadEditorProcedureData()
     : Promise.resolve<{ definitions: ProcedureDefinitionRecord[]; versions: ProcedureVersionRecord[]; runs: ProcedureRunRecord[] }>({
       definitions: [],
       versions: [],
@@ -929,24 +929,24 @@ export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: bo
     procedureData,
     userDirectory,
   ] = await Promise.all([
-    loadDashboardSlice("KnowledgeCorpus", () => listUserPoolModel<CategorySteeringCorpus>("KnowledgeCorpus"), [] as CategorySteeringCorpus[]),
-    loadDashboardSlice("KnowledgeImportRun", () => listUserPoolModel<CategorySteeringImportRun>("KnowledgeImportRun"), [] as CategorySteeringImportRun[]),
-    loadDashboardSlice("CategorySet", () => listUserPoolModel<CategorySteeringCategorySet>("CategorySet"), [] as CategorySteeringCategorySet[]),
-    loadDashboardSlice("Category", () => listUserPoolModel<CategorySteeringCategory>("Category"), [] as CategorySteeringCategory[]),
-    loadDashboardSlice("CategoryKeyword", () => listOptionalUserPoolModel<CategoryKeywordRecord>("CategoryKeyword"), [] as CategoryKeywordRecord[]),
-    loadDashboardSlice("LexicalSteeringRule", () => listOptionalUserPoolModel<LexicalSteeringRuleRecord>("LexicalSteeringRule"), [] as LexicalSteeringRuleRecord[]),
-    loadDashboardSlice("SteeringProposal", () => listSteeringProposalsViaGraphql(), [] as CategorySteeringProposal[]),
-    loadDashboardSlice("KnowledgeArtifact", () => listUserPoolModel<CategorySteeringArtifact>("KnowledgeArtifact"), [] as CategorySteeringArtifact[]),
-    loadDashboardSlice("Reference", () => listUserPoolModel<ReferenceRecord>("Reference"), [] as ReferenceRecord[]),
-    loadDashboardSlice("ReferenceAttachment", () => listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"), [] as ReferenceAttachmentRecord[]),
-    loadDashboardSlice("SemanticNode", () => listUserPoolModel<SemanticNodeRecord>("SemanticNode"), [] as SemanticNodeRecord[]),
-    loadDashboardSlice("Message", () => listUserPoolModel<MessageRecord>("Message"), [] as MessageRecord[]),
-    loadDashboardSlice("SemanticRelation", () => listUserPoolModel<SemanticRelationRecord>("SemanticRelation"), [] as SemanticRelationRecord[]),
-    loadDashboardSlice("Assignments", () => loadEditorAssignmentsData(), { assignments: [], assignmentEvents: [] }),
-    loadDashboardSlice("EditionSlot", () => listOptionalUserPoolModel<EditionSlotRecord>("EditionSlot"), [] as EditionSlotRecord[]),
-    loadDashboardSlice("NewsroomSection", () => listOptionalUserPoolModel<NewsroomSectionRecord>("NewsroomSection"), [] as NewsroomSectionRecord[]),
+    listUserPoolModel<CategorySteeringCorpus>("KnowledgeCorpus"),
+    listUserPoolModel<CategorySteeringImportRun>("KnowledgeImportRun"),
+    listUserPoolModel<CategorySteeringCategorySet>("CategorySet"),
+    listUserPoolModel<CategorySteeringCategory>("Category"),
+    listOptionalUserPoolModel<CategoryKeywordRecord>("CategoryKeyword"),
+    listOptionalUserPoolModel<LexicalSteeringRuleRecord>("LexicalSteeringRule"),
+    listSteeringProposalsViaGraphql(),
+    listUserPoolModel<CategorySteeringArtifact>("KnowledgeArtifact"),
+    listUserPoolModel<ReferenceRecord>("Reference"),
+    listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"),
+    listUserPoolModel<SemanticNodeRecord>("SemanticNode"),
+    listUserPoolModel<MessageRecord>("Message"),
+    listUserPoolModel<SemanticRelationRecord>("SemanticRelation"),
+    loadEditorAssignmentsData(),
+    listOptionalUserPoolModel<EditionSlotRecord>("EditionSlot"),
+    listOptionalUserPoolModel<NewsroomSectionRecord>("NewsroomSection"),
     procedureDataPromise,
-    loadDashboardSlice("UserDirectory", () => (isAdmin ? loadUserDirectory() : Promise.resolve([])), [] as UserDirectoryEntry[]),
+    (isAdmin ? loadUserDirectory() : Promise.resolve([])),
   ]);
 
   const sortedCorpora = corpora.sort((left, right) => left.name.localeCompare(right.name));
@@ -999,15 +999,6 @@ export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: bo
     procedureRuns: procedureData.runs,
     loadError: null,
   };
-}
-
-async function loadDashboardSlice<T>(label: string, loader: () => Promise<T>, fallback: T): Promise<T> {
-  try {
-    return await loader();
-  } catch (error) {
-    console.warn(`Newsroom dashboard slice failed: ${label}`, error);
-    return fallback;
-  }
 }
 
 export async function loadEditorProcedureData(): Promise<{

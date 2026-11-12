@@ -35,3 +35,8 @@ Feature: One correct path that fails clearly
     Given the news desk client source
     When it is read for how it loads a page of References
     Then each ordering and status filter reads its own index, an empty page is an empty page, and no table scan or older feed query takes over
+
+  Scenario: A dashboard query that fails fails the dashboard
+    Given the news desk client source
+    When it is read for how it loads the dashboard's lists
+    Then every list is awaited as it is, a failed query rejects the load so the editor sees the error, and no empty list stands in for a failed one

@@ -21,6 +21,7 @@ for (const when of [
   "it is read for how it finds the newest published editions",
   "it is read for how it treats a layout block whose item did not load",
   "it is read for how it loads a page of References",
+  "it is read for how it loads the dashboard's lists",
 ]) When(when, function () {});
 
 // Each outcome is one test in scripts/test-no-fallbacks.ts.
@@ -31,5 +32,6 @@ const outcomes = [
   ["it asks the published-at index directly and never checks whether the index exists or falls back to the edition-date index", /✔ content repository: one edition index/],
   ["the plan is validated as written, no block is dropped with a warning, and no invented fallback image exists", /✔ content repository: a layout plan is validated as written/],
   ["each ordering and status filter reads its own index, an empty page is an empty page, and no table scan or older feed query takes over", /✔ news desk client: References come from their indexes/],
+  ["every list is awaited as it is, a failed query rejects the load so the editor sees the error, and no empty list stands in for a failed one", /✔ news desk dashboard: a slice that fails/],
 ];
 for (const [then, pattern] of outcomes) Then(then, async function () { assert.match(await run(), pattern); });
