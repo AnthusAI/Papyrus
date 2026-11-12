@@ -120,12 +120,15 @@ _ENTRIES = dict([
      "both", _DRY, "write-story"),
   _e("stories save-version", "Save the body and front matter as a new version (never publishes).",
      "--story LINEAGE --body-file FILE --reason TEXT [--front-matter-file FILE] [--author-label NAME] [--stage STAGE | --advance] [--outline] [--no-check] "
-     "[--images DIR [--bucket B] [--identity-pool-id ID]] [--dry-run]  (signed in the author is the person; --author-label is required on the operator lane)",
+     "[--images DIR [--bucket B] [--identity-pool-id ID] [--require-dark-figures]] [--dry-run]  (signed in the author is the person; --author-label is required on the operator lane; a figure with no dark picture prints a figure-light-only warning, and the site's requireDarkFigures setting (design-system), --require-dark-figures or PAPYRUS_REQUIRE_DARK_FIGURES=1 refuses it; PAPYRUS_REQUIRE_DARK_FIGURES=0 overrides the setting)",
      "both", _DRY, "write-story"),
   _e("stories move", "Move a Story to a board stage. --stage published changes only the board stage and publishes no page.",
      "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]", "both", _DRY, "write-story"),
   _e("stories set-slug", "Give a Story a real address (a placeholder draft-<section>-<hash> slug cannot be published).",
      "--story LINEAGE|ID --slug lowercase-words [--force] [--no-trigger] [--dry-run]", "both", _DRY, "write-story"),
+  _e("stories retire", "Take a Story down and redirect every address it was served at (301) to another published Story; --undo restores it.",
+     "--story LINEAGE|ID (--redirect-to LINEAGE|ID | --undo) [--no-trigger] [--dry-run]  (refuses an unpublished, missing, same or retired target; nothing is deleted)",
+     "both", _DRY, "publish"),
   _e("stories set-stars", "Rate a Story as the signed-in person.", "--story LINEAGE --stars 0-5 [--agent YOUR_NAME] [--dry-run]  (0 clears the rating)", "editor", _DRY, "tag-and-link"),
   _e("stories link-concept", "Tag a Story with existing accepted concepts (edge tagged_with); never creates a concept.",
      "--story LINEAGE|SLUG --concept NAME|#HASHTAG|NODEKEY [--concept ...] [--note TEXT] [--author-label NAME] [--dry-run] [--json]", "both", _DRY, "tag-and-link"),
@@ -233,6 +236,37 @@ _ENTRIES = dict([
   _e("links", "Print the console link of a Story (one version, or the drawer), Reference, Concept, Assignment or review item. Hand the editor these links.",
      "[--story LINEAGE|SLUG [--version N|VERSION_ID]] [--reference REFERENCE_ID|LINEAGE] [--concept NAME|NODEKEY] [--assignment ID] [--review ID] [--console-url URL] [--json]", "both", "reads", "write-story"),
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
+  # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
+  _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
+     "--kind KIND [--section KEY] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines resolve", "Print the effective guidelines for the site, or a section laid over it, with where every field came from.",
+     "--kind KIND [--section KEY] [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines diff", "Show what saving a document would change, field by field and for binding rules; saves nothing.",
+     "--kind KIND [--section KEY] --file PATH [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines save", "Save a document as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
+     "--kind KIND [--section KEY] --file PATH --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
+     "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
+  _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
+     "--kind KIND [--section KEY] [--input-file PATH]", "editor", "reads", "guidelines"),
+  # ---- figures (render reads the site's design system and writes local files only) -------------------------------------
+  _e("figures render", "Check a figure and render its light and dark pictures (always both) with the site's design system. Needs Playwright and Chromium or Chrome.",
+     "FOLDER... [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json]  "
+     "(FOLDER holds figure.svg and figure.json; with neither flag it reads the design system the signed-in site stores, `design-system show`, and stops when there is none; "
+     "--design-system DIR overrides it with a folder; --neutral-default is the unbranded default for a site with no design system: say so; "
+     "writes SLUG.png, SLUG.dark.png and SLUG.figure.json next to the figure, or into --out for one figure; --check-only writes nothing; exits 1 when any figure has a problem)",
+     "both", "local", "figures"),
+  _e("figures directive", "Print the ::image{} line for a figure's Story, from its figure.json.", "FOLDER", "both", "reads", "figures"),
+  _e("figures rules", "Print the general figure rules every site follows (light and dark are both mandatory).", "", "both", "reads", "figures"),
+  _e("figures primitives", "Print the shape library (glyphs, arrowhead, patterns) every figure can use.", "", "both", "reads", "figures"),
+  # ---- design-system (the site's tokens, fonts, mapping and worked examples, kept in the backend) ----------------------
+  _e("design-system show", "Show the design system the signed-in site stores: its version, roles, fonts, worked examples and figure settings (or that it has none).",
+     "[--version N] [--json]", "both", "reads", "figures"),
+  _e("design-system pull", "Write the stored design system into a folder, exactly as it was pushed (text verbatim, fonts as files, settings.json when set).",
+     "DIR [--version N] [--force]  (DIR must be new or empty unless --force; the folder works as `figures render --design-system DIR`)", "both", "local", "figures"),
+  _e("design-system push", "Publish a design system folder as the site's next design system version (a site repository does this at deploy). Checks it first; an unchanged folder makes no version.",
+     "DIR --reason TEXT [--author-label NAME] [--dry-run]  (DIR holds mapping.json, its tokens file, the fonts it names, examples/NAME/figure.svg + figure.json, and an optional "
+     "settings.json such as {\"requireDarkFigures\": true}; a folder with no settings.json keeps the site's settings; signed in the author is the person; "
+     "--author-label is required on the operator lane)", "both", _DRY, "figures"),
 ])
 
 _ENTRIES.update(dict([
@@ -295,7 +329,7 @@ def _drafted(path: str) -> Usage | None:
 
 GROUP_ORDER = {
   "references": ["search", "list", "show", "text", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
-  "stories": ["list", "show", "create", "save-version", "move", "set-slug", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
+  "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "next", "step", "versions", "note", "agent-note"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
@@ -323,6 +357,9 @@ GROUP_SUMMARIES = {
   "ops site": "Site copy (operator).",
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
+GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history."
+GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
+GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 
 
 def _legacy(path: list[str]) -> Usage | None:

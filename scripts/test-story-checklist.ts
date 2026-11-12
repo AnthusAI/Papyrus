@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   checklistProgressLabel,
@@ -17,7 +18,7 @@ import {
   type StoryStepRecord,
 } from "../lib/story-checklist";
 import { projectContentItemBoard } from "../lib/newsroom-board";
-import { addLocalPreviewStoryStepNote, createLocalPreviewContentItemVersions, createLocalPreviewStoryChecklist, resetLocalPreviewStoryChecklists, setLocalPreviewStoryStep } from "../lib/local-preview-seed";
+import { PREVIEW_CHECKLIST_TEMPLATE, PREVIEW_CHECKLIST_TEMPLATE_VERSION, addLocalPreviewStoryStepNote, createLocalPreviewContentItemVersions, createLocalPreviewStoryChecklist, resetLocalPreviewStoryChecklists, setLocalPreviewStoryStep } from "../lib/local-preview-seed";
 import { SYSTEM_ITEM_TYPES, isStoryItemType, storyItemTypeFilter } from "../lib/content-item-lifecycle";
 
 const summary = { templateVersion: 2, total: 9, open: 3, done: 3, skipped: 2, not_applicable: 1, requiredOpen: ["draft"] };
@@ -176,4 +177,39 @@ test("a note needs text, and the preview appends it whatever the step's state an
   assert.equal(createLocalPreviewStoryChecklist(lineage).find(item => item.stepKey === "outline")!.state, "skipped", "the state did not change");
   assert.ok(notesOf("review_people").length > VISIBLE_STEP_NOTES, "the preview has a crowded step to fold");
   resetLocalPreviewStoryChecklists();
+});
+
+/** The Story procedure (src/papyrus_content/newsroom_process.py) is the one template; the preview mirrors its live steps, so the newsroom UI and `papyrus stories next` list the same ones. */
+function pythonTemplate(): { version: number; steps: { key: string; title: string; status: string; optional: boolean }[] } {
+  const source = readFileSync(new URL("../src/papyrus_content/newsroom_process.py", import.meta.url), "utf8");
+  const version = Number(source.match(/^TEMPLATE_VERSION = (\d+)/m)?.[1]);
+  const table = source.slice(source.indexOf("STEPS: tuple[Step, ...] = ("), source.indexOf("\nSTEP_BY_KEY"));
+  const steps = table.split(/^    Step\(/m).slice(1).map(chunk => {
+    const head = chunk.match(/^"(\w+)", "(\w+)", "((?:[^"\\]|\\.)*)", "((?:[^"\\]|\\.)*)"/);
+    const flags = chunk.match(/\b(LIVE|OFF|NOT_BUILT),\s*(True|False)/);
+    assert.ok(head && flags, `a Step in newsroom_process.py could not be read: ${chunk.slice(0, 60)}`);
+    return { key: head[1], title: head[4], status: flags[1], optional: flags[2] === "True" };
+  });
+  return { version, steps };
+}
+
+test("the newsroom's checklist template lists the same live steps as the Story procedure, Illustration included", () => {
+  const python = pythonTemplate();
+  const live = python.steps.filter(entry => entry.status === "LIVE");
+  assert.ok(live.some(entry => entry.key === "illustration" && !entry.optional), "Illustration is a live, required step");
+  assert.deepEqual(PREVIEW_CHECKLIST_TEMPLATE.map(entry => [entry.key, entry.title]), live.map(entry => [entry.key, entry.title]));
+  assert.deepEqual(
+    PREVIEW_CHECKLIST_TEMPLATE.filter(entry => entry.required).map(entry => entry.key),
+    live.filter(entry => !entry.optional && entry.key !== "publish").map(entry => entry.key),
+  );
+  assert.equal(PREVIEW_CHECKLIST_TEMPLATE_VERSION, python.version);
+});
+
+test("a stored Illustration step is shown like any other, and counts in the progress", () => {
+  const steps = createLocalPreviewStoryChecklist("preview-item-lineage-copywriting-0");
+  const illustration = steps.find(entry => entry.stepKey === "illustration");
+  assert.ok(illustration, "the panel has an Illustration step");
+  assert.equal(illustration.title, "Illustrate");
+  assert.equal(illustration.state, "open");
+  assert.equal(steps.length, PREVIEW_CHECKLIST_TEMPLATE.length, "the denominator includes it");
 });

@@ -282,7 +282,29 @@ papyrus stories save-version --story LINEAGE --body-file body.md --front-matter-
 papyrus stories save-version --story LINEAGE --body-file body.md --front-matter-file front.yaml --reason "First draft"
 ```
 
-Front matter keys: `title`, `dek`, `blurb`, `author` (a human's name, only if a person worked on it), `drafting: {by: AI}` (without it the byline drops "various bots"), `imageAlt`, `citations:` with a key for every `[@key]` in the body, `image:` for the card picture. Quote date values. Signed in, the author is the person who signed in; `--author-label` is ignored (the operator lane requires it). `--stage STAGE` or `--advance` also moves the Story. It prints `stories save-version console story URL`: **show the editor that link** (the exact version) after every save, before asking for approval (see "Show the editor the console link").
+Front matter keys: `title`, `dek`, `blurb`, `author` (a human's name, only if a person worked on it), `drafting: {by: AI}` (without it the byline drops "various bots"), `imageAlt`, `citations:` with a key for every `[@key]` in the body, `image:` for the card picture. Quote date values. Signed in, the author is the person who signed in; `--author-label` is ignored (the operator lane requires it). A figure from `papyrus figures render` saved with `--images` but without its `.dark.png` prints a `figure-light-only` warning; the site's `requireDarkFigures` setting (`papyrus design-system`), `--require-dark-figures` or `PAPYRUS_REQUIRE_DARK_FIGURES=1` refuses it instead (`PAPYRUS_REQUIRE_DARK_FIGURES=0` overrides the setting). `--stage STAGE` or `--advance` also moves the Story. It prints `stories save-version console story URL`: **show the editor that link** (the exact version) after every save, before asking for approval (see "Show the editor the console link").
+
+### Write the dek and the blurb differently
+The `dek` and the `blurb` are **intentionally different** fields. Write both, and never copy one into the other.
+
+- **`blurb`**: a short summary for index pages and cards. It appears out of context, so it must **stand alone**: a reader who has not seen the headline or the article should still understand it.
+- **`dek`** (the subtitle): read on the article page **as part of the article**, under the headline and above the opening paragraph. It must read smoothly with the headline and the opening, and must not repeat either.
+
+Before and after, for a Story headed "Board refuses the merger":
+
+```yaml
+# Wrong: one sentence pasted into both fields
+dek: The board of Acme Corp refused the merger with Beta Ltd on Tuesday.
+blurb: The board of Acme Corp refused the merger with Beta Ltd on Tuesday.
+
+# Right: the blurb stands alone, the dek continues from the headline
+dek: Directors said the price undervalued the company, and a second offer is already being discussed.
+blurb: Acme Corp's board refused Beta Ltd's merger offer on Tuesday, saying the price undervalued the company.
+```
+
+The dek leaves out "Acme Corp's board" because the headline has just said it; the blurb needs it because it may be the only text a reader sees.
+
+**A difference between the dek and the blurb is expected. A reviewer or proofreader must not report it as an inconsistency or an error.** The one defect is an identical copy: `papyrus stories lens-check` raises a concern on check P2 when the dek and the blurb are word for word the same.
 
 ### Move a Story on the board
 **Lane:** both. **Version:** 5.100.0.
@@ -327,6 +349,19 @@ papyrus ops content publish --id LINEAGE-v3 --verify
 
 `--id` is the **version** item id (`LINEAGE-vN`, the lineage plus the version `stories show` prints), not the lineage id (`content publish failed [not-found]: No item LINEAGE`). Or pass `--slug SLUG [--section KEY]`. Stops with `[placeholder-slug]` for a placeholder address, `checklist-open` while procedure steps are open, and refuses an untyped Story. Close the checklist honestly first (see Checks).
 
+### Retire a Story and redirect its address
+**Lane:** both. **Writes:** yes; `--dry-run` previews. Not released yet: it ships with the next Papyrus release.
+
+Use it when two Stories become one article: the Story that goes away keeps working for readers.
+
+```sh
+papyrus stories retire --story LINEAGE --redirect-to TARGET_LINEAGE --dry-run
+papyrus stories retire --story LINEAGE --redirect-to TARGET_LINEAGE
+papyrus stories retire --story LINEAGE --undo
+```
+
+It unpublishes the Story, moves it to the `retired` stage (every version stays) and has the site redirect every address the Story was served at (current address, aliases, earlier slugs and type folders, the `.md` twin) permanently to the target's address; if the target changes address later the redirects follow. The Story leaves listings, the sitemap, feeds, public data and the cross-story boilerplate check. The command prints the pages written and the exact paths purged; it never purges more than the site's cap. It refuses a target that is missing, unpublished, the Story itself or retired. `--undo` publishes the retired version again and removes the redirects. A site that requires approval to publish restores from the console.
+
 ### Make the new page visible
 **Lane:** both. **Version:** 5.100.0.
 
@@ -369,7 +404,8 @@ papyrus stories next --story LINEAGE
 papyrus stories step --story LINEAGE --step copy_edit --state done --note "Checked against the house rules" --agent "editor agent" --dry-run
 ```
 
-- `check-version` runs the editorial rules on a saved version and stores the result with it. `lens-check` prints `finding LENS RULE STATE ...` rows; four problems must be fixed before a lens step can close (image without alt text, third-party image without credit, video without title or credit, Markdown copy that differs from the source). `--static` is the site's web directory (default `PAPYRUS_SITE_STATIC_DIR`); `--no-network` skips the share-picture fetch.
+- Illustration (step `illustration`, required for the Story types that need a cover, articles by default): it closes by itself when the current version has an approved, stored cover (a stock picture a person picked, or a figure whose credit says `Approved by NAME`, with its dark picture where the site requires one). `stories step --step illustration --state done` is refused unless the records prove it; publishing refuses a covered type without it. A person (not an agent) can record an exception: `stories step --story LINEAGE --step illustration --state skipped --reason "WHY"`. See `docs/story-procedure.md`, The Illustration step.
+- `check-version` runs the editorial rules on a saved version and stores the result with it. `lens-check` prints `finding LENS RULE STATE ...` rows; four problems must be fixed before a lens step can close (image without alt text, third-party image without credit, video without title or credit, Markdown copy that differs from the source). A local picture with no credit counts as ours and passes the credit check (leave credit off for a generated picture; `credit="Generated."` still works but is not needed); only a remote address, the stock cover record and a Reference's picture need a credit. `--static` is the site's web directory (default `PAPYRUS_SITE_STATIC_DIR`); `--no-network` skips the share-picture fetch.
 - Social review (`--lens social`, step `review_social`): `lens-check` fetches the Story's planned share picture (check C4) and reports its absolute HTTPS address, status, Content-Type, format, size and shape. A built address is never a pass. JPEG or PNG at least 600x315 passes; WebP, AVIF or GIF, a small or oddly shaped picture, a missing, invalid or non-image picture, or a Content-Type that does not match the file is a warning; a picture that could not be requested (no network, `--no-network`, site without a public address) is `Could not check`, which means not verified. For cross-platform use make a JPEG or PNG share rendition (about 1200x630) and keep WebP/AVIF for the page; do not pad or upscale a small image without saying so in the note. Then read title, description and picture together for relevance, legibility, alt text and misleading context. The `--note` of `stories step --step review_social` must record the tested URL, format, dimensions, result, and any platform uncertainty (a passing check says the file looks compatible, not that a platform displayed it). The share picture comes from front matter `image`, then `cover`, then `ogImage`, then `thumbnail`, so `ogImage` is only a fallback and a different share picture needs `image` itself, which also becomes the card picture.
 - After publishing, fetch the live page and check that `og:image` and `twitter:image` are the tested address, then fetch that address publicly (status 200, image Content-Type). Report a stale CDN or a platform's own preview cache separately; do not assume a platform shows the card.
 - `check-links` lists links and tags that are not the official shape (`legacy: migrate`, `concept has no public page`, `state not current`). Read only; fixing is out of scope.
@@ -387,6 +423,76 @@ papyrus stories head-index --apply --rate 5
 - Each Story has one row in the head stage index (`headStageKey`, docs/plans/story-head-stage-index.md). `head-index` reads the old stage index once, prints one `set` or `remove` line per row it would change, `muddled` lines for Stories with more than one live version (fix those with `stories repair-versions --story LINEAGE`), and a summary: `rows read`, `stories`, `heads to set`, `keys to remove`, `already right`, `muddled`, `no head`, `superseded with key`.
 - Unlike most commands it is a **dry run unless `--apply`**. A dry run with `heads to set 0` and `keys to remove 0` is the health check. `--apply` writes only rows that differ, keeps each row's own `updatedAt`, never writes a superseded version, and writes at most `--rate` a second (default 5); a second run writes nothing.
 - On a site whose data API has no `headStageKey` yet the dry run counts every Story as needing it and `--apply` refuses: the site needs the backend deploy that adds the index first, and that deploy and the `--apply` run each need Ryan's approval.
+
+## Draw a figure
+<!-- guide:figures -->
+
+### Render a figure in light and dark
+**Lane:** both (it reads the signed-in site's design system and writes only local picture files). **Version:** the release after 5.101.0.
+
+A figure is a folder with `figure.svg` (colors as `{role}` names, type as `t-<role>` classes) and `figure.json` (the acceptance criteria, alt text and credit). The skill `.agents/skills/figures` says when to draw, how to choose a form, and how to get approval; the rules are `papyrus figures rules` and the shape library `papyrus figures primitives`. Both light and dark are mandatory: `render` always writes both from the one source.
+
+```sh
+papyrus figures rules
+papyrus figures primitives
+papyrus figures render ./search-nobody-sees --check-only
+papyrus figures render ./search-nobody-sees --out ./pictures
+papyrus figures render ./search-nobody-sees --design-system ./design-system --out ./pictures
+papyrus figures render ./search-nobody-sees --neutral-default --json
+papyrus figures directive ./search-nobody-sees
+```
+
+- With no `--design-system` and no `--neutral-default`, `render` draws with the design system the **signed-in site stores** (see "Read and publish the site's design system" below) and prints a `figures: using the site's stored design system` line on stderr. `--design-system DIR` overrides it with a folder: `mapping.json` (roles, canvas, fonts, tokens inline or `tokens_file`), the font files it names, and optional `examples/NAME/figure.svg` + `figure.json`. **A site with no design system:** pass `--neutral-default` (unbranded grays, this machine's own sans-serif, no logos) and tell the person you did. Never invent a brand. If the site stores none or cannot be read, the command refuses and says why; it does not fall back.
+- It prints `SLUG: PROBLEM: ...` and `SLUG: note: ...` lines and `SLUG: ok` or `SLUG: FAILED`, and exits 1 when any figure fails. A problem in either theme fails the figure. `--json` prints the same as data. `--check-only` writes nothing.
+- On success it writes `SLUG.png` (light), `SLUG.dark.png` (dark) and `SLUG.figure.json` (marks the pictures as a figure) next to the source, or into `--out` (one figure only). The pictures are twice the canvas size with the fonts in the pixels.
+- It needs `pip install playwright` and either `playwright install chromium` or Google Chrome. Without them the command says so and stops; nothing else in the CLI needs it.
+- `directive` prints the `::image{}` line for the Story from `figure.json`; put it in the body and save with `stories save-version --images ./pictures` (see "Save a version"). The checker cannot judge whether the figure makes sense: look at both pictures, and get a person's approval before setting `approved_by`.
+
+### Read and publish the site's design system
+**Lane:** both. `show` and `pull` read (`pull` writes only the local folder); `push` writes a new design system version unless `--dry-run`. **Version:** the release after 5.101.0.
+
+A site's tokens, fonts, role mapping and worked examples are backend data, kept beside its mission and policy. An agent that can sign in to the site reads them; the site's repository publishes them at deploy.
+
+```sh
+papyrus design-system show
+papyrus design-system show --version 2 --json
+papyrus design-system pull ./design-system
+papyrus design-system pull ./design-system --force
+papyrus design-system push ./design-system --reason "New display font" --dry-run
+papyrus design-system push ./design-system --reason "New display font"
+```
+
+- `show` prints the version, who saved it and why, the figure and type roles, the fonts, the worked examples and the site's figure settings, or says the site has no design system (then use `--neutral-default` and say so, or ask for one). `--version N` reads an older version; `--json` prints it as data.
+- `pull DIR` writes the stored files back exactly as they were pushed (text verbatim, fonts as files, `settings.json` when set). `DIR` must be new or empty unless `--force`. The folder works as `figures render --design-system DIR`.
+- `push DIR --reason TEXT` checks the folder first (every role present, a light and a dark value for every color, the fonts it names exist) and refuses one that cannot draw. An unchanged folder makes no version. A folder holds `mapping.json`, its tokens file, the fonts, `examples/NAME/figure.svg` + `figure.json`, and an optional `settings.json` such as `{"requireDarkFigures": true}`; a folder with no `settings.json` keeps the site's settings. Signed in, the author is the person; on the operator lane `--author-label` is required. `--dry-run` lists what would be stored and writes nothing. This is the command a site repository runs as part of its deploy.
+- The site setting `requireDarkFigures` makes `stories save-version` refuse a figure with no dark picture (see "Save a version"). The editorial context pack points at the design system when the site has one.
+
+## Guidelines
+<!-- guide:guidelines -->
+
+### Read, change and save a site's guidelines
+**Lane:** editor (signed in with `papyrus login`). **Version:** the release after 5.101.0 that carries the guidelines door; a site gets it with its data API deploy, so `papyrus guidelines show` on a site not yet deployed answers `service_unavailable`. `show`, `resolve`, `diff` and `history` only read. `save` writes immediately unless you pass `--dry-run`, and only an admin may save.
+
+A site keeps its guidelines as versioned documents: one per **kind** (`writing`, `image`, `video`) for the publication, and optionally one per section laid over it. An unknown kind is refused with the list of the kinds the site knows. Text lives in S3; every save makes a new version and the old ones stay.
+
+```sh
+papyrus guidelines show --kind writing
+papyrus guidelines show --kind writing --section security
+papyrus guidelines resolve --kind writing --section security
+papyrus guidelines history --kind writing
+papyrus guidelines diff --kind writing --file ./writing.yml
+papyrus guidelines save --kind writing --file ./writing.yml --reason "Narrowed the audience" --expected-current-version-id item-editorial-doctrine-writing-v1 --dry-run
+papyrus guidelines save --kind writing --file ./writing.yml --reason "Narrowed the audience" --expected-current-version-id item-editorial-doctrine-writing-v1
+papyrus guidelines save --kind video --file ./video.yml --reason "First video guidelines" --expected-current-version-id none
+```
+
+- `show` prints the stored document and its `expectedCurrentVersionId`: pass that to `save` as `--expected-current-version-id`. A kind with nothing stored yet answers `not_found` with `expectedCurrentVersionId: none` in `details`: pass `none` for the first save. `--version N` reads an older version.
+- `resolve` prints the effective document and `fieldSources` (which layer gave each field: the publication, the section, or locked by the publication) and `layers` (each layer's version and hash). A section with no document of its own resolves to the publication's. A site with no document of that kind resolves to nothing with the warning `<kind>_guidelines_missing`; that is not an error. Image guidelines are resolved for a Story and a use, with `papyrus images profile resolve`.
+- `diff` and `save --dry-run` compare the file with what is stored, field by field, and list the binding-rule changes (`constraintChanges`); they save nothing. A dry run of `save` prints `result.preview` with the same diff.
+- `save` takes the document whole (JSON or YAML) from `--file`; the document is validated and every problem is listed by field in `details.problems`. A document equal to the current one makes no version (`unchanged: true`). `--expected-current-version-id` must name the version you read: if someone saved since, the answer is `stale_version`; read again and apply your change to the new version.
+- **Binding rules** (`constraints`) belong to the publication. Adding, changing or removing one needs an admin who is a person: with `PAPYRUS_ACTOR_KIND=agent` the answer is `human_required` and nothing is saved, even in an admin's session. An editor's `save` is `not_authorized`.
+- `history` lists the versions newest first with who saved each, whether a person or an agent, when, and why.
+- `--kind image` runs the image profile operations (`papyrus images profile ...` keeps working). With `--section` it reads and saves that section's image document, the section layer `papyrus images profile resolve` lays over the profile; a section without one keeps using its old visual style and visual guidance fields.
 
 ## Ideas
 <!-- guide:ideas -->

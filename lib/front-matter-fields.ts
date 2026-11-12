@@ -40,3 +40,12 @@ export function contentItemExcerpt(version: Pick<ContentItemVersionRecord, "deck
   const blurb = readFrontMatterText(metadataFrontMatterYaml(version.metadata), FRONT_MATTER_BLURB_KEY).trim();
   return blurb || version.deck?.trim() || undefined;
 }
+
+/** The three lines that open a Story in the console, read from its front matter: the headline (title), the deck under it, and the blurb for listings. */
+export function storyHeadings(frontMatterYaml: string | null | undefined, slug: string): { title: string; deck: string; blurb: string } {
+  return {
+    title: readFrontMatterText(frontMatterYaml, FRONT_MATTER_TITLE_KEY).trim() || slug,
+    deck: readFrontMatterText(frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY).trim(),
+    blurb: readFrontMatterText(frontMatterYaml, FRONT_MATTER_BLURB_KEY).trim(),
+  };
+}

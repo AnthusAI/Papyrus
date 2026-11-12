@@ -60,6 +60,16 @@ module.exports = {
     require: ["features/step_definitions/board-refresh.steps.js"],
     format: ["summary"],
   },
+  boardHeadIndex: {
+    paths: ["features/newsroom-board-head-index.feature"],
+    require: ["features/step_definitions/board-head-index.steps.js"],
+    format: ["summary"],
+  },
+  storyOpenReads: {
+    paths: ["features/story-open-reads.feature"],
+    require: ["features/step_definitions/story-open-reads.steps.js"],
+    format: ["summary"],
+  },
   boardStoryTypes: {
     paths: ["features/newsroom-board-story-types.feature"],
     require: ["features/step_definitions/board-story-types.steps.js"],
@@ -150,9 +160,29 @@ module.exports = {
     require: ["features/step_definitions/data-table-point-in-time-recovery.steps.js"],
     format: ["summary"],
   },
+  visualStyleAdmin: {
+    paths: ["features/visual-style-admin.feature"],
+    require: ["features/step_definitions/visual-style-admin.steps.js"],
+    format: ["summary"],
+  },
+  writingGuidelinesAdmin: {
+    paths: ["features/newsroom-writing-guidelines-admin.feature"],
+    require: ["features/step_definitions/newsroom-writing-guidelines-admin.steps.js"],
+    format: ["summary"],
+  },
   coverImagePicker: {
     paths: ["features/cover-image-picker.feature"],
     require: ["features/step_definitions/cover-image-picker.steps.js"],
+    format: ["summary"],
+  },
+  storyDetailHeadlineImage: {
+    paths: ["features/story-detail-headline-image.feature"],
+    require: ["features/step_definitions/story-detail-headline-image.steps.js"],
+    format: ["summary"],
+  },
+  storyPreviewHeading: {
+    paths: ["features/story-preview-heading.feature"],
+    require: ["features/step_definitions/story-preview-heading.steps.js"],
     format: ["summary"],
   },
   messageHashtags: {

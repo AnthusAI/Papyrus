@@ -51,6 +51,7 @@ export const OPTIONAL_MODEL_GROUPS = {
   editorial: ["EditorialCheckRun", "EditorialFeedback", "EditorialPolicy", "EditorialCheckSettings"],
   steering: ["SteeringProposal", "SteeringDecision", "LexicalSteeringRule"],
   variations: ["StoryVariation"],
+  tenancy: ["Tenant", "TenantMembership", "TenantDomain"],
 } as const;
 
 /**
@@ -2721,6 +2722,64 @@ const definitions = {
       allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
     ]),
+  /** A tenant: one publication on a shared stack, id = the site id. Operators write; its own admin reads (PPY-31c45c). Group "tenancy". */
+  Tenant: modelWithoutSubscriptions({
+      id: a.id().required(),
+      accountId: a.string().required(),
+      displayName: a.string().required(),
+      state: a.string().required(),
+      stateKey: a.string().required(),
+      plan: a.string(),
+      entitlements: a.json(),
+      createdAt: a.datetime().required(),
+      stateChangedAt: a.datetime(),
+    })
+    .secondaryIndexes((index) => [
+      index("accountId").queryField("listTenantsByAccount"),
+      index("stateKey").queryField("listTenantsByStateKey"),
+    ])
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("id").identityClaim("papyrus_tenant_admin").to(["read"]),
+    ]),
+
+  /** Who belongs to a tenant and in what role; id = "<tenant>#<userSub>" (PPY-31c45c). Group "tenancy". */
+  TenantMembership: modelWithoutSubscriptions({
+      id: a.id().required(),
+      tenantId: a.string().required(),
+      userSub: a.string().required(),
+      userProfileId: a.id(),
+      role: a.string().required(),
+      status: a.string().required(),
+      grantedBy: a.string(),
+      grantedAt: a.datetime(),
+    })
+    .secondaryIndexes((index) => [
+      index("userSub").queryField("listTenantMembershipsByUserSub"),
+      index("tenantId").queryField("listTenantMembershipsByTenant"),
+    ])
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
+    ]),
+
+  /** A hostname served for a tenant; id = the lowercase hostname, so it can belong to one tenant only (PPY-31c45c). Group "tenancy". */
+  TenantDomain: modelWithoutSubscriptions({
+      id: a.id().required(),
+      tenantId: a.string().required(),
+      kind: a.string().required(),
+      status: a.string().required(),
+      verification: a.json(),
+      certificateRef: a.string(),
+    })
+    .secondaryIndexes((index) => [
+      index("tenantId").queryField("listTenantDomainsByTenant"),
+    ])
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
+    ]),
+
   ...editorialChecksSchemaDefinitions,
   ...monitoringViewSchemaDefinitions,
   ...automationViewSchemaDefinitions,

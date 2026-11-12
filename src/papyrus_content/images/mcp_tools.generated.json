@@ -422,6 +422,93 @@
       }
     },
     {
+      "name": "image_profile_init",
+      "audience": "staff",
+      "description": "Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "brand": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The publication's name."
+              },
+              "palette": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "hex": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Like #1f2a44."
+                    },
+                    "token": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "role": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "hex"
+                  ]
+                },
+                "description": "The brand colours, if known."
+              }
+            },
+            "required": [],
+            "description": "What the site's brand files say. Everything in it is optional."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "type": "object",
+            "description": "The visual style document: a full or partial profile (design section 5.2)."
+          },
+          "expectedCurrentVersionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Pass this to image_profile_save when saving the draft."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "What an editor still has to write."
+          },
+          "profileExists": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "document",
+          "expectedCurrentVersionId",
+          "notes",
+          "profileExists"
+        ]
+      }
+    },
+    {
       "name": "image_profile_example_add",
       "audience": "staff",
       "description": "Add an example or an avoid-this picture to the profile, as a new version.",
@@ -430,10 +517,10 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "uploadId": {
+          "attachmentId": {
             "type": "string",
             "minLength": 1,
-            "description": "The id of a picture already uploaded through the newsroom's upload step."
+            "description": "The id of a picture already uploaded through the newsroom's upload step (PNG, JPEG or WebP, at most 10 MB)."
           },
           "kind": {
             "type": "string",
@@ -468,7 +555,7 @@
           }
         },
         "required": [
-          "uploadId",
+          "attachmentId",
           "imageType",
           "kind",
           "note",
@@ -491,6 +578,10 @@
           "versionNumber": {
             "type": "integer",
             "minimum": 1
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -512,6 +603,11 @@
           "attachmentId": {
             "type": "string",
             "minLength": 1
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Remove it from this image type only (or identity). Left out, it is removed from every list that has it."
           },
           "reason": {
             "type": "string",
@@ -537,6 +633,14 @@
           "versionNumber": {
             "type": "integer",
             "minimum": 1
+          },
+          "removedFrom": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The image types (or identity) it was removed from."
           }
         },
         "required": [
@@ -570,6 +674,30 @@
           },
           "approvedForSpend": {
             "type": "boolean"
+          },
+          "unreviewedMayPublish": {
+            "type": "boolean"
+          },
+          "spendCeilings": {
+            "type": "object",
+            "properties": {
+              "perRoundUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "perDayUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": []
+          },
+          "spentTodayUsd": {
+            "type": "number"
           }
         },
         "required": [
@@ -736,6 +864,11 @@
             "additionalProperties": false,
             "description": "What the picture is for: a Story or a Reference."
           },
+          "sectionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from."
+          },
           "use": {
             "type": "string",
             "enum": [
@@ -805,11 +938,11 @@
           }
         },
         "required": [
-          "target",
           "use",
           "brief"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "target may be left out: with no Story or Reference the round is private, there is nothing to apply, and it is for ad assets and section art."
       },
       "outputSchema": {
         "type": "object",
@@ -1080,6 +1213,11 @@
             "additionalProperties": false,
             "description": "What the picture is for: a Story or a Reference."
           },
+          "sectionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from."
+          },
           "use": {
             "type": "string",
             "enum": [
@@ -1149,11 +1287,11 @@
           }
         },
         "required": [
-          "target",
           "use",
           "brief"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "target may be left out: with no Story or Reference the round is private, there is nothing to apply, and it is for ad assets and section art."
       },
       "outputSchema": {
         "type": "object",
@@ -1601,11 +1739,11 @@
         },
         "required": [
           "roundId",
-          "target",
           "use",
           "candidates",
           "done"
-        ]
+        ],
+        "description": "target is absent for a private round."
       }
     },
     {
@@ -2739,6 +2877,452 @@
         },
         "required": [
           "discarded"
+        ]
+      }
+    },
+    {
+      "name": "guidelines_get",
+      "audience": "staff",
+      "description": "Read a kind of guidelines for the publication or one section, the current version or an older one.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones."
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A section key. Leave it out for the publication's own guidelines."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "A version number; the current version when left out."
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1
+          },
+          "document": {
+            "type": "object",
+            "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
+          },
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "contentHash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "updatedAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "updatedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "changeReason": {
+            "type": "string"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "expectedCurrentVersionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What to pass to guidelines_save to replace this lineage's current version."
+          }
+        },
+        "required": [
+          "kind",
+          "document",
+          "itemId",
+          "versionNumber",
+          "contentHash",
+          "expectedCurrentVersionId"
+        ]
+      }
+    },
+    {
+      "name": "guidelines_resolve",
+      "audience": "staff",
+      "description": "Show the effective guidelines for the publication or a section laid over it, with where every field came from.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones."
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A section key. Leave it out for the publication's own guidelines."
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1
+          },
+          "found": {
+            "type": "boolean",
+            "description": "False when the publication has no guidelines of this kind yet."
+          },
+          "document": {
+            "type": "object",
+            "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
+          },
+          "fieldSources": {
+            "type": "object",
+            "description": "For every field, the layer it came from: publication, section, or locked by the publication."
+          },
+          "layers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "publication",
+                    "section"
+                  ]
+                },
+                "itemId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "slug": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "versionNumber": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "contentHash": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "scope",
+                "itemId",
+                "versionNumber"
+              ]
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "found",
+          "document",
+          "fieldSources",
+          "layers",
+          "warnings"
+        ]
+      }
+    },
+    {
+      "name": "guidelines_diff",
+      "audience": "staff",
+      "description": "Show what saving a guideline document would change, without saving it.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones."
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A section key. Leave it out for the publication's own guidelines."
+          },
+          "document": {
+            "type": "object",
+            "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
+          }
+        },
+        "required": [
+          "kind",
+          "document"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "from": {},
+                "to": {}
+              },
+              "required": [
+                "path"
+              ]
+            }
+          },
+          "constraintChanges": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "wouldCreateVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "kind",
+          "changes",
+          "constraintChanges",
+          "wouldCreateVersion"
+        ]
+      }
+    },
+    {
+      "name": "guidelines_save",
+      "audience": "staff",
+      "description": "Save a guideline document as the next version of its kind and scope.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones."
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A section key. Leave it out for the publication's own guidelines."
+          },
+          "document": {
+            "type": "object",
+            "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          },
+          "expectedCurrentVersionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The current version id of that guideline lineage when you read it (guidelines_get returns it as expectedCurrentVersionId), or none for the first save."
+          }
+        },
+        "required": [
+          "kind",
+          "document",
+          "reason",
+          "expectedCurrentVersionId"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "contentHash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "unchanged": {
+            "type": "boolean",
+            "description": "True when the document equals the current version, so no version was made."
+          },
+          "repeated": {
+            "type": "boolean",
+            "description": "True when this is the first answer to the same request id, returned again."
+          }
+        },
+        "required": [
+          "kind",
+          "itemId",
+          "versionNumber",
+          "contentHash"
+        ]
+      }
+    },
+    {
+      "name": "guidelines_history",
+      "audience": "staff",
+      "description": "List the versions of a kind of guidelines, newest first, with who changed it and why.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones."
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A section key. Leave it out for the publication's own guidelines."
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "itemId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "versionNumber": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "isCurrent": {
+                  "type": "boolean"
+                },
+                "at": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "by": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "byKind": {
+                  "type": "string",
+                  "enum": [
+                    "human",
+                    "agent"
+                  ]
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "contentHash": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "itemId",
+                "versionNumber",
+                "contentHash"
+              ]
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "versions"
         ]
       }
     }

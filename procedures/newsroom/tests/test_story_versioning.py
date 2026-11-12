@@ -337,3 +337,19 @@ class SaveVersionCarriesMedia(unittest.TestCase):
         with self.assertRaises(PublishError) as raised:
             publish_item(self.client, v2["id"], actor="t", now=NOW)
         self.assertEqual(raised.exception.code, "image-missing")
+
+
+class SavedColumnsFollowFrontMatter(unittest.TestCase):
+    """A saved version's title and headline columns are the front matter title; the deck column is only the deck."""
+
+    TITLE = "A Home Surveillance Drone with Cloud AI — What Could Go Wrong?"
+    DECK = "Ring's Drone Cam is sold as security. To do its job it has to see every room and send the video to the cloud, which is a privacy risk of its own."
+
+    def test_title_and_deck_land_in_their_own_columns(self) -> None:
+        import yaml
+
+        client = FakeAuthoringClient()
+        make_story(client, versions=1)
+        front = yaml.safe_dump({"title": self.TITLE, "deck": self.DECK, "blurb": "Two or three lines."}, sort_keys=False, allow_unicode=True)
+        record = save_story_version(client, LINEAGE, front_matter_yaml=front, body_markus="Body.\n", actor="t", change_reason="edit", now="2026-10-05T12:09:00Z")
+        self.assertEqual((record["title"], record["headline"], record["sortTitle"], record["deck"]), (self.TITLE, self.TITLE, self.TITLE, self.DECK))

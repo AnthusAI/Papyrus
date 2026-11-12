@@ -79,6 +79,8 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 /* The loading skeleton is the loaded editor's size block for block: the toolbar wraps onto more rows as the panel narrows (a container query,
    because the panel's width, not the window's, decides), and the three fields stack when it is narrow. */
 [data-skeleton-toolbar]{height:44px}[data-skeleton-stars]{height:59px}[data-skeleton-fields]{height:254px}[data-skeleton-preview]{height:min(28rem,55dvh)}
+/* The headline image block is one fixed height in every state (loading, none, processing, missing, loaded), and the skeleton reserves it. */
+[data-story-headline-frame],[data-skeleton-headline]{height:11rem}
 @container (max-width:719px){[data-skeleton-toolbar]{height:80px}[data-skeleton-fields]{height:274px}}
 @container (max-width:399px){[data-skeleton-toolbar]{height:116px}}
 .organizer-board-body .kb-issue-detail a:not(.organizer-header-button){display:block;min-height:44px;text-decoration:underline;padding:12px 0}
@@ -264,6 +266,7 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .newsroom-article-front-matter-fields{display:grid;gap:10px;max-width:640px}
 .newsroom-article-front-matter-fields label{display:grid;gap:4px;font-size:13px;font-weight:600}
 .newsroom-article-summary{border-bottom:1px solid var(--org-line);margin-bottom:12px;padding-bottom:10px}
+.newsroom-article-headline{margin:0 0 6px;font-size:24px;font-weight:700;line-height:1.2}
 .newsroom-article-subtitle{margin:0 0 4px;font-size:18px;font-weight:600;line-height:1.3}
 .newsroom-article-blurb{margin:0;font-size:14px;line-height:1.45}
 .organizer-search{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--org-ink);padding:2px 0;min-width:140px;max-width:240px}
@@ -589,3 +592,22 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .story-checklist-note-item{display:grid;gap:2px;padding:6px 10px;border-radius:8px;background:var(--card-muted,var(--muted))}
 .story-checklist-note-text{font:13px/1.4 var(--kb-theme-ui-font);white-space:pre-wrap;overflow-wrap:anywhere}
 .story-checklist-fold{justify-self:start}
+
+/* Administration > Policies > Visual style: flat fills and rounded shapes, no outlines or hairlines (the Anthus design rule). The organizer's square, outlined controls are
+   undone inside this panel only; shapes use the vs-* classes (not Tailwind's rounded-*, which the organizer zeroes) and every state keeps its icon and its word. */
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] :is(button,input,textarea,[role=button]){border-radius:12px !important;border:0 !important;text-transform:none;letter-spacing:0;font-family:var(--org-ui-font)}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-pill{border-radius:999px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-panel{border-radius:20px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-tile{border-radius:12px}
+.newsroom-organizer [data-news-desk-admin-panel="writing-guidelines"] .vs-pill{border-radius:999px}
+.newsroom-organizer [data-news-desk-admin-panel="writing-guidelines"] .vs-panel{border-radius:20px}
+.newsroom-organizer [data-news-desk-admin-panel="writing-guidelines"] .vs-tile{border-radius:12px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-small{border-radius:8px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="bg-primary"]{background:var(--org-ink) !important;color:var(--org-paper) !important;border:0 !important;font-weight:600}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="bg-secondary"]{background:var(--org-control) !important;color:var(--org-ink) !important;border:0 !important;font-weight:600}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="text-primary-foreground"]{color:var(--org-paper) !important}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="text-secondary-foreground"]{color:var(--org-ink) !important}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] button[class~="hover:bg-muted"]:hover,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] button[data-slot=button]:not([class~="bg-primary"]):not([class~="bg-secondary"]):hover{background:var(--org-control)}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] input:not([type=file]),.newsroom-organizer [data-news-desk-admin-panel="visual-style"] textarea{background:var(--org-paper) !important;color:var(--org-ink) !important;min-height:0;padding:8px 12px;font-size:14px;line-height:1.5}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] input:focus-visible,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] textarea:focus-visible,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] button:focus-visible{outline:2px solid var(--org-ink);outline-offset:2px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h3,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h4,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h5,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h6{text-transform:none;letter-spacing:0}

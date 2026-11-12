@@ -5,7 +5,8 @@ is ignored, and so is one that can change no page: a Reference that is neither a
 and after the change. Every other record adds the id of its Reference to a list in the shared projection lock table (a changed Message
 raises a counter beside it). The first change in a quiet period claims a debounce slot (a conditional write in the same table) and creates
 a one-off EventBridge Scheduler schedule at the end of the window that invokes content-actions with the snapshot task; the task reads
-the list and reads again only those rows. Later changes inside the window find the slot taken and only extend the list. A window with
+the list and reads again only those rows. Later changes inside the window find the slot taken and only extend the list. A batch that
+holds a changed Message claims the thread slot instead, whose window is a few seconds, and that run also takes whatever Reference ids are listed. A window with
 more changes than one item can list (a mass import) raises a flag instead, and that run reads the whole corpus once.
 
 This file imports nothing but the standard library and boto3: the Lambda bundles do not ship ``papyrus_content`` here.
@@ -29,6 +30,8 @@ PUBLIC_MESSAGE_KIND = "comment"
 CHANGING_EVENTS = ("INSERT", "MODIFY")
 REMOVE_EVENT = "REMOVE"
 DEBOUNCE_KEY_PREFIX = "home-page-debounce#"
+#: A changed Message has a slot of its own and a short window (``homePage.freshness.threadDebounceSeconds``): a forum post must not wait for the Reference window.
+THREAD_DEBOUNCE_KEY_PREFIX = "home-page-debounce-thread#"
 SCHEDULE_PREFIX = "papyrus-home-page-snapshot-"
 DIRTY_KEY_PREFIX = "home-page-dirty#"
 FULL_KEY_PREFIX = "home-page-full#"
@@ -120,8 +123,8 @@ def scope_of(function_arn: str) -> str:
     return hashlib.sha256(function_name.encode("utf-8")).hexdigest()[:SCOPE_CHARACTERS]
 
 
-def debounce_key(scope: str) -> str:
-    return f"{DEBOUNCE_KEY_PREFIX}{scope}"
+def debounce_key(scope: str, key_prefix: str = DEBOUNCE_KEY_PREFIX) -> str:
+    return f"{key_prefix}{scope}"
 
 
 def dirty_key(scope: str) -> str:
@@ -172,14 +175,16 @@ def schedule_name(scope: str, locked_until: int) -> str:
     return f"{SCHEDULE_PREFIX}{scope}-{locked_until}"
 
 
-def claim_slot(dynamodb_client: Any, table: str, scope: str, now_seconds: float, debounce_seconds: int) -> int | None:
+def claim_slot(
+    dynamodb_client: Any, table: str, scope: str, now_seconds: float, debounce_seconds: int, key_prefix: str = DEBOUNCE_KEY_PREFIX
+) -> int | None:
     """Opens a debounce window and returns when it closes, or ``None`` when a window is already open."""
     locked_until = int(now_seconds) + debounce_seconds
     try:
         dynamodb_client.put_item(
             TableName=table,
             Item={
-                "publication": {"S": debounce_key(scope)},
+                "publication": {"S": debounce_key(scope, key_prefix)},
                 "lockedUntil": {"N": str(locked_until)},
                 "expiresAt": {"N": str(locked_until + debounce_seconds + HOUR_SECONDS)},
             },
@@ -193,12 +198,12 @@ def claim_slot(dynamodb_client: Any, table: str, scope: str, now_seconds: float,
     return locked_until
 
 
-def release_slot(dynamodb_client: Any, table: str, scope: str, locked_until: int) -> None:
+def release_slot(dynamodb_client: Any, table: str, scope: str, locked_until: int, key_prefix: str = DEBOUNCE_KEY_PREFIX) -> None:
     """Reopens the window this call opened, so the next change can schedule the run that failed to schedule."""
     try:
         dynamodb_client.delete_item(
             TableName=table,
-            Key={"publication": {"S": debounce_key(scope)}},
+            Key={"publication": {"S": debounce_key(scope, key_prefix)}},
             ConditionExpression="lockedUntil = :until",
             ExpressionAttributeValues={":until": {"N": str(locked_until)}},
         )
@@ -229,15 +234,22 @@ def create_snapshot_schedule(scheduler_client: Any, scope: str, locked_until: in
 
 
 def schedule_for_changes(
-    dynamodb_client: Any, scheduler_client: Any, environment: Mapping[str, str], now_seconds: float
+    dynamodb_client: Any, scheduler_client: Any, environment: Mapping[str, str], now_seconds: float, *, messages: bool = False
 ) -> dict[str, Any]:
-    """Claims the slot and schedules the run. A failure releases the slot, then raises so the stream retries the batch."""
+    """Claims the slot and schedules the run. A failure releases the slot, then raises so the stream retries the batch.
+
+    ``messages`` is true when the batch holds a changed Message: it takes the thread slot and its short window (a site without
+    ``PAPYRUS_HOME_PAGE_THREAD_DEBOUNCE_SECONDS`` keeps the one window for both)."""
     function_arn = environment["PAPYRUS_HOME_PAGE_SNAPSHOT_FUNCTION_ARN"]
     role_arn = environment["PAPYRUS_HOME_PAGE_SCHEDULER_ROLE_ARN"]
     table = environment["PAPYRUS_PROJECTION_LOCK_TABLE"]
     debounce_seconds = int(environment["PAPYRUS_HOME_PAGE_DEBOUNCE_SECONDS"])
+    key_prefix = DEBOUNCE_KEY_PREFIX
+    thread_seconds = (environment.get("PAPYRUS_HOME_PAGE_THREAD_DEBOUNCE_SECONDS") or "").strip()
+    if messages and thread_seconds:
+        debounce_seconds, key_prefix = int(thread_seconds), THREAD_DEBOUNCE_KEY_PREFIX
     scope = scope_of(function_arn)
-    locked_until = claim_slot(dynamodb_client, table, scope, now_seconds, debounce_seconds)
+    locked_until = claim_slot(dynamodb_client, table, scope, now_seconds, debounce_seconds, key_prefix)
     if locked_until is None:
         return {"scheduled": False, "reason": "window open"}
     try:
@@ -246,7 +258,7 @@ def schedule_for_changes(
         if error_code(error) == SCHEDULE_CONFLICT:
             return {"scheduled": False, "reason": "already scheduled", "runAt": locked_until}
         print(json.dumps({"homePageScheduleFailed": error_code(error)}))
-        release_slot(dynamodb_client, table, scope, locked_until)
+        release_slot(dynamodb_client, table, scope, locked_until, key_prefix)
         raise
     return {"scheduled": True, "runAt": locked_until}
 
@@ -263,6 +275,7 @@ def handler(event: Mapping[str, Any], context: Any = None, *, dynamodb_client: A
         scheduler_client = scheduler_client or boto3.client("scheduler")
     ids = {change["id"] for change in changes if change.get("id")}
     scope = scope_of(os.environ["PAPYRUS_HOME_PAGE_SNAPSHOT_FUNCTION_ARN"])
-    record_changes(dynamodb_client, os.environ["PAPYRUS_PROJECTION_LOCK_TABLE"], scope, ids, sum(1 for change in changes if change.get("message")))
-    result = schedule_for_changes(dynamodb_client, scheduler_client, os.environ, time.time() if now_seconds is None else now_seconds)
+    messages = sum(1 for change in changes if change.get("message"))
+    record_changes(dynamodb_client, os.environ["PAPYRUS_PROJECTION_LOCK_TABLE"], scope, ids, messages)
+    result = schedule_for_changes(dynamodb_client, scheduler_client, os.environ, time.time() if now_seconds is None else now_seconds, messages=messages > 0)
     return {"records": len(records), "changed": len(changes), **result}

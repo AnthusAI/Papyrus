@@ -7,8 +7,8 @@ import { App, CfnResource, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { CfnTable, StreamViewType } from "aws-cdk-lib/aws-dynamodb";
 import { Architecture, Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
-import { DEFAULT_DEBOUNCE_SECONDS, readProjectionFreshness, resolveHomePageConfig } from "../amplify/plugins/home-page/config";
-import { HOME_PAGE_SNAPSHOT_TASK, homePageManifest, homePageMessageStreamFilterPattern, homePagePlugin, homePageStreamFilterPattern } from "../amplify/plugins/home-page/papyrus.plugin";
+import { DEFAULT_DEBOUNCE_SECONDS, DEFAULT_THREAD_DEBOUNCE_SECONDS, readProjectionFreshness, resolveHomePageConfig } from "../amplify/plugins/home-page/config";
+import { HOME_PAGE_MESSAGE_STREAM_BATCH_WINDOW_SECONDS, HOME_PAGE_SNAPSHOT_TASK, HOME_PAGE_STREAM_BATCH_WINDOW_SECONDS, homePageManifest, homePageMessageStreamFilterPattern, homePagePlugin, homePageStreamFilterPattern } from "../amplify/plugins/home-page/papyrus.plugin";
 import { KNOWN_PLUGINS, resolvePlugins } from "../amplify/plugins/registry";
 import { wirePlugins, PLUGINS_OUTPUT_KEY } from "../amplify/plugins/wire";
 
@@ -89,12 +89,12 @@ function resourceTypes(templates: Template[]): string[] {
 const behaviours: Record<string, () => Promise<unknown>> = {
   async the_defaults_are_justified_and_configurable() {
     assert.equal(DEFAULT_DEBOUNCE_SECONDS, 300, "the window equals the HTML s-maxage the writers set");
-    assert.deepEqual(resolveHomePageConfig("home-page"), { debounceSeconds: 300, intervalHours: null, purge: false, threads: false });
-    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 60, intervalHours: 6 }), { debounceSeconds: 60, intervalHours: 6, purge: false, threads: false });
-    const directory = siteDirectory({ homePage: { freshness: { debounceSeconds: 120, intervalHours: 12, purge: true } } });
-    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: directory }), { debounceSeconds: 120, intervalHours: 12, purge: true, threads: false }, "projection.json supplies the freshness");
-    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 30, intervalHours: null }, { staticDir: directory }), { debounceSeconds: 30, intervalHours: null, purge: true, threads: false }, "the request wins over projection.json");
-    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: {} }) }), { debounceSeconds: 300, intervalHours: null, purge: false, threads: false });
+    assert.deepEqual(resolveHomePageConfig("home-page"), { debounceSeconds: 300, threadDebounceSeconds: 3, intervalHours: null, purge: false, threads: false });
+    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 60, intervalHours: 6 }), { debounceSeconds: 60, threadDebounceSeconds: 3, intervalHours: 6, purge: false, threads: false });
+    const directory = siteDirectory({ homePage: { freshness: { debounceSeconds: 120, threadDebounceSeconds: 3, intervalHours: 12, purge: true } } });
+    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: directory }), { debounceSeconds: 120, threadDebounceSeconds: 3, intervalHours: 12, purge: true, threads: false }, "projection.json supplies the freshness");
+    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 30, intervalHours: null }, { staticDir: directory }), { debounceSeconds: 30, threadDebounceSeconds: 3, intervalHours: null, purge: true, threads: false }, "the request wins over projection.json");
+    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: {} }) }), { debounceSeconds: 300, threadDebounceSeconds: 3, intervalHours: null, purge: false, threads: false });
     assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: { threads: { enabled: true } } }) }).threads, true, "homePage.threads.enabled turns the Message stream on");
     assert.throws(() => resolveHomePageConfig({ name: "home-page", debounceSeconds: 0 }), /whole number of seconds/);
     assert.throws(() => resolveHomePageConfig({ name: "home-page", debounceSeconds: 1.5 }), /whole number of seconds/);
@@ -186,9 +186,17 @@ const behaviours: Record<string, () => Promise<unknown>> = {
     assert.equal(mappings.length, 2, "one mapping per table, both on the one trigger");
     const patterns = mappings.map((mapping) => mapping.Properties.FilterCriteria.Filters[0].Pattern);
     assert.deepEqual(patterns, [homePageStreamFilterPattern(), homePageMessageStreamFilterPattern()]);
+    assert.deepEqual(mappings.map((mapping) => mapping.Properties.MaximumBatchingWindowInSeconds), [HOME_PAGE_STREAM_BATCH_WINDOW_SECONDS, HOME_PAGE_MESSAGE_STREAM_BATCH_WINDOW_SECONDS], "a Message is not held back to fill a batch");
+    assert.equal(HOME_PAGE_MESSAGE_STREAM_BATCH_WINDOW_SECONDS, 0);
+    const threadEnvironment = (built: typeof data) => Object.values(built.findResources("AWS::Lambda::Function")).map((resource) => resource.Properties.Environment?.Variables ?? {}).find((variables) => "PAPYRUS_HOME_PAGE_DEBOUNCE_SECONDS" in variables);
+    assert.equal(threadEnvironment(data)?.PAPYRUS_HOME_PAGE_THREAD_DEBOUNCE_SECONDS, String(DEFAULT_THREAD_DEBOUNCE_SECONDS), "the trigger gets the short window for a changed Message");
+    const tuned = wireFake(["home-page"], { staticDir: siteDirectory({ homePage: { threads: { enabled: true }, freshness: { threadDebounceSeconds: 2 } } }) });
+    assert.equal(threadEnvironment(tuned.templates()[0])?.PAPYRUS_HOME_PAGE_THREAD_DEBOUNCE_SECONDS, "2");
+    assert.throws(() => resolveHomePageConfig({ name: "home-page", threadDebounceSeconds: 0 }), /whole number of seconds/);
     assert.deepEqual(JSON.parse(homePageMessageStreamFilterPattern()).$or[1], { dynamodb: { NewImage: { messageKind: { S: ["comment"] } } } });
     assert.equal(new Set(mappings.map((mapping) => JSON.stringify(mapping.Properties.FunctionName))).size, 1, "one trigger function");
     const withoutThreads = wireFake(["home-page"], { staticDir: siteDirectory({ homePage: {} }) });
+    assert.equal(threadEnvironment(withoutThreads.templates()[0])?.PAPYRUS_HOME_PAGE_THREAD_DEBOUNCE_SECONDS, undefined, "no Message stream, no thread window");
     assert.equal(withoutThreads.templates().slice(1).flatMap((template) => Object.keys(template.findResources("AWS::Lambda::EventSourceMapping"))).length, 1, "a site without threads has only the Reference stream");
     return {};
   },

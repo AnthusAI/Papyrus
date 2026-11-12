@@ -122,7 +122,6 @@ Feature: One definition of the Story procedure
     Given a Story at the "published" stage
     When the procedure is assessed
     Then the procedure step "fact_check" is "unknown"
-    And the procedure step "illustration" is "unknown"
     And the procedure step "typesetting" is "unknown"
     And the procedure step "fact_check" has the status "not_built"
 

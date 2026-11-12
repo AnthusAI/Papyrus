@@ -105,15 +105,41 @@ Feature: papyrus stories lens-check reports what code can check about a Story fo
     When the lens checks run
     Then the finding "P10" is a "problem"
 
-  Scenario: A local picture with no record of where it came from could not be checked
+  Scenario: A local picture with no credit and no third-party origin is ours
     Given a Story with this body
       """
       ::image{src="assets/chart.png" alt="A chart of costs"}
       """
     When the lens checks run
-    Then the finding "P10" is a "not_assessable"
-    And the finding "P10" says "Papyrus cannot tell where this picture came from"
+    Then the finding "P10" is a "pass"
+    And the finding "C6" is a "pass"
     And no lens step is blocked
+
+  Scenario: A local picture with a credit passes
+    Given a Story with this body
+      """
+      ::image{src="assets/chart.png" alt="A chart of costs" credit="Image: Ana Example, CC BY 4.0"}
+      """
+    When the lens checks run
+    Then the finding "P10" is a "pass"
+    And no lens step is blocked
+
+  Scenario: A Reference's picture with no credit is a problem
+    Given a Story with the front matter
+      """
+      title: Board refuses
+      seededImage:
+        url: /assets/harbour/seeded.jpg
+      """
+    And the Story body
+      """
+      ::image{src="/assets/harbour/seeded.jpg" alt="A harbour"}
+
+      The harbour.
+      """
+    When the lens checks run
+    Then the finding "P10" is a "problem"
+    And the finding "C6" is a "problem"
 
   Scenario: The Markdown copy is the Story's source
     Given a Story with this body
@@ -587,3 +613,32 @@ Feature: papyrus stories lens-check reports what code can check about a Story fo
     When the lens checks run
     Then the finding "C4" says "Record this in the social review note: Share picture https://example.test/assets/share.webp"
     And the finding "C4" says "912x572"
+
+  Scenario: A dek that differs from the blurb is expected and raises nothing
+    Given a Story with the front matter
+      """
+      title: Board refuses the merger
+      dek: Directors said the price undervalued the company.
+      blurb: Acme Corp's board refused Beta Ltd's merger offer on Tuesday, saying the price undervalued the company.
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    When the lens checks run
+    Then the finding "P2" is a "pass"
+
+  Scenario: A dek that is a verbatim copy of the blurb is a concern
+    Given a Story with the front matter
+      """
+      title: Board refuses the merger
+      dek: The board refused the merger on Tuesday.
+      blurb: The board refused the merger on Tuesday.
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    When the lens checks run
+    Then the finding "P2" is a "concern"
+    And the finding "P2" says "copy of the blurb"

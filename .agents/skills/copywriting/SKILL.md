@@ -22,6 +22,18 @@ papyrus editorial context --backend cloud --story STORY_LINEAGE --format json
 papyrus editorial pack
 ```
 
+Then read the site's writing guidelines resolved for the Story's section, with the
+layer every field came from, before anything else you write:
+
+```bash
+papyrus guidelines resolve --kind writing --section SECTION
+```
+
+The agent context pack carries the same guidelines first (`papyrus assignments context-pack
+--story STORY_LINEAGE --profile copywriter`). They are the site's voice, audience, words to prefer and
+avoid, and binding rules; they add to this skill and never replace it. A `writing_guidelines_missing`
+warning means the site has none yet: say so, and do not invent a voice.
+
 The context `text` is the publication's mission and policy (and the section's,
 when the story has one), in precedence order. The pack's policies carry the
 house voice, banned phrases and judgment questions. **The same data instructs the
@@ -43,6 +55,12 @@ These hold for every publication. The site's policies add its own rules on top.
   the measurement, or the failure case the publication's mission asks for. If the
   evidence for that is missing, stop and say what is missing; don't write around
   it.
+- **The dek and the blurb are different on purpose.** The blurb is a short
+  summary for index pages and cards, written to stand alone because it appears
+  out of context. The dek (subtitle) is read on the article page as part of the
+  article, so it must read smoothly with the headline and the opening paragraph
+  and must not repeat them. Write both, differently; never paste one into the
+  other (an identical copy is a defect). Worked example: `papyrus guide write-story`.
 - **Tense is a claim.** Write about the publisher's own systems in the past tense
   for history ("we ran", "we measured"). Use the future tense for offers ("we'll
   run this for you"). Use the present tense only for what you verified is true
@@ -55,10 +73,14 @@ These hold for every publication. The site's policies add its own rules on top.
   glossary give them. Old names in older articles are not a source.
 - **Label illustrative figures, composites and pilot results as such.** Keep
   opinion apart from evidence. Don't promise what hasn't shipped.
+- **A diagram, chart or illustration is its own piece of work.** When the Story would be clearer with one,
+  follow the [figures skill](../figures/SKILL.md): it draws in the site's design system, always in light and
+  dark, and needs a person's approval before the figure is saved into the Story. Don't draw one by hand in the body.
 - **No speed bragging and no hype.** Describe the problem, the mechanism and the
   honest limits.
 - **A generated image has no credit line at all; leave credit off.** A real third-party credit
-  is written as the source gives it.
+  is written as the source gives it. A local picture with no credit counts as ours and passes the
+  credit check; only remote, stock-cover and Reference pictures need a credit.
 - A story based on a Reference has its own text: never seed it from the
   Reference's captured text (the copy guard refuses runs of 12 or more shared words).
 
