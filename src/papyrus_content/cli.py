@@ -387,6 +387,7 @@ PORTED_COMMANDS = frozenset(
         "stories:head-index",
         "stories:repair-image-paths",
         "stories:set-slug",
+        "stories:retire",
         "stories:set-type",
         "stories:set-stars",
         "assignments:backfill-content-items",
@@ -919,6 +920,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_set_stars
 
         stories_set_stars(flags)
+    elif route == "stories:retire":
+        from .story_retire import stories_retire
+
+        stories_retire(flags)
     elif route == "stories:set-slug":
         from .story_commands import stories_set_slug
 

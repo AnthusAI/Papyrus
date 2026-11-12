@@ -39,6 +39,8 @@ from .assignments import assignment_metadata
 from .editorial_context import _body, _check_tenant, _digest, find_section, hosted_publication, resolve_editorial_context
 from .env import graphql_endpoint, load_dotenv
 from .fact_check import HELD_GROUPS, held_group
+from .guidelines import GuidelineError, GuidelineStore
+from .guidelines.agent_text import guidelines_for_agent, layer_sources, writing_text
 from .content_item_lifecycle import SYSTEM_ITEM_TYPES
 from .reference_stars import latest_stars
 from .section_ids import is_type_shaped, slug_of
@@ -114,8 +116,8 @@ SHARED_LAYERS = ("related_references",)
 PROFILES: dict[str, dict[str, Any]] = {
     "reporter": {"role": REPORTER_ROLE, "needsStory": True, "layers": (*STORY_BLOCK, *SECTION_BLOCK, *PUBLICATION_BLOCK)},
     "copywriter": {"role": COPYWRITER_ROLE, "needsStory": True, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"),
-                   "layers": ("editorial_policies", *STORY_BLOCK, "voice_examples", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
-    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"), "layers": ("visual_style", *STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
+                   "layers": ("writing_guidelines", "editorial_policies", *STORY_BLOCK, "voice_examples", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
+    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"), "layers": ("writing_guidelines", "visual_style", *STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
     "illustrator": {"role": ILLUSTRATOR_ROLE, "needsStory": True, "sheds": ("story_references", "story_conversation"),
                     "layers": ("visual_style", "assignment", "story", "process", "story_references", "story_conversation")},
 }
@@ -827,14 +829,62 @@ def desk_in_progress_layer(situation: Situation) -> tuple[Iterable[Entry], str |
     return LazyEntries(ranked, in_progress_entry), "no other Story is in progress in the section"
 
 
+def guidelines_store(store: Any) -> GuidelineStore:
+    return GuidelineStore(store)
+
+
+def section_key(situation: Situation) -> str | None:
+    return str(situation.section["id"]).split("#")[-1] if situation.section else None
+
+
+def exemplar_entries(situation: Situation, seen: set[str]) -> Iterator[Entry]:
+    """The Stories the section's resolved writing guidelines name as exemplars, in the order the guidelines list them, whole."""
+    from .publishing import published_item_id_for
+
+    try:
+        resolved = guidelines_for_agent(situation.store, "writing", section_key(situation), guidelines_store(situation.store))
+    except GuidelineError:
+        return
+    for exemplar in resolved["document"].get("exemplars") or []:
+        lineage = str(exemplar["storyLineageId"])
+        full = situation.store.get_record("PublishedItem", published_item_id_for(lineage))
+        if lineage == situation.lineage or lineage in seen or not full or (situation.tenant and full.get("tenantId") not in (None, situation.tenant)):
+            continue
+        body = _body(full)
+        if body:
+            seen.add(lineage)
+            yield _entry("published", lineage, _block([_line("Title", full.get("headline") or full.get("title")), _line("Why it is an exemplar", exemplar.get("note")), body]),
+                         exemplar=True)
+
+
 def voice_entries(situation: Situation) -> Iterator[Entry]:
-    """Whole published Stories, the section's first and then the rest of the publication's, newest first. The read stops when the share is full."""
+    """The writing guidelines' exemplar Stories first, then whole published Stories, the section's first and then the rest of the publication's, newest first. The read stops when the share is full."""
+    seen: set[str] = set()
+    yield from exemplar_entries(situation, seen)
     own = situation.section_slugs
     for row in itertools.chain(published_rows(situation, own) if own else (), published_rows(situation, other_section_slugs(situation))):
+        if str(row.get("itemLineageId") or row["id"]) in seen:
+            continue
         full = situation.store.get_record("PublishedItem", row["id"])
         body = _body(full) if full else ""
         if body:
             yield _entry("published", str(row.get("itemLineageId") or row["id"]), _block([_line("Title", row.get("headline") or row.get("title")), body]))
+
+
+def writing_guidelines_layer(situation: Situation) -> tuple[list[Entry], str | None]:
+    """The section's resolved writing guidelines: the copywriter reads all of it, the editor only the voice, the audience and the binding rules."""
+    try:
+        resolved = guidelines_for_agent(situation.store, "writing", section_key(situation), guidelines_store(situation.store))
+    except GuidelineError as error:
+        situation.warnings.append(f"The writing guidelines could not be read ({error.code}): {error.message}")
+        return [], "the writing guidelines could not be read"
+    situation.warnings.extend(f"{warning['code']}: {warning['message']}" for warning in resolved["warnings"] if warning["message"] not in situation.warnings)
+    text = writing_text(resolved["document"], binding_only=situation.profile == "editor") if resolved["found"] else ""
+    if not text:
+        return [], "the publication has no writing guidelines" if not resolved["found"] else "the writing guidelines hold nothing for this agent"
+    reference = resolved["layers"][-1]
+    return [_entry("writing_guidelines", str(reference["itemId"]), text, slug=reference["slug"], versionNumber=reference["versionNumber"],
+                   contentHash=reference["contentHash"], **layer_sources(resolved))], None
 
 
 def voice_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:
@@ -866,10 +916,18 @@ def visual_style_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     if document is None:
         situation.warnings.append(PROFILE_MISSING)
         return [], "the publication has no image style guidelines"
-    text = style_text(document, section=situation.section, types_only=situation.profile == "editor")
+    section = situation.section
+    layers = [{"scope": "publication", "itemId": row["id"], "slug": row.get("slug"), "versionNumber": row.get("versionNumber"), "contentHash": row.get("contentHash")}]
+    key = section_key(situation)
+    overlay = guidelines_store(situation.store).read("image", key) if key else None
+    if overlay:
+        section = {**(section or {}), "visualGuidance": str(overlay["document"].get("bodyMarkus") or "").strip() or (section or {}).get("visualGuidance")}
+        layers.append({"scope": "section", **overlay["reference"]})
+    text = style_text(document, section=section, types_only=situation.profile == "editor")
     if not text:
         return [], "the image style profile has no image types yet"
-    return [_entry("visual_style", str(row["id"]), text, lineageId=row.get("lineageId"), versionNumber=row.get("versionNumber"))], None
+    return [_entry("visual_style", str(row["id"]), text, lineageId=row.get("lineageId"), versionNumber=row.get("versionNumber"), slug=row.get("slug"),
+                   contentHash=row.get("contentHash"), layers=layers)], None
 
 
 def concept_relations(situation: Situation, lineage: str) -> list[dict[str, Any]]:
@@ -1002,6 +1060,7 @@ class Layer:
 
 
 LAYERS: dict[str, Layer] = {
+    "writing_guidelines": Layer("The publication's writing guidelines for this section", True, writing_guidelines_layer),
     "editorial_policies": Layer("The site's editorial policies", True, editorial_policies_layer),
     "visual_style": Layer("The publication's image style and image types", True, visual_style_layer),
     "assignment": Layer("The editor's assignment", True, assignment_layer),

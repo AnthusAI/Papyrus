@@ -17,6 +17,7 @@ from papyrus_content.projection.projector import (
 )
 from papyrus_content.projection.public_data import PublicDataSettings
 from papyrus_content.projection.item_state import ITEM_STATE_PREFIX
+from papyrus_content.projection.retired import RETIRED_KEY
 from papyrus_content.projection.source import PublishedContentSource
 from papyrus_content.publishing import ItemFields, publish_item, save_item, unpublish_item
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient
@@ -115,6 +116,8 @@ class Site:
         copied = RecordingWriter(self.work / f"full-{self.generation}")
         for entry in self.store.list(ITEM_STATE_PREFIX):
             copied.put(entry.key, self.store.get(entry.key))
+        if self.store.get(RETIRED_KEY) is not None:   # the register of retired Stories is remembered state too
+            copied.put(RETIRED_KEY, self.store.get(RETIRED_KEY))
         redirects = FakeRedirectStore()
         context = ProjectionContext(
             source=PublishedContentSource(self.client), projector=self.projector, writer=copied, redirect_store=redirects
