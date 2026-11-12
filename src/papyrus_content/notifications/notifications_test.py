@@ -7,6 +7,7 @@ import re
 from typing import Any, Mapping
 
 import pytest
+from botocore.exceptions import ClientError
 from caducus.notify.fakes import FakeClock, FakeMailer
 from caducus.notify.directory import StaticDirectory
 from caducus.notify.queues import MemoryQueues
@@ -263,12 +264,17 @@ def test_ses_pause_refusal_is_recognised_by_its_error_code() -> None:
 
     class Refusing(Mailer):
         def send(self, **_message: Any) -> str:
-            error = RuntimeError("paused")
-            error.response = {"Error": {"Code": "SendingPausedException"}}  # type: ignore[attr-defined]
-            raise error
+            raise ClientError({"Error": {"Code": "SendingPausedException", "Message": "paused"}}, "SendEmail")
 
     with pytest.raises(SendingPaused, match="papyrus-alpha"):
         SiteMailer(Refusing(), "alpha", "papyrus-alpha").send(to_address="a@example.test", subject="s", text="t", html="h", tags={})
+
+    class Other(Refusing):
+        def send(self, **_message: Any) -> str:
+            raise ClientError({"Error": {"Code": "MessageRejected", "Message": "no"}}, "SendEmail")
+
+    with pytest.raises(ClientError):
+        SiteMailer(Other(), "alpha", "papyrus-alpha").send(to_address="a@example.test", subject="s", text="t", html="h", tags={})
 
 
 def test_marketing_class_mail_is_refused_without_a_postal_address() -> None:

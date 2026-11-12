@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Mapping, Optional
 
+from botocore.exceptions import ClientError
 from caducus.notify.channels.base import Outcome
 from caducus.notify.channels.email import EmailChannel, Mailer
 from caducus.notify.delivery_log import DeliveryLog
@@ -27,8 +28,9 @@ LOGGER = logging.getLogger("papyrus.notifications.sending")
 PUBLIC_CLASS = "public"
 MESSAGE_PARTITION = "MSG#"
 MESSAGE_SORT = "DELIVERY"
-#: SES answers a send through a configuration set whose sending is off with this code (SES v2 ``SendingPausedException``).
-PAUSED_CODES = ("SendingPausedException", "SendingPaused")
+#: The SES v2 ``SendEmail`` error for paused sending (botocore's sesv2 service model lists ``SendingPausedException``; the
+#: model documents it for the account, and whether it also covers a configuration set is confirmed on the first forced pause).
+PAUSED_CODE = "SendingPausedException"
 
 
 class SendingPaused(Exception):
@@ -50,9 +52,8 @@ class SiteMailer(Mailer):
             return self._inner.send(
                 to_address=to_address, subject=subject, text=text, html=html, tags={**tags, "site": self._site_id}
             )
-        except Exception as error:  # noqa: BLE001 - botocore is imported lazily by the inner mailer
-            code = getattr(error, "response", {}).get("Error", {}).get("Code") if hasattr(error, "response") else None
-            if code in PAUSED_CODES:
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == PAUSED_CODE:
                 raise SendingPaused(pause_reason(self._set)) from error
             raise
 
