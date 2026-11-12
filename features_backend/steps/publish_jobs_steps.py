@@ -170,3 +170,60 @@ def step_cli_still(context) -> None:
     assert outcome["ok"] is None and outcome["status"] == "still-running", outcome
     assert "job-1" in outcome["error"] and "not a failure" in outcome["error"], outcome
     assert projected_stage(outcome)["status"] == "still-running"
+
+
+@given("a published story on a site that keeps build records")
+def step_published_story(context) -> None:
+    context.jobs_case = _harness(context)
+    context.story = "story-1"
+    context.answers = []
+
+
+@when("the editor unpublishes it from the CLI")
+def step_unpublish(context) -> None:
+    context.answers.append(context.jobs_case.unpublish(context.story, **{"async": True}))
+
+
+@then("the answer says the page is being taken down, with a job id")
+def step_unpublish_answer(context) -> None:
+    answer = context.answers[0]
+    assert answer["ok"] and answer["scheduled"] and answer["changed"], answer
+    assert answer["projection"]["state"] == QUEUED and answer["projection"]["jobId"], answer
+    assert context.jobs_case.scheduled[0]["unpublished"] is True
+    assert context.jobs_case.projected == [], "the unpublish itself built nothing"
+
+
+@given("a page-building function that answers an unpublish with a job and later reports it done")
+def step_unpublish_function(context) -> None:
+    context.cli_answers = [
+        {"ok": True, "changed": True, "scheduled": True, "itemPaths": [], "projection": {"jobId": "job-1", "state": "queued", "joined": False}},
+        {"ok": True, "projection": {"jobId": "job-1", "state": "running"}},
+        {"ok": True, "projection": {"jobId": "job-1", "state": "done", "paths": ["story-1/index.html", "index.html"]}},
+    ]
+    context.cli_timeout = "60"
+
+
+@when("the operator's CLI unpublishes the story")
+def step_cli_unpublish(context) -> None:
+    case = CliWaitsForTheJobTest("test_a_build_that_ends_is_reported_as_projected_with_its_pages")
+    context.cli_outcome, context.cli_client = case.trigger(context.cli_answers, timeout=context.cli_timeout, unpublished=True)
+
+
+@then("it reports the page as taken down, with the pages written")
+def step_cli_taken_down(context) -> None:
+    outcome = context.cli_outcome
+    assert outcome["ok"] is True and outcome["status"] == "projected", outcome
+    assert outcome["paths"] == ["story-1/index.html", "index.html"], outcome
+
+
+@given("a page-building function that builds the pages inside the call, as backends before this change do")
+def step_old_backend(context) -> None:
+    context.cli_answers = [{"ok": True, "projected": True, "paths": ["story-1/index.html"], "itemPaths": ["story-1/index.html"]}]
+    context.cli_timeout = "60"
+
+
+@then("it fails and says which backend to deploy, without asking again")
+def step_refused(context) -> None:
+    outcome = context.cli_outcome
+    assert outcome["ok"] is False and "Deploy a backend that includes PPY-f171b4" in outcome["error"], outcome
+    assert len(context.cli_client.inputs) == 1, context.cli_client.inputs

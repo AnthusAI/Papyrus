@@ -184,17 +184,16 @@ def trigger_projection_as_user(client, task: dict[str, Any], *, sleep=None, cloc
     It asks the newsroom's own ``publishItem`` (or ``unpublishItem``) mutation instead, as the console's Publish button does.
     Both are idempotent: the records are already written, so the function finds nothing to change.
 
-    A publish asks for the build to run in the background (``async``): the function answers at once with a job id (joining the build
+    A publish or unpublish asks for the build to run in the background (``async``): the function answers at once with a job id (joining the build
     already queued or running for this story, if any), and this lane asks about the job until it ends or
-    ``PAPYRUS_PROJECTION_TIMEOUT_SECONDS`` pass. A function that predates jobs builds the page while the call waits and returns the outcome
-    (``projected``, ``paths``, ``live``, ``url``, ``error``), as before. Never raises.
+    ``PAPYRUS_PROJECTION_TIMEOUT_SECONDS`` pass. A backend that predates jobs (unpublish only gained them with PPY-f171b4) is refused with a message that says to deploy a current one; there is no
+    fallback to waiting inside the call. Never raises.
     """
     mutation = "unpublishItem" if task.get("unpublished") else "publishItem"
     retry = retry_command(task["itemId"], unpublished=bool(task.get("unpublished")))
     long_call = getattr(client, "long_call", None)
     payload: dict[str, Any] = {"id": task["itemId"]}
-    if mutation == "publishItem":
-        payload["async"] = True
+    payload["async"] = True   # publish and unpublish alike: the function answers at once with a job, so AppSync's 30 s never cut a build off (PPY-f171b4)
     try:
         with (long_call(projection_timeout_seconds()) if callable(long_call) else contextlib.nullcontext()):
             response = _ask(client, mutation, payload)
@@ -214,24 +213,20 @@ def trigger_projection_as_user(client, task: dict[str, Any], *, sleep=None, cloc
             return {"ok": True if scheduled else False, "status": "scheduled" if scheduled else "failed", "scheduled": "item" if scheduled else None, "projectsPages": True,
                     "itemPaths": response.get("itemPaths") or [], **({"url": response["url"]} if response.get("url") else {}),
                     **({} if scheduled else {"error": "the build could not be started", "retry": retry})}
-        # The function answers ``projected`` only for a site that projects its pages, so this is how the signed-in lane learns which kind it is.
-        projects = "projected" in response
-        details = {key: response[key] for key in ("paths", "itemPaths", "invalidation", "edgePurged", "invalidationCapped") if key in response}
         if response.get("ok") is False:
             errors = "; ".join(str(entry.get("message") or entry) for entry in response.get("errors") or [])
             return {"ok": False, "status": "failed", "error": errors or f"{mutation} refused the request", "retry": retry}
-        if response.get("projected") is False:
+        if "projected" in response:
+            # Only a backend that ignored ``async`` builds the pages inside the call; both mutations answer a job now (PPY-f171b4).
             return {
                 "ok": False,
                 "status": "failed",
-                "error": response.get("error") or "the newsroom could not project the page",
-                "projectsPages": True,
+                "error": f"the newsroom backend does not support background {mutation} (it built the pages inside the call, which AppSync cuts off at 30 s). "
+                         f"Deploy a backend that includes PPY-f171b4 (Papyrus releases after v5.105.0) to this site, then run the command again",
                 "retry": retry,
-                **details,
             }
-        outcome: dict[str, Any] = {"ok": True, "status": "projected", "ran": task["task"], "via": f"{mutation} mutation", **details}
-        if projects:
-            outcome["projectsPages"] = True
+        # A site that does not project its pages answers neither a job nor ``projected``: the data is saved and there is no page work.
+        outcome: dict[str, Any] = {"ok": True, "status": "projected", "ran": task["task"], "via": f"{mutation} mutation"}
         if response.get("url"):
             outcome["url"] = response["url"]
         return outcome
