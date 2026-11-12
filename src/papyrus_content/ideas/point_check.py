@@ -65,16 +65,19 @@ SCHEMA: dict[str, Any] = {
 }
 
 
-def failures(verdict: Mapping[str, Any]) -> list[str]:
-    """Why a verdict keeps a draft out; empty when it passes."""
+def failures(verdict: Mapping[str, Any], rules: Any = None) -> list[str]:
+    """Why a verdict keeps a draft out; empty when it passes. ``rules`` (``ideas/rules.IdeaRules``) is the site's: which verdicts pass, and whether a repeated
+    point or talk about how the story came to be fails it. Without rules the standard applies."""
+    passing = tuple(getattr(rules, "passing_verdicts", (ADDS,)))
     found = []
-    if verdict.get("verdict") == RESTATES or (verdict.get("verdict") == ADDS and not str(verdict.get("claim") or "").strip()):
+    kind = verdict.get("verdict")
+    if kind not in passing:
+        found.append(NO_POINT_BEYOND_SOURCE if kind == RESTATES else POINT_UNSUPPORTED)
+    elif kind == ADDS and not str(verdict.get("claim") or "").strip():
         found.append(NO_POINT_BEYOND_SOURCE)
-    elif verdict.get("verdict") != ADDS:
-        found.append(POINT_UNSUPPORTED)
-    if verdict.get("repeats_itself") is not False:
+    if getattr(rules, "check_repeats", True) and verdict.get("repeats_itself") is not False:
         found.append(REPEATS_ITSELF)
-    if verdict.get("exposes_process") is not False:
+    if getattr(rules, "check_process_talk", True) and verdict.get("exposes_process") is not False:
         found.append(EXPOSES_PROCESS)
     return found
 
