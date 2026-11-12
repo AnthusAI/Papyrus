@@ -4,15 +4,15 @@ Pure over a small dict of inputs read once (``inputs_for_item``), so the checkli
 A cover is proved by records, never by hand:
 
 * the Story's front matter names a cover picture (``image``, or ``cover``) that is a stored asset (a ``MediaAsset`` row of the version, matched by ``srcPath``);
-* a person approved it, recorded as metadata in the front matter record ``coverImage`` for that picture (``srcPath``): ``approvedBy`` and ``approvedAt`` for any
-  cover, or ``pickedBy`` and ``pickedAt`` for a stock picture picked in the newsroom's Cover image. The image line's credit is never read for approval, so a
-  generated cover carries no credit line at all and a third-party picture keeps its own credit;
+* approval is NOT required by default. When a person has approved a cover, that is recorded as metadata in the front matter record ``coverImage`` for that picture
+  (``srcPath``): ``approvedBy`` and ``approvedAt``, or ``pickedBy`` and ``pickedAt`` for a stock picture picked in the newsroom's Cover image; the evidence names
+  the approver when present. A generated cover carries no credit line and a third-party picture keeps its own;
 * where the site requires dark figures (the design system's ``requireDarkFigures``), a figure cover also has a stored dark picture (``imageDark``/``coverDark``
   or the directive's ``srcDark``). A stock photograph has no dark twin and is never asked for one.
 
 Which Story types need a cover is the design-system setting ``illustrationRequiredTypes`` (a list of Item types), ``["article"]`` when unset.
-A site can opt in to a visible approval line with the design-system setting ``illustrationRequireApprovalCredit`` (off when unset): the cover's image line must
-then also say ``Approved by NAME``, with the approver named in the metadata.
+A site can opt in to requiring approval with the design-system setting ``illustrationRequireApprovalCredit`` (off when unset): the ``coverImage`` record must then
+name an approver and the cover's image line must say ``Approved by NAME``. No other site is held to either.
 """
 
 from __future__ import annotations
@@ -127,13 +127,14 @@ def cover_evidence(inputs: dict[str, Any] | None) -> tuple[str, str]:
     record = record if isinstance(record, dict) and normalize_path(record.get("srcPath")) == cover else {}
     picked_by = str(record.get("pickedBy") or "").strip()
     approver = picked_by or str(record.get("approvedBy") or "").strip()
-    if not approver:
-        return NOT_DONE, f"the cover {cover} is stored but no person approved it (the front matter `coverImage` record for it has no `approvedBy`)"
     approved_at = record.get("pickedAt") if picked_by else record.get("approvedAt")
     directive = _directive_for(inputs["body"], cover)
     policy = inputs["policy"]
-    if policy.get("requireApprovalCredit") and not _APPROVED_BY.search((directive or {}).get("credit", "")):
-        return NOT_DONE, f"this site shows who approved a cover (illustrationRequireApprovalCredit): the image line of {cover} needs a credit saying `Approved by {approver}`"
+    if policy.get("requireApprovalCredit"):   # opt-in only: a recorded approval and a visible line
+        if not approver:
+            return NOT_DONE, f"this site requires an approved cover (illustrationRequireApprovalCredit): the front matter `coverImage` record for {cover} needs `approvedBy` and `approvedAt`"
+        if not _APPROVED_BY.search((directive or {}).get("credit", "")):
+            return NOT_DONE, f"this site shows who approved a cover (illustrationRequireApprovalCredit): the image line of {cover} needs a credit saying `Approved by {approver}`"
     dark = normalize_path((directive or {}).get("srcDark") or front_matter.get("imageDark") or front_matter.get("coverDark"))
     if dark and dark not in stored:
         return NOT_DONE, f"the dark picture {dark} is not a stored asset of this version"
@@ -142,5 +143,5 @@ def cover_evidence(inputs: dict[str, Any] | None) -> tuple[str, str]:
             return UNKNOWN, "the site's requireDarkFigures setting could not be read, so a figure with no dark picture cannot be checked"
         if not dark and policy["requireDark"]:
             return NOT_DONE, f"the figure cover {cover} has no dark picture, and this site requires one (requireDarkFigures): run `papyrus figures render` and save SLUG.dark.png with it"
-    kind = "stock picture picked by" if picked_by else "approved by"
-    return DONE, f"cover {cover}, {kind} {approver}" + (f" on {approved_at}" if approved_at else "") + (f", dark {dark}" if dark and not picked_by else "")
+    who = (f", stock picture picked by {approver}" if picked_by else f", approved by {approver}") + (f" on {approved_at}" if approved_at else "") if approver else ""
+    return DONE, f"cover {cover}{who}" + (f", dark {dark}" if dark and not picked_by else "")

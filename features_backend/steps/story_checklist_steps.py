@@ -553,8 +553,8 @@ def figure_cover_line_only(context, name):
     add_cover(context, "figure", picked_by=name, approved=False, credit_line=True)
 
 
-@given("the site shows who approved a cover")
-def site_shows_approval(context):
+@given("the site requires an approved cover")
+def site_requires_approval(context):
     use_policy(context, requireApprovalCredit=True)
 
 
@@ -570,7 +570,7 @@ def cover_keeps_credit(context):
     assert 'credit="Image: A. Photographer, CC BY 4.0, via Wikimedia Commons"' in body, body
 
 
-@given("the Story has a cover that nobody approved")
+@given("the Story has a figure cover that nobody approved")
 def unapproved_cover(context):
     add_cover(context, "figure", approved=False)
 
