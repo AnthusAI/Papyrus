@@ -239,7 +239,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
 
   Scenario: The copywriter's layers put the rules first and the publication's voice before the wider record
     When the copywriter's context pack is built for the Story
-    Then the layers are, in order, "writing_guidelines, editorial_policies, assignment, story, process, audience_lenses, story_references, related_references, story_conversation, prior_research, voice_examples, section_concepts, concept_references, desk_published, desk_references, publication_published, publication_references"
+    Then the layers are, in order, "writing_guidelines, editorial_policies, byline, assignment, story, process, audience_lenses, story_references, related_references, story_conversation, prior_research, voice_examples, section_concepts, concept_references, desk_published, desk_references, publication_published, publication_references"
     And the system text says it is a copywriter and it writes a draft, never publishing
 
   Scenario: The copywriter reads the rules the draft will be checked against
@@ -389,3 +389,24 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
   Scenario: Role texts name no publication
     Then the role texts in the context pack hold no publication-specific wording
     And the lint fails on a role text that names a site
+
+  # The byline policy (PPY-804b7b): who a story may be credited to is the site's rule, with the honest rule as the default.
+  Scenario: A site with no byline policy gets the honest rule
+    When the copywriter's context pack is built for the Story
+    Then the byline layer says to attribute agent work to AI and never invent an author
+    And the byline layer says it is the default
+
+  Scenario: A satire site publishes under its own pen names
+    Given the site's byline policy is pen names "Chip Hardcastle" and "Dolores Finch"
+    When the copywriter's context pack is built for the Story
+    Then the byline layer lists the pen names "Chip Hardcastle" and "Dolores Finch"
+    And the byline layer says it came from the site
+    And the byline layer does not tell the writer to attribute the work to AI
+
+  Scenario: A pen-names policy with no pen names is refused when saved
+    When an admin saves a pen-names byline policy with no pen names
+    Then the save is refused because a pen-names policy needs at least one pen name
+
+  Scenario: Only the publication has a byline policy
+    When an admin saves a byline policy for the section "law-policy"
+    Then the save is refused because the byline rules belong to the publication

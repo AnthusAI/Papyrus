@@ -10,7 +10,7 @@ from papyrus_content import multi_search_research as ms
 from papyrus_content import newsroom_context_pack as pack_module
 from papyrus_content import story_commands
 from papyrus_content.model_defaults import DEFAULT_LLM_MODEL
-from papyrus_content.guidelines import GuidelineStore
+from papyrus_content.guidelines import GuidelineError, GuidelineStore
 from papyrus_content.newsroom_context_pack import build_context_pack
 from papyrus_content.story_reporting import STORY_REFERENCE_RELATION_FIELDS, story_thread_id
 from papyrus_content.web_search import SearchHit, SearchResponse
@@ -1621,3 +1621,66 @@ def step_role_lint_fails(context):
 @when("the copywriter's context pack is built with a budget of {budget:d} characters")
 def step_copywriter_tiny_budget(context, budget):
     context.pack = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1", max_characters=budget)
+
+
+# --- the byline policy (PPY-804b7b) ----------------------------------------------------------------------------------------------------------------------
+
+@given('the site\'s byline policy is pen names "{first}" and "{second}"')
+def step_pen_names(context, first, second):
+    save_guidelines(context, "byline", {"schemaVersion": 1, "mode": "pen-names", "penNames": [first, second]})
+
+
+@then("the byline layer says to attribute agent work to AI and never invent an author")
+def step_byline_honest(context):
+    text = layer_text(context, "byline")
+    assert 'Attribute agent work to "AI"' in text and "Never invent an author" in text, text
+
+
+@then("the byline layer says it is the default")
+def step_byline_default(context):
+    assert layer(context, "byline")["entries"][0]["source"] == "default"
+
+
+@then('the byline layer lists the pen names "{first}" and "{second}"')
+def step_byline_lists(context, first, second):
+    text = layer_text(context, "byline")
+    assert first in text and second in text, text
+
+
+@then("the byline layer says it came from the site")
+def step_byline_site(context):
+    entry = layer(context, "byline")["entries"][0]
+    assert entry["source"] == "site" and entry["versionNumber"] == 1, entry
+
+
+@then("the byline layer does not tell the writer to attribute the work to AI")
+def step_byline_not_ai(context):
+    assert 'Attribute agent work to "AI"' not in layer_text(context, "byline")
+
+
+def _save_byline(context, document, section=None):
+    try:
+        save_guidelines(context, "byline", document, section)
+        context.byline_refusal = None
+    except GuidelineError as error:
+        context.byline_refusal = str(error)
+
+
+@when("an admin saves a pen-names byline policy with no pen names")
+def step_save_empty_pen_names(context):
+    _save_byline(context, {"schemaVersion": 1, "mode": "pen-names"})
+
+
+@when('an admin saves a byline policy for the section "{section}"')
+def step_save_section_byline(context, section):
+    _save_byline(context, {"schemaVersion": 1, "mode": "honest"}, section)
+
+
+@then("the save is refused because a pen-names policy needs at least one pen name")
+def step_refused_pen_names(context):
+    assert context.byline_refusal and "at least one pen name" in context.byline_refusal, context.byline_refusal
+
+
+@then("the save is refused because the byline rules belong to the publication")
+def step_refused_section(context):
+    assert context.byline_refusal and "belong to the publication" in context.byline_refusal, context.byline_refusal
