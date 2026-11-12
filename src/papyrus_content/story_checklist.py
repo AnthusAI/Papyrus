@@ -180,12 +180,12 @@ def _metadata_of(row: dict[str, Any]) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
 
-def refresh_summary(client, lineage: str, rows: list[dict[str, Any]], *, now: str | None = None, procedure: Procedure | None = None) -> dict[str, Any]:
+def refresh_summary(client, lineage: str, rows: list[dict[str, Any]], *, now: str | None = None, procedure: Procedure | None = None, latest: dict[str, Any] | None = None) -> dict[str, Any]:
     """Keeps the counts on the Story's latest version so a board card shows progress with no extra query. Written only when they changed."""
     from .story_reporting import latest_story_version
 
     summary = summary_of(rows, procedure or procedure_of(client))
-    latest = latest_story_version(client, lineage)
+    latest = latest or latest_story_version(client, lineage)
     metadata = _metadata_of(latest)
     if metadata.get(SUMMARY_KEY) != summary:
         metadata[SUMMARY_KEY] = summary
@@ -275,14 +275,16 @@ def _reopened_by_person(row: dict[str, Any]) -> bool:
 
 
 def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None, assessment: dict[str, Any] | None = None,
-                   now: str | None = None, write_summary: bool = True) -> dict[str, Any]:
+                   now: str | None = None, write_summary: bool = True, story: dict[str, Any] | None = None) -> dict[str, Any]:
     """Brings the Story's checklist up to date once, after a change: creates a missing item (the whole checklist for a new Story, a new
     template step for an unpublished one), marks an open item done when its evidence exists, and refreshes the summary.
 
     A published Story gets no new template steps: its checklist is a record of what happened. An item a person reopened is not marked done
-    again by evidence, and an item already skipped, not applicable or done is left as it is."""
+    again by evidence, and an item already skipped, not applicable or done is left as it is.
+
+    ``story`` is the Story's row when the caller has just created it: the lineage index is eventually consistent and may not hold it yet, so the row is used as it is."""
     now = now or utc_now()
-    facts = facts or story_facts(client, lineage)
+    facts = facts or story_facts(client, lineage, versions=[story] if story else None)
     procedure = Procedure.from_spec(facts.get("procedureSpec"))
     assessment = assessment or assess(facts)
     states = {row["key"]: row.get("evidence", row["state"]) for row in assessment["steps"]}   # what the records prove, never the stored answer
@@ -322,7 +324,7 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
             completed.append(step.key)
     ordered = sorted(rows.values(), key=lambda row: (int(row.get("stepOrder") or 0), row["stepKey"]))
     # The research worker's role may create Items but not update them: it leaves the card summary (and the old version's mark) for the next change by an editor.
-    summary = refresh_summary(client, lineage, ordered, now=now, procedure=procedure) if write_summary else summary_of(ordered, procedure)
+    summary = refresh_summary(client, lineage, ordered, now=now, procedure=procedure, latest=story) if write_summary else summary_of(ordered, procedure)
     return {"created": created, "completed": completed, "summary": summary}
 
 

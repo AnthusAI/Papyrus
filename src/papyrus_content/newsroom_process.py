@@ -208,7 +208,7 @@ def procedure_of(client) -> Procedure:
     """The Story procedure of the site ``client`` is signed in to: its saved ``procedure`` document, else the default (the site saved none).
 
     One read (two index queries and a download) is kept on the client for a minute. A document that cannot be read raises: nothing guesses which procedure
-    the site has, so a reminder is not computed and a Story is not published on the wrong list. A role that cannot read the site's documents does not ask."""
+    the site has, so a reminder is not computed and a Story is not published on the wrong list."""
     import time
 
     kept = getattr(client, "_papyrus_story_procedure", None)
@@ -235,17 +235,20 @@ def _metadata_of(row: dict[str, Any]) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, Any] | None] | None = None, *, read_cover: bool = True) -> dict[str, Any]:
+def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, Any] | None] | None = None, *, read_cover: bool = True,
+                versions: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Reads the records once: the current version, the lineage's Assignments with their direction and research packets, and the stored check run.
 
     The cover evidence (the version's media and the site's design-system settings) is read only from the copywriting stage on (``read_cover=False`` skips it
     anywhere): before a draft there is no cover to find, and the router and the research worker, which work on Stories then, run under roles that cannot read media.
-    Until then the cover reads as missing, and the next change to the Story (an editor's, past that stage) reads the records."""
+    Until then the cover reads as missing, and the next change to the Story (an editor's, past that stage) reads the records.
+
+    ``versions`` are the Story's rows when the caller has just written them: the lineage index is eventually consistent and may not hold them yet."""
     from .assignments import assignment_metadata
     from .assignments_workflow import load_assignment_research_packet_entries
     from .story_reporting import _current_of, story_versions
 
-    versions = story_versions(client, lineage)
+    versions = versions if versions is not None else story_versions(client, lineage)
     if not versions:
         raise ValueError(f"No story found for lineage {lineage}.")
     current = _current_of(versions)

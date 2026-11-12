@@ -125,7 +125,7 @@ def item_id_for_idea(draft: dict[str, Any]) -> str:
 
 def file_idea_item(
     client: Any, draft: dict[str, Any], *, actor: str = DEFAULT_ACTOR, now: str | None = None, source_text_reader: SourceTextReader | None = None,
-    extra_generated: dict[str, Any] | None = None, gate: Gate | None = None, run_id: str | None = None, checklist: bool = True,
+    extra_generated: dict[str, Any] | None = None, gate: Gate | None = None, run_id: str | None = None,
 ) -> dict[str, Any]:
     """Saves a generated idea as an Item at the idea stage and links the References it cites ``based_on``. Returns ``itemId``, ``lineageId``,
     ``created`` and ``linked``. A body that copies a cited Reference's text raises ``StoryCopiedFromReference`` before anything is written.
@@ -184,10 +184,10 @@ def file_idea_item(
         if gate is not None and result is not None and not result.get("skipped"):
             gate.record(existing, result)
     lineage_id = existing.get("lineageId") or item_id
-    if created and checklist:   # every path that makes a Story makes its checklist, except a role that cannot read the site's documents (the router): its ideas get theirs at their next change
-        from ..story_checklist import ensure_for_new_story
+    if created:   # every path that makes a Story makes its checklist, and it follows the site's procedure: a role that cannot read it fails here, loudly
+        from ..story_checklist import sync_checklist
 
-        ensure_for_new_story(client, lineage_id)
+        sync_checklist(client, lineage_id, story=existing)
     linked = [link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON, actor=actor, now=now, story=existing)["referenceLineageId"] for row in references]
     return {"itemId": item_id, "lineageId": lineage_id, "created": created, "linked": linked, "check": check, "story": existing}
 
@@ -222,18 +222,17 @@ class ItemStore:
     kind = KIND
 
     def __init__(self, client: Any, *, actor: str = DEFAULT_ACTOR, source_text_reader: SourceTextReader | None = None, legacy: Callable[[], list[dict[str, Any]]] | None = None,
-                 gate: Gate | None = None, run_id: str | None = None, drafts: list[dict[str, Any]] | None = None, checklist: bool = True) -> None:
+                 gate: Gate | None = None, run_id: str | None = None, drafts: list[dict[str, Any]] | None = None) -> None:
         self.client = client
         self.drafts = drafts   # the existing ideas a queued step was handed by its plan: with them, ``story_drafts`` reads nothing
         self.gate = gate
-        self.checklist = checklist   # False under the router, whose role cannot read the site's Story procedure: it files no checklist, the next change does
         self.run_id = run_id  # the knowledge run, when one is filing: recorded on each idea Item (machine_writes.py)
         self.actor = actor
         self.source_text_reader = source_text_reader
         self.legacy = legacy
 
     def file_story_draft(self, draft: dict[str, Any]) -> str:
-        result = file_idea_item(self.client, draft, actor=self.actor, source_text_reader=self.source_text_reader, gate=self.gate, run_id=self.run_id, checklist=self.checklist)
+        result = file_idea_item(self.client, draft, actor=self.actor, source_text_reader=self.source_text_reader, gate=self.gate, run_id=self.run_id)
         if result["check"] is not None:
             draft["editorialCheck"] = result["check"]
         return result["lineageId"]
