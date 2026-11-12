@@ -448,3 +448,12 @@ def test_a_new_version_does_not_inherit_the_schedule_of_the_one_before() -> None
 
     second = save_story_version(client, LINEAGE, front_matter_yaml="title: Robots\n", body_markus="Newer.\n", actor="Alex", change_reason="edit", now="2026-11-11T12:00:00Z")
     assert not [name for name in SCHEDULE_FIELDS if second.get(name)] and item(client, first)["scheduleState"] == SCHEDULED
+
+
+def test_a_site_that_requires_a_rating_says_so_instead_of_promising_a_publish() -> None:
+    from unittest import mock
+
+    _client, _scheduler, _clock, service, _newest = setup()
+    with mock.patch("papyrus_content.story_rating.read_required", return_value=True):
+        notes = service.schedule({"storyLineageId": LINEAGE, "at": "2026-11-13 09:00"}, SAM)["notes"]
+    assert len(notes) == 1 and "requires a rating" in notes[0] and "overdue" in notes[0]

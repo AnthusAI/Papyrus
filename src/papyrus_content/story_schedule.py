@@ -354,7 +354,10 @@ class ScheduleService:
         from .item_stars import effective_rating
 
         if effective_rating(item)["stars"] == 0:
-            result["notes"] = ["Unrated: it will publish but will not be listed or announced until it is rated."]
+            from .story_rating import read_required
+
+            result["notes"] = (["This site requires a rating before a Story publishes: rate it (papyrus stories set-stars) before the scheduled time, or the publish is refused and it shows as overdue."]
+                               if read_required(self.client) else ["Unrated: it will publish but will not be listed or announced until it is rated."])
         if dry_run:
             return result
         try:

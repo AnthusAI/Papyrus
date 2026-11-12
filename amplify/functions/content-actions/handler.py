@@ -40,6 +40,7 @@ from papyrus_content.rebuild_trigger import (
 )
 from papyrus_content.story_reporting import save_story_version
 from papyrus_content.story_schedule import TASK_NAME as PUBLISH_SCHEDULED_TASK, Caller, ScheduleError, ScheduleService, run_operation as run_schedule_operation, scheduler_from_environment, ZONE_ENV as PUBLICATION_ZONE_ENV
+from papyrus_content.live_schema import wait_for_live_schema
 from papyrus_content.publication import ensure_publication_from_environment
 from papyrus_content.editorial_checks import GraphQLEditorialStore, ensure_default_policies
 from papyrus_content.reference_intake import IntakeError, intake_email_submission_references, intake_references
@@ -537,6 +538,7 @@ def _run_projection_task(task: dict, lambda_context=None) -> dict:
         report = project_all(bulk_projection_context(client))
         after_release(publish_jobs_from_environment())
     elif task.get("task") == "deploy-render":
+        wait_for_live_schema(client)   # the deploy that adds attributes updates the schema and this code together; the schema can lag
         return run_deploy_render_task(client)
     elif task.get("task") == READER_SNAPSHOT_TASK:
         return run_reader_snapshot(projection_context(client), client, poll_retirements=task.get("retirementPoll") is True).to_dict()
