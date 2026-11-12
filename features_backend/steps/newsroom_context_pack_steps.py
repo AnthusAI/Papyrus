@@ -1684,3 +1684,70 @@ def step_refused_pen_names(context):
 @then("the save is refused because the byline rules belong to the publication")
 def step_refused_section(context):
     assert context.byline_refusal and "belong to the publication" in context.byline_refusal, context.byline_refusal
+
+
+# --- agent instructions (PPY-c05a3c) ----------------------------------------------------------------------------------------------------------------------
+
+@given('the site wrote the copywriter\'s role as "{text}"')
+def step_site_role(context, text):
+    context.site_role = text
+    save_guidelines(context, "agent-instructions", {"schemaVersion": 1, "roles": {"copywriter": text}})
+
+
+@then("the system text starts with the site's role text for the copywriter")
+def step_starts_with_site_role(context):
+    assert context.pack["system"].startswith(context.site_role), context.pack["system"][:200]
+
+
+@then("the system text does not contain the default copywriter role")
+def step_not_default_role(context):
+    assert "How to read what follows" not in context.pack["system"] and pack_module.COPYWRITER_ROLE.strip()[:60] not in context.pack["system"]
+
+
+@then("the system text still carries the publication policy and the section mission")
+def step_editorial_follows(context):
+    assert "PUBLICATION-POLICY" in context.pack["system"] and "Law and Policy MISSION" in context.pack["system"], context.pack["system"][:400]
+
+
+@then("the pack records that the role came from the site, with its version and content hash")
+def step_role_recorded(context):
+    role = context.pack["role"]
+    assert role["source"] == "site" and role["slug"] == "editorial-doctrine-agent-instructions" and role["versionNumber"] == 1 and role["contentHash"].startswith("sha256:"), role
+
+
+@then("the system text is the default reporter role followed by the editorial context")
+def step_default_reporter(context):
+    assert context.pack["system"].startswith(pack_module.REPORTER_ROLE.rstrip())
+
+
+@then("the pack has no site role")
+def step_no_site_role(context):
+    assert "role" not in context.pack
+
+
+def _save_instructions(context, roles):
+    try:
+        save_guidelines(context, "agent-instructions", {"schemaVersion": 1, "roles": roles})
+        context.instructions_refusal = None
+    except GuidelineError as error:
+        context.instructions_refusal = str(error)
+
+
+@when('an admin saves agent instructions for the agent "{agent}"')
+def step_save_unknown(context, agent):
+    _save_instructions(context, {agent: "Some role."})
+
+
+@when('an admin saves agent instructions with an empty role for the agent "{agent}"')
+def step_save_empty(context, agent):
+    _save_instructions(context, {agent: "  "})
+
+
+@then("the save is refused naming the unknown agent")
+def step_refused_unknown(context):
+    assert context.instructions_refusal and "unknown agent" in context.instructions_refusal, context.instructions_refusal
+
+
+@then("the save is refused naming the role of editor")
+def step_refused_empty(context):
+    assert context.instructions_refusal and "role of editor" in context.instructions_refusal, context.instructions_refusal

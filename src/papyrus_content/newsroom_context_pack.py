@@ -713,7 +713,15 @@ def build_context_pack(store: Any, *, profile: str, assignment: Any = None, stor
     names = [name for name in definition["layers"] if situation.story is not None or not LAYERS[name].needs_story]
     editorial = resolve_editorial_context(store, endpoint=graphql_endpoint(),
                                           section_id=situation.section["id"] if situation.section else None)
-    system = definition["role"].rstrip() + "\n\n" + editorial["text"]
+    role_text, role_reference = definition["role"], None
+    try:
+        from .guidelines.agent_instructions import site_roles
+
+        written = site_roles(store, guidelines_store(store))
+        role_text, role_reference = written["roles"].get(profile, role_text), written["reference"] if profile in written["roles"] else None
+    except GuidelineError as error:
+        situation.warnings.append(f"The site's agent instructions could not be read ({error.code}): {error.message}; the default role text is used.")
+    system = role_text.rstrip() + "\n\n" + editorial["text"]
     warnings = list(situation.warnings) + [text for text in editorial["warnings"] if text not in situation.warnings]
     if situation.section:
         for kind, key in (("mission", "editorialMission"), ("policy", "editorialPolicy")):
@@ -772,6 +780,8 @@ def build_context_pack(store: Any, *, profile: str, assignment: Any = None, stor
             "layers": output_layers, "warnings": warnings, "editorialContextHash": editorial["contextHash"]}
     pack["contextHash"] = _digest({"contract": CONTRACT, "profile": profile, "system": system, "user": user,
                                    "layers": output_layers, "warnings": warnings, "editorialContextHash": editorial["contextHash"]})
+    if role_reference:
+        pack["role"] = {"source": "site", "slug": role_reference["slug"], "versionNumber": role_reference["versionNumber"], "contentHash": role_reference["contentHash"]}
     if recent:
         pack["recent"] = dict(recent)
     return pack
