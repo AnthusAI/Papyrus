@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from .handlers import Caller, ImageOperationError, Outcome
+from .generation_settings import read_settings
 from .image_prices import estimate_cost
 from .profile_handlers import _publication, resolve_for_request
 from .prompt_skeleton import compose_plan
@@ -16,13 +17,6 @@ from .visual_style import StyleError
 
 UNATTENDED_COUNT = 1
 SET_COUNT = 4
-
-
-def capabilities_of(client: Any) -> dict:
-    """What this site may use for generation. A site with nothing configured answers not configured, and spends nothing."""
-    reader = getattr(client, "image_generation_settings", None)
-    settings = reader() if callable(reader) else None
-    return settings or {"configured": False, "models": [], "approvedForSpend": False}
 
 
 def capability_check(settings: dict, model: str | None, speed: str, count: int) -> dict:
@@ -76,7 +70,7 @@ def preview_prompt(client, arguments: dict, caller: Caller, files=None) -> Outco
                 "private": not arguments.get("target")}
         repeats = count if arguments.get("spread") != "types" else 1
         plans.extend({**plan, "position": len(plans) + offset} for offset in range(repeats))
-    settings = capabilities_of(client)
+    settings = read_settings(client, files).public()
     check = capability_check(settings, arguments.get("model"), speed, len(plans))
     estimate = estimate_cost(check.get("model") or arguments.get("model"), len(plans), speed)
     return Outcome({"plans": plans, "estimate": estimate, "capabilityCheck": check}, publication, tuple(warnings))

@@ -674,6 +674,30 @@
           },
           "approvedForSpend": {
             "type": "boolean"
+          },
+          "unreviewedMayPublish": {
+            "type": "boolean"
+          },
+          "spendCeilings": {
+            "type": "object",
+            "properties": {
+              "perRoundUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "perDayUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": []
+          },
+          "spentTodayUsd": {
+            "type": "number"
           }
         },
         "required": [
@@ -1715,11 +1739,11 @@
         },
         "required": [
           "roundId",
-          "target",
           "use",
           "candidates",
           "done"
-        ]
+        ],
+        "description": "target is absent for a private round."
       }
     },
     {

@@ -147,6 +147,9 @@ def validate_profile(document: Any) -> list[Problem]:
     for name in ("identity", "techniques", "subjects", "treatments", "uses", "imageTypes", "attribution", "generation"):
         if name in document and not isinstance(document[name], dict):
             add(name, f"{name} must be an object.")
+    from .generation_settings import check_generation
+
+    check_generation(document.get("generation"), add)
     palette = _check_identity(document.get("identity"), add)
     _check_lists(document, add)
     _check_locked(document, add)

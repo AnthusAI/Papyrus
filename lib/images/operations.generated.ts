@@ -52,6 +52,7 @@ export type ImageErrorCode =
   | "capability_unsupported"
   | "provider_failed"
   | "provider_busy"
+  | "spend_ceiling_exceeded"
   | "batch_expired"
   | "stale_version"
   | "candidate_not_ready"
@@ -260,6 +261,12 @@ export type ImageCapabilitiesResult = {
   configured: boolean;
   models: Record<string, unknown>[];
   approvedForSpend: boolean;
+  unreviewedMayPublish?: boolean;
+  spendCeilings?: {
+    perRoundUsd?: number | null;
+    perDayUsd?: number | null;
+  };
+  spentTodayUsd?: number;
 };
 
 /** Work out a starting brief and stock search from a Story's title and deck. */
@@ -494,7 +501,7 @@ export type ImageRoundGetInput = {
 export type ImageRoundGetResult = {
   roundId: string;
   /** What the picture is for: a Story or a Reference. */
-  target: {
+  target?: {
     kind: "story" | "reference";
     /** The lineage id of the Story or Reference. */
     lineageId: string;
