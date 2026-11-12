@@ -71,3 +71,15 @@ Feature: A site defines its own Story procedure
     When I run "stories next" with "--story story-1"
     Then the procedure command was refused saying "could not be read"
     And publishing is refused rather than judged against the default list
+
+  Scenario: An idea filed by a role that cannot read the site's procedure stops with the reason
+    Given an empty newsroom
+    And a site whose procedure document cannot be read
+    When the monitor files an idea
+    Then filing the idea stopped saying "could not be read"
+
+  Scenario: An idea filed by a role that can read the site's procedure gets the checklist the site defines
+    Given an empty newsroom
+    And a site whose procedure is choose, draft, a step of its own "label_check" at the "copywriting" stage, and publish
+    When the monitor files an idea
+    Then the filed idea has 4 checklist items
