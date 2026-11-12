@@ -214,3 +214,16 @@ def step_cli_taken_down(context) -> None:
     outcome = context.cli_outcome
     assert outcome["ok"] is True and outcome["status"] == "projected", outcome
     assert outcome["paths"] == ["story-1/index.html", "index.html"], outcome
+
+
+@given("a page-building function that builds the pages inside the call, as backends before this change do")
+def step_old_backend(context) -> None:
+    context.cli_answers = [{"ok": True, "projected": True, "paths": ["story-1/index.html"], "itemPaths": ["story-1/index.html"]}]
+    context.cli_timeout = "60"
+
+
+@then("it fails and says which backend to deploy, without asking again")
+def step_refused(context) -> None:
+    outcome = context.cli_outcome
+    assert outcome["ok"] is False and "Deploy a backend that includes PPY-f171b4" in outcome["error"], outcome
+    assert len(context.cli_client.inputs) == 1, context.cli_client.inputs

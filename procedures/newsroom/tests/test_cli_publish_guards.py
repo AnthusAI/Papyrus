@@ -49,7 +49,17 @@ class MutationClient(FakeAuthoringClient):
             raise self.error
         if payload.get("jobStatus"):
             return {name: json.dumps({"ok": True, "projection": self.job_states.pop(0)})}
-        return {name: json.dumps(self.response)}
+        return {name: json.dumps(as_job(self.response))}
+
+
+def as_job(response: dict) -> dict:
+    """The answer the current backend gives for a sync-style test response: the save, and a job that has already ended with the build's outcome."""
+    if "projected" not in response:
+        return response
+    outcome = {key: response[key] for key in ("paths", "itemPaths", "invalidation", "url", "error") if key in response}
+    state = "done" if response["projected"] else "failed"
+    kept = {key: value for key, value in response.items() if key not in ("projected", "paths", "invalidation", "error", "live")}
+    return {**kept, "projection": {"jobId": "job-1", "state": state, **outcome}}
 
 
 def job_client(slug: str = "hello") -> MutationClient:
@@ -95,7 +105,7 @@ class SignedInProjectionTests(unittest.TestCase):
         invoke.assert_not_called()
         payload = json.loads(out)
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["projection"]["via"], "publishItem mutation")
+        self.assertEqual(payload["projection"]["via"], "publishItem job")
         self.assertEqual(client.get_record("Item", ITEM)["status"], "published")
 
     def test_publish_starts_a_background_build_and_asks_about_the_job_until_it_is_done(self) -> None:

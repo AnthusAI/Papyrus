@@ -57,6 +57,11 @@ Feature: A publish is answered at once and its page follows
     Then it reports the page as taken down, with the pages written
     And no call it made had to wait for the build
 
+  Scenario: A backend that cannot build in the background is refused, not waited for
+    Given a page-building function that builds the pages inside the call, as backends before this change do
+    When the operator's CLI unpublishes the story
+    Then it fails and says which backend to deploy, without asking again
+
   Scenario: The CLI waits for the job in short calls
     Given a page-building function that answers with a job and later reports it done
     When the operator's CLI publishes the story

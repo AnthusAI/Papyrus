@@ -364,8 +364,10 @@ class CliWaitsForTheJobTest(unittest.TestCase):
         self.assertFalse(outcome["ok"])
         self.assertEqual(outcome["error"], "the page cannot be rendered")
 
-    def test_a_function_that_predates_jobs_is_answered_as_before(self) -> None:
-        outcome, client = self.trigger([{"ok": True, "projected": True, "paths": ["story-1/index.html"], "itemPaths": ["story-1/index.html"], "url": "https://example.org/story-1/"}])
-        self.assertEqual(len(client.inputs), 1)
-        self.assertTrue(outcome["ok"])
-        self.assertEqual(outcome["status"], "projected")
+    def test_a_backend_that_predates_background_builds_is_refused_with_what_to_deploy(self) -> None:
+        for unpublished in (False, True):
+            outcome, client = self.trigger([{"ok": True, "projected": True, "paths": ["story-1/index.html"], "itemPaths": ["story-1/index.html"]}], unpublished=unpublished)
+            self.assertEqual(len(client.inputs), 1)   # no waiting inside the call, no second try
+            self.assertFalse(outcome["ok"])
+            self.assertEqual(outcome["status"], "failed")
+            self.assertIn("Deploy a backend that includes PPY-f171b4", outcome["error"])
