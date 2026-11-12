@@ -3,7 +3,7 @@
   "title": "Subscribe and manage pages, projected on the site",
   "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** As a reader, I subscribe and manage notifications on real pages of the site, in its theme, light and dark, never on an /api URL.\n\n**Build.**\n- `src/papyrus_content/projection/standard/notifications_pages.py`, modelled on `newsletter_pages.py`: `/notifications/`, `confirm`, `confirmed`, `preferences`, `unsubscribed`, `expired`; `noindex`, no Markdown twin or sitemap entry, `<meta name=\"referrer\" content=\"same-origin\">`.\n- External script and a web component named like the newsletter's versioned one under `/_plugins/`, no inline script, working under the strict CSP.\n- Buttons, no dropdowns. Lucide icons, flat fills, no borders. State in words and marks. Sign-in option for Slack and Discord only when those channels are live and the site is a public-reader site.\n- Screenshot review with Ryan before prod. Machines on Machines first.\n\n**Acceptance.**\nRyan's screenshot approval recorded; light, dark and phone checked.\n\n**Depends on:** PPY-44721a\n**Related:** kanbus-eedbbd, kanbus-1c3618\n\n**Specification.**\n```gherkin\nFeature: Reader pages\n  Scenario: Subscribing on the site\n    Given a site with notifications on\n    When a reader opens its notifications page and enters an address\n    Then the page says to check their email, in the site's own design\n\n  Scenario: Managing\n    Given a confirmed subscriber follows the manage link\n    When they turn new-story email off\n    Then the page confirms it in words\n\n  Scenario: A bad link\n    When someone opens a manage link that is no good\n    Then they land on the site's expired page, not an /api address\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -27,7 +27,7 @@
     }
   ],
   "created_at": "2026-11-04T13:17:11.911948Z",
-  "updated_at": "2026-11-12T12:33:06.155071Z",
+  "updated_at": "2026-11-12T12:33:14.895628Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
