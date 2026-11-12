@@ -1,0 +1,33 @@
+{
+  "id": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+  "title": "Scheduled publishing and automated announcements",
+  "description": "Publish Stories at chosen times so a fast newsroom can spread its work out, and announce each qualifying Story on X as soon as it qualifies, automatically. A general Papyrus capability; Machines on Machines (MoM) proves it first, 5-star Stories only, on a private test account first.\n\nDesign: docs/plans/scheduled-publishing-and-announcements.md (plan PR into develop). Asked by Ryan, 2026-11-12.\n\n**Scheduling.** Four fields on the scheduled version's Item row (`scheduledPublishAt`, `scheduledBy`, `scheduledAt`, `scheduleState`, plus `scheduleName`), one sparse index `scheduleState+scheduledPublishAt`, one EventBridge Scheduler one-off schedule per scheduled version (the newsletter and home-page pattern). The schedule pins an immutable version; a newer version blocks the publish and tells the editor. UTC stored, publication time zone shown. Needs the first-publish-time fix (PPY-271940) so a scheduled republish keeps the first date.\n\n**Announcements.** Through Caducus (Ryan's one-notification-system decision, PPY-824c14): a new `x` channel, a `broadcast` recipient class and a cost field on deliveries (Caducus issue needed). Papyrus owns eligibility (published and rated at or above the site's announcement floor, never below the quality floor PPY-0e8d66), model-drafted text checked against the Story, optional approval, budget and pause, retirement.\n\n**Accounts.** The site owner's own X developer app (the owner pays X); OAuth 2.0 Authorization Code with PKCE; client secret and rotating refresh token in SSM SecureString per site and account.\n\n**Calendar.** FullCalendar 7 (MIT), client-only on the schedule page; spike in spikes/scheduling-calendar/.\n\n**Stories.** Scheduling backend; schedule field and badge; schedule view; channel framework + X adapter; account connection; eligibility rules + settings UI; drafting + approval; audit trail; cost, budget, pause; retirement and corrections; CLI/MCP parity; p.apyr.us page; MoM rollout.\n\n**Acceptance.** On MoM, an editor schedules a Story, it publishes at that time with the right dates, and if it is rated 5 stars a reviewed post with its link appears on MoM's X account once, with its cost recorded and visible; pausing stops all posting; retiring the Story deletes the post.\n",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-27194088-20fa-4ef2-a8c4-2820ab7ccd75",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-156614d5-c0b6-4f4e-a1c5-70873a94b1b3",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T18:41:38.078215Z",
+  "updated_at": "2026-11-12T18:41:40.350096Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

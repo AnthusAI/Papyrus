@@ -1,0 +1,29 @@
+{
+  "id": "PPY-24358c02-16fb-4f9c-aed8-0a913baa1e6c",
+  "title": "CLI and MCP parity for scheduling and announcements",
+  "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md (\"CLI and MCP parity\").\n\nGoal: everything an editor or owner does in the console (except the browser-only OAuth step) works through the `papyrus` CLI and MCP from one operation table.\n\nShape: operations `schedule set|change|clear|suggest|list`, `announcements list|show|approve|edit|withdraw|retry|pause|resume`, `announcements settings show|set`, `announcements account status`; console routes call the same table (as `editorial_checks.OPERATIONS`); mutations write unless `--dry-run`; `announcements account connect` prints the console link; secrets are never accepted as CLI arguments.\n\nDepends on: the scheduling backend story and the eligibility story.\n\n```gherkin\nFeature: Agents and people at a terminal can schedule and manage announcements\n  Our agents work through the CLI and MCP, so every console action has the same\n  operation behind it.\n\n  Scenario: Scheduling from the CLI\n    When an agent runs \"papyrus schedule set <story> --at '2026-11-13 09:00'\"\n    Then the Story is scheduled for 09:00 in the publication's time zone\n    And the console shows the same schedule\n\n  Scenario: A dry run changes nothing\n    When an agent runs \"papyrus announcements approve <id> --dry-run\"\n    Then it prints what would be posted\n    And nothing is posted\n\n  Scenario: Connecting needs the browser\n    When Ryan runs \"papyrus announcements account connect\"\n    Then the CLI prints the console link for connecting\n\n  Scenario: The same rules everywhere\n    Given approval is required on MoM\n    When an agent approves a draft that failed its fact check through MCP\n    Then it is refused with the same message the console shows\n```\n\nOpen questions: none.\n",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-085d0bab-c631-430f-934a-ef42fa454646",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ae9d06e5-5d2a-4f51-acff-c611ab48d75e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T18:41:39.547109Z",
+  "updated_at": "2026-11-12T18:41:41.983056Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

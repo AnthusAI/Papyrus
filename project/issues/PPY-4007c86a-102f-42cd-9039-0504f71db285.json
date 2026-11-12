@@ -1,0 +1,65 @@
+{
+  "id": "PPY-4007c86a-102f-42cd-9039-0504f71db285",
+  "title": "MoM rollout: schedule, then announce 5-star Stories, test account first",
+  "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md (\"Testing safely\", \"Questions for Ryan\").\n\nGoal: Machines on Machines uses scheduling, then announces 5-star Articles on X: first on a protected test account Ryan owns, with approval required and a budget Ryan enters; then on MoM's real account; then Ryan reviews the rate and the floor.\n\nSteps: set `publication.timeZone`; deploy scheduling; schedule one real Story; Ryan creates MoM's X developer app and buys credits, sets X's console spending limit; connect the protected test account; confirm the Automated label; set rules (Articles, 5 stars, approval required) and the budget; post and review; switch to the real account; after a month, review the rate (about zero today) and decide whether to lower the floor or switch to automatic approval. Only the site under test is bumped; other sites follow in one batch once it works.\n\nDepends on: all other stories in this epic; the notifications plugin on MoM (PPY-824c14).\n\n```gherkin\nFeature: Machines on Machines schedules and announces its best Stories\n  MoM proves the feature: scheduled Stories go out on time and its 5-star Stories\n  are announced on X, safely, within budget.\n\n  Scenario: A test account first\n    Given MoM is connected to a protected X account that Ryan owns\n    When a 5-star Article is published and Sam approves its post\n    Then the post appears only on the protected account\n    And its cost shows in MoM's spend\n\n  Scenario: Switching to the real account\n    Given the test posts looked right to Ryan\n    When Ryan disconnects the test account and connects MoM's account\n    Then the next approved announcement appears on MoM's account\n\n  Scenario: Reviewing the rate\n    Given a month of announcements on MoM\n    Then the admin page shows how many Stories qualified, how many were posted and what they cost\n    And Ryan decides whether to keep 5 stars or include 4\n```\n\nOpen questions: the test account's handle; MoM's budget; when to switch approval to automatic.\n",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-085d0bab-c631-430f-934a-ef42fa454646",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-92164e3c-3520-4678-acc2-f889123c52b1",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-38f01637-98c3-4b55-a64d-06715d51baa7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9f4d661c-8dac-4ab9-84ae-ea62b0963b93",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2deb6371-09ac-4b9d-a2f6-2bd8acd8b4e2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ae9d06e5-5d2a-4f51-acff-c611ab48d75e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-64378cc0-375d-4d86-9943-2c16febc4fd2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a326aa2d-4ef1-4efc-a285-b72ea61775f8",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8037b884-33b7-4dd4-b052-922707f0a04d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-bf9d2658-3f3d-4740-8bb0-4698f5ab8a49",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-24358c02-16fb-4f9c-aed8-0a913baa1e6c",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T18:41:39.850997Z",
+  "updated_at": "2026-11-12T18:41:43.904506Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
