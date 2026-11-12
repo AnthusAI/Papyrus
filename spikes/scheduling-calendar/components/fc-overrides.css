@@ -1,0 +1,13 @@
+/* FullCalendar 7 classic theme: flatten. Borders keep their width but take the background colour. */
+:root,[data-color-scheme]{
+ --fc-classic-background:var(--bg);--fc-classic-foreground:var(--ink);
+ --fc-classic-border:var(--bg);--fc-classic-strong-border:var(--bg);--fc-classic-border-style:solid;
+ --fc-classic-faint:var(--surface);--fc-classic-muted:var(--surface2);--fc-classic-strong:var(--surface2);
+ --fc-classic-muted-foreground:var(--muted);--fc-classic-faint-foreground:var(--muted);
+ --fc-classic-today:var(--today);
+ --fc-classic-button:var(--surface2);--fc-classic-button-border:var(--surface2);--fc-classic-button-strong:var(--accent);--fc-classic-button-strong-border:var(--accent);
+ --fc-classic-button-foreground:var(--ink);--fc-classic-button-outline:transparent;
+ --fc-classic-primary:var(--surface2);--fc-classic-primary-foreground:var(--ink);
+ --fc-classic-event:var(--surface2);--fc-classic-event-contrast:var(--ink);
+}
+.fc .fc-button-active,.fc .fc-button[aria-pressed=true]{color:var(--accent-ink)}
