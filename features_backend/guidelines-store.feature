@@ -61,3 +61,42 @@ Feature: Guideline documents are stored as a catalog row in the database and one
     When an admin saves a video document whose body says "Cut on motion." with the reason "Experiment"
     Then the video guidelines resolve to that body
     And the stored slug is "editorial-doctrine-video"
+
+  Scenario Outline: The first save of each kind on an empty site creates the row first and then attaches the document
+    The upload function only hands out an upload for an Item that already exists, so a first save that sent the file before the row was refused with "Cannot attach payload to
+    missing Item" and stored nothing. The row is created first, the document is attached to it, and only then is the version current.
+    Given a publication with no guidelines
+    When an admin saves a minimal "<kind>" document with the reason "First guidelines"
+    Then the row was created before its document was attached
+    And the "<kind>" guidelines are at version 1 with their document attached
+
+    Examples:
+      | kind         |
+      | writing      |
+      | video        |
+      | byline       |
+      | figure-rules |
+      | procedure    |
+
+  Scenario: A second save naming the current version attaches its document to its own new row
+    Given a publication with saved writing guidelines
+    When an admin changes the audience to "Engineers" with the reason "Narrowed"
+    Then the row was created before its document was attached
+    And the writing guidelines are at version 2 and say the audience is "Engineers"
+    And version 1 can still be read and says the audience is "General readers"
+
+  Scenario: A retry after a failed upload finishes the same version and blocks nothing
+    When the upload of a first writing document fails
+    Then the save is refused with the upload's message
+    And the interrupted version is not visible: there are no writing guidelines and no history
+    When the same save is made again
+    Then the "writing" guidelines are at version 1 with their document attached
+    And exactly one catalog row and one file are stored
+    When an admin changes the audience to "Engineers" with the reason "Narrowed"
+    Then the writing guidelines are at version 2 and say the audience is "Engineers"
+
+  Scenario: A different save after a failed upload takes over the interrupted version
+    When the upload of a first writing document fails
+    And an admin saves a writing document whose body says "Write plainly." with the reason "Second try"
+    Then the "writing" guidelines are at version 1 with their document attached
+    And exactly one catalog row and one file are stored

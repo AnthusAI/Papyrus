@@ -485,7 +485,7 @@ papyrus design-system push ./design-system --reason "New display font"
 ### Read, change and save a site's guidelines
 **Lane:** editor (signed in with `papyrus login`). **Version:** the release after 5.101.0 that carries the guidelines door; a site gets it with its data API deploy, so `papyrus guidelines show` on a site not yet deployed answers `service_unavailable`. `show`, `resolve`, `diff` and `history` only read. `save` writes immediately unless you pass `--dry-run`, and only an admin may save.
 
-A site keeps its guidelines as versioned documents: one per **kind** (`writing`, `image`, `video`) for the publication, and optionally one per section laid over it. An unknown kind is refused with the list of the kinds the site knows. Text lives in S3; every save makes a new version and the old ones stay.
+A site keeps its guidelines as versioned documents: one per **kind** (`writing`, `image`, `video`) for the publication, and optionally one per section laid over it. An unknown kind is refused with the list of the kinds the site knows. Text lives in S3; every save makes a new version and the old ones stay. A save creates the version's row first (state `pending`, invisible to every read), attaches the files to it, and only then makes it current; if the upload fails, running the same save again finishes that version and nothing else is left over.
 
 ```sh
 papyrus guidelines show --kind writing
