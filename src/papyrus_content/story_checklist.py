@@ -63,7 +63,7 @@ TEMPLATE_ACTOR = {"kind": ACTOR_SYSTEM, "label": "Automatically, from the templa
 #: What proves each step, in the words an editor reads after "Automatically, from ".
 EVIDENCE_SOURCES = {
     "choose": "the Story's stage", "direction": "the research direction", "research": "the research packet", "outline": "the outline",
-    "draft": "the draft version", "copy_edit": "the copy-edit check", "illustration": "the approved cover", "publish": "publishing",
+    "draft": "the draft version", "copy_edit": "the copy-edit check", "illustration": "the cover", "publish": "publishing",
 }
 
 
@@ -356,7 +356,7 @@ ILLUSTRATION_KEY = "illustration"
 def illustration_resolution(lineage: str) -> str:
     """How to resolve an unresolved Illustration, in the words every refusal uses."""
     return (
-        "Give the Story an approved cover: a stock picture picked in the newsroom's Cover image, or a figure a person approved (`papyrus figures render`, then "
+        "Give the Story a stored cover: a stock picture picked in the newsroom's Cover image, or a figure (`papyrus figures render`, then "
         f"`papyrus stories save-version --story {lineage} --body-file draft.md --images ./pictures`, with the cover as front matter `image`); the step then closes by itself. "
         f"Or a person records an exception: `papyrus stories step --story {lineage} --step illustration --state skipped --reason <why>`."
     )
