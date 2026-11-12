@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+from papyrus_content.upload_rules_fake import assert_upload_accepted
+
 
 class FakePolicies:
     """The editorial policies of the fake site, with the store calls the derived-policy sync makes. Nothing else is reachable."""
@@ -72,6 +74,7 @@ class FakeFiles:
         self.backend = backend
 
     def put(self, attachment: dict, body: bytes) -> dict:
+        assert_upload_accepted(attachment)
         self.backend.attachments.append(copy.deepcopy(attachment))
         self.backend.bodies[attachment["storagePath"]] = bytes(body)
         return attachment
