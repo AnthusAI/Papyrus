@@ -116,3 +116,28 @@ The draft moves a Story to copywriting if it was earlier, marks the References i
 A body with `[@key]` markers and no `::citations{}` line is flagged by the review check A5 (a warning, to be mentioned in the review step's note), naming the markers; the page appends the bibliography so no marker links to a missing anchor ([markus markup](markus-content-markup.md#the-bibliography)). A marker whose key is not among the Story's entries is flagged the same way and is refused when the Story is saved.
 
 Every pack also says where the Story is in this procedure, so an agent knows what came before it and what comes after, whatever started it.
+
+
+## A site's own procedure
+
+The list above is the default. A site saves its own with `papyrus guidelines save --kind procedure --file procedure.yml --reason "..." --expected-current-version-id none` (or `item-editorial-doctrine-procedure-v1` to replace a saved one). The document is `schemaVersion: 1` and `steps`, the whole ordered list, which must end with `publish`:
+
+```yaml
+schemaVersion: 1
+steps:
+  - key: choose
+  - key: draft
+    title: Write the piece
+  - key: label_check          # a step of the site's own: it needs a title and a stage
+    stage: copywriting
+    title: Check the satire label
+    role: Editor
+    note: Confirm the label is on the page.
+    optional: false
+  - key: publish
+```
+
+- A **built-in step** (a key from the table above) keeps its status, its stage and the checks that decide whether it is done. The entry may change only its words (`title`, `role`, `command`, `note`) and `optional`. A built-in step left out of the list is not part of the site's procedure, and has no checklist item.
+- A **step of the site's own** has a new key (lowercase letters, digits and underscores), a `title` and a `stage`, and may carry `role`, `command`, `note`, `optional` and `versioned`. No record proves it, so it is done by hand: marking it done needs a short findings note, exactly like a review step, and a versioned one goes stale when the Story changes.
+- The Story's checklist, the reminders after a write, `papyrus stories next`, the process layer of an agent's context and the publish rule (publishing refuses while a required step is open) all follow the site's list. The publish rule reads the site's procedure strictly: if the document cannot be read, publishing is refused rather than guessed. A reminder that cannot read it says so on stderr and uses the default list.
+- A site that has saved nothing gets the default list. The built-in steps' checks stay in code (they are facts about the records); only the list, the order and the words belong to the site. Code: `newsroom_process.procedure_of`, `Procedure`, `procedure_from_document`.

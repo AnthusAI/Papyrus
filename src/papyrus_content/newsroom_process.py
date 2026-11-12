@@ -7,7 +7,9 @@ comes in through a review request."""
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import re
 import sys
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -121,6 +123,114 @@ STEP_BY_KEY = {step.key: step for step in STEPS}
 REVIEW_STEP_KEYS = tuple(step.key for step in STEPS if step.key.startswith("review_"))
 
 
+@dataclass(frozen=True)
+class Procedure:
+    """The ordered steps of a Story's procedure: the engine's default (``STEPS``) or the site's own (``procedure_from_document``)."""
+
+    steps: tuple[Step, ...]
+    source: str = "default"   # "default" or "site"
+    version: int | None = None   # the site document's catalog version
+
+    @property
+    def by_key(self) -> dict[str, Step]:
+        return {step.key: step for step in self.steps}
+
+    def spec(self) -> dict[str, Any] | None:
+        """Plain data, so the facts of a Story stay JSON: None for the default."""
+        return None if self.source == "default" else {"source": self.source, "version": self.version, "steps": [dataclasses.asdict(step) for step in self.steps]}
+
+    @staticmethod
+    def from_spec(spec: dict[str, Any] | None) -> "Procedure":
+        if not spec:
+            return DEFAULT_PROCEDURE
+        return Procedure(tuple(Step(**row) for row in spec["steps"]), spec.get("source", "site"), spec.get("version"))
+
+
+DEFAULT_PROCEDURE = Procedure(STEPS)
+BUILT_IN_OVERRIDES = ("title", "role", "command", "note", "optional")
+CUSTOM_FIELDS = ("key", "stage", "role", "title", "command", "note", "optional", "versioned")
+PUBLISH_STEP_KEY = "publish"
+
+
+def procedure_problems(document: Any) -> list[tuple[str, str]]:
+    """(field path, message) for each problem with a site procedure document's ``steps``. Empty means it can be used."""
+    if not isinstance(document, dict) or not isinstance(document.get("steps"), list) or not document["steps"]:
+        return [("steps", "must be a non-empty list of steps")]
+    problems, seen = [], set()
+    for index, entry in enumerate(document["steps"]):
+        where = f"steps[{index}]"
+        key = entry.get("key") if isinstance(entry, dict) else None
+        if not isinstance(key, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", key):
+            problems.append((where, "needs a key of lowercase letters, digits and underscores"))
+            continue
+        if key in seen:
+            problems.append((where, f"the step {key!r} appears twice"))
+        seen.add(key)
+        built_in = STEP_BY_KEY.get(key)
+        allowed = BUILT_IN_OVERRIDES if built_in else CUSTOM_FIELDS
+        for field in entry:
+            if field != "key" and field not in allowed:
+                problems.append((f"{where}.{field}", "cannot be changed on a built-in step" if built_in else "is not a field of a step"))
+        for field in ("title", "role", "command", "note"):
+            if field in entry and (not isinstance(entry[field], str) or not entry[field].strip()):
+                problems.append((f"{where}.{field}", "must be text"))
+        for field in ("optional", "versioned"):
+            if field in entry and not isinstance(entry[field], bool):
+                problems.append((f"{where}.{field}", "must be true or false"))
+        if not built_in:
+            if not isinstance(entry.get("title"), str) or not entry["title"].strip():
+                problems.append((f"{where}.title", "a step of your own needs a title"))
+            if entry.get("stage") not in CONTENT_ITEM_STAGES:
+                problems.append((f"{where}.stage", f"a step of your own needs a stage, one of {', '.join(CONTENT_ITEM_STAGES)}"))
+    if not problems and document["steps"][-1]["key"] != PUBLISH_STEP_KEY:
+        problems.append(("steps", "must end with the publish step, the only hard gate"))
+    return problems
+
+
+def procedure_from_document(document: dict[str, Any], version: int | None = None) -> Procedure:
+    """The site's procedure: its listed steps in its order. A built-in step keeps its status and its checks (only its words and whether it is optional can
+    change); a step of the site's own is done by hand with a findings note, like a review step. A built-in step left out is not part of the site's procedure."""
+    problems = procedure_problems(document)
+    if problems:
+        raise ValueError("The procedure document has problems: " + "; ".join(f"{path} {message}" for path, message in problems))
+    steps = []
+    for entry in document["steps"]:
+        built_in = STEP_BY_KEY.get(entry["key"])
+        if built_in:
+            steps.append(dataclasses.replace(built_in, **{field: entry[field] for field in BUILT_IN_OVERRIDES if field in entry}))
+        else:
+            steps.append(Step(entry["key"], entry["stage"], entry.get("role", "Editor or reviewing agent"), entry["title"], entry.get("command", ""), LIVE, bool(entry.get("optional", False)),
+                              entry.get("note", ""), manual=True, versioned=bool(entry.get("versioned", False))))
+    return Procedure(tuple(steps), "site", version)
+
+
+def procedure_of(client, *, strict: bool = False) -> Procedure:
+    """The Story procedure of the site ``client`` is signed in to: its saved ``procedure`` document, else the default.
+
+    One read (two index queries and a download) is kept on the client for a minute. When the document cannot be read, ``strict`` raises (the publish rule must not
+    guess); otherwise a line goes to stderr and the default is used, so a reminder never fails for want of a role that can read it."""
+    import time
+
+    kept = getattr(client, "_papyrus_story_procedure", None)
+    if kept and time.monotonic() - kept[0] < 60:
+        return kept[1]
+    try:
+        from .guidelines import GuidelineStore
+
+        found = GuidelineStore(client).read("procedure")
+        procedure = DEFAULT_PROCEDURE if found is None else procedure_from_document(found["document"], found["reference"].get("versionNumber"))
+    except Exception as error:  # noqa: BLE001 - see the docstring
+        if strict:
+            raise
+        print(f"procedure\tthe site's Story procedure could not be read, so the default is used\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
+        return DEFAULT_PROCEDURE
+    try:
+        client._papyrus_story_procedure = (time.monotonic(), procedure)
+    except Exception:  # noqa: BLE001 - a client that cannot hold it reads again next time
+        pass
+    return procedure
+
+
 def _metadata_of(row: dict[str, Any]) -> dict[str, Any]:
     value = row.get("metadata")
     if isinstance(value, str):
@@ -172,6 +282,7 @@ def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, 
     except Exception:
         check_run_error = True
     return {
+        "procedureSpec": procedure_of(client).spec(),
         "lineage": lineage,
         "stage": current.get("stage") or "idea",
         "versionId": current["id"],
@@ -240,12 +351,12 @@ def _state_of(step: Step, facts: dict[str, Any]) -> str:
     return UNKNOWN
 
 
-def assess(facts: dict[str, Any]) -> dict[str, Any]:
+def assess(facts: dict[str, Any], procedure: Procedure | None = None) -> dict[str, Any]:
     """Pure over facts: each step's state from the records (the evidence), the next step and the steps skipped before the Story's current stage.
 
     This is the evidence view, which the checklist sync reads. ``resolve`` lays the Story's stored checklist over it: that is the answer people read."""
     rows = []
-    for step in STEPS:
+    for step in (procedure or Procedure.from_spec(facts.get("procedureSpec"))).steps:
         rows.append({
             "key": step.key, "title": step.title, "role": step.role, "stage": step.stage, "status": step.status,
             "state": _state_of(step, facts), "command": step.command.replace("{story}", str(facts["lineage"])), "note": step.note,
@@ -261,7 +372,7 @@ def _conclude(stage: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
         pending = [row for row in rows if row["state"] not in CLOSED_STATES]
         next_row = next((row for row in pending if row["status"] == LIVE), None) or (pending[0] if pending else None)
         current_index = CONTENT_ITEM_STAGES.index(stage) if stage in CONTENT_ITEM_STAGES else 0
-        optional_keys = {step.key for step in STEPS if step.optional}
+        optional_keys = {row["key"] for row in rows if row["optional"]}
         skipped = [
             row for row in rows
             if row["state"] == NOT_DONE and row["status"] == LIVE and row["key"] not in optional_keys
