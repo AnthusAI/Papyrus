@@ -60,6 +60,7 @@ class ForumSettings:
 @dataclass(frozen=True)
 class FreshnessSettings:
     debounce_seconds: int = 300
+    thread_debounce_seconds: int = 3   # the quiet time before the run that follows a changed Message (the home-page plugin's trigger)
     interval_hours: float | None = None
     purge: bool = False
 
@@ -170,7 +171,7 @@ def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
     threads_raw = _section(raw, "threads", "homePage")
     _only(threads_raw, ("enabled", "authors", "anonymousLabel"), "homePage.threads")
     freshness_raw = _section(raw, "freshness", "homePage")
-    _only(freshness_raw, ("debounceSeconds", "intervalHours", "purge"), "homePage.freshness")
+    _only(freshness_raw, ("debounceSeconds", "threadDebounceSeconds", "intervalHours", "purge"), "homePage.freshness")
     corpus = references_raw.get("corpus")
     if corpus is not None and (not isinstance(corpus, str) or not corpus.strip()):
         raise ValueError("homePage.references.corpus must be a corpus id")
@@ -206,6 +207,9 @@ def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
         forum=_forum_settings(raw["forum"]) if raw.get("forum") is not None else None,
         freshness=FreshnessSettings(
             debounce_seconds=_whole_number(freshness_raw.get("debounceSeconds", defaults.freshness.debounce_seconds), "homePage.freshness.debounceSeconds", 0),
+            thread_debounce_seconds=_whole_number(
+                freshness_raw.get("threadDebounceSeconds", defaults.freshness.thread_debounce_seconds), "homePage.freshness.threadDebounceSeconds", 1
+            ),
             interval_hours=float(interval) if interval is not None else None,
             purge=_flag(freshness_raw.get("purge", defaults.freshness.purge), "homePage.freshness.purge"),
         ),
