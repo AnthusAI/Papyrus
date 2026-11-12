@@ -10,9 +10,17 @@
   "parent": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "dd68fd38-f307-4d72-ab99-ec7756ff3930",
+      "author": "home",
+      "text": "Ryan's decisions on the plan (2026-11-12, plan PR #1454): (1) Name individual editors in the revision history by their newsroom display name. (2) A typo fix published as a new version DOES change 'Updated'; the history explains it. (3) A taken-down article's address showing 'Taken down on <date>: <reason>' instead of a 404 is a follow-up for MoM, not part of this epic's first slices. (4) Automatic revision notes cover concept tags too, one note per pass. Story 1 (PPY-271940, dates and backfill) is in PR #1455.",
+      "created_at": "2026-11-12T18:06:08.957842Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T17:36:11.158672Z",
-  "updated_at": "2026-11-12T17:36:11.159033Z",
+  "updated_at": "2026-11-12T18:06:08.958371Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
