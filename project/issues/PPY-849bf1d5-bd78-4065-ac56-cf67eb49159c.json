@@ -1,0 +1,33 @@
+{
+  "id": "PPY-849bf1d5-bd78-4065-ac56-cf67eb49159c",
+  "title": "Roundup selection by declared Story types plus editor cuts",
+  "description": "**Goal.** A roundup never contains junk. Today `items_in_window` in `src/papyrus_content/newsletter/roundup.py` takes every published non-issue Item in the window, so wiki pages and other non-story items count. Selection must be by declared Story types plus editor cuts.\n\n**Design.** A list declares the Story types it carries (`types: [\"article\", ...]`; no default of \"everything\"). Candidates are published Stories of those types in the window since the last sent issue. The order inside each section is the standardized quality ranking (separate story: rating, then Cyclotron confidence, in time buckets), reused as a module, not re-implemented. The draft shows an editor what was left out and why; editors cut or restore items before approval; cuts are kept on the draft record and survive re-assembly. The draft is empty-safe: with nothing eligible, no issue is made.\n\n**Specification.**\n```gherkin\nFeature: Roundup selection\n  Scenario: Declared types only\n    Given a roundup list that declares the article type\n    When the draft is assembled\n    Then only published articles in the window are included\n\n  Scenario: Wiki pages\n    Given a published wiki page in the window\n    Then it is not in the draft\n\n  Scenario: Retired stories\n    Given a Story published in the window and retired before assembly\n    Then it is not in the draft\n\n  Scenario: Held drafts\n    Given a Story whose newest version is an unpublished draft\n    Then the draft is not used and only the published version can appear\n\n  Scenario: Editor cuts\n    Given an editor cut an item from the draft\n    When the draft is assembled again\n    Then the item stays cut\n\n  Scenario: Quality order\n    Given rated and unrated Stories in one section\n    Then they appear in the shared quality order\n\n  Scenario: Nothing eligible\n    When no Story qualifies\n    Then no draft is created and admins are told\n\n  Scenario: Candidate view\n    When an editor opens the draft\n    Then they see what was included, what was excluded and why\n```\n\n**Depends on:** standardized ranking story; issue-kind story (for the draft record).\n**Related:** features_backend/newsletter-roundup.feature (update, do not duplicate).\n\n**Open questions for Ryan:** (1) Should posts ever be in a roundup, or articles only? (2) Cap on items per issue: let the quality order and editor cuts decide, with no fixed number?",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-4108efc0-7a86-4947-9ee2-1d3a74998563",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-85fdba5a-3906-4c4f-b57a-eb1f158c72b3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-85fdba5a-3906-4c4f-b57a-eb1f158c72b3",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T12:46:03.122275Z",
+  "updated_at": "2026-11-12T12:46:15.220561Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
