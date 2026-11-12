@@ -1,0 +1,28 @@
+{
+  "id": "PPY-c320b035-dfd4-41b0-b833-7fc77006bccc",
+  "title": "The only person-only steps are the ones nothing can automate",
+  "description": "```gherkin\nFeature: What a person still does\n\n  Scenario: The list is short and written down\n    Given a new deployment\n    Then a person does only: apply the seed once, give the registrar the name servers, create the Google OAuth client, and put secret values such as SSM SecureString parameters\n    And everything else is done by the pipeline\n```",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7025edd0-ddf4-4491-ab84-b9c0d412ad72",
+      "author": "home",
+      "text": "Delivered 2026-11-11 (Papyrus PRs 1404, 1405, 1407, 1408, 1409). First real use: Humorus account pipeline run https://github.com/AnthusAI/Humorus/actions/runs/43117405856: roles applied with no approval, zone and budget imported (name servers and budget unchanged), SES created. docs/account-pipeline.md has the person-only list. Anthus imports (PPY-b5ddec) and the client-owned account (PPY-1f6e73) are still open design and dry-run work.",
+      "created_at": "2026-11-11T23:15:40.733824Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-11T20:36:49.598359Z",
+  "updated_at": "2026-11-11T23:15:41.506Z",
+  "closed_at": "2026-11-11T23:15:41.505957Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

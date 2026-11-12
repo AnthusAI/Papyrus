@@ -329,8 +329,6 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None) -> dict[
             client = factory()
             if name == "image_profile_resolve":
                 return function(client, arguments, identify(client, caller), SECTION_STYLE_FIELD)
-            if name == "image_prompt_preview":
-                return function(client, arguments, identify(client, caller))
             return function(client, arguments, identify(client, caller))
         return handler
 

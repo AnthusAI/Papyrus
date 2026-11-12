@@ -1,0 +1,25 @@
+{
+  "id": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+  "title": "A second, very different newsroom runs on the same code (Humorus)",
+  "description": "Humorus is a monorepo of political-satire publications on Papyrus, deployed as ONE deployment in a dedicated account in another AWS organisation. It exists to force three things: a neutral default front end with example themes, an early two-site deployment, and newsroom policy that is data. Rule on the Humorus side: improve Papyrus, never work around it.\n\nDecisions from Ryan, 2026-11-11: a scaffold writes editable defaults and the site owns them afterwards (this reverses add-only agent prompts); the neutral theme is factored out of Machines on Machines; shared services run in the deployment's own account; satire is labelled for agents.\n\nRelated: PPY-25ffa3 (standard front end and multi-tenant service), PPY-2a2a8a (guidelines as data), PPY-959e41 (story automation).",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T17:15:58.958782Z",
+  "updated_at": "2026-11-11T17:15:58.958901Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Fable 5.2",
+    "name": "Humorus Planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

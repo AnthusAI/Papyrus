@@ -1,5 +1,7 @@
 # Shared stacks deploy from the release (PPY-b8cc79)
 
+> **Deployment accounts.** A deployment repository in another organisation or a client's account uses the account pipeline instead of `bootstrap.sh`: [docs/account-pipeline.md](../../docs/account-pipeline.md) (epic PPY-9bd776). Nothing on this page changes for the Anthus accounts.
+
 `papyrus-monitoring` and `papyrus-newsletter-sending-operators` are deployed by `.github/workflows/stack-deploy.yml`. Nobody creates or executes a change set for them by hand.
 
 | File | What it is |

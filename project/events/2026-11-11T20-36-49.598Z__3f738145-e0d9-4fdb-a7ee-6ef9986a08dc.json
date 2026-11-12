@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "3f738145-e0d9-4fdb-a7ee-6ef9986a08dc",
+  "issue_id": "PPY-c320b035-dfd4-41b0-b833-7fc77006bccc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T20:36:49.598Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The only person-only steps are the ones nothing can automate",
+    "description": "```gherkin\nFeature: What a person still does\n\n  Scenario: The list is short and written down\n    Given a new deployment\n    Then a person does only: apply the seed once, give the registrar the name servers, create the Google OAuth client, and put secret values such as SSM SecureString parameters\n    And everything else is done by the pipeline\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+    "labels": []
+  }
+}

@@ -349,6 +349,19 @@ papyrus ops content publish --id LINEAGE-v3 --verify
 
 `--id` is the **version** item id (`LINEAGE-vN`, the lineage plus the version `stories show` prints), not the lineage id (`content publish failed [not-found]: No item LINEAGE`). Or pass `--slug SLUG [--section KEY]`. Stops with `[placeholder-slug]` for a placeholder address, `checklist-open` while procedure steps are open, and refuses an untyped Story. Close the checklist honestly first (see Checks).
 
+### Retire a Story and redirect its address
+**Lane:** both. **Writes:** yes; `--dry-run` previews. Not released yet: it ships with the next Papyrus release.
+
+Use it when two Stories become one article: the Story that goes away keeps working for readers.
+
+```sh
+papyrus stories retire --story LINEAGE --redirect-to TARGET_LINEAGE --dry-run
+papyrus stories retire --story LINEAGE --redirect-to TARGET_LINEAGE
+papyrus stories retire --story LINEAGE --undo
+```
+
+It unpublishes the Story, moves it to the `retired` stage (every version stays) and has the site redirect every address the Story was served at (current address, aliases, earlier slugs and type folders, the `.md` twin) permanently to the target's address; if the target changes address later the redirects follow. The Story leaves listings, the sitemap, feeds, public data and the cross-story boilerplate check. The command prints the pages written and the exact paths purged; it never purges more than the site's cap. It refuses a target that is missing, unpublished, the Story itself or retired. `--undo` publishes the retired version again and removes the redirects. A site that requires approval to publish restores from the console.
+
 ### Make the new page visible
 **Lane:** both. **Version:** 5.100.0.
 
@@ -391,6 +404,7 @@ papyrus stories next --story LINEAGE
 papyrus stories step --story LINEAGE --step copy_edit --state done --note "Checked against the house rules" --agent "editor agent" --dry-run
 ```
 
+- Illustration (step `illustration`, required for the Story types that need a cover, articles by default): it closes by itself when the current version has an approved, stored cover (a stock picture a person picked, or a figure whose credit says `Approved by NAME`, with its dark picture where the site requires one). `stories step --step illustration --state done` is refused unless the records prove it; publishing refuses a covered type without it. A person (not an agent) can record an exception: `stories step --story LINEAGE --step illustration --state skipped --reason "WHY"`. See `docs/story-procedure.md`, The Illustration step.
 - `check-version` runs the editorial rules on a saved version and stores the result with it. `lens-check` prints `finding LENS RULE STATE ...` rows; four problems must be fixed before a lens step can close (image without alt text, third-party image without credit, video without title or credit, Markdown copy that differs from the source). A local picture with no credit counts as ours and passes the credit check (leave credit off for a generated picture; `credit="Generated."` still works but is not needed); only a remote address, the stock cover record and a Reference's picture need a credit. `--static` is the site's web directory (default `PAPYRUS_SITE_STATIC_DIR`); `--no-network` skips the share-picture fetch.
 - Social review (`--lens social`, step `review_social`): `lens-check` fetches the Story's planned share picture (check C4) and reports its absolute HTTPS address, status, Content-Type, format, size and shape. A built address is never a pass. JPEG or PNG at least 600x315 passes; WebP, AVIF or GIF, a small or oddly shaped picture, a missing, invalid or non-image picture, or a Content-Type that does not match the file is a warning; a picture that could not be requested (no network, `--no-network`, site without a public address) is `Could not check`, which means not verified. For cross-platform use make a JPEG or PNG share rendition (about 1200x630) and keep WebP/AVIF for the page; do not pad or upscale a small image without saying so in the note. Then read title, description and picture together for relevance, legibility, alt text and misleading context. The `--note` of `stories step --step review_social` must record the tested URL, format, dimensions, result, and any platform uncertainty (a passing check says the file looks compatible, not that a platform displayed it). The share picture comes from front matter `image`, then `cover`, then `ogImage`, then `thumbnail`, so `ogImage` is only a fallback and a different share picture needs `image` itself, which also becomes the card picture.
 - After publishing, fetch the live page and check that `og:image` and `twitter:image` are the tested address, then fetch that address publicly (status 200, image Content-Type). Report a stale CDN or a platform's own preview cache separately; do not assume a platform shows the card.

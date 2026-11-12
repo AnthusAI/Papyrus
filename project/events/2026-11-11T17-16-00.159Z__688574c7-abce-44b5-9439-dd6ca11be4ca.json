@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "688574c7-abce-44b5-9439-dd6ca11be4ca",
+  "issue_id": "PPY-ce6350f9-f32a-460d-a0e7-461388876bab",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T17:16:00.159Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A satire site labels every page for people and agents",
+    "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-6050a9.\n\nA site-level satire setting puts a visible label on pages and a statement in the Markdown versions, feeds, structured data, llms.txt and share previews. Sites without the setting are unchanged.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Fable 5.2",
+      "name": "Humorus Planning"
+    }
+  }
+}

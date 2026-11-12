@@ -31,9 +31,11 @@ from typing import Any
 from .newsroom_process import (
     DONE,
     LIVE,
+    NOT_APPLICABLE as EVIDENCE_NOT_APPLICABLE,
     STEPS,
     STEP_BY_KEY,
     TEMPLATE_VERSION,
+    ADDED_AFTER_PUBLISH_KEYS,
     assess,
     story_facts,
 )
@@ -59,7 +61,7 @@ TEMPLATE_ACTOR = {"kind": ACTOR_SYSTEM, "label": "Automatically, from the templa
 #: What proves each step, in the words an editor reads after "Automatically, from ".
 EVIDENCE_SOURCES = {
     "choose": "the Story's stage", "direction": "the research direction", "research": "the research packet", "outline": "the outline",
-    "draft": "the draft version", "copy_edit": "the copy-edit check", "publish": "publishing",
+    "draft": "the draft version", "copy_edit": "the copy-edit check", "illustration": "the approved cover", "publish": "publishing",
 }
 
 
@@ -256,6 +258,10 @@ def evidence_text(key: str, facts: dict[str, Any]) -> str:
         return f"Item {facts['versionId']} (version {facts['versionNumber']})"
     if key == "copy_edit":
         return f"Editorial check of Item {facts['versionId']}"
+    if key == "illustration":
+        from .story_illustration import cover_evidence
+
+        return cover_evidence(facts.get("illustration"))[1]
     if key == PUBLISH_KEY:
         return "Story is published"
     return f"Item {facts['versionId']}"
@@ -286,6 +292,10 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
         if existing is None:
             if kept_as_record:
                 continue
+            if states.get(step.key) == EVIDENCE_NOT_APPLICABLE:
+                continue   # a Story type the step is not required for has no item for it (it joins the checklist if the type changes)
+            if facts["stage"] == "published" and step.key in ADDED_AFTER_PUBLISH_KEYS and states.get(step.key) != DONE:
+                continue   # published before the step existed: the record gets no failing item; a revision closes it (see require_checklist_closed)
             row = _new_row(lineage, step.key)
             if states.get(step.key) == DONE:
                 row = _apply(row, STEP_DONE, evidence_actor(step.key), now, evidence=evidence_text(step.key, facts), story_version=version)
@@ -313,7 +323,7 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
     return {"created": created, "completed": completed, "summary": summary}
 
 
-def sync_quietly(client, lineage: str, *, facts=None, assessment=None, write_summary: bool = True) -> dict[str, Any] | None:
+def sync_quietly(client, lineage: str, *, facts=None, assessment=None, write_summary: bool = True, read_cover: bool = True) -> dict[str, Any] | None:
     """``sync_checklist`` for a write that has already happened: a failure prints one line to stderr and never changes the write's result."""
     try:
         return sync_checklist(client, lineage, facts=facts, assessment=assessment, write_summary=write_summary)
@@ -337,6 +347,38 @@ def _current_version_number(client, lineage: str) -> int | None:
         return None
 
 
+ILLUSTRATION_KEY = "illustration"
+
+
+def illustration_resolution(lineage: str) -> str:
+    """How to resolve an unresolved Illustration, in the words every refusal uses."""
+    return (
+        "Give the Story an approved cover: a stock picture picked in the newsroom's Cover image, or a figure a person approved (`papyrus figures render`, then "
+        f"`papyrus stories save-version --story {lineage} --body-file draft.md --images ./pictures`, with the cover as front matter `image`); the step then closes by itself. "
+        f"Or a person records an exception: `papyrus stories step --story {lineage} --step illustration --state skipped --reason <why>`."
+    )
+
+
+def _illustration_rules(client, lineage: str, key: str, state: str, actor: dict[str, Any], evidence: str | None) -> str | None:
+    """The two rules only Illustration has: it is done only when the records prove it (never by hand), and an exception is a person's decision.
+    Returns the evidence reference to record when it is done."""
+    if key != ILLUSTRATION_KEY:
+        return evidence
+    if state == STEP_DONE:
+        from .story_illustration import DONE as COVER_DONE, cover_evidence
+
+        found, text = cover_evidence(story_facts(client, lineage).get("illustration"))
+        if found != COVER_DONE:
+            raise ChecklistError(f"Illustration cannot be marked done by hand: {text}. {illustration_resolution(lineage)}")
+        return text
+    if state in NEEDS_REASON and actor.get("kind") != ACTOR_PERSON:
+        raise ChecklistError(
+            "Only a person records an exception for Illustration (an agent asks an editor to). "
+            f"An editor runs `papyrus stories step --story {lineage} --step illustration --state {state} --reason <why>`."
+        )
+    return evidence
+
+
 def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any], reason: str | None = None, note: str | None = None,
              evidence: str | None = None, now: str | None = None) -> dict[str, Any]:
     """Marks one step done, skipped, not applicable, or open again, and records who did it and when.
@@ -358,6 +400,7 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
         raise ChecklistError(f"Marking step '{key}' done needs a short findings note.")
     if state == OPEN and actor["kind"] != ACTOR_PERSON:
         raise ChecklistError("Only a person reopens a step.")
+    evidence = _illustration_rules(client, lineage, key, state, actor, evidence)
     now = now or utc_now()
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     if not rows:
@@ -457,15 +500,35 @@ def require_checklist_closed(client, item: dict[str, Any]) -> None:
     if not rows or any(step.key not in {row["stepKey"] for row in rows} for step in template_steps() if step.key != PUBLISH_KEY):
         sync_checklist(client, lineage)
         rows = read_steps(client, lineage)
-    blocking = open_required(rows)
-    if blocking:
-        lines = [f"{STEP_BY_KEY[row['stepKey']].title} ({row['stepKey']})" for row in blocking]
-        open_steps = [{"key": row["stepKey"], "label": STEP_BY_KEY[row["stepKey"]].title} for row in blocking]
+    blocking = [row for row in open_required(rows) if row["stepKey"] != ILLUSTRATION_KEY]
+    lines = [f"{STEP_BY_KEY[row['stepKey']].title} ({row['stepKey']})" for row in blocking]
+    open_steps = [{"key": row["stepKey"], "label": STEP_BY_KEY[row["stepKey"]].title} for row in blocking]
+    problem = illustration_problem(client, item, rows)
+    if problem:
+        lines.append(f"{STEP_BY_KEY[ILLUSTRATION_KEY].title} ({ILLUSTRATION_KEY}): {problem}")
+        open_steps.append({"key": ILLUSTRATION_KEY, "label": STEP_BY_KEY[ILLUSTRATION_KEY].title})
+    if lines:
         raise ChecklistError(
             "Publishing is blocked: these required steps are open: " + "; ".join(lines) + ". Mark each done, skipped with a reason or "
-            f"not applicable with a reason: papyrus stories step --story {lineage} --step <step> --state <state> --reason <why>.",
+            f"not applicable with a reason: papyrus stories step --story {lineage} --step <step> --state <state> --reason <why>."
+            + (f" For Illustration: {illustration_resolution(lineage)}" if problem else ""),
             open_steps,
         )
+
+
+def illustration_problem(client, item: dict[str, Any], rows: list[dict[str, Any]]) -> str | None:
+    """Why the version being published still has an unresolved Illustration, or None. Read from the records of that version, not from the stored item alone:
+    an exception (skipped or not applicable, with its reason) stands; otherwise the cover must be proved for this very version, so a step recorded done
+    before the cover was removed does not pass. A Story published before the step existed has no item and is judged the same way, so its revision must close it."""
+    from .story_illustration import DONE as COVER_DONE, NOT_APPLICABLE as COVER_NOT_REQUIRED, cover_evidence, inputs_for_item
+
+    step = next((row for row in rows if row["stepKey"] == ILLUSTRATION_KEY), None)
+    if step is not None and step.get("state") in (SKIPPED, NOT_APPLICABLE):
+        return None
+    found, text = cover_evidence(inputs_for_item(client, item, _metadata_of(item)))
+    if found in (COVER_DONE, COVER_NOT_REQUIRED):
+        return None
+    return text
 
 
 def mark_published(client, lineage: str, *, actor_label: str) -> None:
@@ -528,7 +591,10 @@ def _backfill_one(client, lineage: str, *, apply: bool) -> dict[str, Any] | None
     assessment = assess(facts)
     states = {row["key"]: row["state"] for row in assessment["steps"]}
     # A published Story's checklist is a record: it gets its whole checklist once, never a later template step (see sync_checklist).
-    missing = [] if (rows and facts["stage"] == "published") else [step.key for step in template_steps() if step.key not in rows]
+    missing = [] if (rows and facts["stage"] == "published") else [
+        step.key for step in template_steps() if step.key not in rows and states.get(step.key) != EVIDENCE_NOT_APPLICABLE
+        and not (facts["stage"] == "published" and step.key in ADDED_AFTER_PUBLISH_KEYS and states.get(step.key) != DONE)
+    ]
     completable = [key for key, row in rows.items() if row["state"] == OPEN and states.get(key) == DONE and not _reopened_by_person(row)]
     if not missing and not completable:
         return None
