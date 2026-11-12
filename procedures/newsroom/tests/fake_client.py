@@ -61,6 +61,8 @@ def head_stage_key_violations(client: "FakeAuthoringClient") -> list[str]:
 
 
 class FakeAuthoringClient:
+    tenant_id: str | None = None   # the real client always has one; None is a backend with no tenant
+
     def __init__(
         self,
         records: dict[str, list[dict[str, Any]]] | None = None,

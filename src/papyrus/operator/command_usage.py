@@ -184,7 +184,7 @@ _ENTRIES = dict([
   _e("knowledge entities add", "Create an accepted concept (or find it), add its aliases, and tag Disambiguation when a name is ambiguous across kinds. Refuses a duplicate of an accepted concept.",
      "--kind KIND --name NAME [--alias A ...] --actor ai|human [--actor-name N] [--corpus-key K | --corpus-id ID] [--dry-run]  (repeat --alias for each other name)", "operator", _DRY, "tag-and-link"),
   _e("knowledge entities merge", "Merge a duplicate concept into the one that stays: its names become aliases, its mentions and relations move, it is superseded.",
-     "--from KEY --into KEY --actor ai|human [--actor-name N] [--dry-run]  (afterwards: entities registry, snapshot, wiki sync --retire)", "operator", _DRY, "tag-and-link"),
+     "--from KEY --into KEY --actor ai|human [--actor-name N] [--dry-run]  (afterwards: entities registry, snapshot, wiki sync)", "operator", _DRY, "tag-and-link"),
   _e("knowledge entities duplicates", "List the pairs of accepted concepts in which one duplicates the other, with the rule and the merge command. Read only.",
      "[--kind KIND] [--json]", "operator", "reads", "tag-and-link"),
   _e("knowledge entities registry", "Write the entity registry JSON for `knowledge extract-entities --registry`.", "--out FILE [--vocabulary FILE]", "operator", "reads", ""),
