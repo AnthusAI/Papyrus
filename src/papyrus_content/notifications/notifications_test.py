@@ -14,7 +14,9 @@ from caducus.notify.store import MemoryStore
 
 from papyrus_content.notifications import handler as notifications_handler
 from papyrus_content.notifications.events import story_published_detail
+from papyrus_content.notifications.pause import alarm_names, handle_alarm
 from papyrus_content.notifications.runtime import Runtime, assemble
+from papyrus_content.notifications.sending import SendingPaused
 from papyrus_content.notifications.settings import Settings
 
 THEME = {"accent": "#aa3300", "text": "#111111", "background": "#ffffff"}
@@ -27,7 +29,9 @@ def slug_of(title: str) -> str:
 class Site:
     """One site's notifications function with its own table, queue, mailer and published items."""
 
-    def __init__(self, site_id: str = "alpha", *, rule: Mapping[str, Any] | None = None, operators: int = 1) -> None:
+    def __init__(
+        self, site_id: str = "alpha", *, rule: Mapping[str, Any] | None = None, operators: int = 1, postal_address: str | None = None
+    ) -> None:
         self.settings = Settings(
             site_id=site_id,
             site_origin=f"https://{site_id}.example.test",
@@ -50,6 +54,7 @@ class Site:
             mailer=self.mailer,
             read_item=self.rows.get,
             clock=self.clock,
+            postal_address=lambda: postal_address,
         )
 
     def add_story(self, title: str, section: str, *, status: str = "published") -> str:
@@ -80,6 +85,16 @@ class Site:
 
     def publish(self, title: str, section: str) -> dict[str, Any]:
         return self.announce(self.add_story(title, section))
+
+    def make_public(self) -> None:
+        """Make every queued delivery public-class (marketing), which Caducus 0.2.0 has no kind for yet."""
+        for row in self.store.items.values():
+            if row["sk"].startswith("DELIVERY#"):
+                row["class"] = "public"
+
+    def ses_event(self, kind: str, message_id: str, *, site: str | None = None, delivery: str = "d1", **extra: Any) -> dict[str, Any]:
+        tags = {"site": [site or self.settings.site_id], "delivery": [delivery], "kind": ["story.published"]}
+        return {"source": "aws.ses", "detail": {"eventType": kind, "mail": {"messageId": message_id, "tags": tags}, **extra}}
 
     def deliveries(self) -> list[dict[str, Any]]:
         return [row for (_pk, sk), row in sorted(self.store.items.items()) if sk.startswith("DELIVERY#")]
@@ -216,3 +231,146 @@ def test_every_failure_in_caducus_reaches_lambda_so_it_retries() -> None:
     site.runtime.read_item = explode
     with pytest.raises(RuntimeError):
         site.announce(lineage)
+
+
+# -- sending as the site ---------------------------------------------------------------------------------------------------
+
+
+def test_every_message_carries_the_site_delivery_and_kind_tags_and_the_sites_set() -> None:
+    site = Site()
+    site.publish("Rates held steady", "news")
+    site.play_queue()
+    (mail,) = site.mailer.calls
+    assert set(mail["tags"]) == {"site", "delivery", "kind"}
+    assert mail["tags"]["site"] == "alpha" and mail["tags"]["kind"] == "story.published"
+    assert site.settings.configuration_set == "papyrus-alpha", "the newsletter's set: one reputation and one pause per site"
+
+
+def test_a_send_on_a_paused_set_is_a_failed_delivery_with_a_reason_and_no_retry() -> None:
+    site = Site()
+    site.publish("Rates held steady", "news")
+    site.mailer.script = [SendingPaused("sending is paused for configuration set papyrus-alpha")]
+    assert site.play_queue() == 1  # the batch reports no failure: the delivery is final, SQS does not retry it
+    (row,) = site.deliveries()
+    assert row["status"] == "failed" and row["reason"] == "sending is paused for configuration set papyrus-alpha"
+    assert site.mailer.calls == []
+
+
+def test_ses_pause_refusal_is_recognised_by_its_error_code() -> None:
+    from caducus.notify.channels.email import Mailer
+
+    from papyrus_content.notifications.sending import SiteMailer
+
+    class Refusing(Mailer):
+        def send(self, **_message: Any) -> str:
+            error = RuntimeError("paused")
+            error.response = {"Error": {"Code": "SendingPausedException"}}  # type: ignore[attr-defined]
+            raise error
+
+    with pytest.raises(SendingPaused, match="papyrus-alpha"):
+        SiteMailer(Refusing(), "alpha", "papyrus-alpha").send(to_address="a@example.test", subject="s", text="t", html="h", tags={})
+
+
+def test_marketing_class_mail_is_refused_without_a_postal_address() -> None:
+    site = Site()
+    site.publish("Rates held steady", "news")
+    site.make_public()
+    site.play_queue()
+    (row,) = site.deliveries()
+    assert row["status"] == "failed" and row["reason"] == "postal address missing"
+    assert site.mailer.calls == []
+
+
+def test_marketing_class_mail_carries_the_postal_address_in_the_footer() -> None:
+    site = Site(postal_address="1 Example Way\nExample City, EX 00000")
+    site.publish("Rates held steady", "news")
+    site.make_public()
+    site.play_queue()
+    (mail,) = site.mailer.calls
+    assert "1 Example Way" in mail["html"] and "Example City, EX 00000" in mail["text"]
+
+
+def test_operator_mail_needs_no_postal_address_and_prints_none() -> None:
+    site = Site(postal_address="1 Example Way")
+    site.publish("Rates held steady", "news")
+    site.play_queue()
+    (mail,) = site.mailer.calls
+    assert "1 Example Way" not in mail["text"]
+
+
+def sent_message(site: Site) -> str:
+    site.publish("Rates held steady", "news")
+    site.play_queue()
+    return "fake-message-1"
+
+
+@pytest.mark.parametrize(
+    "kind, extra, status",
+    [
+        ("Delivery", {}, "delivered"),
+        ("Bounce", {"bounce": {"bounceType": "Permanent"}}, "bounced"),
+        ("Bounce", {"bounce": {"bounceType": "Transient"}}, "delayed"),
+        ("Complaint", {}, "complained"),
+        ("Reject", {}, "rejected"),
+        ("DeliveryDelay", {}, "delayed"),
+    ],
+)
+def test_ses_events_for_the_sites_mail_reach_its_delivery_log(kind: str, extra: dict[str, Any], status: str) -> None:
+    site = Site()
+    message_id = sent_message(site)
+    assert notifications_handler.ses_events_with(site.runtime, site.ses_event(kind, message_id, **extra)) == status
+    (row,) = site.deliveries()
+    assert row["status"] == status
+
+
+def test_a_late_delivery_event_does_not_undo_a_bounce() -> None:
+    site = Site()
+    message_id = sent_message(site)
+    notifications_handler.ses_events_with(site.runtime, site.ses_event("Bounce", message_id, bounce={"bounceType": "Permanent"}))
+    notifications_handler.ses_events_with(site.runtime, site.ses_event("Delivery", message_id))
+    assert site.deliveries()[0]["status"] == "bounced"
+
+
+def test_ses_events_that_are_not_this_sites_notification_mail_change_nothing() -> None:
+    site = Site()
+    message_id = sent_message(site)
+    before = dict(site.store.items)
+    newsletter_mail = {"detail": {"eventType": "Bounce", "bounce": {"bounceType": "Permanent"}, "mail": {"messageId": message_id, "tags": {"sub": ["a" * 32]}}}}
+    for event in [
+        site.ses_event("Bounce", message_id, site="beta", bounce={"bounceType": "Permanent"}),
+        newsletter_mail,
+        site.ses_event("Send", message_id),
+        site.ses_event("Delivery", "unknown-message"),
+        {},
+    ]:
+        assert notifications_handler.ses_events_with(site.runtime, event) in {"ignored", "unknown_message"}
+    assert site.store.items == before
+
+
+class FakeSes:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def put_configuration_set_sending_options(self, **call: Any) -> None:
+        self.calls.append(call)
+
+
+def alarm(name: str, state: str) -> dict[str, Any]:
+    return {"source": "aws.cloudwatch", "detail": {"alarmName": name, "state": {"value": state}}}
+
+
+def test_a_rate_alarm_of_this_site_pauses_its_configuration_set() -> None:
+    site, ses = Site(), FakeSes()
+    for name in alarm_names("alpha"):
+        assert handle_alarm(site.settings, ses, alarm(name, "ALARM")) == "paused"
+    assert ses.calls == [{"ConfigurationSetName": "papyrus-alpha", "SendingEnabled": False}] * 2
+
+
+@pytest.mark.parametrize("name, state", [("papyrus-notifications-beta-bounce-rate", "ALARM"), ("papyrus-notifications-alpha-bounce-rate", "OK"), ("papyrus-newsletter-alpha-bounce-rate", "ALARM")])
+def test_other_alarms_and_recoveries_do_not_pause(name: str, state: str) -> None:
+    site, ses = Site(), FakeSes()
+    assert handle_alarm(site.settings, ses, alarm(name, state)) == "ignored" and ses.calls == []
+
+
+def test_the_alarm_names_follow_the_site_id() -> None:
+    assert alarm_names("alpha") == ("papyrus-notifications-alpha-bounce-rate", "papyrus-notifications-alpha-complaint-rate")
