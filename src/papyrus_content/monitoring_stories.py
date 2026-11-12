@@ -14,6 +14,7 @@ before the model is asked. A Reference or pack whose draft was rejected is writt
 and the key is ignored (``RETIRED_POLICY_FIELDS``).
 
 * ``singleItem`` (default true): draft a single idea for an accepted Reference that the signals single out.
+* ``ideaRules`` (default: the standard rules): what an idea must show before it is filed, per site (``ideas/rules.py``).
 * ``contextPacks`` (default ``{"enabled": true}``): ``enabled`` builds context packs from the newsroom's own activity (Messages, accepts) and drafts up to
   three theme ideas from each; ``signals`` lists the signals to use, from the closed set ``conversation``, ``acceptance``, ``hub``, ``cluster``,
   ``resurfaced``; omitted means every signal that has data. With ``contextPacks.enabled`` false the task is the single-item task as it was, ranked by the
@@ -55,10 +56,12 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
+from .ideas import rules as idea_rules
+
 # The drafting modules are imported inside the functions: this module is imported by every router invocation, and only the daily
 # monitor-stories task needs them.
 
-POLICY_KEYS = ("enabled", "store", "singleItem", "contextPacks", "suggestions", "vectorIndexArn", "storageBucketName")
+POLICY_KEYS = ("enabled", "store", "singleItem", "contextPacks", "suggestions", "ideaRules", "vectorIndexArn", "storageBucketName")
 RETIRED_POLICY_FIELDS = ("minimumStandard",)   # there is one standard now (more than a summary); a stored copy of the old setting is ignored, whatever it says
 VECTOR_INDEX_ARN = re.compile(r"arn:aws:s3vectors:[a-z0-9-]+:\d{12}:bucket/[A-Za-z0-9.-]+/index/[A-Za-z0-9.-]+")
 BUCKET_NAME = re.compile(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]")
@@ -78,7 +81,7 @@ def validate_monitor_stories(publication_id: str, raw: Any) -> dict[str, Any]:
 
     ``singleItem`` defaults to true. ``contextPacks`` defaults to ``{"enabled": true, "signals": None}``; ``signals`` is None (every signal that has
     data) or a non-empty list from ``PACK_SIGNALS``."""
-    defaults = {"enabled": True, "store": "items", "singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True},
+    defaults = {"enabled": True, "store": "items", "singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True}, "ideaRules": idea_rules.DEFAULT.as_setting(),
                 "vectorIndexArn": None, "storageBucketName": None}
     if raw is None:
         return defaults
@@ -104,6 +107,7 @@ def validate_monitor_stories(publication_id: str, raw: Any) -> dict[str, Any]:
     return {"enabled": enabled, "store": store, "singleItem": single_item,
             "contextPacks": validate_context_packs(publication_id, raw.get("contextPacks")),
             "suggestions": validate_suggestions(publication_id, raw.get("suggestions")),
+            "ideaRules": idea_rules.validate_idea_rules(publication_id, raw.get("ideaRules")),
             "vectorIndexArn": validate_text_setting(publication_id, "vectorIndexArn", raw.get("vectorIndexArn"), VECTOR_INDEX_ARN),
             "storageBucketName": validate_text_setting(publication_id, "storageBucketName", raw.get("storageBucketName"), BUCKET_NAME)}
 
@@ -266,7 +270,7 @@ def plan_publication(client: Any, publication: dict[str, Any], *, store: Any, mo
         client=client, site=publication_id, corpus_key=publication["corpusKey"], context=context, json_store=None,
         idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=gate), review_client=client, transport=transport or (lambda *args, **kwargs: None), limit=None, dry_run=False, now=now,
         fetch=fetch or monitor_stories.fetch_source, explorer=None, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd, read_workers=READ_WORKERS,
-        automation_handled=handled_references, signal_run=signal_run, count_pending=False, run_id=plan_id, plan_sink=planner,
+        automation_handled=handled_references, signal_run=signal_run, count_pending=False, run_id=plan_id, plan_sink=planner, rules=idea_rules.rules_of(policy["ideaRules"]),
         priority_lineages=signal_lineages(client) | {vote.lineage_id for vote in (signal_run.inputs.votes if signal_run else ())})
     timings["planningSeconds"] = round(time.monotonic() - mark, 1)
     timings.update(run.get("timings") or {})
@@ -340,7 +344,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         transport=transport, limit=None, dry_run=False, now=now, fetch=fetch or monitor_stories.fetch_source,
         explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer, out_of_time=out_of_time,
         maximum_cost_usd=max(maximum_cost_usd - vectors["costUsd"], 0.0), read_workers=READ_WORKERS, automation_handled=handled_references, signal_run=signal_run,
-        retry_memory=retry_memory, suggestions_waiting=suggestions_waiting, count_pending=False,
+        retry_memory=retry_memory, suggestions_waiting=suggestions_waiting, count_pending=False, rules=idea_rules.rules_of(policy["ideaRules"]),
         priority_lineages=signal_lineages(client) | {vote.lineage_id for vote in (signal_run.inputs.votes if signal_run else ())})
     timings["draftingSeconds"] = round(time.monotonic() - mark, 1)
     timings.update(run.get("timings") or {})
