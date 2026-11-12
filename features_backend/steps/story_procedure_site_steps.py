@@ -100,3 +100,14 @@ def step_no_title(context):
 @then('the procedure save is refused saying "{text}"')
 def step_refused(context, text):
     assert context.refusal and text in context.refusal, context.refusal
+
+
+@given("the Story's checklist was made by a role that could not read the site's documents")
+def step_made_blind(context):
+    from papyrus_content import story_checklist as checklist
+
+    client = client_of(context)
+    with mock.patch("papyrus_content.editorial_commands.read_item_check_run", lambda _item_id: None):
+        checklist.sync_checklist(client, "story-1", now="2026-11-07T10:00:00.000000Z", read_procedure=False)
+    names = {row["stepKey"] for row in checklist.read_steps(client, "story-1")}
+    assert "review_people" in names and "label_check" not in names, names

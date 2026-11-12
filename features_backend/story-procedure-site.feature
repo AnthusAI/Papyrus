@@ -64,3 +64,12 @@ Feature: A site defines its own Story procedure
     Given an empty newsroom
     When an admin saves a procedure with a step of its own that has no title
     Then the procedure save is refused saying "needs a title"
+
+  Scenario: A checklist made by a role that cannot read the site's procedure is brought in line at the next write
+    Given a Story at the "copywriting" stage
+    And a site whose procedure is choose, draft, a step of its own "label_check" at the "copywriting" stage, and publish
+    And the Story's checklist was made by a role that could not read the site's documents
+    When the checklist is brought up to date after a change
+    Then the checklist item "label_check" is "open"
+    And the checklist item "review_people" is "not_applicable"
+    And the checklist item "review_people" has the reason "not in the site's procedure"

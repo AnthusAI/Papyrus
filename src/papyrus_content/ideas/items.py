@@ -188,7 +188,7 @@ def file_idea_item(
         try:   # every path that makes a Story makes its checklist; a router bundle without the checklist module still files the idea
             from ..story_checklist import ensure_for_new_story
 
-            ensure_for_new_story(client, lineage_id)
+            ensure_for_new_story(client, lineage_id, read_procedure=False)   # the router role cannot read the site's documents: the default checklist, brought in line at the next write
         except ImportError:
             pass
     linked = [link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON, actor=actor, now=now, story=existing)["referenceLineageId"] for row in references]

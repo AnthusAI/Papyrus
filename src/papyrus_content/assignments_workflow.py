@@ -154,7 +154,7 @@ def _sync_checklist_of_assignment(client, assignment: dict[str, Any]) -> None:
     if assignment.get("itemLineageId"):
         from .story_checklist import sync_quietly
 
-        sync_quietly(client, assignment["itemLineageId"], write_summary=False)   # this runs under the research worker role: no Item writes
+        sync_quietly(client, assignment["itemLineageId"], write_summary=False, read_procedure=False)   # this runs under the research worker role: no Item writes, no site documents
 
 
 def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> dict[str, Any]:

@@ -241,12 +241,15 @@ def _metadata_of(row: dict[str, Any]) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, Any] | None] | None = None, *, read_cover: bool = True) -> dict[str, Any]:
+def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, Any] | None] | None = None, *, read_cover: bool = True, read_procedure: bool = True) -> dict[str, Any]:
     """Reads the records once: the current version, the lineage's Assignments with their direction and research packets, and the stored check run.
 
     The cover evidence (the version's media and the site's design-system settings) is read only from the copywriting stage on (``read_cover=False`` skips it
     anywhere): before a draft there is no cover to find, and the router and the research worker, which work on Stories then, run under roles that cannot read media.
-    Until then the cover reads as missing, and the next change to the Story (an editor's, past that stage) reads the records."""
+    Until then the cover reads as missing, and the next change to the Story (an editor's, past that stage) reads the records.
+
+    ``read_procedure=False`` is for the roles that cannot read the site's documents (the router's filing of an idea, the research worker): the default procedure is
+    used, and the next write by a role that can read the site's own procedure brings the checklist in line with it (``story_checklist.sync_checklist``)."""
     from .assignments import assignment_metadata
     from .assignments_workflow import load_assignment_research_packet_entries
     from .story_reporting import _current_of, story_versions
@@ -282,7 +285,7 @@ def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, 
     except Exception:
         check_run_error = True
     return {
-        "procedureSpec": procedure_of(client).spec(),
+        "procedureSpec": procedure_of(client).spec() if read_procedure else None,
         "lineage": lineage,
         "stage": current.get("stage") or "idea",
         "versionId": current["id"],
