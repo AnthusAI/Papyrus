@@ -360,7 +360,22 @@ papyrus stories retire --story LINEAGE --redirect-to TARGET_LINEAGE
 papyrus stories retire --story LINEAGE --undo
 ```
 
-It unpublishes the Story, moves it to the `retired` stage (every version stays) and has the site redirect every address the Story was served at (current address, aliases, earlier slugs and type folders, the `.md` twin) permanently to the target's address; if the target changes address later the redirects follow. The Story leaves listings, the sitemap, feeds, public data and the cross-story boilerplate check. The command prints the pages written and the exact paths purged; it never purges more than the site's cap. It refuses a target that is missing, unpublished, the Story itself or retired. `--undo` publishes the retired version again and removes the redirects. A site that requires approval to publish restores from the console. The page work runs as a background job the command follows (the same job status as a publish), so it ends with the pages written, or with `still-running` and the command to check again, never with a timeout for work that went on; it reports a failure only when the job fails. Against a backend that predates this it fails at once and says to deploy one that includes PPY-f171b4.
+It removes any schedule the Story has first (a scheduled publish would bring it back), unpublishes the Story, moves it to the `retired` stage (every version stays) and has the site redirect every address the Story was served at (current address, aliases, earlier slugs and type folders, the `.md` twin) permanently to the target's address; if the target changes address later the redirects follow. The Story leaves listings, the sitemap, feeds, public data and the cross-story boilerplate check. The command prints the pages written and the exact paths purged; it never purges more than the site's cap. It refuses a target that is missing, unpublished, the Story itself or retired. `--undo` publishes the retired version again and removes the redirects. A site that requires approval to publish restores from the console. The page work runs as a background job the command follows (the same job status as a publish), so it ends with the pages written, or with `still-running` and the command to check again, never with a timeout for work that went on; it reports a failure only when the job fails. Against a backend that predates this it fails at once and says to deploy one that includes PPY-f171b4.
+
+### Schedule a Story to publish later
+**Lane:** editor. **Writes:** yes; `--dry-run` checks and writes nothing. Needs the site's `publication.timeZone` (a site without it answers `scheduling-off`). Not released yet: it ships with the next Papyrus release.
+
+Pin the Story's newest version to a time. At that time the site publishes exactly that version, once, by the normal publish path; the Story keeps its first publication date and the version records "scheduled by" you.
+
+```sh
+papyrus stories schedule --story LINEAGE --at '2026-11-13 09:00' --dry-run
+papyrus stories schedule --story LINEAGE --at '2026-11-13 09:00'
+papyrus stories schedule --story LINEAGE --clear
+papyrus stories schedule-list --from '2026-11-09 00:00' --to '2026-11-15 23:59'
+papyrus stories schedule-list --story LINEAGE --state overdue
+```
+
+A time without an offset is read in the publication's time zone and stored as a UTC instant; `2026-11-13T14:00:00Z` or `2026-11-13T09:00:00-05:00` is exact. A wall-clock time that does not exist there (the spring-forward gap) is refused (`nonexistent-time`); one that happens twice (fall back) is refused with both choices (`ambiguous-time`): type it again with the offset. A time that has passed is refused. A Story has one schedule; scheduling again moves it, and `--clear` removes it. Only the newest version can be scheduled. If a newer version is saved first, nothing is published: the schedule becomes `blocked` ("A newer version was saved after this was scheduled. Schedule it again.") and the site's editors get a flag in the Notification Center. Publishing the Story now, taking it down or retiring it removes its schedule. `schedule-list` shows each schedule's state: `scheduled`, `publishing`, `blocked`, or `overdue` (the time passed and it has not published: publish it now or schedule it again). `stories show` adds a `schedule` line (UTC time). The MCP tools are `stories_schedule` and `stories_schedule_list`, the same operations. Design and states: `docs/scheduled-publishing.md`.
 
 ### Make the new page visible
 **Lane:** both. **Version:** 5.100.0.

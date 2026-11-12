@@ -10,6 +10,7 @@ from papyrus_content.graphql_authoring import INDEX_DEFINITIONS
 INDEX_MODELS = {
     "itemBySlug": "Item",
     "itemsByLineageAndVersion": "Item",
+    "itemScheduleByLineage": "Item",
     "mediaAssetsByItemAndSortKey": "MediaAsset",
     "publishedMediaAssetsByItemAndSortKey": "PublishedMediaAsset",
     "modelAttachmentsByOwnerRoleAndSortKey": "ModelAttachment",
@@ -154,6 +155,43 @@ class FakeAuthoringClient:
         row = self._table(model_name).setdefault(payload["id"], {})
         row.update(copy.deepcopy(payload))
         self._maybe_fail("update", model_name)
+
+    def has_schedule_fields(self) -> bool:
+        return True
+
+    def update_record_if(self, model_name: str, payload: dict[str, Any], condition: dict[str, Any]) -> bool:
+        """A conditional update as AppSync does it: the whole write or nothing, decided on the stored row (``eq``, ``ne``, ``attributeExists``, ``or``)."""
+        row = self._table(model_name).get(payload["id"], {})
+
+        def holds(rule: dict[str, Any]) -> bool:
+            for name, test in rule.items():
+                if name == "or":
+                    if not any(holds(option) for option in test):
+                        return False
+                elif name == "and":
+                    if not all(holds(option) for option in test):
+                        return False
+                else:
+                    value = row.get(name)
+                    for operator, expected in test.items():
+                        if operator == "eq" and value != expected:
+                            return False
+                        if operator == "ne" and value == expected:
+                            return False
+                        if operator == "attributeExists" and (value is not None) != expected:
+                            return False
+            return True
+
+        self.calls.append(("conditional-update", model_name, payload["id"]))
+        if not holds(condition):
+            return False
+        self.update_record(model_name, payload)
+        return True
+
+    def list_schedule(self, state: str, start: str | None = None, end: str | None = None) -> list[dict[str, Any]]:
+        self.calls.append(("list_schedule", state, (start, end)))
+        return [copy.deepcopy(row) for row in self._table("Item").values()
+                if row.get("scheduleState") == state and (start is None or row["scheduledPublishAt"] >= start) and (end is None or row["scheduledPublishAt"] <= end)]
 
     def delete_record(self, model_name: str, record_id: str) -> None:
         self.calls.append(("delete", model_name, record_id))
