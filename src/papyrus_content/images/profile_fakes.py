@@ -5,6 +5,8 @@ import copy
 import json
 from typing import Any
 
+from papyrus_content.upload_rules_fake import assert_upload_accepted
+
 MOM_PROFILE: dict = {
     "schemaVersion": 2,
     "identity": {
@@ -175,6 +177,7 @@ class FakeFiles:
         self.downloads: list[str] = []
 
     def put(self, attachment: dict, body: bytes) -> dict:
+        assert_upload_accepted(attachment)
         self.backend.document_attachments.append(copy.deepcopy(attachment))
         self.backend.document_bodies[attachment["storagePath"]] = bytes(body)
         return attachment
