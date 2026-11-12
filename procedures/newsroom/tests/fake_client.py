@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any
 
 from papyrus_content.graphql_authoring import INDEX_DEFINITIONS
@@ -62,6 +63,13 @@ def head_stage_key_violations(client: "FakeAuthoringClient") -> list[str]:
 
 class FakeAuthoringClient:
     tenant_id: str | None = None   # the real client always has one; None is a backend with no tenant
+
+    def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        """The only query a fake answers is the schema question of the deploy render: a backend that serves every field the tools select."""
+        from papyrus_content.live_schema import selected_fields
+        selected = selected_fields()
+        asked = re.findall(r'(t\d+): __type\(name: "(\w+)"\)', query)
+        return {alias: {"fields": [{"name": field} for field in sorted(selected[name])]} for alias, name in asked}
 
     def __init__(
         self,
