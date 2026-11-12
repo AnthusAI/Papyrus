@@ -200,6 +200,11 @@ module.exports = {
     require: ["features/step_definitions/markdown-twin-display.steps.js"],
     format: ["summary"],
   },
+  noFallbacks: {
+    paths: ["features/no-fallbacks.feature"],
+    require: ["features/step_definitions/no-fallbacks.steps.js"],
+    format: ["summary"],
+  },
   messageAuthorEnforced: {
     paths: ["features/message-author-enforced.feature"],
     require: ["features/step_definitions/message-author-enforced.steps.js"],
