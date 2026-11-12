@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
  *   failed pages 3 times, so pre-building the reader pages stays under Cognito guest-credential throttles,
  * - inside an Amplify build, skip Next's type-check and lint (CI never runs in Amplify; see amplifyBuildChecks),
  * - carry Papyrus's own server-external packages and image settings,
- * - copy the Story-type settings of the site's `web/projection.json` (`storyTypes`, `urls`, `listings.types`) into NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES, which
+ * - copy the Story-type settings of the site's `web/projection.json` (`storyTypes`, `urls`, `listings.types`) and the publication's time zone (`publication.timeZone`, lib/site-publication.ts) into NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES, which
  *   lib/site-story-types.ts reads: the newsroom and the Python code read one file.
  */
 const SERVER_EXTERNAL = [
@@ -112,6 +112,7 @@ export function projectionTypesSlice(projection) {
       sections: groups(urls.sections, (entry) => ({ ...(entry.base === undefined ? {} : { base: entry.base }), ...(entry.aliases === undefined ? {} : { aliases: entry.aliases }) })),
     },
     listings: { types: object(projection.listings).types },
+    ...(object(projection.publication).timeZone === undefined ? {} : { publication: { timeZone: object(projection.publication).timeZone } }),
   };
 }
 

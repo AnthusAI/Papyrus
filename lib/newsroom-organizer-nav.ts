@@ -1,15 +1,19 @@
 import { contentItemBoardPathSegment } from "./newsroom-board";
 import { getContentItemName } from "./site-brand";
+import { publicationTimeZone } from "./site-publication";
 
 const contentItemPluralLowercase = getContentItemName().plural.toLowerCase();
 export type OrganizerDestination = {
   key: string; label: string; description: string; path: string;
   access?: "admin"; primary?: boolean; unavailable?: string; alsoActiveOnPaths?: readonly string[];
 };
+/** The Schedule page, in the navigation only for a publication that sets a time zone (lib/site-publication.ts). */
+export const SCHEDULE_DESTINATION: OrganizerDestination = { key: "schedule", label: "Schedule", description: "See what is scheduled to publish, and when, by day, week or month.", path: "/newsroom/schedule" };
 export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly OrganizerDestination[] }[] = [
   { title: "Editorial work", items: [
     { key: "articles", label: getContentItemName().plural, description: `Follow ${contentItemPluralLowercase} across their stages, from the Idea column on, and open one to write or revise it.`, path: `/newsroom/${contentItemBoardPathSegment()}`, alsoActiveOnPaths: ["/newsroom/articles", "/newsroom/administration/proposals"], primary: true },
     { key: "assignments", label: "Assignments", description: "Follow research and reporting work across its statuses and claim it.", path: "/newsroom/assignments" },
+    ...(publicationTimeZone() ? [SCHEDULE_DESTINATION] : []),
     { key: "messages", label: "Messages", description: "Read and reply to newsroom conversations.", path: "/newsroom/messages", primary: true },
   ] },
   { title: "Research & knowledge", items: [

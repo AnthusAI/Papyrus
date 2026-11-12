@@ -104,7 +104,7 @@ context and the duplicate cut use `is_story_item_type`, the same rule.
 
 Both keys are optional. `default` is the type a new Story gets; **with no default a new Story has no type** until an editor chooses one. With no `types`, the
 offered types are the default (when there is one) plus every type the site gives a URL base in `urls.types`. The newsroom gets the same file through `withPapyrus`, which
-copies the few settings it needs (`storyTypes`, `urls`, `listings.types`) into `NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES` at build time (`lib/site-story-types.ts`); Python
+copies the few settings it needs (`storyTypes`, `urls`, `listings.types`, and `publication.timeZone` for scheduling) into `NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES` at build time (`lib/site-story-types.ts`); Python
 reads it from `PAPYRUS_SITE_STATIC_DIR` (`src/papyrus_content/story_types.py`: the content-actions Lambda has it as `site_static/`, a local run exports the variable as
 the home-page commands do). `scripts/fixtures/story-types-cases.json` holds the cases both languages' tests run. A system type, or `untyped`, in `storyTypes` fails
 the projection settings.

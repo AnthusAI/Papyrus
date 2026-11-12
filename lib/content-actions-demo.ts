@@ -10,6 +10,8 @@ import type {
   UnpublishItemResult,
   MoveStoryStageInput,
   MoveStoryStageResult,
+  ScheduleStoryInput,
+  ScheduleStoryResult,
   CreateStoryFromReferenceInput,
   CreateStoryFromReferenceResult,
 } from "./content-actions-client";
@@ -19,7 +21,8 @@ import {
   demoContentHash,
   type DemoArticleRecord,
 } from "./newsroom-demo-articles";
-import { createLocalPreviewEditableArticle, lineageForPreviewVersion, recordLocalPreviewDesk, recordLocalPreviewVersion } from "./local-preview-seed";
+import { createLocalPreviewEditableArticle, lineageForPreviewVersion, localPreviewScheduleFields, recordLocalPreviewDesk, recordLocalPreviewVersion, setLocalPreviewSchedule } from "./local-preview-seed";
+import { scheduleFromFields } from "./story-schedule";
 import { sourceLineOffset, type ArticlesBackend, type EditableArticle, type NewsroomArticleRow } from "./newsroom-articles";
 
 function titleFromYaml(frontMatterYaml: string | null, fallback: string): string {
@@ -206,6 +209,8 @@ export function createDemoArticlesBackend(): ArticlesBackend {
           throw new ContentActionFailure([{ code: "type-required", message: "This story has no type yet. Choose its type, then publish: the site decides where a page lives from it.", line: null }]);
         }
         const changed = record.status !== "published" || record.publishedContentHash !== record.contentHash;
+        const publishedLineage = createLocalPreviewEditableArticle(id)?.lineageId ?? lineageForPreviewVersion(id);
+        if (publishedLineage) setLocalPreviewSchedule(publishedLineage, null);   // publishing now ends the schedule
         const versionNumber = changed ? (record.versionNumber ?? 0) + 1 : record.versionNumber;
         const typeChangedFrom = changed && record.publishedType && record.publishedType !== record.type ? record.publishedType : undefined;
         records.set(id, {
@@ -223,6 +228,14 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         // A plain update of the record: no new version, and a published Story stays as published as it was.
         loadPreviewRecord(itemId);
         records.set(itemId, { ...requireRecord(itemId), starRating: stars });
+      },
+      async scheduleStory(input: ScheduleStoryInput): Promise<ScheduleStoryResult> {
+        try {
+          const fields = setLocalPreviewSchedule(input.lineageId, input.scheduledPublishAt);
+          return { ok: true, scheduledPublishAt: fields.scheduledPublishAt ?? null, scheduleState: fields.scheduleState ?? null, scheduledBy: fields.scheduledBy ?? null, scheduledAt: fields.scheduledAt ?? null };
+        } catch (error) {
+          throw new ContentActionFailure([{ code: "schedule-refused", message: error instanceof Error ? error.message : String(error), line: null }]);
+        }
       },
       async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
         return { ok: true, changed: true, stage: input.stage };
@@ -296,6 +309,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         everPublished: record.everPublished,
         publishedType: record.publishedType ?? (record.everPublished ? record.type : null),
         starRating: record.starRating ?? null,
+        schedule: scheduleFromFields(localPreviewScheduleFields(createLocalPreviewEditableArticle(record.id)?.lineageId ?? lineageForPreviewVersion(record.id) ?? record.id)),
       };
     },
   };

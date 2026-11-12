@@ -66,6 +66,9 @@ import { demoEditorialBackend } from "../lib/editorial-checks-demo";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
 import { StarRating } from "./star-rating";
+import { StorySchedulePanel } from "./story-schedule-panel";
+import { publicationTimeZone } from "../lib/site-publication";
+import { scheduleFromFields, type StorySchedule } from "../lib/story-schedule";
 import { useStoryStars, type StoryStarsController } from "./use-story-stars";
 import { EditorialPreviewPopover, type PreviewPopoverTarget } from "./editorial-preview-popover";
 import { MarkusBodyEditor, type MarkusBodyEditorHandle } from "./markus-body-editor";
@@ -120,12 +123,14 @@ function failureMessage(error: unknown): string {
 
 const NO_DESK_VALUE = "__no-desk__";
 
-export function NewsroomArticleEditor({ articleId, demo, embedded = false, starsController }: {
+export function NewsroomArticleEditor({ articleId, demo, embedded = false, starsController, onScheduleChanged }: {
   articleId: string;
   demo: boolean;
   embedded?: boolean;
   /** The rating store of the surface this editor sits in (the board's), so the card, the drawer and this editor show one rating. Without it the editor keeps its own. */
   starsController?: StoryStarsController;
+  /** Called after the editor set, changed or cleared this Story's schedule, so a board can show it on the card. */
+  onScheduleChanged?: () => void;
 }) {
   const session = useOptionalNewsDeskClient();
   const blocked = !(demo || isLocalPreviewEnabled()) && articlesAccessBlocked(session?.shell.phase);
@@ -145,6 +150,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const [publishedType, setPublishedType] = useState<string | null>(null);
   const [aliases, setAliases] = useState<string[]>([]);
   /** The rating the Story had when it was loaded; the store shows what was tapped since. */
+  const [schedule, setSchedule] = useState<StorySchedule | undefined>(undefined);
+  const scheduleZone = useMemo(() => publicationTimeZone(), []);
   const [savedStars, setSavedStars] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationState>({ status: "checking" });
@@ -191,6 +198,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
         setSavedStars(article.starRating ?? null);
+        setSchedule(article.schedule);
         setEverPublished(article.everPublished);
         setSavedType(article.type);
         setPublishedType(article.publishedType ?? (article.everPublished ? article.type : null));
@@ -527,6 +535,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         current ? { ...current, id, status: "published", versionNumber: result.versionNumber } : current,
       );
       setEverPublished(true);
+      setSchedule(undefined);   // publishing now ends the schedule
       setSavedType(editor.type);
       setPublishedType(editor.type);
       const base = result.changed
@@ -733,6 +742,21 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
             <div data-newsroom-article-notice>
               <NewsroomOpsStatusBanner tone={notice.tone}>{notice.text}</NewsroomOpsStatusBanner>
             </div>
+          ) : null}
+
+          {scheduleZone && editor.id !== null && lineageId ? (
+            <StorySchedulePanel
+              zone={scheduleZone}
+              schedule={schedule}
+              blockedReason={editor.dirty ? "Save your changes first: a schedule publishes the saved version." : isOlderVersion ? "This is an older version of the Story." : null}
+              save={async (scheduledPublishAt) => {
+                const result = await backend.actions.scheduleStory({ lineageId, scheduledPublishAt });
+                const saved = scheduleFromFields(result);
+                setSchedule(saved);
+                onScheduleChanged?.();
+                return saved;
+              }}
+            />
           ) : null}
 
           {editor.id !== null ? (
