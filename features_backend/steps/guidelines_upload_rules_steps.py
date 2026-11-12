@@ -18,6 +18,7 @@ from papyrus_content.model_attachments import build_model_payload_attachment  # 
 @given("an S3 side that applies the upload function's rules")
 def step_files(context):
     context.backend = FakeBackend()
+    context.backend.items.append({"id": "item-1", "slug": "owner"})
     context.files = FakeFiles(context.backend)
     context.refusal = None
 
@@ -28,8 +29,8 @@ def step_stored(context, role):
 
 
 @when('a "{role}" file of type "{media_type}" is offered to the upload function')
-def step_upload(context, role, media_type):
-    entry = build_model_payload_attachment({"ownerKind": "item", "ownerId": "item-1", "role": role, "sortKey": "x", "filename": "x.bin", "content": b"x", "mediaType": media_type})
+def step_upload(context, role, media_type, owner="item-1"):
+    entry = build_model_payload_attachment({"ownerKind": "item", "ownerId": owner, "role": role, "sortKey": "x", "filename": "x.bin", "content": b"x", "mediaType": media_type})
     context.refusal = None
     try:
         context.files.put(entry["attachment"], entry["body"])
@@ -50,3 +51,8 @@ def step_refused_type(context):
 @then('the upload function would refuse it with "{message}"')
 def step_refused(context, message):
     assert context.refusal and message in context.refusal, context.refusal
+
+
+@when('a "doctrine_document" file of type "application/json" is offered to the upload function for the Item "{owner}"')
+def step_upload_for(context, owner):
+    step_upload(context, "doctrine_document", "application/json", owner)

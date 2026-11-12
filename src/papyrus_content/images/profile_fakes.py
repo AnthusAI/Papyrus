@@ -5,7 +5,7 @@ import copy
 import json
 from typing import Any
 
-from papyrus_content.upload_rules_fake import assert_upload_accepted
+from papyrus_content.upload_rules_fake import assert_owner_exists, assert_upload_accepted
 
 MOM_PROFILE: dict = {
     "schemaVersion": 2,
@@ -178,6 +178,8 @@ class FakeFiles:
 
     def put(self, attachment: dict, body: bytes) -> dict:
         assert_upload_accepted(attachment)
+        assert_owner_exists(attachment, self.backend.items)
+        self.backend.document_attachments = [row for row in self.backend.document_attachments if row["id"] != attachment["id"]]   # the same slot again replaces its row
         self.backend.document_attachments.append(copy.deepcopy(attachment))
         self.backend.document_bodies[attachment["storagePath"]] = bytes(body)
         return attachment

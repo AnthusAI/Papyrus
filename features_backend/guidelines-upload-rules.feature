@@ -28,3 +28,10 @@ Feature: Guideline documents pass the same upload rules as every other attachmen
     Given an S3 side that applies the upload function's rules
     When a "made_up_role" file of type "application/json" is offered to the upload function
     Then the upload function would refuse it with "Unsupported ModelAttachment role made_up_role"
+
+  Scenario: A file is accepted only for an Item that already exists
+    Given an S3 side that applies the upload function's rules
+    When a "doctrine_document" file of type "application/json" is offered to the upload function for the Item "item-not-created-yet"
+    Then the upload function would refuse it with "Cannot attach payload to missing Item item-not-created-yet"
+    When a "doctrine_document" file of type "application/json" is offered to the upload function for the Item "item-1"
+    Then the upload function would accept it
