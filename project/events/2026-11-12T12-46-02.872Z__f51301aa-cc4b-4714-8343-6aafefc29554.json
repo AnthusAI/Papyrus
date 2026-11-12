@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "f51301aa-cc4b-4714-8343-6aafefc29554",
+  "issue_id": "PPY-4108efc0-7a86-4947-9ee2-1d3a74998563",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T12:46:02.872Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Issue and roundup as a Caducus notification kind: scheduled approval, exactly-once send",
+    "description": "**Goal.** The roundup/issue is a Caducus notification kind. Editors still write the issue in the newsroom; an admin approves it for a time; the site backend sends it exactly once with nobody present; the web archive keeps working. The newsletter plugin's issue, approval, scheduler and send-ledger code is deleted.\n\n**Design.** Caducus gains a generic \"scheduled digest\" kind: a draft payload (subject, rendered HTML and text in S3, content hash), an approval record, a schedule (UTC, shown in the publication zone), a send ledger keyed by (issue, recipient) giving exactly-once, and fan-out through the existing email queue with dead letter. At fire time it re-checks the issue is still approved and unchanged (content hash); an edited issue returns to draft and nothing is sent. Papyrus supplies the draft (Item of the issue type in the archive section) and the panel. The cadence (e.g. weekly) assembles a draft and notifies admins; no approval, no issue. Only admins approve.\n\n**Specification.**\n```gherkin\nFeature: Issues through notifications\n  Scenario: Approved issue sends once\n    Given an admin approved an issue for Friday 09:00 in the publication time zone\n    When the scheduled time passes and the sender runs twice (retry)\n    Then every confirmed subscriber receives it exactly once\n\n  Scenario: Edited after approval\n    Given an issue approved for a time\n    When an editor changes it before the time\n    Then it returns to draft and nothing is sent\n\n  Scenario: No approval, no issue\n    Given the weekly cadence assembled a draft and nobody approved it\n    When the time passes\n    Then nothing is sent and admins are told it was missed\n\n  Scenario: Only admins approve\n    When an editor tries to approve an issue\n    Then it is refused\n\n  Scenario: Failure mid-send\n    Given the send fails after half the recipients\n    When it resumes\n    Then the first half is not mailed again and the rest are\n\n  Scenario: Suppressed and paused\n    Given a subscriber is suppressed or the site is paused\n    Then they are skipped, or nothing goes out, and the issue shows why\n\n  Scenario: Web archive\n    When an issue is sent\n    Then its archive page is published with the same content\n```\n\n**Depends on:** ownership story. Blocks selection story and MoM launch.\n**Related:** PPY-19a098 (M2 as built), PPY-31455f decisions of 2026-10-20 (admins approve, scheduler, hash re-check).\n\n**Open questions for Ryan:** (1) Keep the web archive as a page per issue as today? (2) One approver per site or any admin?",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
+    "labels": []
+  }
+}
