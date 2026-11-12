@@ -124,6 +124,14 @@ Resources:
                 Resource:
                   - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-${CdkQualifier}-deploy-role-${AWS::AccountId}-${AWS::Region}"
                   - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-${CdkQualifier}-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+              - Sid: ReadTheCdkBootstrapVersion
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cdk-bootstrap/${CdkQualifier}/version"
+              - Sid: ReadTheCdkBootstrapStack
+                Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/CDKToolkit/*"
         - PolicyName: deploy-app-stacks
           PolicyDocument:
             Version: "2012-10-17"
