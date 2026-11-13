@@ -1541,6 +1541,9 @@ const definitions = {
       updatedBy: a.string(),
       updatedAt: a.datetime().required(),
     })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listAutomationsByTenant"),
+    ])
     .authorization((allow) => [
       allow.group("editor").to(["read", "create", "update"]),
       allow.group(adminGroup).to(authoringOperations),
@@ -1564,6 +1567,9 @@ const definitions = {
       appliedIn: a.json(),
       updatedAt: a.datetime().required(),
     })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listReviewRequestsByTenant"),
+    ])
     .authorization((allow) => [
       allow.group("editor").to(["read", "create", "update"]),
       allow.group(adminGroup).to(authoringOperations),
@@ -1577,6 +1583,9 @@ const definitions = {
       userKey: a.string().required(),
       readAt: a.datetime().required(),
     })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listReviewReadMarksByTenant"),
+    ])
     .authorization((allow) => [
       allow.groups(["editor", adminGroup]).to(["read", "create", "update"]),
     ]),
@@ -1610,6 +1619,7 @@ const definitions = {
     })
     .secondaryIndexes((index) => [
       index("storyLineageId").sortKeys(["variationNumber"]).queryField("listStoryVariationsByStoryAndNumber"),
+      index("tenantId").sortKeys(["id"]).queryField("listStoryVariationsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups).to(["read", "create", "update"]),
@@ -1626,6 +1636,9 @@ const definitions = {
       updatedBy: a.string(),
       updatedAt: a.datetime().required(),
     })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listReviewRecipientRulesByTenant"),
+    ])
     .authorization((allow) => [
       allow.group("editor").to(["read"]),
       allow.group(adminGroup).to(authoringOperations),
@@ -1721,6 +1734,7 @@ const definitions = {
     .secondaryIndexes((index) => [
       index("ownerId").sortKeys(["payloadKind"]).queryField("listKnowledgeRawPayloadsByOwnerAndKind"),
       index("importRunId").sortKeys(["ownerType"]).queryField("listKnowledgeRawPayloadsByImportRunAndOwner"),
+      index("tenantId").sortKeys(["id"]).queryField("listKnowledgeRawPayloadsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
@@ -1739,6 +1753,7 @@ const definitions = {
     })
     .secondaryIndexes((index) => [
       index("grantorSub").sortKeys(["createdAt"]).queryField("listCurationDelegationRecordsByGrantor"),
+      index("tenantId").sortKeys(["id"]).queryField("listCurationDelegationRecordsByTenant"),
     ])
     .authorization((allow) => [allow.groups([adminGroup]).to(["read"])]),
 
@@ -1858,6 +1873,7 @@ const definitions = {
       index("categoryKey").sortKeys(["rank"]).queryField("listCategoryKeywordsByCategoryKeyAndRank"),
       index("normalizedKeyword").sortKeys(["categorySetId"]).queryField("listCategoryKeywordsByNormalizedKeywordAndSet"),
       index("importRunId").sortKeys(["rank"]).queryField("listCategoryKeywordsByImportRunAndRank"),
+      index("tenantId").sortKeys(["id"]).queryField("listCategoryKeywordsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
@@ -1945,6 +1961,7 @@ const definitions = {
     .secondaryIndexes((index) => [
       index("proposalId").sortKeys(["createdAt"]).queryField("listSteeringDecisionsByProposalAndCreatedAt"),
       index("categorySetId").sortKeys(["createdAt"]).queryField("listSteeringDecisionsBySetAndCreatedAt"),
+      index("tenantId").sortKeys(["id"]).queryField("listSteeringDecisionsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
@@ -2103,6 +2120,7 @@ const definitions = {
       index("referenceLineageId").sortKeys(["sortKey"]).queryField("listReferenceAttachmentsByReferenceLineageAndSortKey"),
       index("storagePath").queryField("referenceAttachmentByStoragePath"),
       index("importRunId").sortKeys(["sortKey"]).queryField("listReferenceAttachmentsByImportRunAndSortKey"),
+      index("tenantId").sortKeys(["id"]).queryField("listReferenceAttachmentsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
@@ -2148,6 +2166,7 @@ const definitions = {
       index("corpusId").sortKeys(["nodeKey"]).queryField("listSemanticNodesByCorpusAndNodeKey"),
       index("importRunId").sortKeys(["nodeKey"]).queryField("listSemanticNodesByImportRunAndNodeKey"),
       index("versionState").sortKeys(["updatedAt"]).queryField("listSemanticNodesByVersionStateAndUpdatedAt"),
+      index("tenantId").sortKeys(["id"]).queryField("listSemanticNodesByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
@@ -2357,6 +2376,7 @@ const definitions = {
       index("importRunId").sortKeys(["importedAt"]).queryField("listSemanticRelationsByImportRunAndImportedAt"),
       index("relationTypeKey").sortKeys(["importedAt"]).queryField("listSemanticRelationsByTypeAndImportedAt"),
       index("relationDomain").sortKeys(["importedAt"]).queryField("listSemanticRelationsByDomainAndImportedAt"),
+      index("tenantId").sortKeys(["id"]).queryField("listSemanticRelationsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
@@ -2432,6 +2452,7 @@ const definitions = {
       index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt"),
       index("parentLineageId").sortKeys(["sortTitle"]).queryField("listItemsByParentAndOrder"),
       index("scheduleState").sortKeys(["scheduledPublishAt"]).queryField("listItemsByScheduleStateAndScheduledPublishAt"),
+      index("tenantId").sortKeys(["id"]).queryField("listItemsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
@@ -2449,6 +2470,7 @@ const definitions = {
     .secondaryIndexes((index) => [
       index("slug").queryField("tagBySlug"),
       index("type").sortKeys(["label"]).queryField("listTagsByTypeAndLabel"),
+      index("tenantId").sortKeys(["id"]).queryField("listTagsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
@@ -2469,6 +2491,7 @@ const definitions = {
     .secondaryIndexes((index) => [
       index("itemId").sortKeys(["tagSlug"]).queryField("listItemTagsByItemAndTag"),
       index("tagId").sortKeys(["publishedAt"]).queryField("listItemTagsByTagAndPublishedAt"),
+      index("tenantId").sortKeys(["id"]).queryField("listItemTagsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
@@ -2557,6 +2580,7 @@ const definitions = {
     .secondaryIndexes((index) => [
       index("editionId").sortKeys(["sortKey"]).queryField("listEditionItemsByEditionAndSortKey"),
       index("itemId").sortKeys(["editionId"]).queryField("listEditionItemsByItemAndEdition"),
+      index("tenantId").sortKeys(["id"]).queryField("listEditionItemsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
@@ -2601,6 +2625,7 @@ const definitions = {
       index("typeStatus").sortKeys(["publishedAt"]).queryField("listPublishedItemsByTypeStatusAndPublishedAt"),
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listPublishedItemsBySectionStatusAndPublishedAt"),
       index("itemLineageId").sortKeys(["versionNumber"]).queryField("listPublishedItemsByLineageAndVersion"),
+      index("tenantId").sortKeys(["id"]).queryField("listPublishedItemsByTenant"),
     ])
     .authorization((allow) => [
       allow.guest().to(["read"]),
@@ -2688,6 +2713,7 @@ const definitions = {
     .secondaryIndexes((index) => [
       index("publishedEditionId").sortKeys(["sortKey"]).queryField("listPublishedEditionItemsByEditionAndSortKey"),
       index("publishedItemId").sortKeys(["publishedEditionId"]).queryField("listPublishedEditionItemsByItemAndEdition"),
+      index("tenantId").sortKeys(["id"]).queryField("listPublishedEditionItemsByTenant"),
     ])
     .authorization((allow) => [
       allow.guest().to(["read"]),
@@ -2750,6 +2776,7 @@ const definitions = {
       index("parentCategoryId").sortKeys(["rank"]).queryField("listPublishedCategoriesByParentAndRank"),
       index("parentCategoryKey").sortKeys(["rank"]).queryField("listPublishedCategoriesByParentKeyAndRank"),
       index("categoryKey").sortKeys(["publishedCategorySetId"]).queryField("listPublishedCategoriesByKeyAndSet"),
+      index("tenantId").sortKeys(["id"]).queryField("listPublishedCategoriesByTenant"),
     ])
     .authorization((allow) => [
       allow.guest().to(["read"]),
