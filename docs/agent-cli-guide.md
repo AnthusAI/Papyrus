@@ -231,13 +231,13 @@ papyrus knowledge entities merge --from person--musk --into person--elon-musk --
 **Lane:** both. **Version:** 5.100.0. **Writes:** yes; `--dry-run` previews.
 
 ```sh
-papyrus stories link-reference --story LINEAGE --reference REFERENCE_ID --role cited --dry-run
+papyrus stories link-reference --story LINEAGE --reference REFERENCE_ID --role cited --citation-key lemley2026 --dry-run
 papyrus stories link-reference --story LINEAGE --reference REFERENCE_ID --role consulted --note "Read, not used"
 papyrus stories link-story --story LINEAGE --to OTHER_LINEAGE --note "Earlier coverage" --dry-run
 papyrus stories link-story --story LINEAGE --reference REFERENCE_ID --note "Primary filing" --dry-run
 ```
 
-Roles: `consulted`, `cited`, `based_on`. `stories create --reference ID` links `based_on` at creation. `link-story --reference` (see also) needs an **accepted** Reference: a pending one is refused and nothing is written. A link in either direction counts as the same link.
+Roles: `consulted`, `cited`, `based_on`. `--citation-key KEY` stores the key on the link: `stories show` lists it beside the Reference, and the story-writing drafts cite the Reference by it. Give it when you link a Reference the body cites, using the key the body's citation uses; without it the link carries no key (`stories show` leaves the column empty) and the drafts make one from the Reference's lineage id. `stories create --reference ID` links `based_on` at creation. `link-story --reference` (see also) needs an **accepted** Reference: a pending one is refused and nothing is written. A link in either direction counts as the same link.
 
 ### Rate a Reference or a Story
 **Lane:** editor. **Version:** 5.100.0.
@@ -263,7 +263,14 @@ papyrus stories create --title "Headline" --section security --stage reporting -
 Prints `stories create created ITEM_ID`, `stories create lineage LINEAGE`, `stories create console ...` rows (show the editor that link: see below) and one `based on` line per Reference, then the reminder of the next procedure step. **Run it once**: each run makes a new Story. With `--with-assignment` it also opens a `reporting.candidate` Assignment (the Story's `--type` is never the Assignment's type). The `--reference` ids are attached first, so a failed Assignment never drops them; if the Assignment fails the command exits non-zero and prints `Story created (lineage ...), references attached: N, assignment NOT created: REASON` with the command to retry. The dry run prints one line and does not check that the `--reference` ids exist. `--stage` is `idea`, `assignment` or `reporting` (default `idea`); `--section` takes a section id, slug or name.
 
 ### Set the Story type (post or article)
-**Lane:** editor. **Status:** not built. `stories create` has no `--type` and there is no `stories set-type` (board story PPY-b3032b). A Story with type `untyped` cannot be published. Interim route: open the newsroom story editor and choose the type, or start the Story from the Create Story button on the Reference card. Check the result with `papyrus stories show --story LINEAGE` (the `signals` line shows `type`).
+**Lane:** both. **Version:** 5.101.0. **Writes:** yes; `--dry-run` previews.
+
+```sh
+papyrus stories create --title "Headline" --type post --section security --stage reporting --summary "One sentence." --dry-run
+papyrus stories set-type --story LINEAGE --type article --dry-run
+```
+
+`stories create --type TYPE` sets the type at creation; without it the Story gets the site's default type, and the command warns when that is `untyped`, which cannot be published. `stories set-type` changes the type of a Story that is not published yet; a published Story is refused, because its page address depends on its type. The type is checked against the site's list when the CLI runs from the site checkout (or `PAPYRUS_SITE_STATIC_DIR` is set); otherwise it prints a note that the name was not checked. Check the result with `papyrus stories show --story LINEAGE` (the `signals` line shows `type`).
 
 ### List the versions
 **Lane:** both. **Version:** any. Read only.
@@ -618,7 +625,6 @@ Honest rough edges. Board story **PPY-b3032b** ("Editor-session rough edges from
 
 | Rough edge | Today | Board |
 | --- | --- | --- |
-| `stories create --type article|post` and `stories set-type` | Type is set only in the newsroom editor; untyped Stories cannot publish | PPY-b3032b (1) |
 | `make-catalog` output accepted as is; `prepare-catalog` signed in | Hand-edit the catalog; skip `prepare-catalog` | PPY-b3032b (2) |
 | Longer default timeout or may-have-completed reporting | `PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300` and re-run | PPY-b3032b (3) |
 | `references suggest-links` for editors; concept search without a local key | Operator only (`stories suggest-links` and `concepts related` cover editors; free-text `concepts search` needs `OPENAI_API_KEY` in the shell) | PPY-b3032b (4) |
