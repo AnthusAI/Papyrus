@@ -458,6 +458,20 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | SignupEntry              | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | SignupEntry              | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | SignupEntry              | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | SiteDocument             | get                             | denied, or returns nothing of "beta"                                  |
+      | SiteDocument             | list                            | no row of "beta" is returned and pages are not short                  |
+      | SiteDocument             | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | SiteDocument             | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | SiteDocument             | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | SiteDocument             | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | SiteDocument             | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | SiteDocumentVersion      | get                             | denied, or returns nothing of "beta"                                  |
+      | SiteDocumentVersion      | list                            | no row of "beta" is returned and pages are not short                  |
+      | SiteDocumentVersion      | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | SiteDocumentVersion      | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | SiteDocumentVersion      | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | SiteDocumentVersion      | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | SiteDocumentVersion      | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | SteeringDecision         | get                             | denied, or returns nothing of "beta"                                  |
       | SteeringDecision         | list                            | no row of "beta" is returned and pages are not short                  |
       | SteeringDecision         | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
@@ -706,6 +720,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listSemanticRelationTypesByDomainAndLabel            | returns nothing of "beta"        |
       | listSemanticRelationTypesByStatusAndLabel            | returns nothing of "beta"        |
       | listSignupEntriesByFormAndSubmittedAt                | returns nothing of "beta"        |
+      | listSiteDocumentVersionsByDocument                   | returns nothing of "beta"        |
       | listSteeringDecisionsByProposalAndCreatedAt          | returns nothing of "beta"        |
       | listSteeringDecisionsBySetAndCreatedAt               | returns nothing of "beta"        |
       | listSteeringProposalsBySetAndStatus                  | returns nothing of "beta"        |

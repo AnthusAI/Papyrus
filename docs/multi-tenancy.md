@@ -24,17 +24,21 @@ The generated [tenant key inventory](tenant-key-inventory.md) lists every model'
 
 ## Tenant, membership and domain records
 
-Three models hold the tenants themselves (PPY-31c45c). They are new tables, each created with all its indexes in one deploy, and they sit in the optional model group `tenancy` (`OPTIONAL_MODEL_GROUPS`), so a dedicated site can leave them out of a first deploy with `excludeModelGroups: ["tenancy"]`. Nothing reads or writes them yet.
+Five models hold the tenants themselves: three for the tenants (PPY-31c45c) and two for each tenant's site documents (PPY-c020ce). They are new tables, each created with all its indexes in one deploy, and they sit in the optional model group `tenancy` (`OPTIONAL_MODEL_GROUPS`), so a dedicated site can leave them out of a first deploy with `excludeModelGroups: ["tenancy"]`. Nothing reads or writes them yet.
 
 | Model | Id | Fields | Indexes |
 | --- | --- | --- | --- |
 | `Tenant` | the site id (`validate_tenant_id`) | `accountId` (the Prospectus Account), `displayName`, `state` (`active`, `past_due`, `suspended`, `deleted_pending`, `deleted`), `stateKey` (`state#<state>`), `plan`, `entitlements`, `createdAt`, `stateChangedAt` | `accountId`, `stateKey` |
 | `TenantMembership` | `<tenant>#<userSub>` | `tenantId`, `userSub`, `userProfileId` (the stable person key; one person can have two subs), `role` (`admin`, `editor`, `curator`, `member`), `status`, `grantedBy`, `grantedAt` | `userSub` (the token Lambda), `tenantId` |
 | `TenantDomain` | the lowercase hostname | `tenantId`, `kind` (`subdomain`, `custom`), `status` (`pending_dns`, `pending_certificate`, `active`, `failed`, `removed`), `verification`, `certificateRef` | `tenantId` |
+| `SiteDocument` | `<tenant>#<kind>` (`kind`: `site`, `brand`, `nav`) | `tenantId`, `kind`, `currentVersion`, `s3Key`, `sha256`, `schemaVersion`, `updatedBy`, `updatedAt` | none |
+| `SiteDocumentVersion` | `<tenant>#<kind>#<version>` | `tenantId`, `documentId`, `version`, `s3Key`, `sha256`, `createdBy`, `createdAt`, `note` | `documentId` sorted by `version` |
+
+Site documents (PPY-c020ce): these rows are the catalogue only; the document itself is a JSON object in S3 at `tenants/<tenant>/site/<kind>/<version>.json`, never text in DynamoDB. `papyrus_content.site_store` holds the key shapes and the save: it writes the version object first, then the `SiteDocumentVersion` row, then moves `SiteDocument.currentVersion` with a conditional update on the version the save started from, so a save that stops half way is never live (an object or version row left behind is harmless, and the next save numbers after the highest version row). Restoring version N is a new save that carries N's content; history is not rewritten. Nothing calls the store yet (the site store and the projection will), and no storage rule covers `tenants/<tenant>/site/` yet.
 
 Because a domain's id is its hostname, a hostname can belong to one tenant only: a second create fails on the key. `papyrus_content.tenant_records` holds the key shapes and the two lookups callers must share (`list_memberships_for_user` is one query on the `userSub` index, never a scan; `claim_domain` refuses a hostname already held).
 
-Access: the `admin` group (the platform operator) has full access; a tenant's admin may read its own rows through the `papyrus_tenant_admin` claim (`ownerDefinedIn("id")` on Tenant, `ownerDefinedIn("tenantId")` on the others). The claim is not issued yet (PPY-0bb0fd), so today only the operator group has any access. The claim rule is read-only, so it needs no field lock on `tenantId`. The tenant-claims and provisioning functions use IAM grants, which their own tasks add. The `userSub` index partition is a person, not a tenant: only the token Lambda (IAM) queries it.
+Access: the `admin` group (the platform operator) has full access; a tenant's admin may read its own rows through the `papyrus_tenant_admin` claim (`ownerDefinedIn("id")` on Tenant, `ownerDefinedIn("tenantId")` on the others, including the two site document models; `SiteDocumentVersion` carries `tenantId` for this reason). The claim is not issued yet (PPY-0bb0fd), so today only the operator group has any access. The claim rule is read-only, so it needs no field lock on `tenantId`. Tenant-admin writes to site documents wait for the claim to be issued; until then the operator group (and later the IAM functions that save them, whose tasks add the grants) writes them. The tenant-claims and provisioning functions use IAM grants, which their own tasks add. The `userSub` index partition is a person, not a tenant: only the token Lambda (IAM) queries it.
 
 ## NewsroomSection ids
 

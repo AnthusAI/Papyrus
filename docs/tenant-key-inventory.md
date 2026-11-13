@@ -15,10 +15,10 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 
 ## Counts
 
-- 67 models, 187 indexes.
-- Indexes by class: tenant-prefixed 10, corpus-prefixed 15, record-id 68, global 94.
-- Indexes that list a tenant once prefixed: 36; dense indexes: 100.
-- Models: 27 with an index that lists a tenant, 32 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
+- 69 models, 188 indexes.
+- Indexes by class: tenant-prefixed 10, corpus-prefixed 15, record-id 69, global 94.
+- Indexes that list a tenant once prefixed: 36; dense indexes: 101.
+- Models: 27 with an index that lists a tenant, 34 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
 
 ## Models
 
@@ -80,6 +80,8 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `SemanticRelation` | 9 | no, needs a tenantId index |  |
 | `SemanticRelationType` | 3 | yes | `listSemanticRelationTypesByDomainAndLabel`, `listSemanticRelationTypesByStatusAndLabel` |
 | `SignupEntry` | 1 | no, needs a tenantId index |  |
+| `SiteDocument` | 0 | no index, needs a tenantId index |  |
+| `SiteDocumentVersion` | 1 | no, needs a tenantId index |  |
 | `SteeringDecision` | 2 | no, needs a tenantId index |  |
 | `SteeringProposal` | 4 | yes | `listSteeringProposalsByDomainAndStatus` |
 | `StoryVariation` | 1 | no, needs a tenantId index |  |
@@ -103,6 +105,7 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 - `ReviewReadMark` (no index at all)
 - `ReviewRecipientRule` (no index at all)
 - `ReviewRequest` (no index at all)
+- `SiteDocument` (no index at all)
 - `CategoryKeyword` (4 indexes, none lists a tenant)
 - `CurationDelegationRecord` (1 index, it does not list a tenant)
 - `EditionItem` (2 indexes, none lists a tenant)
@@ -123,6 +126,7 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 - `SemanticNode` (6 indexes, none lists a tenant)
 - `SemanticRelation` (9 indexes, none lists a tenant)
 - `SignupEntry` (1 index, it does not list a tenant)
+- `SiteDocumentVersion` (1 index, it does not list a tenant)
 - `SteeringDecision` (2 indexes, none lists a tenant)
 - `StoryVariation` (1 index, it does not list a tenant)
 - `Tag` (2 indexes, none lists a tenant)
@@ -150,6 +154,7 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `curationStatus` | global | closed | `Reference` |
 | `curationStatusKey` | corpus-prefixed | open | `Reference` |
 | `discoveredByMonitorId` | record-id | open | `Reference` |
+| `documentId` | record-id | open | `SiteDocumentVersion` |
 | `domain` | global | closed | `ReaderSubmission`, `SemanticRelationType` |
 | `editionId` | record-id | open | `EditionItem` |
 | `editionLineageId` | record-id | open | `PublishedEdition` |
@@ -402,6 +407,7 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `SemanticRelationType` | `listSemanticRelationTypesByDomainAndLabel` | `domain` | `label` | global | closed | yes | yes |
 | `SemanticRelationType` | `listSemanticRelationTypesByStatusAndLabel` | `status` | `label` | global | closed | yes | yes |
 | `SignupEntry` | `listSignupEntriesByFormAndSubmittedAt` | `form` | `submittedAt` | global | open | yes | no |
+| `SiteDocumentVersion` | `listSiteDocumentVersionsByDocument` | `documentId` | `version` | record-id | open | yes | no |
 | `SteeringDecision` | `listSteeringDecisionsByProposalAndCreatedAt` | `proposalId` | `createdAt` | record-id | open | yes | no |
 | `SteeringDecision` | `listSteeringDecisionsBySetAndCreatedAt` | `categorySetId` | `createdAt` | record-id | open | no | no |
 | `SteeringProposal` | `listSteeringProposalsBySetAndStatus` | `categorySetId` | `status` | record-id | open | no | no |

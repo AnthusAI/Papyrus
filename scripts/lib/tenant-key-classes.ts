@@ -53,6 +53,7 @@ export const PARTITION_FIELD_CLASSES: Record<string, FieldClass> = {
   authorUserProfileId: recordId,
   categorySetId: recordId,
   categorySetLineageId: recordId,
+  documentId: recordId,
   discoveredByMonitorId: recordId,
   editionId: recordId,
   editionLineageId: recordId,

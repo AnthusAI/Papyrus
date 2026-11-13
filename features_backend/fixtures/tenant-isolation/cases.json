@@ -1,10 +1,10 @@
 {
   "generatedBy": "scripts/generate-tenant-isolation-cases.ts",
   "summary": {
-    "models": 67,
+    "models": 69,
     "globalModels": 3,
-    "modelCases": 463,
-    "indexCases": 187,
+    "modelCases": 477,
+    "indexCases": 188,
     "subscriptionCases": 9,
     "operationCases": 133,
     "functionCases": 31,
@@ -3132,6 +3132,118 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "model:SiteDocument:get",
+      "kind": "model",
+      "subject": "SiteDocument",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s SiteDocument by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocument:list",
+      "kind": "model",
+      "subject": "SiteDocument",
+      "operation": "list",
+      "probe": "alpha lists SiteDocument rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:SiteDocument:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "SiteDocument",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists SiteDocument rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocument:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "SiteDocument",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a SiteDocument with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocument:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "SiteDocument",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own SiteDocument setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocument:update-foreign-row",
+      "kind": "model",
+      "subject": "SiteDocument",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s SiteDocument",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocument:delete-foreign-row",
+      "kind": "model",
+      "subject": "SiteDocument",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s SiteDocument",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocumentVersion:get",
+      "kind": "model",
+      "subject": "SiteDocumentVersion",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s SiteDocumentVersion by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocumentVersion:list",
+      "kind": "model",
+      "subject": "SiteDocumentVersion",
+      "operation": "list",
+      "probe": "alpha lists SiteDocumentVersion rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:SiteDocumentVersion:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "SiteDocumentVersion",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists SiteDocumentVersion rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocumentVersion:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "SiteDocumentVersion",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a SiteDocumentVersion with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocumentVersion:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "SiteDocumentVersion",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own SiteDocumentVersion setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocumentVersion:update-foreign-row",
+      "kind": "model",
+      "subject": "SiteDocumentVersion",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s SiteDocumentVersion",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:SiteDocumentVersion:delete-foreign-row",
+      "kind": "model",
+      "subject": "SiteDocumentVersion",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s SiteDocumentVersion",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "model:SteeringDecision:get",
       "kind": "model",
       "subject": "SteeringDecision",
@@ -5041,6 +5153,14 @@
       "subject": "listSignupEntriesByFormAndSubmittedAt",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listSignupEntriesByFormAndSubmittedAt on SignupEntry with form at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listSiteDocumentVersionsByDocument",
+      "kind": "index",
+      "subject": "listSiteDocumentVersionsByDocument",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listSiteDocumentVersionsByDocument on SiteDocumentVersion with documentId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -7456,6 +7576,11 @@
     },
     {
       "code": "index-not-tenant-prefixed",
+      "subject": "listSiteDocumentVersionsByDocument",
+      "note": "partition key documentId on SiteDocumentVersion is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
       "subject": "listSteeringDecisionsByProposalAndCreatedAt",
       "note": "partition key proposalId on SteeringDecision is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
@@ -8192,6 +8317,16 @@
     {
       "code": "tenantId-can-be-changed",
       "subject": "SignupEntry",
+      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
+    },
+    {
+      "code": "tenantId-can-be-changed",
+      "subject": "SiteDocument",
+      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
+    },
+    {
+      "code": "tenantId-can-be-changed",
+      "subject": "SiteDocumentVersion",
       "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
     },
     {
