@@ -6,7 +6,7 @@ A figure is a diagram, chart or editorial illustration for a Story, drawn as one
 
 | Belongs to Papyrus (the same for every site) | Belongs to a site (its *design system*) |
 | --- | --- |
-| The rules: `papyrus figures rules` (`src/papyrus_content/data/figures/rules.md`). They name roles, never colors or fonts. | `mapping.json`: the role names (`ground`, `inset`, `ink`, `focal` ...), type roles (`head`, `label` ...) and canvas sizes. |
+| The rules: `papyrus figures rules` (`src/papyrus_content/data/figures/rules.md`, or the site's own, see below). They name roles, never colors or fonts. | `mapping.json`: the role names (`ground`, `inset`, `ink`, `focal` ...), type roles (`head`, `label` ...) and canvas sizes. |
 | The shape library: `papyrus figures primitives` (glyphs, arrowhead, hatch and dot patterns). | The tokens: every color has a light and a dark value; type styles. Inline in `mapping.json` (`"tokens"`) or in a file it names (`"tokens_file"`). |
 | The checks and the renderer (`src/papyrus_content/figures/`). | The font files it names, which are embedded in the picture. |
 | | Worked examples: `examples/NAME/figure.svg` and `figure.json`. |
@@ -49,7 +49,7 @@ papyrus design-system push ./design-system --reason "..."   # publish a folder a
 
 The site's repository stays the place where the design system is edited, and runs `push` as part of its deploy. A folder is `mapping.json`, its tokens file, the fonts it names, `examples/NAME/figure.svg` + `figure.json`, and an optional `settings.json`. A folder with no `settings.json` keeps the site's current settings; `{"requireDarkFigures": false}` turns the setting off. The editorial context (`papyrus editorial context`) carries a short pointer to the design system, built from the catalog row alone, so an agent knows it exists and how to read it.
 
-The only site setting today is `requireDarkFigures`.
+The site settings are `requireDarkFigures`, `publishRequiresRating` (off unless set: then a Story must have an editor's star rating before it publishes or republishes; see [the Rated step](story-procedure.md#the-rated-step)), `illustrationRequireApprovalCredit` (off unless set: then the cover needs a recorded approval and an `Approved by NAME` line on its image) and `illustrationRequiredTypes` (a list of Story types whose checklist needs an approved cover before publishing, `["article"]` when unset; see [the Illustration step](story-procedure.md#the-illustration-step)), for example `{"requireDarkFigures": true, "illustrationRequiredTypes": ["article", "post"]}`. A stored cover closes that step with no approval needed (unless the site opts in with `illustrationRequireApprovalCredit`), and where `requireDarkFigures` is on a figure's dark picture must be stored too.
 
 ## Saving into a Story
 
@@ -64,3 +64,7 @@ The only site setting today is `requireDarkFigures`.
 - Hosted rendering for an agent with no browser (the next slice): it will take a figure's source and a site's stored design system and return both pictures and any problems.
 - Moving Machines on Machines onto this and removing its copies of the rules, primitives, mapping and renderer.
 - The p.apyr.us documentation page.
+
+## A site's own figure rules
+
+The general rules above are the default. A site that draws by different rules saves its own with `papyrus guidelines save --kind figure-rules --file rules.yml --reason "..." --expected-current-version-id none`, where the file is `{schemaVersion: 1, bodyMarkus: "<the complete text>"}`. The site's text replaces the general rules for that site (nothing is merged), is versioned like the other guidelines, and is what `papyrus figures rules` prints for that site. `papyrus figures rules --packaged` prints the general rules.

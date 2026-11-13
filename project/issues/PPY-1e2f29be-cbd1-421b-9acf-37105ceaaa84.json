@@ -1,0 +1,33 @@
+{
+  "id": "PPY-1e2f29be-cbd1-421b-9acf-37105ceaaa84",
+  "title": "Spike: block alignment and human-edit pinning without Markus block IDs",
+  "description": "Pure Python on fixtures, no deploy. Split a Markus body into blocks, align source blocks to target blocks by hash and position, pin blocks a person edited, then re-derive after source edits: paragraph added, removed, reordered, rewritten, split, merged. Report where alignment fails and whether stable Markus block identifiers are needed after all. Include Spanish, Chinese and Arabic fixtures. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "03c3508a-183b-40fd-8c8c-76a8f7639efd",
+      "author": "home",
+      "text": "Prototype: spikes/multilingual/align_spike.py on PR #1450. 10 real MoM Stories (195 blocks) x 10 scenarios (tweaks, rewrites and deletions under pinned blocks, additions, reorders, splits, merges, local-only paragraphs, duplicate blocks, no change): 0 human edits silently lost in 100 runs; rewrites/deletions under pins become conflicts, moves keep wording, only changed blocks re-translate. Fixed one defect: identical blocks shared a hash; identity is now hash plus occurrence number. Markus block identifiers are not needed.",
+      "created_at": "2026-11-12T16:22:39.753691Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-12T15:39:05.370545Z",
+  "updated_at": "2026-11-12T16:22:39.875167Z",
+  "closed_at": "2026-11-12T16:22:39.875133Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

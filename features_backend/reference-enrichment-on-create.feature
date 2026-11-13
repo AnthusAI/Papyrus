@@ -55,6 +55,12 @@ Feature: A Reference created by hand is enriched before it is predicted, once, a
     When the router enriches and decides the queued requests
     Then the card says the extraction is automated and its completeness is not checked
 
+  Scenario: The local-run hint names only flags the two commands accept
+    Given the line a creating command prints when the catalog holds videos
+    When each command named in the hint is parsed with exactly the flags the hint gives it
+    Then both commands accept those flags
+    And the hint does not give capture-transcripts a --write flag, which it does not take
+
   Scenario: A video is enriched as far as the cloud can and left for the local runners
     Given a pending video Reference whose request asks for enrichment
     When the router enriches and decides the queued requests and the video platform refuses the cloud

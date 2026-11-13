@@ -277,3 +277,10 @@ Feature: The scheduled cloud knowledge run
     When the stages "typed-extraction", "publish-run", "snapshot" run
     Then the command "knowledge publish-run" was given "--monitor-ledger" with the corpus's import ledger
     And no command "knowledge snapshot" was given "--monitor-ledger"
+
+  Scenario: A publication that belongs to a tenant runs every papyrus command under that tenant
+    The run writes the wiki and the knowledge records of a tenant's publication. A command with no tenant would
+    write rows the tenant's readers never see, so the tenant the site names is part of every command's environment.
+    Given the site sets the tenant "machines-on-machines"
+    When the stages "wiki-sync", "projection" run
+    Then every papyrus command ran with the tenant "machines-on-machines"

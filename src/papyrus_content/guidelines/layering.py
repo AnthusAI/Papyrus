@@ -134,3 +134,38 @@ def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = N
         layers.append({"scope": SECTION, **{k: overlay["reference"][k] for k in ("itemId", "slug", "versionNumber", "contentHash")}})
     answer.update(found=True, document=document, fieldSources=sources, layers=layers, warnings=warnings)
     return answer
+
+
+def resolve_image_guidelines(store: GuidelineStore, section: str | None = None) -> dict:
+    """The image guidelines of the publication, with a section's own image types and type preferences added when a section is named.
+
+    The same shape as ``resolve_guidelines``. The effective guidance for one picture (a use, an image type, a Story) is the image resolver's
+    (``papyrus images profile resolve``); this is the layered document it starts from, with ``fieldSources`` saying which image types came from the section."""
+    from papyrus_content.images.visual_style import section_type_keys, with_section_types
+
+    answer: dict[str, Any] = {"kind": "image", "section": section, "found": False, "document": {}, "fieldSources": {}, "layers": [], "warnings": []}
+    base = store.read("image")
+    if base is None:
+        answer["warnings"].append({"code": "image_guidelines_missing", "message": "This publication has no image guidelines yet. Nothing was applied."})
+        return answer
+    reference_keys = ("itemId", "slug", "versionNumber", "contentHash")
+    layers = [{"scope": PUBLICATION, **{k: base["reference"][k] for k in reference_keys}}]
+    document = copy.deepcopy(base["document"])
+    sources: dict[str, Any] = {key: [{"layer": PUBLICATION, "version": base["reference"]["versionNumber"]}] for key in document if key != "schemaVersion"}
+    overlay = store.read("image", section) if section else None
+    if overlay:
+        layers.append({"scope": SECTION, **{k: overlay["reference"][k] for k in reference_keys}})
+        version = overlay["reference"]["versionNumber"]
+        style = {name: value for name, value in overlay["document"].items() if name not in ("schemaVersion", "bodyMarkus")}
+        own = section_type_keys(document, style)
+        merged, _ = with_section_types(document, style)
+        document["imageTypes"], document["typePreference"] = merged.get("imageTypes", {}), merged.get("typePreference", {})
+        for key in own:
+            sources[f"imageTypes.{key}"] = [{"layer": SECTION, "version": version}]
+        if own or style.get("typePreference"):
+            sources["typePreference"] = [{"layer": PUBLICATION, "version": base["reference"]["versionNumber"]}, {"layer": SECTION, "version": version}]
+        if overlay["document"].get("bodyMarkus"):
+            document["bodyMarkus"] = "\n\n".join(part for part in (document.get("bodyMarkus"), overlay["document"]["bodyMarkus"]) if part)
+            sources["bodyMarkus"] = [{"layer": PUBLICATION, "version": base["reference"]["versionNumber"]}, {"layer": SECTION, "version": version}]
+    answer.update(found=True, document=document, fieldSources=sources, layers=layers)
+    return answer

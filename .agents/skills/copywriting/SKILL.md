@@ -11,7 +11,7 @@ Stories live in the publication's newsroom backend, not in Git. Resolve the
 publication and the story lineage from its configuration and live records (an
 item version id is not a lineage). Read the story's current version, its linked
 References (`papyrus stories show --story LINEAGE`), and any reporting packets.
-Do not substitute assumptions for missing reporting. Name the site when several are signed in (`papyrus --site SITE_HOST <group> <command>`). Use only documented commands and never invent a command, flag or relation name. A post has no byline: never write "By ..." or an invented author into a post.
+Do not substitute assumptions for missing reporting. Name the site when several are signed in (`papyrus --site SITE_HOST <group> <command>`). Use only documented commands and never invent a command, flag or relation name. A post has no byline: never write "By ..." into a post body.
 
 The order of the steps for a Story, and what comes next, is defined once in [docs/story-procedure.md](../../../docs/story-procedure.md); run `papyrus stories next --story LINEAGE` to see it. Every Story has a checklist made from it: record a step you skip or find not applicable with `papyrus stories step --story LINEAGE --step KEY --state skipped|not_applicable --reason "why" --agent NAME` (a skip without a reason is refused), and a review step is done only with a findings note. An open required step blocks publishing.
 
@@ -21,6 +21,18 @@ The order of the steps for a Story, and what comes next, is defined once in [doc
 papyrus editorial context --backend cloud --story STORY_LINEAGE --format json
 papyrus editorial pack
 ```
+
+Then read the site's writing guidelines resolved for the Story's section, with the
+layer every field came from, before anything else you write:
+
+```bash
+papyrus guidelines resolve --kind writing --section SECTION
+```
+
+The agent context pack carries the same guidelines first (`papyrus assignments context-pack
+--story STORY_LINEAGE --profile copywriter`). They are the site's voice, audience, words to prefer and
+avoid, and binding rules; they add to this skill and never replace it. A `writing_guidelines_missing`
+warning means the site has none yet: say so, and do not invent a voice.
 
 The context `text` is the publication's mission and policy (and the section's,
 when the story has one), in precedence order. The pack's policies carry the
@@ -43,6 +55,12 @@ These hold for every publication. The site's policies add its own rules on top.
   the measurement, or the failure case the publication's mission asks for. If the
   evidence for that is missing, stop and say what is missing; don't write around
   it.
+- **The dek and the blurb are different on purpose.** The blurb is a short
+  summary for index pages and cards, written to stand alone because it appears
+  out of context. The dek (subtitle) is read on the article page as part of the
+  article, so it must read smoothly with the headline and the opening paragraph
+  and must not repeat them. Write both, differently; never paste one into the
+  other (an identical copy is a defect). Worked example: `papyrus guide write-story`.
 - **Tense is a claim.** Write about the publisher's own systems in the past tense
   for history ("we ran", "we measured"). Use the future tense for offers ("we'll
   run this for you"). Use the present tense only for what you verified is true
@@ -61,7 +79,8 @@ These hold for every publication. The site's policies add its own rules on top.
 - **No speed bragging and no hype.** Describe the problem, the mechanism and the
   honest limits.
 - **A generated image has no credit line at all; leave credit off.** A real third-party credit
-  is written as the source gives it.
+  is written as the source gives it. A local picture with no credit counts as ours and passes the
+  credit check; only remote, stock-cover and Reference pictures need a credit.
 - A story based on a Reference has its own text: never seed it from the
   Reference's captured text (the copy guard refuses runs of 12 or more shared words).
 
@@ -92,7 +111,7 @@ papyrus stories save-version --story LINEAGE --body-file draft.md \
 ```
 
 Then save without `--dry-run`. Every substantial change is a new version; earlier
-versions are kept. Attribute your work as "AI" and never invent human authorship.
+versions are kept. Follow the byline policy in your context pack (the default: attribute your work as "AI" and never invent human authorship).
 
 - **Record provenance on the record, not in Messages.** Messages come only from
   people. Put the context hash and source revisions in the version's change

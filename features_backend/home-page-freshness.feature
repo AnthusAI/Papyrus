@@ -12,6 +12,11 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
   comment, or a change to a comment's status, text, edit time or deletion time, opens the same window, so one run refreshes the
   References and the threads together. A site that already streams its Messages for another feature has that stream reused.
 
+  A person who posts to a forum is waiting to see the post, so a changed Message does not wait for the Reference window: it opens a
+  window of its own, homePage.freshness.threadDebounceSeconds (3 seconds by default), and the Message stream hands the trigger a record as soon
+  as it arrives. The run that window schedules also takes every Reference id listed by then. The pages it writes are cached at the edge only
+  as long as publication.cache.liveSMaxAgeSeconds (projection-publish.feature).
+
   The plugin is opt-in. A site that does not list it gets no stream, no trigger function, no scheduler role and no rule, so
   every other site is unchanged by the release. The window defaults to 300 seconds, the lifetime of the page at the edge,
   because a page cannot be fresher than that anyway; an interval rule and edge purging are off unless the site asks.
@@ -37,6 +42,25 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
     Given a trigger function with a 300 second debounce window
     When a Message is posted
     And another Message is posted 100 seconds later
+    Then one home-page snapshot run is scheduled for 300 seconds later
+
+  Scenario: A forum post waits a few seconds, not the Reference window
+    Given a trigger function with a 300 second debounce window and a 3 second thread window
+    When a Message is posted
+    And a Message is posted 2 seconds later
+    Then one home-page snapshot run is scheduled for 3 seconds later
+
+  Scenario: An open Reference window does not hold a Message back
+    Given a trigger function with a 300 second debounce window and a 3 second thread window
+    When a Reference is accepted
+    And a Message is posted 10 seconds later
+    Then 2 home-page snapshot runs are scheduled
+    And a home-page snapshot run is scheduled for 300 seconds after the start
+    And a home-page snapshot run is scheduled for 13 seconds after the start
+
+  Scenario: A Reference change keeps the long window even when threads have a short one
+    Given a trigger function with a 300 second debounce window and a 3 second thread window
+    When a Reference is accepted
     Then one home-page snapshot run is scheduled for 300 seconds later
 
   Scenario: Deleting or editing a Message schedules a snapshot, and a Message change no thread shows does not

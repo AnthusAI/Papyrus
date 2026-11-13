@@ -1,0 +1,25 @@
+{
+  "id": "PPY-ba2bb4e9-6b35-48ba-9b04-24bae18e4575",
+  "title": "Primary-at-root and language-prefixed URL modes with hreflang",
+  "description": "As a reader and as a search engine, I want each language at a stable address, so existing English links never break and each language is found in its own language.\n\nDesign: primaryAtRoot (existing sites; primary keeps today's URLs) or prefixed (new sites; '/' is a static redirect to the x-default home). The prefix is configured separately from the BCP 47 tag: Chinese is zh-Hans at /zh/ (Ryan's decision 1; /zh-hant/ possible later; never /cn/). Slugs (tentative, decision 7): translated and fixed once published for Latin-script languages; Chinese uses the primary's slug; ask Ryan again before Slice 2. hreflang for each published language plus x-default; self-canonical; one sitemap per language. Missing localization: no page; switcher and hreflang list only existing languages. Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.\n\nFeature: Language addresses\n\nScenario: English stays at the root\n  Given Machines on Machines with English at the root and Spanish at /es/\n  When an English Story is published\n  Then its address is unchanged from today and contains no /en/\n\nScenario: Chinese lives under /zh/ and declares Simplified script\n  Given Chinese is configured with tag zh-Hans and prefix zh\n  When a Chinese localization is published\n  Then its address starts with /zh/ and the page declares lang zh-Hans\n\nScenario: hreflang lists only languages that exist\n  Given an English Story with a published Spanish localization and no Chinese one\n  When either page is rendered\n  Then both list hreflang en and es and x-default pointing at the English page, and neither lists Chinese",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-75649552-f242-4ed9-9b93-d27bbb29e4ce",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T15:39:08.246029Z",
+  "updated_at": "2026-11-12T16:22:15.520560Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

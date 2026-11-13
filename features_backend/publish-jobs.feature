@@ -8,7 +8,10 @@ Feature: A publish is answered at once and its page follows
   is answered at once with a job id; it then asks about the job in short calls
   until the page is live, or says the page is still being built, which is not a
   failure. Publishing the same story again while its build is queued or running
-  joins that build. A build that finds the site busy waits a few seconds at
+  joins that build. Taking a page down (unpublish, and so retiring a story) works the
+  same way, since rewriting listings, feeds and redirects can outlast AppSync's thirty
+  seconds just as much as building a page; the CLI never reports a timeout for work that
+  is going on, and reports a failure only when the job itself fails. A build that finds the site busy waits a few seconds at
   most, leaves its story queued, and whoever holds the lease builds the queue
   before letting go; Lambda's retry of the busy build then finds the work done.
 
@@ -39,6 +42,25 @@ Feature: A publish is answered at once and its page follows
     When the first build runs
     Then it builds the queued story too before letting go of the lease
     And the retry of the second build finds its page already built
+
+  Scenario: Taking a page down is answered with a job too
+    Given a published story on a site that keeps build records
+    When the editor unpublishes it from the CLI
+    Then the answer says the page is being taken down, with a job id
+    And exactly one build is started
+    When the build runs
+    Then asking for the job's status says it is done and names the page it wrote
+
+  Scenario: The CLI waits for an unpublish job in short calls
+    Given a page-building function that answers an unpublish with a job and later reports it done
+    When the operator's CLI unpublishes the story
+    Then it reports the page as taken down, with the pages written
+    And no call it made had to wait for the build
+
+  Scenario: A backend that cannot build in the background is refused, not waited for
+    Given a page-building function that builds the pages inside the call, as backends before this change do
+    When the operator's CLI unpublishes the story
+    Then it fails and says which backend to deploy, without asking again
 
   Scenario: The CLI waits for the job in short calls
     Given a page-building function that answers with a job and later reports it done

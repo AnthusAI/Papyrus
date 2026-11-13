@@ -16,6 +16,20 @@ On `shared`, `amplify/site-backend.ts` sets `PAPYRUS_TENANCY_MODE=shared` on eve
 
 Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows get a `tenantId`. The index values that would be global (`typeStatus`, `sectionStatus`, slug lookups) are prefixed with `<tenant>#`, media rows are listed, read, updated and deleted by their own tenant only (see [story pictures](#story-pictures-and-the-one-key-rule) for the key), and a tenant client lists, reads, updates and deletes only its own rows.
 
+## Tenant, membership and domain records
+
+Three models hold the tenants themselves (PPY-31c45c). They are new tables, each created with all its indexes in one deploy, and they sit in the optional model group `tenancy` (`OPTIONAL_MODEL_GROUPS`), so a dedicated site can leave them out of a first deploy with `excludeModelGroups: ["tenancy"]`. Nothing reads or writes them yet.
+
+| Model | Id | Fields | Indexes |
+| --- | --- | --- | --- |
+| `Tenant` | the site id (`validate_tenant_id`) | `accountId` (the Prospectus Account), `displayName`, `state` (`active`, `past_due`, `suspended`, `deleted_pending`, `deleted`), `stateKey` (`state#<state>`), `plan`, `entitlements`, `createdAt`, `stateChangedAt` | `accountId`, `stateKey` |
+| `TenantMembership` | `<tenant>#<userSub>` | `tenantId`, `userSub`, `userProfileId` (the stable person key; one person can have two subs), `role` (`admin`, `editor`, `curator`, `member`), `status`, `grantedBy`, `grantedAt` | `userSub` (the token Lambda), `tenantId` |
+| `TenantDomain` | the lowercase hostname | `tenantId`, `kind` (`subdomain`, `custom`), `status` (`pending_dns`, `pending_certificate`, `active`, `failed`, `removed`), `verification`, `certificateRef` | `tenantId` |
+
+Because a domain's id is its hostname, a hostname can belong to one tenant only: a second create fails on the key. `papyrus_content.tenant_records` holds the key shapes and the two lookups callers must share (`list_memberships_for_user` is one query on the `userSub` index, never a scan; `claim_domain` refuses a hostname already held).
+
+Access: the `admin` group (the platform operator) has full access; a tenant's admin may read its own rows through the `papyrus_tenant_admin` claim (`ownerDefinedIn("id")` on Tenant, `ownerDefinedIn("tenantId")` on the others). The claim is not issued yet (PPY-0bb0fd), so today only the operator group has any access. The claim rule is read-only, so it needs no field lock on `tenantId`. The tenant-claims and provisioning functions use IAM grants, which their own tasks add. The `userSub` index partition is a person, not a tenant: only the token Lambda (IAM) queries it.
+
 ## NewsroomSection ids
 
 A Section row's primary `id` used to be the bare Section key (`mission`), so two tenants with the same key collided on one row. With a tenant the **stored** id is `<tenant>#<section key>` (for example `alpha#mission`). `#` is the separator already used in index keys; a Section row id is never used inside an index key (Assignments and References carry the bare key in their own `section` fields), so it is safe here.
@@ -88,5 +102,7 @@ What it will not do:
 A backend copied from a tenant site keeps the tenant on its sections and stories, and the editorial check refuses a record whose tenant is not the client's. Two settings make the backend consistent with its data: the router publication's `tenantId` (see [monitoring in the cloud](monitoring-cloud.md)) and, for the backend's own Lambdas (create a story from a Reference, edit a story, the assignment and category actions, and the editorial-checks function, which refuses an editorial context whose tenant differs from its own), the build variable `PAPYRUS_TENANT_ID` on the site, which `amplify/site-backend.ts` passes to those Lambdas. Rows that carry no tenant (for example the doctrine Items) are invisible to a tenant client until `content adopt-tenant-data --tenant <id>` has adopted them (dry run first).
 
 ### Single-publication backends and Reference intake
+
+The wiki commands (`knowledge wiki sync`, `knowledge wiki publish`) and the cloud knowledge run write under the publication's tenant like every other command. The cloud run takes it from `PAPYRUS_TENANT_ID` in the site's `knowledgeRun` `environment` (`infra/site.json`). A command with no tenant refuses to write when the backend's Items already belong to a tenant (rows written without the stamp are invisible to the tenant's renders), and names the tenant to pass.
 
 Reference intake (`papyrus references create-from-catalog --status pending`, the email-candidate import) refuses a backend that carries a tenant, because knowledge data (References, corpora) has no tenant isolation. A backend copied from a tenant site that holds one publication only does not share that data, so it declares so: add `"PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"` to `cms.environment` in the site's `infra/site.json`. `amplify/site-backend.ts` passes it to the content-actions Lambda only when `PAPYRUS_TENANT_ID` is also set and the value is exactly `true`. A token that carries a tenant is refused regardless. **If a second publication is ever added to that backend, remove the declaration first** (in the same change), or the second publication's editors could write into the first one's corpus. Details: [user-session intake](reference-intake/user-session-intake.md#publication-and-actor-boundary).

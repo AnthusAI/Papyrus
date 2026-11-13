@@ -157,7 +157,7 @@ def test_merge_supersedes_the_duplicate_moves_names_and_relations_and_is_idempot
 
     run(commands.knowledge_entities_merge, "--from", gone["nodeKey"], "--into", keep["nodeKey"], "--actor", "ai", "--dry-run")
     out = capsys.readouterr().out
-    assert "dry-run" in out and "wiki sync --retire" in out and client.rows["SemanticNode"][gone["id"]]["status"] == "accepted"
+    assert "dry-run" in out and "never takes a page down" in out and client.rows["SemanticNode"][gone["id"]]["status"] == "accepted"
 
     run(commands.knowledge_entities_merge, "--from", gone["nodeKey"], "--into", keep["nodeKey"], "--actor", "human", "--actor-name", "Ryan")
     survivor = client.rows["SemanticNode"][keep["id"]]

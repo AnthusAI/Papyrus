@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "236ba9c1-59f7-4aaf-8381-f692f0fcab0c",
+  "issue_id": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T18:41:38.078Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Scheduled publishing and automated announcements",
+    "description": "Publish Stories at chosen times so a fast newsroom can spread its work out, and announce each qualifying Story on X as soon as it qualifies, automatically. A general Papyrus capability; Machines on Machines (MoM) proves it first, 5-star Stories only, on a private test account first.\n\nDesign: docs/plans/scheduled-publishing-and-announcements.md (plan PR into develop). Asked by Ryan, 2026-11-12.\n\n**Scheduling.** Four fields on the scheduled version's Item row (`scheduledPublishAt`, `scheduledBy`, `scheduledAt`, `scheduleState`, plus `scheduleName`), one sparse index `scheduleState+scheduledPublishAt`, one EventBridge Scheduler one-off schedule per scheduled version (the newsletter and home-page pattern). The schedule pins an immutable version; a newer version blocks the publish and tells the editor. UTC stored, publication time zone shown. Needs the first-publish-time fix (PPY-271940) so a scheduled republish keeps the first date.\n\n**Announcements.** Through Caducus (Ryan's one-notification-system decision, PPY-824c14): a new `x` channel, a `broadcast` recipient class and a cost field on deliveries (Caducus issue needed). Papyrus owns eligibility (published and rated at or above the site's announcement floor, never below the quality floor PPY-0e8d66), model-drafted text checked against the Story, optional approval, budget and pause, retirement.\n\n**Accounts.** The site owner's own X developer app (the owner pays X); OAuth 2.0 Authorization Code with PKCE; client secret and rotating refresh token in SSM SecureString per site and account.\n\n**Calendar.** FullCalendar 7 (MIT), client-only on the schedule page; spike in spikes/scheduling-calendar/.\n\n**Stories.** Scheduling backend; schedule field and badge; schedule view; channel framework + X adapter; account connection; eligibility rules + settings UI; drafting + approval; audit trail; cost, budget, pause; retirement and corrections; CLI/MCP parity; p.apyr.us page; MoM rollout.\n\n**Acceptance.** On MoM, an editor schedules a Story, it publishes at that time with the right dates, and if it is rated 5 stars a reviewed post with its link appears on MoM's X account once, with its cost recorded and visible; pausing stops all posting; retiring the Story deletes the post.\n",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

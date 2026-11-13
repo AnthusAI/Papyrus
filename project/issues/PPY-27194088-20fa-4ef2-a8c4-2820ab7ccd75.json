@@ -1,0 +1,28 @@
+{
+  "id": "PPY-27194088-20fa-4ef2-a8c4-2820ab7ccd75",
+  "title": "Dates mean what they say: publishedAt is the first publication, versionPublishedAt the served version (audit fixes and backfill)",
+  "description": "Part of the publication transparency epic. Design: docs/plans/revision-history-and-published-dates.md (story 1).\n\nGoal: fix bugs 1 to 4; backfill; remove the front matter precedence.\nDepends on: nothing. Deploy: schema field adds only (no index).\n\n```gherkin\nFeature: A Story keeps the date it was first published\n  Readers and every list on the site order Stories by when they first appeared,\n  so a corrected article does not pretend to be new.\n\n  Scenario: Publishing a new version keeps the first publication time\n    Given a Story first published on 4 November 2026 at 15:02\n    And an editor saves a new version on 11 November 2026\n    When the editor publishes that version at 09:40\n    Then the Story's published time is still 4 November 2026 at 15:02\n    And the served version's published time is 11 November 2026 at 09:40\n    And the Story stays in its place in the section listing\n\n  Scenario: Publishing keeps the version's own record\n    Given a version saved by Sam with the reason \"tighten the opening\"\n    When an editor publishes it\n    Then the version still says it was saved by Sam, when, and why\n    And it also says who published it and when\n\n  Scenario: A Story published again after a takedown keeps its first date\n    Given a Story first published on 4 November and taken down on 6 November\n    When it is published again on 8 November\n    Then its published time is still 4 November\n\n  Scenario: A rating does not change any public date\n    Given a published Story\n    When an editor gives it four stars\n    Then its published and updated times do not change\n\n  Scenario: The backfill records only what history shows\n    Given a published Story whose versions recorded publishes on 4 and 11 November\n    When the backfill runs\n    Then its published time is 4 November and its served version's published time is 11 November\n    And a Story with no recorded publish time is listed for a person to decide, and is not changed\n```\n\nOpen question: none.",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-156614d5-c0b6-4f4e-a1c5-70873a94b1b3",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "b210a9e7-65ec-4452-95c8-7db04a2d5f33",
+      "author": "home",
+      "text": "Code merged to develop as #1455 (b3274843); closing on Ryan's instruction (2026-11-12).",
+      "created_at": "2026-11-12T18:51:09.828536Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-12T17:36:11.307930Z",
+  "updated_at": "2026-11-12T18:51:09.945608Z",
+  "closed_at": "2026-11-12T18:51:09.945353Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

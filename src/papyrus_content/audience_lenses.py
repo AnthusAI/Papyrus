@@ -78,7 +78,7 @@ PEOPLE = Lens(
     note="Human readers: read the Story as a reader would, run the checks, fix what you can and record the findings.",
     checks=(
         _c("P1", "The headline is present, is not a placeholder and is not another Story's headline", AUTO, WARN, "the title, and the other Story if duplicated", (_CW, _ED), built=True),
-        _c("P2", "The Story has a dek (the summary line under the headline)", AUTO, WARN, "which field was used, or that the page will use the first paragraph", (_CW, _ED), built=True),
+        _c("P2", "The Story has a dek (the summary line under the headline)", AUTO, WARN, "which field was used, that the page will use the first paragraph, or that the dek is a verbatim copy of the blurb (a dek that merely differs from the blurb is expected)", (_CW, _ED), built=True),
         _c("P3", "The dek adds something the headline does not", JEV, INFO, "the question, the answer and its probability", (_CW,),
            question="Does the dek say anything the headline does not?"),
         _c("P4", "The headline does not promise what the Story does not deliver", JEV, WARN, "the question, the answer and the sentence compared", (_CW,),

@@ -5,11 +5,33 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+from papyrus_content.upload_rules_fake import assert_owner_exists, assert_upload_accepted
+
+
+class FakePolicies:
+    """The editorial policies of the fake site, with the store calls the derived-policy sync makes. Nothing else is reachable."""
+
+    def __init__(self):
+        self.rows: list[dict] = []
+        self.writes: list[tuple[str, str]] = []
+
+    def list_policies(self) -> list[dict]:
+        return copy.deepcopy(self.rows)
+
+    def create_policy(self, record: dict) -> None:
+        self.writes.append(("create", record["id"]))
+        self.rows.append(copy.deepcopy(record))
+
+    def update_policy(self, record: dict) -> None:
+        self.writes.append(("update", record["id"]))
+        next(row for row in self.rows if row["id"] == record["id"]).update(copy.deepcopy(record))
+
 
 class FakeBackend:
     def __init__(self, *, tenant_id: str | None = None, publication: str = "example"):
         self.tenant_id = tenant_id
         self.endpoint = None
+        self.policies = FakePolicies()
         self.corpora = [{"id": f"knowledge-corpus-{publication}", "name": publication.title(), "role": "canonical"}]
         self.items: list[dict] = []
         self.attachments: list[dict] = []
@@ -52,6 +74,9 @@ class FakeFiles:
         self.backend = backend
 
     def put(self, attachment: dict, body: bytes) -> dict:
+        assert_upload_accepted(attachment)
+        assert_owner_exists(attachment, self.backend.items)
+        self.backend.attachments = [row for row in self.backend.attachments if row["id"] != attachment["id"]]   # the same slot again replaces its row
         self.backend.attachments.append(copy.deepcopy(attachment))
         self.backend.bodies[attachment["storagePath"]] = bytes(body)
         return attachment

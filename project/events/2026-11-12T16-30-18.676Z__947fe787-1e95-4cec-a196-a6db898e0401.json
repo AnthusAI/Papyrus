@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "947fe787-1e95-4cec-a196-a6db898e0401",
+  "issue_id": "PPY-8245b894-3ebd-419a-8cb8-9a22c3c5f3b7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T16:30:18.676Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "papyrus figures render cannot load the site's design system: figures design system should be site data",
+    "description": "Reported by the Machines on Machines story-development session on CLI 5.105.0.\n\nRelated: PPY-2a2a8a (guidelines as data epic), PPY-cbc0f319 (figure and image rules are per site: the figure-rules kind this issue builds on), PPY-74ef89b9 (figures feature, which states site design systems are backend data). Dependency: the guidelines epic's resolution rule must exist for the figure-rules kind; this issue extends it to the figures design system (primitives and mapping).\n\nObserved: papyrus figures render cannot load MoM's design system. The site stores none, and the repo folder is not in the layout the CLI expects, so the agent used the repo's own tools/render_figures.py.\n\nFeature: Figures render from the site's stored design system\n  Scenario: A site has a design system\n    Given a site stores its figures design system as data\n    When an agent runs papyrus figures render without access to the site's repo\n    Then the design system is resolved by the same rule as other guidelines (site, then section where applicable)\n    And the figure renders to its light and dark pictures\n  Scenario: A site has none\n    Given a site stores no figures design system\n    When figures render is run\n    Then it stops and says the site has no figures design system and how to add one\n    And it does not read a repo folder or use another site's\n  Scenario: Migrate Machines on Machines\n    Given the design system in the MoM repo (rules, primitives, mapping)\n    When it is stored as site data\n    Then figures render produces the same pictures as tools/render_figures.py\n    And the repo script is retired\n\nDesign: no repo-folder layout in the CLI, no fallback to the repo script. Text in S3, catalog row only.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+    "labels": []
+  }
+}

@@ -102,7 +102,8 @@ def stories_save_version(flags: list[str]) -> None:
     plan and writes nothing. Re-running is idempotent: a file whose content is already stored for the story keeps its exact
     srcPath, so the S3 key and the body reference do not change; a name that holds different content gets -2, -3 (never
     overwritten). MediaAsset rows are keyed by story VERSION (media-<version id>-<hash of srcPath>, as the editor and
-    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. The path is
+    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. A save without --images carries forward, from the earlier
+    versions, every stored picture the new body and front matter name: each image's src and srcDark and the front matter image keys (and their ...Dark twins). The path is
     media/assets/<slug>/<file> with the slug the story has when the file is first stored (a story without a slug has
     draft-unsectioned-<hash>, exactly what the editor uses). It does NOT move: publishing, set-slug and a later section
     change never rewrite media keys or body references (the body keeps the stored srcPath), so the path is stable after
@@ -240,6 +241,25 @@ def stories_head_index(flags: list[str]) -> None:
     stages = tuple(parse_repeated_option(flags, "stage")) or None
     client, _ = create_authoring_client()
     run_head_index(client, apply=apply, stages=stages, rate=rate)
+
+
+def stories_backfill_published_dates(flags: list[str]) -> None:
+    """papyrus stories backfill-published-dates [--apply] [--rate <writes per second>]
+
+    Gives every published Story the dates it now means (docs/site-hosting.md, "Published and updated dates"): `publishedAt` = the Story's first publication and
+    `versionPublishedAt` / `versionPublishedBy` = when and by whom the served version went live, derived only from what its versions recorded. A Story whose first
+    publication cannot be derived (a version was taken down, or no version recorded a publish) is printed as an `unclear` line for a person to decide and its
+    `publishedAt` is left alone. A DRY RUN unless --apply: it prints one `set` line per row it would change, the `unclear` lines, and a summary (stories, rows to write,
+    already right, unclear). --apply writes only rows that differ, keeps each row's own updatedAt, and writes at most --rate a second (default 5); a second run
+    writes nothing. It needs the deploy that adds the two fields to Item and PublishedItem."""
+    from .story_published_dates import DEFAULT_RATE, run_backfill_published_dates
+
+    options = parse_options(flags)
+    apply = parse_boolean_option(options.get("apply"), default=False, label="--apply")
+    if apply and parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run"):
+        raise ValueError("Pass --apply or --dry-run, not both.")
+    client, _ = create_authoring_client()
+    run_backfill_published_dates(client, apply=apply, rate=float(options.get("rate") or DEFAULT_RATE))
 
 
 def stories_repair_image_paths(flags: list[str]) -> None:
@@ -504,6 +524,8 @@ def stories_agent_note(flags: list[str]) -> None:
 def stories_show(flags: list[str]) -> None:
     """papyrus stories show --story <lineage> [--bucket day|week|none] [--json]
 
+    A scheduled version adds a `schedule` line: its state (scheduled, publishing, blocked or overdue), version, the UTC time and who scheduled it
+    (`papyrus stories schedule-list --story` shows the publication's local time).
     --json prints only the story, its `related` stories (either end of a link: title, type, stage, published, note) and `unofficialRelations`
     (item-to-item relations whose name is not the official `see_also`, which the See also block never shows). After the headline line, a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt)."""
     options = parse_options(flags)
@@ -533,6 +555,14 @@ def stories_show(flags: list[str]) -> None:
                          f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
         if signal["source"] == "editor":
             print("\t".join(["stories", "show", "rating", f"ratedBy {signal['ratedBy']}", f"ratedAt {signal['ratedAt']}"]))
+        from datetime import datetime, timezone
+
+        from .story_schedule import BLOCKED_MESSAGE, BLOCKED, OVERDUE, effective_state, scheduled_versions
+
+        for row in scheduled_versions(client, lineage_id):
+            state = effective_state(row, datetime.now(timezone.utc))
+            note = BLOCKED_MESSAGE if state == BLOCKED else ("overdue: publish it now or schedule it again" if state == OVERDUE else "")
+            print("\t".join(["stories", "show", "schedule", state, f"version {row.get('versionNumber')}", f"publish at {row.get('scheduledPublishAt')} (UTC)", f"by {row.get('scheduledBy')}", note]))
     for move in metadata.get(STAGE_MOVES_KEY) or []:
         print("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
     for reference in story_references(client, lineage_id):
@@ -619,18 +649,19 @@ def stories_next(flags: list[str]) -> None:
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
     facts = story_facts(client, lineage_id)
-    from .newsroom_process import hint_lines, remaining_lines, resolve, status_lines, version_lines
+    from .newsroom_process import Procedure, hint_lines, remaining_lines, resolve, status_lines, version_lines
     from .story_checklist import checklist_lines, progress_text, read_steps, steps_for_display, summary_of
 
     raw = read_steps(client, lineage_id)   # one index read by Story lineage
     assessment = resolve(assess(facts), raw, facts)   # the stored checklist decides; the records only hint
-    stored = steps_for_display(raw, lineage_id)
+    procedure = Procedure.from_spec(facts.get("procedureSpec"))
+    stored = steps_for_display(raw, lineage_id, procedure)
     stale_count = len(assessment["stale"])
     states = {row["key"]: row["state"] for row in assessment["steps"] if row["source"] == "checklist"}   # the lens steps as resolved, stale included
     if options.get("json"):
         print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
                           "currentVersion": facts["versionNumber"], "checklist": stored,
-                          "progress": progress_text(summary_of(stored), stale_count) if stored else None}, indent=2))
+                          "progress": progress_text(summary_of(stored, procedure), stale_count) if stored else None}, indent=2))
         return
     print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
     lines = (status_lines(assessment) + step_lines(assessment) + version_lines(assessment) + hint_lines(assessment) + checklist_lines(stored, stale_count)

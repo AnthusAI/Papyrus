@@ -1,0 +1,116 @@
+# Reusable workflow: run the FIRST BUILD of a site's Amplify app (the two-pass bootstrap), then turn the watcher off.
+# Part of epic PPY-9bd776. Public repositories only. See docs/account-pipeline.md, "The first build starts by itself".
+#
+# The two-pass bootstrap (docs/site-hosting.md, "Start a new Papyrus site: the two-deploy first backend"): pass 1 with the Amplify branch
+# variable PAPYRUS_BOOTSTRAP_STAGE=1, then pass 2 without it. infra/pipeline/amplify_first_build.py does it, idempotently and resumably,
+# and only when the app is ready (repository connected, Google client parameters in SSM).
+#
+# Caller, on the default branch of the deployment repository (normally started by first-build-watch.yml, which dispatches it):
+#   name: first-build
+#   on:
+#     workflow_dispatch: {}
+#     push: { branches: [main] }          # optional: a push to main also resumes an interrupted first build
+#   jobs:
+#     first-build:
+#       permissions: { contents: read, id-token: write, actions: write }
+#       uses: AnthusAI/Papyrus/.github/workflows/first-build.yml@<papyrus tag>
+#       with:
+#         prefix: myco
+#         papyrus-ref: <the same tag>
+#         aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
+#         stack-name: <the app-shell stack name>
+#         watcher-workflow: first-build-watch.yml     # the caller's file that is disabled when the build is done
+#
+# The job runs only for a push or manual dispatch on main, as <prefix>-github-deploy (trusts main only). When the build is done it runs
+# `gh workflow disable` on the watcher with the job's own token (actions: write), so the watcher never runs again.
+# A failed pass stops the run with exit 1 and a message; a person reads the Amplify job log, fixes the cause and dispatches this
+# workflow with retry-failed true. No stored keys: GitHub OIDC only.
+name: first-build
+
+on:
+  workflow_call:
+    inputs:
+      prefix:
+        description: The deployment prefix the account baseline was seeded with (the role is <prefix>-github-deploy)
+        required: true
+        type: string
+      aws-account-id:
+        description: 12-digit AWS account id; pass vars.AWS_ACCOUNT_ID
+        required: true
+        type: string
+      papyrus-ref:
+        description: Papyrus tag or branch that holds amplify_first_build.py (pin the same tag as the uses line)
+        required: false
+        type: string
+        default: main
+      stack-name:
+        description: The app-shell stack whose output CmsAppId is the Amplify app
+        required: true
+        type: string
+      region:
+        required: false
+        type: string
+        default: us-east-1
+      branch:
+        description: The Amplify branch to build
+        required: false
+        type: string
+        default: main
+      watcher-workflow:
+        description: File name of the watcher workflow in the calling repository; disabled when the build is done
+        required: false
+        type: string
+        default: first-build-watch.yml
+      retry-failed:
+        description: Start again although an earlier first-build job failed (only after a person fixed the cause)
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    permissions:
+      contents: read
+      id-token: write
+      actions: write
+    concurrency:
+      group: first-build-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: AnthusAI/Papyrus
+          ref: ${{ inputs.papyrus-ref }}
+          path: .papyrus-tool
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.prefix }}-github-deploy
+          aws-region: ${{ inputs.region }}
+          role-session-name: first-build-${{ github.run_id }}
+      - name: Run the two-pass first build
+        id: build
+        env:
+          STACK: ${{ inputs.stack-name }}
+          BRANCH: ${{ inputs.branch }}
+          REGION: ${{ inputs.region }}
+          RETRY: ${{ inputs.retry-failed }}
+        run: |
+          set -euo pipefail
+          extra=()
+          if [ "$RETRY" = "true" ]; then extra+=(--retry-failed); fi
+          python3 .papyrus-tool/infra/pipeline/amplify_first_build.py run \
+            --stack-name "$STACK" --branch "$BRANCH" --region "$REGION" --commit-id "$GITHUB_SHA" "${extra[@]}"
+      - name: Turn the watcher off
+        if: steps.build.outputs.done == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          WATCHER: ${{ inputs.watcher-workflow }}
+        run: gh workflow disable "$WATCHER"

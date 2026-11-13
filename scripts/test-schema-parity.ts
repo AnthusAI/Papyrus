@@ -9,7 +9,7 @@ const MODEL_NAMES = [
   "Assignment", "KnowledgeRawPayload", "CurationDelegationRecord", "ModelAttachment", "MediaAsset", "PublishedMediaAsset", "NewsroomSection", "Automation", "ProcedureRun", "ReviewRequest", "ReviewReadMark", "ReviewRecipientRule",
 ];
 const REQUIRED_FIELDS: Record<string, string[]> = {
-  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "headStageKey"],
+  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "headStageKey", "scheduledPublishAt", "scheduledBy", "scheduledAt", "scheduleState", "scheduleName"],
   PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
   Message: ["editedAt", "deletedAt", "deletedBySub"],
   MediaAsset: ["tenantId"],
@@ -28,6 +28,8 @@ const REQUIRED_INDEXES = [
   'index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt")',
   // The old stage index stays until every reader has moved (docs/plans/story-head-stage-index.md, step 7).
   'index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt")',
+  // Scheduled publishing (docs/scheduled-publishing.md): the sparse index of scheduled versions; the Item's tenth, and the only one in its deploy.
+  'index("scheduleState").sortKeys(["scheduledPublishAt"]).queryField("listItemsByScheduleStateAndScheduledPublishAt")',
 ];
 
 function extractFieldNames(source: string, modelName: string): Set<string> {
@@ -146,6 +148,40 @@ for (const modelName of GLOBAL_IDENTITY_MODELS) {
   }
 }
 console.log(`tenantId: ${TENANT_FIELD_MODELS.length} tenant-owned models checked`);
+// The tenancy models (features_backend/tenant-records.feature, PPY-31c45c): new tables with all their indexes, in both files, and in the
+// optional "tenancy" group. No existing table gains an index with them.
+const TENANCY_MODELS: Record<string, { fields: string[]; indexes: string[] }> = {
+  Tenant: {
+    fields: ["id", "accountId", "displayName", "state", "stateKey", "plan", "entitlements", "createdAt", "stateChangedAt"],
+    indexes: ['index("accountId").queryField("listTenantsByAccount")', 'index("stateKey").queryField("listTenantsByStateKey")'],
+  },
+  TenantMembership: {
+    fields: ["id", "tenantId", "userSub", "userProfileId", "role", "status", "grantedBy", "grantedAt"],
+    indexes: ['index("userSub").queryField("listTenantMembershipsByUserSub")', 'index("tenantId").queryField("listTenantMembershipsByTenant")'],
+  },
+  TenantDomain: {
+    fields: ["id", "tenantId", "kind", "status", "verification", "certificateRef"],
+    indexes: ['index("tenantId").queryField("listTenantDomainsByTenant")'],
+  },
+};
+for (const [modelName, expected] of Object.entries(TENANCY_MODELS)) {
+  for (const file of SCHEMA_FILES) {
+    const source = readFileSync(join(process.cwd(), file), "utf8");
+    const names = [...extractFieldNames(source, modelName)].sort();
+    if (JSON.stringify(names) !== JSON.stringify([...expected.fields].sort())) {
+      failed = true;
+      console.error(`${modelName} fields in ${file} are ${names}; expected ${expected.fields}`);
+    }
+    for (const declaration of expected.indexes) {
+      if (!source.includes(declaration)) {
+        failed = true;
+        console.error(`${modelName} is missing ${declaration} in ${file}`);
+      }
+    }
+  }
+}
+if (!failed) console.log("tenancy indexes ok");
+
 if (failed) {
   process.exit(1);
 }

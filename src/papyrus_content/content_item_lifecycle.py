@@ -25,6 +25,12 @@ CONTENT_ITEM_STAGES = (
     "held",
     "spiked",
 )
+#: The stage a Story is in after `papyrus stories retire`: its page is down and its address redirects to another Story. Not a board column; it is the
+#: same value `machine_writes.RETIRED_STAGE` gives an Item whose machine write was undone.
+RETIRED_STAGE = "retired"
+#: The key in a retired Story's head-row `metadata` that says where its address goes: `{"toLineageId", "liveItemId", "at", "by", "previousStage"}`.
+#: Written by `papyrus stories retire`; read by the projection (`PublishedContentSource.retirement`) and by `stories retire --undo`.
+RETIRED_INTO_KEY = "retiredInto"
 LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS = {
     "research": "reporting",
     "report": "reporting",

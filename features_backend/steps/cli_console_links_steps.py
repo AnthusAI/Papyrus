@@ -360,7 +360,7 @@ def step_note(context, key):
 def template_unchanged(context):
     from papyrus_content.newsroom_process import STEPS, TEMPLATE_VERSION
 
-    assert TEMPLATE_VERSION == 4
+    assert TEMPLATE_VERSION == 6
     assert [step.key for step in STEPS][:7] == ["choose", "direction", "research", "outline", "draft", "fact_check", "copy_edit"]
 
 

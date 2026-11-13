@@ -68,7 +68,7 @@ def test_dry_run_reports_the_default_doctrine_path_and_first_mission_line(sweep,
     line = next(line for line in capsys.readouterr().out.splitlines() if "\tdoctrine\t" in line)
     assert str(DEFAULT_PUBLICATION_DOCTRINE_PATH.resolve()) in line
     assert "default" in line
-    assert "Anthus Threat Intelligence publishes" in line
+    assert "An example publication that reports" in line
     assert sweep.run.call_args.kwargs["apply"] is False
 
 

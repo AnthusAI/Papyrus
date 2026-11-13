@@ -21,6 +21,7 @@ from .document import GuidelineError, digest, kind_spec, slug_for, validate_docu
 
 ROLE = "doctrine_document"
 ASSET_ROLE = "doctrine_asset"   # binary files a document names (a design system's fonts): one ModelAttachment each, sortKey = the file's name in the document
+PENDING = "pending"   # versionState of a version whose row exists but whose files are not all stored yet: no reader sees it, a retry of the same save finishes it
 NO_DOCUMENT_GUARD = "none"   # expectedCurrentVersionId for the first save of a lineage
 
 
@@ -58,13 +59,16 @@ class GuidelineStore:
 
     # --- reads --------------------------------------------------------------------------------------------------------------------------------------
 
-    def versions(self, kind: str, section: str | None = None) -> list[dict]:
-        """Every catalog row of the lineage, newest first: one index query on the slug (a small partition, never a scan)."""
+    def _rows(self, kind: str, section: str | None) -> list[dict]:
         slug = slug_for(kind, section)
         rows = [row for row in self.client.list_by_index("itemBySlug", slug) if row.get("type") == "doctrine" and row.get("status") == "private"]
         for row in rows:
             _check_tenant(self.client, row)
         return sorted(rows, key=lambda row: int(row.get("versionNumber") or 0), reverse=True)
+
+    def versions(self, kind: str, section: str | None = None) -> list[dict]:
+        """Every stored catalog row of the lineage, newest first: one index query on the slug (a small partition, never a scan). A version still being saved is not stored yet."""
+        return [row for row in self._rows(kind, section) if row.get("versionState") != PENDING]
 
     def current_row(self, kind: str, section: str | None = None) -> dict | None:
         current = [row for row in self.versions(kind, section) if row.get("versionState") == "current"]
@@ -82,6 +86,10 @@ class GuidelineStore:
         if row.get("contentHash") and digest(document) != row["contentHash"]:
             raise GuidelineError("document_hash_mismatch", f"The stored document of {row['id']} does not match its content hash.", {"itemId": row["id"]})
         return document
+
+    def document_of(self, row: dict) -> dict:
+        """The document one catalog row names: one attachment index query and one download."""
+        return self._document_of(row)
 
     def read(self, kind: str, section: str | None = None, *, version: int | None = None) -> dict | None:
         """``{document, reference}`` of the current version (or the numbered one), or None when there is none."""
@@ -110,14 +118,15 @@ class GuidelineStore:
     # --- writes -------------------------------------------------------------------------------------------------------------------------------------
 
     def save(self, kind: str, document: Any, *, section: str | None = None, expected_current_version_id: str | None = None, actor: str, reason: str,
-             now: str | None = None, assets: dict[str, bytes] | None = None, saved_by: dict | None = None) -> dict:
+             now: str | None = None, assets: dict[str, bytes] | None = None, saved_by: dict | None = None, even_if_unchanged: bool = False) -> dict:
         """Save a document as the lineage's next version. ``{changed, reference}``.
 
         ``assets`` are binary files the document names (file name -> bytes), stored beside it as ModelAttachments of the same version. The caller puts
         their hashes in the document, so the content hash covers them.
 
         The first save names ``none``; a later one names the Item id it replaces and is refused as stale when that is no longer current. A document equal to
-        the current one makes no version. The file is written before the row, so a failure never leaves a version with nothing to read.
+        the current one makes no version, unless ``even_if_unchanged`` (a document whose current version still holds it in an older shape is rewritten in the new one). The row is created first, in the state ``pending``, because the upload function only accepts a file for an Item that exists; the files follow, and only then does the row become
+        ``current`` and the older one ``superseded``. A failure in between leaves a ``pending`` row that no reader sees; the same save again finds it and finishes it (same id, same attachment slots), so it never blocks the next save.
         ``saved_by`` (``{sub, kind, requestId}``) is recorded in the row's ``metadata`` when the door or the command line gives it: it is how a repeated request is
         recognised and how history says whether a person or an agent saved a version. Nothing else goes in ``metadata``.
         """
@@ -129,22 +138,28 @@ class GuidelineStore:
                                  {"problems": [{"path": p.path, "message": p.message, "code": p.code} for p in problems]})
         if not str(reason or "").strip():
             raise GuidelineError("invalid_input", "A reason is required.")
-        versions = self.versions(kind, section)
+        rows = self._rows(kind, section)
+        versions = [row for row in rows if row.get("versionState") != PENDING]
+        pending = next((row for row in rows if row.get("versionState") == PENDING), None)
         current = next((r for r in versions if r.get("versionState") == "current"), None)
         guard = NO_DOCUMENT_GUARD if current is None else current["id"]
         if expected_current_version_id != guard:
             raise GuidelineError("stale_version", "The guidelines have changed since you read them. Read them again and apply your change to the new version.",
                                  {"expectedCurrentVersionId": guard})
         content_hash = digest(document)
-        if current is not None and current.get("contentHash") == content_hash:
+        if current is not None and current.get("contentHash") == content_hash and not even_if_unchanged:
             return {"changed": False, "reference": reference(current)}
         stamp = now or _now()
         record = next_record(spec.name, section, versions, content_hash, actor=actor, reason=reason, now=stamp,
                              tenant_slug=getattr(self.client, "tenant_slug", None), saved_by=saved_by)
+        if pending is None:
+            self.client.create_record("Item", {**record, "versionState": PENDING})
+        else:
+            self.client.update_record("Item", {**{key: value for key, value in record.items() if key != "id"}, "id": pending["id"], "versionState": PENDING})
         self._put_document(record, document, stamp)
         for name, body in (assets or {}).items():
             self._put_asset(record, name, body, stamp)
-        self.client.create_record("Item", record)
+        self.client.update_record("Item", {"id": record["id"], "versionState": "current"})
         for row in versions:
             if row.get("versionState") == "current":
                 self.client.update_record("Item", {"id": row["id"], "versionState": "superseded"})

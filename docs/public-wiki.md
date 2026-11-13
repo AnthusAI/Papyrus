@@ -52,7 +52,7 @@ All commands act on the backend the CLI is configured for. Both are dry runs unt
 ### `papyrus knowledge wiki sync`
 
 ```bash
-papyrus knowledge wiki sync [--section wiki] [--vocabulary FILE | --public-kinds a,b] [--retire [--retired-out FILE]] [--apply] [--json]
+papyrus knowledge wiki sync [--section wiki] [--vocabulary FILE | --public-kinds a,b] [--tenant ID] [--apply] [--json]
 papyrus knowledge wiki sync --beats-category-set <set id> [--topics-section topics] [--subtopic-min-items 30] [--items-per-topic 20] [--topic-sections posts,essays] [--topics-url '/topics/{slug}/'] --apply
 papyrus knowledge wiki sync --beats-config web/scoring.json --apply
 ```
@@ -67,7 +67,7 @@ What happens to a page that already exists:
 | A draft page whose entity changed | The draft is updated in place. |
 | A published page whose entity changed | A pending revision: a new draft version of the same lineage (`<lineage>-v2`), marked current. The live page is untouched until the revision is published. A second change updates that draft rather than adding versions. |
 | Nothing changed | Nothing is written. |
-| An entity that is no longer accepted, whose kind is no longer public, or whose page answer is now no | A warning, and the page is left as it is. With `--retire` the page is retired (see "Public kinds"). |
+| An entity that is no longer accepted, whose kind is no longer public, or whose page answer is now no | A warning, and the page is left as it is (see "Public kinds"). |
 
 The sync removes the `review` stamp from any text it writes, so changed text can never keep the stamp of the text it replaced.
 
@@ -80,7 +80,9 @@ A site's graph holds nodes that are not subjects: paper authors, the editorial c
 - With neither flag every kind is public except those five and `personAuthor`. Paper authors get pages only when the vocabulary names `personAuthor`. A person's name stored without spaces (`AaronCohen`) is shown spaced (`Aaron Cohen`); the entity key is unchanged.
 - The knowledge snapshot takes the same `--vocabulary` / `--public-kinds`: it gives no link to an entity without a page and leaves the bookkeeping kinds out of its entities. The cloud knowledge run passes the run state's `config/vocabulary.yml` to the snapshot, the archive and the wiki sync.
 
-`--retire` takes down the pages nothing generates any more (an entity rejected, or a kind that left the vocabulary). A retired page is unpublished (its live page is removed), kept as a draft, and marked `retired: true` in its front matter; `wiki publish --all-drafts` skips a marked page, and the sync clears the mark if the entity becomes eligible again. A dry run lists every page it would retire (`retire<TAB>wiki/<slug><TAB>live: taken down`). `--retired-out FILE` (with `--apply`) writes the source item ids of the pages that were live, a JSON list the projection stage hands to `papyrus ops content project --unpublished-items FILE`, because a bulk projection never deletes the pages of an unpublished item. The cloud run passes `--retire` every time.
+**The sync never takes a page down.** A page that was ever public may be indexed by search engines, so a page nothing generates any more (an entity rejected, or a kind that left the vocabulary) is reported as a warning and left as it is, live or draft. There is no `--retire` flag and the cloud run does not retire anything. A page that must disappear is a deliberate act that redirects its address, never a side effect of a daily run. A page an earlier version of the sync marked `retired: true` stays down (`wiki publish --all-drafts` skips a marked page), and the sync clears the mark if the entity becomes eligible again. A page an undo of a run retired (`papyrus knowledge run undo`) is left down too.
+
+**Tenants.** `wiki sync` and `wiki publish` write Items and PublishedItems, which on a tenant publication carry the tenant (`tenantId`, `tenantSlug` and the tenant-prefixed `typeStatus` and `sectionStatus`) so the publication's renders and console can see them. The tenant is `--tenant`, else `PAPYRUS_TENANT_ID`, else the signed-in site's, as for every command ([multi-tenancy](multi-tenancy.md)). A command that has no tenant refuses to run when the backend's Items belong to one, because what it wrote would be invisible to the publication.
 
 #### Front matter of an entity page
 

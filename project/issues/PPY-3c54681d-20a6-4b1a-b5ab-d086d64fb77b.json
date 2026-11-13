@@ -1,0 +1,29 @@
+{
+  "id": "PPY-3c54681d-20a6-4b1a-b5ab-d086d64fb77b",
+  "title": "p.apyr.us page: scheduled publishing and automated announcements",
+  "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md.\n\nGoal: a p.apyr.us feature page explaining scheduling (pick a time, suggested times, the schedule view) and announcements (what qualifies, the owner's own X account and keys, approval, budget and pause), with screenshots from MoM's newsroom, in the site's voice (no speed bragging; no claims of production use we cannot back).\n\nDepends on: the schedule view story and the cost story.\n\n```gherkin\nFeature: Prospective publishers can learn how scheduling and announcements work\n  Every Papyrus feature epic ends with a page on p.apyr.us.\n\n  Scenario: The page explains the feature in plain words\n    When a visitor opens the scheduled publishing page on p.apyr.us\n    Then it explains choosing times, suggested times and the schedule view\n    And it explains that announcements post on the publisher's own X account, only for Stories that meet the publisher's bar, within a budget the publisher sets, with a pause switch\n\n  Scenario: Screenshots show real screens\n    Then each screenshot is from the real newsroom, with any account names and keys hidden\n```\n",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-38f01637-98c3-4b55-a64d-06715d51baa7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8037b884-33b7-4dd4-b052-922707f0a04d",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T18:41:39.705946Z",
+  "updated_at": "2026-11-12T18:41:42.271130Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

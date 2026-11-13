@@ -41,11 +41,6 @@ def step_no_configuration(context):
     _state(context)["env"] = {}
 
 
-@given('web search is configured with the old single setting "{name}"')
-def step_old_setting(context, name):
-    _state(context)["env"] = {"WEB_SEARCH_PROVIDER": name}
-
-
 @then('the provider chain is "{names}"')
 def step_chain_is(context, names):
     assert chain_names(None, context.ws["env"]) == _names(names)

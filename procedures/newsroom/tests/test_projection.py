@@ -20,9 +20,10 @@ from papyrus_content.projection.projector import (
     settings_from_mapping,
     static_version,
 )
-from papyrus_content.projection.runtime import context_from_environment, projection_configured, public_item_url
+from papyrus_content.projection.runtime import context_from_environment, live_prefixes, live_s_maxage_seconds, projection_configured, public_item_url
 from papyrus_content.projection.stored import parse_front_matter, projection_metadata
 from papyrus_content.projection.writers import (
+    DEFAULT_LIVE_S_MAXAGE_SECONDS,
     KeyValueStoreRedirects,
     cache_control_for,
     content_type_for,
@@ -84,6 +85,23 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(content_type_for("assets/x.svg"), "image/svg+xml")
         self.assertEqual(cache_control_for("a.html"), "public, max-age=0, s-maxage=300, stale-while-revalidate=60")
         self.assertEqual(cache_control_for("a.html", 60), "public, max-age=0, s-maxage=60, stale-while-revalidate=60")
+
+    def test_live_prefixes_get_a_few_seconds_and_never_stale(self) -> None:
+        live = ("conversations/", "tools/conversations/")
+        self.assertEqual(DEFAULT_LIVE_S_MAXAGE_SECONDS, 5)
+        for key in ("conversations/index.html", "conversations/0123456789ab/index.html", "conversations/index.md", "tools/conversations/index.html"):
+            self.assertEqual(cache_control_for(key, 300, live), "public, max-age=0, s-maxage=5", key)
+        self.assertEqual(cache_control_for("conversations/index.html", 300, live, 2), "public, max-age=0, s-maxage=2")
+        for key in ("index.html", "conversationsx/index.html", "tools/index.html", "sitemap.xml"):
+            self.assertEqual(cache_control_for(key, 300, live), "public, max-age=0, s-maxage=300, stale-while-revalidate=60", key)
+        self.assertEqual(cache_control_for("conversations/index.html", 300), "public, max-age=0, s-maxage=300, stale-while-revalidate=60", "no prefixes, no live pages")
+        self.assertEqual(cache_control_for("conversations/css/site.3fa9c01b.css", 300, live), "public, max-age=31536000, immutable", "a hashed file stays immutable")
+
+    def test_the_environment_names_the_live_prefixes(self) -> None:
+        self.assertEqual(live_prefixes({}), ())
+        self.assertEqual(live_prefixes({"PAPYRUS_HTML_LIVE_PREFIXES": "conversations/, tools/conversations/,"}), ("conversations/", "tools/conversations/"))
+        self.assertEqual(live_s_maxage_seconds({}), DEFAULT_LIVE_S_MAXAGE_SECONDS)
+        self.assertEqual(live_s_maxage_seconds({"PAPYRUS_HTML_LIVE_S_MAXAGE_SECONDS": "3"}), 3)
 
     def test_only_renditions_and_content_hashed_files_are_immutable(self) -> None:
         immutable = "public, max-age=31536000, immutable"

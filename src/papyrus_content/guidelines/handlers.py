@@ -8,8 +8,9 @@ keeps every kind the same way. The permission rules live here:
 * adding, changing or removing a binding constraint needs an admin who is a person: an agent gets ``human_required`` and nothing is saved;
 * a write repeated with the same request id by the same person gives the first answer, not a stale-version refusal.
 
-The ``image`` kind keeps its own document and resolver (``images/visual_style.py``): get, diff, save and history are the ``image_profile_*`` handlers,
-which stay as the operations' aliases; resolve points at ``papyrus images profile resolve``.
+The ``image`` kind keeps its own document and resolver (``images/visual_style.py``): for the publication's document, get, diff, save and history are the
+``image_profile_*`` handlers, which stay as the operations' aliases; resolve points at ``papyrus images profile resolve``, which also lays a section's image
+document over the profile. A section's image document is stored, read, diffed and saved by the generic path like any other kind's.
 """
 from __future__ import annotations
 
@@ -21,8 +22,9 @@ from papyrus_content.images.operations import ERROR_BY_CODE
 from papyrus_content.images.profile_handlers import diff_profile, get_profile, identify, profile_history, save_profile
 from papyrus_content.images.visual_style import constraint_changes, diff_documents
 
+from .derived_policies import apply_derived_plan, changed_steps, describe_plan, plan_derived_policies
 from .document import CONSTRAINTS, GuidelineError, kind_spec, validate_document
-from .layering import resolve_guidelines
+from .layering import resolve_guidelines, resolve_image_guidelines
 from .store import DocumentFiles, GuidelineStore, reference, saved_by_of
 
 IMAGE_KIND = "image"
@@ -53,13 +55,10 @@ def _described(kind: str, section: str | None, **fields: Any) -> dict:
     return {"kind": kind, **({"section": section} if section else {}), **fields}
 
 
-def _image_alias(function: Callable, client, arguments: dict, caller: Caller) -> Outcome:
-    """Run an ``image_profile_*`` handler for ``kind: image``. Section image guidelines are not stored yet (PPY-c16829)."""
-    if arguments.get("section"):
-        raise ImageOperationError("invalid_input", "Section image guidelines are not stored yet; ask for the publication's image guidelines (leave section out).",
-                                  details={"path": "section"})
+def _image_alias(function: Callable, client, arguments: dict, caller: Caller, files: DocumentFiles | None) -> Outcome:
+    """Run an ``image_profile_*`` handler for the publication's ``kind: image`` document. A section's image document has no special rules and uses the generic path."""
     inner = {key: value for key, value in arguments.items() if key not in ("kind", "section")}
-    outcome = function(client, inner, caller)
+    outcome = function(client, inner, caller, files)
     result = {**outcome.result, "kind": IMAGE_KIND}
     if "profile" in result:
         result["document"] = result["profile"]
@@ -71,8 +70,8 @@ def _image_alias(function: Callable, client, arguments: dict, caller: Caller) ->
 def get_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
-    if kind == IMAGE_KIND:
-        return _image_alias(get_profile, client, arguments, caller)
+    if kind == IMAGE_KIND and not section:
+        return _image_alias(get_profile, client, arguments, caller, files)
     store = GuidelineStore(client, files)
     try:
         found = store.read(kind, section, version=arguments.get("version"))
@@ -93,6 +92,12 @@ def get_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles
 def resolve_guidelines_for(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
+    if kind == IMAGE_KIND:
+        try:
+            answer = resolve_image_guidelines(GuidelineStore(client, files), section)
+        except GuidelineError as error:
+            raise _refused(error) from error
+        return Outcome({key: value for key, value in answer.items() if not (key == "section" and value is None)}, publication, tuple(answer["warnings"]))
     try:
         answer = resolve_guidelines(GuidelineStore(client, files), kind, section)
     except GuidelineError as error:
@@ -124,11 +129,40 @@ def _checked(kind: str, document: Any, section: str | None) -> dict:
     return document
 
 
-def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
+def _image_section_checked(store: GuidelineStore, document: dict, section: str | None, previous: dict | None) -> None:
+    """A section's image document is also checked against the publication's: no shadowed type, every own type valid under its binding rules and locks."""
+    if kind_of_check(section):
+        from papyrus_content.images.visual_style import validate_section_types
+
+        base = store.read(IMAGE_KIND)
+        problems = validate_section_types(base["document"] if base else None, document, previous)
+        if problems:
+            first = problems[0]
+            raise ImageOperationError("constraint_conflict" if first.code == "constraint_conflict" else "invalid_input", f"{first.path or 'document'}: {first.message}",
+                                      details={"path": first.path, "problems": [{"path": p.path, "message": p.message, "code": p.code} for p in problems]})
+
+
+def kind_of_check(section: str | None) -> bool:
+    return bool(section)
+
+
+def _policy_store(client, policies):
+    if policies is not None:
+        return policies
+    if getattr(client, "policies", None) is not None:
+        return client.policies
+    if hasattr(client, "graphql"):
+        from papyrus_content.editorial_checks import GraphQLEditorialStore
+
+        return GraphQLEditorialStore(client.graphql, getattr(client, "tenant_id", None))
+    return None
+
+
+def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None, policies=None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
-    if kind == IMAGE_KIND:
-        return _image_alias(diff_profile, client, arguments, caller)
+    if kind == IMAGE_KIND and not section:
+        return _image_alias(diff_profile, client, arguments, caller, files)
     document = _checked(kind, arguments["document"], section)
     store = GuidelineStore(client, files)
     try:
@@ -136,17 +170,30 @@ def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
     except GuidelineError as error:
         raise _refused(error) from error
     old = current["document"] if current else None
+    if kind == IMAGE_KIND:
+        try:
+            _image_section_checked(store, document, section, old)
+        except GuidelineError as error:
+            raise _refused(error) from error
     changes = diff_documents(old, document)
     number = int(current["row"].get("versionNumber") or 1) if current else 0
-    return Outcome(_described(kind, section, changes=changes, constraintChanges=_constraint_changes(kind, old, document),
-                              wouldCreateVersion=number + 1 if changes or current is None else number), publication)
+    would_create = number + 1 if changes or current is None else number
+    extra: dict = {}
+    store_of_policies = _policy_store(client, policies) if kind == "writing" else None
+    if store_of_policies is not None:
+        try:
+            extra["policyPlan"] = describe_plan(plan_derived_policies(store_of_policies, document, section, would_create))
+        except ModuleNotFoundError:
+            extra["policyPlanNotAvailable"] = "The Humanus policy reader is not installed where this diff ran."
+    return Outcome(_described(kind, section, changes=changes, constraintChanges=_constraint_changes(kind, old, document), wouldCreateVersion=would_create, **extra),
+                   publication)
 
 
 def guidelines_history(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
-    if kind == IMAGE_KIND:
-        return _image_alias(profile_history, client, arguments, caller)
+    if kind == IMAGE_KIND and not section:
+        return _image_alias(profile_history, client, arguments, caller, files)
     try:
         rows = GuidelineStore(client, files).versions(kind, section)
     except GuidelineError as error:
@@ -174,15 +221,15 @@ def _earlier_answer(rows: list[dict], caller: Caller) -> dict | None:
     return next((row for row in rows if saved_by_of(row).get("requestId") == caller.request_id and saved_by_of(row).get("sub") == caller.subject), None)
 
 
-def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
+def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None, policies=None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
     if not caller.is_admin:
         raise ImageOperationError("not_authorized", "Only an admin may save guidelines. Nothing was saved.")
     if not caller.subject:
         raise ImageOperationError("not_authorized", "The caller is not identified, so the version cannot record who saved it.")
-    if kind == IMAGE_KIND:
-        return _image_alias(save_profile, client, arguments, caller)
+    if kind == IMAGE_KIND and not section:
+        return _image_alias(save_profile, client, arguments, caller, files)
     store = GuidelineStore(client, files)
     try:
         versions = store.versions(kind, section)
@@ -194,6 +241,8 @@ def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
         document = _checked(kind, arguments["document"], section)
         current = next((row for row in versions if row.get("versionState") == "current"), None)
         old = store.read(kind, section)["document"] if current is not None else None
+        if kind == IMAGE_KIND:
+            _image_section_checked(store, document, section, old)
         changes = _constraint_changes(kind, old, document)
         if changes:
             _require_person_admin(caller, changes)
@@ -204,8 +253,18 @@ def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
     except GuidelineError as error:
         raise _refused(error) from error
     ref = saved["reference"]
+    extra: dict = {}
+    store_of_policies = _policy_store(client, policies) if kind == "writing" else None
+    if store_of_policies is not None:
+        try:
+            steps = plan_derived_policies(store_of_policies, document, section, ref["versionNumber"])
+        except ModuleNotFoundError:
+            extra["policiesNotSynced"] = "The Humanus policy reader is not installed where this save ran; save again from the signed-in command line to sync the checks."
+        else:
+            apply_derived_plan(store_of_policies, steps)
+            extra["policies"] = describe_plan(changed_steps(steps))
     return Outcome(_described(kind, section, itemId=ref["itemId"], versionNumber=ref["versionNumber"], contentHash=ref["contentHash"] or "",
-                              **({} if saved["changed"] else {"unchanged": True})), publication)
+                              **({} if saved["changed"] else {"unchanged": True}), **extra), publication)
 
 
 # --- the lanes ---------------------------------------------------------------------------------------------------------------------------------------
@@ -234,11 +293,12 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None) -> dict[
     return {name: wrap(function) for name, function in GUIDELINE_HANDLERS.items()}
 
 
-def with_client(client, files: DocumentFiles | None = None, caller_filter: Callable[[Caller], Caller] | None = None) -> dict[str, Handler]:
+def with_client(client, files: DocumentFiles | None = None, caller_filter: Callable[[Caller], Caller] | None = None, policies=None) -> dict[str, Handler]:
     """The same handlers bound to one client and its document files (the image-service function and the tests)."""
     def bind(function):
         def handler(arguments: dict, caller: Caller) -> Outcome:
-            return function(client, arguments, caller_filter(caller) if caller_filter else caller, files)
+            wanted = (files,) + ((policies,) if function in (save_guidelines, diff_guidelines) else ())
+            return function(client, arguments, caller_filter(caller) if caller_filter else caller, *wanted)
         return handler
 
     return {name: bind(function) for name, function in GUIDELINE_HANDLERS.items()}
