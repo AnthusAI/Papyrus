@@ -47,7 +47,7 @@ Commands that write with **no `--dry-run`** (their `--help` says `Writes: yes, i
 `papyrus ops content rerender --no-invalidate --dry-run` was seen to re-render the story's pages anyway on 5.100.0 (the flag is sent to the site's function, which acted on it). Preview a re-render with `papyrus ops content update-live --story LINEAGE --dry-run` instead.
 
 ### Timeouts and the safe re-run rule
-A write that prints `timed out` or `The read operation timed out` has an **unknown outcome**. Re-run the same command: `references create-from-catalog` derives the Reference id from the canonical URL, so a source already recorded is returned unchanged and is not re-curated; links and stars are idempotent (the same link is reported, not duplicated). Do not change arguments between attempts. Do not re-run `stories create` blindly: it makes a new Story each time, so list first (`papyrus stories list --limit 5`).
+A write that prints `timed out` or `The read operation timed out` has an **unknown outcome**. Re-run the same command: `references create-from-catalog` derives the Reference id from the canonical URL, so a source already recorded is returned unchanged (printed as `already-existed` with its current status) and is not re-curated; links and stars are idempotent (the same link is reported, not duplicated). Do not change arguments between attempts. Do not re-run `stories create` blindly: it makes a new Story each time, so list first (`papyrus stories list --limit 5`).
 
 ### The relation vocabulary is closed
 Only these names exist; never invent one:
@@ -167,7 +167,7 @@ papyrus references list --status pending --limit 10
 ```
 
 - The dry run prints `references create-from-catalog intake user-session items=N status=pending` and `apply no (preview only; server authorization and deduplication not executed)`.
-- The real run prints one `recorded N/M URL REFERENCE_ID pending` line per source, then `summary confirmed=N not-confirmed=M`. It sends one source per request because one source takes 6 to 12 seconds.
+- The real run prints one line per source, then `summary created=N already-existed=M not-confirmed=K`. A source this run created prints `created N/M URL REFERENCE_ID pending`. A URL already recorded in the corpus prints `already-existed N/M URL REFERENCE_ID status=<current status> (existing; requested pending not applied)`: the Reference keeps whatever status it has (an accepted one stays accepted), and `--status` is never applied to it. Check the line before you treat a source as newly filed. A backend older than the CLI cannot say which it was, and the line is `outcome-unknown` instead. It sends one source per request because one source takes 6 to 12 seconds.
 - `--corpus-key` is the **site's publication key** (`ai-ml-research` on Machines on Machines). It is not the corpus record id and not the site name. On 5.100.0 `knowledge-corpus-ai-ml-research` is also accepted, the flag may be omitted (the site's one canonical corpus is used), and a wrong key fails with `Requested publication bogus does not match the hosted canonical corpus ai-ml-research; publication binding mismatch.`
 - `--status` must be `pending`; accept or reject with the review commands afterwards.
 - If a source reports `timed out`, run the identical command again.

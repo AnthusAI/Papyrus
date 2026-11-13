@@ -42,6 +42,7 @@ def register_pending_catalog(client, options: dict, *, apply: bool) -> None:
     # outlast the client's read timeout and leave the outcome unknown (PPY-856536). The server derives each
     # Reference id from the canonical URL, so repeating any request returns the same record.
     failed = []
+    created = existed = unknown = 0
     videos = 0
     total = len(items)
     for number, item in enumerate(items, start=1):
@@ -59,7 +60,18 @@ def register_pending_catalog(client, options: dict, *, apply: bool) -> None:
             print(f"references\tcreate-from-catalog\tfailed\t{label}\t{' '.join(str(error).split())[:300]}", flush=True)
             continue
         for reference in result.get("references") or [{}]:
-            print(f"references\tcreate-from-catalog\trecorded\t{label}\t{reference.get('id') or '-'}\t{reference.get('curationStatus') or '-'}", flush=True)
+            reference_id, status = reference.get("id") or "-", reference.get("curationStatus") or "-"
+            if reference.get("created") is True:
+                created += 1
+                print(f"references\tcreate-from-catalog\tcreated\t{label}\t{reference_id}\t{status}", flush=True)
+            elif reference.get("created") is False:
+                existed += 1   # a Reference already recorded keeps its status: the request never applies one to it
+                print(f"references\tcreate-from-catalog\talready-existed\t{label}\t{reference_id}\t"
+                      f"status={status} (existing; requested pending not applied)", flush=True)
+            else:   # a backend older than this CLI does not say which; do not guess
+                unknown += 1
+                print(f"references\tcreate-from-catalog\toutcome-unknown\t{label}\t{reference_id}\tstatus={status} "
+                      "(the backend predates this CLI and does not say whether this request created it or it already existed)", flush=True)
         prediction = result.get("prediction") or {}
         videos += int(prediction.get("videos") or 0)
         if prediction.get("ok") is False:   # the server could not queue it: the Reference exists and stays hidden until it has a prediction
@@ -69,7 +81,8 @@ def register_pending_catalog(client, options: dict, *, apply: bool) -> None:
     line = video_line("references\tcreate-from-catalog", videos)   # a video's picture and transcript can only be read from a machine the platform answers
     if line:
         print(line, flush=True)
-    print(f"references\tcreate-from-catalog\tsummary\tconfirmed={total - len(failed)}\tnot-confirmed={len(failed)}", flush=True)
+    print(f"references\tcreate-from-catalog\tsummary\tcreated={created}\talready-existed={existed}"
+          + (f"\toutcome-unknown={unknown}" if unknown else "") + f"\tnot-confirmed={len(failed)}", flush=True)
     if failed:
         raise ValueError(
             f"{len(failed)} of {total} sources were not confirmed (a timeout leaves the outcome unknown). Run the same command again: "
