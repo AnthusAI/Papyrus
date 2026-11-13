@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ORGANIZER_NAV_GROUPS } from "../lib/newsroom-organizer-nav";
-import { ownZoneTime, resolveWallTime, scheduleFromFields, scheduleKind, scheduleFromResult, scheduleSentence, scheduleWording, wallTimeOf } from "../lib/story-schedule";
+import { ownZoneTime, resolveWallTime, scheduleFromEntries, scheduleFromFields, scheduleKind, scheduleFromResult, scheduleSentence, scheduleWording, wallTimeOf } from "../lib/story-schedule";
 import { readScheduledRange, SCHEDULE_PAGE_STATES, type ScheduleQueryFetch } from "../lib/story-schedule-query";
 
 const NY = "America/New_York";
@@ -84,4 +84,18 @@ test("the page reads one query per state on the schedule index, limited to the r
   assert.deepEqual(rows.map((entry) => entry.id), ["a", "b", "c"], "earliest first across states and pages");
   assert.deepEqual([...new Set(seen.map((variables) => variables.scheduleState))].sort(), [...SCHEDULE_PAGE_STATES].sort(), "one query per state");
   assert.equal(seen.length, SCHEDULE_PAGE_STATES.length + 1, "and the second page of one state");
+});
+
+test("the drawer's schedule is what schedule_list says of the Story: the newest scheduled version, with its stored state", async () => {
+  const { createContentActionsClient } = await import("../lib/content-actions-client");
+  const sent: string[] = [];
+  const entry = (versionNumber: number, state: string, storedState: string, at: string) => ({ itemId: `v${versionNumber}`, lineageId: "l1", versionNumber, title: "T", state, storedState, scheduledPublishAt: at, scheduledBy: "Sam", scheduledAt: "2026-11-12T01:00:00.000Z" });
+  const data = { ok: true, timeZone: NY, now: "2026-11-12T15:00:00Z", schedules: [entry(2, "blocked", "blocked", "2026-11-13T14:00:00.000Z"), entry(3, "scheduled", "scheduled", "2026-11-20T14:00:00.000Z")] };
+  const transport = { queries: { deriveMarkus: async () => ({}) }, mutations: new Proxy({ scheduleItem: async (args: { input: string }) => { sent.push(args.input); return { data: JSON.stringify(data) }; } }, { get: (target, name) => (target as Record<string, unknown>)[name as string] ?? (async () => ({})) }) } as never;
+  const result = await createContentActionsClient(transport).scheduleList({ storyLineageId: "l1" });
+  assert.deepEqual(JSON.parse(sent[0]), { operation: "schedule_list", arguments: { storyLineageId: "l1" } });
+  assert.equal(result.schedules.length, 2);
+  assert.deepEqual(scheduleFromEntries(result.schedules), { at: "2026-11-20T14:00:00.000Z", state: "scheduled", by: "Sam", scheduledAt: "2026-11-12T01:00:00.000Z" });
+  assert.deepEqual(scheduleFromEntries([entry(2, "blocked", "blocked", "2026-11-13T14:00:00.000Z")]), { at: "2026-11-13T14:00:00.000Z", state: "blocked", by: "Sam", scheduledAt: "2026-11-12T01:00:00.000Z" }, "a schedule that only sits on an older version is the superseded one");
+  assert.equal(scheduleFromEntries([]), undefined);
 });

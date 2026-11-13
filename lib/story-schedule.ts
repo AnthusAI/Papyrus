@@ -36,6 +36,15 @@ export function scheduleFromFields(fields: ScheduleFields): StorySchedule | unde
   return { at: fields.scheduledPublishAt, state: state as ScheduleState, by: fields.scheduledBy ?? null, scheduledAt: fields.scheduledAt ?? null };
 }
 
+/**
+ * The schedule the drawer shows for a Story, from its `schedule_list` answer: the newest scheduled version, since a schedule that sits on an earlier version
+ * is the one a newer save superseded. The state is the stored one; Overdue is derived from the time (`scheduleKind`), as the backend derives it.
+ */
+export function scheduleFromEntries(entries: readonly { versionNumber: number | null; storedState: string; scheduledPublishAt: string; scheduledBy: string | null; scheduledAt: string | null }[]): StorySchedule | undefined {
+  const newest = [...entries].sort((left, right) => (right.versionNumber ?? 0) - (left.versionNumber ?? 0))[0];
+  return newest ? scheduleFromFields({ scheduledPublishAt: newest.scheduledPublishAt, scheduleState: newest.storedState, scheduledBy: newest.scheduledBy, scheduledAt: newest.scheduledAt }) : undefined;
+}
+
 /** The schedule a successful `schedule` call recorded: none after a clear, else scheduled for the instant that was sent. */
 export function scheduleFromResult(result: { scheduledPublishAt: string | null; scheduledBy: string | null }, at: Date = new Date()): StorySchedule | undefined {
   return result.scheduledPublishAt ? { at: result.scheduledPublishAt, state: "scheduled", by: result.scheduledBy, scheduledAt: at.toISOString() } : undefined;

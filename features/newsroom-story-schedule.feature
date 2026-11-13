@@ -24,6 +24,11 @@ Feature: Editors see and change when a Story goes live, and see the whole schedu
     And from London a small line adds "2:00 PM GMT your time"
     And the Publish button and the Draft state are as they were
 
+  Scenario: The drawer shows the Story's schedule as the backend lists it
+    Given a Story whose schedule the backend lists on an older version and on its newest version
+    When the drawer asks the backend for the Story's schedules
+    Then it asks for the schedule_list operation of that Story and shows the newest scheduled version, with the state the backend stored
+
   Scenario: An editor sets, changes and clears a time
     Given the Stories board with an unscheduled Story open in its drawer
     When the editor picks 20 November at 07:30, changes it to 21 November at 14:00, and then clears it

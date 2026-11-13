@@ -11,6 +11,7 @@ import type {
   MoveStoryStageInput,
   MoveStoryStageResult,
   ScheduleStoryInput,
+  ScheduleListResult,
   ScheduleStoryResult,
   CreateStoryFromReferenceInput,
   CreateStoryFromReferenceResult,
@@ -23,6 +24,7 @@ import {
 } from "./newsroom-demo-articles";
 import { createLocalPreviewEditableArticle, lineageForPreviewVersion, localPreviewScheduleFields, recordLocalPreviewDesk, recordLocalPreviewVersion, setLocalPreviewSchedule } from "./local-preview-seed";
 import { scheduleFromFields } from "./story-schedule";
+import { LOCAL_PREVIEW_TIME_ZONE } from "./schedule-zone";
 import { sourceLineOffset, type ArticlesBackend, type EditableArticle, type NewsroomArticleRow } from "./newsroom-articles";
 
 function titleFromYaml(frontMatterYaml: string | null, fallback: string): string {
@@ -237,6 +239,17 @@ export function createDemoArticlesBackend(): ArticlesBackend {
           throw new ContentActionFailure([{ code: "schedule-refused", message: error instanceof Error ? error.message : String(error), line: null }]);
         }
       },
+      async scheduleList(input: { storyLineageId: string }): Promise<ScheduleListResult> {
+        const fields = localPreviewScheduleFields(input.storyLineageId);
+        const schedule = scheduleFromFields(fields);
+        return {
+          ok: true, timeZone: LOCAL_PREVIEW_TIME_ZONE,
+          schedules: schedule ? [{
+            itemId: input.storyLineageId, lineageId: input.storyLineageId, versionNumber: null, title: "", state: schedule.state, storedState: schedule.state,
+            scheduledPublishAt: schedule.at, scheduledBy: schedule.by, scheduledAt: schedule.scheduledAt,
+          }] : [],
+        };
+      },
       async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
         return { ok: true, changed: true, stage: input.stage };
       },
@@ -309,7 +322,6 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         everPublished: record.everPublished,
         publishedType: record.publishedType ?? (record.everPublished ? record.type : null),
         starRating: record.starRating ?? null,
-        schedule: scheduleFromFields(localPreviewScheduleFields(createLocalPreviewEditableArticle(record.id)?.lineageId ?? lineageForPreviewVersion(record.id) ?? record.id)),
       };
     },
   };

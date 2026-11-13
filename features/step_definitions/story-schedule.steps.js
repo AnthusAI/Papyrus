@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, "../..");
 const browser = (name) => promisify(execFile)(process.execPath, ["--import", "tsx", "scripts/test-story-schedule-ui.ts", name], { cwd: root, maxBuffer: 8 * 1024 * 1024 });
 
 for (const given of [
+  "a Story whose schedule the backend lists on an older version and on its newest version",
   "the Stories board with a scheduled Story, an overdue Story, a superseded Story and an unscheduled Story",
   "the Stories board with a scheduled Story",
   "the Stories board with an unscheduled Story open in its drawer",
@@ -18,6 +19,7 @@ for (const given of [
 ]) Given(given, function () {});
 
 for (const when of [
+  "the drawer asks the backend for the Story's schedules",
   "the editor looks at the cards",
   "the editor opens the Story, in New York and then from London",
   "the editor picks 20 November at 07:30, changes it to 21 November at 14:00, and then clears it",
@@ -28,6 +30,9 @@ for (const when of [
 ]) When(when, function () {});
 
 // Each outcome runs the named scenario of scripts/test-story-schedule-ui.ts (a real browser, local preview data, a fixed clock).
+const unit = (pattern) => promisify(execFile)(process.execPath, ["--import", "tsx", "--test", "--test-name-pattern", pattern, "scripts/test-story-schedule.ts"], { cwd: root, maxBuffer: 8 * 1024 * 1024 });
+Then("it asks for the schedule_list operation of that Story and shows the newest scheduled version, with the state the backend stored", { timeout: 60000 }, async function () { await unit("the drawer's schedule is what schedule_list says"); });
+
 const outcomes = {
   'the scheduled card shows a calendar-clock icon and "Scheduled: Fri 13 Nov, 9:00 AM ET", the time in New York': "badge_states",
   'the overdue card shows a warning icon and "Overdue"': "badge_states",

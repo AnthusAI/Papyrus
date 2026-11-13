@@ -9,7 +9,7 @@ import { contentItemHeadStageKey, contentItemStageKeys, type ContentItemVersionR
 import { getContentItemStageDefinitions } from "./site-brand";
 import { noteProblem, stepChangeProblem, summarizeStoryChecklist, type StoryStepNote, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
-import { scheduleFromFields, type ScheduleFields, type StorySchedule } from "./story-schedule";
+import type { ScheduleFields } from "./story-schedule";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
 const ONE_HOUR_IN_MILLISECONDS = 60 * 60 * 1000;
@@ -371,7 +371,6 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
     aliases: [],
     everPublished: version.status === "published",
     starRating: version.starRating ?? null,
-    schedule: scheduleFromFields(version),
   };
 }
 
