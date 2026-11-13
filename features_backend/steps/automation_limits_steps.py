@@ -337,7 +337,7 @@ def costed_runs(context):
 
 def overview(context, identity, account=ACCOUNT):
     context.refused = False
-    result = automation_view.handle({"info": {"fieldName": "automationOverview"}, "identity": identity, "arguments": {}},
+    result = automation_view.handle({"fieldName": "automationOverview", "identity": identity, "arguments": {}},
                                     env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT}, reader_factory=lambda: context.reader,
                                     client_factory=lambda: context.client, now=1_792_756_800.0, account_id=account)
     context.refused = result.get("error") == "forbidden"
@@ -441,7 +441,7 @@ def dry(context):
 
 def console(context, identity, field="runAutomation"):
     return automation_view.handle(
-        {"info": {"fieldName": field}, "identity": identity, "arguments": {"automationId": "distinctive.ttab", "input": json.dumps(INPUT)}},
+        {"fieldName": field, "identity": identity, "arguments": {"automationId": "distinctive.ttab", "input": json.dumps(INPUT)}},
         env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT}, client_factory=lambda: context.client, reader_factory=lambda: context.reader,
         table_factory=lambda: context.run_table, invoker=context.invoked.append, now=1_792_832_400.0, account_id=ACCOUNT)
 
@@ -479,7 +479,7 @@ def operator_reads(context):
 @when("an identity-pool user or a role from another account reads the overview")
 def others_read(context):
     context.denied = [
-        automation_view.handle({"identity": identity, "arguments": {}}, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT},
+        automation_view.handle({"fieldName": "automationOverview", "identity": identity, "arguments": {}}, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT},
                                client_factory=lambda: context.client, account_id=ACCOUNT)
         for identity in ({"accountId": ACCOUNT, "userArn": f"arn:aws:sts::{ACCOUNT}:assumed-role/auth/x", "cognitoIdentityId": "us-east-1:abc"},
                          {"accountId": "999999999999", "userArn": "arn:aws:sts::999999999999:assumed-role/other/x"})]

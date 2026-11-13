@@ -45,7 +45,7 @@ def world(*, saved=True):
 def door(backend, name, identity, op, **arguments):
     if "input" in arguments and not isinstance(arguments["input"], str):
         arguments["input"] = json.dumps(arguments["input"])
-    return handle({"info": {"fieldName": name}, "identity": identity, "arguments": {"op": op, **arguments}}, client_factory=lambda: backend,
+    return handle({"fieldName": name, "identity": identity, "arguments": {"op": op, **arguments}}, client_factory=lambda: backend,
                   files_factory=lambda client: getattr(backend, "document_files", None) or FakeFiles(backend))
 
 
@@ -281,7 +281,7 @@ def test_an_unexpected_failure_is_a_state_and_the_cause_is_not_returned():
     def broken():
         raise RuntimeError("secret detail")
 
-    answer = handle({"info": {"fieldName": "guidelinesRead"}, "identity": EDITOR, "arguments": {"op": "guidelines_get", "input": json.dumps({"kind": "writing"})}}, client_factory=broken)
+    answer = handle({"fieldName": "guidelinesRead", "identity": EDITOR, "arguments": {"op": "guidelines_get", "input": json.dumps({"kind": "writing"})}}, client_factory=broken)
     assert answer["error"]["code"] == "service_unavailable" and "secret" not in json.dumps(answer)
 
 
