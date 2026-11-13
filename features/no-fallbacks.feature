@@ -49,3 +49,8 @@ Feature: One correct path that fails clearly
     Given the steering workspace source
     When it is read for how it names a section and where its sections and proposals come from
     Then a section shows its stored short title or its title, no table of section names is written into the engine, and the page does not borrow a second snapshot when the first is empty
+
+  Scenario: A dashboard query that fails fails the dashboard
+    Given the news desk client source
+    When it is read for how it loads the dashboard's lists
+    Then every list is awaited as it is, a failed query rejects the load so the editor sees the error, and no empty list stands in for a failed one

@@ -101,3 +101,9 @@ test("newsroom sections: one source for names and lists", () => {
   assert.doesNotMatch(workspace, /Creative Work|Market Structure/);
   assert.match(sections, /return section\.shortTitle\?\.trim\(\) \|\| section\.title;/);
 });
+
+test("news desk dashboard: a slice that fails fails the dashboard", () => {
+  const client = read("components/news-desk-taxonomy-client.ts");
+  assert.doesNotMatch(client, /loadDashboardSlice|Newsroom dashboard slice failed/);
+  assert.doesNotMatch(client, /loadEditorProcedureData\(\)\.catch/);
+});

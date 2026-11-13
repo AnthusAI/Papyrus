@@ -23,6 +23,7 @@ for (const when of [
   "it is read for how it finds the newest published editions",
   "it is read for how it treats a layout block whose item did not load",
   "it is read for how it loads a page of References",
+  "it is read for how it loads the dashboard's lists",
   "a site turns inbound email on without one of them",
   "it is read for how the References page stays current",
   "it is read for how it names a section and where its sections and proposals come from",
@@ -39,5 +40,6 @@ const outcomes = [
   ["the synth fails naming the missing setting, and no domain, corpus, hosted zone or site address of Papyrus's own is written into the engine", /✔ inbound email: no site's domain/],
   ["it opens no realtime stream for References or relations, probes no subscription method, and shows no realtime status banner", /✔ steering workspace: References refresh on open/],
   ["a section shows its stored short title or its title, no table of section names is written into the engine, and the page does not borrow a second snapshot when the first is empty", /✔ newsroom sections: one source/],
+  ["every list is awaited as it is, a failed query rejects the load so the editor sees the error, and no empty list stands in for a failed one", /✔ news desk dashboard: a slice that fails/],
 ];
 for (const [then, pattern] of outcomes) Then(then, async function () { assert.match(await run(), pattern); });
