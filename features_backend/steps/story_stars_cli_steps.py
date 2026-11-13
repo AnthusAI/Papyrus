@@ -16,14 +16,18 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
         sys.path.insert(0, str(entry))
 
 import test_story_stars_cli as support  # noqa: E402
-from papyrus_content import story_commands  # noqa: E402
+from datetime import date  # noqa: E402
+
+from papyrus_content import story_commands, story_signals  # noqa: E402
 
 DATES = {"a": "2026-11-07T10:00:00Z", "b": "2026-11-01T10:00:00Z", "c": "2026-11-06T10:00:00Z", "d": "2026-10-01T10:00:00Z"}
 
 
 def _run(context, function, flags):
     context.failure, out = None, io.StringIO()
-    with mock.patch.object(story_commands, "create_authoring_client", return_value=(context.client, {})), contextlib.redirect_stdout(out):
+    # The Stories' dates are fixed, so the day the ranking counts from is fixed too; the real day would move them across week boundaries.
+    with mock.patch.object(story_commands, "create_authoring_client", return_value=(context.client, {})), \
+            mock.patch.object(story_signals, "utc_today", return_value=date(2026, 11, 8)), contextlib.redirect_stdout(out):
         try:
             function(flags)
         except ValueError as error:
