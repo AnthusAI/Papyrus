@@ -597,11 +597,13 @@ def reusable_check_run(item: dict[str, Any], services: Services, *, pack_version
     return None
 
 
-def with_cross_story_findings(item: dict[str, Any], findings: list[dict[str, Any]], services: Services, segments: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """``findings`` with this version's cross-story boilerplate findings, computed now against the site's other stories.
+def with_cross_story_findings(item: dict[str, Any], findings: list[dict[str, Any]], services: Services, segments: list[dict[str, Any]] | None = None, *, story: str | None = None) -> list[dict[str, Any]]:
+    """``findings`` with this text's cross-story boilerplate findings, computed now against the site's other stories.
 
     These depend on the other stories, not only on this version's content, so they are never reused from an earlier
-    check. A store without ``list_story_versions`` (a policy file) has no corpus and adds none.
+    check. A store without ``list_story_versions`` (a policy file) has no corpus and adds none. A saved version is
+    left out of the comparison by its lineage; a draft file names the story it revises with ``story`` (a lineage id or
+    a slug), which is refused when the site has no such story. A draft that names none is compared with every story.
     """
     from . import cross_story_boilerplate as boilerplate
 
@@ -609,12 +611,29 @@ def with_cross_story_findings(item: dict[str, Any], findings: list[dict[str, Any
     list_versions = getattr(services.store, "list_story_versions", None)
     if list_versions is None:
         return kept
+    stories = boilerplate.latest_stories(list_versions())
     lineage_id = item.get("lineageId") or item["id"]
-    others = [story for story in boilerplate.latest_stories(list_versions()) if story.lineage_id != lineage_id]
+    if story is not None:
+        named = next((candidate for candidate in stories if story in (candidate.lineage_id, candidate.slug)), None)
+        if named is None:
+            raise ValueError(f"No story found for {story!r} (give a lineage id or a slug).")
+        lineage_id = named.lineage_id
+    others = [candidate for candidate in stories if candidate.lineage_id != lineage_id]
     if not others:
         return kept
     index = boilerplate.ShingleIndex(others)
     return kept + boilerplate.cross_story_findings(item.get("bodyMarkus") or "", lineage_id, index, segments)
+
+
+def check_draft(arguments: dict[str, Any], services: Services, *, story: str | None = None) -> dict[str, Any]:
+    """Check draft text the way a saved version is checked: the Humanus lanes, then the cross-story boilerplate check.
+
+    ``arguments`` are those of ``check_editorial``; ``story`` names the story the draft revises, so its own saved
+    versions are not counted as other stories. ``papyrus editorial check|suggest --draft`` use this.
+    """
+    result = check_editorial(arguments, services)
+    item = {"id": "draft", "bodyMarkus": arguments["body"]}
+    return {**result, "findings": with_cross_story_findings(item, result.get("findings") or [], services, result.get("segments"), story=story)}
 
 
 def _counts(findings: list[dict[str, Any]]) -> dict[str, int]:

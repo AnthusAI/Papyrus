@@ -84,6 +84,13 @@ article editor.
    papyrus editorial check --draft draft.md --section <section> > check.json
    ```
 
+   The check runs everything a saved version gets, including the cross-story
+   boilerplate check (a passage shared with another story on the site, policy
+   `cross-story-boilerplate`). When the draft revises an existing story, add
+   `--story <lineage>` so that story's own saved version is not reported as
+   another story. A draft check with `--pack` has no site stories and does not
+   run the boilerplate check.
+
    The draft is checked in the site's primary language unless you pass
    `--language` (`es-419`, `zh-Hans` ...); Humanus refuses a language it has no
    pack for instead of reading it as English.
