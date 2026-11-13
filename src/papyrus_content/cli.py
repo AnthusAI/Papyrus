@@ -323,6 +323,7 @@ PORTED_COMMANDS = frozenset(
         "references:curate",
         "references:backfill-publication-dates",
         "references:decide-site-sections",
+        "references:auto-section",
         "references:export-relevance-recording",
         "references:freeze-priming-held-out",
         "references:prove-priming",
@@ -385,9 +386,12 @@ PORTED_COMMANDS = frozenset(
         "stories:assign-research",
         "stories:repair-versions",
         "stories:head-index",
+        "stories:backfill-published-dates",
         "stories:repair-image-paths",
         "stories:set-slug",
         "stories:retire",
+        "stories:schedule",
+        "stories:schedule-list",
         "stories:set-type",
         "stories:set-stars",
         "assignments:backfill-content-items",
@@ -767,6 +771,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:decide-site-sections":
         from .site_sweep import references_decide_site_sections
         references_decide_site_sections(flags)
+    elif route == "references:auto-section":
+        from .site_auto_section import references_auto_section
+        references_auto_section(flags)
     elif route == "references:export-relevance-recording":
         from .relevance_recording import references_export_relevance_recording
         references_export_relevance_recording(flags)
@@ -924,6 +931,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_retire import stories_retire
 
         stories_retire(flags)
+    elif route in ("stories:schedule", "stories:schedule-list"):
+        from . import story_schedule_commands
+
+        {"stories:schedule": story_schedule_commands.stories_schedule, "stories:schedule-list": story_schedule_commands.stories_schedule_list}[route](flags)
     elif route == "stories:set-slug":
         from .story_commands import stories_set_slug
 
@@ -940,6 +951,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_head_index
 
         stories_head_index(flags)
+    elif route == "stories:backfill-published-dates":
+        from .story_commands import stories_backfill_published_dates
+
+        stories_backfill_published_dates(flags)
     elif route == "stories:move":
         from .story_commands import stories_move
 

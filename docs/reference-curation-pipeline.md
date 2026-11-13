@@ -38,7 +38,9 @@ Messages come only from people, so the Reference holds it: `curationStatus`, `cu
 `curationStatusUpdatedAt` and `curationStatusReason` (the note), plus the details of the vote in
 `curationActorKind` (`human`, `agent`, `cyclotron`, `rule` or `catalog`), `curationReasonCode`, `curationSectionId`,
 `curationShareable`, `curationDelegation` (JSON: `delegationId`, `relayedBy`, `instruction`) and
-`curationDecisionRelationId`. The writers are the curation Lambda (`reviewReferenceCuration`, `recordDelegatedCuration`),
+`curationDecisionRelationId`. The Section has its own provenance beside it (`curationSectionUpdatedBy`, `curationSectionUpdatedAt`,
+`curationSectionActorKind`, and for the machine's Section `curationSectionReason` and `curationSectionDecisionRelationId`): an accept that names a Section,
+`setReferenceSection` and the automatic Section all record who set it ([automatic Section](reference-auto-section.md)). The writers are the curation Lambda (`reviewReferenceCuration`, `recordDelegatedCuration`),
 `reference_actions.review_reference_curation` (CLI and Tactus), the automatic accept and reject, and a catalog
 registration that rejects. A Reference keeps only its latest vote; the history of earlier votes lives in the
 Cyclotron's feedback. Every reader (the sweep, the proofs, the exports, the review screens) reads these fields; see

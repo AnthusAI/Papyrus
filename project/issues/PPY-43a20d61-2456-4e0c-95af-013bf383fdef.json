@@ -1,0 +1,20 @@
+{
+  "id": "PPY-43a20d61-2456-4e0c-95af-013bf383fdef",
+  "title": "Candidate store for alternative visuals (hero images and diagrams) for A/B testing",
+  "description": "Reported by the Machines on Machines story-development session on CLI 5.105.0. MoM will soon A/B test with Google Analytics and wants extra hero images and diagrams per article.\n\nRelated: PPY-6f9fb906 (step 5, ImageCandidate for generation rounds and review), PPY-c101a6f9 (generated image candidates), PPY-74ef89b9 (figures). Decide first whether the step-5 ImageCandidate record can serve as this store (candidates per Story kept after a choice) rather than adding a second model. Dependencies: the image epic PPY-0111742e; none on the guidelines epic PPY-2a2a8a.\n\nObserved: images figure add and images list answer 'not built yet'. The agent stored two cover candidates by saving an unpublished draft version. That workaround must not be repeated.\n\nFeature: Candidates for a Story's visuals\n  Scenario: Add a candidate\n    Given a Story with a live cover\n    When an editor or agent adds an alternative hero image or diagram with a reason\n    Then the candidate is stored for the Story with who added it, when, and why\n    And the live cover is unchanged\n  Scenario: Choose one live\n    Given a Story with several candidates\n    When a person chooses one\n    Then it becomes the live visual and the others are kept\n  Scenario: List candidates\n    Given a Story with candidates\n    When images list is run for the Story\n    Then each candidate shows its kind, who, when, why and whether it is live\n  Scenario: No draft versions as storage\n    Given an agent wants to keep an alternative\n    Then it adds a candidate and never saves an unpublished Story version\n\nDesign: keep it simple. Picture and diagram text/files in S3; the catalog holds one small row per candidate (story, kind, who, when, why, live flag, S3 key). Follow-up question, not in scope: how a GA experiment variant assignment reaches the page (build-time variants, client swap, or edge); decide after the store exists.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T16:30:18.538564Z",
+  "updated_at": "2026-11-12T16:30:18.538594Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

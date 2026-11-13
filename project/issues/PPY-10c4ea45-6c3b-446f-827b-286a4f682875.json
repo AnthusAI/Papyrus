@@ -1,0 +1,20 @@
+{
+  "id": "PPY-10c4ea45-6c3b-446f-827b-286a4f682875",
+  "title": "references create-from-catalog rejects a URL that is already a Reference instead of returning it",
+  "description": "Reported by the Machines on Machines story-development session on CLI 5.105.0.\n\nRelated: PPY-b3032b25 (create-from-catalog and prepare-catalog rough edges), PPY-85653616 (create-from-catalog timeouts leave the outcome unknown). Not a duplicate of either.\n\nObserved: running references create-from-catalog for a URL that is already stored as a Reference fails with 'Stored intake provenance conflicts with the immutable source record'. Example: Storey's cognitive-debt essay.\n\nFeature: Creating a Reference from a URL that already exists\n  Scenario: The URL is already stored\n    Given a Reference already exists for a URL\n    When an editor runs references create-from-catalog with an entry for the same URL\n    Then Papyrus matches the existing Reference\n    And returns it, marked as already existing\n    And changes nothing on the stored record, including its intake provenance\n  Scenario: A new URL\n    Given no Reference exists for a URL\n    When an editor runs references create-from-catalog for it\n    Then a Reference is created as today\n  Scenario: A batch with a mix\n    Given a catalog of new and already stored URLs\n    When it is created\n    Then each entry reports created or existing, and none fails because of the existing ones\n\nDesign: match on the canonical URL before writing, and return the existing record. The immutable source record stays immutable; the provenance check applies only to records being written.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T16:30:18.223942Z",
+  "updated_at": "2026-11-12T16:30:18.223979Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

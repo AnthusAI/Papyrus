@@ -97,6 +97,8 @@ _ENTRIES = dict([
      "--reference ID --stars 1-5|clear [--agent YOUR_NAME] [--dry-run]", "editor", _DRY, "tag-and-link"),
   _e("references set-section", "Set or clear the newsroom section of a Reference.",
      "--reference LINEAGE (--section NAME|SLUG|PUBLICATION#SLUG | --clear) [--agent YOUR_NAME] [--dry-run] [--json]", "both", _DRY, ""),
+  _e("references auto-section", "Give each accepted Reference with no section (and no person's clear) the section the site cyclotron is sure of, by the threshold learned from the approved Section proof.",
+     "[--config STEERING.yml] [--doctrine DOCTRINE.yml] [--all] [--worker NAME] [--dry-run] [--json]  (--doctrine is required unless --dry-run)", "both", _DRY, ""),
   _e("references approve", "Accept a pending Reference as the signed-in person.",
      "--reference ID [--agent YOUR_NAME] [--note TEXT] [--reason-code CODE] [--section SECTION_ID] [--dry-run]", "editor", _DRY, ""),
   _e("references reject", "Reject a Reference as the signed-in person; a rejection needs --note or --reason-code.",
@@ -129,6 +131,11 @@ _ENTRIES = dict([
   _e("stories retire", "Take a Story down and redirect every address it was served at (301) to another published Story; --undo restores it.",
      "--story LINEAGE|ID (--redirect-to LINEAGE|ID | --undo) [--no-trigger] [--dry-run]  (refuses an unpublished, missing, same or retired target; nothing is deleted)",
      "both", _DRY, "publish"),
+  _e("stories schedule", "Publish a Story's newest version at a chosen time (once, by the normal publish path), or remove its schedule.",
+     "--story LINEAGE (--at TIME | --clear) [--item VERSION_ID] [--json] [--dry-run]  (TIME: 2026-11-13 09:00 is read in the publication's time zone, 2026-11-13T09:00:00-05:00 or ...Z is exact; "
+     "a time that does not exist there is refused and one that happens twice asks for the offset; needs publication.timeZone in the site's backend settings)", "editor", _DRY, "publish"),
+  _e("stories schedule-list", "List the scheduled, overdue and blocked versions soonest first, of one Story or of the site between two times.",
+     "[--story LINEAGE] [--from TIME] [--to TIME] [--state scheduled|publishing|blocked|overdue ...] [--json]", "editor", "reads", "publish"),
   _e("stories set-stars", "Rate a Story as the signed-in person.", "--story LINEAGE --stars 0-5 [--agent YOUR_NAME] [--dry-run]  (0 clears the rating)", "editor", _DRY, "tag-and-link"),
   _e("stories link-concept", "Tag a Story with existing accepted concepts (edge tagged_with); never creates a concept.",
      "--story LINEAGE|SLUG --concept NAME|#HASHTAG|NODEKEY [--concept ...] [--note TEXT] [--author-label NAME] [--dry-run] [--json]", "both", _DRY, "tag-and-link"),
@@ -161,6 +168,8 @@ _ENTRIES = dict([
   _e("stories repair-versions", "Repair a Story's version records.", "--story LINEAGE [--dry-run]", "operator", _DRY, ""),
   _e("stories head-index", "Fill in and check the head stage key (one row per Story in the head stage index). A dry run unless --apply.",
      "[--apply] [--dry-run] [--stage STAGE ...] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
+  _e("stories backfill-published-dates", "Give published Stories their first publication time and the served version's publish time, from what their versions recorded. A dry run unless --apply.",
+     "[--apply] [--dry-run] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
   _e("stories repair-image-paths", "Repair image paths in a Story's versions. Read only unless you pass --write.", "--story LINEAGE [--write] [--bucket B] [--identity-pool-id ID]", "operator", "reads", ""),
   # ---- knowledge --------------------------------------------------------------------------------------------------
   _e("knowledge concepts search", "Find accepted concepts by meaning (name matches first, duplicates flagged). Free text needs OPENAI_API_KEY in this shell.",
@@ -329,7 +338,7 @@ def _drafted(path: str) -> Usage | None:
 
 GROUP_ORDER = {
   "references": ["search", "list", "show", "text", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
-  "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
+  "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "next", "step", "versions", "note", "agent-note"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],

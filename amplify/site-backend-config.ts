@@ -96,6 +96,11 @@ export type PapyrusPublicationConfig = {
    * Markus site gets when it sets none, false when `publication` is written out in the site config.
    */
   reprojectOnDeploy?: boolean;
+  /**
+   * The publication's IANA time zone ("America/New_York"). Setting it turns scheduled publishing on (docs/scheduled-publishing.md): editors pick a time in this zone,
+   * only the UTC instant is stored, and the deploy wires the Scheduler role, dead letter queue and alarm. Needs the S3 projection publication.
+   */
+  timeZone?: string;
 };
 
 const CLOUDFRONT_DISTRIBUTION_ARN = /^arn:aws[a-z-]*:cloudfront::\d{12}:distribution\/[A-Z0-9]+$/;
@@ -107,6 +112,17 @@ function isLivePrefix(value: unknown): boolean {
 function isRelativePathWithoutParentSegments(value: string): boolean {
   if (value === "" || value.startsWith("/") || value.includes("\\")) return false;
   return !value.split("/").includes("..");
+}
+
+/** An IANA zone name the runtime knows ("America/New_York"); the Python side reads times in it. */
+export function isIanaTimeZone(name: unknown): boolean {
+  if (typeof name !== "string" || !/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$|^UTC$/.test(name)) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: name });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function validatePublicationConfig(publication: unknown): string[] {
@@ -130,6 +146,9 @@ export function validatePublicationConfig(publication: unknown): string[] {
   }
   if (config.edgeDistributionArn !== undefined && !CLOUDFRONT_DISTRIBUTION_ARN.test(config.edgeDistributionArn)) {
     problems.push("publication.edgeDistributionArn must be a CloudFront distribution ARN (arn:aws:cloudfront::<account>:distribution/<id>)");
+  }
+  if (config.timeZone !== undefined && !isIanaTimeZone(config.timeZone)) {
+    problems.push("publication.timeZone must be an IANA time zone name such as America/New_York");
   }
   if (config.reprojectOnDeploy !== undefined && typeof config.reprojectOnDeploy !== "boolean") {
     problems.push("publication.reprojectOnDeploy must be a boolean");

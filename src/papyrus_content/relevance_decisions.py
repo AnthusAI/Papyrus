@@ -21,7 +21,7 @@ from typing import Any, Mapping, Sequence
 from .catalog import _record, semantic_relation_record
 from .ids import hash_short, safe_id
 from .reference_policy import scope_training_label_for_reference
-from .reference_vote import HUMAN, latest_vote
+from .reference_vote import CYCLOTRON, HUMAN, latest_vote
 
 RELEVANCE_RELATION = "relevance_decision_is"
 DECISION_NODE_KIND = "relevanceDecision"
@@ -191,9 +191,12 @@ def human_section_for_review(reference: Mapping[str, Any], section_ids: Sequence
 
     Only an explicit human (or delegated) accept that names one of the known
     section ids teaches a section. Agents, unknown actors, rejections and
-    unrecognised ids never produce a section label.
+    unrecognised ids never produce a section label, and neither does a section the site cyclotron set itself
+    (``curationSectionActorKind`` ``cyclotron``, docs/reference-auto-section.md): the machine never learns from its own tags.
     """
     if not curation_was_made_by_a_human(reference):
+        return None
+    if reference.get("curationSectionActorKind") == CYCLOTRON:
         return None
     if reference.get("curationStatus") != "accepted":
         return None
