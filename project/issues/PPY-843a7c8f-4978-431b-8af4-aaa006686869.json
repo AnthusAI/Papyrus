@@ -17,10 +17,17 @@
       "text": "Merged to develop (not released): #1492 Item.language + language group + stories languages backfill; #1499 glossary kind (PPY-795b4b); #1503 papyrus.story.localize engine, procedures/newsroom/story_localize.tac, LocalizationRequest desired-state record, papyrus stories localize. Capped real run 2026-11-13 (library stages, nothing saved to any site) on the MoM Hugging Face article: zh-Hans saved, 1 round, 76 model calls, $0.0132; es-419 saved, 2 rounds, 2 reverted blocks, $0.0103; total $0.0234 of $1. Outputs in ~/Projects/papyrus-translation-experiment/procedure-run/. Open: publish writer + worker (M2), listing keys with language, hold on disagreeing judge passes (decision pending).",
       "created_at": "2026-11-13T21:25:01.327559Z",
       "comment_type": "default"
+    },
+    {
+      "id": "82e816d9-1ce2-4d50-84e4-f1aa7117f381",
+      "author": "home",
+      "text": "FYI from the multi-tenant work (PR #1501, merged to develop 2026-11-13): LocalizationRequest is now in a new optional model group, `localization`, in OPTIONAL_MODEL_GROUPS (amplify/data/schema.ts). The listing indexes plus LocalizationRequest had taken a brand-new site's bootstrap-stage synth to 2,001 resources, over the 2,000 budget that scripts/test-bootstrap-stage.ts enforces (CloudFormation fails at 2,500 per operation); LocalizationRequest qualifies because nothing relates to it and no custom operation returns it. What it means: existing sites are unaffected (the group is only left out when a site sets PAPYRUS_BOOTSTRAP_STAGE=1 or lists it in excludeModelGroups). A brand-new site's FIRST deploy (bootstrap stage) has no LocalizationRequest table or API, so translation requests cannot be recorded until its second, normal deploy adds the model; nothing should rely on that model during the bootstrap deploy. If a future change makes another model relate to LocalizationRequest or a custom operation return it, it must leave the optional group (the group rule in schema.ts). Headroom is now 1,970 of 2,000. Also: Item's tenantId listing index moved to PPY-e958b5 because this release already gives Item listItemsByLanguageGroupAndLanguage (one new index per table per release).",
+      "created_at": "2026-11-13T22:25:17.827549Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-13T14:31:17.885224Z",
-  "updated_at": "2026-11-13T21:25:01.328343Z",
+  "updated_at": "2026-11-13T22:25:17.829298Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
