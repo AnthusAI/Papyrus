@@ -5,14 +5,13 @@ Configuration comes from the environment the stack sets; a missing variable stop
 
 from __future__ import annotations
 
-import json
 import os
 import time
 from typing import Any
 
 import boto3
 
-from papyrus_content.announcements.actions import handle
+from papyrus_content.announcements.actions import handle_event
 from papyrus_content.announcements.settings import AnnouncementSettings
 from papyrus_content.announcements.stores import DynamoConnection, DynamoSettings, SsmParameters
 from papyrus_content.announcements.x_account import XAccounts, XEndpoints
@@ -33,11 +32,4 @@ _accounts = XAccounts(
 
 
 def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
-    identity = event.get("identity") or {}
-    groups = identity.get("groups") if isinstance(identity.get("groups"), list) else []
-    claims = identity.get("claims") or {}
-    actor = str(claims.get("email") or identity.get("username") or "console")[:100]
-    operation = str((event.get("info") or {}).get("fieldName") or "")
-    raw = (event.get("arguments") or {}).get("input")
-    payload = json.loads(raw) if isinstance(raw, str) and raw else {}
-    return handle(operation, payload, [g for g in groups if isinstance(g, str)], actor, _accounts, _settings)
+    return handle_event(event, _accounts, _settings)
