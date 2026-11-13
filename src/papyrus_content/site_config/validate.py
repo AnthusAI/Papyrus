@@ -47,8 +47,8 @@ def _where(path) -> str:
     return text
 
 
-def _messages(error: ValidationError) -> list[str]:
-    """One message per problem, each naming the setting (a bad object can carry several refused keys)."""
+def schema_messages(error: ValidationError, subject: str = "SiteConfig") -> list[str]:
+    """One message per problem, each naming the setting (a bad object can carry several refused keys); ``subject`` names the document type."""
     where = _where(error.absolute_path)
     prefix = f"{where}: " if where else ""
     rule, schema = error.validator, error.validator_value
@@ -59,7 +59,7 @@ def _messages(error: ValidationError) -> list[str]:
         for name in sorted(set(error.instance) - set(error.schema.get("properties", {}))):
             here = f"{where}.{name}" if where else name
             reason = REFUSED_SETTINGS.get(name)
-            messages.append(f"{here}: refused on the shared tier, {reason}" if reason else f"{here}: is not a SiteConfig setting")
+            messages.append(f"{here}: refused on the shared tier, {reason}" if reason else f"{here}: is not a {subject} setting")
         return messages
     if rule == "const":
         return [f"{prefix}must be {schema!r}"]
@@ -82,7 +82,7 @@ def validate_site_config(config: object) -> list[str]:
     """Every problem with ``config``, each naming the setting; an empty list means it is valid for the shared tier."""
     if not isinstance(config, Mapping):
         return ["SiteConfig: must be an object"]
-    errors = [message for error in sorted(_VALIDATOR.iter_errors(config), key=lambda e: list(map(str, e.absolute_path))) for message in _messages(error)]
+    errors = [message for error in sorted(_VALIDATOR.iter_errors(config), key=lambda e: list(map(str, e.absolute_path))) for message in schema_messages(error)]
     sections = config.get("sections")
     if isinstance(sections, list):
         for key in ("name", "slug"):

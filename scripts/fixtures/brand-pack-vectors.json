@@ -1,0 +1,932 @@
+{
+  "description": "Shared vectors for the BrandPack v1 validator. A case with no errors must validate cleanly; otherwise the validator must return exactly one message per entry in errors, and each message must contain its entry as a substring. Used by the Python tests and, later, the TypeScript twin.",
+  "cases": [
+    {
+      "name": "valid in both themes",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": []
+    },
+    {
+      "name": "valid with logo and image style",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        },
+        "logo": {
+          "asset": "lantern-quay.svg",
+          "alt": "A lantern on a quay"
+        },
+        "imageStyle": {
+          "treatment": "pictogram",
+          "summary": "Flat white pictograms on teal."
+        }
+      },
+      "errors": []
+    },
+    {
+      "name": "valid without logo, mono body font",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "JetBrains Mono"
+        }
+      },
+      "errors": []
+    },
+    {
+      "name": "body text exactly at the 4.5 minimum passes",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FFFFFF",
+            "ink": "#767676",
+            "bandBg": "#FFFFFF",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#FFFFFF",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": []
+    },
+    {
+      "name": "body text just under the 4.5 minimum is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FFFFFF",
+            "ink": "#777777",
+            "bandBg": "#FFFFFF",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#FFFFFF",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors.light: ink on bg (#777777 on #FFFFFF) has contrast 4.47:1, needs 4.5:1",
+        "colors.light: ink on bandBg (#777777 on #FFFFFF) has contrast 4.47:1, needs 4.5:1",
+        "colors.light: ink on bandCardBg (#777777 on #FFFFFF) has contrast 4.47:1, needs 4.5:1",
+        "colors.light: ink on bandMutedBg (#777777 on #FFFFFF) has contrast 4.47:1, needs 4.5:1"
+      ]
+    },
+    {
+      "name": "dark mode body text is low contrast",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#5A6672",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors.dark: ink on bg (#5A6672 on #12171D) has contrast 3.06:1, needs 4.5:1",
+        "colors.dark: ink on bandBg (#5A6672 on #1A2129) has contrast 2.76:1, needs 4.5:1",
+        "colors.dark: ink on bandCardBg (#5A6672 on #202A33) has contrast 2.48:1, needs 4.5:1",
+        "colors.dark: ink on bandMutedBg (#5A6672 on #26323D) has contrast 2.22:1, needs 4.5:1"
+      ]
+    },
+    {
+      "name": "button label is low contrast in light mode",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#9FB8C0",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors.light: buttonInk on buttonBg (#9FB8C0 on #1F4E5F)"
+      ]
+    },
+    {
+      "name": "a rule that differs from the page only in hue is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#2A1F3D",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors.dark: rule on bg (#2A1F3D on #12171D) has contrast 1.16:1, needs 3:1 (must differ in lightness, not only hue"
+      ]
+    },
+    {
+      "name": "a focus ring close in lightness to the page is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#E9C77A"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors.light: focus on bg (#E9C77A on #FBF8F1)"
+      ]
+    },
+    {
+      "name": "a button fill close in lightness to the page is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#2E4A57",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors.dark: buttonBg on bg (#2E4A57 on #12171D)"
+      ]
+    },
+    {
+      "name": "failures in both themes are all reported",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#AAAAAA",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#444444",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors.light: ink on bg",
+        "colors.light: ink on bandBg",
+        "colors.light: ink on bandCardBg",
+        "colors.light: ink on bandMutedBg",
+        "colors.dark: ink on bg",
+        "colors.dark: ink on bandBg",
+        "colors.dark: ink on bandCardBg",
+        "colors.dark: ink on bandMutedBg"
+      ]
+    },
+    {
+      "name": "a font outside the allow-list is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Comic Sans MS",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "fonts.heading: 'Comic Sans MS' is not an allowed font"
+      ]
+    },
+    {
+      "name": "custom CSS is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        },
+        "css": "body { background: red; }"
+      },
+      "errors": [
+        "css: refused on the shared tier, custom CSS is not allowed"
+      ]
+    },
+    {
+      "name": "spacing and borders are refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        },
+        "spacing": {
+          "base": "2rem"
+        },
+        "borders": {
+          "width": "4px"
+        }
+      },
+      "errors": [
+        "spacing: refused on the shared tier",
+        "borders: refused on the shared tier"
+      ]
+    },
+    {
+      "name": "an unknown setting is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        },
+        "sparkle": true
+      },
+      "errors": [
+        "sparkle: is not a BrandPack setting"
+      ]
+    },
+    {
+      "name": "an unknown colour role is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E",
+            "accent": "#FF00FF"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors.light.accent: is not a BrandPack setting"
+      ]
+    },
+    {
+      "name": "a colour that is not a six-digit hex is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "white",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors.dark.ink: 'white' is not in the allowed form"
+      ]
+    },
+    {
+      "name": "a missing dark theme is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors: 'dark' is required"
+      ]
+    },
+    {
+      "name": "a missing role is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "colors.light: 'focus' is required"
+      ]
+    },
+    {
+      "name": "another schema version is refused",
+      "pack": {
+        "schemaVersion": 2,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        }
+      },
+      "errors": [
+        "schemaVersion: must be 1"
+      ]
+    },
+    {
+      "name": "an image style other than pictograms is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        },
+        "imageStyle": {
+          "treatment": "photo"
+        }
+      },
+      "errors": [
+        "imageStyle.treatment: must be 'pictogram'"
+      ]
+    },
+    {
+      "name": "a logo that is not an uploaded picture file is refused",
+      "pack": {
+        "schemaVersion": 1,
+        "name": "Lantern Quay",
+        "wordmark": {
+          "text": "Lantern Quay"
+        },
+        "colors": {
+          "light": {
+            "bg": "#FBF8F1",
+            "ink": "#1B2430",
+            "bandBg": "#F2EDE0",
+            "bandCardBg": "#FFFFFF",
+            "bandMutedBg": "#E9E2D0",
+            "buttonBg": "#1F4E5F",
+            "buttonInk": "#FFFFFF",
+            "rule": "#7A766A",
+            "focus": "#B3541E"
+          },
+          "dark": {
+            "bg": "#12171D",
+            "ink": "#E9ECEF",
+            "bandBg": "#1A2129",
+            "bandCardBg": "#202A33",
+            "bandMutedBg": "#26323D",
+            "buttonBg": "#7CC4D9",
+            "buttonInk": "#0F1A20",
+            "rule": "#7D8893",
+            "focus": "#F2B26B"
+          }
+        },
+        "fonts": {
+          "heading": "Playfair Display",
+          "body": "Source Serif 4"
+        },
+        "logo": {
+          "asset": "https://elsewhere.example/logo.svg",
+          "alt": "Logo"
+        }
+      },
+      "errors": [
+        "logo.asset: 'https://elsewhere.example/logo.svg' is not in the allowed form"
+      ]
+    },
+    {
+      "name": "a pack that is not an object is refused",
+      "pack": [],
+      "errors": [
+        "BrandPack: must be an object"
+      ]
+    }
+  ]
+}

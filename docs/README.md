@@ -73,6 +73,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [site-hosting.md](site-hosting.md): hosting runbook for Markus (S3 and CloudFront) and Pretext (Amplify) sites.
 - [site-stacks.md](site-stacks.md): ops UI and reader output as independent plugins.
 - [site-theme-packs.md](site-theme-packs.md): theme packs and ops chrome on `SiteBrand`.
+- [brand-pack.md](brand-pack.md): the shared-tier brand pack: roles, fonts from an allow-list, contrast and colour-safe checks, shared vectors.
 - [site-workspace.md](site-workspace.md): the local folder convention for a split reader and CMS.
 - [standard-site.md](standard-site.md): the approved design for the standard Papyrus site (design record, 2026-10-05; the packages it calls a spike are now published).
 - [pluggable-publishers.md](pluggable-publishers.md): Pretext and Markus publication front ends.

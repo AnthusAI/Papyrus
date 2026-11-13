@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://papyrus.anth.us/schemas/brand-pack-v1.json",
+  "title": "BrandPack v1",
+  "description": "What an owner on the shared tier may change about a site's look: a name, a logo, a wordmark, role colours for light and dark, two fonts from the allow-list and an image-style slot. Anything not listed here is refused (additionalProperties is false everywhere): custom CSS, sizes, spacing and borders are fixed by the shared stylesheet. Contrast and font rules are in policy.json and applied by validate.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "name", "wordmark", "colors", "fonts"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "name": {"type": "string", "minLength": 1, "maxLength": 80},
+    "logo": {
+      "type": "object",
+      "description": "An uploaded picture shown in the masthead: the asset file name in the site's media store, and its alternative text.",
+      "additionalProperties": false,
+      "required": ["asset", "alt"],
+      "properties": {
+        "asset": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*\\.(svg|png|webp)$", "maxLength": 100},
+        "alt": {"type": "string", "minLength": 1, "maxLength": 120}
+      }
+    },
+    "wordmark": {
+      "type": "object",
+      "description": "The site's name set in the heading font, shown beside or instead of the logo.",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1, "maxLength": 40}
+      }
+    },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["light", "dark"],
+      "properties": {
+        "light": {"$ref": "#/$defs/theme"},
+        "dark": {"$ref": "#/$defs/theme"}
+      }
+    },
+    "fonts": {
+      "type": "object",
+      "description": "Font families; each must be in the allow-list in policy.json.",
+      "additionalProperties": false,
+      "required": ["heading", "body"],
+      "properties": {
+        "heading": {"type": "string", "minLength": 1, "maxLength": 60},
+        "body": {"type": "string", "minLength": 1, "maxLength": 60}
+      }
+    },
+    "imageStyle": {
+      "type": "object",
+      "description": "The image-style slot (PPY-1f68bf). v1 accepts still pictograms only.",
+      "additionalProperties": false,
+      "required": ["treatment"],
+      "properties": {
+        "treatment": {"const": "pictogram"},
+        "summary": {"type": "string", "maxLength": 200}
+      }
+    }
+  },
+  "$defs": {
+    "hex": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+    "theme": {
+      "type": "object",
+      "description": "One colour per role, named for the standard front end's --papyrus-* custom properties: bg, ink, band-bg, band-card-bg, band-muted-bg, button-bg, button-ink, rule and focus.",
+      "additionalProperties": false,
+      "required": ["bg", "ink", "bandBg", "bandCardBg", "bandMutedBg", "buttonBg", "buttonInk", "rule", "focus"],
+      "properties": {
+        "bg": {"$ref": "#/$defs/hex"},
+        "ink": {"$ref": "#/$defs/hex"},
+        "bandBg": {"$ref": "#/$defs/hex"},
+        "bandCardBg": {"$ref": "#/$defs/hex"},
+        "bandMutedBg": {"$ref": "#/$defs/hex"},
+        "buttonBg": {"$ref": "#/$defs/hex"},
+        "buttonInk": {"$ref": "#/$defs/hex"},
+        "rule": {"$ref": "#/$defs/hex"},
+        "focus": {"$ref": "#/$defs/hex"}
+      }
+    }
+  }
+}
