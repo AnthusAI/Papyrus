@@ -2,14 +2,15 @@
 Feature: A research run that cannot write to disk, or whose sources were not taken in, can be repaired and says so
   The first real run of a research.multi assignment by the worker in the cloud took in none of its sources, because the step that takes a packet's
   sources into the newsroom writes a catalog file under the code directory, and in the cloud that directory cannot be written. Now that step writes
-  under the system's temporary directory when the code directory cannot be written. The operator command that takes the sources in by hand,
+  under the directory the environment names in PAPYRUS_RUNS_DIR (a Lambda names one under /tmp), and stops with an error that names the setting when neither it
+  nor the code directory can be written. The operator command that takes the sources in by hand,
   process-proposals with cited-only, also finishes the job a research run does: it links the taken-in and the already held References to the Story as
   consulted by the assignment, and summarizes the taken-in ones. It can be run twice: it adds no second link, lowers no role and keeps what is written.
 
-  Scenario: The step that takes sources in writes under the temporary directory when the code directory is read-only
-    Given a code directory that cannot be written
+  Scenario: The step that takes sources in writes under PAPYRUS_RUNS_DIR when the code directory is read-only
+    Given a code directory that cannot be written and PAPYRUS_RUNS_DIR naming a writable directory
     When the sources of a research packet are taken in
-    Then the catalog was written under the temporary directory
+    Then the catalog was written under the configured run directory
 
   Scenario: Taking sources in links the taken-in and held References and summarizes only the taken-in one
     Given a Story whose reporter research assignment found one new Reference and one already held

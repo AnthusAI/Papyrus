@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "930041ce-4fc9-4ade-815e-9cc56db1a837",
+  "issue_id": "PPY-888d013d-2f7f-44b2-a5f9-0c04f7c4a462",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T12:37:32.612Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The Papyrus vocabulary is published as a context generated from the relation types",
+    "description": "As a machine reader, I want one published Papyrus vocabulary (a JSON-LD context mapping public relation types to SKOS and schema.org), so that links in our structured data have defined meanings. One vocabulary for all sites, published on p.apyr.us, generated from the relation-types file.\n\n```gherkin\nFeature: Published vocabulary\n  Scenario: Public relation types are described once, for every site\n    Given the relation-types file marks which types are public\n    When the vocabulary is built\n    Then it defines each public type with its label, description and direction\n    And \"broader than\", \"narrower than\", \"related to\" and \"same as\" map to their SKOS terms\n\n  Scenario: A private relation type is never in the vocabulary\n    Given the relation type \"quality rating is\" is not marked public\n    When the vocabulary is built\n    Then it does not mention that type\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-25fae4b5-5fe6-4ebd-b3fe-34f9a1764edf",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}

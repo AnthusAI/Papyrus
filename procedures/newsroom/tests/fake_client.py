@@ -9,6 +9,8 @@ from typing import Any
 from papyrus_content.graphql_authoring import INDEX_DEFINITIONS
 
 INDEX_MODELS = {
+    "referencesByCorpusAndExternalItem": "Reference",
+    "knowledgeCorporaByRoleAndName": "KnowledgeCorpus",
     "itemBySlug": "Item",
     "itemsByLineageAndVersion": "Item",
     "itemScheduleByLineage": "Item",

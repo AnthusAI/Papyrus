@@ -73,11 +73,6 @@ class HomePageSource:
     def threads(self) -> dict | None:
         return self._load(THREADS_FILE, THREADS_NAME, "threads")[1]
 
-    def digest(self) -> str:
-        """A digest of the references file's bytes; empty when there is no file."""
-        raw = self._load(REFERENCES_FILE, REFERENCES_NAME, "references")[0]
-        return "" if raw is None else hashlib.sha256(raw).hexdigest()[:16]
-
     def threads_digest(self) -> str:
         """A digest of the threads file's bytes; empty when there is no file."""
         raw = self._load(THREADS_FILE, THREADS_NAME, "threads")[0]

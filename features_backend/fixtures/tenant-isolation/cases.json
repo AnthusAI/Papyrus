@@ -1,16 +1,184 @@
 {
   "generatedBy": "scripts/generate-tenant-isolation-cases.ts",
   "summary": {
-    "models": 63,
+    "models": 67,
     "globalModels": 3,
-    "modelCases": 435,
-    "indexCases": 186,
+    "modelCases": 463,
+    "indexCases": 187,
     "subscriptionCases": 9,
-    "operationCases": 124,
-    "functionCases": 30,
+    "operationCases": 133,
+    "functionCases": 31,
     "surfaceCases": 9
   },
   "cases": [
+    {
+      "id": "model:Announcement:get",
+      "kind": "model",
+      "subject": "Announcement",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s Announcement by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Announcement:list",
+      "kind": "model",
+      "subject": "Announcement",
+      "operation": "list",
+      "probe": "alpha lists Announcement rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:Announcement:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "Announcement",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists Announcement rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Announcement:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "Announcement",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a Announcement with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Announcement:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "Announcement",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own Announcement setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Announcement:update-foreign-row",
+      "kind": "model",
+      "subject": "Announcement",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s Announcement",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Announcement:delete-foreign-row",
+      "kind": "model",
+      "subject": "Announcement",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s Announcement",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSettings:get",
+      "kind": "model",
+      "subject": "AnnouncementSettings",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s AnnouncementSettings by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSettings:list",
+      "kind": "model",
+      "subject": "AnnouncementSettings",
+      "operation": "list",
+      "probe": "alpha lists AnnouncementSettings rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:AnnouncementSettings:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "AnnouncementSettings",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists AnnouncementSettings rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSettings:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "AnnouncementSettings",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a AnnouncementSettings with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSettings:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "AnnouncementSettings",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own AnnouncementSettings setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSettings:update-foreign-row",
+      "kind": "model",
+      "subject": "AnnouncementSettings",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s AnnouncementSettings",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSettings:delete-foreign-row",
+      "kind": "model",
+      "subject": "AnnouncementSettings",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s AnnouncementSettings",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSpend:get",
+      "kind": "model",
+      "subject": "AnnouncementSpend",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s AnnouncementSpend by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSpend:list",
+      "kind": "model",
+      "subject": "AnnouncementSpend",
+      "operation": "list",
+      "probe": "alpha lists AnnouncementSpend rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:AnnouncementSpend:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "AnnouncementSpend",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists AnnouncementSpend rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSpend:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "AnnouncementSpend",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a AnnouncementSpend with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSpend:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "AnnouncementSpend",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own AnnouncementSpend setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSpend:update-foreign-row",
+      "kind": "model",
+      "subject": "AnnouncementSpend",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s AnnouncementSpend",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:AnnouncementSpend:delete-foreign-row",
+      "kind": "model",
+      "subject": "AnnouncementSpend",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s AnnouncementSpend",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
     {
       "id": "model:Assignment:get",
       "kind": "model",
@@ -3492,6 +3660,70 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "model:XConnection:get",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s XConnection by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:XConnection:list",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "list",
+      "probe": "alpha lists XConnection rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:XConnection:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists XConnection rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:XConnection:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a XConnection with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:XConnection:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own XConnection setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:XConnection:update-foreign-row",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s XConnection",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:XConnection:delete-foreign-row",
+      "kind": "model",
+      "subject": "XConnection",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s XConnection",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listAnnouncementsByAccountAndCreatedAt",
+      "kind": "index",
+      "subject": "listAnnouncementsByAccountAndCreatedAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listAnnouncementsByAccountAndCreatedAt on Announcement with accountId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listAssignmentsByTypeStatusAndCreatedAt",
       "kind": "index",
       "subject": "listAssignmentsByTypeStatusAndCreatedAt",
@@ -5068,6 +5300,78 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "operation:announcementsPause",
+      "kind": "operation",
+      "subject": "announcementsPause",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsPause with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsSaveSettings",
+      "kind": "operation",
+      "subject": "announcementsSaveSettings",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsSaveSettings with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsSettings",
+      "kind": "operation",
+      "subject": "announcementsSettings",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsSettings with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXBegin",
+      "kind": "operation",
+      "subject": "announcementsXBegin",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXBegin with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXComplete",
+      "kind": "operation",
+      "subject": "announcementsXComplete",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXComplete with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXDisconnect",
+      "kind": "operation",
+      "subject": "announcementsXDisconnect",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXDisconnect with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXSaveApp",
+      "kind": "operation",
+      "subject": "announcementsXSaveApp",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXSaveApp with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXStatus",
+      "kind": "operation",
+      "subject": "announcementsXStatus",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXStatus with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXUsage",
+      "kind": "operation",
+      "subject": "announcementsXUsage",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXUsage with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "operation:applyKnowledgeReview",
       "kind": "operation",
       "subject": "applyKnowledgeReview",
@@ -5936,7 +6240,7 @@
       "kind": "operation",
       "subject": "setReferenceSection",
       "operation": "call-with-foreign-ids",
-      "probe": "alpha calls setReferenceSection with \"beta\"'s ids for referenceId, sectionId",
+      "probe": "alpha calls setReferenceSection with \"beta\"'s ids for referenceId, sectionId, decisionRelationId",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -6049,6 +6353,14 @@
       "subject": "alexa/function",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/plugins/alexa/function (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:announcements",
+      "kind": "function",
+      "subject": "announcements",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/announcements (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
     },
     {
@@ -7234,7 +7546,27 @@
     },
     {
       "code": "model-without-tenantId",
+      "subject": "Announcement",
+      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
+    },
+    {
+      "code": "model-without-tenantId",
+      "subject": "AnnouncementSettings",
+      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
+    },
+    {
+      "code": "model-without-tenantId",
+      "subject": "AnnouncementSpend",
+      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
+    },
+    {
+      "code": "model-without-tenantId",
       "subject": "Tenant",
+      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
+    },
+    {
+      "code": "model-without-tenantId",
+      "subject": "XConnection",
       "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
     },
     {

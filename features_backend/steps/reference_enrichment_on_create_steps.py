@@ -281,3 +281,27 @@ def step_backfilled(context):
     rows = te.lane_rows(world(context).table)
     assert len(rows) == 2 and all(r["predictFor"]["enrichOnly"] for r in rows)
     assert all(r["sourceId"] == queue.enrichment_source_id(te.ENDPOINT_ANTH, te.CORPUS, r["predictFor"]["referenceId"]) for r in rows)
+
+
+@given("the line a creating command prints when the catalog holds videos")
+def step_hint_line(context):
+    context.hint_line = queue.video_line("references\tcreate-from-catalog", 2)
+
+
+@when("each command named in the hint is parsed with exactly the flags the hint gives it")
+def step_parse_hint(context):
+    try:
+        context.hint_parsed = te.parse_local_run_hint(context.hint_line)
+    except SystemExit as exit_:
+        context.hint_parsed, context.hint_exit = None, exit_.code
+
+
+@then("both commands accept those flags")
+def step_hint_accepted(context):
+    assert context.hint_parsed is not None and set(context.hint_parsed) == {"capture-thumbnails", "capture-transcripts"}
+    assert context.hint_parsed["capture-thumbnails"].write is True
+
+
+@then("the hint does not give capture-transcripts a --write flag, which it does not take")
+def step_hint_no_write(context):
+    assert ("capture-transcripts", ["--write"]) not in te.local_run_commands(context.hint_line)
