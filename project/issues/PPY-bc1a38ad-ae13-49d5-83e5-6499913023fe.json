@@ -1,0 +1,30 @@
+{
+  "id": "PPY-bc1a38ad-ae13-49d5-83e5-6499913023fe",
+  "title": "Publishing a primary Story generates its translations just in time",
+  "description": "As an editor, I want publishing a Story to generate, check and publish its translation in every enabled language by a defined procedure, so translations appear without anyone assembling them.\n\nDesign (Ryan's decisions 3 and 8): the translation procedure is data (guideline document kind translation-procedure, first consumer of guidelines-as-data P1): collect, translate changed blocks, rule checks, bilingual judge, target-language Humanus, repair or hold, render and publish, notify. Each step is a sub-task on the localization with its measured cost. Trigger is the publication setting translation.trigger (published now, approved later), written as a durable desired-state record keyed languageGroupId#language where announce_published runs (no stream on Item; a failed write fails loudly). Newer publishes overwrite the desired state; stale jobs are dropped; translation writes never enqueue translation. A new primary version shows a quiet 'updating' line on each localization until its re-translation publishes (decision 4). Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.\n\nFeature: Just-in-time translations\n\nScenario: Publishing generates every enabled language\n  Given Spanish and Chinese are enabled for a site\n  When an English Story is published\n  Then one Spanish and one Chinese job are queued and each runs the translation procedure to publish\n\nScenario: Rapid republishing is translated once\n  Given an English Story is published three times within a minute\n  When the Spanish worker runs\n  Then it translates only the newest version\n\nScenario: A correction to the original\n  Given a published Spanish localization\n  When a corrected English version is published\n  Then the Spanish page shows a quiet updating line that does not look like an error\n  And the line disappears when the re-translated Spanish version is published\n\nScenario: The trigger is a setting\n  Given a publication whose translation trigger is published\n  When an English Story is approved but not yet published\n  Then no translation runs",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25115792-da24-43d7-993a-ffec69adff32",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-9b4f5292-4d35-4ad0-8ca6-c5b1037c671f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T16:22:16.124772Z",
+  "updated_at": "2026-11-12T16:22:38.798925Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

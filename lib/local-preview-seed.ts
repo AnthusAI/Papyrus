@@ -71,13 +71,14 @@ export const PREVIEW_CHECKLIST_TEMPLATE: readonly { key: string; title: string; 
   { key: "concepts", title: "Associate with relevant Concepts", command: "papyrus stories link-concept --story {story} --concept \"Name\" --note <why>", required: true },
   { key: "related_content", title: "Add related associations", command: "papyrus stories suggest-links --story {story}", required: true },
   { key: "illustration", title: "Illustrate", command: "papyrus stories save-version --story {story} --body-file draft.md --images ./pictures", required: true },
+  { key: "rated", title: "Rate the Story", command: "papyrus stories set-stars --story {story} --stars <1-5>", required: true },
   { key: "publish", title: "Publish the Story", command: "papyrus ops content publish --id <item id>", required: false },
 ];
 /** Mirrors TEMPLATE_VERSION in src/papyrus_content/newsroom_process.py; scripts/test-story-checklist.ts checks the two agree. */
-export const PREVIEW_CHECKLIST_TEMPLATE_VERSION = 5;
+export const PREVIEW_CHECKLIST_TEMPLATE_VERSION = 6;
 const PREVIEW_CHECKLIST_EVIDENCE_SOURCES: Record<string, string> = {
   choose: "the Story's stage", direction: "the research direction", research: "the research packet", outline: "the outline", draft: "the draft version",
-  copy_edit: "the copy-edit check", illustration: "the approved cover", publish: "publishing",
+  copy_edit: "the copy-edit check", illustration: "the approved cover", rated: "the editor's star rating", publish: "publishing",
 };
 
 /** Notes the preview steps already carry, so the panel shows an open, a closed and a crowded step: the log is newest last. */
@@ -98,7 +99,7 @@ function previewNotesFor(lineageId: string, key: string): StoryStepNote[] {
 function previewChecklistFor(stageKey: string, headlineIndex: number, lineageId: string): StoryStepRecord[] {
   const stageOrder = ["idea", "assignment", "reporting", "copywriting", "illustration", "typesetting", "published"];
   const reached = Math.max(0, stageOrder.indexOf(stageKey));
-  const doneBy = (key: string): number => ({ choose: 1, direction: 1, research: 2, outline: 2, draft: 3, copy_edit: 3, concepts: 6, related_content: 6, illustration: 6, publish: 6 } as Record<string, number>)[key] ?? 99;
+  const doneBy = (key: string): number => ({ choose: 1, direction: 1, research: 2, outline: 2, draft: 3, copy_edit: 3, concepts: 6, related_content: 6, illustration: 6, rated: 6, publish: 6 } as Record<string, number>)[key] ?? 99;
   return PREVIEW_CHECKLIST_TEMPLATE.map((entry, index): StoryStepRecord => {
     const base = {
       id: `step-${lineageId}-${entry.key}`, storyLineageId: lineageId, stepKey: entry.key, stepOrder: index, templateVersion: PREVIEW_CHECKLIST_TEMPLATE_VERSION,
