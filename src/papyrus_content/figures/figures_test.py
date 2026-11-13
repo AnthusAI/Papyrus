@@ -29,7 +29,7 @@ def no_site(monkeypatch):
 
 METADATA = {
     "slug": "plain", "kind": "diagram", "audience": "A lay reader", "shows": "One tile", "complements": "Adds a picture", "surrounding_text": "There is one tile.",
-    "alt": "One tile", "caption": "A tile.", "credit": "Drafted by AI. Approved by {approved_by}.", "labelled_as": "none", "approved_by": None, "layout": "inline",
+    "alt": "One tile", "caption": "A tile.", "labelled_as": "none", "layout": "inline",
 }
 SOURCE = """<svg xmlns="http://www.w3.org/2000/svg" width="680" height="160" viewBox="0 0 680 160" role="img" aria-labelledby="t d">
 <title id="t">One tile</title>
@@ -259,10 +259,21 @@ def test_both_pictures_are_required_and_must_share_a_ratio(tmp_path):
     assert "ratios differ" in checks.picture_problems(light, png(tmp_path / "a.dark.png", 20, 12))[0]
 
 
-def test_the_directive_names_the_approver_or_a_placeholder():
-    assert 'credit="Drafted by AI. Approved by <name>."' in checks.image_directive(METADATA)
-    assert 'Approved by Ada.' in checks.image_directive({**METADATA, "approved_by": "Ada"})
-    assert checks.image_directive(METADATA).startswith('::image{\n  src="plain.png"')
+def test_our_own_figure_needs_no_credit_and_no_approval_and_the_directive_has_none():
+    assert source_problems() == []
+    directive = checks.image_directive(METADATA)
+    assert "credit" not in directive and "Approved" not in directive and directive.startswith('::image{\n  src="plain.png"')
+    assert checks.image_directive({**METADATA, "approved_by": "Ada"}) == directive   # an approval is metadata, never a visible credit
+
+
+def test_a_machine_made_credit_is_dropped_and_a_real_source_credit_is_kept():
+    assert "credit" not in checks.image_directive({**METADATA, "credit": "Drafted by AI."})
+    assert 'credit="Source: A Survey."' in checks.image_directive({**METADATA, "credit": "Source: A Survey."})
+
+
+def test_an_approval_credit_on_a_figure_is_a_problem():
+    problems = source_problems(credit="Drafted by AI. Approved by Ada.")
+    assert any("approval credit" in problem for problem in problems)
 
 
 # -- the commands ------------------------------------------------------------------------------------------------------

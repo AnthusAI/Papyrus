@@ -364,6 +364,7 @@ PORTED_COMMANDS = frozenset(
         "items:link-references",
         "stories:save-version",
         "stories:versions",
+        "stories:pull",
         "stories:link-reference",
         "stories:link-story",
         "stories:suggest-links",
@@ -876,6 +877,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         stories_save_version(flags)
     elif route == "stories:versions":
         stories_versions(flags)
+    elif route == "stories:pull":
+        from .story_commands import stories_pull
+
+        stories_pull(flags)
     elif route == "stories:link-reference":
         stories_link_reference(flags)
     elif route in ("stories:link-concept", "stories:check-links", "references:link-concept", "references:check-links"):

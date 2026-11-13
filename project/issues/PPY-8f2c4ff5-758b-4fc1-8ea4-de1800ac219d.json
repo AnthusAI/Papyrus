@@ -3,7 +3,7 @@
   "title": "GSI ledger check: CI refuses two new indexes on one table in one release, and warns near the table limit",
   "description": "Outcome: There is no automated guard for the one-new-index-per-table-per-deploy rule today (only comments in scripts/test-reference-feed-keys.ts). Add a CI check that compares the indexes of every model with origin/develop's last release tag and fails when a table gains more than one index, when an index changes its keys in place, or when a table passes 18 indexes (DynamoDB's default limit is 20; Reference is at 15, 16 with PR #1239). It also prints the release order the upgrade planner (PPY-d2cab9) needs.\n\nTouches (verified at origin/develop 23fabe1d): new scripts/test-gsi-ledger.ts, package.json test script, CI workflow, docs/releasing.md.\n\nAcceptance (Gherkin feature file: features_backend/gsi-ledger.feature):\nScenario: Two new indexes on one table fail the build\n    Given a change that adds two indexes to Reference\n    When CI runs\n    Then the GSI ledger check fails naming Reference and both indexes\n\nDependencies: blocked by nothing. Blocks PPY-1ce06f, PPY-297ebe. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Unit tests with schema fixtures.\nRollout: CI only; releasable immediately.\nRisk and mitigation: Low. Risk: false failures on renamed indexes. Mitigation: a rename is reported as remove plus add, which is what DynamoDB does anyway.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -13,10 +13,18 @@
     "multi-tenant"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "62d91e4d-6ef5-4fe9-a6f4-6d4509276801",
+      "author": "home",
+      "text": "Merged to develop: AnthusAI/Papyrus#1388 (930e2236c, 2026-11-13). Changed from the task text: the 18/16 thresholds were arbitrary; the check now fails only above DynamoDB's real limit of 20 indexes per table and prints remaining slots for changed tables. It needs release tags (ts-misc checks out with fetch-depth 0) and fails loudly without them. Not released.",
+      "created_at": "2026-11-13T17:08:53.254007Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:21.022483Z",
-  "updated_at": "2026-11-08T18:46:45.627242Z",
-  "closed_at": null,
+  "updated_at": "2026-11-13T17:08:53.455266Z",
+  "closed_at": "2026-11-13T17:08:53.455226Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

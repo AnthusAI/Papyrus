@@ -117,6 +117,8 @@ _ENTRIES = dict([
   _e("stories show", "Show one Story: headline, signals, stage moves, its References and notes.",
      "--story LINEAGE [--bucket day|week|none] [--json]", "both", "reads", "find"),
   _e("stories versions", "List a Story's saved versions (`LINEAGE-vN`); `ops content publish --id` takes one of these.", "--story LINEAGE", "both", "reads", "write-story"),
+  _e("stories pull", "Write a Story's stored body and front matter to two files, exactly what `stories save-version` takes back. Read only.",
+     "--story LINEAGE --body-file FILE --front-matter-file FILE [--version N] [--json]", "both", "reads", "write-story"),
   _e("stories create", "Create a Story. It always makes a new one (list first). There is no --type: set post or article in the newsroom editor.",
      "--title TEXT [--section ID|SLUG|NAME] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--reference REFERENCE_ID ...] [--with-assignment] [--actor-label NAME] [--dry-run]",
      "both", _DRY, "write-story"),

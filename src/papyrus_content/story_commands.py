@@ -201,6 +201,45 @@ def stories_versions(flags: list[str]) -> None:
         print("\t".join(["stories", "versions", str(version.get("versionNumber")), str(version.get("versionState")), str(version.get("versionCreatedAt") or version.get("updatedAt") or ""), str(version.get("versionCreatedBy") or ""), str(version.get("changeReason") or ""), str(version["id"])]))
 
 
+def stories_pull(flags: list[str]) -> None:
+    """papyrus stories pull --story <lineage> --body-file <file> --front-matter-file <file> [--version <N>] [--json]
+
+    Read only: writes the two local files and nothing to the Story. They hold the stored text of the current version (the one `stories show` calls
+    current), or with --version N of that exact immutable version, exactly as `stories save-version --body-file --front-matter-file` takes them back.
+    A picture path in the body or front matter is the stored path, which a save without --images keeps. Saving the pulled files unchanged still
+    makes a new version, whose text equals the one pulled: save-version never skips a save. A Story with no stored front matter gets an empty file.
+    An unknown story or version is an error and no file is written."""
+    options = parse_options(flags)
+    lineage_id = _required_option(options, "story")
+    body_file = _required_option(options, "body-file")
+    front_matter_file = _required_option(options, "front-matter-file")
+    client, _ = create_authoring_client()
+    wanted = normalize_string(options.get("version"))
+    if wanted:
+        if not wanted.isdigit() or int(wanted) < 1:
+            raise ValueError(f"--version must be a version number such as 2, not {wanted!r}.")
+        versions = story_versions(client, lineage_id)
+        if not versions:
+            raise ValueError(f"No story found for lineage {lineage_id}.")
+        record = next((row for row in versions if int(row.get("versionNumber") or 0) == int(wanted)), None)
+        if record is None:
+            have = ", ".join(str(row.get("versionNumber")) for row in versions)
+            raise ValueError(f"Story {lineage_id} has no version {wanted} (it has {have}). `papyrus stories versions --story {lineage_id}` lists them.")
+    else:
+        record = current_story_version(client, lineage_id)
+    metadata = record.get("metadata")
+    front_matter = (json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})).get("frontMatterYaml") or ""
+    body = record.get("bodyMarkus") or ""
+    for path, text in ((body_file, body), (front_matter_file, front_matter)):
+        with open(path, "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+    if options.get("json"):
+        print(json.dumps({"ok": True, "story": lineage_id, "version": record.get("versionNumber"), "id": record["id"], "state": record.get("versionState"),
+                          "bodyFile": body_file, "frontMatterFile": front_matter_file}, indent=2))
+        return
+    print(f"stories\tpull\t{lineage_id}\tversion {record.get('versionNumber')}\t{record['id']}\t{record.get('versionState')}\tbody {body_file}\tfront matter {front_matter_file}")
+
+
 def stories_repair_versions(flags: list[str]) -> None:
     """papyrus stories repair-versions --story <lineage> [--dry-run]
 
