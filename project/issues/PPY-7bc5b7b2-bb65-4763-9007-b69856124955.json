@@ -3,7 +3,7 @@
   "title": "Standard layout slice: brand pack JSON schema and validator, Python with TypeScript-shared vectors (first slice of PPY-88a883)",
   "description": "Outcome: The brand pack format (role colours light and dark, font from an allow-list, logo, wordmark, image-style slot) as a versioned JSON schema and a validator: WCAG AA contrast for every text/fill pair in both themes, lightness difference for colour-safe pairs, font allow-list. Vectors in a shared JSON file so the newsroom's TypeScript twin can reuse them later. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) brand-pack-validator, branch feature/<this issue id>-brand-pack-validator from origin/develop (spikes: branch spike/<this issue id>-brand-pack-validator, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): new src/papyrus_content/brand_pack/ (schema.json, validate.py, tests), scripts/fixtures/brand-pack-vectors.json.\n\nAcceptance (Gherkin feature file: features_backend/brand-pack-validator.feature):\nScenario: A low-contrast pack is refused naming the pair\n    Given a pack whose body text fails contrast in dark mode\n    When it is validated\n    Then it is refused naming the failing pair\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-88a883.\n\nTesting: poetry run pytest src/papyrus_content/brand_pack; poetry run behave features_backend/brand-pack-validator.feature.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -18,10 +18,18 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d5fb571a-72e4-4343-a54f-ca342c8a839b",
+      "author": "home",
+      "text": "Done: brand pack v1 schema and validator merged to develop in PR #1488 (https://github.com/AnthusAI/Papyrus/pull/1488), merge commit on develop 2026-11-13; all CI checks green before merge. Not released yet.",
+      "created_at": "2026-11-13T21:35:08.508234Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T21:32:23.756975Z",
-  "updated_at": "2026-11-08T21:32:25.532587Z",
-  "closed_at": null,
+  "updated_at": "2026-11-13T21:35:08.676340Z",
+  "closed_at": "2026-11-13T21:35:08.675961Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
