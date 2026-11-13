@@ -26,9 +26,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "85fd729a-4e73-4e5e-b116-4630cf51adde",
+      "author": "home",
+      "text": "Branch feature/PPY-ce6207-tenant-knowledge-keys, PR #1502 to develop. One mode-aware builder per language (tenant_knowledge_keys.py, lib/tenant-knowledge-keys.ts): dedicated keys unchanged (also with a fixed tenant), shared stack prefixes global feed keys, corpus ids and concept lineage ids, refuses a key with no tenant. No dual read, no backfill, no new index. Verified: pytest (builder, feed keys, intake; the full run's 34 failures fail the same on origin/develop), behave tenant-knowledge-keys + reference-intake + tenancy-mode + tenant-key-inventory and others, TS vector test, typecheck, lint, schema-parity, key-inventory and isolation-case checks. Not done: enum-valued keys (status, versionState, curationStatus, role, scope, domains, relationTypeKey, nodeKey, normalizedKeyword) need a separate decision; Lambdas still take the tenant from PAPYRUS_TENANT_ID until PPY-7dc463; browser console has no tenant source.",
+      "created_at": "2026-11-13T20:02:45.684064Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:20.157850Z",
-  "updated_at": "2026-11-13T19:30:40.883364Z",
+  "updated_at": "2026-11-13T20:02:45.685298Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
