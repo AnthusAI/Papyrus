@@ -1,4 +1,4 @@
-"""SiteConfig schema, validation and the projection.json converter, against the real projection.json of four dedicated sites."""
+"""SiteConfig schema, validation and the projection.json converter, against fictional projection.json files shaped like dedicated sites."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def load(site: str) -> dict:
 
 
 def test_the_fixtures_are_the_sites_we_expect():
-    assert {"threat-intelligence", "machines-on-machines"} <= set(SITES)
+    assert SITES == ["harbor-ledger", "meridian-field-guide"]
 
 
 @pytest.mark.parametrize("site", SITES)
@@ -43,13 +43,24 @@ def test_conversion_does_not_change_its_input(site):
     assert projection == before
 
 
-def test_threat_intelligence_settings_land_in_the_config():
-    config, rest = to_site_config(load("threat-intelligence"))
-    assert config["name"] == "Threat Intelligence"
-    assert [s["slug"] for s in config["sections"]] == ["ai", "aws", "azure", "gaming", "mission", "inside-the-newsroom"]
-    assert config["nav"] == [{"label": "Posts", "href": "/"}]
+def test_a_sectioned_newsroom_lands_in_the_config():
+    config, rest = to_site_config(load("harbor-ledger"))
+    assert config["name"] == "Harbor Ledger"
+    assert [s["slug"] for s in config["sections"]] == ["tides", "cargo", "piers", "field-dispatches"]
+    assert config["homeTemplate"] == "sections"
+    assert config["features"] == {"conversations": True, "videos": True}
+    assert [link["href"] for link in config["nav"]] == ["/", "/cargo/", "/subscribe/", "https://port.example/"]
     assert rest["hooks"] == "hooks.py"
     assert "name" not in rest["site"]
+
+
+def test_hooks_redirects_and_base_path_stay_with_the_dedicated_site():
+    config, rest = to_site_config(load("meridian-field-guide"))
+    assert set(config) <= {"schemaVersion", "name", "tagline", "purpose", "sections", "nav", "footer"}
+    assert rest["urls"]["basePath"] == "guide"
+    assert rest["redirects"]["exact"]["/old-glossary/"] == "/glossary/"
+    assert rest["hooks"] == "hooks.py"
+    assert [s["slug"] for s in config["sections"]] == ["basics", "kit", "glossary"]
 
 
 def content_for(config: dict, work: Path) -> Path:
@@ -75,7 +86,7 @@ def render(settings: dict, content: Path) -> dict[str, bytes]:
         site.cleanup()
 
 
-@pytest.mark.parametrize("site", ["threat-intelligence", "machines-on-machines"])
+@pytest.mark.parametrize("site", SITES)
 def test_the_round_tripped_site_renders_the_same_pages(site):
     projection = load(site)
     config, rest = to_site_config(projection)
@@ -86,7 +97,7 @@ def test_the_round_tripped_site_renders_the_same_pages(site):
         again = render(from_site_config(config, rest), content)
     finally:
         shutil.rmtree(work, ignore_errors=True)
-    assert "index.html" in original
+    assert any(name.endswith("index.html") for name in original)
     assert original == again
 
 

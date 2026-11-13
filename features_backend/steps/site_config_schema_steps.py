@@ -11,8 +11,8 @@ from papyrus_content.site_config import from_site_config, to_site_config, valida
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = REPO_ROOT / 'src' / 'papyrus_content' / 'site_config' / 'fixtures'
 SITE_FILES = {
-    "Threat Intelligence's": 'threat-intelligence',
-    "Machines on Machines's": 'machines-on-machines',
+    'Harbor Ledger': 'harbor-ledger',
+    'Meridian Field Guide': 'meridian-field-guide',
 }
 
 
@@ -27,7 +27,7 @@ def _render(settings, content):
         site.cleanup()
 
 
-@given("{site} projection.json for conversion")
+@given("the {site} projection.json for conversion")
 def step_projection(context, site):
     context.projection = json.loads((FIXTURES / f'{SITE_FILES[site]}.projection.json').read_text(encoding='utf-8'))
 
@@ -60,7 +60,7 @@ def step_unchanged(context):
         again = _render(context.round_tripped, root)
     finally:
         shutil.rmtree(work, ignore_errors=True)
-    assert original['index.html'] == again['index.html'], 'the home page changed'
+    assert any(name.endswith('index.html') for name in original), 'no home page was rendered'
     assert original == again, 'a page changed'
 
 

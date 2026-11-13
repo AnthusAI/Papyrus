@@ -6,18 +6,18 @@ Feature: A shared-tier site is described by a SiteConfig, never by code
   cannot set aside) and back, so both tiers run one schema. Anything outside the v1 surface, such as hooks, custom CSS, sizes, URL
   style or plugins, is refused and the owner is told which setting it was.
 
-  Scenario: TI's settings convert and render the same
-    Given Threat Intelligence's projection.json for conversion
+  Scenario: A sectioned newsroom's settings convert and render the same
+    Given the Harbor Ledger projection.json for conversion
     When it is converted to a SiteConfig and back
     Then validation passes and the rendered home page is unchanged
 
-  Scenario: Machines on Machines converts and renders the same
-    Given Machines on Machines's projection.json for conversion
+  Scenario: A site with a base path, redirects and a form converts and renders the same
+    Given the Meridian Field Guide projection.json for conversion
     When it is converted to a SiteConfig and back
     Then validation passes and the rendered home page is unchanged
 
-  Scenario: TI's projection.json converts to a valid SiteConfig
-    Given Threat Intelligence's projection.json for conversion
+  Scenario: A newsroom's projection.json converts to a valid SiteConfig
+    Given the Harbor Ledger projection.json for conversion
     When it is converted to a SiteConfig
     Then the SiteConfig is valid
     And the hooks stay behind with the dedicated site

@@ -1,17 +1,21 @@
-"""Validate a SiteConfig against ``schema.json`` (v1).
+"""Validate a SiteConfig against ``schema.json`` (v1) with ``jsonschema`` (Draft 2020-12).
 
-The validator implements only the schema keywords ``schema.json`` uses, so the file stays plain JSON Schema (the TypeScript twin reads the same
-file) without adding a dependency to the Python environment. Errors are strings that name the setting, so an owner sees which one was refused.
+The schema stays plain JSON Schema (the TypeScript twin reads the same file). ``additionalProperties`` is false everywhere, so a setting outside v1
+fails the schema; the messages here name the setting, and say why when it is one a dedicated site can set (``REFUSED_SETTINGS``).
 """
 
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Mapping
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
+
 SCHEMA = json.loads((Path(__file__).with_name("schema.json")).read_text(encoding="utf-8"))
+Draft202012Validator.check_schema(SCHEMA)
+_VALIDATOR = Draft202012Validator(SCHEMA)
 
 #: Settings a dedicated site can have in projection.json that a shared tenant may not set in v1, with the reason shown to the owner.
 REFUSED_SETTINGS = {
@@ -36,78 +40,49 @@ REFUSED_SETTINGS = {
 }
 
 
-def _type_ok(value: object, expected: str) -> bool:
-    if expected == "object":
-        return isinstance(value, Mapping)
-    if expected == "array":
-        return isinstance(value, list)
-    if expected == "string":
-        return isinstance(value, str)
-    if expected == "boolean":
-        return isinstance(value, bool)
-    if expected == "integer":
-        return isinstance(value, int) and not isinstance(value, bool)
-    if expected == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
-    return False
+def _where(path) -> str:
+    text = ""
+    for part in path:
+        text += f"[{part}]" if isinstance(part, int) else (f".{part}" if text else str(part))
+    return text
 
 
-def _resolve(node: Mapping) -> Mapping:
-    ref = node.get("$ref")
-    if not ref:
-        return node
-    target: object = SCHEMA
-    for part in ref.removeprefix("#/").split("/"):
-        target = target[part]  # type: ignore[index]
-    return target  # type: ignore[return-value]
-
-
-def _check(value: object, node: Mapping, path: str, errors: list[str]) -> None:
-    node = _resolve(node)
-    if "const" in node and (value != node["const"] or isinstance(value, bool) != isinstance(node["const"], bool)):
-        errors.append(f"{path}: must be {node['const']!r}")
-        return
-    if "enum" in node and value not in node["enum"]:
-        errors.append(f"{path}: must be one of {', '.join(map(repr, node['enum']))}")
-        return
-    if "type" in node and not _type_ok(value, node["type"]):
-        errors.append(f"{path}: must be a {node['type']}")
-        return
-    if isinstance(value, str):
-        if len(value) < node.get("minLength", 0):
-            errors.append(f"{path}: must not be empty")
-        if len(value) > node.get("maxLength", len(value)):
-            errors.append(f"{path}: is longer than {node['maxLength']} characters")
-        if "pattern" in node and not re.search(node["pattern"], value):
-            errors.append(f"{path}: {value!r} is not in the allowed form")
-    if isinstance(value, list):
-        if len(value) > node.get("maxItems", len(value)):
-            errors.append(f"{path}: has more than {node['maxItems']} entries")
-        for index, item in enumerate(value):
-            if "items" in node:
-                _check(item, node["items"], f"{path}[{index}]", errors)
-    if isinstance(value, Mapping):
-        properties = node.get("properties", {})
-        for name in node.get("required", ()):
-            if name not in value:
-                errors.append(f"{path}: {name!r} is required" if path != "SiteConfig" else f"{name!r} is required")
-        for name, item in value.items():
-            where = name if path == "SiteConfig" else f"{path}.{name}"
-            if name in properties:
-                _check(item, properties[name], where, errors)
-            elif node.get("additionalProperties") is False:
-                if name in REFUSED_SETTINGS:
-                    errors.append(f"{where}: refused on the shared tier, {REFUSED_SETTINGS[name]}")
-                else:
-                    errors.append(f"{where}: is not a SiteConfig setting")
+def _messages(error: ValidationError) -> list[str]:
+    """One message per problem, each naming the setting (a bad object can carry several refused keys)."""
+    where = _where(error.absolute_path)
+    prefix = f"{where}: " if where else ""
+    rule, schema = error.validator, error.validator_value
+    if rule == "required":
+        return [f"{prefix}{name!r} is required" for name in schema if name not in error.instance]
+    if rule == "additionalProperties":
+        messages = []
+        for name in sorted(set(error.instance) - set(error.schema.get("properties", {}))):
+            here = f"{where}.{name}" if where else name
+            reason = REFUSED_SETTINGS.get(name)
+            messages.append(f"{here}: refused on the shared tier, {reason}" if reason else f"{here}: is not a SiteConfig setting")
+        return messages
+    if rule == "const":
+        return [f"{prefix}must be {schema!r}"]
+    if rule == "enum":
+        return [f"{prefix}must be one of {', '.join(map(repr, schema))}"]
+    if rule == "type":
+        return [f"{prefix}must be a {schema}"]
+    if rule == "minLength":
+        return [f"{prefix}must not be empty"]
+    if rule == "maxLength":
+        return [f"{prefix}is longer than {schema} characters"]
+    if rule == "maxItems":
+        return [f"{prefix}has more than {schema} entries"]
+    if rule == "pattern":
+        return [f"{prefix}{error.instance!r} is not in the allowed form"]
+    return [f"{prefix}{error.message}"]
 
 
 def validate_site_config(config: object) -> list[str]:
     """Every problem with ``config``, each naming the setting; an empty list means it is valid for the shared tier."""
-    errors: list[str] = []
     if not isinstance(config, Mapping):
         return ["SiteConfig: must be an object"]
-    _check(config, SCHEMA, "SiteConfig", errors)
+    errors = [message for error in sorted(_VALIDATOR.iter_errors(config), key=lambda e: list(map(str, e.absolute_path))) for message in _messages(error)]
     sections = config.get("sections")
     if isinstance(sections, list):
         for key in ("name", "slug"):

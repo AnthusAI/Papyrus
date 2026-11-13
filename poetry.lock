@@ -9106,4 +9106,4 @@ transcripts = ["youtube-transcript-api"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "653b5c441f23ac478b802bc2ac0d379575021a3e87905754f3f364e86c37ca2c"
+content-hash = "1e26be3922e3fd76dd62816a2065f90a939f76f710b80f501d27891d3b7a6370"

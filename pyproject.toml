@@ -26,6 +26,8 @@ dependencies = [
     # The Jev client (`papyrus knowledge extract-entities`) calls the TypeSafe API with it; the knowledge-run image had no copy, so the
     # typed-extraction stage failed on `import requests` (2026-11-08).
     "requests >=2.32.3,<3",
+    # SiteConfig (the shared tier's settings) is validated against its JSON schema (PPY-ee1e02).
+    "jsonschema >=4.23,<5",
     # The shared CLI login library: `papyrus login` stores sessions in the platform's secure store
     # (macOS Keychain, Linux Secret Service/kernel keyring/memory agent, Windows Credential Manager).
     "cli-login ==0.4.1 ; sys_platform != 'linux'",

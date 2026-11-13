@@ -27,7 +27,6 @@ ALLOWED_PATH_PATTERNS = tuple(
     for pattern in (
         r"^corpora/",
         r"^src/papyrus_content/data/corpora/",  # the shipped copy of the corpora/ defaults
-        r"^src/papyrus_content/site_config/fixtures/",  # real sites' projection files, the converter's test inputs
         r"^publications/",
         r"^config/",
         r"^infra/shared-chat-runtime/cdk/[^/]+\.template\.json$",  # synthesized deployment configuration, not application logic
