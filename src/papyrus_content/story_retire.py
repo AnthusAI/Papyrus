@@ -50,6 +50,8 @@ class RetirePlan:
     #: The ids of those versions, recorded in ``metadata.retiredInto.versionIds`` for the projection (the live one stops saying it was published).
     version_ids: list[str] = field(default_factory=list)
     unchanged: bool = False
+    #: The ids of the versions that carry a schedule: retiring removes them first, so a scheduled publish cannot bring the retired Story back.
+    scheduled: list[str] = field(default_factory=list)
     republish: bool = False
     note: str | None = None
 
@@ -146,6 +148,11 @@ def plan_retire(client, story: str, redirect_to: str | None, *, undo: bool = Fal
     if info is not None and info["toLineageId"] == target:
         plan.unchanged = True
         return plan
+    from .story_schedule import scheduled_versions
+
+    plan.scheduled = [row["id"] for row in scheduled_versions(client, lineage_id)]
+    if plan.scheduled:
+        plan.changes.append(("unschedule", f"{', '.join(plan.scheduled)} (a scheduled publish would otherwise bring the Story back)"))
     if live is not None:
         plan.changes.append(("unpublish", f"{live['id']} (the page comes down; every version stays)"))
     plan.changes.append(("retire", f"{head['id']}: stage {head.get('stage')} -> {RETIRED_STAGE}, metadata.{RETIRED_INTO_KEY} -> {target}"))
@@ -241,6 +248,13 @@ def stories_retire(flags: list[str]) -> None:
     print_plan(plan, dry_run=not apply)
     if not apply or plan.unchanged:
         return
+    if plan.scheduled:
+        from .story_schedule import call_remote, refused_message
+
+        removed = call_remote(client, "schedule", {"storyLineageId": plan.lineage_id, "clear": True})
+        if removed.get("ok") is False:
+            raise ValueError(f"stories retire stopped before changing anything: the schedule could not be removed: {refused_message(removed)}")
+        print(f"stories\tretire\tunscheduled\t{plan.lineage_id}\t{', '.join(removed.get('itemIds') or [])}")
     apply_retire(client, plan, actor=actor)
     print(f"stories\tretire\tsaved\t{plan.lineage_id}")
     if not projection_requested():
