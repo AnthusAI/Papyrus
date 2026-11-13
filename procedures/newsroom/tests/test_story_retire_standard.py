@@ -67,3 +67,40 @@ def test_an_article_and_a_post_redirect_to_the_article_with_their_markdown_twins
         text = (site.work / "incremental" / key).read_text()
         assert "face-match" not in text and "detroit" not in text, key
     assert not reconcile(site.context, dry_run=True).drift
+
+
+def run_retire(site: Site, monkeypatch, capsys, *flags: str) -> list[str]:
+    """``papyrus stories retire`` against the fake site and its own projector, as the CLI runs it with the site's settings found."""
+    from papyrus_content import graphql_authoring
+    from papyrus_content.story_retire import stories_retire
+
+    monkeypatch.setattr(graphql_authoring, "create_authoring_client", lambda *args, **kwargs: (site.client, {"sub": "tester"}))
+    monkeypatch.setattr("papyrus_content.projection.runtime.load_projector", lambda *args, **kwargs: site.projector)
+    monkeypatch.setenv("PAPYRUS_SITE_PROJECTOR", "site.projector")
+    stories_retire(list(flags))
+    return capsys.readouterr().out.splitlines()
+
+
+def redirect_rows(lines: list[str]) -> dict[str, str]:
+    rows = [line.split("\t") for line in lines]
+    return {columns[3]: columns[4].removeprefix("-> ") for columns in rows if columns[2] in ("redirect", "would redirect")}
+
+
+def test_a_dry_run_names_the_public_addresses_not_the_markdown_source_paths(tmp_path: Path, monkeypatch, capsys) -> None:
+    site = standard_site(tmp_path)
+    put(site, "a", "face-match", "article")
+    put(site, "y", "computer-picked", "article")
+    lines = run_retire(site, monkeypatch, capsys, "--story", "a", "--redirect-to", "y", "--dry-run")
+    shown = redirect_rows(lines)
+    assert shown["/articles/face-match/"] == "/articles/computer-picked/"
+    assert shown["/articles/face-match/index.md"] == "/articles/computer-picked/index.md"
+    assert not any("face-match.md" in line and "redirect" in line for line in lines), lines
+
+
+def test_the_redirects_a_retire_prints_are_the_redirects_the_projection_writes(tmp_path: Path, monkeypatch, capsys) -> None:
+    site = standard_site(tmp_path)
+    put(site, "a", "face-match", "article")
+    put(site, "y", "computer-picked", "article")
+    printed = redirect_rows(run_retire(site, monkeypatch, capsys, "--story", "a", "--redirect-to", "y", "--dry-run"))
+    retire(site, "a", "y")
+    assert printed == site.redirects.mapping
