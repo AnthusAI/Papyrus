@@ -587,6 +587,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listItemsBySectionStatusAndPublishedAt               | returns nothing of "beta"        |
       | listItemsByParentAndOrder                            | returns nothing of "beta"        |
       | listItemsByHeadStageAndUpdatedAt                     | returns nothing of "beta"        |
+      | listItemsByScheduleStateAndScheduledPublishAt        | returns nothing of "beta"        |
       | listItemTagsByItemAndTag                             | returns nothing of "beta"        |
       | listItemTagsByTagAndPublishedAt                      | returns nothing of "beta"        |
       | listKnowledgeArtifactsByCorpusAndKind                | returns nothing of "beta"        |
@@ -867,6 +868,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | saveItemDraft                        | denied, or returns nothing of "beta" |
       | saveNewsroomProcedureDefinition      | denied, or returns nothing of "beta" |
       | saveNewsroomProcedureVersionDraft    | denied, or returns nothing of "beta" |
+      | scheduleItem                         | denied, or returns nothing of "beta" |
       | searchReferences                     | denied, or returns nothing of "beta" |
       | setItemStars                         | denied, or returns nothing of "beta" |
       | setPublicHandle                      | denied, or returns nothing of "beta" |

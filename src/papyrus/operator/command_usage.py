@@ -129,6 +129,11 @@ _ENTRIES = dict([
   _e("stories retire", "Take a Story down and redirect every address it was served at (301) to another published Story; --undo restores it.",
      "--story LINEAGE|ID (--redirect-to LINEAGE|ID | --undo) [--no-trigger] [--dry-run]  (refuses an unpublished, missing, same or retired target; nothing is deleted)",
      "both", _DRY, "publish"),
+  _e("stories schedule", "Publish a Story's newest version at a chosen time (once, by the normal publish path), or remove its schedule.",
+     "--story LINEAGE (--at TIME | --clear) [--item VERSION_ID] [--json] [--dry-run]  (TIME: 2026-11-13 09:00 is read in the publication's time zone, 2026-11-13T09:00:00-05:00 or ...Z is exact; "
+     "a time that does not exist there is refused and one that happens twice asks for the offset; needs publication.timeZone in the site's backend settings)", "editor", _DRY, "publish"),
+  _e("stories schedule-list", "List the scheduled, overdue and blocked versions soonest first, of one Story or of the site between two times.",
+     "[--story LINEAGE] [--from TIME] [--to TIME] [--state scheduled|publishing|blocked|overdue ...] [--json]", "editor", "reads", "publish"),
   _e("stories set-stars", "Rate a Story as the signed-in person.", "--story LINEAGE --stars 0-5 [--agent YOUR_NAME] [--dry-run]  (0 clears the rating)", "editor", _DRY, "tag-and-link"),
   _e("stories link-concept", "Tag a Story with existing accepted concepts (edge tagged_with); never creates a concept.",
      "--story LINEAGE|SLUG --concept NAME|#HASHTAG|NODEKEY [--concept ...] [--note TEXT] [--author-label NAME] [--dry-run] [--json]", "both", _DRY, "tag-and-link"),
@@ -344,7 +349,7 @@ def _drafted(path: str) -> Usage | None:
 
 GROUP_ORDER = {
   "references": ["search", "list", "show", "text", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
-  "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
+  "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "next", "step", "versions", "note", "agent-note"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],

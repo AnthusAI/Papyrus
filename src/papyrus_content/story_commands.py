@@ -524,6 +524,8 @@ def stories_agent_note(flags: list[str]) -> None:
 def stories_show(flags: list[str]) -> None:
     """papyrus stories show --story <lineage> [--bucket day|week|none] [--json]
 
+    A scheduled version adds a `schedule` line: its state (scheduled, publishing, blocked or overdue), version, the UTC time and who scheduled it
+    (`papyrus stories schedule-list --story` shows the publication's local time).
     --json prints only the story, its `related` stories (either end of a link: title, type, stage, published, note) and `unofficialRelations`
     (item-to-item relations whose name is not the official `see_also`, which the See also block never shows). After the headline line, a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt)."""
     options = parse_options(flags)
@@ -553,6 +555,14 @@ def stories_show(flags: list[str]) -> None:
                          f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
         if signal["source"] == "editor":
             print("\t".join(["stories", "show", "rating", f"ratedBy {signal['ratedBy']}", f"ratedAt {signal['ratedAt']}"]))
+        from datetime import datetime, timezone
+
+        from .story_schedule import BLOCKED_MESSAGE, BLOCKED, OVERDUE, effective_state, scheduled_versions
+
+        for row in scheduled_versions(client, lineage_id):
+            state = effective_state(row, datetime.now(timezone.utc))
+            note = BLOCKED_MESSAGE if state == BLOCKED else ("overdue: publish it now or schedule it again" if state == OVERDUE else "")
+            print("\t".join(["stories", "show", "schedule", state, f"version {row.get('versionNumber')}", f"publish at {row.get('scheduledPublishAt')} (UTC)", f"by {row.get('scheduledBy')}", note]))
     for move in metadata.get(STAGE_MOVES_KEY) or []:
         print("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
     for reference in story_references(client, lineage_id):

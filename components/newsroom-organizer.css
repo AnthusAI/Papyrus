@@ -78,11 +78,11 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .newsroom-embedded-article :is([data-newsroom-article-preview],[data-skeleton-preview]){min-height:min(28rem,55dvh)}
 /* The loading skeleton is the loaded editor's size block for block: the toolbar wraps onto more rows as the panel narrows (a container query,
    because the panel's width, not the window's, decides), and the three fields stack when it is narrow. */
-[data-skeleton-toolbar]{height:44px}[data-skeleton-stars]{height:59px}[data-skeleton-fields]{height:254px}[data-skeleton-preview]{height:min(28rem,55dvh)}
+[data-skeleton-schedule]{height:92px}[data-skeleton-toolbar]{height:44px}[data-skeleton-stars]{height:59px}[data-skeleton-fields]{height:254px}[data-skeleton-preview]{height:min(28rem,55dvh)}
 /* The headline image block is one fixed height in every state (loading, none, processing, missing, loaded), and the skeleton reserves it. */
 [data-story-headline-frame],[data-skeleton-headline]{height:11rem}
-@container (max-width:719px){[data-skeleton-toolbar]{height:80px}[data-skeleton-fields]{height:274px}}
-@container (max-width:399px){[data-skeleton-toolbar]{height:116px}}
+@container (max-width:719px){[data-skeleton-toolbar]{height:80px}[data-skeleton-fields]{height:274px}[data-skeleton-schedule]{height:113px}}
+@container (max-width:399px){[data-skeleton-toolbar]{height:116px}[data-skeleton-schedule]{height:134px}}
 .organizer-board-body .kb-issue-detail a:not(.organizer-header-button){display:block;min-height:44px;text-decoration:underline;padding:12px 0}
 .organizer-menu{height:min(85dvh,760px);max-height:85dvh;display:flex;flex-direction:column;padding:16px;border-radius:24px 24px 0 0;gap:20px}
 .organizer-menu .organizer-destinations{overflow-y:auto}.organizer-menu .organizer-destinations section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.organizer-menu .organizer-destinations h3{grid-column:1/-1;font-size:12px;text-transform:none;margin:0 0 4px}
@@ -551,6 +551,8 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-header-actions .organizer-header-button{min-height:44px}
 .organizer-header-button-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .organizer-header-button[data-newsroom-article-new]{justify-content:center;min-width:44px;padding:4px}
+/* The Schedule shortcut leaves the phone header, which has room for the search and the board controls but no further button; Schedule is one tap away in the menu. */
+.organizer-header-button[data-newsroom-schedule-link]{display:none}
 }
 
 /* Connect the CLI or an agent: flat tones and rounded rectangles, no borders. Tones come from the ink so they follow light and dark. */

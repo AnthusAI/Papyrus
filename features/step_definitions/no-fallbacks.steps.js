@@ -25,6 +25,7 @@ for (const when of [
   "it is read for how it loads a page of References",
   "a site turns inbound email on without one of them",
   "it is read for how the References page stays current",
+  "it is read for how it names a section and where its sections and proposals come from",
 ]) When(when, function () {});
 
 // Each outcome is one test in scripts/test-no-fallbacks.ts.
@@ -37,5 +38,6 @@ const outcomes = [
   ["each ordering and status filter reads its own index, an empty page is an empty page, and no table scan or older feed query takes over", /✔ news desk client: References come from their indexes/],
   ["the synth fails naming the missing setting, and no domain, corpus, hosted zone or site address of Papyrus's own is written into the engine", /✔ inbound email: no site's domain/],
   ["it opens no realtime stream for References or relations, probes no subscription method, and shows no realtime status banner", /✔ steering workspace: References refresh on open/],
+  ["a section shows its stored short title or its title, no table of section names is written into the engine, and the page does not borrow a second snapshot when the first is empty", /✔ newsroom sections: one source/],
 ];
 for (const [then, pattern] of outcomes) Then(then, async function () { assert.match(await run(), pattern); });

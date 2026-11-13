@@ -260,6 +260,11 @@ module.exports = {
     require: ["features/step_definitions/story-stars.steps.js"],
     format: ["summary"],
   },
+  storySchedule: {
+    paths: ["features/newsroom-story-schedule.feature"],
+    require: ["features/step_definitions/story-schedule.steps.js"],
+    format: ["summary"],
+  },
   autoAcceptedList: {
     paths: ["features/newsroom-auto-accepted-list.feature"],
     require: ["features/step_definitions/auto-accepted-list.steps.js"],

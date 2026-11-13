@@ -44,3 +44,8 @@ Feature: One correct path that fails clearly
     Given the steering workspace source
     When it is read for how the References page stays current
     Then it opens no realtime stream for References or relations, probes no subscription method, and shows no realtime status banner
+
+  Scenario: A section is called by its own stored name and the page has one list of sections
+    Given the steering workspace source
+    When it is read for how it names a section and where its sections and proposals come from
+    Then a section shows its stored short title or its title, no table of section names is written into the engine, and the page does not borrow a second snapshot when the first is empty

@@ -28,10 +28,17 @@
       "text": "Decisions (PR 1430): (1) Seven pages: /notifications/ (subscribe) plus confirm, confirmed, preferences, unsubscribe, unsubscribed, expired; the machine routes already redirect to these. (2) Two versioned plugin scripts: the <papyrus-notifications> web component (subscribe page only) and the pages script (all pages). (3) New read-only state kind=offered returns the site's public list settings so the component needs no inline config. (4) Lists are toggle buttons that say On/Off with bell/bell-off; no dropdowns, no borders. (5) Service 502/503 is said in words, not routed to expired (the function answers 503 until Caducus supports public audiences). (6) Slack/Discord sign-in option NOT built: those channels are not live. (7) Not deployed or released; screenshot review with Ryan (Machines on Machines first) still due before any rollout.",
       "created_at": "2026-11-12T12:33:06.154790Z",
       "comment_type": "default"
+    },
+    {
+      "id": "2cf03a66-55c5-4382-9791-c19e7b31659f",
+      "author": "home",
+      "text": "PPY-1081ad: the pages are connected to the real function on branch feat/PPY-1081ad-pages-connect (component shows the site's consent wording from state kind=offered, says 429 slow_down and invalid_consent in words, drops renderedAt; docs lose the 503 notes). It will be pushed to feature/PPY-f361ee-notification-pages once, after the function PR merges, then #1430 merges on green.",
+      "created_at": "2026-11-12T23:26:45.108012Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-04T13:17:11.911948Z",
-  "updated_at": "2026-11-12T12:46:13.083620Z",
+  "updated_at": "2026-11-12T23:26:45.108254Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

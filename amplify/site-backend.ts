@@ -13,6 +13,7 @@ import { DEFAULT_RESOLVER_WAVE_SIZE, orderModelStacksInWaves } from "./resolver-
 import { resolveSitePublication } from "./publication/default-publication";
 import { REPROJECT_ON_DEPLOY_TIMEOUT_SECONDS, addReprojectOnDeploy, reprojectDeployToken } from "./publication/reproject-on-deploy";
 import { addProjectionRetries, addS3ProjectionPublication, type S3ProjectionPublication } from "./publication/s3-projection";
+import { addScheduledPublishing, MAXIMUM_SITE_ID_LENGTH } from "./publication/scheduled-publishing";
 import { planRenditions } from "./publication/renditions-settings";
 import { addProjectionLeaseAccess } from "./publication/projection-lease";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
@@ -78,6 +79,7 @@ import {
   isLegacyProductionPipeline,
   planInboundEmailSes,
   resolveSiteBackendFeatureFlags,
+  sanitizeAwsName,
   type SiteBackendIdentity,
 } from "./site-backend-names";
 import { addStorageBackups } from "./storage-backups/construct";
@@ -561,6 +563,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   if (s3ProjectionPublication !== undefined) {
     addProjectionRetries(contentActionsLambda, s3ProjectionPublication.deadLetterQueue);
     addProjectionLeaseAccess(contentActionsLambda);
+    if (publication?.timeZone !== undefined) {
+      addScheduledPublishing(contentActionsLambda, { siteId: sanitizeAwsName(siteBackendIdentity.brandId, MAXIMUM_SITE_ID_LENGTH), timeZone: publication.timeZone });
+    }
     // Rating a Story asks content-actions (one asynchronous call) to re-render the listings whose order the rating changed.
     const categoryActionLambda = backend.categoryAction.resources.lambda as LambdaFunction;
     contentActionsLambda.grantInvoke(categoryActionLambda);
