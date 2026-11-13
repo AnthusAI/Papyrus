@@ -9,6 +9,7 @@ import {
   HANDLERS,
   NOTIFICATIONS_REQUIREMENTS,
   notificationsAlarmNames,
+  notificationsPauseAlarmNames,
   notificationsEmailName,
   notificationsEnvironment,
   notificationsFunctionName,
@@ -144,12 +145,13 @@ template.hasResourceProperties("Custom::SecureStringParameter", { ParameterName:
 // Four Python arm64 functions with the right handlers, names and timeouts.
 const functions = template.findResources("AWS::Lambda::Function");
 const ours = Object.values(functions).filter((entry) => (entry as { Properties: { Handler?: string } }).Properties.Handler?.startsWith("papyrus_content."));
-assert.equal(ours.length, 4);
+assert.equal(ours.length, 5, "router, email, flush, SES events, and the pause (no newsletter on this site)");
 for (const [handler, name] of [
   [HANDLERS.router, notificationsFunctionName("example")],
   [HANDLERS.email, notificationsEmailName("example")],
   [HANDLERS.flush, "papyrus-notifications-flush-example"],
   [HANDLERS.sesEvents, "papyrus-notifications-ses-example"],
+  [HANDLERS.pause, "papyrus-notifications-pause-example"],
 ] as const) {
   template.hasResourceProperties("AWS::Lambda::Function", {
     Handler: handler, FunctionName: name, Runtime: "python3.12", Architectures: ["arm64"],
@@ -171,13 +173,26 @@ template.hasResourceProperties("AWS::SQS::Queue", {
 });
 template.hasResourceProperties("AWS::Lambda::EventSourceMapping", { FunctionResponseTypes: ["ReportBatchItemFailures"], BatchSize: 10 });
 const alarmNames = notificationsAlarmNames("example");
-template.resourceCountIs("AWS::CloudWatch::Alarm", 2);
+template.resourceCountIs("AWS::CloudWatch::Alarm", 4);
 for (const alarmName of Object.values(alarmNames)) {
   template.hasResourceProperties("AWS::CloudWatch::Alarm", {
     AlarmName: alarmName, Namespace: "AWS/SQS", MetricName: "ApproximateNumberOfMessagesVisible", Threshold: 1,
     ComparisonOperator: "GreaterThanOrEqualToThreshold", TreatMissingData: "notBreaching",
   });
 }
+// Without the newsletter plugin the site gets the newsletter's two rate alarms under its own names, and a pause.
+for (const [alarmName, threshold] of [[notificationsPauseAlarmNames("example").bounce, 0.04], [notificationsPauseAlarmNames("example").complaint, 0.0008]] as const) {
+  template.hasResourceProperties("AWS::CloudWatch::Alarm", { AlarmName: alarmName, Threshold: threshold, ComparisonOperator: "GreaterThanThreshold", TreatMissingData: "notBreaching" });
+}
+assert.deepEqual(Object.values(notificationsPauseAlarmNames("example")), ["papyrus-notifications-example-bounce-rate", "papyrus-notifications-example-complaint-rate"], "python pause.alarm_names");
+template.hasResourceProperties("AWS::Events::Rule", {
+  EventPattern: {
+    source: ["aws.cloudwatch"],
+    "detail-type": ["CloudWatch Alarm State Change"],
+    detail: { alarmName: Object.values(notificationsPauseAlarmNames("example")), state: { value: ["ALARM"] } },
+  },
+});
+assert.match(JSON.stringify(template.findResources("AWS::IAM::Policy")), /ses:PutConfigurationSetSendingOptions/);
 for (const entry of Object.values(template.findResources("AWS::CloudWatch::Alarm"))) {
   const properties = (entry as { Properties: Record<string, unknown> }).Properties;
   assert.equal(properties.AlarmActions, undefined, "no alarm listener per site: the operator piece reads every alarm");
@@ -188,7 +203,7 @@ template.hasResourceProperties("AWS::Events::Rule", { ScheduleExpression: "rate(
 template.hasResourceProperties("AWS::Events::Rule", {
   EventPattern: {
     source: ["aws.ses"],
-    detail: { mail: { tags: { "ses:configuration-set": ["papyrus-example"], delivery: [{ exists: true }] } } },
+    detail: { mail: { tags: { "ses:configuration-set": ["papyrus-example"], delivery: [{ exists: true }], site: ["example"] } } },
   },
 });
 assert.ok(!JSON.stringify(template.toJSON()).match(/"(open|click|Open|Click)"/), "open and click events are never enabled");
@@ -226,6 +241,32 @@ assert.deepEqual(Object.keys(published).sort(), ["basePath", "contract", "fromNa
 assert.deepEqual(published.lists, [{ id: "stories", name: "New stories", description: "Every published story." }]);
 assert.ok(!JSON.stringify(published).includes("computeRoleArn"));
 assert.deepEqual(Object.keys((outputs[0] as { custom: { notifications: object } }).custom.notifications), ["actionsFunction"]);
+
+// A site that also has the newsletter plugin: the newsletter owns the rate alarms and the pause, so none is added here.
+{
+  const app = new App();
+  const awsEnvironment = { account, region: "us-east-1" };
+  const stacks: Stack[] = [];
+  const dataStack = new Stack(app, "Data", { env: awsEnvironment });
+  const backend = {
+    data: { resources: { tables: {}, graphqlApi: { apiId: "api" }, cfnResources: { cfnGraphqlApi: { attrGraphQlUrl: "https://x.test/graphql" } } } },
+    createStack: (name: string) => {
+      const stack = new Stack(app, name, { env: awsEnvironment });
+      stacks.push(stack);
+      return stack;
+    },
+    addOutput: () => undefined,
+  };
+  const contentActions = new Function(dataStack, "ContentActions", {
+    runtime: Runtime.PYTHON_3_12, architecture: Architecture.ARM_64, handler: "handler.handler", code: Code.fromInline("x"),
+  });
+  const newsletterStub = { manifest: { name: "newsletter" }, publicSettings: () => ({}), wire: () => undefined } as never;
+  wirePlugins(backend, [{ plugin: newsletterStub, config: {} }, { plugin: notificationsPlugin, config }], contentActions);
+  const withNewsletter = Template.fromStack(stacks[0]);
+  withNewsletter.resourceCountIs("AWS::CloudWatch::Alarm", 2);
+  assert.ok(!JSON.stringify(withNewsletter.toJSON()).includes("papyrus-notifications-pause-example"));
+  assert.ok(!JSON.stringify(withNewsletter.toJSON()).includes("PutConfigurationSetSendingOptions"));
+}
 
 // Two sites do not share: a different site id gives different names and parameters, and no cross-reference.
 const other = synthesize(resolveNotificationsConfig({ ...base, siteId: "other", sendingDomain: "other.example", fromAddress: "notifications@other.example", siteOrigin: "https://other.example" }));

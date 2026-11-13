@@ -578,39 +578,6 @@ const TAILORED_TOPIC_PROPOSAL_KINDS = new Set([
 
 const USER_POOL_AUTH_MODE = "userPool";
 type SemanticGraph = ReturnType<typeof createSemanticGraphSnapshot>;
-type ReferenceSubscriptionInput = {
-  filter?: {
-    newsroomFeedKey?: {
-      eq?: string;
-    };
-  };
-};
-type ReferenceSubscription = {
-  unsubscribe: () => void;
-};
-type RealtimeSubscriptionStatus = "idle" | "connected" | "connecting" | "reconnecting" | "stale" | "error";
-type SubscriptionObserver = {
-  next: (value: unknown) => void;
-  error?: (error: unknown) => void;
-};
-type ModelSubscriptionFactory = {
-  subscribe: (observer: SubscriptionObserver) => ReferenceSubscription;
-};
-type ReferenceSubscriptionModel = {
-  onCreate: (input?: ReferenceSubscriptionInput) => ModelSubscriptionFactory;
-  onUpdate: (input?: ReferenceSubscriptionInput) => ModelSubscriptionFactory;
-  onDelete?: (input?: ReferenceSubscriptionInput) => ModelSubscriptionFactory;
-};
-type SemanticRelationSubscriptionModel = {
-  onCreate: () => ModelSubscriptionFactory;
-  onUpdate: () => ModelSubscriptionFactory;
-  onDelete?: () => ModelSubscriptionFactory;
-};
-type ModelAttachmentSubscriptionModel = {
-  onCreate: () => ModelSubscriptionFactory;
-  onUpdate: () => ModelSubscriptionFactory;
-  onDelete?: () => ModelSubscriptionFactory;
-};
 
 const TAXONOMY_PROPOSAL_KINDS = new Set([
   "create-category",
@@ -747,10 +714,6 @@ function NewsDeskDashboard({
   onRefreshUserDirectory?: () => Promise<void>;
 }) {
   const dataClient = useMemo(() => generateClient<Schema>(), []);
-  const referenceSubscriptionClient = useMemo(
-    () => generateClient<Schema>({ authMode: USER_POOL_AUTH_MODE }),
-    [],
-  );
   const activeTab = initialTab;
   const pathname = usePathname();
   const pathnameReferenceLineageId = useMemo(
@@ -912,8 +875,6 @@ function NewsDeskDashboard({
     readMediumStream: readReferenceMediumStream,
     search: searchReferences,
   }), [summary?.facets?.references?.byCorpus]);
-  const [referencesRealtimeStatus, setReferencesRealtimeStatus] = useState<RealtimeSubscriptionStatus>("idle");
-  const [referencesRealtimeError, setReferencesRealtimeError] = useState<string | null>(null);
   const referencesRef = useRef(references);
   // The demo has no site to ask: its search box looks through the References the page holds, by words (the local preview adds a stand-in for meaning).
   const demoSearch = useMemo<ReferenceSearchReader | undefined>(
@@ -1490,124 +1451,6 @@ function NewsDeskDashboard({
         console.error("[ReferencesDesk] Unable to load reference attachments for deep link", error);
       });
   }, [applyReferenceRecord]);
-
-  useEffect(() => {
-    if (dashboard.isDemo || activeTab !== "references" || authState.status !== "signedIn" || !hasHydratedReferences) {
-      setReferencesRealtimeStatus("idle");
-      setReferencesRealtimeError(null);
-      return;
-    }
-    const referenceModel = referenceSubscriptionClient.models.Reference as unknown as ReferenceSubscriptionModel | undefined;
-    const semanticRelationModel = referenceSubscriptionClient.models.SemanticRelation as unknown as SemanticRelationSubscriptionModel | undefined;
-    if (!referenceModel || typeof referenceModel.onCreate !== "function" || typeof referenceModel.onUpdate !== "function") {
-      setReferencesRealtimeStatus("error");
-      setReferencesRealtimeError("Reference realtime model is unavailable.");
-      return;
-    }
-    if (!semanticRelationModel || typeof semanticRelationModel.onCreate !== "function" || typeof semanticRelationModel.onUpdate !== "function") {
-      setReferencesRealtimeStatus("error");
-      setReferencesRealtimeError("Semantic relation realtime model is unavailable.");
-      return;
-    }
-
-    let active = true;
-    let reconnectAttempts = 0;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let subscriptions: ReferenceSubscription[] = [];
-    const referenceInput = { filter: { newsroomFeedKey: { eq: "references" } } };
-
-    const clearSubscriptions = () => {
-      for (const subscription of subscriptions) subscription.unsubscribe();
-      subscriptions = [];
-    };
-
-    const scheduleReconnect = (error?: unknown) => {
-      if (!active) return;
-      clearSubscriptions();
-      reconnectAttempts += 1;
-      const delayMs = Math.min(30_000, 1000 * Math.max(1, 2 ** (reconnectAttempts - 1)));
-      setReferencesRealtimeStatus(reconnectAttempts > 1 ? "stale" : "reconnecting");
-      setReferencesRealtimeError(error instanceof Error ? error.message : "Realtime stream disconnected.");
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(() => {
-        connect();
-      }, delayMs);
-    };
-
-    const handleReferenceCreateOrUpdate = (value: unknown) => {
-      const nextReference = normalizeReferenceSubscriptionPayload(value);
-      if (!nextReference) return;
-      applyReferenceRecord(nextReference);
-    };
-
-    const handleReferenceDelete = (value: unknown) => {
-      const deletedReference = normalizeReferenceSubscriptionPayload(value);
-      const deletedId = deletedReference?.id ?? extractSubscriptionRecordId(value);
-      if (!deletedId) return;
-      const previousRecord = referencesRef.current.find((entry) => entry.id === deletedId) ?? null;
-      if (!previousRecord) return;
-      const nextRecords = referencesRef.current.filter((entry) => entry.id !== deletedId);
-      referencesRef.current = nextRecords;
-      setReferences(nextRecords);
-      setSummary((current) => patchReferenceSummaryForDelete(current, previousRecord));
-    };
-
-    const handleSemanticRelationCreateOrUpdate = (value: unknown) => {
-      const relation = normalizeSemanticRelationSubscriptionPayload(value);
-      if (!relation) return;
-      setSemanticRelations((current) => upsertSemanticRelationRecords(current, relation));
-    };
-
-    const handleSemanticRelationDelete = (value: unknown) => {
-      const relationId = extractSubscriptionRecordId(value);
-      if (!relationId) return;
-      setSemanticRelations((current) => current.filter((entry) => entry.id !== relationId));
-    };
-
-    const connect = () => {
-      if (!active) return;
-      clearSubscriptions();
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-      setReferencesRealtimeStatus(reconnectAttempts > 0 ? "reconnecting" : "connecting");
-      try {
-        const nextSubscriptions: ReferenceSubscription[] = [
-          referenceModel.onCreate(referenceInput).subscribe({ next: handleReferenceCreateOrUpdate, error: scheduleReconnect }),
-          referenceModel.onUpdate(referenceInput).subscribe({ next: handleReferenceCreateOrUpdate, error: scheduleReconnect }),
-          semanticRelationModel.onCreate().subscribe({ next: handleSemanticRelationCreateOrUpdate, error: scheduleReconnect }),
-          semanticRelationModel.onUpdate().subscribe({ next: handleSemanticRelationCreateOrUpdate, error: scheduleReconnect }),
-        ];
-        if (typeof referenceModel.onDelete === "function") {
-          nextSubscriptions.push(referenceModel.onDelete(referenceInput).subscribe({ next: handleReferenceDelete, error: scheduleReconnect }));
-        }
-        if (typeof semanticRelationModel.onDelete === "function") {
-          nextSubscriptions.push(semanticRelationModel.onDelete().subscribe({ next: handleSemanticRelationDelete, error: scheduleReconnect }));
-        }
-        subscriptions = nextSubscriptions;
-        reconnectAttempts = 0;
-        setReferencesRealtimeStatus("connected");
-        setReferencesRealtimeError(null);
-      } catch (error) {
-        scheduleReconnect(error);
-      }
-    };
-
-    connect();
-    return () => {
-      active = false;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      clearSubscriptions();
-    };
-  }, [
-    activeTab,
-    applyReferenceRecord,
-    authState.status,
-    dashboard.isDemo,
-    hasHydratedReferences,
-    referenceSubscriptionClient,
-  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -6542,8 +6385,6 @@ function ReferencesDeskView({
   onSetQualityRating,
   onReviewTopicLabel,
   qualityActionState,
-  realtimeError,
-  realtimeStatus,
   references,
   referenceAttachments,
   semanticRelations,
@@ -6567,8 +6408,6 @@ function ReferencesDeskView({
   onSetQualityRating: (reference: ReferenceRecord, rating: number) => void;
   onReviewTopicLabel: (input: { action: TopicLabelAction; category: CategorySteeringCategory; note?: string | null; reference: ReferenceRecord; sourceRelationId?: string | null }) => void;
   qualityActionState: ReferenceQualityActionState | null;
-  realtimeError?: string | null;
-  realtimeStatus?: RealtimeSubscriptionStatus;
   references: ReferenceRecord[];
   referenceAttachments: ReferenceAttachmentRecord[];
   semanticRelations: SemanticRelationRecord[];
@@ -6839,7 +6678,6 @@ function ReferencesDeskView({
   const selectedReferenceQualityActionState = selectedReference && qualityActionState?.referenceId === selectedReference.id
     ? qualityActionState
     : null;
-  const realtimeStatusMessage = formatReferencesRealtimeStatusMessage(realtimeStatus, realtimeError);
   const referenceDetailPending = Boolean(requestedReferenceLineageId) && !selectedReference && !deepLinkReferenceError;
   const referenceDetailPlaceholder = deepLinkReferenceLoading || referenceDetailPending
     ? "Loading reference…"
@@ -6848,11 +6686,6 @@ function ReferencesDeskView({
 
   return (
     <>
-      {realtimeStatusMessage ? (
-        <div className="category-steering-alert" role="status" aria-live="polite">
-          {realtimeStatusMessage}
-        </div>
-      ) : null}
       {deepLinkReferenceError ? (
         <div className="category-steering-alert" role="alert">
           {deepLinkReferenceError}
@@ -8664,10 +8497,6 @@ function useModelPayloads(
     loading: boolean;
     payloads: HydratedModelPayload[];
   }>({ error: null, loading: false, payloads: [] });
-  const subscriptionClient = useMemo(
-    () => generateClient<Schema>({ authMode: USER_POOL_AUTH_MODE }),
-    [],
-  );
 
   useEffect(() => {
     if (!ownerId) {
@@ -8676,9 +8505,6 @@ function useModelPayloads(
     }
 
     let active = true;
-    const roleSet = new Set(rolesKey ? rolesKey.split("|").filter(Boolean) : []);
-    const attachmentModel = subscriptionClient.models.ModelAttachment as unknown as ModelAttachmentSubscriptionModel | undefined;
-    let subscriptions: ReferenceSubscription[] = [];
 
     const runLoad = (showLoading: boolean) => {
       if (showLoading) setState((current) => ({ ...current, error: null, loading: true }));
@@ -8699,30 +8525,10 @@ function useModelPayloads(
 
     void runLoad(true);
 
-    const handleAttachmentEvent = (value: unknown) => {
-      const attachment = normalizeModelAttachmentSubscriptionPayload(value);
-      if (!attachment) return;
-      if (attachment.ownerKind !== ownerKind) return;
-      if (attachment.ownerId !== ownerId) return;
-      if (roleSet.size > 0 && !roleSet.has(attachment.role)) return;
-      void runLoad(false);
-    };
-
-    if (attachmentModel && typeof attachmentModel.onCreate === "function" && typeof attachmentModel.onUpdate === "function") {
-      subscriptions = [
-        attachmentModel.onCreate().subscribe({ next: handleAttachmentEvent }),
-        attachmentModel.onUpdate().subscribe({ next: handleAttachmentEvent }),
-      ];
-      if (typeof attachmentModel.onDelete === "function") {
-        subscriptions.push(attachmentModel.onDelete().subscribe({ next: handleAttachmentEvent }));
-      }
-    }
-
     return () => {
       active = false;
-      for (const subscription of subscriptions) subscription.unsubscribe();
     };
-  }, [ownerKind, ownerId, rolesKey, subscriptionClient]);
+  }, [ownerKind, ownerId, rolesKey]);
 
   return state;
 }
@@ -12663,10 +12469,6 @@ function mapsEqualReferenceMetadataFields(a: Map<string, ReferenceMetadataFields
 
 function useReferenceMetadataFields(references: ReferenceRecord[]): Map<string, ReferenceMetadataFields> {
   const [fieldsByReferenceId, setFieldsByReferenceId] = useState<Map<string, ReferenceMetadataFields>>(() => new Map());
-  const subscriptionClient = useMemo(
-    () => generateClient<Schema>({ authMode: USER_POOL_AUTH_MODE }),
-    [],
-  );
   const referenceMeta = useMemo(
     () => references.map((reference) => ({
       id: reference.id,
@@ -12676,10 +12478,6 @@ function useReferenceMetadataFields(references: ReferenceRecord[]): Map<string, 
   );
   const referenceKey = useMemo(
     () => referenceMeta.map((entry) => entry.revision).join("|"),
-    [referenceMeta],
-  );
-  const visibleReferenceIds = useMemo(
-    () => new Set(referenceMeta.map((entry) => entry.id)),
     [referenceMeta],
   );
 
@@ -12736,58 +12534,6 @@ function useReferenceMetadataFields(references: ReferenceRecord[]): Map<string, 
       active = false;
     };
   }, [referenceKey, referenceMeta]);
-
-  useEffect(() => {
-    const attachmentModel = subscriptionClient.models.ModelAttachment as unknown as ModelAttachmentSubscriptionModel | undefined;
-    if (!attachmentModel || typeof attachmentModel.onCreate !== "function" || typeof attachmentModel.onUpdate !== "function") return;
-    if (!visibleReferenceIds.size) return;
-
-    let active = true;
-    const refreshReference = async (referenceId: string) => {
-      const nextRevision = `${referenceId}:attachment`;
-      try {
-        const payloads = await loadModelPayloadsForOwner("reference", referenceId, ["metadata"]);
-        if (!active) return;
-        const metadataPayload = modelPayloadByRole(payloads, "metadata");
-        const fields = {
-          title: referenceMetadataTitle(metadataPayload),
-          subtitle: referenceMetadataSubtitle(metadataPayload),
-        };
-        referenceMetadataFieldsCache.set(referenceId, { fields, revision: nextRevision });
-        setFieldsByReferenceId((current) => {
-          const existing = current.get(referenceId);
-          if (existing && existing.title === fields.title && existing.subtitle === fields.subtitle) return current;
-          const next = new Map(current);
-          next.set(referenceId, fields);
-          return next;
-        });
-      } catch {
-        if (!active) return;
-      }
-    };
-
-    const handleAttachmentEvent = (value: unknown) => {
-      const attachment = normalizeModelAttachmentSubscriptionPayload(value);
-      if (!attachment) return;
-      if (attachment.ownerKind !== "reference") return;
-      if (attachment.role !== "metadata") return;
-      if (!visibleReferenceIds.has(attachment.ownerId)) return;
-      void refreshReference(attachment.ownerId);
-    };
-
-    const subscriptions: ReferenceSubscription[] = [
-      attachmentModel.onCreate().subscribe({ next: handleAttachmentEvent }),
-      attachmentModel.onUpdate().subscribe({ next: handleAttachmentEvent }),
-    ];
-    if (typeof attachmentModel.onDelete === "function") {
-      subscriptions.push(attachmentModel.onDelete().subscribe({ next: handleAttachmentEvent }));
-    }
-
-    return () => {
-      active = false;
-      for (const subscription of subscriptions) subscription.unsubscribe();
-    };
-  }, [subscriptionClient, visibleReferenceIds]);
 
   return fieldsByReferenceId;
 }
@@ -15164,45 +14910,6 @@ function normalizeReferenceSubscriptionPayload(value: unknown): ReferenceRecord 
   return null;
 }
 
-function normalizeSemanticRelationSubscriptionPayload(value: unknown): SemanticRelationRecord | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as { data?: unknown; id?: unknown };
-  if (typeof record.id === "string") return record as SemanticRelationRecord;
-  if (record.data && typeof record.data === "object" && typeof (record.data as { id?: unknown }).id === "string") {
-    return record.data as SemanticRelationRecord;
-  }
-  return null;
-}
-
-function normalizeModelAttachmentSubscriptionPayload(value: unknown): ModelAttachmentRecord | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as { data?: unknown; id?: unknown };
-  if (
-    typeof (record as { ownerId?: unknown }).ownerId === "string"
-    && typeof (record as { ownerKind?: unknown }).ownerKind === "string"
-    && typeof (record as { role?: unknown }).role === "string"
-  ) {
-    return record as ModelAttachmentRecord;
-  }
-  if (record.data && typeof record.data === "object") {
-    const payload = record.data as { ownerId?: unknown; ownerKind?: unknown; role?: unknown };
-    if (typeof payload.ownerId === "string" && typeof payload.ownerKind === "string" && typeof payload.role === "string") {
-      return record.data as ModelAttachmentRecord;
-    }
-  }
-  return null;
-}
-
-function extractSubscriptionRecordId(value: unknown): string | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as { id?: unknown; data?: unknown };
-  if (typeof record.id === "string") return record.id;
-  if (record.data && typeof record.data === "object" && typeof (record.data as { id?: unknown }).id === "string") {
-    return (record.data as { id: string }).id;
-  }
-  return null;
-}
-
 function buildReviewedReferenceRecord(
   records: ReferenceRecord[],
   reference: ReferenceRecord,
@@ -15340,58 +15047,6 @@ function patchReferenceSummary(
     referenceStatusCounts,
     facets: facets ?? summary.facets,
   };
-}
-
-function patchReferenceSummaryForDelete(
-  summary: NewsroomSummaryRecord | null | undefined,
-  deletedReference: ReferenceRecord | null,
-): NewsroomSummaryRecord | null {
-  if (!summary || !deletedReference) return summary ?? null;
-  const deletedStatus = normalizeReferenceStatus(deletedReference.curationStatus);
-  const deletedCorpusId = deletedReference.corpusId;
-  const counts = applyCountDelta(summary.counts, "references", -1);
-  const referenceStatusCounts = { ...summary.referenceStatusCounts };
-  decrementCount(referenceStatusCounts, deletedStatus);
-  const facets = summary.facets ? { ...summary.facets } : undefined;
-  const referenceFacets = summary.facets?.references
-    ? {
-        ...summary.facets.references,
-        byCurationStatus: { ...(summary.facets.references.byCurationStatus ?? {}) },
-        byCorpus: { ...(summary.facets.references.byCorpus ?? {}) },
-        statusByCorpus: cloneNestedNumberCounts(summary.facets.references.statusByCorpus),
-      }
-    : undefined;
-  if (referenceFacets?.byCurationStatus) decrementCount(referenceFacets.byCurationStatus, deletedStatus);
-  if (referenceFacets?.byCorpus) decrementCount(referenceFacets.byCorpus, deletedCorpusId);
-  if (referenceFacets?.statusByCorpus) {
-    const corpusCounts = { ...(referenceFacets.statusByCorpus[deletedCorpusId] ?? {}) };
-    decrementCount(corpusCounts, deletedStatus);
-    referenceFacets.statusByCorpus[deletedCorpusId] = corpusCounts;
-  }
-  if (facets && referenceFacets) facets.references = referenceFacets;
-  return {
-    ...summary,
-    counts,
-    referenceStatusCounts,
-    facets: facets ?? summary.facets,
-  };
-}
-
-function upsertSemanticRelationRecords(
-  current: SemanticRelationRecord[],
-  relation: SemanticRelationRecord,
-): SemanticRelationRecord[] {
-  return [relation, ...current.filter((entry) => entry.id !== relation.id)];
-}
-
-function formatReferencesRealtimeStatusMessage(
-  status: RealtimeSubscriptionStatus | undefined,
-  error: string | null | undefined,
-): string | null {
-  if (!status || status === "idle" || status === "connected") return null;
-  if (status === "connecting" || status === "reconnecting") return "References realtime is reconnecting.";
-  if (status === "stale") return "References realtime is temporarily stale while reconnecting.";
-  return error ? `References realtime is unavailable: ${error}` : "References realtime is unavailable.";
 }
 
 function cloneNestedNumberCounts(value: Record<string, Record<string, number>> | null | undefined): Record<string, Record<string, number>> {

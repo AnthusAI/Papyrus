@@ -1013,6 +1013,24 @@ What an editor can expect from a Save of a live item, as measured on the product
 
 Say "seconds", not "instant". Browsers always revalidate HTML (`max-age=0`).
 
+### Published and updated dates
+
+A Story has two public times, both stored on the Item and copied to its PublishedItem (PPY-271940, epic PPY-156614, plan `docs/plans/revision-history-and-published-dates.md`):
+
+| Field | Meaning | Changes when |
+| --- | --- | --- |
+| `publishedAt` | The moment the Story was first published. Every list orders by it (the `typeStatus` and `sectionStatus` indexes on `publishedAt`). | Never after the first publish. `save_story_version` carries it to every later version; a takedown and a republish keep it. |
+| `versionPublishedAt`, `versionPublishedBy` | When, and by whom, the version now served went live. The public "Updated" time. | Publishing writes a PublishedItem (a new version, or changed content). Notes, section moves, links, ratings and re-renders never change it. A saved draft has neither field until it is published. |
+| `versionCreatedAt`, `versionCreatedBy`, `changeReason` | The version's own record: who saved it, when, and the editor's "What changed" text. | Only when the version is saved. Publishing and unpublishing no longer overwrite them. |
+
+A value that is absent is absent: nothing substitutes a default. `updatedAt` stays the last write of any kind and belongs to the newsroom work queues; nothing public reads it.
+
+`papyrus stories backfill-published-dates` moves Stories published before this change to the meaning above, using only what their versions recorded (the earliest version whose `changeReason` is `publish`; an imported Story's earlier front matter date is kept). It is a dry run unless `--apply`, writes only rows that differ with each row's own `updatedAt`, and lists as `unclear` the Stories whose first publication cannot be derived, for a person to decide. See the agent CLI guide.
+
+A publish at a scheduled time is a normal publish (PPY-085d0b, `docs/scheduled-publishing.md`): `publishedAt` stays the first publication, and `versionPublishedAt` is the moment it actually went live (not the scheduled moment), with `versionPublishedBy` reading `scheduled by <person>`.
+
+`publication.timeZone` (an IANA name such as `America/New_York`) in the site's publication settings turns scheduled publishing on and is the zone editors pick times in; the deploy wires the EventBridge Scheduler role, a dead letter queue and its alarm for it. It needs the S3 projection publication. See `docs/scheduled-publishing.md`.
+
 ### What `content publish` reports, and its exit codes
 
 `papyrus ops content publish --id ID [--verify] [--verify-seconds N] [--json]` reports four stages on their own (PPY-f3b296). A purge or a check that fails never looks like a failed write.
@@ -1107,6 +1125,7 @@ Routine habit: run the dry run after any deploy that touched `content-actions`. 
 With `publication.reprojectOnDeploy: true` (the default for the publication a Markus site gets when it sets none; a site that spells `publication` out must set it), the backend deploy renders the whole site itself, so the release to `main` is the only step once the CMS Amplify app builds `main` automatically (branch `enableAutoBuild`, which the app-shell template sets and which the CMS app's `main` branch must keep). Nothing in the path needs a person's AWS access.
 
 1. The deploy runs a custom resource in the site backend. It invokes the content-actions Lambda **synchronously** with the `deploy-render` projection task and waits (the function timeout is 15 minutes; a full Anth.us render took 77 seconds).
+   Before it renders, `deploy-render` asks the live GraphQL API by introspection whether it serves every field the tools select (`papyrus_content/live_schema.py`), and waits up to five minutes while it does not. A deploy that adds attributes to a model updates the schema and the Lambda code together, and CloudFormation calls the schema complete before the API reliably validates queries against it (Machines on Machines, 5.107.2: `Field 'versionPublishedAt' in type 'Item' is undefined`). If the fields never arrive the deploy fails naming each missing `Type.field`. The same rule applies to the command-line tool: a `papyrus` version newer than the deployed backend selects fields the backend does not have yet, so deploy the backend release first.
 2. `deploy-render` runs the same render as `project --all`, then runs `reconcile` as a **dry run**. Orphan pages, stale pages and missing redirects are reported and nothing is deleted: `--all` and the dry run never delete. Repair stays a deliberate `papyrus ops content project --reconcile`.
 3. A render that cannot run fails the deploy: if the function crashes or the platform fails (storage, the projector), the custom resource fails, the stack update fails and the Amplify build goes red with the failure in the build log. That is the point of the resource, and a deploy that cannot render is a bad deploy. **A Story whose own content cannot be rendered does not fail it** (markup the site does not know, a missing rendition, a bad citation): the render skips that Story, leaves its page as it was, renders the rest (the only other place a Story's body is parsed is the introduction of a section listing, an item named `index`: that listing is written without its introduction and the Story is reported the same way; feeds, the sitemap, `llms.txt`, `llms-full.txt` and the search index read front matter and the Story's source text and never parse a body) and lists it as `unrenderable` (item id, slug, error) in the result, the Lambda log and the `DeployRenderDrift` count, so the drift alarm is in ALARM for a day after the deploy. **A rollback never fails**: CloudFormation rolls back by updating the resource with the older properties, so an Update whose deploy token (`job-<n>` or `time-<n>`) is older than the one it replaces renders nothing and succeeds. Where a rollback cannot be recognised with certainty, the content rule above still holds: content never fails the resource on any event. Delete never fails. A render that succeeds returns its summary (pages written, redirect count and the drift lists, at most 25 keys each) to the Lambda log and the CloudFormation resource data. The run also writes a CloudWatch embedded-metric line, `Papyrus/Projection` `DeployRenderDrift` (dimension `FunctionName`), and the backend creates an alarm that is in ALARM for a day after any run that found drift.
 

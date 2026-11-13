@@ -125,7 +125,7 @@ def test_publishing_stores_the_pair_for_cards():
     from papyrus_content.publishing import project_item_to_published
 
     item = {"id": "i1", "slug": "s", "type": "article", "metadata": {"frontMatterYaml": f"image: {RENDITION}\n"}, "bodyMarkus": BODY}
-    published, _ = project_item_to_published(item, [], published_at="2026-02-01T00:00:00Z", version_number=1)
+    published, _ = project_item_to_published(item, [], published_at="2026-02-01T00:00:00Z", version_published_at="2026-02-01T00:00:00Z", version_published_by="behave", version_number=1)
     metadata = published["metadata"]
     metadata = json.loads(metadata) if isinstance(metadata, str) else metadata
     assert metadata["projection"]["frontMatter"]["imageDark"].endswith("reach.dark-3-1024.png")
