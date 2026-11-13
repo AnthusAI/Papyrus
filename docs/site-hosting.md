@@ -1042,7 +1042,9 @@ A publish at a scheduled time is a normal publish (PPY-085d0b, `docs/scheduled-p
 | `invalidated` | `ok`, `skipped`, `capped`, `failed`, `unknown` | The edge cache was told to drop the old page. `paths` were purged, `skippedPaths` were not (targeted mode over its cap). `skipped` is the site's own setting. |
 | `verified` | `current`, `stale`, `not-checked` | The public URL was fetched and its `papyrus-source-version` marker compared with the published version, with the same check `update-live` uses. Without `--verify` it is one fetch, and `stale` is only information (a site that lets pages age out is expected to be stale for a while). With `--verify` the command waits up to `--verify-seconds` (default 60) for the new version and `stale` is a failure. |
 
-`--json` prints the same `stages`, plus `ok`, `exitCode`, `failedStage`, `verdict` (the words `update-live` uses) and, on a failure, `dataPublished`, `pagePublished` and `retry`.
+`--json` prints the same `stages`, plus `ok`, `exitCode`, `failedStage`, `verdict` (the words `update-live` uses, chosen from the stages in `publish_stages.verdict_for`) and, on a failure, `dataPublished`, `pagePublished` and `retry`.
+
+The verdict follows the stages. `NOT LIVE` is a page that was not built, `STILL BUILDING` a page the function is still writing, `NOT PROJECTED` a publish that built no page (`--no-trigger`). A failed or capped purge is `PROJECTED BUT NOT PURGED`. A purge that was made (`invalidated: ok`) gives `LIVE` when the public page shows the published version, `PURGED BUT THE EDGE IS STILL STALE` when it does not, and `PURGED, NOT VERIFIED` when it was not checked. A purge that was not made (`invalidated: skipped`, `unknown` or `not-applicable`) never gives a `PURGED` verdict: it gives `LIVE` when the page is current, `NOT PURGED, THE PAGE IS STALE` when it is not, and `PROJECTED, NOT PURGED, NOT VERIFIED` when it was not checked.
 
 | Exit code | Meaning |
 | --- | --- |
@@ -1061,7 +1063,7 @@ A script must check the exit code, not look for a marker in the text. The first 
 
 The edge keeps a page for the cache lifetime (one hour, `s-maxage=3600`, on the production sites; `publication.cache`), and that stays the default. For the moments an edit must be visible now, explicit operations exist (PPY-105508). They are one definition (`src/papyrus_content/page_refresh/operations.py`) behind the command line, the MCP tools and the `refreshSitePages` mutation, so the three cannot differ.
 
-**The one command an editor or agent needs:** `papyrus ops content update-live --story LINEAGE`. It re-projects the Story's page and Markdown twin, invalidates exactly those pages and the index and section pages that list it (both URL forms), then fetches the public page and checks it shows the published version (the source-version marker, below). It prints the paths, the count, the cost and a verdict (`LIVE`, `PURGED BUT THE EDGE IS STILL STALE`, `PURGED, NOT VERIFIED`, `NOT LIVE`). A Story touches more than 5 paths, so the first call is a dry run that lists them; repeat it with `--run` to do it.
+**The one command an editor or agent needs:** `papyrus ops content update-live --story LINEAGE`. It re-projects the Story's page and Markdown twin, invalidates exactly those pages and the index and section pages that list it (both URL forms), then fetches the public page and checks it shows the published version (the source-version marker, below). It prints the paths, the count, the cost and a verdict (`LIVE`, `PURGED BUT THE EDGE IS STILL STALE`, `PURGED, NOT VERIFIED`, `NOT LIVE`, and for a skipped purge `NOT PURGED, THE PAGE IS STALE` or `PROJECTED, NOT PURGED, NOT VERIFIED`). A Story touches more than 5 paths, so the first call is a dry run that lists them; repeat it with `--run` to do it.
 
 | MCP tool | Command (`papyrus ops content ...`) | What it does |
 | --- | --- | --- |
