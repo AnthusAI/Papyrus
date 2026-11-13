@@ -235,9 +235,9 @@ _ENTRIES = dict([
   _e("items link-references", "Operator backfill: link each Story to the References it used.", "--site KEY [--role consulted|cited|based_on] [--json] [--dry-run]", "operator", _DRY, ""),
   # ---- editorial --------------------------------------------------------------------------------------------------
   _e("editorial check-version", "Run the editorial rules on a saved version and store the result with it.", "--item LINEAGE-vN [--json]", "both", "writes", "checks"),
-  _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--section KEY] [--language TAG] [--pack FILE] [--output FILE]", "both", "reads", ""),
+  _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--story LINEAGE] [--section KEY] [--language TAG] [--pack FILE] [--output FILE]", "both", "reads", ""),
   _e("editorial check-drafts", "Check every unpublished draft version not yet checked.", "[--limit N] [--dry-run]", "operator", _DRY, ""),
-  _e("editorial suggest", "Rewrite options for one finding or a passage; never edits the draft.", "--draft FILE [--finding-id ID] [--select N] [--note TEXT] [--section KEY] [--language TAG]", "both", "reads", ""),
+  _e("editorial suggest", "Rewrite options for one finding or a passage; never edits the draft.", "--draft FILE [--finding-id ID] [--select N] [--note TEXT] [--story LINEAGE] [--section KEY] [--language TAG]", "both", "reads", ""),
   # ---- sign-in ----------------------------------------------------------------------------------------------------
   _e("login", "Sign in with Google in a browser; prints nothing secret.", "SITE_HOST", "editor", "writes", "orientation"),
   _e("logout", "Remove the local session and attempt provider revocation.", "[SITE_HOST]", "editor", "writes", "orientation"),
