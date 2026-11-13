@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { TENANCY_MODE_ENVIRONMENT_VARIABLE, TENANT_ID_ENVIRONMENT_VARIABLE } from "../lib/tenant-keys";
+import { TENANCY_MODELS_ENVIRONMENT_VARIABLE } from "../amplify/functions/tenant-claims/environment";
 import {
-  TENANCY_MODELS_ENVIRONMENT_VARIABLE,
   buildTenantClaims,
   claimEnvironment,
   membershipRole,

@@ -5,13 +5,8 @@
  * claim names are the ones `shared/tenant-context.ts` reads, so a token built here is exactly what that builder accepts.
  */
 import { isSharedStack, tenantIdFromEnvironment, validateTenantId } from "../../../lib/tenant-keys";
+import { TENANCY_MODELS_ENVIRONMENT_VARIABLE } from "./environment";
 import { ROLE_CLAIMS, type TenantRole } from "../shared/tenant-context";
-
-/**
- * Set to "true" by the site backend when the `tenancy` model group is deployed (a bootstrap deploy leaves it out), which is
- * when TenantMembership and TenantSelection exist to be read. Without it the function reads no table.
- */
-export const TENANCY_MODELS_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_RECORDS_DEPLOYED";
 
 /** A membership counts only while its status is this value (src/papyrus_content/tenant_records.py). */
 export const ACTIVE_MEMBERSHIP_STATUS = "active";

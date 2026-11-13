@@ -1,6 +1,6 @@
 import type { CfnUserPool } from "aws-cdk-lib/aws-cognito";
 import type { IFunction } from "aws-cdk-lib/aws-lambda";
-import { TENANCY_MODELS_ENVIRONMENT_VARIABLE } from "../functions/tenant-claims/claims";
+import { TENANCY_MODELS_ENVIRONMENT_VARIABLE } from "../functions/tenant-claims/environment";
 
 /** The Cognito feature plan that supports pre-token-generation event version 2 (access-token claims). Lite does not. */
 export const TENANT_CLAIMS_USER_POOL_TIER = "ESSENTIALS";
