@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7eb43394-f5c2-4504-b927-794973d5c0b8",
+  "issue_id": "PPY-f9572a2f-5cb6-4439-b105-0b447b29fc24",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T20:27:53.210Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Pages that link to a Story are rendered again when its first translation in their language is published",
+    "description": "As a reader of a Spanish page, I want its links to reach the Spanish version of a linked Story as soon as one is published, so I stay in my language. page.link_in_language (docs/multilingual-serving.md) answers from the published language groups when a page is rendered; a page already rendered keeps its old target until it is rendered again. Design: when an item page is rendered, record the language groups its hooks asked link_in_language about as one small state object per group and item (state/language-links/<group>/<item id>); when a group gains or loses a language, list that prefix and render exactly those items again: O(pages that link to it), coalesced by the publish queue, no whole-table read.\n\nFeature: Links follow new translations\n  Scenario: A Spanish page that links to an English Story links to its Spanish translation once it is published\n    Given a Spanish page that links to an English Story with no Spanish translation\n    When that Story's Spanish translation is published\n    Then the Spanish page is rendered again and its link goes to the Spanish translation",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-75649552-f242-4ed9-9b93-d27bbb29e4ce",
+    "labels": []
+  }
+}

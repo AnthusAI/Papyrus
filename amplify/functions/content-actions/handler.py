@@ -274,11 +274,43 @@ def refresh_service(client, who: str = "content-actions") -> RefreshService:
     )
 
 
+def rerender_job_key(inputs: dict) -> str:
+    """The key of a page re-render's job record: one per distinct request, so the same request while one is queued joins it and a different one does not."""
+    parts = [inputs["scope"], inputs.get("storyLineageId") or "", "purge" if inputs.get("invalidate", True) is not False else "no-purge", ",".join(inputs.get("under") or [])]
+    return "rerender#" + "#".join(parts)
+
+
+def rerender_job_outcome(result: dict) -> dict:
+    """What a finished re-render job tells its asker: what was written and what the purge did, in the fields the command prints."""
+    rendered = result.get("rendered") or {}
+    invalidation = result.get("invalidation") or {}
+    outcome = {
+        "rendered": {"ok": bool(rendered.get("ok")), "count": rendered.get("count", 0), "errors": [str(error) for error in rendered.get("errors") or []]},
+        "invalidation": {key: invalidation[key] for key in ("ok", "status", "count", "error") if key in invalidation},
+    }
+    if not result.get("ok"):
+        outcome["error"] = "; ".join(outcome["rendered"]["errors"]) or str((invalidation.get("error") or "the re-render did not finish"))
+    return outcome
+
+
+def rerender_status_action(inputs: dict) -> dict:
+    """``refreshSitePages`` with ``{"operation": "site_rerender_pages", "jobStatus": true}`` and the ``jobKey`` a re-render answered with (or the same request fields): where a page re-render started with ``async`` stands. Reads one record."""
+    jobs = publish_jobs_from_environment()
+    key = str(inputs.get("jobKey") or (rerender_job_key(inputs) if inputs.get("scope") else ""))
+    if not key.startswith("rerender#"):
+        return {"ok": False, "operation": "site_rerender_pages", "error": {"code": "invalid_input", "message": "jobKey (the key a re-render answered with) or the scope of the request is required."}}
+    if jobs is None:
+        return {"ok": True, "operation": "site_rerender_pages", "jobKey": key, "job": {"state": "unknown", "reason": "this site keeps no job records (no projection lock table)"}}
+    return {"ok": True, "operation": "site_rerender_pages", "jobKey": key, "job": job_answer(jobs.status(key))}
+
+
 def refresh_site_pages_action(arguments: dict, who: str = "content-actions") -> dict:
     """An editor's or agent's page refresh (PPY-105508): the operations the CLI and the MCP tools run, here with the function's own AWS rights.
 
     Purging is quick and runs now. A re-render of every index page or of the whole site can outlast the request, so once it has passed the
-    guard it is scheduled as an asynchronous task that re-renders and then purges what it wrote; the answer says so.
+    guard it is scheduled as an asynchronous task that re-renders and then purges what it wrote. A re-render of one Story runs inside the call
+    unless the caller asks for ``async`` (the CLI does), which schedules it the same way. A scheduled re-render keeps a job record (``jobKey``,
+    ``job``) that ``jobStatus`` reads, so a caller learns how it ended however long it took, and AppSync's 30 s never matter (PPY-4611d5).
     """
     name = str(arguments.get("operation") or "")
     inputs = {key: value for key, value in arguments.items() if key != "operation"}
@@ -287,13 +319,16 @@ def refresh_site_pages_action(arguments: dict, who: str = "content-actions") -> 
     operation = PAGE_REFRESH_OPERATIONS.get(name)
     if operation is None:
         return run_page_refresh(name, inputs, refresh_service(None, who))
+    if inputs.pop("jobStatus", False) is True:
+        return rerender_status_action(inputs)
+    background = inputs.pop("async", False) is True
     try:
         validate_page_refresh(operation, inputs)
     except RefreshError as error:
         return {"ok": False, "operation": name, "error": {"code": error.code, "message": error.message}}
     client, _claims = create_authoring_client()
     service = refresh_service(client, who)
-    if name == "site_rerender_pages" and inputs["scope"] != "story" and not inputs.get("dryRun"):
+    if name == "site_rerender_pages" and (inputs["scope"] != "story" or background) and not inputs.get("dryRun"):
         checked = run_page_refresh(name, {**inputs, "dryRun": True}, service)   # the guard first: nothing is scheduled that would be refused or is only a preview
         guard = (checked.get("invalidation") or {}).get("guard") or {}
         if checked.get("error") or not checked.get("ok"):
@@ -303,12 +338,23 @@ def refresh_site_pages_action(arguments: dict, who: str = "content-actions") -> 
         if not inputs.get("confirm") and checked["invalidation"]["count"] > DRY_RUN_ABOVE:
             return {**checked, "needsRun": True, "hint": "This was a dry run: more than 5 paths need a second, explicit call. Repeat the same request with --run (confirm: true) to do it."}
         task = {"task": PAGE_REFRESH_RERENDER_TASK, "scope": inputs["scope"], "invalidate": inputs.get("invalidate", True), "forcePaths": inputs.get("forcePaths"), "who": who}
+        if inputs.get("storyLineageId"):
+            task["storyLineageId"] = inputs["storyLineageId"]
         if inputs.get("under"):
             task["under"] = list(inputs["under"])
-        if not schedule_projection_task(task, "page refresh"):
+        jobs = publish_jobs_from_environment()
+        job_fields: dict = {}
+        if jobs is not None:
+            key = rerender_job_key(inputs)
+            job, joined = jobs.request(key, None, queue=False)
+            job_fields = {"jobKey": key, "job": {**job_answer(job), "joined": joined}}
+            task.update({"jobKey": key, "jobId": job["jobId"]})
+        if not (job_fields.get("job", {}).get("joined") or schedule_projection_task(task, "page refresh")):
+            if jobs is not None:
+                jobs.finish(task["jobKey"], task["jobId"], ok=False, outcome={"error": "the re-render could not be scheduled"})
             return {"ok": False, "operation": name, "error": {"code": "not_scheduled", "message": "The re-render could not be scheduled; nothing was written."}}
         return {
-            "ok": True, "operation": name, "dryRun": False, "target": {"scope": inputs["scope"]}, "scheduled": True,
+            "ok": True, "operation": name, "dryRun": False, "target": {"scope": inputs["scope"], **({"storyLineageId": inputs["storyLineageId"]} if inputs.get("storyLineageId") else {})}, "scheduled": True, **job_fields,
             "rendered": {"ok": None, "scheduled": True, "requested": (checked.get("rendered") or {}).get("count", 0), "errors": []},
             "invalidation": {"ok": True, "status": "scheduled" if inputs.get("invalidate", True) is not False else "not-requested", "paths": checked["invalidation"]["paths"], "count": checked["invalidation"]["count"], "requests": [], "cost": checked["invalidation"]["cost"]},
         }
@@ -530,6 +576,29 @@ def run_queued_build(client, task: dict, lambda_context=None) -> dict:
     return {"ok": True, "paths": [*report.written, *report.deleted], "drained": built}
 
 
+def run_page_refresh_rerender_task(client, task: dict) -> dict:
+    """A scheduled page re-render, with its job record kept up to date: running when it starts, done or failed (with the outcome) when it ends."""
+    jobs = publish_jobs_from_environment()
+    key, job_id = task.get("jobKey"), task.get("jobId")
+    tracked = jobs is not None and bool(key) and bool(job_id)
+    if tracked:
+        current = jobs.status(key)
+        if current is not None and current.get("jobId") == job_id and current.get("state") == DONE:
+            return {"ok": True, "alreadyBuilt": True, "jobId": job_id}
+        jobs.start(key, job_id)
+    try:
+        result = refresh_service(client, task.get("who") or "scheduled").rerender(task["scope"], lineage=task.get("storyLineageId"), invalidate=task.get("invalidate", True) is not False, confirm=True, force_paths=task.get("forcePaths"), under=task.get("under"))
+    except Exception as error:
+        if tracked:
+            jobs.finish(key, job_id, ok=False, outcome={"error": f"{type(error).__name__}: {error}"[:1000]})
+        raise
+    if tracked:
+        jobs.finish(key, job_id, ok=bool(result["ok"]), outcome=rerender_job_outcome(result))
+    if not result["ok"]:
+        raise ProjectionTaskFailed(json.dumps({"rendered": result.get("rendered"), "invalidation": {field: result["invalidation"].get(field) for field in ("status", "error")}}))
+    return result
+
+
 def _run_projection_task(task: dict, lambda_context=None) -> dict:
     client, _claims = create_authoring_client()
     if task.get("task") in ("item", "item-pages", "drain"):
@@ -550,10 +619,7 @@ def _run_projection_task(task: dict, lambda_context=None) -> dict:
             raise ProjectionTaskFailed("; ".join(result["errors"]))
         return result
     elif task.get("task") == PAGE_REFRESH_RERENDER_TASK:
-        result = refresh_service(client, task.get("who") or "scheduled").rerender(task["scope"], lineage=task.get("storyLineageId"), invalidate=task.get("invalidate", True) is not False, confirm=True, force_paths=task.get("forcePaths"), under=task.get("under"))
-        if not result["ok"]:
-            raise ProjectionTaskFailed(json.dumps({"rendered": result.get("rendered"), "invalidation": {key: result["invalidation"].get(key) for key in ("status", "error")}}))
-        return result
+        return run_page_refresh_rerender_task(client, task)
     elif task.get("task") == PUBLISH_SCHEDULED_TASK:
         return publish_scheduled_action(client, task)
     elif task.get("task") == "invalidate":

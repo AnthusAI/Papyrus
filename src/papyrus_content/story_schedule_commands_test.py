@@ -101,6 +101,8 @@ def test_retiring_removes_the_schedule_before_anything_else(tmp_path: Path, monk
     session = SiteClient(site.client, service)
     monkeypatch.setattr("papyrus_content.graphql_authoring.create_authoring_client", lambda *a, **k: (session, {"sub": "sam-sub"}))
     monkeypatch.delenv("PAPYRUS_PUBLICATION_KIND", raising=False)
+    monkeypatch.setenv("PAPYRUS_SITE_PROJECTOR", "site.projector")
+    monkeypatch.setattr("papyrus_content.projection.runtime.load_projector", lambda *args, **kwargs: site.projector)
 
     story_retire.stories_retire(["--story", "item-old", "--redirect-to", "item-new", "--dry-run"])
     assert "unschedule" in capsys.readouterr().out and len(scheduler.schedules) == 1

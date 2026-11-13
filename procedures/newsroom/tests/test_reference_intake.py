@@ -206,20 +206,28 @@ def test_the_flag_changes_nothing_on_a_backend_with_no_tenant():
         assert intake_references(c, payload(), IDENTITY)["references"]
 
 
+def without_outcome(references):
+    """The Reference fields a repeat must return unchanged, leaving out what says whether this request created it."""
+    return [{k: v for k, v in ref.items() if k not in ("created", "matchedBy")} for ref in references]
+
+
 def test_repeat_and_parallel_intake_preserve_first_actor_and_payload():
     c = IntakeClient(); first = submit(c)
     original = copy.deepcopy(c.tables)
     data = payload("HTTPS://EXAMPLE.TEST:443/report#another")
     data["items"][0].update(title="Overwrite", ingestion_rationale="Overwrite")
     identity = copy.deepcopy(IDENTITY); identity["sub"] = identity["claims"]["sub"] = "another-editor"
-    assert submit(c, data, identity)["references"] == first["references"]
+    repeated = submit(c, data, identity)["references"]
+    assert [r["created"] for r in first["references"]] == [True] and [r["created"] for r in repeated] == [False]
+    assert repeated[0]["matchedBy"] == ["sourceUri"] and "reusedExisting" not in repeated[0]
+    assert without_outcome(repeated) == without_outcome(first["references"])
     assert c.tables == original
     # Patch process globals once: worker-local patch contexts can restore another
     # worker's environment/helper while its intake is still executing.
     with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
         with ThreadPoolExecutor(max_workers=4) as pool:
             results = list(pool.map(lambda _: intake_references(c, payload(), IDENTITY), range(8)))
-    assert all(r["references"] == first["references"] for r in results)
+    assert all(without_outcome(r["references"]) == without_outcome(first["references"]) and r["references"][0]["created"] is False for r in results)
     assert len(c.tables["Reference"]) == len(c.tables["KnowledgeImportRun"]) == len(c.uploads) == 1
 
 
@@ -245,7 +253,8 @@ def test_email_candidate_import_creates_pending_reference_with_private_receipt_p
     c = IntakeClient()
     first = submit_email(c)
     repeated = submit_email(c)
-    assert first["ok"] and repeated["references"] == first["references"]
+    assert first["ok"] and without_outcome(repeated["references"]) == without_outcome(first["references"])
+    assert first["references"][0]["created"] is True and repeated["references"][0]["created"] is False
     assert len(c.tables["Reference"]) == 1
     reference = next(iter(c.tables["Reference"].values()))
     assert reference["curationStatus"] == "pending" and reference["curationStatusReason"].startswith(
@@ -372,7 +381,8 @@ def test_simultaneous_first_intake_uses_conditional_create():
     ):
         results = list(pool.map(request, range(4)))
     assert len(reference_conflicts) == 3
-    assert all(r["references"] == results[0]["references"] for r in results)
+    assert all(without_outcome(r["references"]) == without_outcome(results[0]["references"]) for r in results)
+    assert sorted(r["references"][0]["created"] for r in results) == [False, False, False, True]   # only the request that wrote it created it
     assert len(c.tables["Reference"]) == len(c.tables["KnowledgeImportRun"]) == len(c.uploads) == 1
     winner = next(iter(c.tables["Reference"].values()))
     provenance = json.loads(next(iter(c.uploads.values())))
@@ -465,15 +475,15 @@ def test_user_catalog_goes_one_source_per_request_reports_each_and_continues_aft
             self.calls.append(json.loads(variables["input"])["items"])
             if len(self.calls) == 2:
                 raise TimeoutError("The read operation timed out")
-            return {"intakePendingReferences": json.dumps({"ok": True, "references": [{"id": f"r{len(self.calls)}", "curationStatus": "pending"}]})}
+            return {"intakePendingReferences": json.dumps({"ok": True, "references": [{"id": f"r{len(self.calls)}", "curationStatus": "pending", "created": True}]})}
     c = ActionClient()
     with patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "user"}), patch("papyrus_content.cli.create_authoring_client", return_value=(c, {})), patch("papyrus_content.reference_intake_cli.require_steering_config", return_value=steering):
         with pytest.raises(ValueError, match="Run the same command again"):
             references_register_catalog(["--config", "ignored", "--corpus-key", "one", "--catalog", str(catalog), "--status", "pending"])
     assert [len(items) for items in c.calls] == [1, 1, 1]
     lines = capsys.readouterr().out.splitlines()
-    assert [line.split("\t")[2] for line in lines[1:]] == ["recorded", "failed", "recorded", "summary"]
-    assert lines[-1].endswith("confirmed=2\tnot-confirmed=1")
+    assert [line.split("\t")[2] for line in lines[1:]] == ["created", "failed", "created", "summary"]
+    assert lines[-1].endswith("created=2\talready-existed=0\tnot-confirmed=1")
 
 
 def test_schema_preserves_read_only_models_and_scoped_group_action():
@@ -543,7 +553,7 @@ def test_real_handler_executes_upload_protocol_without_external_credentials():
         first = handler.handler(e, None)
         assert first["ok"]
         second = handler.handler(e, None)
-        assert second["references"] == first["references"]
+        assert without_outcome(second["references"]) == without_outcome(first["references"])
     assert len(slots) == len(completions) == len(requests) == 1
     assert json.loads(requests[0].data)["actorSub"] == "editor-sub"
 
@@ -597,3 +607,13 @@ def test_a_shared_stack_refuses_a_session_that_names_no_tenant():
     with patch.dict("os.environ", {**ENV, **SHARED_ENV}), pytest.raises(IntakeError, match="tenant"):
         intake_references(c, payload(corpusId="alpha.knowledge-corpus-demo"), IDENTITY)
     assert not c.tables["Reference"]
+
+
+def test_a_url_already_accepted_stays_accepted_and_is_reported_as_not_created():
+    c = IntakeClient(); first = submit(c)
+    reference_id = first["references"][0]["id"]
+    c.tables["Reference"][reference_id]["curationStatus"] = "accepted"
+    before = copy.deepcopy(c.tables)
+    again = submit(c)["references"][0]
+    assert again["created"] is False and again["curationStatus"] == "accepted" and again["matchedBy"] == ["sourceUri"]
+    assert c.tables == before   # nothing written, status untouched

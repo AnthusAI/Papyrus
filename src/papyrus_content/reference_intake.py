@@ -254,6 +254,9 @@ def find_or_create_source_reference(client, existing: list[dict], *, publication
     A source that is not in this corpus under that exact URL still passes the identity gate (reference_identity.py) at publication scope: when
     any corpus already holds the same document (another URL form, an arXiv or DOI form, the same address in another corpus) that Reference is
     returned with ``reusedExisting`` and ``matchedBy``, and nothing is created or changed.
+
+    Every result says whether this request created the Reference: ``created`` is true for the new pending one and false for one that was already
+    recorded (an exact URL match carries ``matchedBy: ["sourceUri"]``). An existing Reference keeps its status; the request never applies a status to it.
     """
     matches = []
     for row in existing:
@@ -274,9 +277,11 @@ def find_or_create_source_reference(client, existing: list[dict], *, publication
             if first is None:
                 raise IntakeError("The initial intake record is missing.")
             _provenance(client, first, publication)
+        created = False
     elif (held := (identity_index or IdentityIndex(existing)).existing_for({"sourceUri": item["source_uri"]}, corpus_id=corpus_id)):
         return {**{k: held.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")},
-                "reusedExisting": True, "matchedBy": sorted(identity_keys({"sourceUri": item["source_uri"]}) & identity_keys(held))}
+                "created": False, "reusedExisting": True,
+                "matchedBy": sorted(identity_keys({"sourceUri": item["source_uri"]}) & identity_keys(held))}
     else:
         digest = hashlib.sha256(f"{publication}\n{corpus_id}\n{item['source_uri']}".encode()).hexdigest()
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -287,10 +292,12 @@ def find_or_create_source_reference(client, existing: list[dict], *, publication
         proposed = plan["expected"]
         proposed.pop("metadata", None)
         ref = _create_once(client, "Reference", proposed)
+        created = ref is proposed   # an id another request already wrote comes back as that record, not as ours
         _provenance(client, ref, publication)
         existing.append(ref)
         if identity_index is not None:
             identity_index.add(ref)
         from .reference_images import attach_preview
         attach_preview(client, ref)   # new References only; never raises
-    return {k: ref.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")}
+    result = {k: ref.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")}
+    return {**result, "created": True} if created else {**result, "created": False, "matchedBy": ["sourceUri"]}

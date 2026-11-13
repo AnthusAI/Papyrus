@@ -32,8 +32,8 @@ class Recorder:
 
     def __call__(self, client, lineage, **_kw):
         self.asked.append(lineage)
-        if lineage in self.raises:
-            raise TimeoutError("Read timeout on endpoint URL")
+        if lineage in self.raises:   # the request to start the re-render got no answer: the command reports it as unknown
+            return {"ok": None, "operation": "site_rerender_pages", "status": "unknown", "error": "The read operation timed out", "check": "papyrus ops content rerender --story item-big --no-invalidate --status"}
         if lineage in self.fail:
             return {"ok": False, "operation": "site_rerender_pages", "rendered": {"ok": False, "errors": ["render failed"]}}
         return {"ok": True, "operation": "site_rerender_pages", "invalidate": False, "rendered": {"ok": True}}
@@ -94,11 +94,13 @@ class LinkStoryRerenderTests(WithRecorder):
         self.assertIn("rerender\titem-post-1\tno purge\tfailed", out)
         self.assertIn("papyrus ops content rerender --story item-post-1 --no-invalidate", err)
 
-    def test_a_timeout_warns_that_it_may_have_completed_and_does_not_fail(self):
+    def test_an_unanswered_request_is_reported_as_unknown_not_failed_and_does_not_fail_the_command(self):
         self.recorder.raises = {"item-big"}
         out, err, failure = link(link_site(), "--story", "item-big", "--to", "item-post-1")
         self.assertIsNone(failure)
-        self.assertIn("may still have completed", err)
+        self.assertIn("rerender\titem-big\tno purge\tunknown", out)
+        self.assertIn("not a failure", err)
+        self.assertIn("rerender --story item-big --no-invalidate --status", err)
         self.assertIn("rerender\titem-post-1\tno purge\tok", out)
 
     def test_json_carries_rerendered_and_no_text_lines(self):

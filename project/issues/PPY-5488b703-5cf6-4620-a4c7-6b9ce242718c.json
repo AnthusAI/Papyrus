@@ -10,9 +10,17 @@
   "parent": "PPY-dd6c50f1-9918-46d6-8148-f1f759d14aea",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0e3c2f85-a814-4ff5-a818-e96a64db92f3",
+      "author": "home",
+      "text": "Same whole-table read on the editor intake path: intake_references in src/papyrus_content/reference_intake.py calls client.list_records('Reference') on every intakePendingReferences request (every create-from-catalog source and every Newsroom paste) before find_or_create_source_reference. Found 2026-11-13 while fixing the create-from-catalog output (PR #1494); the fix there left it alone. One index lookup by canonical source URL per corpus would serve both paths.",
+      "created_at": "2026-11-13T19:18:31.757390Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T18:47:25.724711Z",
-  "updated_at": "2026-11-03T18:47:25.724732Z",
+  "updated_at": "2026-11-13T19:18:31.759195Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
