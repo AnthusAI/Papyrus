@@ -546,6 +546,8 @@ def _capture_page(source_url: str, *, title: str = "", explorer: Explorer = expl
                 pdf_capture.signals["metaDescriptionWordCount"] = _words(description)
                 return pdf_capture
     if not text:
+        text = description   # a page with no body text of its own is what it declares itself to be: its description
+    if not text:
         return Capture(False, "no_text", source_kind="html", content_type="text/html", destination_url=destination, page=page,
                        preview=preview, publication_date=page_publication_date, links=links, paper=detect_paper(source_url, destination, metas=metas),
                        signals=completeness_signals("", parsed=parsed, response_truncated=response.truncated, description=description))
