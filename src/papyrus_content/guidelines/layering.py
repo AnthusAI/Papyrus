@@ -1,4 +1,6 @@
-"""Laying a section's guideline document over the publication's, field by field, by the rule each field has in its kind's table (``document.py``).
+"""Laying a section's guideline document, and a language's overlays, over the publication's, field by field, by the rule each field has in its kind's table
+(``document.py``). The publication's voice and binding constraints are written once and apply in every language; a language overlay adds only what is
+particular to that language (PPY-d0132d).
 
 Nothing here names a kind or a field: the rules are the table's. The answer says where every field came from (``fieldSources``) and which versions were
 used (``layers``), so a draft can always be traced to the exact guidelines it was written with.
@@ -11,7 +13,7 @@ from typing import Any
 from .document import AVOID, CHOICE, CONSTRAINTS, EXEMPLARS, GLOSSARY, JOIN, LEXICON, PROSE, PUBLICATION_ONLY, GuidelineError, kind_spec
 from .store import GuidelineStore
 
-PUBLICATION, SECTION = "publication", "section"
+PUBLICATION, SECTION, LANGUAGE, SECTION_LANGUAGE = "publication", "section", "language", "section-language"
 
 
 def _present(value: Any) -> bool:
@@ -64,76 +66,106 @@ def _lexicon(base: dict, extra: dict) -> dict:
     return {key: value for key, value in out.items() if value}
 
 
-def lay_over(kind: str, publication: dict, section: dict | None, publication_version: int, section_version: int | None) -> tuple[dict, dict, list[dict]]:
-    """(document, fieldSources, warnings): the section's document laid over the publication's."""
+def lay_over(kind: str, publication: dict, publication_version: int, overlays: list[tuple[dict | None, dict]]) -> tuple[dict, dict, list[dict]]:
+    """(document, fieldSources, warnings): each overlay laid over the publication's document in turn, by the rule each field has.
+
+    ``overlays`` are ``(document, source)`` pairs, most general first: a section's document, a language overlay, a section's language overlay. ``source`` is
+    what ``fieldSources`` records for a field the overlay set (``{"layer": "section", "version": 3}``, ``{"layer": "language", "language": "zh-Hans",
+    "version": 1}``). Binding constraints and locks are the publication's alone, in every layer."""
     fields = kind_spec(kind).fields
-    section = section or {}
     locked = set(publication.get("locked") or [])
     document: dict[str, Any] = {key: copy.deepcopy(value) for key, value in publication.items() if key not in ("schemaVersion",) and _present(value)}
     sources: dict[str, list[dict]] = {key: [{"layer": PUBLICATION, "version": publication_version}] for key in document}
     warnings: list[dict] = []
 
-    def source(key: str, *layers: tuple[str, int | None]) -> None:
-        sources[key] = [{"layer": layer, "version": version} for layer, version in layers]
+    for overlay, entry in overlays:
+        layer = entry["layer"]
 
-    for key, value in section.items():
-        definition = fields.get(key)
-        if key == "schemaVersion" or definition is None or not _present(value):
-            continue
-        rule = definition.rule
-        if rule == CONSTRAINTS:
-            warnings.append({"code": "section_constraint_ignored", "field": key,
-                             "message": "A section cannot set binding constraints; only the publication's guidelines do. The section's were ignored."})
-        elif rule == PUBLICATION_ONLY:
-            continue   # `locked` and the legacy publication-only fields: not a section's to set (a save refuses them; stored data is ignored)
-        elif rule == CHOICE:
-            if key in locked:
-                if value != publication.get(key):
-                    warnings.append({"code": "locked_field_ignored", "field": key, "message": f"The publication locks {key}; the section's value was ignored."})
-            else:
-                document[key] = copy.deepcopy(value)
-                source(key, (SECTION, section_version))
-        elif rule in (PROSE, JOIN, AVOID):
+        def add(key: str, merged: Any) -> None:
             had = key in document
-            document[key] = _prose(publication.get(key), value) if rule == PROSE else _join(publication.get(key) or [], value)
-            source(key, *(([(PUBLICATION, publication_version)] if had else []) + [(SECTION, section_version)]))
-        elif rule == GLOSSARY:
-            had = key in document
-            document[key] = _glossary(publication.get(key) or [], value, key in locked)
-            source(key, *(([(PUBLICATION, publication_version)] if had else []) + [(SECTION, section_version)]))
-        elif rule == EXEMPLARS:
-            had = key in document
-            document[key] = _exemplars(publication.get(key) or [], value)
-            source(key, *(([(PUBLICATION, publication_version)] if had else []) + [(SECTION, section_version)]))
-        elif rule == LEXICON:
-            had = key in document
-            document[key] = _lexicon(publication.get(key) or {}, value)
-            source(key, *(([(PUBLICATION, publication_version)] if had else []) + [(SECTION, section_version)]))
+            document[key] = merged
+            sources[key] = (sources[key] if had else []) + [dict(entry)]
+
+        for key, value in (overlay or {}).items():
+            definition = fields.get(key)
+            if key == "schemaVersion" or definition is None or not _present(value):
+                continue
+            rule = definition.rule
+            if rule == CONSTRAINTS:
+                warnings.append({"code": f"{layer.replace('-', '_')}_constraint_ignored", "field": key,
+                                 "message": f"A {layer.replace('-', ' ')} layer cannot set binding constraints; only the publication's guidelines do. Its constraints were ignored."
+                                 if layer != SECTION else "A section cannot set binding constraints; only the publication's guidelines do. The section's were ignored."})
+            elif rule == PUBLICATION_ONLY:
+                continue   # `locked` and the legacy publication-only fields: not an overlay's to set (a save refuses them; stored data is ignored)
+            elif rule == CHOICE:
+                if key in locked:
+                    if value != publication.get(key):
+                        warnings.append({"code": "locked_field_ignored", "field": key, "message": f"The publication locks {key}; the {layer.replace('-', ' ')}'s value was ignored."})
+                else:
+                    document[key] = copy.deepcopy(value)
+                    sources[key] = [dict(entry)]
+            elif rule in (PROSE, JOIN, AVOID):
+                add(key, _prose(document.get(key), value) if rule == PROSE else _join(document.get(key) or [], value))
+            elif rule == GLOSSARY:
+                add(key, _glossary(document.get(key) or [], value, key in locked))
+            elif rule == EXEMPLARS:
+                add(key, _exemplars(document.get(key) or [], value))
+            elif rule == LEXICON:
+                add(key, _lexicon(document.get(key) or {}, value))
     return document, sources, warnings
 
 
-def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = None) -> dict:
-    """The effective guidelines of ``kind`` for the publication, or for ``section`` laid over it.
+def _layer(scope: str, found: dict, language: str | None = None) -> dict:
+    return {"scope": scope, **({"language": language} if language else {}), **{k: found["reference"][k] for k in ("itemId", "slug", "versionNumber", "contentHash")}}
 
-    ``{kind, section, found, document, fieldSources, layers, warnings}``. A publication with no document of this kind resolves to nothing with the warning
-    ``<kind>_guidelines_missing`` and is never refused. A section with no document of its own resolves to the publication's alone.
+
+def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = None, language: str | None = None) -> dict:
+    """The effective guidelines of ``kind`` for the publication, or for ``section`` laid over it, and for text in ``language``.
+
+    The layers, most general first: the publication's document (voice, audience, binding constraints: written once, for every language), the section's,
+    then for a language each of its language overlays (a variant's base language first: ``es`` then ``es-419``), then the section's own overlays for that
+    language. An overlay holds only what is particular to the language: words to prefer and avoid, register notes, the locale's naming conventions, glossary
+    entries. Without ``language`` the answer has the layers every language shares.
+
+    ``{kind, section, language?, found, document, fieldSources, layers, warnings}``. A publication with no document of this kind resolves to nothing with the
+    warning ``<kind>_guidelines_missing`` and is never refused. A layer with no document of its own adds nothing.
     """
     spec = kind_spec(kind)
     if not spec.layers:
         raise GuidelineError("resolver_not_available", f"{kind} guidelines are resolved by their own resolver, not this one.")
-    answer: dict[str, Any] = {"kind": kind, "section": section, "found": False, "document": {}, "fieldSources": {}, "layers": [], "warnings": []}
+    answer: dict[str, Any] = {"kind": kind, "section": section, **({"language": language} if language else {}),
+                              "found": False, "document": {}, "fieldSources": {}, "layers": [], "warnings": []}
     base = store.read(kind)
     if base is None:
         answer["warnings"].append({"code": f"{kind}_guidelines_missing", "message": f"This publication has no {kind} guidelines yet. Nothing was applied."})
         return answer
-    layers = [{"scope": PUBLICATION, **{k: base["reference"][k] for k in ("itemId", "slug", "versionNumber", "contentHash")}}]
-    overlay = store.read(kind, section) if section else None
-    document, sources, warnings = lay_over(kind, base["document"], overlay["document"] if overlay else None, base["reference"]["versionNumber"],
-                                           overlay["reference"]["versionNumber"] if overlay else None)
-    if overlay:
-        layers.append({"scope": SECTION, **{k: overlay["reference"][k] for k in ("itemId", "slug", "versionNumber", "contentHash")}})
+    layers = [_layer(PUBLICATION, base)]
+    overlays: list[tuple[dict | None, dict]] = []
+
+    def take(scope: str, found: dict | None, entry: dict) -> None:
+        if found is None:
+            return
+        layers.append(_layer(scope, found, entry.get("language")))
+        overlays.append((found["document"], {**entry, "version": found["reference"]["versionNumber"]}))
+
+    if section:
+        take(SECTION, store.read(kind, section), {"layer": SECTION})
+    tags = language_overlay_tags(language) if language else ()
+    for tag in tags:
+        take(LANGUAGE, store.read(kind, None, language=tag), {"layer": LANGUAGE, "language": tag})
+    if section:
+        for tag in tags:
+            take(SECTION_LANGUAGE, store.read(kind, section, language=tag), {"layer": SECTION_LANGUAGE, "language": tag})
+    document, sources, warnings = lay_over(kind, base["document"], base["reference"]["versionNumber"], overlays)
     answer.update(found=True, document=document, fieldSources=sources, layers=layers, warnings=warnings)
     return answer
+
+
+def language_overlay_tags(language: str) -> tuple[str, ...]:
+    """The language overlays text in ``language`` reads, base language first (``es-419``: ``es``, ``es-419``). Refuses a language Humanus has no pack for."""
+    from papyrus_content.editorial_languages import languages_served
+
+    return languages_served(language)[1:]
 
 
 def resolve_image_guidelines(store: GuidelineStore, section: str | None = None) -> dict:

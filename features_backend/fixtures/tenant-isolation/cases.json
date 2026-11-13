@@ -5416,7 +5416,7 @@
       "kind": "operation",
       "subject": "checkEditorial",
       "operation": "call-scope",
-      "probe": "alpha calls checkEditorial with body, format, section chosen to reach \"beta\"",
+      "probe": "alpha calls checkEditorial with body, format, section, language chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -6288,7 +6288,7 @@
       "kind": "operation",
       "subject": "suggestEditorialRewrite",
       "operation": "call-scope",
-      "probe": "alpha calls suggestEditorialRewrite with body, format, section, finding, selection, note chosen to reach \"beta\"",
+      "probe": "alpha calls suggestEditorialRewrite with body, format, section, language, finding, selection, note chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -6312,7 +6312,7 @@
       "kind": "operation",
       "subject": "tryEditorialPolicy",
       "operation": "call-scope",
-      "probe": "alpha calls tryEditorialPolicy with policy, text, format chosen to reach \"beta\"",
+      "probe": "alpha calls tryEditorialPolicy with policy, text, format, language chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {

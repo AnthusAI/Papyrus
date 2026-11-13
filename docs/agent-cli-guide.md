@@ -507,6 +507,7 @@ A site keeps its guidelines as versioned documents: one per **kind** (`writing`,
 papyrus guidelines show --kind writing
 papyrus guidelines show --kind writing --section security
 papyrus guidelines resolve --kind writing --section security
+papyrus guidelines resolve --kind writing --section security --language zh-Hans
 papyrus guidelines history --kind writing
 papyrus guidelines diff --kind writing --file ./writing.yml
 papyrus guidelines save --kind writing --file ./writing.yml --reason "Narrowed the audience" --expected-current-version-id item-editorial-doctrine-writing-v1 --dry-run
@@ -516,6 +517,7 @@ papyrus guidelines save --kind byline --file ./byline.yml --reason "Satire uses 
 papyrus guidelines save --kind procedure --file ./procedure.yml --reason "Our Story steps" --expected-current-version-id none
 ```
 
+- `--language TAG` (writing and video) names a language overlay: only what is particular to that language (register notes, words to prefer and avoid, the locale's naming conventions, glossary entries), laid over the guidelines every language shares. `resolve --language` lays the language's overlays over the publication's and the section's and says which layer each field came from. An overlay cannot set binding rules. See [editorial checks](editorial-checks.md).
 - Some kinds are site rules, the publication's alone with no section layer (`byline`, `figure-rules` and `procedure`; see [site rules](newsroom-context-packs.md#site-rules)); a site with no saved document gets the default named there.
 - `show` prints the stored document and its `expectedCurrentVersionId`: pass that to `save` as `--expected-current-version-id`. A kind with nothing stored yet answers `not_found` with `expectedCurrentVersionId: none` in `details`: pass `none` for the first save. `--version N` reads an older version.
 - `resolve` prints the effective document and `fieldSources` (which layer gave each field: the publication, the section, or locked by the publication) and `layers` (each layer's version and hash). A section with no document of its own resolves to the publication's. A site with no document of that kind resolves to nothing with the warning `<kind>_guidelines_missing`; that is not an error. Image guidelines are resolved for a Story and a use, with `papyrus images profile resolve`.

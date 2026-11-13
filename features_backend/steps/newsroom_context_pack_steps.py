@@ -101,6 +101,9 @@ class FakeNewsroom:
     def list_policies(self):
         return copy.deepcopy(getattr(self, "policies", []))
 
+    def get_settings(self):
+        return None   # no stored editorial settings: an English site
+
     def get_records_by_id(self, model, ids):
         return {record_id: copy.deepcopy(self.records[model][record_id]) for record_id in ids if record_id in self.records[model]}
 
@@ -1171,7 +1174,7 @@ def step_copywriter_system(context):
 
 @given("the site has a publication policy, a section policy of the same key that replaces it, and a disabled policy")
 def step_policies(context):
-    common = {"severity": "warning", "enabled": True, "version": 1}
+    common = {"severity": "warning", "enabled": True, "version": 1, "language": "en"}
     context.store.policies = [
         {**common, "policyKey": "plain", "scope": "publication", "title": "Plain words", "guidance": "PUBLICATION-WORDING"},
         {**common, "policyKey": "plain", "scope": "law-policy", "title": "Plain words", "guidance": "SECTION-WORDING"},

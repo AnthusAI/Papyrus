@@ -200,6 +200,24 @@ class Situation:
         self._accepted: list[dict[str, Any]] | None = None
         self._summaries: Any = None
         self._concept_nodes: dict[str, dict[str, Any]] | None = None
+        self._language: str | None = None
+
+    def editorial_store(self) -> Any:
+        """Where the site's editorial policies and settings are read: the store itself when it serves them, else the site's editorial models."""
+        if getattr(self.store, "list_policies", None) is not None:
+            return self.store
+        from .editorial_checks import GraphQLEditorialStore
+
+        return GraphQLEditorialStore(tenant_id=self.tenant)
+
+    def language(self) -> str:
+        """The language the Story is written in (``story_language``): its guidelines' language overlays and its editorial policies are that language's."""
+        if self._language is None:
+            from .editorial_checks import settings_from
+            from .editorial_languages import story_language
+
+            self._language = story_language(self.story, settings_from(self.editorial_store()))
+        return self._language
 
     def concept_nodes(self) -> dict[str, dict[str, Any]]:
         if self._concept_nodes is None:
@@ -842,7 +860,7 @@ def exemplar_entries(situation: Situation, seen: set[str]) -> Iterator[Entry]:
     from .publishing import published_item_id_for
 
     try:
-        resolved = guidelines_for_agent(situation.store, "writing", section_key(situation), guidelines_store(situation.store))
+        resolved = guidelines_for_agent(situation.store, "writing", section_key(situation), guidelines_store(situation.store), language=situation.language())
     except GuidelineError:
         return
     for exemplar in resolved["document"].get("exemplars") or []:
@@ -874,7 +892,7 @@ def voice_entries(situation: Situation) -> Iterator[Entry]:
 def writing_guidelines_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     """The section's resolved writing guidelines: the copywriter reads all of it, the editor only the voice, the audience and the binding rules."""
     try:
-        resolved = guidelines_for_agent(situation.store, "writing", section_key(situation), guidelines_store(situation.store))
+        resolved = guidelines_for_agent(situation.store, "writing", section_key(situation), guidelines_store(situation.store), language=situation.language())
     except GuidelineError as error:
         situation.warnings.append(f"The writing guidelines could not be read ({error.code}): {error.message}")
         return [], "the writing guidelines could not be read"
@@ -893,14 +911,9 @@ def voice_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:
 
 def editorial_policies_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     """The site's editorial policies for the Story's section: the same rules Humanus checks the draft against, so the writer reads them first."""
-    reader = getattr(situation.store, "list_policies", None)
-    if reader is None:
-        from .editorial_checks import GraphQLEditorialStore
-
-        reader = GraphQLEditorialStore(tenant_id=situation.tenant).list_policies
     from .editorial_checks import compose_pack
 
-    pack = compose_pack(reader(), situation.section["id"] if situation.section else None, {})
+    pack = compose_pack(situation.editorial_store().list_policies(), situation.section["id"] if situation.section else None, {}, situation.language())
     entries = [_entry("policy", str(policy["id"]), _block([_line(policy["title"], policy["guidance"]), _line("When rewriting", policy.get("rewriteGuidance"))]))
                for policy in pack["policies"] if policy.get("enabled")]
     return entries, None if entries else "the site has no editorial policies"

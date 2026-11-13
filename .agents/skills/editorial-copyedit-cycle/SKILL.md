@@ -84,6 +84,10 @@ article editor.
    papyrus editorial check --draft draft.md --section <section> > check.json
    ```
 
+   The draft is checked in the site's primary language unless you pass
+   `--language` (`es-419`, `zh-Hans` ...); Humanus refuses a language it has no
+   pack for instead of reading it as English.
+
    Each finding has `policyId`, `detectorId`, `severity` (`error`/`warn`/`info`),
    `status` (`violation`, or `review` when the model is unsure), `message`,
    `excerpt`, `span` (UTF-16 offsets) and, for judgment policies, `probability`.
@@ -137,7 +141,8 @@ article editor.
    `lane: classifier` detectors (one yes/no question per policy, sentence scope,
    `threshold` 0.8, `reviewAt` 0.5), or draft questions with
    `humanus draft-questions`. Try it locally with
-   `humanus check --draft draft.md --pack candidate.json` and show the person the
+   `humanus check --draft draft.md --pack candidate.json --language en` (the pack needs
+   `language` too) and show the person the
    hits. Only after approval, add it to the site:
    `papyrus editorial policies add --file candidate.json --dry-run`, then without
    `--dry-run`.
