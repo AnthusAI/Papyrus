@@ -23,3 +23,8 @@ def encoded_path(path: str) -> str:
 def decoded_path(path: str) -> str:
     """The NFC text of an encoded URL path: what its object key is built from."""
     return unicodedata.normalize("NFC", unquote(path))
+
+
+def url_path(path: str) -> str:
+    """A path in its one URL form whether it was given as text or already encoded: what the edge is handed (invalidation)."""
+    return encoded_path(decoded_path(path))

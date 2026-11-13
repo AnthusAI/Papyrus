@@ -41,6 +41,12 @@ class FixtureClient:
     def rows(self) -> list[dict]:
         return [entry["row"] for entry in self.fixture["references"]]
 
+    def get_record(self, model_name: str, record_id: str) -> dict | None:
+        """The fixture site has no stored settings (the projection reads the site's languages from them; the defaults apply)."""
+        assert model_name == "EditorialCheckSettings", model_name
+        self.calls.append(f"get:{model_name}")
+        return None
+
     def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100) -> list[dict]:
         self.calls.append(index_name)
         if index_name == "referencesByCurationStatusKey":

@@ -75,6 +75,8 @@ def story_with_rendition(context) -> None:
         "id": "i1",
         "slug": "s",
         "type": "article",
+        "language": "en",
+        "languageGroupId": "i1",
         "bodyMarkus": body,
         "metadata": {"frontMatterYaml": "image: /assets/responsive/assets/story/reach-3-1024.png\n"},
     }

@@ -24,7 +24,7 @@ There is one languages setting: the editorial check settings' `languages` (Admin
 | `public` | Languages the public site serves; the primary is always one. An enabled language that is not public is written, translated and checked, but its published localizations get no page (the plan's "preview" state). | only the primary |
 | `slugs` | How a localization's slug is drafted at its first publish: `translated` (the translated title in plain letters), `characters` (the title in its own script; Chinese characters kept), `pinyin` (the title romanized by a romanizer the caller supplies), `primary` (the original's slug). | `characters` for a language Humanus counts in characters (Chinese), `translated` for every other |
 
-A setting that breaks a rule is refused with a message naming it: a prefix two languages share, a public or slug language the site does not write in, a public list without the primary, an unknown slug policy. The projection reads the setting once per run (one record read).
+A setting that breaks a rule is refused with a message naming it when the projection reads it (the console saves the setting as written; a refusal stops every projection until it is corrected): a prefix two languages share, a public or slug language the site does not write in, a public list without the primary, an unknown slug policy. The projection reads the setting once per run (one record read).
 
 Only the "primary at root" URL mode exists: the primary language keeps every address it has; each other language lives under its prefix with the same structure (`/es/articles/{slug}/`). The "language prefixed" mode for new sites is not built.
 
@@ -40,7 +40,7 @@ A language with nothing published has no page, feed or sitemap. A localization i
 
 So an English listing, feed or sitemap never lists a translation, and a Spanish one lists only Spanish Stories. The static projection needs no new index for this: it already reads every published summary once per run (`list_published_item_summaries`), and each summary carries `language` and `languageGroupId` (copied onto `PublishedItem` at publish; no index on them).
 
-The CMS's own listing keys (`typeStatus`, `sectionStatus`, `headStageKey`, read by the console, the reader app and the newsroom commands) do not carry the language yet; that is the plan's "listing keys carry the language" change, filed as PPY-2be1a0 (see [Not built yet](#not-built-yet)).
+The CMS's own listing keys (`typeStatus`, `sectionStatus`, `headStageKey`, read by the console, the reader app and the newsroom commands) do not carry the language yet; that is the plan's "listing keys carry the language" change, filed as PPY-f33254 (see [Not built yet](#not-built-yet)).
 
 ## What each page says about its languages
 
@@ -85,7 +85,7 @@ A language is public only when its interface strings are complete (`projection/s
 - `nav.<href>.label`, for each navigation link an edition keeps (the home and section listings; other links leave the edition and are dropped);
 - `footer.text`, when set.
 
-The strings are part of the shared fingerprint, so changing one renders the site again. The core components' own fixed words (`Skip to main content`, `Menu`, `Newer`, `Older`) are not interface strings yet, so a site whose hooks do not draw its own body and navigation would show them in English on an edition (PPY-ec7c41).
+The strings are part of the shared fingerprint, so changing one renders the site again. The core components' own fixed words (`Skip to main content`, `Menu`, `Newer`, `Older`) are not interface strings yet, so a site whose hooks do not draw its own body and navigation would show them in English on an edition (PPY-bb4001).
 
 ## Unicode addresses
 
@@ -118,8 +118,9 @@ What only a real CloudFront and S3 can prove (a gated check before any Chinese p
 
 ## Not built yet
 
-- The CMS listing keys with the language (`typeStatus`, `sectionStatus`, `headStageKey`), for the console, the reader app and the board: PPY-2be1a0. It needs no new index: the same keys, rewritten by a backfill.
+- The CMS listing keys with the language (`typeStatus`, `sectionStatus`, `headStageKey`), for the console, the reader app and the board: PPY-f33254. It needs no new index: the same keys, rewritten by a backfill.
 - The language-prefixed URL mode and the countdown banner (PPY-ec591c; Machines on Machines has its own switcher and banner in its hooks).
-- Re-rendering the pages that link to a Story when its first translation in their language is published, so their `link_in_language` targets update: PPY-8c11f0. Until then such a page picks up the new target when it is next rendered.
-- Interface strings for the core components' fixed words: PPY-ec7c41.
+- Re-rendering the pages that link to a Story when its first translation in their language is published, so their `link_in_language` targets update: PPY-f9572a. Until then such a page picks up the new target when it is next rendered.
+- Interface strings for the core components' fixed words: PPY-bb4001.
+- The bare Markus projector (a site without a `site` object in `projection.json`) has no language editions; every Papyrus site runs the standard front end.
 - Per-language search indexes, localized dates and numbers, the AI-translation label and quotation marks (the translation procedure, PPY-bc1a38).
