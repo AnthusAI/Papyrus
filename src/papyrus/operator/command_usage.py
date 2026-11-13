@@ -97,6 +97,8 @@ _ENTRIES = dict([
      "--reference ID --stars 1-5|clear [--agent YOUR_NAME] [--dry-run]", "editor", _DRY, "tag-and-link"),
   _e("references set-section", "Set or clear the newsroom section of a Reference.",
      "--reference LINEAGE (--section NAME|SLUG|PUBLICATION#SLUG | --clear) [--agent YOUR_NAME] [--dry-run] [--json]", "both", _DRY, ""),
+  _e("references auto-section", "Give each accepted Reference with no section (and no person's clear) the section the site cyclotron is sure of, by the threshold learned from the approved Section proof.",
+     "[--config STEERING.yml] [--doctrine DOCTRINE.yml] [--all] [--worker NAME] [--dry-run] [--json]  (--doctrine is required unless --dry-run)", "both", _DRY, ""),
   _e("references approve", "Accept a pending Reference as the signed-in person.",
      "--reference ID [--agent YOUR_NAME] [--note TEXT] [--reason-code CODE] [--section SECTION_ID] [--dry-run]", "editor", _DRY, ""),
   _e("references reject", "Reject a Reference as the signed-in person; a rejection needs --note or --reason-code.",
