@@ -81,8 +81,9 @@ in the report if you think one should change.
 
 - **The live page.** Fetch it, and look at it the way its reader will.
 - **The current stored version.** Run `stories show --story LINEAGE` for its
-  state, then get the current version's stored body and front matter with
-  the read command the CLI guide names. Edit from that stored text. Never
+  state, then pull the current version's stored body and front matter with
+  `stories pull --story LINEAGE --body-file body.md --front-matter-file front.yaml`
+  (read only; `--version N` pulls an older one). Edit from that stored text. Never
   rebuild it from the live page or its Markdown twin: those have rewritten
   picture paths and no citation data.
 - **The site's mission, policies and audience.** Run

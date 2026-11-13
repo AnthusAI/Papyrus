@@ -274,6 +274,16 @@ papyrus stories versions --story LINEAGE
 
 Prints `stories versions N state time author reason ITEM_ID` per version, newest first; the last column is the version id (`LINEAGE-vN`) that `ops content publish --id` takes.
 
+### Pull the stored text
+**Lane:** both. **Version:** next release. Read only: it writes two local files and nothing to the Story.
+
+```sh
+papyrus stories pull --story LINEAGE --body-file body.md --front-matter-file front.yaml
+papyrus stories pull --story LINEAGE --version 2 --body-file old-body.md --front-matter-file old-front.yaml
+```
+
+Writes the stored body and front matter of the **current** version (the one `stories show` calls current), or with `--version N` of that exact immutable version (`stories versions` lists the numbers). Edit from these files, never from the live page or its Markdown twin: those have rewritten picture paths and no citation data. The files are exactly what `stories save-version --body-file --front-matter-file` takes back, and a picture path in them is the stored path, which a save without `--images` keeps. Saving them unchanged still makes a new version (`save-version` never skips a save) whose text equals the one pulled. A Story with no stored front matter gets an empty front matter file. It prints `stories pull LINEAGE version N ITEM_ID state body FILE front matter FILE` (`--json` prints the same facts as JSON). An unknown Story or version is an error and writes no file. Do not reach into `papyrus_content` internals to read a version.
+
 ### Save a version
 **Lane:** both. **Version:** 5.100.0. **Writes:** yes; `--dry-run` previews.
 
