@@ -213,7 +213,7 @@ _ENTRIES = dict([
   _e("ops content update-live", "Re-project one Story, purge exactly its pages and the index pages that list it, check the live page.",
      "--story LINEAGE [--run] [--force-paths N] [--verify-seconds N] [--dry-run] [--json]  (without --run a wide purge stays a dry run)", "both", _DRY, "publish"),
   _e("ops content rerender", "Rebuild pages from the deployed hooks, then purge what was written (--no-invalidate: do not purge).",
-     "(--story LINEAGE | --indexes | --all) [--no-invalidate] [--dry-run] [--json]", "both", _DRY, "publish"),
+     "(--story LINEAGE | --indexes | --all) [--no-invalidate] [--status] [--dry-run] [--json]  (the job is followed to the end: exit 0 done, 1 failed, 5 still running or outcome not known, neither a failure; --status asks once where the job stands)", "both", _DRY, "publish"),
   _e("ops content refresh", "Purge exact pages at the edge now (both URL forms and the Markdown twin); never the whole site.",
      "(--path PATH [--path PATH ...] | --story LINEAGE | --indexes) [--run] [--force-paths N] [--dry-run] [--json]  (over 5 paths is a dry run until --run; over 25 refused without --force-paths N)",
      "both", _DRY, "publish"),
