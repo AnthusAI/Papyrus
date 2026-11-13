@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "bff4e876-a14d-4415-84cc-93d99f9970d8",
+  "issue_id": "PPY-e958b54c-cd56-42c5-b369-69f065c67310",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-13T22:25:26.528Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Item and LocalizationRequest tenantId listing indexes, in the release after the language group index",
+        "to": "Item, LocalizationRequest, SiteDocument and SiteDocumentVersion tenantId listing indexes, in the release after the language group index"
+      },
+      "description": {
+        "from": "Follow-up of PPY-1ce06f (#1501). Item could not get its tenantId listing index (listItemsByTenant, index tenantId sorted by id) in #1501: develop's #1503 (PPY-843a7c) already adds listItemsByLanguageGroupAndLanguage to Item in the same unreleased batch, and the GSI ledger allows one new index per table per release. So this ships in the first release AFTER the one that carries the language group index (check with npx tsx scripts/check-gsi-ledger.ts against the new release tag).\n\nAlso: LocalizationRequest (new model from PPY-843a7c) has no index; the tenant key inventory lists it as needing a tenantId index. Add it here (or with the model before its first release, if that is still possible).\n\nSteps: add index(\"tenantId\").sortKeys([\"id\"]).queryField(\"listItemsByTenant\") to Item in amplify/data/schema.ts and amplify/data/resource.ts; add \"Item\": \"listItemsByTenant\" (and LocalizationRequest's query) to TENANT_LISTING_QUERIES in src/papyrus_content/tenancy.py; regenerate docs/tenant-key-inventory.md and the isolation cases with their scripts; run the GSI ledger, inventory, isolation-case and schema-parity checks, test_tenancy.py and features_backend/tenant-listing-index.feature; remove the 'waits one release' sentence from that feature.\n\nReleasable on its own: yes, once the earlier release is out. DynamoDB index: one per table (Item, LocalizationRequest). AppSync authorisation: unchanged.",
+        "to": "Follow-up of PPY-1ce06f (#1501). Item could not get its tenantId listing index (listItemsByTenant, index tenantId sorted by id) in #1501: develop's #1503 (PPY-843a7c) already adds listItemsByLanguageGroupAndLanguage to Item in the same unreleased batch, and the GSI ledger allows one new index per table per release. So this ships in the first release AFTER the one that carries the language group index (check with npx tsx scripts/check-gsi-ledger.ts against the new release tag).\n\nAlso: SiteDocument and SiteDocumentVersion (PPY-c020ce, #1489) have no tenantId listing index either (the inventory lists both as needing one); add them here. And LocalizationRequest (new model from PPY-843a7c, now in the optional localization group) has no index; the tenant key inventory lists it as needing a tenantId index. Add it here (or with the model before its first release, if that is still possible).\n\nSteps: add index(\"tenantId\").sortKeys([\"id\"]).queryField(\"listItemsByTenant\") to Item in amplify/data/schema.ts and amplify/data/resource.ts; add \"Item\": \"listItemsByTenant\" (and LocalizationRequest's query) to TENANT_LISTING_QUERIES in src/papyrus_content/tenancy.py; regenerate docs/tenant-key-inventory.md and the isolation cases with their scripts; run the GSI ledger, inventory, isolation-case and schema-parity checks, test_tenancy.py and features_backend/tenant-listing-index.feature; remove the 'waits one release' sentence from that feature.\n\nReleasable on its own: yes, once the earlier release is out. DynamoDB index: one per table (Item, LocalizationRequest). AppSync authorisation: unchanged."
+      }
+    }
+  }
+}
