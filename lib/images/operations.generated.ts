@@ -825,6 +825,8 @@ export type GuidelinesGetInput = {
   kind: string;
   /** A section key. Leave it out for the publication's own guidelines. */
   section?: string;
+  /** A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines. */
+  language?: string;
   /** A version number; the current version when left out. */
   version?: number;
 };
@@ -832,6 +834,7 @@ export type GuidelinesGetInput = {
 export type GuidelinesGetResult = {
   kind: string;
   section?: string;
+  language?: string;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
   document: Record<string, unknown>;
   itemId: string;
@@ -845,25 +848,29 @@ export type GuidelinesGetResult = {
   expectedCurrentVersionId: string;
 };
 
-/** Show the effective guidelines for the publication or a section laid over it, with where every field came from. */
+/** Show the effective guidelines for the publication or a section laid over it, and for one language, with where every field came from. */
 export type GuidelinesResolveInput = {
   /** The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones. */
   kind: string;
   /** A section key. Leave it out for the publication's own guidelines. */
   section?: string;
+  /** The language of the text the guidelines are for: its overlays (a variant's base language first) are laid over the shared guidelines. Leave it out for the guidelines every language shares. */
+  language?: string;
 };
 
 export type GuidelinesResolveResult = {
   kind: string;
   section?: string;
+  language?: string;
   /** False when the publication has no guidelines of this kind yet. */
   found: boolean;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
   document: Record<string, unknown>;
-  /** For every field, the layer it came from: publication, section, or locked by the publication. */
+  /** For every field, the layers it came from: publication, section, language or section-language (with the language). */
   fieldSources: Record<string, unknown>;
   layers: ({
-    scope: "publication" | "section";
+    scope: "publication" | "section" | "language" | "section-language";
+    language?: string;
     itemId: string;
     slug?: string;
     versionNumber: number;
@@ -881,12 +888,16 @@ export type GuidelinesDiffInput = {
   kind: string;
   /** A section key. Leave it out for the publication's own guidelines. */
   section?: string;
+  /** A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines. */
+  language?: string;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
   document: Record<string, unknown>;
 };
 
 export type GuidelinesDiffResult = {
   kind: string;
+  section?: string;
+  language?: string;
   changes: {
     path: string;
     from?: unknown;
@@ -902,6 +913,8 @@ export type GuidelinesSaveInput = {
   kind: string;
   /** A section key. Leave it out for the publication's own guidelines. */
   section?: string;
+  /** A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines. */
+  language?: string;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
   document: Record<string, unknown>;
   /** Why, in plain words. It is recorded with who and when. */
@@ -913,6 +926,7 @@ export type GuidelinesSaveInput = {
 export type GuidelinesSaveResult = {
   kind: string;
   section?: string;
+  language?: string;
   itemId: string;
   versionNumber: number;
   contentHash: string;
@@ -928,11 +942,14 @@ export type GuidelinesHistoryInput = {
   kind: string;
   /** A section key. Leave it out for the publication's own guidelines. */
   section?: string;
+  /** A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines. */
+  language?: string;
 };
 
 export type GuidelinesHistoryResult = {
   kind: string;
   section?: string;
+  language?: string;
   versions: ({
     itemId: string;
     versionNumber: number;

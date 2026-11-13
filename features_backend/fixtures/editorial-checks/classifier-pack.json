@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "packId": "fixture-judgment",
   "version": "1",
+  "language": "en",
   "policies": [
     {
       "id": "plain-claims",

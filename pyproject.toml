@@ -10,7 +10,7 @@ dependencies = [
     "citeproc-py >=0.8.2,<1.0.0",
     # The `papyrus` CLI imports humanus at import time, and Papyrus is
     # integrating it more deeply, so it is a base dependency (Ryan, 2026-10-05).
-    "humanus >=0.34,<0.35",
+    "humanus >=0.36,<0.37",
     "biblicus >=1.15.0,<2",
     # `papyrus stories save-version` (and every save that derives bodyIr) imports markusmd, so a plain
     # `pipx install papyrus-newsroom` needs it (PPY-a4ae21).

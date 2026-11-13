@@ -55,9 +55,10 @@ def writing_text(document: dict, *, binding_only: bool = False) -> str:
     return "\n".join(lines).strip()
 
 
-def guidelines_for_agent(store: Any, kind: str, section: str | None, guideline_store: GuidelineStore | None = None) -> dict:
-    """The resolved guidelines of ``kind`` for the section (or the publication when there is none), with where each field came from and which versions were used."""
-    return resolve_guidelines(guideline_store or GuidelineStore(store), kind, section)
+def guidelines_for_agent(store: Any, kind: str, section: str | None, guideline_store: GuidelineStore | None = None, *, language: str) -> dict:
+    """The resolved guidelines of ``kind`` for the section (or the publication when there is none) and the Story's ``language``, with where each field came from
+    and which versions were used."""
+    return resolve_guidelines(guideline_store or GuidelineStore(store), kind, section, language)
 
 
 def layer_sources(resolved: dict) -> dict:

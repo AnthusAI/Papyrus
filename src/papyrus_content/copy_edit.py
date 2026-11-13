@@ -23,7 +23,7 @@ from typing import Any
 from humanus.check import Utf16Offsets
 
 from . import review_requests
-from .editorial_checks import FINDING_SUMMARY_FIELDS, Services, check_editorial, check_run_record, suggest_rewrite
+from .editorial_checks import FINDING_SUMMARY_FIELDS, Services, check_editorial, check_run_record, settings_from, story_language, suggest_rewrite
 from .story_reporting import latest_story_version, save_story_version, story_versions
 
 AUTHOR = "AI"
@@ -69,7 +69,7 @@ def _wants_options(finding: dict[str, Any]) -> bool:
     return finding.get("status") in ("violation", "review") and finding.get("severity") != "info" and bool(finding.get("excerpt"))
 
 
-def attach_options(findings: list[dict[str, Any]], body: str, section: str | None, services: Services) -> dict[str, Any]:
+def attach_options(findings: list[dict[str, Any]], body: str, section: str | None, language: str, services: Services) -> dict[str, Any]:
     """Ask for rewrite options for each finding that quotes text; they are stored, never applied. Returns a status line."""
     import humanus
 
@@ -81,7 +81,7 @@ def attach_options(findings: list[dict[str, Any]], body: str, section: str | Non
         if unavailable:
             break
         try:
-            reply = suggest_rewrite({"body": body, "format": "markus", "section": section, "finding": json.dumps(finding)}, services)
+            reply = suggest_rewrite({"body": body, "format": "markus", "section": section, "language": language, "finding": json.dumps(finding)}, services)
         except humanus.SuggestUnavailableError as error:
             unavailable = str(error)[:300]  # no provider key: say so once instead of failing every finding
             break
@@ -123,8 +123,9 @@ def copy_edit_version(
     if stored and stored.get("contentHash") == item.get("contentHash") and "copyEdit" in (_lanes_of(stored) or {}):
         return {"story": story, "version": item["id"], "versionNumber": int(item.get("versionNumber") or 1), "changed": False, "skipped": "already copy-edited", "hold": False}
     section = item.get("section")
+    language = story_language(item, settings_from(services.store))
     body = item.get("bodyMarkus") or ""
-    rules_only = check_editorial({"body": body, "format": "markus", "section": section, "lanes": {"classifier": False}}, services)
+    rules_only = check_editorial({"body": body, "format": "markus", "section": section, "language": language, "lanes": {"classifier": False}}, services)
     edits = mechanical_fixes(body, rules_only["findings"])
     fixes = [{key: edit[key] for key in ("findingId", "policyId", "from", "to")} for edit in edits]
     if dry_run:
@@ -135,8 +136,8 @@ def copy_edit_version(
         reason = f"copy edit: {len(edits)} mechanical fix{'es' if len(edits) != 1 else ''} ({', '.join(policies)})"
         item = save_story_version(client, story, front_matter_yaml=_front_matter_of(item), body_markus=apply_fixes(body, edits), actor=actor, change_reason=reason)
         body = item["bodyMarkus"]
-    result = check_editorial({"body": body, "format": "markus", "section": section}, services)
-    options = attach_options(result["findings"], body, section, services) if suggest else {"attached": 0, "failed": 0, "skipped": "suggest off"}
+    result = check_editorial({"body": body, "format": "markus", "section": section, "language": language}, services)
+    options = attach_options(result["findings"], body, section, language, services) if suggest else {"attached": 0, "failed": 0, "skipped": "suggest off"}
     record = check_run_record(item, result, services.now())
     if services.last_check_request:
         record["packVersion"] = services.last_check_request["pack"].get("version")

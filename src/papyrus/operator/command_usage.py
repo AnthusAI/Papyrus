@@ -235,9 +235,9 @@ _ENTRIES = dict([
   _e("items link-references", "Operator backfill: link each Story to the References it used.", "--site KEY [--role consulted|cited|based_on] [--json] [--dry-run]", "operator", _DRY, ""),
   # ---- editorial --------------------------------------------------------------------------------------------------
   _e("editorial check-version", "Run the editorial rules on a saved version and store the result with it.", "--item LINEAGE-vN [--json]", "both", "writes", "checks"),
-  _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--section KEY] [--pack FILE] [--output FILE]", "both", "reads", ""),
+  _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--section KEY] [--language TAG] [--pack FILE] [--output FILE]", "both", "reads", ""),
   _e("editorial check-drafts", "Check every unpublished draft version not yet checked.", "[--limit N] [--dry-run]", "operator", _DRY, ""),
-  _e("editorial suggest", "Rewrite options for one finding or a passage; never edits the draft.", "--draft FILE [--finding-id ID] [--select N] [--note TEXT]", "both", "reads", ""),
+  _e("editorial suggest", "Rewrite options for one finding or a passage; never edits the draft.", "--draft FILE [--finding-id ID] [--select N] [--note TEXT] [--section KEY] [--language TAG]", "both", "reads", ""),
   # ---- sign-in ----------------------------------------------------------------------------------------------------
   _e("login", "Sign in with Google in a browser; prints nothing secret.", "SITE_HOST", "editor", "writes", "orientation"),
   _e("logout", "Remove the local session and attempt provider revocation.", "[SITE_HOST]", "editor", "writes", "orientation"),
@@ -249,16 +249,16 @@ _ENTRIES = dict([
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
-     "--kind KIND [--section KEY] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
-  _e("guidelines resolve", "Print the effective guidelines for the site, or a section laid over it, with where every field came from.",
-     "--kind KIND [--section KEY] [--input-file PATH]", "editor", "reads", "guidelines"),
+     "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines resolve", "Print the effective guidelines for the site, or a section laid over it, and for one language (its overlays laid on top), with where every field came from.",
+     "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines diff", "Show what saving a document would change, field by field and for binding rules; saves nothing.",
-     "--kind KIND [--section KEY] --file PATH [--input-file PATH]", "editor", "reads", "guidelines"),
+     "--kind KIND [--section KEY] [--language TAG] --file PATH [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines save", "Save a document as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
-     "--kind KIND [--section KEY] --file PATH --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
+     "--kind KIND [--section KEY] [--language TAG] --file PATH --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
      "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
-     "--kind KIND [--section KEY] [--input-file PATH]", "editor", "reads", "guidelines"),
+     "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------
   _e("announcements list", "List the account's announcements, newest first, with plain labels (Dry run: not sent, Posted, Blocked: budget reached, ...).",
      "[--state posting|posted|failed|blocked|dry_run|withdrawn] [--limit N] [--input-file PATH]", "editor", "reads", "announcements"),

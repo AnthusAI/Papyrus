@@ -109,7 +109,7 @@ def step_policy(context, key, phrase):
         "id": key, "version": 1, "title": key, "guidance": f"Avoid {phrase}.", "severity": "warn", "enabled": True,
         "detectors": [{"id": f"{key}-phrase", "lane": "rules", "kind": "phrase", "phrases": [phrase]}],
     }
-    record = editorial.record_from_policy(policy, scope="publication", source="test")
+    record = editorial.record_from_policy(policy, scope="publication", language="en", source="test")
     context.store.policies[record["id"]] = json.loads(json.dumps(editorial.policy_input(record)))
 
 

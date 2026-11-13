@@ -223,7 +223,7 @@ Every command group prints its own subcommands for `papyrus <group>` and `papyru
 - `--publication KEY` refuses the run unless the site's canonical publication has that key.
 - Each written policy's `source` is `operator-cli:<packId>:<actor>` (the actor defaults to `papyrus-cli`), which the panel shows in the policy list.
 
-`papyrus editorial policies export --file PACK [--pack-id ID] [--pack-version V]` writes the site's `publication` policies as a pack (`.yml`/`.yaml` for YAML, otherwise JSON) that `add` loads back unchanged. Desk-scope policies are left out and counted, since a pack has no scope.
+`papyrus editorial policies export --file PACK [--language TAG] [--pack-id ID] [--pack-version V]` writes the site's `publication` policies written for exactly one language (default the site's primary language; `*` for the language-neutral ones) as a pack (`.yml`/`.yaml` for YAML, otherwise JSON) that `add` loads back unchanged. Section policies and other languages' policies are left out and counted, since a pack has one language and no scope. `add` writes each policy for the pack's `language`.
 
 ## Site commands
 

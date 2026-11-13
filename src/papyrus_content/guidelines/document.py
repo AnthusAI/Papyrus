@@ -201,10 +201,33 @@ def safe_key(value: str) -> str:
     return re.sub(r"^-+|-+$", "", re.sub(r"[^a-z0-9]+", "-", str(value).strip().lower())) or "topic"
 
 
-def slug_for(kind: str, section: str | None = None) -> str:
-    """editorial-doctrine-<word> for the publication, desk-doctrine-<sectionKey>-<word> for a section (mirrors lib/doctrine.ts)."""
+def slug_for(kind: str, section: str | None = None, language: str | None = None) -> str:
+    """editorial-doctrine-<word> for the publication, desk-doctrine-<sectionKey>-<word> for a section (mirrors lib/doctrine.ts).
+
+    A language overlay adds ``-lang-<tag>`` (``editorial-doctrine-writing-lang-zh-hans``, ``desk-doctrine-security-writing-lang-zh-hans``)."""
     word = kind_spec(kind).slug_word
-    return f"editorial-doctrine-{word}" if not section else f"desk-doctrine-{safe_key(section)}-{word}"
+    slug = f"editorial-doctrine-{word}" if not section else f"desk-doctrine-{safe_key(section)}-{word}"
+    return f"{slug}-lang-{safe_key(language)}" if language else slug
+
+
+def overlay_language(kind: str, language: str | None) -> str | None:
+    """The language of a language overlay, in Humanus's spelling (``zh-CN`` is ``zh-Hans``), or None for a document every language shares.
+
+    Only a kind that layers takes an overlay; a language Humanus has no pack for is refused, naming it."""
+    if not language:
+        return None
+    spec = kind_spec(kind)
+    if not spec.layers:
+        raise GuidelineError("invalid_input", f"{kind} guidelines have no language overlays.")
+    from papyrus_content.editorial_languages import ANY_LANGUAGE, canonical
+
+    try:
+        tag = canonical(language)
+    except LookupError as error:
+        raise GuidelineError("invalid_input", str(error)) from error
+    if tag == ANY_LANGUAGE:
+        raise GuidelineError("invalid_input", "A language overlay names one language; leave the language out for the guidelines every language shares.")
+    return tag
 
 
 def digest(document: Any) -> str:

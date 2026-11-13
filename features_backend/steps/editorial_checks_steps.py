@@ -92,7 +92,12 @@ def _phrase_policy(key: str, scope: str, severity: str, enabled: bool, phrase: s
         "enabled": enabled,
         "detectors": [{"id": f"{key}-phrase", "lane": "rules", "kind": "phrase", "phrases": [phrase]}],
     }
-    return editorial.record_from_policy(policy, scope=scope, source="test")
+    return editorial.record_from_policy(policy, scope=scope, language="en", source="test")
+
+
+def stored_policy(context, key, scope="publication", language="en"):
+    """The stored policy with this scope, language and key (its id is opaque)."""
+    return next(record for record in context.store.policies.values() if (record["scope"], record.get("language"), record["policyKey"]) == (scope, language, key))
 
 
 def _services(context):
@@ -154,7 +159,7 @@ def step_check(context, body, section):
     context.body = body
     context.check_error = None
     try:
-        context.check_result = editorial.handle("checkEditorial", {"body": body, "format": "markus", "section": section}, context.services)
+        context.check_result = editorial.handle("checkEditorial", {"body": body, "format": "markus", "section": section, "language": "en"}, context.services)
     except (editorial.EditorialChecksDisabled, ValueError) as error:
         context.check_error = error
 
@@ -202,7 +207,7 @@ def step_suggest_finding(context, key):
     finding = next(f for f in context.check_result["findings"] if f["policyId"] == key)
     context.suggest_result = editorial.handle(
         "suggestEditorialRewrite",
-        {"body": context.body, "format": "markus", "section": "engineering", "finding": json.dumps(finding)},
+        {"body": context.body, "format": "markus", "section": "engineering", "language": "en", "finding": json.dumps(finding)},
         _services(context),
     )
 
@@ -212,7 +217,7 @@ def step_suggest_selection(context, selected, body, note):
     start = body.index(selected)
     context.suggest_result = editorial.handle(
         "suggestEditorialRewrite",
-        {"body": body, "format": "markus", "section": "engineering", "selection": json.dumps({"start": start, "end": start + len(selected)}), "note": note},
+        {"body": body, "format": "markus", "section": "engineering", "language": "en", "selection": json.dumps({"start": start, "end": start + len(selected)}), "note": note},
         _services(context),
     )
 
@@ -242,7 +247,7 @@ def step_import_again(context, name, count):
 @when('an admin tries a policy with phrase "{phrase}" on "{text}"')
 def step_try(context, phrase, text):
     policy = editorial.policy_from_record(json.loads(json.dumps(editorial.policy_input(_phrase_policy("draft", "publication", "warn", True, phrase)))))
-    context.try_result = editorial.handle("tryEditorialPolicy", {"policy": json.dumps(policy), "text": text}, _services(context))
+    context.try_result = editorial.handle("tryEditorialPolicy", {"policy": json.dumps(policy), "text": text, "language": "en"}, _services(context))
 
 
 @then('the try result has 1 finding with excerpt "{excerpt}"')
@@ -272,7 +277,7 @@ def step_draft_result(context):
 
 @given('policy "{key}" also has a sentence classifier detector "{detector_id}"')
 def step_add_classifier(context, key, detector_id):
-    record = context.store.policies[editorial.policy_record_id(key, "publication")]
+    record = stored_policy(context, key)
     detectors = json.loads(record["detectors"])
     detectors.append({"id": detector_id, "lane": "classifier", "scope": "sentence", "question": {"type": "noul", "instructions": "Hype?"}, "violation": {"answer": "yes"}, "threshold": 0.8})
     record["detectors"] = json.dumps(detectors)
@@ -293,14 +298,14 @@ def step_recalibrate(context):
 
 @then('policy "{key}" detector "{detector_id}" has an "{method}" calibration')
 def step_calibrated(context, key, detector_id, method):
-    record = context.store.policies[editorial.policy_record_id(key, "publication")]
+    record = stored_policy(context, key)
     detector = next(d for d in json.loads(record["detectors"]) if d["id"] == detector_id)
     assert detector["calibration"]["method"] == method, detector
 
 
 @then('policy "{key}" is now version {version:d}')
 def step_version(context, key, version):
-    assert context.store.policies[editorial.policy_record_id(key, "publication")]["version"] == version
+    assert stored_policy(context, key)["version"] == version
 
 
 # --- papyrus editorial (CLI) ------------------------------------------------------
@@ -341,6 +346,7 @@ def step_pack_file(context, key, phrase):
         "schemaVersion": 1,
         "packId": "file",
         "version": "1",
+        "language": "en",
         "policies": [editorial.policy_from_record(_phrase_policy(key, "publication", "warn", True, phrase))],
     }
     handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
@@ -639,7 +645,7 @@ def _run_policies(context, **options):
 
     from papyrus_content.editorial_commands import editorial_policies_pack
 
-    args = argparse.Namespace(**{"dry_run": False, "publication": None, "actor": None, **options})
+    args = argparse.Namespace(**{"dry_run": False, "publication": None, "actor": None, "language": None, **options})
     out = io.StringIO()
     context.policies_error = None
     context.store.writes = 0
@@ -708,13 +714,13 @@ def step_export_round_trip(context):
 
 @then('policy "{key}" is stored as version {version:d} with source "{source}"')
 def step_stored_with_source(context, key, version, source):
-    record = context.store.policies[editorial.policy_record_id(key, "publication")]
+    record = stored_policy(context, key)
     assert record["version"] == version and record["source"] == source, record
 
 
 @then('policy "{key}" keeps its classifier question, "{answer}" violation, threshold {threshold:g}, review threshold {review:g} and message')
 def step_classifier_saved(context, key, answer, threshold, review):
-    detector = json.loads(context.store.policies[editorial.policy_record_id(key, "publication")]["detectors"])[0]
+    detector = json.loads(stored_policy(context, key)["detectors"])[0]
     assert detector["lane"] == "classifier" and detector["scope"] == "document", detector
     assert detector["question"]["type"] == "noul" and detector["question"]["instructions"].startswith("Does this document"), detector
     assert detector["violation"] == {"answer": answer} and detector["threshold"] == threshold and detector["reviewAt"] == review, detector
