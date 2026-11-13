@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from papyrus_content.graphql_authoring import INDEX_DEFINITIONS
+from papyrus_content.item_language import with_item_language
 
 INDEX_MODELS = {
     "referencesByCorpusAndExternalItem": "Reference",
@@ -68,6 +69,7 @@ def head_stage_key_violations(client: "FakeAuthoringClient") -> list[str]:
 
 class FakeAuthoringClient:
     tenant_id: str | None = None   # the real client always has one; None is a backend with no tenant
+    primary_language: str = "en"   # the fake site writes English; an Item written without a language gets it, as the real client does (item_language)
 
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         """The only query a fake answers is the schema question of the deploy render: a backend that serves every field the tools select."""
@@ -87,8 +89,8 @@ class FakeAuthoringClient:
         self.calls: list[tuple[str, str, Any]] = []
         self.fail_after: tuple[str, str] | None = None
         for model, rows in (records or {}).items():
-            for row in rows:
-                self.tables.setdefault(model, {})[row["id"]] = copy.deepcopy(row)
+            for row in rows:   # a seeded backend is one after `papyrus stories languages`: every Item row has its language
+                self.tables.setdefault(model, {})[row["id"]] = copy.deepcopy(with_item_language(row, None, self.primary_language) if model == "Item" else row)
         for owner_id, rows in (attachments or {}).items():
             for row in rows:
                 self.tables.setdefault("ModelAttachment", {})[row["id"]] = {**copy.deepcopy(row), "ownerId": owner_id}
@@ -153,12 +155,16 @@ class FakeAuthoringClient:
     def upsert(self, model_name: str, payload: dict[str, Any]) -> str:
         self.calls.append(("upsert", model_name, payload["id"]))
         existed = payload["id"] in self._table(model_name)
+        if model_name == "Item":
+            payload = with_item_language(payload, self._table(model_name).get(payload["id"]), self.primary_language)
         self._table(model_name)[payload["id"]] = copy.deepcopy(payload)
         self._maybe_fail("upsert", model_name)
         return "updated" if existed else "created"
 
     def create_record(self, model_name: str, payload: dict[str, Any]) -> None:
         self.calls.append(("create", model_name, payload["id"]))
+        if model_name == "Item":
+            payload = with_item_language(payload, None, self.primary_language)
         if payload["id"] in self._table(model_name):
             raise ValueError(f"{model_name} {payload['id']} already exists")
         self._table(model_name)[payload["id"]] = copy.deepcopy(payload)

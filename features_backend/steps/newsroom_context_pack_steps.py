@@ -191,7 +191,7 @@ def build_newsroom():
             "assignmentGuidance": f"{title} GUIDANCE", "killCriteria": f"{title} KILL",
         }
     store.items.append({
-        "id": "story-1-v2", "lineageId": "story-1", "versionNumber": 2, "versionState": "current", "tenantId": TENANT, "type": "article",
+        "id": "story-1-v2", "lineageId": "story-1", "versionNumber": 2, "versionState": "current", "language": "en", "tenantId": TENANT, "type": "article",
         "status": "draft", "stage": "idea", "section": "law-policy", "title": "Courts and model output", "headline": "Courts and model output",
         "deck": "What judges say about text a model wrote", "bodyMarkus": DRAFT_MARKER, "metadata": "{}",
     })
