@@ -1,0 +1,101 @@
+{
+  "DRAFT": "DRAFT for Ryan to correct. Short profile for Anthus Threat Intelligence, written only from what is in the Threat-Intelligence repository: publication/redesign/theme-tokens.css, publication/pictograms, skills/produce-video/SKILL.md, docs/static-reader.md and public/seed-art. It is a file in this repository only: nothing has been saved to any backend.",
+  "openQuestions": [
+    "1. Should generated pictures be allowed at all? Every article already has a hand-built pictogram plate, and the repository has no written rule about generated imagery. I allowed generation for cover-ink-study (after stock) but did not copy Machines on Machines' ban on generated photorealism. Do you want the same binding rule here (it can be added as an admin), or no generation?",
+    "2. The pictogram is a drawn figure type: sources is figure-system only, pointing at publication/pictograms (the registry and art, one metaphor, one accent element, one motion beat, 320 by 320 line art). Is that the right model, given pictograms are React components rendered per slug and there is no figure.json step like Machines on Machines has?",
+    "3. 'Ink study' is my name for the look of public/seed-art/theme-ink-study: line drawing on grid paper inside a rounded plate, with one warm accent. It is the closest thing to a generated-picture style in the repository, but it predates the redesign (the accent is brown, the redesign's accent is tomato). Which accent should pictures use, and is the ink study the look you want for generated covers?",
+    "4. Smallest card width: 160px for covers and 120px for the social card are placeholders, to be read from the blog index cards. Inline pictograms sit in the body, so 343px is the phone width, taken from Machines on Machines, not from this site.",
+    "5. Night pictures. The site has Day and Night themes and pictogram strokes change with the theme. Should a generated cover also have a Night version?"
+  ],
+  "exampleSlots": [
+    {
+      "imageType": "post-pictogram",
+      "exemplar": [{"name": "A registered lead pictogram", "note": "One of the six lead pictograms, for example the one beside the post a reader sees first: one metaphor, one accent element."}],
+      "negative": [{"name": "A pictogram with several competing accents", "note": "More than one accent element, or fills where the language is line art."}]
+    },
+    {
+      "imageType": "cover-ink-study",
+      "exemplar": [{"name": "public/seed-art/theme-ink-study-light.png", "note": "Line drawing on grid paper in a rounded plate, one warm accent."}],
+      "negative": [{"name": "A glossy 3D render or stock-photo look", "note": "Anything that reads as a photograph or a product shot."}]
+    }
+  ],
+  "howToSave": "The profile is under the 'profile' key: jq .profile threat-intelligence.json > /tmp/ti-profile.json; papyrus images profile diff --file /tmp/ti-profile.json; papyrus images profile save --file /tmp/ti-profile.json --reason '...' --expected-current-version-id none.",
+  "profile": {
+    "schemaVersion": 2,
+    "imageReview": "after_the_fact",
+    "identity": {
+      "summary": "Practical and sober: light line art on cool paper, one signal accent in tomato red.",
+      "masterPrompt": "Line drawing on a flat cool-paper ground. Thin dark strokes, rounded corners, one accent element in the signal colour and nothing else in colour. No gradients, no texture, no photographic lighting.",
+      "palette": [
+        {"name": "Paper", "hex": "#f6f7f9", "token": "bg", "role": "ground"},
+        {"name": "Plate", "hex": "#eef0f3", "token": "plate", "role": "inset"},
+        {"name": "Line", "hex": "#1f242b", "token": "line", "role": "strokes"},
+        {"name": "Muted line", "hex": "#6b727d", "token": "line-muted", "role": "secondary strokes"},
+        {"name": "Signal", "hex": "#e2461f", "token": "signal", "role": "accent"}
+      ],
+      "paletteLimit": 5,
+      "mood": ["sober", "practical"],
+      "examples": []
+    },
+    "techniques": {
+      "preferred": ["thin line art", "one accent element"],
+      "avoided": ["gradients", "texture", "photographic lighting"]
+    },
+    "treatments": {
+      "pictogram": {"label": "Pictogram", "guidance": "One metaphor, one accent element and one motion beat, in the shared 320 by 320 line-art language. Registered per post slug."},
+      "ink-study": {"label": "Ink study", "guidance": "A line drawing on grid paper inside a rounded plate, with one accent."}
+    },
+    "uses": {
+      "cover": {"label": "Headline picture", "where": "Top of a post and on the blog index cards"},
+      "inline": {"label": "In the article", "where": "Inside the post body"},
+      "social": {"label": "Social card", "where": "Link previews on other sites"}
+    },
+    "imageTypes": {
+      "post-pictogram": {
+        "label": "Post pictogram",
+        "description": "The line-art plate that sits with each post: one metaphor for what the post is about.",
+        "treatment": "pictogram",
+        "use": "cover",
+        "display": {"where": "blog index cards and the top of the post", "smallestWidthPx": 160, "thumbnail": true},
+        "guidance": "One metaphor, one accent element, one motion beat, in the shared 320 by 320 line-art language. Strokes and fills use the theme's slate tones, and the single accent uses the signal colour. Every post has one, registered by its slug. Drawn as a component, never generated.",
+        "avoid": ["more than one accent element", "fills where the language is line art"],
+        "sizes": {"aspectRatio": "1:1", "width": 320, "height": 320},
+        "sources": ["figure-system"],
+        "figureSystem": {
+          "rules": "AnthusAI/Threat-Intelligence:skills/produce-video/SKILL.md",
+          "mapping": "publication/pictograms/registry.ts",
+          "variant": "plate",
+          "renderTool": "web/pictograms.py"
+        },
+        "examples": []
+      },
+      "cover-ink-study": {
+        "label": "Headline picture",
+        "description": "A simple line illustration for the top of a post that still reads as a small card thumbnail.",
+        "treatment": "ink-study",
+        "use": "cover",
+        "display": {"where": "blog index cards and the top of the post", "smallestWidthPx": 160, "thumbnail": true},
+        "guidance": "A line drawing on grid paper inside a rounded plate. One simple subject, large, with thin dark strokes and a single accent element in the signal colour. Bold enough to read at card size.",
+        "avoid": ["small details", "more than one subject", "photographic realism", "a real person or a real brand"],
+        "sizes": {"aspectRatio": "16:9", "width": 1600, "height": 900},
+        "sources": ["stock", "generated"],
+        "examples": []
+      },
+      "social-card": {
+        "extends": "cover-ink-study",
+        "label": "Social card",
+        "description": "The picture in link previews on other sites.",
+        "use": "social",
+        "display": {"where": "link previews in feeds", "smallestWidthPx": 120, "thumbnail": true},
+        "sizes": {"aspectRatio": "1.91:1", "width": 1200, "height": 630},
+        "examples": []
+      }
+    },
+    "typePreference": {
+      "cover": ["post-pictogram", "cover-ink-study"],
+      "inline": null,
+      "social": ["social-card"]
+    },
+    "attribution": {"generatedCredit": "Drafted by AI.", "disclosure": "Generated pictures are labelled in the credit."}
+  }
+}
