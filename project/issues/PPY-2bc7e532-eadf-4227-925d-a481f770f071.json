@@ -10,9 +10,17 @@
   "parent": "PPY-25115792-da24-43d7-993a-ffec69adff32",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "311021cb-a4f0-4d96-b0e5-e30ef9709ba4",
+      "author": "home",
+      "text": "Per-run part merged in #1503: prediction = median measured cost per source character per language, Tukey upper fence once 4 runs exist, caller ceiling waits or holds at end of round. Not built: the site's weekly translations budget and its console view.",
+      "created_at": "2026-11-13T21:25:02.472783Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-13T14:31:18.179868Z",
-  "updated_at": "2026-11-13T14:31:18.179897Z",
+  "updated_at": "2026-11-13T21:25:02.473078Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

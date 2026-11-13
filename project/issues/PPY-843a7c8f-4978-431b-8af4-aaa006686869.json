@@ -10,9 +10,17 @@
   "parent": "PPY-25115792-da24-43d7-993a-ffec69adff32",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "17bf5c0d-c532-492d-8a57-4aefec22196a",
+      "author": "home",
+      "text": "Merged to develop (not released): #1492 Item.language + language group + stories languages backfill; #1499 glossary kind (PPY-795b4b); #1503 papyrus.story.localize engine, procedures/newsroom/story_localize.tac, LocalizationRequest desired-state record, papyrus stories localize. Capped real run 2026-11-13 (library stages, nothing saved to any site) on the MoM Hugging Face article: zh-Hans saved, 1 round, 76 model calls, $0.0132; es-419 saved, 2 rounds, 2 reverted blocks, $0.0103; total $0.0234 of $1. Outputs in ~/Projects/papyrus-translation-experiment/procedure-run/. Open: publish writer + worker (M2), listing keys with language, hold on disagreeing judge passes (decision pending).",
+      "created_at": "2026-11-13T21:25:01.327559Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-13T14:31:17.885224Z",
-  "updated_at": "2026-11-13T19:00:29.807076Z",
+  "updated_at": "2026-11-13T21:25:01.328343Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
