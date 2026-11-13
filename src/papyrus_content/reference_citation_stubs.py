@@ -20,6 +20,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping
 
+from .tenant_knowledge_keys import REFERENCE_REVIEWED_FEED_KEY, global_key
 from .reference_feed_keys import feed_keys, feed_state_key, medium_key_patch, public_key_patch
 from .reference_policy import normalize_reference_curation_status
 
@@ -32,7 +33,6 @@ RETIRED_REASON = ("Archived by the machine: this Reference was created automatic
                   "and has no star rating. A person can reopen it, and a monitor that finds the paper again returns it to pending.")
 RESTORED_BY = "papyrus-monitoring-worker"
 RESTORED_REASON = "Returned to pending: a monitor found this paper after the machine archived it as an unreviewed citation stub."
-REVIEWED_FEED_KEY = "references#reviewed"   # the key a person's archive writes (amplify/functions/category-action/handler.ts)
 
 SKIP_REASONS = ("notCurrent", "notPending", "notCitationGraph", "notSystemActor", "starred", "voted")
 
@@ -65,7 +65,7 @@ def retired_fields(reference: Mapping[str, Any], *, now: str) -> dict[str, Any]:
     archived = {**reference, "curationStatus": "archived"}
     return {"curationStatus": "archived", "curationStatusKey": f"{reference['corpusId']}#archived", "curationStatusUpdatedAt": now,
             "curationStatusUpdatedBy": RETIRED_BY, "curationStatusReason": RETIRED_REASON,
-            "reviewedFeedKey": REVIEWED_FEED_KEY, "feedStateKey": feed_state_key(archived), **medium_key_patch(reference, curationStatus="archived"), **public_key_patch(reference, curationStatus="archived"),
+            "reviewedFeedKey": global_key(REFERENCE_REVIEWED_FEED_KEY), "feedStateKey": feed_state_key(archived), **medium_key_patch(reference, curationStatus="archived"), **public_key_patch(reference, curationStatus="archived"),
             "updatedAt": now}
 
 

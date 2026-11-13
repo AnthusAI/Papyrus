@@ -24,6 +24,7 @@ from typing import Any, Callable, Protocol
 import humanus
 from humanus.packs import builtin_pack, list_builtin_packs
 
+from .tenant_knowledge_keys import corpus_key_of, is_corpus_id, own_corpora
 from .editorial_languages import (
     DEFAULT_LANGUAGES,
     canonical,
@@ -781,11 +782,11 @@ class GraphQLEditorialStore:
             items { id name role } nextToken
           }
         }'''
-        rows = self._list(query, 'listKnowledgeCorporaByRoleAndName')
+        rows = own_corpora(self._list(query, 'listKnowledgeCorporaByRoleAndName'))
         if (len(rows) != 1 or rows[0].get('role') != 'canonical'
-                or not str(rows[0].get('id', '')).startswith('knowledge-corpus-')):
+                or not is_corpus_id(str(rows[0].get('id', '')))):
             raise ValueError('Exactly one verified publication is required for editorial context')
-        return rows[0]['id'].removeprefix('knowledge-corpus-')
+        return corpus_key_of(rows[0]['id'])
 
     def get_editorial_context(self, section: str | None) -> dict[str, Any]:
         from .editorial_model_context import checked_context

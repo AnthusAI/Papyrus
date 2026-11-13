@@ -31,6 +31,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..tenant_knowledge_keys import global_key
 from ..reference_links import REFERENCE_LINK_FEED_KEY
 from ..reference_vote import HUMAN
 from . import dedupe
@@ -288,7 +289,7 @@ class Knowledge:
             return
         self._confirmed, self._suggested = {}, {}
         try:
-            rows = list(self.client.list_by_index("semanticRelationsByNewsroomFeedAndCreatedAt", REFERENCE_LINK_FEED_KEY))
+            rows = list(self.client.list_by_index("semanticRelationsByNewsroomFeedAndCreatedAt", global_key(REFERENCE_LINK_FEED_KEY)))
         except Exception as error:  # noqa: BLE001
             self.errors["links"] = type(error).__name__
             return

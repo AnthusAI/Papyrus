@@ -5,6 +5,7 @@ import json
 from collections.abc import Iterable
 from typing import Any
 
+from .tenant_knowledge_keys import SEMANTIC_RELATION_FEED_KEY, global_key
 from .categories_commands import is_current_accepted_reference
 from .categories_steering import semantic_state_key
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
@@ -762,7 +763,7 @@ def _graph_semantic_relation_record(
         "importedAt": imported_at,
         "createdAt": imported_at,
         "updatedAt": imported_at,
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": json.dumps(metadata),
     }
 

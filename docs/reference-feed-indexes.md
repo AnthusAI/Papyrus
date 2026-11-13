@@ -177,7 +177,7 @@ A failed read shows the error with a Retry; an empty site shows the empty messag
 | `setReferenceStars` (`category-action`) | Writes `starFeedKey` with the rating, clears it with the rating, and gives a Reference with no `feedArrivalAt` one. |
 | `sync_capture_state` (`reference_capture_state.py`), from `write_card` (the curation run and every editor correction) and `apply_record_changes` (older extracted text); `_feed_keys_for_new_version` carries it | Keeps `captureState` right (and, for a video, `captureReason` and `contentNeededKey`); writes only when it differs, and never writes `none`. |
 
-The key functions live in `src/papyrus_content/reference_feed_keys.py` and `lib/reference-feed-keys.ts`; `scripts/fixtures/reference-feed-key-vectors.json` holds the vectors both test.
+The key functions live in `src/papyrus_content/reference_feed_keys.py` and `lib/reference-feed-keys.ts`; `scripts/fixtures/reference-feed-key-vectors.json` holds the vectors both test. The `feed` cases are the keys above; the `tenant` cases are the tenant and tenancy-mode keys of `tenant_knowledge_keys.py` and `lib/tenant-knowledge-keys.ts` (a shared stack's corpus id is `<tenant>.<corpus>`, so every key above starts with the tenant there).
 
 ## Every way of creating a Reference is in the feed
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 from typing import Any, Mapping, Sequence
 
+from .tenant_knowledge_keys import SEMANTIC_NODE_FEED_KEY, global_key, tenant_unique_id
 from .catalog import _record, semantic_relation_record
 from .ids import hash_short, safe_id
 from .reference_policy import scope_training_label_for_reference
@@ -34,7 +35,7 @@ def decision_node_key(label: str) -> str:
 
 
 def decision_node_lineage_id(label: str) -> str:
-    return f"semantic-node-{safe_id(decision_node_key(label))}"
+    return tenant_unique_id(f"semantic-node-{safe_id(decision_node_key(label))}")
 
 
 def decision_node_record(label: str, *, now: str) -> dict[str, Any]:
@@ -59,7 +60,7 @@ def decision_node_record(label: str, *, now: str) -> dict[str, Any]:
         "status": "accepted",
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "semanticNodes",
+        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
     })
 
 

@@ -36,6 +36,8 @@ except ModuleNotFoundError:  # pragma: no cover - PyYAML is a project dependency
 
 from .semantic import PapyrusSemanticClient, semantic_state_key, semantic_version_key
 from . import web_search_providers
+from papyrus_content.tenant_knowledge_keys import corpus_id_for_key, tenant_unique_id
+from papyrus_content.tenant_knowledge_keys import REFERENCE_FEED_KEY, SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.biblicus_runner import BiblicusCommandError, BiblicusOutputError, BiblicusRunner, resolve_biblicus_workdir
 from papyrus_content.biblicus_runtime import biblicus_corpus_catalog_path
@@ -319,7 +321,7 @@ def quality_node_key(rating: int) -> str:
 
 
 def quality_node_lineage_id(rating: int) -> str:
-    return f"semantic-node-{_safe_id(quality_node_key(rating))}"
+    return tenant_unique_id(f"semantic-node-{_safe_id(quality_node_key(rating))}")
 
 
 def quality_node_id(rating: int) -> str:
@@ -2735,7 +2737,7 @@ def list_references_by_newsroom_feed_imported(
         data = execute_graphql(
             LIST_REFERENCES_BY_NEWSROOM_FEED_IMPORTED_QUERY,
             {
-                "newsroomFeedKey": "references",
+                "newsroomFeedKey": global_key(REFERENCE_FEED_KEY),
                 "sortDirection": "DESC",
                 "limit": _page_size(limit, len(records)),
                 "nextToken": next_token,
@@ -4107,7 +4109,7 @@ def _semantic_relation(
         "importedAt": imported_at,
         "createdAt": imported_at,
         "updatedAt": imported_at,
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": metadata,
     }
     return {key: value for key, value in relation.items() if value is not None}
@@ -4145,7 +4147,7 @@ def _quality_semantic_node_record(rating: int, now: str) -> dict[str, Any]:
         "aliases": [f"{rating} star", f"{rating} stars"],
         "status": "accepted",
         "createdAt": now,
-        "newsroomFeedKey": "semanticNodes",
+        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
         "updatedAt": now,
     }
     return {key: value for key, value in record.items() if value is not None}
@@ -5536,7 +5538,7 @@ def _require_reference(reference: dict[str, Any]) -> dict[str, Any]:
 
 
 def _knowledge_corpus_id(corpus_key: str) -> str:
-    return f"knowledge-corpus-{_safe_id(corpus_key)}"
+    return corpus_id_for_key(_safe_id(corpus_key))
 
 
 def _normalize_relation_type_key(value: Any) -> str:

@@ -204,6 +204,7 @@ import {
   DEMO_CYCLOTRON_STATUS,
 } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
+import { SEMANTIC_RELATION_FEED_KEY, corpusIdForKey, corpusKeyOf, globalKey, isCorpusId } from "../lib/tenant-knowledge-keys";
 import {
   referenceDisplaySummary,
   referenceMetadataField,
@@ -11324,9 +11325,9 @@ function formatAnalysisCorpusLabel(corpusKey: string, corpora: CategorySteeringC
 }
 
 function analysisCorpusKeyFromRecord(corpus: CategorySteeringCorpus): string | null {
-  if (corpus.name && !corpus.name.startsWith("knowledge-corpus-")) return corpus.name;
+  if (corpus.name && !isCorpusId(corpus.name)) return corpus.name;
   if (!corpus.id) return null;
-  return corpus.id.replace(/^knowledge-corpus-/, "");
+  return corpusKeyOf(corpus.id);
 }
 
 function mergeAnalysisCorpora(configuredCorpora: CategorySteeringCorpus[], liveCorpora: CategorySteeringCorpus[]): CategorySteeringCorpus[] {
@@ -11552,7 +11553,7 @@ function buildUiAnalysisTargetRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       analysisProfileKey: profile.key,
       reindexMode: mode,
@@ -11607,7 +11608,7 @@ function buildUiAuthoritativeLabelRelation(
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       kind: sourceRelationId ? "classification.authoritative_label.accepted_from_prediction" : "classification.authoritative_label.manual",
       actor: actorLabel,
@@ -11761,7 +11762,7 @@ function resolveUiKnowledgeCorpusId(corpora: CategorySteeringCorpus[], corpusKey
 }
 
 function knowledgeCorpusIdFromKey(corpusKey: string): string {
-  return `knowledge-corpus-${safeUiId(corpusKey)}`;
+  return corpusIdForKey(safeUiId(corpusKey));
 }
 
 function safeUiId(value: unknown): string {
@@ -12306,7 +12307,7 @@ function buildUiReferenceQualityRelation(
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: JSON.stringify({
       actorLabel,
       kind: "reference.quality-rating.manual",
@@ -13167,7 +13168,7 @@ function buildUiProducesRelation({ assignment, decision, item, messageId, now }:
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       lifecycle: "reporting-packet-review",
       decision,
@@ -13232,7 +13233,7 @@ function buildUiDerivedFromRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       lifecycle: "reporting-packet-review",
       decision,

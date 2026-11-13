@@ -51,12 +51,14 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
+from ..tenant_knowledge_keys import global_key
 from ..priming_export import scrubbed
 from ..reference_stars import latest_stars
 from ..reference_vote import ACTION_FOR_STATUS, HUMAN
 from ..knowledge_snapshot.parallel import DEFAULT_WORKERS, map_with_clients
 from .context import list_stories, story_entry
-from .digest import CORPUS_PREFIX, collect_references, iso, relations_of, relevance_of
+from ..tenant_knowledge_keys import corpus_id_for_key
+from .digest import collect_references, iso, relations_of, relevance_of
 from .items import idea_rows
 from .monitor_stories import POSITIVE_LABEL
 
@@ -316,7 +318,7 @@ def human_tagged_lineages(client: Any) -> set[str]:
     from .. import suggestion_calibration
 
     try:
-        rows = client.list_by_index(suggestion_calibration.FEED_INDEX, suggestion_calibration.REFERENCE_LINK_FEED_KEY)
+        rows = client.list_by_index(suggestion_calibration.FEED_INDEX, global_key(suggestion_calibration.REFERENCE_LINK_FEED_KEY))
     except Exception:  # noqa: BLE001
         return set()
     tagged: set[str] = set()
@@ -337,7 +339,7 @@ def load_signal_inputs(
     Relations are read for every Reference a person voted on or a thread is anchored on. A pending Reference's verdict is the prediction on its
     row, so a large backlog needs no read for it; its relations (concept links, edges) are read highest prediction first, a chunk at a time, while
     ``out_of_time`` allows: a site with thousands of pending References spends its time share on the most likely ones, not on all of them."""
-    references = sorted(collect_references(client, [f"{CORPUS_PREFIX}{site}"], list(ACTION_FOR_STATUS), None), key=lambda entry: str(entry["id"]))
+    references = sorted(collect_references(client, [corpus_id_for_key(site)], list(ACTION_FOR_STATUS), None), key=lambda entry: str(entry["id"]))
     messages, anchored = load_messages(client)
     is_pending = lambda row: str(row.get("curationStatus") or "pending") == "pending"  # noqa: E731
     tagged = human_tagged_lineages(client)

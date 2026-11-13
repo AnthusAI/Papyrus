@@ -1,13 +1,13 @@
 """Publication-bound pending source intake; called only by the AppSync action.
 
 A deployment's Cognito pool and AppSync endpoint define the publication boundary.
-Knowledge models do not yet support tenant isolation: shared-tenant intake fails
-closed rather than treating a caller's tenant/corpus claim as authorization. A
-token that carries a tenant is always refused. A backend whose Lambda has
-``PAPYRUS_TENANT_ID`` set is refused too, unless it declares that it serves one
-publication with ``PAPYRUS_SINGLE_PUBLICATION_BACKEND=true`` (exactly that text;
-see ``reference_intake_validation._actor`` and docs/multi-tenancy.md). Remove the
-declaration before a second publication is added to such a backend.
+On a SHARED stack the knowledge keys carry the tenant (tenant_knowledge_keys), so intake acts for the one
+tenant the caller's claims name: its corpus is ``<tenant>.<corpus>``, its Reference feed keys are the tenant's own,
+and a corpus of another tenant is refused. On a DEDICATED stack nothing about the keys changes, so the old guard
+stays: a token that carries a tenant is refused, and a backend whose Lambda has ``PAPYRUS_TENANT_ID`` set is refused
+unless it declares that it serves one publication with ``PAPYRUS_SINGLE_PUBLICATION_BACKEND=true`` (exactly that
+text; see ``reference_intake_validation._actor`` and docs/multi-tenancy.md). Remove the declaration before a second
+publication is added to such a backend.
 """
 from __future__ import annotations
 
@@ -22,7 +22,8 @@ from .catalog import reference_record
 from .model_attachments import build_json_model_payload_attachment, upload_attachment_body
 
 from .reference_identity import IdentityIndex, identity_keys
-from .reference_intake_validation import IntakeError, _actor, canonical_source_url
+from .reference_intake_validation import IntakeError, _actor, canonical_source_url, intake_tenant
+from .tenant_knowledge_keys import tenant_corpus_id
 
 
 def _text(value: Any, field: str, limit: int) -> str:
@@ -89,6 +90,7 @@ def intake_references(client, arguments: dict, identity: dict) -> dict:
     ``source_uri`` takes the address as its title (capture replaces it) and a fixed rationale, so an editor never has to invent either.
     """
     actor = _actor(identity)
+    tenant_id = intake_tenant(identity)
     if set(arguments) - {"publicationEndpoint", "corpusId", "items"}:
         raise IntakeError("Unsupported intake fields; status, actor and tenant cannot be supplied.")
     publication = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").rstrip("/")
@@ -100,10 +102,12 @@ def intake_references(client, arguments: dict, identity: dict) -> dict:
             raise IntakeError("Intake is bound to this publication endpoint.")
     if arguments.get("corpusId") is not None:
         corpus_id = _text(arguments.get("corpusId"), "corpusId", 200)
+        if tenant_corpus_id(corpus_id, tenant_id) != corpus_id:
+            raise IntakeError("The corpus does not belong to this publication.")   # a shared stack's corpus id starts with the caller's tenant
     else:
         from .editorial_context import hosted_publication
         try:
-            corpus_id = hosted_publication(client)["corpusId"]
+            corpus_id = hosted_publication(client, tenant_id=tenant_id)["corpusId"]
         except ValueError as error:
             raise IntakeError(str(error)) from None
     if not client.get_record("KnowledgeCorpus", corpus_id):
@@ -126,7 +130,7 @@ def intake_references(client, arguments: dict, identity: dict) -> dict:
     identity_index = IdentityIndex(existing)
     results = [
         find_or_create_source_reference(client, existing, publication=publication, corpus_id=corpus_id, item=item, actor=f"user:{actor}",
-                                        identity_index=identity_index)
+                                        identity_index=identity_index, tenant_id=tenant_id)
         for item in items
     ]
     return {"ok": True, "publicationEndpoint": publication, "references": results}
@@ -241,7 +245,7 @@ def intake_email_submission_references(client, arguments: dict, identity: dict, 
 
 
 def find_or_create_source_reference(client, existing: list[dict], *, publication: str, corpus_id: str, item: dict, actor: str,
-                                    identity_index: IdentityIndex | None = None) -> dict:
+                                    identity_index: IdentityIndex | None = None, tenant_id: str | None = None) -> dict:
     """Returns the current Reference for a source URL in a corpus, creating a pending one when none exists.
 
     ``item`` carries a canonical ``source_uri`` plus ``title``, ``media_type`` and ``ingestion_rationale``;
@@ -278,7 +282,7 @@ def find_or_create_source_reference(client, existing: list[dict], *, publication
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         plan = reference_record({**item, "item_id": f"url-{digest}", "curation_status": "pending"}, {
             "corpusId": corpus_id, "importRunId": f"reference-user-intake-{digest}",
-            "now": now, "actor": actor,
+            "now": now, "actor": actor, "tenantId": tenant_id,
         })
         proposed = plan["expected"]
         proposed.pop("metadata", None)

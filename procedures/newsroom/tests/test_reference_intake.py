@@ -545,3 +545,54 @@ def test_real_handler_executes_upload_protocol_without_external_credentials():
         assert second["references"] == first["references"]
     assert len(slots) == len(completions) == len(requests) == 1
     assert json.loads(requests[0].data)["actorSub"] == "editor-sub"
+
+
+SHARED_ENV = {"PAPYRUS_TENANCY_MODE": "shared", "PAPYRUS_TENANT_ID": ""}
+
+
+def shared_identity(tenant="alpha"):
+    identity = copy.deepcopy(IDENTITY)
+    identity["claims"]["papyrus_tenant_editor"] = tenant
+    return identity
+
+
+def shared_client(corpus_id="alpha.knowledge-corpus-demo"):
+    c = IntakeClient()
+    c.tables["KnowledgeCorpus"] = {corpus_id: {"id": corpus_id, "role": "canonical", "name": "Demo"},
+                                   "beta.knowledge-corpus-demo": {"id": "beta.knowledge-corpus-demo", "role": "canonical", "name": "Demo"}}
+    return c
+
+
+def test_a_shared_stack_takes_intake_for_the_tenant_its_claims_name_without_the_single_publication_flag():
+    c = shared_client()
+    with patch.dict("os.environ", {**ENV, **SHARED_ENV}), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        result = intake_references(c, payload(corpusId="alpha.knowledge-corpus-demo"), shared_identity())
+    ref = c.tables["Reference"][result["references"][0]["id"]]
+    assert ref["corpusId"] == "alpha.knowledge-corpus-demo"
+    assert ref["newsroomFeedKey"] == "alpha#references"
+    assert ref["curationStatusKey"] == "alpha.knowledge-corpus-demo#pending"
+
+
+def test_a_shared_stack_finds_the_tenants_own_canonical_corpus_when_the_call_names_none():
+    c = shared_client()
+    data = payload()
+    del data["corpusId"]
+    with patch.dict("os.environ", {**ENV, **SHARED_ENV}), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        result = intake_references(c, data, shared_identity())
+    assert c.tables["Reference"][result["references"][0]["id"]]["corpusId"] == "alpha.knowledge-corpus-demo"
+
+
+def test_a_shared_stack_refuses_another_tenants_corpus_and_a_corpus_with_no_tenant():
+    for corpus_id in ("beta.knowledge-corpus-demo", "knowledge-corpus-demo"):
+        c = shared_client()
+        c.tables["KnowledgeCorpus"][corpus_id] = {"id": corpus_id}
+        with patch.dict("os.environ", {**ENV, **SHARED_ENV}), pytest.raises(IntakeError, match="does not belong"):
+            intake_references(c, payload(corpusId=corpus_id), shared_identity())
+        assert not c.tables["Reference"]
+
+
+def test_a_shared_stack_refuses_a_session_that_names_no_tenant():
+    c = shared_client()
+    with patch.dict("os.environ", {**ENV, **SHARED_ENV}), pytest.raises(IntakeError, match="tenant"):
+        intake_references(c, payload(corpusId="alpha.knowledge-corpus-demo"), IDENTITY)
+    assert not c.tables["Reference"]
