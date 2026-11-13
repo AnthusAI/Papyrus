@@ -653,7 +653,7 @@ def _person_runs(context, line):
     run_cli(context, line)
 
 
-@when('an agent types "{line}"')
+@when('an AI agent types "{line}"')
 def _agent_runs(context, line):
     run_cli(context, line, agent=True)
 

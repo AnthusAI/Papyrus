@@ -17,7 +17,7 @@ Feature: People and agents at a terminal manage announcements
     And the announcement answer says "Announcements can't go below your quality floor of 3 stars."
 
   Scenario: An agent may not change the settings
-    When an agent types "papyrus announcements settings set --mode dry_run --min-stars 5"
+    When an AI agent types "papyrus announcements settings set --mode dry_run --min-stars 5"
     Then the announcement command fails with "human_required"
 
   Scenario: Settings are saved and shown
