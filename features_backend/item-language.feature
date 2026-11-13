@@ -63,6 +63,15 @@ Feature: Every Story version knows its language, and translations are sibling St
     And the rows were read through the version-state index, with no table scan
     And the summary says "rows to write 3"
 
+  Scenario: The backfill gives every older published row the language and group the projection serves it by
+    Given three Item rows written before the language fields existed, one of them superseded
+    And two published rows written before the language fields existed
+    And the published row of "story-old--zh-Hans" already in "zh-Hans" in the group "story-old"
+    When the operator backfills the languages with "papyrus stories languages"
+    Then the two older published rows have the language "en" and their own lineage as their group
+    And the translated published row is not written
+    And the published summary says "rows to write 2"
+
   Scenario: Running the backfill again writes nothing
     Given three Item rows written before the language fields existed, one of them superseded
     When the operator backfills the languages with "papyrus stories languages"

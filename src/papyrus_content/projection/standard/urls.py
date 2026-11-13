@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...url_paths import decoded_path, encoded_path
 from ..writers import request_paths_for_key
 from .config import SectionConfig, StandardSettings
 
@@ -26,7 +27,10 @@ class UrlPolicy:
 
     def __init__(self, settings: StandardSettings) -> None:
         self.settings = settings
-        self.root = f"{settings.base_path}/" if settings.base_path else ""
+        #: Where the site's shared files live (stylesheets, scripts, pictures): the base path, the same for every language.
+        self.asset_root = f"{settings.base_path}/" if settings.base_path else ""
+        #: Where this projector's pages live: the base path, and on a language edition its prefix under it (``es/``, ``posts/es/``).
+        self.root = self.asset_root + (f"{settings.language_prefix}/" if settings.language_prefix else "")
 
     def key(self, site_key: str) -> str:
         """The object key of a site-relative key: ``index.html`` -> ``posts/index.html``."""
@@ -35,6 +39,13 @@ class UrlPolicy:
     def path(self, site_path: str) -> str:
         """The request path of a site-relative path: ``/`` -> ``/posts/``, ``/tags/`` -> ``/posts/tags/``."""
         return "/" + self.root + site_path.lstrip("/")
+
+    def asset_path(self, site_path: str) -> str:
+        """The request path of a shared file (a script, a stylesheet): under the base path, never under a language prefix."""
+        return "/" + self.asset_root + site_path.lstrip("/")
+
+    def asset_key(self, site_key: str) -> str:
+        return self.asset_root + site_key
 
     def relative_key(self, key: str) -> str | None:
         """The site-relative key of an object key under the base path; ``None`` for a key outside it."""
@@ -58,11 +69,12 @@ class UrlPolicy:
     def url_for_key(self, key: str) -> str:
         """The canonical path of a page key. With ``urls.style: clean`` a page ``x.html`` lives at ``/x``."""
         if self.settings.url_style == "clean" and key.endswith(".html") and not key.endswith("index.html"):
-            return "/" + key[: -len(".html")]
+            return encoded_path("/" + key[: -len(".html")])
         return request_paths_for_key(key)[0]
 
     def key_for_path(self, path: str) -> str:
-        """The object key a canonical path is stored under (the inverse of ``url_for_key``)."""
+        """The object key a canonical path is stored under (the inverse of ``url_for_key``): the NFC text of a percent-encoded path."""
+        path = decoded_path(path)
         if path.endswith("/"):
             return path.lstrip("/") + "index.html"
         key = path.lstrip("/")

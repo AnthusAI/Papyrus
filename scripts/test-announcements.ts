@@ -3,6 +3,8 @@
  * features_backend/x-account-connection.feature and announcement-settings.feature; the page is in features/newsroom-announcements.feature.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { Kind, parse, type OperationDefinitionNode, type FieldNode } from "graphql";
 import { App, Stack } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 import { AttributeType, Table } from "aws-cdk-lib/aws-dynamodb";
@@ -10,7 +12,7 @@ import { Architecture, Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
 import { schema } from "../amplify/data/schema";
 import { ANNOUNCEMENT_MUTATION_OPERATIONS, ANNOUNCEMENT_QUERY_OPERATIONS } from "../amplify/functions/announcements/operations";
 import { announcementsParameterPrefix, wireAnnouncements, X_ENDPOINTS } from "../amplify/functions/announcements/wire";
-import { announcementOperationDocument } from "../lib/announcements-client";
+import { announcementOperationDocument, announcementsApi, type AnnouncementOperation } from "../lib/announcements-client";
 import {
   callbackUrl, connectionWords, failureText, formatDate, formatMoney, modeBlockers, pauseText, setupSteps, toggled, STAR_CHOICES, QUALITY_FLOOR_STARS, type XStatus,
 } from "../lib/announcements-model";
@@ -75,4 +77,45 @@ assert.deepEqual(modeBlockers("on", { budget: 10, labelConfirmed: true }, status
 assert.equal(failureText({ ok: false, error: "forbidden" }), "Your role cannot do this.");
 assert.equal(failureText({ ok: false, error: "x", message: "Plain words." }), "Plain words.");
 
-console.log("announcements ok");
+// Every page call, through the page's client and a fake transport that does what AppSync and Amplify do: it reads the field the
+// document selects, checks the schema declares it on that root type, and builds the payload Amplify's function directive sends
+// (typeName, fieldName, arguments, identity, source, request, prev; no "info").
+const rootFields = (typeName: string) => {
+  const start = base.indexOf(`type ${typeName} {`);
+  assert.ok(start >= 0, `the schema has a ${typeName} type`);
+  return new Set([...base.slice(start, base.indexOf("\n}", start)).matchAll(/^\s+(\w+)\(/gm)].map((match) => match[1]));
+};
+const declared = { Query: rootFields("Query"), Mutation: rootFields("Mutation") };
+const delivered: Record<string, unknown>[] = [];
+const amplifyLike = announcementsApi(async ({ query, variables }) => {
+  const operations = parse(query).definitions.filter((definition): definition is OperationDefinitionNode => definition.kind === Kind.OPERATION_DEFINITION);
+  assert.equal(operations.length, 1);
+  const fields = operations[0].selectionSet.selections.filter((selection): selection is FieldNode => selection.kind === Kind.FIELD);
+  assert.equal(fields.length, 1);
+  const typeName = operations[0].operation === "mutation" ? "Mutation" : "Query";
+  const fieldName = fields[0].name.value;
+  assert.ok(declared[typeName].has(fieldName), `${typeName}.${fieldName} is declared in the schema`);
+  delivered.push({
+    typeName, fieldName, arguments: { input: variables.input }, source: null, request: { headers: {}, domainName: null }, prev: null,
+    identity: { sub: "sub-ryan", username: "ryan", claims: { email: "ryan@example.test" }, groups: ["admin"], defaultAuthStrategy: "ALLOW" },
+  });
+  return { data: { [fieldName]: JSON.stringify({ ok: true }) } };
+});
+const pageCalls: [AnnouncementOperation, Record<string, unknown>][] = [
+  ["announcementsSettings", {}], ["announcementsXStatus", {}], ["announcementsXUsage", {}],
+  ["announcementsSaveSettings", { settings: { mode: "off" } }], ["announcementsPause", { paused: true }],
+  ["announcementsXSaveApp", { clientId: "client-123", clientSecret: "s3cret-value" }], ["announcementsXBegin", { redirectUri: "https://mom.example/cb" }],
+  ["announcementsXComplete", { code: "c", state: "s", redirectUri: "https://mom.example/cb" }], ["announcementsXDisconnect", {}],
+];
+assert.deepEqual(pageCalls.map(([name]) => name).sort(), [...ANNOUNCEMENT_QUERY_OPERATIONS, ...ANNOUNCEMENT_MUTATION_OPERATIONS].sort(), "every operation is a page call");
+// The function's side (src/papyrus_content/announcements/actions_test.py) feeds this same file to handle_event, so the two sides are
+// held to one contract: the requests the page's calls become on the way to the Lambda.
+const PAGE_REQUESTS = "features_backend/fixtures/announcements-page-requests.json";
+async function pageCallsReachTheirOperations(): Promise<void> {
+  for (const [name, input] of pageCalls) assert.deepEqual(await amplifyLike(name, input), { ok: true }, name);
+  assert.deepEqual(delivered.map((event) => event.fieldName), pageCalls.map(([name]) => name), "each page call names its operation as the field");
+  assert.ok(delivered.every((event) => !("info" in event)), "Amplify sends no info object");
+  assert.deepEqual(delivered, JSON.parse(readFileSync(PAGE_REQUESTS, "utf8")), `${PAGE_REQUESTS} is what the page sends`);
+}
+
+void pageCallsReachTheirOperations().then(() => console.log("announcements ok"), (error) => { console.error(error); process.exit(1); });

@@ -1,0 +1,28 @@
+{
+  "id": "PPY-d4fe2aa9-dc79-4f4e-bef4-d8298640aba2",
+  "title": "Auth spike live half: role claims against a real pool and API on the shared staging stack (gated)",
+  "description": "Gated task. D9 (Ryan, 2026-11-13, final): no sandbox account of any kind; we are at the AWS account limit. So the runtime half of the auth spike (the questions PPY-867f76 and PPY-f4d892 answered offline in #1371 and #1372) can run, if at all, only on the shared STAGING stack that the release pipeline creates inside the existing Papyrus production account (PPY-daf673). Nothing is created by hand or by an ad hoc CLI call.\n\nRuns only when both hold: (1) the shared staging stack exists, created by the pipeline (PPY-daf673); (2) Ryan has said go for this run.\n\nQuestions to answer at runtime, with evidence: a token for tenant alpha cannot get, list, create, update or delete tenant beta's rows; index lists return full pages for the caller's tenant; the field-level lock on tenantId refuses an update; the claims reach the access token through a version 2 pre-token trigger on the Cognito Essentials plan; subscriptions (off on the shared stack) would be filtered per tenant. Google test users only, never Cognito password users. Test rows removed afterwards; no extra stacks.\n\nUntil it runs, unproven: the role-claim rules at runtime. The staging stack is built on offline evidence only, and the isolation suite (PPY-29f730) must not be treated as passed before this has run. If it fails, the named fallback (custom queries and mutations whose resolvers read the claims) replaces the owner rules before the suite.\n\nDesign note: docs/plans/multi-tenant-architecture.md (PR #1305), section What stays unproven until the staging stack exists.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9f3de056-b9e3-45e8-92ee-c71395ae25d4",
+  "labels": [
+    "multi-tenant",
+    "standard-frontend-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-daf67362-ce52-43f0-98f7-8558ff1affd9",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-13T19:20:19.260094Z",
+  "updated_at": "2026-11-13T19:20:38.725700Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

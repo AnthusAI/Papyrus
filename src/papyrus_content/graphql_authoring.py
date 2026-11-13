@@ -17,6 +17,9 @@ from .guest_auth import refuse_guest_auth
 from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, graphql_request_headers
 from .operator_errors import GraphQLRequestError, GraphQLTimeoutError, credential_recovery_guidance
 from .tenancy import (
+    TENANT_FIELD,
+    TENANT_ID_ENVIRONMENT_VARIABLE,
+    TENANT_LISTING_QUERIES,
     TENANT_MODELS,
     TenantError,
     row_belongs_to_tenant,
@@ -173,11 +176,11 @@ ITEM_FIELDS = (
 )
 PUBLISHED_ITEM_FIELDS = (
     "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
-    "title headline deck body byline dateline publishedAt versionPublishedAt versionPublishedBy editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
+    "title headline deck body byline dateline publishedAt versionPublishedAt versionPublishedBy editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata language languageGroupId"
 )
 SUMMARY_PAGE_SIZE = 1000
 PUBLISHED_ITEM_SUMMARY_FIELDS = (
-    "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt versionPublishedAt versionPublishedBy metadata"
+    "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt versionPublishedAt versionPublishedBy metadata language languageGroupId"
 )
 MEDIA_ASSET_FIELDS = (
     "id itemId tenantId type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
@@ -1047,6 +1050,27 @@ class PapyrusGraphQLAuthoringClient:
             if not next_token:
                 break
         return self._rows_with_bare_ids(model_name, rows_for_tenant(model_name, self.tenant_id, items))
+
+    def list_tenant_rows(self, model_name: str, fields: str, *, page_size: int = 100) -> list[dict[str, Any]]:
+        """Every row of ``model_name`` that belongs to this client's tenant, read through the model's ``tenantId`` index: one Query, followed page
+        by page, never a whole-table read. What export, deletion and usage read (PPY-1ce06f). The index holds only rows that carry a ``tenantId``,
+        so the list is complete once the tenantId backfill (PPY-8f9462) has stamped every row."""
+        if not self.tenant_id:
+            raise TenantError(f"Listing a tenant's {model_name} rows needs a tenant (--tenant or {TENANT_ID_ENVIRONMENT_VARIABLE}).")
+        if model_name not in TENANT_LISTING_QUERIES:
+            raise TenantError(f"{model_name} has no tenantId index (see docs/tenant-key-inventory.md for how its rows are listed by tenant).")
+        field = TENANT_LISTING_QUERIES[model_name]
+        query = _index_query(field, TENANT_FIELD, fields)
+        items: list[dict[str, Any]] = []
+        next_token = None
+        while True:
+            with request_meter.model(model_name):
+                result = self.graphql(query, {TENANT_FIELD: self.tenant_id, "limit": page_size, "nextToken": next_token})
+            connection = result.get(field) or {}
+            items.extend(entry for entry in connection.get("items") or [] if entry)
+            next_token = connection.get("nextToken")
+            if not next_token:
+                return self._rows_with_bare_ids(model_name, items)
 
     def _rows_with_bare_ids(self, model_name: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [tenant_row_with_bare_record_id(model_name, self.tenant_id, row) for row in rows]

@@ -70,6 +70,12 @@ changing status or being edited, renders the pages that show it again. For examp
         items = "".join(f'<li><a href="{r["url"]}">{r["title"]}</a> ({r["host"]})</li>' for r in page.related_references)
         return html.replace("</main>", f"<ul class='sources'>{items}</ul></main>") if items else html
 
+Languages (docs/multilingual-serving.md): ``page.language`` is the page's BCP 47 tag and ``page.strings`` the site's interface strings in it
+(``strings/<tag>.json``). On a site that serves several languages, ``page.primary_language`` is the primary, ``page.alternates`` is the page in every
+public language it is published in, itself included, as ``{tag, name, url}`` (empty when it exists in one language), ``page.link_map`` is
+``{page path: {tag: page path}}`` and ``page.link_in_language(path)`` returns ``(path, leaves_the_language)`` for a link on this page. The head's
+``hreflang``, ``x-default``, ``og:locale``, JSON-LD ``inLanguage`` and ``<html lang>`` are core's.
+
 ``page.ranked(entries, bucket=None)`` returns entries (newest first, as ``page.entries`` is) in the Story ranking the home page and listings use
 (the newest rolling bucket first, the editors' stars inside it; ``bucket`` is ``day``, ``week`` or ``none``, default the site's ``listings.bucket``).
 A hook that builds its own listing calls it instead of sorting; with nothing rated it returns the list unchanged. A rating or a new day that

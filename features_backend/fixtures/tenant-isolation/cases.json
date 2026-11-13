@@ -4,7 +4,7 @@
     "models": 70,
     "globalModels": 3,
     "modelCases": 484,
-    "indexCases": 189,
+    "indexCases": 218,
     "subscriptionCases": 9,
     "operationCases": 133,
     "functionCases": 31,
@@ -3996,6 +3996,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listAutomationsByTenant",
+      "kind": "index",
+      "subject": "listAutomationsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listAutomationsByTenant on Automation with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listCategoriesByLineageAndVersion",
       "kind": "index",
       "subject": "listCategoriesByLineageAndVersion",
@@ -4041,6 +4049,14 @@
       "subject": "listCategoriesByStatusAndName",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listCategoriesByStatusAndName on Category with status at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listCategoryKeywordsByTenant",
+      "kind": "index",
+      "subject": "listCategoryKeywordsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listCategoryKeywordsByTenant on CategoryKeyword with tenantId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -4108,6 +4124,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listCurationDelegationRecordsByTenant",
+      "kind": "index",
+      "subject": "listCurationDelegationRecordsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listCurationDelegationRecordsByTenant on CurationDelegationRecord with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listCurationDelegationRecordsByGrantor",
       "kind": "index",
       "subject": "listCurationDelegationRecordsByGrantor",
@@ -4156,6 +4180,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listEditionItemsByTenant",
+      "kind": "index",
+      "subject": "listEditionItemsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listEditionItemsByTenant on EditionItem with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listEditionItemsByEditionAndSortKey",
       "kind": "index",
       "subject": "listEditionItemsByEditionAndSortKey",
@@ -4172,6 +4204,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listEditorialCheckRunsByTenant",
+      "kind": "index",
+      "subject": "listEditorialCheckRunsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listEditorialCheckRunsByTenant on EditorialCheckRun with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listEditorialCheckRunsByLineage",
       "kind": "index",
       "subject": "listEditorialCheckRunsByLineage",
@@ -4180,11 +4220,35 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listEditorialCheckSettingsByTenant",
+      "kind": "index",
+      "subject": "listEditorialCheckSettingsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listEditorialCheckSettingsByTenant on EditorialCheckSettings with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listEditorialFeedbackByTenant",
+      "kind": "index",
+      "subject": "listEditorialFeedbackByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listEditorialFeedbackByTenant on EditorialFeedback with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listEditorialFeedbackByItem",
       "kind": "index",
       "subject": "listEditorialFeedbackByItem",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listEditorialFeedbackByItem on EditorialFeedback with itemId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listEditorialPoliciesByTenant",
+      "kind": "index",
+      "subject": "listEditorialPoliciesByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listEditorialPoliciesByTenant on EditorialPolicy with tenantId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -4276,6 +4340,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listItemTagsByTenant",
+      "kind": "index",
+      "subject": "listItemTagsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listItemTagsByTenant on ItemTag with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listItemTagsByItemAndTag",
       "kind": "index",
       "subject": "listItemTagsByItemAndTag",
@@ -4345,6 +4417,14 @@
       "subject": "listKnowledgeImportRunsByCorpusKindAndImportedAt",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listKnowledgeImportRunsByCorpusKindAndImportedAt on KnowledgeImportRun with corpusImportKindKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listKnowledgeRawPayloadsByTenant",
+      "kind": "index",
+      "subject": "listKnowledgeRawPayloadsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listKnowledgeRawPayloadsByTenant on KnowledgeRawPayload with tenantId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -4588,6 +4668,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listModerationActionsByTenant",
+      "kind": "index",
+      "subject": "listModerationActionsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listModerationActionsByTenant on ModerationAction with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listModerationActionsByTargetAndAt",
       "kind": "index",
       "subject": "listModerationActionsByTargetAndAt",
@@ -4716,6 +4804,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listPublishedCategoriesByTenant",
+      "kind": "index",
+      "subject": "listPublishedCategoriesByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listPublishedCategoriesByTenant on PublishedCategory with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listPublishedCategoriesBySetAndKey",
       "kind": "index",
       "subject": "listPublishedCategoriesBySetAndKey",
@@ -4804,6 +4900,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listPublishedEditionItemsByTenant",
+      "kind": "index",
+      "subject": "listPublishedEditionItemsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listPublishedEditionItemsByTenant on PublishedEditionItem with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listPublishedEditionItemsByEditionAndSortKey",
       "kind": "index",
       "subject": "listPublishedEditionItemsByEditionAndSortKey",
@@ -4825,6 +4929,14 @@
       "subject": "listPublishedItemsByLineageAndVersion",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listPublishedItemsByLineageAndVersion on PublishedItem with itemLineageId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listPublishedItemsByTenant",
+      "kind": "index",
+      "subject": "listPublishedItemsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listPublishedItemsByTenant on PublishedItem with tenantId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -4884,11 +4996,43 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listReaderFlagsByTenant",
+      "kind": "index",
+      "subject": "listReaderFlagsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listReaderFlagsByTenant on ReaderFlag with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listReaderHandlesByTenant",
+      "kind": "index",
+      "subject": "listReaderHandlesByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listReaderHandlesByTenant on ReaderHandle with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listReaderProfilesByTenant",
+      "kind": "index",
+      "subject": "listReaderProfilesByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listReaderProfilesByTenant on ReaderProfile with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listReaderProfilesByReader",
       "kind": "index",
       "subject": "listReaderProfilesByReader",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listReaderProfilesByReader on ReaderProfile with readerId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listReaderReportsByTenant",
+      "kind": "index",
+      "subject": "listReaderReportsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listReaderReportsByTenant on ReaderReport with tenantId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -4913,6 +5057,14 @@
       "subject": "listReaderSubmissionsByModerationAndCreatedAt",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listReaderSubmissionsByModerationAndCreatedAt on ReaderSubmission with moderation at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listReaderVotesByTenant",
+      "kind": "index",
+      "subject": "listReaderVotesByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listReaderVotesByTenant on ReaderVote with tenantId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -5036,6 +5188,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listReferenceAttachmentsByTenant",
+      "kind": "index",
+      "subject": "listReferenceAttachmentsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listReferenceAttachmentsByTenant on ReferenceAttachment with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listReferenceAttachmentsByReferenceLineageAndSortKey",
       "kind": "index",
       "subject": "listReferenceAttachmentsByReferenceLineageAndSortKey",
@@ -5065,6 +5225,38 @@
       "subject": "listReferenceAttachmentsByImportRunAndSortKey",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listReferenceAttachmentsByImportRunAndSortKey on ReferenceAttachment with importRunId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listReviewReadMarksByTenant",
+      "kind": "index",
+      "subject": "listReviewReadMarksByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listReviewReadMarksByTenant on ReviewReadMark with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listReviewRecipientRulesByTenant",
+      "kind": "index",
+      "subject": "listReviewRecipientRulesByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listReviewRecipientRulesByTenant on ReviewRecipientRule with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listReviewRequestsByTenant",
+      "kind": "index",
+      "subject": "listReviewRequestsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listReviewRequestsByTenant on ReviewRequest with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listSemanticNodesByTenant",
+      "kind": "index",
+      "subject": "listSemanticNodesByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listSemanticNodesByTenant on SemanticNode with tenantId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -5113,6 +5305,14 @@
       "subject": "listSemanticNodesByNewsroomFeedAndCreatedAt",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listSemanticNodesByNewsroomFeedAndCreatedAt on SemanticNode with newsroomFeedKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listSemanticRelationsByTenant",
+      "kind": "index",
+      "subject": "listSemanticRelationsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listSemanticRelationsByTenant on SemanticRelation with tenantId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -5212,6 +5412,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listSignupEntriesByTenant",
+      "kind": "index",
+      "subject": "listSignupEntriesByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listSignupEntriesByTenant on SignupEntry with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listSignupEntriesByFormAndSubmittedAt",
       "kind": "index",
       "subject": "listSignupEntriesByFormAndSubmittedAt",
@@ -5225,6 +5433,14 @@
       "subject": "listSiteDocumentVersionsByDocument",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listSiteDocumentVersionsByDocument on SiteDocumentVersion with documentId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listSteeringDecisionsByTenant",
+      "kind": "index",
+      "subject": "listSteeringDecisionsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listSteeringDecisionsByTenant on SteeringDecision with tenantId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -5276,11 +5492,27 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listStoryVariationsByTenant",
+      "kind": "index",
+      "subject": "listStoryVariationsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listStoryVariationsByTenant on StoryVariation with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listStoryVariationsByStoryAndNumber",
       "kind": "index",
       "subject": "listStoryVariationsByStoryAndNumber",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listStoryVariationsByStoryAndNumber on StoryVariation with storyLineageId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listTagsByTenant",
+      "kind": "index",
+      "subject": "listTagsByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listTagsByTenant on Tag with tenantId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {

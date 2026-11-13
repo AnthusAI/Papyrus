@@ -174,7 +174,7 @@ ENV = {"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT}
 
 
 def lambda_event(field, *, groups=("editor",), arguments=None, identity=None):
-    return {"info": {"fieldName": field}, "identity": identity or {"groups": list(groups), "claims": {"email": "ed@example.test"}},
+    return {"typeName": "Mutation" if field == "runAutomation" else "Query", "fieldName": field, "identity": identity or {"groups": list(groups), "claims": {"email": "ed@example.test"}},
             "arguments": arguments or {}}
 
 
