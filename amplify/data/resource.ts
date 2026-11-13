@@ -282,6 +282,8 @@ const schema = a.schema({
     previousSectionId: a.id(),
     changed: a.boolean().required(),
     status: a.string().required(),
+    actorKind: a.string(),
+    skipped: a.string(),
   }),
 
   ReferenceStarsActionResult: a.customType({
@@ -511,6 +513,10 @@ const schema = a.schema({
       referenceId: a.id().required(),
       sectionId: a.id(),
       agentLabel: a.string(),
+      // The automatic lane (docs/reference-auto-section.md): the site cyclotron's current section-selector decision this section comes from, and the
+      // calibration evidence. Recorded as actor kind `cyclotron`; refused quietly (changed false) when a person set or cleared the section.
+      decisionRelationId: a.id(),
+      machineReason: a.string(),
     })
     .returns(a.ref("ReferenceSectionActionResult"))
     .authorization((allow) => [
@@ -2088,6 +2094,12 @@ const schema = a.schema({
       curationSectionId: a.string(),
       curationSectionUpdatedAt: a.datetime(),   // when and by whom the section was last set on its own (`setReferenceSection`); the vote's own fields do not move
       curationSectionUpdatedBy: a.string(),
+      // Who set the section, in the vote's own vocabulary: `human` or `agent` (a person's or an operator's choice, kept even when they cleared it, so the
+      // machine never re-tags it) or `cyclotron` (the site cyclotron's section selector, docs/reference-auto-section.md). The machine's evidence (classifier,
+      // model version, confidence and the threshold learned from held-out editor choices) is the reason, and the decision it acted on is the relation id.
+      curationSectionActorKind: a.string(),
+      curationSectionReason: a.string(),
+      curationSectionDecisionRelationId: a.string(),
       curationShareable: a.boolean(),
       curationDelegation: a.json(),
       curationDecisionRelationId: a.string(),
