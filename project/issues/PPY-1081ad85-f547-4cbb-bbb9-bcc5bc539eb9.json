@@ -22,10 +22,17 @@
       "text": "Progress 2026-11-12. Design: docs/plans/public-audiences.md (#1463, merged) and Caducus docs/public-audiences.md (Caducus #14). Caducus side merged to Caducus develop (#15 implementation, #16 rate-baseline fix), kanbus-2bba4f; not released: the release (expected 0.3.0) waits for Ryan's go. Papyrus side built and verified locally on branch feat/PPY-1081ad-public-audiences (on top of #1427): reader actions answered by Caducus (the 503 path is gone), story.published is a public kind fanned out over a new byList GSI, consent and confirmWindowHours settings, RFC 8058 headers, bounce suppression, Gherkin features_backend/notifications-public-audience.feature. It pins caducus[notify]==0.3.0, so its PR opens (with poetry lock) after the release. Pages: branch feat/PPY-1081ad-pages-connect (the #1430 branch merged with the function, plus consent from settings and slow_down in words); it goes to #1430's branch once, after the function PR merges. Required before any public send is On: the forced pause drill (PPY-a85725), because #1427's pause handling assumes SES answers SendingPausedException.",
       "created_at": "2026-11-12T23:26:45.009170Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c0b09c54-092d-4fbf-a44b-4f518979ae5a",
+      "author": "home",
+      "text": "Merged to develop 2026-11-13: #1478 (subscribe and manage through Caducus 0.3.0 public audiences; 503 path gone; byList GSI; consent and confirmWindowHours settings; poetry.lock caducus 0.3.0 + dnspython). Reader pages #1430 connected to it (consent from settings, slow_down in words) and in CI. Public sending stays off everywhere until the forced pause drill PPY-a85725 passes.",
+      "created_at": "2026-11-13T15:38:24.584289Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T12:46:02.378247Z",
-  "updated_at": "2026-11-12T23:26:45.009406Z",
+  "updated_at": "2026-11-13T15:38:24.585059Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

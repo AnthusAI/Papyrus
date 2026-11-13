@@ -47,7 +47,7 @@ test("the client sends the Reference and the type, and never the preview hint", 
   const client = createContentActionsClient({
     queries: { deriveMarkus: async () => ({}) },
     mutations: {
-      saveItemDraft: async () => ({}), publishItem: async () => ({}), unpublishItem: async () => ({}), moveStoryStage: async () => ({}), setStoryStep: async () => ({}), correctReferenceCapture: async () => ({}),
+      saveItemDraft: async () => ({}), publishItem: async () => ({}), unpublishItem: async () => ({}), moveStoryStage: async () => ({}), scheduleItem: async () => ({}), setStoryStep: async () => ({}), correctReferenceCapture: async () => ({}),
       createStoryFromReference: async (args) => { seen.push(args.input); return { data: JSON.stringify({ ok: true, created: false, existing: [], referenceLineageId: "r" }) }; },
     },
   });

@@ -80,7 +80,9 @@ async function main() {
   assert.equal(current().curationSectionId, "machines-on-machines#security");
   assert.equal(current().curationSectionUpdatedBy, "editor@example.org via signed-in (Claude)", "who: the signed-in person, with the plain note of the agent that acted through the session");
   assert.ok(typeof current().curationSectionUpdatedAt === "string");
-  assert.deepEqual(Object.keys(writes[0].input).sort(), ["curationSectionId", "curationSectionUpdatedAt", "curationSectionUpdatedBy", "id"], "nothing else is written");
+  assert.deepEqual(Object.keys(writes[0].input).sort(), ["curationSectionActorKind", "curationSectionDecisionRelationId", "curationSectionId", "curationSectionReason",
+    "curationSectionUpdatedAt", "curationSectionUpdatedBy", "id"], "only the section and who set it are written");
+  assert.deepEqual([current().curationSectionActorKind, current().curationSectionReason, current().curationSectionDecisionRelationId], ["human", null, null], "a person's choice");
   assert.deepEqual(voteNow(), before, "acceptance, note, feedback and rating are identical");
   assert.equal(table("Message").size + table("SemanticRelation").size, 0, "no Message and no relation");
 
@@ -108,6 +110,50 @@ async function main() {
   assert.equal(byOperator.changed, true);
   assert.equal(current().curationSectionUpdatedBy, "Papyrus operator (ryan-session)");
   assert.deepEqual(voteNow(), before);
+
+  assert.equal(current().curationSectionActorKind, "agent", "an operator on AWS credentials is recorded as an agent");
+
+  // 6. The automatic lane (docs/reference-auto-section.md): only the site cyclotron's current section-selector decision for this Reference, and never
+  //    over a person. The operator's section above is a person's: the machine is refused quietly and nothing is written.
+  table("SemanticRelation").set("decision-1", { id: "decision-1", predicate: "site_decision_is", relationState: "current", subjectLineageId: "reference-fixture",
+    classifierId: "site-cyclotron/section-selector-abc", metadata: JSON.stringify({ label: "machines-on-machines#security", classifier: "section-selector-abc" }) });
+  table("SemanticRelation").set("decision-fit", { id: "decision-fit", predicate: "site_decision_is", relationState: "current", subjectLineageId: "reference-fixture",
+    classifierId: "site-cyclotron/section-fit-security", metadata: JSON.stringify({ label: "fits" }) });
+  const machine = (arguments_: Record<string, unknown>) => invoke({ sectionId: "machines-on-machines#security", decisionRelationId: "decision-1", machineReason: "95% sure", ...arguments_ }, operator);
+  let writesBefore = writes.length;
+  const overPerson = await machine({});
+  assert.deepEqual([overPerson.changed, overPerson.skipped], [false, "a person set or cleared this section"]);
+  assert.equal(writes.length, writesBefore);
+  await invoke({ sectionId: null });   // a person's clear sticks too
+  assert.equal((await machine({})).skipped, "a person set or cleared this section");
+  assert.equal(current().curationSectionId, null);
+
+  // A Reference nobody tagged: the machine sets it, as itself, with its evidence and decision; and the same decision again writes nothing.
+  table("Reference").set("reference-untagged", { ...current(), id: "reference-untagged", curationSectionId: null, curationSectionUpdatedBy: null,
+    curationSectionUpdatedAt: null, curationSectionActorKind: null });
+  const untagged = (arguments_: Record<string, unknown>) => machine({ referenceId: "reference-untagged", ...arguments_ });
+  const tagged = await untagged({});
+  assert.deepEqual([tagged.changed, tagged.actorKind, tagged.sectionId], [true, "cyclotron", "machines-on-machines#security"]);
+  const row = table("Reference").get("reference-untagged")!;
+  assert.deepEqual([row.curationSectionUpdatedBy, row.curationSectionActorKind, row.curationSectionReason, row.curationSectionDecisionRelationId],
+    ["auto:cyclotron", "cyclotron", "95% sure", "decision-1"]);
+  writesBefore = writes.length;
+  assert.equal((await untagged({})).changed, false);
+  assert.equal(writes.length, writesBefore);
+  // A decision that names another Section, a fit classifier's decision, or another Reference's decision is refused loudly.
+  await assert.rejects(untagged({ sectionId: "machines-on-machines#retired" }), /disabled/);
+  table("NewsroomSection").set("machines-on-machines#art", { id: "machines-on-machines#art", enabled: true, enabledStatus: "enabled" });
+  await assert.rejects(untagged({ sectionId: "machines-on-machines#art" }), /chose machines-on-machines#security/);
+  await assert.rejects(untagged({ decisionRelationId: "decision-fit" }), /not this Reference's current section-selector decision/);
+  // The machine may clear its own tag; then a person confirming the machine's section makes it theirs.
+  assert.equal((await untagged({ sectionId: null })).changed, true);
+  assert.equal(table("Reference").get("reference-untagged")!.curationSectionId, null);
+  await untagged({});
+  const confirmed = await invoke({ referenceId: "reference-untagged", sectionId: "machines-on-machines#security" });
+  assert.deepEqual([confirmed.changed, confirmed.actorKind], [true, "human"]);
+  assert.equal(table("Reference").get("reference-untagged")!.curationSectionDecisionRelationId, null);
+  assert.equal((await untagged({})).skipped, "a person set or cleared this section");
+  assert.deepEqual(voteNow(), before, "no lane ever touches the vote");
 
   console.log("reference section: ok");
 }

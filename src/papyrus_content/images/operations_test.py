@@ -146,8 +146,8 @@ def test_each_front_end_covers_exactly_the_operations_in_the_table():
     assert [entry["op"] for entry in COMMANDS] == NAMES
     assert list(mcp.image_tools()) == ALL_NAMES and list(mcp.image_descriptions()) == ALL_NAMES and list(mcp.image_output_schemas()) == ALL_NAMES
     ts = generate.TS_TYPES.read_text(encoding="utf-8")
-    assert re.findall(r"^  ((?:image|guidelines)_[a-z_]+): \{ input:", ts, re.M) == ALL_NAMES
-    assert re.findall(r"^  ((?:image|guidelines)_[a-z_]+): \{ effect:", ts, re.M) == ALL_NAMES
+    assert re.findall(r"^  ((?:image|guidelines|announcements)_[a-z_]+): \{ input:", ts, re.M) == ALL_NAMES
+    assert re.findall(r"^  ((?:image|guidelines|announcements)_[a-z_]+): \{ effect:", ts, re.M) == ALL_NAMES
     skill = generate.SKILL.read_text(encoding="utf-8")
     block = skill[skill.index(generate.BEGIN):skill.index(generate.END)]
     assert re.findall(r"^\| `(image_[a-z_]+)` \| `papyrus images", block, re.M) == NAMES

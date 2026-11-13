@@ -92,3 +92,18 @@ test("steering workspace: References refresh on open and after the editor's own 
   assert.doesNotMatch(workspace, /typeof \w+\.(onCreate|onUpdate|onDelete)\s*[!=]==\s*"function"/);
   assert.doesNotMatch(workspace, /models\.(Reference|SemanticRelation) as unknown as/);
 });
+
+test("newsroom sections: one source for names and lists", () => {
+  const workspace = read("components/topic-steering-workspace.tsx");
+  const sections = read("lib/newsroom-sections.ts");
+  assert.doesNotMatch(workspace, /SHORT_TITLE_FALLBACKS|normalizeNewsroomSectionsWithFallback|fallbackNewsroomSections|needsSectionFallback|needsProposalFallback/);
+  assert.doesNotMatch(sections, /SHORT_TITLE_FALLBACKS/);
+  assert.doesNotMatch(workspace, /Creative Work|Market Structure/);
+  assert.match(sections, /return section\.shortTitle\?\.trim\(\) \|\| section\.title;/);
+});
+
+test("news desk dashboard: a slice that fails fails the dashboard", () => {
+  const client = read("components/news-desk-taxonomy-client.ts");
+  assert.doesNotMatch(client, /loadDashboardSlice|Newsroom dashboard slice failed/);
+  assert.doesNotMatch(client, /loadEditorProcedureData\(\)\.catch/);
+});

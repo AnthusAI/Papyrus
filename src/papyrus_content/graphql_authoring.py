@@ -69,7 +69,7 @@ REFERENCE_FIELDS = (
     f"{VERSION_FIELDS} id corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 "
     "sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount "
     "importRunId importedAt createdAt curationStatus "
-    "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey "
+    "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationSectionUpdatedAt curationSectionUpdatedBy curationSectionActorKind curationSectionReason curationSectionDecisionRelationId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey "
     "discoveredByMonitorId discoveryDetails discoveryRule feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey starFeedKey captureState captureReason contentNeededKey medium evidenceLevel playlistUrl mediumFeedKey thumbnailPath publicFeedKey publicOrderKey cardImage cardSummary cardSiteName cardPageTitle updatedAt"
 )
 REFERENCE_ATTACHMENT_FIELDS = (
@@ -127,6 +127,11 @@ STORY_VARIATION_FIELDS = (
     "id storyLineageId variationNumber status point headline deck bodyMarkus section connections origin basedOnVariationIds requestMessageId "
     "pointCheck runId model createdBy decidedBySub decidedByLabel decidedAt decisionReason createdAt updatedAt"
 )
+ANNOUNCEMENT_FIELDS = (
+    "id accountId accountHandle storyLineageId storyItemId storyVersionNumber channel state blockedReason mode trigger link weight draftedBy checks postId postedAt cost "
+    "attempts round error history withdrawnBy withdrawnAt createdAt updatedAt"
+)
+ANNOUNCEMENT_SPEND_FIELDS = "id accountId cycleStart total updatedAt"
 REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"
 EDITORIAL_CHECK_SETTINGS_FIELDS = "id settings"
 USER_ROLE_ASSIGNMENT_FIELDS = (
@@ -212,6 +217,8 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "ReviewRequest": {"field": "listReviewRequests", "fields": REVIEW_REQUEST_FIELDS},
     "ReviewReadMark": {"field": "listReviewReadMarks", "fields": REVIEW_READ_MARK_FIELDS},
     "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
+    "Announcement": {"field": "listAnnouncements", "fields": ANNOUNCEMENT_FIELDS},
+    "AnnouncementSpend": {"field": "listAnnouncementSpends", "fields": ANNOUNCEMENT_SPEND_FIELDS},
     "ReviewRecipientRule": {"field": "listReviewRecipientRules", "fields": REVIEW_RECIPIENT_RULE_FIELDS},
     "EditorialCheckSettings": {"field": "listEditorialCheckSettings", "fields": EDITORIAL_CHECK_SETTINGS_FIELDS},
     "UserRoleAssignment": {"field": "listUserRoleAssignments", "fields": USER_ROLE_ASSIGNMENT_FIELDS},
@@ -570,6 +577,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "storyLineageId",
         "partitionType": "ID",
         "fields": STORY_VARIATION_FIELDS,
+    },
+    "announcementsByAccountAndCreatedAt": {
+        "field": "listAnnouncementsByAccountAndCreatedAt",
+        "partitionKey": "accountId",
+        "fields": ANNOUNCEMENT_FIELDS,
     },
     "itemsByParent": {
         "field": "listItemsByParentAndOrder",

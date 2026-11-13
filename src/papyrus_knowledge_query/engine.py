@@ -118,8 +118,6 @@ def run_knowledge_query(input: dict[str, Any], services: KnowledgeQueryServices 
     request, warnings = _normalize_request(input)
     services.token_counter = services.token_counter.with_model(request["tokenizerModel"])
     tokenizer_metadata = services.token_counter.metadata()
-    if tokenizer_metadata.get("provider") == "regex" and services.token_counter.use_tiktoken:
-        warnings.append("Tiktoken tokenizer unavailable; using regex token budget fallback")
     semantic_provider = services.semantic or NoopSemanticSearchProvider()
     graph_provider = services.graph
     structured = {
@@ -2021,10 +2019,7 @@ def _reference_summary_from_relation(
     message_id = relation.get("subjectId")
     if not message_id:
         return None
-    try:
-        message = graph.resolve_anchor({"kind": "message", "id": message_id, "lineageId": relation.get("subjectLineageId")}) or {}
-    except Exception:  # pragma: no cover - defensive runtime fallback
-        message = {}
+    message = graph.resolve_anchor({"kind": "message", "id": message_id, "lineageId": relation.get("subjectLineageId")}) or {}
     if message.get("messageKind") not in {None, "reference_summary"}:
         return None
     if message.get("messageDomain") not in {None, "summarization"}:

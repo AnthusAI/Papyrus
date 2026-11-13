@@ -24,6 +24,7 @@ CORPUS = "knowledge-corpus-example"
 NOW = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
 PAGE_SIZE = 100
 REFERENCES_KEY = "_data/home-page/references.json"
+STORED_SECTION = "example-publication#record-004"
 
 
 class CorpusClient:
@@ -50,7 +51,7 @@ class CorpusClient:
             "title": f"Reference number {index}", "sourceUri": f"https://example.org/posts/{index}", "createdAt": arrival, "feedArrivalAt": arrival,
             "curationStatus": "accepted" if accepted else "pending", "curationStatusKey": f"{CORPUS}#{'accepted' if accepted else 'pending'}",
             "feedStateKey": None if accepted else f"{CORPUS}#unrated", "curationStatusUpdatedAt": arrival, "curationActorKind": "human" if accepted else None,
-            "starRating": 1 + index % 5 if accepted and index % 7 == 0 else None, "curationSectionId": "record-004" if index % 2 else None,
+            "starRating": 1 + index % 5 if accepted and index % 7 == 0 else None, "curationSectionId": STORED_SECTION if index % 2 else None,
         }
         self.rows[row["id"]] = row
         confidence = 0.3 + (index % 7) / 10
@@ -95,7 +96,7 @@ class CorpusClient:
     def list_records(self, model: str) -> list[dict[str, Any]]:
         assert model == "NewsroomSection"
         self.requests["sections"] += 1
-        return [{"id": "record-004", "title": "Articles"}]
+        return [{"id": "record-004", "storedId": STORED_SECTION, "title": "Articles"}]   # a tenant client: bare id, stored form beside it
 
     def list_published_item_summaries(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return []
@@ -144,7 +145,7 @@ def test_the_incremental_page_is_the_page_a_full_read_builds(site):
     client.rows["reference-3-v1"]["title"] = "A retitled accepted Reference"
     client.rows["reference-6-v1"].update({"curationStatus": "rejected", "curationStatusKey": f"{CORPUS}#rejected"})
     client.rows["reference-8-v1"].update({"feedStateKey": None, "curationStatus": "archived"})
-    client.rows["reference-7-v1"]["curationSectionId"] = "record-004"
+    client.rows["reference-7-v1"]["curationSectionId"] = STORED_SECTION
     client.rows["reference-9-v1"]["starRating"] = 2
     fresh = client.add(300)
     ids = [*changed, "reference-3-v1", "reference-6-v1", "reference-8-v1", "reference-7-v1", "reference-9-v1", fresh["id"], "reference-gone-v1"]
@@ -371,3 +372,20 @@ def test_apply_changes_with_nothing_changed_reads_nothing():
     client = CorpusClient(10)
     changes = apply_changes(client, CORPUS, type("S", (), {})(), {}, {}, [])
     assert changes.examined == 0 and client.total == 0 and changes.records == []
+
+
+def sections_published(site) -> dict[str, str | None]:
+    return {record["title"]: record.get("section") for record in document(site)["references"]}
+
+
+def test_a_reference_tagged_with_a_stored_section_id_publishes_the_sections_title_in_both_paths(site):
+    client, store = CorpusClient(30), MemoryStateStore()
+    run(site, client, store)
+    published = sections_published(site)
+    assert published["Reference number 3"] == "Articles" and published["Reference number 6"] is None, "the full read names the section of a tagged Reference"
+    client.rows["reference-9-v1"]["curationSectionId"] = STORED_SECTION
+    client.rows["reference-12-v1"]["curationSectionId"] = "example-publication#no-such-section"
+    run(site, client, store, DirtyBatch(ids=frozenset({"reference-9-v1", "reference-12-v1"})))
+    published = sections_published(site)
+    assert published["Reference number 9"] == "Articles", "the incremental update names it too"
+    assert published["Reference number 12"] is None, "an id that matches no section publishes no section"

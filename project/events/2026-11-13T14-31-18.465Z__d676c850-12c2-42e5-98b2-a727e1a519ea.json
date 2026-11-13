@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d676c850-12c2-42e5-98b2-a727e1a519ea",
+  "issue_id": "PPY-f55d4645-219b-4283-a1f0-d0870c2f8bb0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T14:31:18.465Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Corrector feedback and the language quality page",
+    "description": "As someone who reads the language, I want to say whether a finding is a real problem, and as an admin who does not read it, I want evidence in English, so quality is visible without anyone in-house reading Chinese.\n\nDesign: section 2.6, adjusted for Ryan 2026-11-13 (no paid reviewers). Correctors are volunteer readers after publication, never a gate; their one-tap \"real problem\" or \"not a problem\" (`EditorialFeedback`) recalibrates the detectors per language. The quality page for an admin shows source and translation side by side, an English gloss of the translation (a back-translation by a different model than the translator), each finding explained in English with its evidence, and the label of what each number is based on: automated measures only, nobody in-house can verify the language. The gloss is a reading aid, never a score and never a gate.\n\n```gherkin\nFeature: People who read the language can teach the checks, and people who do not can still see quality\n  Scenario: A corrector says a finding is not a problem\n    Given a translationese finding on a Chinese sentence\n    When the corrector marks it \"not a problem\"\n    Then the decision is stored for Chinese only\n    And the next recalibration uses it\n\n  Scenario: An admin who cannot read Chinese reviews a page\n    When they open the quality page for a Chinese Story\n    Then they see the English, the Chinese and an English gloss of the Chinese side by side\n    And each finding explained in English\n    And a note that the gloss is a reading aid, not a score\n\n  Scenario: The page says what its numbers rest on\n    When an admin opens the quality page for a language\n    Then the numbers are labelled as automated measures\n    And the page says plainly that nobody in-house can verify the language, so the measures are proxies\n\n  Scenario: Stock phrasing is shown against the English Story\n    Given a Chinese Story whose findings trace to stock phrasing in the English text\n    When an admin opens the quality page\n    Then the page links the phrase to the English Story where advice was filed\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-6f91de8e-2cce-4326-8ef1-852a50c36e5c",
+    "labels": []
+  }
+}

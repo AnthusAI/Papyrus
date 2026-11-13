@@ -42,9 +42,8 @@ from .ids import hash_short, hash_stable, knowledge_corpus_id
 from .options import parse_boolean_option, parse_comma_list, parse_options, resolve_mutation_apply
 from .records import (
     apply_record_changes,
-    build_record_changes_tolerating_optional_models,
+    build_record_changes,
     build_steering_config_record_changes,
-    is_missing_graphql_model_error,
 )
 from .reference_policy import normalize_reference_curation_status
 from .papyrus_config import resolve_topics_steering_config_path
@@ -82,7 +81,7 @@ def categories_import_steering(flags: list[str]) -> None:
             "ignoredTerms": [rule.get("term") for rule in lexical_config.get("ignoredTerms") or []],
         },
     )
-    changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+    changes = build_record_changes(client, plan["records"])
     apply_record_changes(client, changes)
     print_category_import_summary("steering", plan["importRunId"], changes)
 
@@ -95,7 +94,7 @@ def categories_import_config(flags: list[str]) -> None:
     changes = build_steering_config_record_changes(client, records)
     apply_record_changes(client, changes)
     print_category_import_summary("config", "steering-config", changes)
-    apply_lexical_steering_config_if_available(client, options)
+    apply_lexical_steering_config(client, options)
 
 
 def categories_sandbox_steering_config(flags: list[str]) -> None:
@@ -333,7 +332,7 @@ def categories_import_projection(flags: list[str]) -> None:
             "categorySetId": category_set.get("id") if category_set else None,
         },
     )
-    changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+    changes = build_record_changes(client, plan["records"])
     apply_record_changes(client, changes)
     print_category_import_summary("projection", plan["importRunId"], changes)
 
@@ -878,7 +877,7 @@ def categories_run_curation_cycle(flags: list[str]) -> None:
     config_changes = build_steering_config_record_changes(client, build_steering_config_records(steering_config))
     apply_record_changes(client, config_changes)
     print_category_import_summary("config", "steering-config", config_changes)
-    lexical_config = apply_lexical_steering_config_if_available(client, options)
+    lexical_config = apply_lexical_steering_config(client, options)
     canonical_bundle = load_steering_bundle_from_biblicus(
         corpus=plan["canonical"]["corpus"]["path"],
         classifier=plan["canonical"]["classifierId"],
@@ -894,7 +893,7 @@ def categories_run_curation_cycle(flags: list[str]) -> None:
             "ignoredTerms": [rule.get("term") for rule in lexical_config.get("ignoredTerms") or []],
         },
     )
-    steering_changes = build_record_changes_tolerating_optional_models(client, steering_import_plan["records"])
+    steering_changes = build_record_changes(client, steering_import_plan["records"])
     apply_record_changes(client, steering_changes)
     print_category_import_summary("steering", steering_import_plan["importRunId"], steering_changes)
     category_set = resolve_accepted_category_set(
@@ -924,7 +923,7 @@ def categories_run_curation_cycle(flags: list[str]) -> None:
         if decision.get("categorySetId") == category_set.get("id") or decision.get("proposalId") in proposal_ids
     ]
     write_json_file(plan["canonical"]["steeringFeedbackPath"], build_steering_feedback_payload(category_set, proposals, decisions))
-    write_lexical_steering_export_if_available(client, plan["canonical"]["lexicalSteeringPath"], lexical_config)
+    write_lexical_steering_export(client, plan["canonical"]["lexicalSteeringPath"], lexical_config)
     canonical_extraction_snapshot = latest_pipeline_snapshot(canonical_bundle)
     if not canonical_extraction_snapshot:
         raise ValueError(f"No pipeline extraction snapshot found for {plan['canonical']['corpus']['key']}.")
@@ -1033,7 +1032,7 @@ def categories_run_curation_cycle(flags: list[str]) -> None:
                 "categorySetId": projection_category_set.get("id") if projection_category_set else None,
             },
         )
-        projection_changes = build_record_changes_tolerating_optional_models(client, projection_import_plan["records"])
+        projection_changes = build_record_changes(client, projection_import_plan["records"])
         apply_record_changes(client, projection_changes)
         print_category_import_summary(f"projection:{projection['targetCorpus']['key']}", projection_import_plan["importRunId"], projection_changes)
     refreshed_bundle = load_steering_bundle_from_biblicus(
@@ -1050,7 +1049,7 @@ def categories_run_curation_cycle(flags: list[str]) -> None:
             "ignoredTerms": [rule.get("term") for rule in lexical_config.get("ignoredTerms") or []],
         },
     )
-    refreshed_changes = build_record_changes_tolerating_optional_models(client, refreshed_plan["records"])
+    refreshed_changes = build_record_changes(client, refreshed_plan["records"])
     apply_record_changes(client, refreshed_changes)
     print_category_import_summary("steering:refreshed", refreshed_plan["importRunId"], refreshed_changes)
     verification = verify_curation_cycle(client, {"plan": plan, "categorySetId": category_set.get("id")})
@@ -1327,7 +1326,7 @@ def categories_rebuild_roots_promote(flags: list[str]) -> None:
             "ignoredTerms": ignored_terms,
         },
     )
-    changes = build_record_changes_tolerating_optional_models(client, import_plan["records"])
+    changes = build_record_changes(client, import_plan["records"])
     apply_record_changes(client, changes)
     print_category_import_summary("post-promote-child-discovery", import_plan["importRunId"], changes)
     summary = {
@@ -1391,13 +1390,7 @@ def categories_reset(flags: list[str]) -> None:
         for entry in client.list_records("SteeringDecision")
         if entry.get("categorySetId") in category_set_ids or entry.get("proposalId") in proposal_ids
     ]
-    try:
-        category_keywords = [entry for entry in client.list_records("CategoryKeyword") if entry.get("categorySetId") in category_set_ids]
-    except (RuntimeError, KeyError, ValueError) as error:
-        if not is_missing_graphql_model_error(error, "CategoryKeyword"):
-            if not isinstance(error, KeyError):
-                raise
-        category_keywords = []
+    category_keywords = [entry for entry in client.list_records("CategoryKeyword") if entry.get("categorySetId") in category_set_ids]
     raw_payload_targets = category_set_ids.union(category_ids).union(proposal_ids)
     knowledge_raw_payloads = [
         entry
@@ -1452,46 +1445,26 @@ def categories_reset(flags: list[str]) -> None:
     for model_name, rows in delete_groups:
         if not rows:
             continue
-        try:
-            for row in rows:
-                if row.get("id"):
-                    client.delete_record(model_name, row["id"])
-        except (RuntimeError, KeyError, ValueError) as error:
-            if not is_missing_graphql_model_error(error, model_name):
-                if not isinstance(error, (KeyError, ValueError)):
-                    raise
-            print(f"categories\treset\tskip\t{model_name}\tmodel-not-deployed")
-            continue
+        for row in rows:
+            if row.get("id"):
+                client.delete_record(model_name, row["id"])
         print(f"categories\treset\tdeleted\t{model_name}\t{len(rows)}")
 
     print("categories\treset\tnext\tpoetry run papyrus newsroom recount-summary")
 
 
-def apply_lexical_steering_config_if_available(client, options: dict[str, Any]) -> dict[str, Any]:
+def apply_lexical_steering_config(client, options: dict[str, Any]) -> dict[str, Any]:
     lexical_config = load_lexical_steering_config(options.get("lexical-config"))
-    try:
-        lexical_changes = build_record_changes_tolerating_optional_models(client, build_lexical_steering_config_records(lexical_config))
-        apply_record_changes(client, lexical_changes)
-        print_category_import_summary("lexical-config", "papyrus-lexical-steering", lexical_changes)
-    except (RuntimeError, KeyError, ValueError) as error:
-        if not is_missing_graphql_model_error(error, "LexicalSteeringRule"):
-            if not isinstance(error, (KeyError, ValueError)):
-                raise
-        print("skip\tlexical-config\tLexicalSteeringRule model is not deployed in AppSync yet.")
+    lexical_changes = build_record_changes(client, build_lexical_steering_config_records(lexical_config))
+    apply_record_changes(client, lexical_changes)
+    print_category_import_summary("lexical-config", "papyrus-lexical-steering", lexical_changes)
     return lexical_config
 
 
-def write_lexical_steering_export_if_available(client, output_path: str, lexical_config: dict[str, Any]) -> None:
-    try:
-        lexical_rules = client.list_records("LexicalSteeringRule")
-        write_json_file(output_path, build_lexical_steering_payload(lexical_rules, {"config": lexical_config}))
-        print(f"export\tlexical-steering\t{output_path}\t{len(lexical_rules)} rules")
-    except (RuntimeError, KeyError, ValueError) as error:
-        if not is_missing_graphql_model_error(error, "LexicalSteeringRule"):
-            if not isinstance(error, (KeyError, ValueError)):
-                raise
-        write_json_file(output_path, build_lexical_steering_payload([], {"config": lexical_config}))
-        print("skip\tlexical-export\tLexicalSteeringRule model is not deployed in AppSync yet; wrote empty lexical export.")
+def write_lexical_steering_export(client, output_path: str, lexical_config: dict[str, Any]) -> None:
+    lexical_rules = client.list_records("LexicalSteeringRule")
+    write_json_file(output_path, build_lexical_steering_payload(lexical_rules, {"config": lexical_config}))
+    print(f"export\tlexical-steering\t{output_path}\t{len(lexical_rules)} rules")
 
 
 def resolve_accepted_category_set(client, options: dict[str, Any]) -> dict[str, Any] | None:

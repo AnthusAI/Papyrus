@@ -1,7 +1,7 @@
 """A published story as a Caducus ``story.published`` event.
 
 The id comes from the story's lineage, so a republish, an edit or a repeated announcement is a duplicate in the site's table
-and mails nobody twice. A story that no list's rule matches raises no event.
+and mails nobody twice. The event names the lists whose rule matches the story; their confirmed subscribers are its\naudience, and a reader on several of them gets one message. A story that no list's rule matches raises no event.
 """
 
 from __future__ import annotations
@@ -29,7 +29,8 @@ def matching_lists(settings: Settings, summary: PublishedItemSummary) -> list[Ma
 def story_published_detail(row: Mapping[str, Any], *, event_id: str, settings: Settings, occurred_at: str) -> dict[str, Any] | None:
     """The event ``detail`` for a published item, or ``None`` when no list's rule matches it."""
     summary = PublishedItemSummary(row, settings)
-    if not matching_lists(settings, summary):
+    lists = matching_lists(settings, summary)
+    if not lists:
         return None
     facts: dict[str, Any] = {"title": summary.title or "Untitled", "url": summary.url}
     blurb = summary.dek or summary.paragraph
@@ -43,5 +44,6 @@ def story_published_detail(row: Mapping[str, Any], *, event_id: str, settings: S
         "site": settings.site_id,
         "occurredAt": occurred_at,
         "severity": "info",
+        "lists": [entry["id"] for entry in lists],
         "facts": facts,
     }

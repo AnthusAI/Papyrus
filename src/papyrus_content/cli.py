@@ -323,6 +323,7 @@ PORTED_COMMANDS = frozenset(
         "references:curate",
         "references:backfill-publication-dates",
         "references:decide-site-sections",
+        "references:auto-section",
         "references:export-relevance-recording",
         "references:freeze-priming-held-out",
         "references:prove-priming",
@@ -770,6 +771,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:decide-site-sections":
         from .site_sweep import references_decide_site_sections
         references_decide_site_sections(flags)
+    elif route == "references:auto-section":
+        from .site_auto_section import references_auto_section
+        references_auto_section(flags)
     elif route == "references:export-relevance-recording":
         from .relevance_recording import references_export_relevance_recording
         references_export_relevance_recording(flags)
@@ -1813,7 +1817,6 @@ def fetch_reference_url_text_after_registration(
         f"references\tprocess-fetch-url-text\tplanned-attachments\t{extraction.get('plannedAttachmentCount', 0)}",
         f"references\tprocess-fetch-url-text\tplanned-reference-metadata\t{extraction.get('plannedReferenceMetadataCount', 0)}",
         f"references\tprocess-fetch-url-text\tfiltered\t{extraction.get('filteredCount', 0)}",
-        f"references\tprocess-fetch-url-text\tfallback-raw\t{extraction.get('fallbackRawCount', 0)}",
         f"references\tprocess-fetch-url-text\tchanges\t{extraction['changeCount']}",
         f"references\tprocess-fetch-url-text\treference-metadata-changes\t{extraction.get('referenceMetadataChangeCount', 0)}",
         f"references\tprocess-fetch-url-text\tattachment-changes\t{extraction.get('attachmentChangeCount', 0)}",
@@ -1826,12 +1829,6 @@ def fetch_reference_url_text_after_registration(
         lines.append(
             f"reference-url-text\tfailed\t{failure.get('referenceId') or '-'}\t"
             f"{failure.get('sourceUri') or '-'}\t{failure.get('error') or 'unknown error'}"
-        )
-    for fallback in (extraction.get("filterFallbacks") or [])[:10]:
-        lines.append(
-            f"reference-url-text\tfilter-fallback\t{fallback.get('referenceId') or '-'}\t"
-            f"{fallback.get('sourceUri') or '-'}\t"
-            f"{json.dumps(fallback.get('reason') or {}, sort_keys=True)}"
         )
     if len(extraction["failures"]) > 10:
         lines.append(f"references\tprocess-fetch-url-text\tomitted-failures\t{len(extraction['failures']) - 10}")

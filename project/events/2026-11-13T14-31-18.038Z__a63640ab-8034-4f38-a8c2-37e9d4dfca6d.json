@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a63640ab-8034-4f38-a8c2-37e9d4dfca6d",
+  "issue_id": "PPY-c61c9c60-4651-444e-8efa-e7fdfb196b72",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T14:31:18.038Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Translation checklist and gates",
+    "description": "As an editor, I want a localization's checklist proven by records, so no step can be ticked by hand and the reader label tells the truth.\n\nDesign: section 3.9. A localization is an ordinary Story lineage; its checklist template is the plan's translation procedure document. Steps: `translate`, `faithfulness`, `copy_edit`, `publish`, and optional `corrector_review` (never blocks, drives the reader label). Per Ryan 2026-11-13 no paid reviewer exists, so `corrector_review` only ever records a volunteer correction or a \"Looks right\" press; the page stays labelled as AI-translated until one happens.\n\n```gherkin\nFeature: A localization's checklist is proven by records\n  Scenario: The steps cannot be ticked by hand\n    Given a Chinese localization\n    When someone tries to mark \"faithfulness\" done\n    Then it is refused, because only a finished check of the current version proves it\n\n  Scenario: Copy-edit is proven by the convergence loop's final check\n    Given a localization whose polish rounds converged\n    Then the \"copy_edit\" step is done\n    And it names the check run of the current version for every enabled lane\n\n  Scenario: A corrector's review changes the label, not the gate\n    Given a published Chinese page nobody has reviewed\n    When a corrector presses \"Looks right\"\n    Then the page says it was translated by AI and reviewed by a person\n\n  Scenario: The English Story is never held by its translations\n    Given a Chinese localization held on a faithfulness error\n    Then the English Story's checklist and page are unaffected\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+    "labels": []
+  }
+}
