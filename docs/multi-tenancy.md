@@ -16,6 +16,8 @@ On `shared`, `amplify/site-backend.ts` sets `PAPYRUS_TENANCY_MODE=shared` on eve
 
 Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows get a `tenantId`. The index values that would be global (`typeStatus`, `sectionStatus`, slug lookups) are prefixed with `<tenant>#`, media rows are listed, read, updated and deleted by their own tenant only (see [story pictures](#story-pictures-and-the-one-key-rule) for the key), and a tenant client lists, reads, updates and deletes only its own rows.
 
+The generated [tenant key inventory](tenant-key-inventory.md) lists every model's indexes, whether each partition value is tenant-prefixed, corpus-prefixed, a record id or global, and which tables have no index that can list one tenant's rows; CI fails when it is stale or a new index is unclassified.
+
 ## Tenant, membership and domain records
 
 Three models hold the tenants themselves (PPY-31c45c). They are new tables, each created with all its indexes in one deploy, and they sit in the optional model group `tenancy` (`OPTIONAL_MODEL_GROUPS`), so a dedicated site can leave them out of a first deploy with `excludeModelGroups: ["tenancy"]`. Nothing reads or writes them yet.
