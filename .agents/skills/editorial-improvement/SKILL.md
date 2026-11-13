@@ -85,7 +85,9 @@ in the report if you think one should change.
   `stories pull --story LINEAGE --body-file body.md --front-matter-file front.yaml`
   (read only; `--version N` pulls an older one). Edit from that stored text. Never
   rebuild it from the live page or its Markdown twin: those have rewritten
-  picture paths and no citation data.
+  picture paths and no citation data. If the CLI version the site needs is
+  older than `stories pull`, stop and ask whoever assigned the work how to
+  read the stored version; the brief should say.
 - **The site's mission, policies and audience.** Run
   `editorial pack --section SECTION --output pack.json`. The audience in the
   pack is who you write for. Many sites' readers are not technical: if a
@@ -109,7 +111,11 @@ the evidence…") and backed by the sources. Do not moralize, and do not hedge
 everything until it says nothing.
 
 If the assigner named a specific problem, solve that first and most visibly.
-The named problem is what they will check.
+The named problem is what they will check. Direction from the assigner
+outranks your own choices and the site's general guidance (a headline they
+dictate, say, even if the site prefers statement headlines). Follow it, and
+note any conflict in the report. Direction that arrives mid-task replaces
+your thesis choice; say in the report what you had chosen.
 
 ### 3. Research and fact-check
 
@@ -120,9 +126,12 @@ The named problem is what they will check.
 - If a claim cannot be supported, narrow it or cut it. Report what you left
   out.
 - File new References from a catalog (`references create-from-catalog`),
-  link them with roles, and cite them in front matter.
+  link them with roles, and cite them in front matter. Do this as soon as you
+  have the sources, not at the end: filing takes minutes and can time out.
+  Re-running the identical command is safe and confirms what was filed.
 - When a fetch tool is refused, try another reader (a browser pane, `curl`),
-  not a different claim.
+  not a different claim. A Reference whose stored capture is empty has to be
+  read at its source.
 
 ### 4. Rewrite
 
@@ -167,7 +176,13 @@ with these always on:
   colourblind.
 - The site's own drawn and generated figures carry no credit line unless
   the site's rules say otherwise. Third-party pictures always carry their
-  licence and credit.
+  licence and credit. When you keep one of the site's own pictures that
+  carries an old "Approved by NAME" credit, remove the credit. A site's
+  figure README may still describe an approval step; the no-approval rule
+  wins.
+- A picture you keep from the stored version is carried into the new version
+  when the body names it by its stored `assets/...` path. If you name it by
+  a local file name instead, pass the file with `--images`.
 - Use a generated image only where the site has image generation set up and
   you can see the result before applying it.
 
@@ -204,14 +219,21 @@ blockquote means; on some sites it draws the large pull-quote panel.
    --front-matter-file F --images DIR --reason R`. Pass `--images` with
    every picture the body names, day and Night versions, whenever the body
    names pictures by local file name.
-3. Close the Story's checklist steps honestly. A skip needs a real reason.
-   Re-record the review steps against the version you publish.
-4. Publish with `ops content publish --id L-vN --json`. Saving alone does
+3. Run the lens checks on the saved version (`stories lens-check`; pass
+   `--static <site repo>/web` so the site-level checks can run). If they
+   find something to fix, fix it and save again. Expect check, save,
+   lens-check, and perhaps one more save.
+4. Close the Story's checklist steps honestly. A skip needs a real reason.
+   Record the review steps against the version you publish, not an earlier
+   one. Don't set a star rating. If a site's rating gate blocks publishing
+   an unrated Story, stop and report it.
+5. Publish with `ops content publish --id L-vN --json`. Saving alone does
    not publish.
-5. Fetch the live page with a cache-busting query. Check the headline, the
+6. Fetch the live page with a cache-busting query. Check the headline, the
    new passages, every picture in both themes and every component. A
    "timed out" publish often still finishes within a minute, so check
-   before re-running anything.
+   before re-running anything. The same goes for a re-render or link command
+   that prints "failed": check the stored page before trying again.
 
 If Papyrus misbehaves (a refused save, a missing carried-forward picture, a
 gate that cannot be met honestly), stop that step and report it with the
@@ -234,8 +256,9 @@ so make the report easy to check:
 - **Structure.** A short summary of what moved, what was added and what was
   cut.
 - **Sources.** Sources added, and claims narrowed or dropped, with why.
-- **Pictures.** What is live, plus the candidate pictures and alternative
-  headlines for A/B tests, each with its path.
+- **Pictures.** What is live, plus the candidate pictures for A/B tests,
+  each with its path.
+- **Alternative headlines.** Two or three for A/B tests.
 - **Problems hit.** Policy flags, Papyrus defects and site rendering
   problems.
 - **Left alone.** What you chose not to do, and anything on the person's-call
