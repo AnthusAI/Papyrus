@@ -1,6 +1,6 @@
 # Public audiences: subscribe and manage pages working end to end
 
-Status: designed 2026-11-12 (PPY-1081ad, epic PPY-824c14). Being built. Nothing is deployed, released or sent.
+Status: designed 2026-11-12 (PPY-1081ad, epic PPY-824c14). Caducus side released in Caducus 0.3.0 (AnthusAI/Caducus #15, #16). Papyrus side: this plugin pins it. Public sending stays off on every site until the forced pause drill below passes. Nothing is deployed, released or sent.
 
 Ryan decided (2026-11-12) that every notification, newsletters and subscriptions included, goes through one Caducus setup. Today the `/api/notifications/*` routes answer `503 unavailable` because Caducus had no public audiences. This plan fixes that at its cause, in Caducus, and deletes the 503 path. The package side, with the data model, the abuse limits and the lifecycle in full, is [`docs/public-audiences.md` in AnthusAI/Caducus](https://github.com/AnthusAI/Caducus/blob/develop/docs/public-audiences.md). This page is the Papyrus side and the decisions that span both.
 
@@ -54,16 +54,16 @@ No CAPTCHA (we cannot run one we trust, and it shuts out readers). Instead, from
   consent: "I agree to receive the emails I choose from Example News and can unsubscribe at any time.",
   confirmWindowHours: 72,   // how long a stranger's address is held unconfirmed and the link works; 72 is the newsletter's promise today
   lists: [
-    { id: "stories", name: "New stories", description: "One email per new story.", kind: "story.published", rule: { sections: ["News"] } },
+    { id: "stories", name: "New stories", description: "One email per new story.", rule: { sections: ["News"] } },
   ],
 }
 ```
 
-`kind` defaults to `story.published`. The kind `story.published` becomes class `public` (it was `operator`): its audience is the confirmed subscribers of the lists whose rule matches the story, so the SSM operators parameter no longer receives new stories.
+Every list carries the kind `story.published` today; the weekly issue adds its own kind with PPY-4108ef, and the list setting that names it comes with that story. The kind `story.published` becomes class `public` (it was `operator`): its audience is the confirmed subscribers of the lists whose rule matches the story, so the SSM operators parameter no longer receives new stories.
 
 ## Plugin changes
 
-- **Table:** one new GSI, `byList` (partition `gsiList`, sort `recipientKey`, keys only). It is the only new index in this deploy.
+- **Table:** one new GSI, `byList` (partition `gsiList`, keys only). It is the only new index in this deploy.
 - **Router function:** the reader actions call Caducus `handlers.public.dispatch`. `src/papyrus_content/notifications/public.py` loses its 503 answer. Erasure and export for admins are function actions the public routes never send; the newsroom panel that calls them, with the admin group checked, is part of PPY-6b2d35.
 - **Email:** the themed renderer renders the confirmation (a button to the confirm page) and puts the manage and unsubscribe page links in the footer of public mail; the mailer passes the RFC 8058 headers through the site mailer from PR #1427.
 - **SES events:** the handler from PR #1427 also calls Caducus `provider_event`, so a permanent bounce or a complaint suppresses the reader.
@@ -73,10 +73,22 @@ No CAPTCHA (we cannot run one we trust, and it shuts out readers). Instead, from
 
 Mail goes out as the site, through its own SES identity and configuration set `papyrus-<site>` (PR #1427, PPY-c522bf). The pause switch is that set's sending switch: the site's bounce and complaint alarms (4% and 0.08% over 24 hours, below SES's 5% and 0.1% review lines and Gmail's 0.3% spam limit) turn it off, and so can an operator. Public mail needs the postal address in SSM (CAN-SPAM); without it a public delivery fails with a reason. Outward mail needs the site to list the plugin (an explicit opt-in per site), the readiness check of PPY-a85725 before any signup placement shows, and for issues, an admin's approval (PPY-4108ef).
 
+## The pause assumption, and the drill that must pass first
+
+The site's pause is its configuration set's sending switch (PR #1427, held on purpose). One part of it rests on a guess not yet seen on a live account: that SES refuses `SendEmail` through a disabled configuration set with the code `SendingPausedException`.
+
+| What | Rests on the guess? | If the guess is wrong |
+| --- | --- | --- |
+| The alarms turning sending off (`PutConfigurationSetSendingOptions`) | No (documented call) | A failed call errors the pause function, whose alarm reaches operators |
+| A refused send recorded `failed` "sending is paused" and not retried | Yes | A different code is not recognised: the claim is released, the delivery stays `queued`, SQS retries, and the message ends in the dead letter queue, whose alarm reaches operators. Nothing is sent, nothing is lost silently |
+| SES actually refusing mail through a disabled set | The pause itself | Only the drill can show this; if SES accepted, the public send path stays Off |
+
+Either SES refuses (and the refusal is recorded or dead-lettered), or the drill shows otherwise and nothing is turned on. **Before any site's public send path is On**, a forced pause drill runs on a test configuration set with the SES mailbox simulator (PPY-a85725): turn sending off, send to the simulator, record the exact error code and see the delivery `failed` with the pause reason (if the code differs, correct `SiteMailer` and repeat), turn sending on and see the next send go out. Until it passes, no site lists the plugin with readers' lists (the operator steps below list it first).
+
 ## Privacy
 
 - Subscriber records are personal data: in the notifications table only (customer-managed KMS key, no point-in-time recovery so erasure is real), readable only by the notifications functions, never by AppSync, the guest or editor content API, or the newsroom except through admin-only export and erasure.
-- Consent evidence: the wording (hash plus the stored text), the form id, the page path without its query, the origin, a keyed hash of the visitor's IP, a truncated user agent, and the request and confirmation times.
+- Consent evidence: the wording (hash plus the stored text), the form id, the page path without its query, the origin, a keyed hash of the visitor's network (/24 or /48, never the IP), a truncated user agent, and the request and confirmation times.
 - GDPR: access by admin export, erasure by the reader (preferences page) or an admin, consent kept as evidence. CAN-SPAM: postal address in every public message, unsubscribe honoured in the same request, links that keep working (manage tokens never expire). Consent text per language is later.
 - No tracking pixel, no open or click tracking, no address or token in any link parameter other than the token itself, no address in any log line.
 
@@ -103,4 +115,4 @@ Nothing reaches readers until a site lists the plugin with lists and the signup 
 
 ## Operator steps (none done by this work)
 
-Per site, before signup opens: the SES identity and configuration set (`infra/newsletter/`), with an event destination to the default bus; the postal address parameter; DMARC published through the Git template once the report mailbox exists (PPY-6bcae9); the readiness drill (PPY-a85725); then one backend deploy carrying the plugin settings and the Papyrus version that pins the Caducus release.
+Per site, before signup opens: the forced pause drill above (once, on a test configuration set); the SES identity and configuration set (`infra/newsletter/`), with an event destination to the default bus; the postal address parameter; DMARC published through the Git template once the report mailbox exists (PPY-6bcae9); the readiness drill (PPY-a85725); then one backend deploy carrying the plugin settings and the Papyrus version that pins the Caducus release.

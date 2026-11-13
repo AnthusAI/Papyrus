@@ -32,7 +32,7 @@ export const HANDLERS = {
   pause: "papyrus_content.notifications.handler.pause",
 } as const;
 /** Caducus is pinned exactly, beside `papyrus_content`: a package change is a Caducus release, then a Papyrus release. */
-export const CADUCUS_REQUIREMENT = "caducus[notify]==0.2.0";
+export const CADUCUS_REQUIREMENT = "caducus[notify]==0.3.0";
 export const NOTIFICATIONS_REQUIREMENTS = [CADUCUS_REQUIREMENT, "PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "Pillow>=11.3,<12"];
 /** Relative to `amplify/functions/`, which is where the shared bundler looks for a function's `handler.py`. */
 const FUNCTION_DIRECTORY = "../plugins/notifications/function";
@@ -101,6 +101,8 @@ export function notificationsEnvironment(config: NotificationsConfig, names: { t
     ITEM_URL_STYLE: config.itemUrlStyle,
     LISTS_JSON: JSON.stringify(config.lists.map((list) => ({ id: list.id, name: list.name, description: list.description, rule: list.rule, approval: list.approval }))),
     THEME_JSON: JSON.stringify(config.theme),
+    CONSENT: config.consent,
+    CONFIRM_WINDOW_SECONDS: String(config.confirmWindowHours * 3600),
     METRIC_NAMESPACE: `Caducus/papyrus-${config.siteId}`,
   };
 }
@@ -116,6 +118,8 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
     // The CMS routes answer with redirects to pages under the site's base path.
     basePath: config.basePath,
     lists: config.lists.map((list) => ({ id: list.id, name: list.name, description: list.description })),
+    // The subscribe form shows exactly this sentence (state kind=offered); the function refuses any other wording.
+    consent: config.consent,
     theme: config.theme,
   }),
   wire(backend, config, context: PluginWiringContext) {
@@ -144,6 +148,12 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       partitionKey: { name: "recipientKey", type: AttributeType.STRING },
       sortKey: { name: "queuedAt", type: AttributeType.STRING },
       projectionType: ProjectionType.ALL,
+    });
+    // A list's confirmed, unsuppressed subscribers, for the page-by-page fan-out of a public kind (Caducus public audiences).
+    table.addGlobalSecondaryIndex({
+      indexName: "byList",
+      partitionKey: { name: "gsiList", type: AttributeType.STRING },
+      projectionType: ProjectionType.KEYS_ONLY,
     });
     const keyParameter = new SecureStringParameter(stack, "RecipientKeyParameter", {
       parameterName: notificationsKeyParameterName(config.siteId),
@@ -259,13 +269,17 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       `arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${operatorsParameter}`,
       keyParameter.parameterArn,
     ];
-    for (const fn of [router, email, flush]) {
+    // Every function builds the same runtime (the audience needs the recipient key), and the SES events suppress readers.
+    for (const fn of [router, email, flush, sesEvents]) {
       table.grantReadWriteData(fn); // includes the table key's encrypt and decrypt
       fn.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ssm:GetParameter"], resources: parameterArns }));
     }
-    table.grantReadWriteData(sesEvents); // the SES events update delivery rows; no parameters
+    // A reader who lifts a bounce or complaint by opting in again is cleared from the SES account suppression list too.
+    // The action has no resource-level form (as for the newsletter function).
+    router.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ses:DeleteSuppressedDestination"], resources: ["*"] }));
     emailQueue.grantSendMessages(router);
     emailQueue.grantSendMessages(flush);
+    emailQueue.grantSendMessages(email); // a fan-out page queues its deliveries and the next page
     router.addToRolePolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
