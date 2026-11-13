@@ -56,6 +56,27 @@ The kind `story.published` (`src/papyrus_content/notifications/data/notification
 - **Bounces and complaints.** The `-ses-` function passes a permanent bounce or a complaint to Caducus, which suppresses the reader and unsubscribes them from every list. A reader who turns a list on again from their manage link lifts it, and the router also removes the address from the SES account suppression list.
 - **Erasure and export.** A reader deletes their data from the preferences page. Admin export and erasure are Caducus calls (`PublicAudience.export` and `erase`) that no public route sends; the newsroom panel that calls them with the admin group checked comes with PPY-6b2d35.
 
+## Reader pages (PPY-f361ee)
+
+A reader subscribes, confirms and manages notifications on real pages of the site, in its own header, theme and footer (light, dark, phone), never on an `/api` address. When `notifications` is in `PAPYRUS_PLUGINS`, the standard projector writes seven pages (`src/papyrus_content/projection/standard/notifications_pages.py`, modelled on the newsletter's pages in [newsletter.md](newsletter.md)):
+
+| Page | Purpose |
+|---|---|
+| `<base>/notifications/` | Subscribe: the `<papyrus-notifications>` web component |
+| `<base>/notifications/confirm/` | Confirm button for the emailed link |
+| `<base>/notifications/confirmed/` | Subscribed, with a link to manage |
+| `<base>/notifications/preferences/` | Manage: one button per list that is On or Off, Save, Unsubscribe from everything, Delete my data (with a confirm step) |
+| `<base>/notifications/unsubscribe/` and `unsubscribed/` | One-click landing page and its result |
+| `<base>/notifications/expired/` | A link that is no good; points back to the subscribe page |
+
+They are always the directory form (`notifications/confirm/index.html`) whatever `urls.style` says, because the emails and the `/api/notifications/*` redirects use those exact addresses. They are `noindex`, carry `<meta name="referrer" content="same-origin">` (so form posts send the site's real `Origin`), and have no Markdown twin and no place in any sitemap, `llms.txt`, `llms-full.txt` or feed. A reconcile never deletes pages under `notifications/` unless the verified deployed plugin list lacks `notifications`. A site without the plugin has none of them.
+
+- **Scripts (external, no inline script or style, so a strict CSP is fine).** `/_plugins/papyrus-notifications-pages@1.js` (every page) reads `token`, `list`, `lists`, `msg` and `step`, fills the hidden `t` fields and fetches names and state from `/api/notifications/state`; `/_plugins/papyrus-notifications@1.js` (the subscribe page only) defines `<papyrus-notifications>`, which reads the offered lists with `GET /api/notifications/state?kind=offered` (the site's public list settings, nothing about any reader) and posts to `/api/notifications/subscribe`. The component shows the site's `consent` setting from that same answer, exactly, and posts it back (the function refuses any other wording); it has no `consent` attribute. Attributes: `lists`, `endpoint`, `state`, `form-id`, `label`, `button`, `success`. Without JavaScript a page says "This page needs JavaScript." and shows no form.
+- **Design.** Buttons, never dropdowns; Lucide icons only; flat fills, no borders (`.markus-notifications-*` in `markus-components.css`, fills mixed from the text colour so both themes work). State is a word and a mark, never colour alone: a list is `On` with a bell or `Off` with a bell-off, and every status line has a check or alert mark and words. After saving, the page says in words what the reader gets ("Your choices are saved. You get: New stories.").
+- **Bad link or service down.** A token the function rejects (400) goes to the expired page with `location.replace`; a service that cannot be reached (502, 503, network) is said in words ("Notifications are not available right now. Please try again later.") and is not called expired. The subscribe form says a network limit (429 `slow_down`) in words too: "Too many signups from your network just now. Please try again later."
+- **Not built (decided).** The Slack and Discord sign-in option waits for those channels to be live (PPY-cc015c, PPY-62c937) and for a public-reader site; nothing renders for it today.
+- **Rollout.** Enabling the plugin on an existing site needs one full projection to write the pages. Screenshot review with Ryan, Machines on Machines first, comes before any prod rollout (PPY-e28679).
+
 ## Sending as the site
 
 Notifications reuse what the site's newsletter sending stack ([infra/newsletter](../infra/newsletter/README.md)) created in the same account: the SES identity for `sendingDomain` and the configuration set `papyrus-<siteId>`. No sending authorization, no second set, no central sender. One set means one reputation and one pause per site.
@@ -79,4 +100,4 @@ Notifications reuse what the site's newsletter sending stack ([infra/newsletter]
 
 ## Tests
 
-`npm run test:notifications-plugin` (synth), `npm run test:notifications-api` (routes), `features_backend/notifications-story-published.feature`, `notifications-function.feature`, `notifications-site-identity.feature` and `notifications-public-audience.feature`, and the pytest modules under `src/papyrus_content/notifications/`.
+`npm run test:notifications-plugin` (synth), `npm run test:notifications-api` (routes), `features_backend/notifications-story-published.feature`, `notifications-function.feature`, `notifications-site-identity.feature`, `notifications-public-audience.feature` and `notifications-reader-pages.feature` (the pages and the scripts, run in Node against the projected markup), `procedures/newsroom/tests/test_standard_frontend_notifications_pages.py`, `procedures/newsroom/tests/test_papyrus_notifications_scripts.py`, and the pytest modules under `src/papyrus_content/notifications/`.

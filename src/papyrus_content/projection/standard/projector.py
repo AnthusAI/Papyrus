@@ -56,7 +56,7 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 import inspect
 
-from . import alexa_pages, blocks, card_images, components, forum_pages, home_page_blocks, home_page_lists, includes, knowledge_blocks, newsletter_pages, page_twin
+from . import alexa_pages, blocks, card_images, components, forum_pages, home_page_blocks, home_page_lists, includes, knowledge_blocks, newsletter_pages, notifications_pages, page_twin
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
@@ -82,6 +82,7 @@ from .showcase import logo_wall, showcase_sites
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
 from .alexa_pages import ALEXA_PLUGIN
 from .newsletter_pages import NEWSLETTER_PLUGIN
+from .notifications_pages import NOTIFICATIONS_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
 
 
@@ -1033,6 +1034,22 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     markdown=False,
                 )
 
+        # the notifications plugin's reader pages: real static pages with the full chrome, never listed anywhere (docs/notifications.md)
+        if NOTIFICATIONS_PLUGIN in self._settings.plugins:
+            identity = self.standard.identity
+            paths = {name: self.policy.path(notifications_pages.site_path(name)) for name in notifications_pages.PAGE_NAMES}
+            for name in notifications_pages.PAGE_NAMES:
+                body = notifications_pages.fragment(name, site=identity.name, home=self.policy.path("/"), paths=paths)
+                add(
+                    self.policy.key(notifications_pages.site_key(name)),
+                    f"notifications:{name}",
+                    [body],
+                    lambda name=name, body=body: self._page(
+                        "notifications_page", notifications_pages.head(name, paths[name], identity.description), site, entries=tuple(listed), fragment=body,
+                    ),
+                    markdown=False,
+                )
+
         # the alexa plugin's privacy and terms pages: real static pages with the full chrome, linked from the skill manifest
         if ALEXA_PLUGIN in self._settings.plugins:
             identity = self.standard.identity
@@ -1693,6 +1710,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             scripts += (FORM_SCRIPT_PATH,)
         if page.kind == "newsletter_page":
             scripts += (newsletter_pages.PAGES_SCRIPT_PATH,)
+        if page.kind == "notifications_page":
+            scripts += (notifications_pages.PAGES_SCRIPT_PATH,) + ((notifications_pages.COMPONENT_SCRIPT_PATH,) if "<papyrus-notifications>" in page.fragment else ())
         if page.ledger.paged_lists_used:   # only a page with a paged Reference list loads the script that loads more
             scripts += (home_page_lists.SCRIPT_PATH,)
         if page.page_actions:  # only pages that render the actions load their script
@@ -1955,7 +1974,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             actions = page.page_actions
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
             return before + page.fragment + after
-        if page.kind in ("home", "custom", "newsletter_page", "plugin_page", "thread", "reference_list") and page.fragment:
+        if page.kind in ("home", "custom", "newsletter_page", "notifications_page", "plugin_page", "thread", "reference_list") and page.fragment:
             return page.fragment
         if page.kind == "listing" and page.section_index is not None:
             if page.section_index.section.index.source:
