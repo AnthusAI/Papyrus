@@ -5936,7 +5936,7 @@
       "kind": "operation",
       "subject": "setReferenceSection",
       "operation": "call-with-foreign-ids",
-      "probe": "alpha calls setReferenceSection with \"beta\"'s ids for referenceId, sectionId",
+      "probe": "alpha calls setReferenceSection with \"beta\"'s ids for referenceId, sectionId, decisionRelationId",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
