@@ -53,6 +53,7 @@ export const OPTIONAL_MODEL_GROUPS = {
   steering: ["SteeringProposal", "SteeringDecision", "LexicalSteeringRule"],
   variations: ["StoryVariation"],
   tenancy: ["Tenant", "TenantMembership", "TenantDomain"],
+  localization: ["LocalizationRequest"],
 } as const;
 
 /**
