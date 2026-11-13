@@ -7,24 +7,28 @@
  *
  *   tenant-prefixed  the stored value already starts with `<tenant>#` (or is the tenant id itself). Only the five tenant models are written this
  *                    way (src/papyrus_content/tenancy.py: TENANT_SCOPED_INDEX_FIELDS, TENANT_SLUG_FIELD) plus `tenantId` on the tenancy records.
- *   corpus-prefixed  the stored value is a corpus id or starts with `<corpusId>#`. Tenant-safe once corpus ids are unique across tenants, but a
- *                    partition holds one corpus, so it cannot list a tenant.
+ *   corpus-prefixed  the stored value is a corpus id or starts with `<corpusId>#`. Tenant-safe once corpus ids are unique across tenants. A
+ *                    partition holds one corpus; `corpusId` itself is spread over the tenant's own corpora (spread `parent`, below).
  *   record-id        the stored value is, or is built from, another record's id. Tenant-safe because ids are unique, but one partition holds the
  *                    rows of one record, so it cannot list a tenant.
  *   global           any value shared across tenants: a constant, an enum, a slug, a person, a free-form key.
  *
  * `spread` is how many partitions one tenant's rows fall into: `one` (a constant or the tenant id), `closed` (a fixed set the caller can name, such
- * as a status), `open` (a value per record, slug, person or key). A tenant can be listed by an index whose class is tenant-prefixed or global and
- * whose spread is one or closed: query its single partition, or each value of its closed set, with the tenant prefix on.
+ * as a status), `parent` (one partition per record of a parent model the tenant owns, named in `parent`: a corpus id is one partition per
+ * KnowledgeCorpus), `open` (a value per record, slug, person or key). A tenant can be listed by an index whose class is tenant-prefixed or global and
+ * whose spread is one or closed: query its single partition, or each value of its closed set, with the tenant prefix on. An index whose spread is
+ * `parent` lists a tenant when the parent model can be listed by tenant: list the tenant's parents, then query one partition per parent.
  */
 export type KeyClass = "tenant-prefixed" | "corpus-prefixed" | "record-id" | "global";
-export type Spread = "one" | "closed" | "open";
-export type FieldClass = { class: KeyClass; spread: Spread };
+export type Spread = "one" | "closed" | "parent" | "open";
+/** `parent` names the model whose records are the partitions; it is set exactly when `spread` is `parent`. */
+export type FieldClass = { class: KeyClass; spread: Spread; parent?: string };
 
 export const KEY_CLASSES: KeyClass[] = ["tenant-prefixed", "corpus-prefixed", "record-id", "global"];
 
 const tenantPrefixed = (spread: Spread): FieldClass => ({ class: "tenant-prefixed", spread });
 const corpus: FieldClass = { class: "corpus-prefixed", spread: "open" };
+const perCorpus: FieldClass = { class: "corpus-prefixed", spread: "parent", parent: "KnowledgeCorpus" };
 const recordId: FieldClass = { class: "record-id", spread: "open" };
 const constant: FieldClass = { class: "global", spread: "one" };
 const closed: FieldClass = { class: "global", spread: "closed" };
@@ -40,7 +44,8 @@ export const PARTITION_FIELD_CLASSES: Record<string, FieldClass> = {
   languageGroupId: tenantPrefixed("open"),   // the primary Story's lineage id (src/papyrus_content/item_language.py)
 
   // corpus-prefixed: "<corpusId>" or "<corpusId>#..." (src/papyrus_content/reference_feed_keys.py and the knowledge import keys).
-  corpusId: corpus,
+  // The corpus id itself: one partition per corpus, and a tenant's corpora are its own KnowledgeCorpus rows.
+  corpusId: perCorpus,
   corpusImportKindKey: corpus,
   curationStatusKey: corpus,
   feedStateKey: corpus,

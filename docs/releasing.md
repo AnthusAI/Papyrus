@@ -17,7 +17,7 @@ release number. Publishing uses npm and PyPI trusted publishing (OIDC); there is
 
 ## One new index per table per release
 
-DynamoDB creates or deletes one global secondary index per table in one update, and a table holds at most 20. The GSI ledger check (`scripts/check-gsi-ledger.ts`, run by the `ts-misc` job and by `npm run test:gsi-ledger`) compares the indexes in `amplify/data/schema.ts` with the last stable release tag (the `ts-misc` job checks out the full history so tags exist; with no tag the check fails and says so) and fails when:
+DynamoDB creates or deletes one global secondary index per table in one update, and a table holds at most 20. The GSI ledger check (`scripts/check-gsi-ledger.ts`, run by the `ts-misc` job and by `npm run test:gsi-ledger`) compares the indexes in every schema source (`amplify/data/schema.ts` and each plugin's and function's `schema.ts`) with the last stable release tag (the `ts-misc` job checks out the full history so tags exist; with no tag the check fails and says so) and fails when:
 
 - a table gains more than one index since that tag (it names the table and every new index);
 - an index keeps its name but changes its keys (add a new index and remove the old one in a later release);

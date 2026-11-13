@@ -26,6 +26,18 @@ Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows ge
 
 The generated [tenant key inventory](tenant-key-inventory.md) lists every model's indexes, whether each partition value is tenant-prefixed, corpus-prefixed, a record id or global, and which tables have no index that can list one tenant's rows; CI fails when it is stale or a new index is unclassified.
 
+## Listing one tenant's rows
+
+Export, deletion and usage need every row one tenant owns without reading a whole table (PPY-1ce06f). Every table that carries `tenantId` has a way to do it:
+
+- An index whose partition is a status, a kind or a constant lists a tenant once that value carries the tenant prefix (the key-prefix step of the plan).
+- References, and the other rows with a required `corpusId`, are listed corpus by corpus: a tenant's corpora are its own KnowledgeCorpus rows, and corpus ids are unique to a tenant. Reference gets no index of its own for this.
+- The 30 tables where no index reaches every row have one sparse index partitioned on `tenantId` and sorted by `id`, named `list<Models>ByTenant` (for example `listReaderVotesByTenant`). Item and PublishedItem are among them: their tenant-prefixed indexes sort on `publishedAt` and so leave unpublished rows out, and `headStageKey` is on head rows only.
+
+`PapyrusGraphQLAuthoringClient.list_tenant_rows(model, fields)` reads a tenant's rows of one of those tables through its `tenantId` index: one Query, followed page by page, never a Scan. The index query fields are declared once in `papyrus_content.tenancy.TENANT_LISTING_QUERIES`, and a test checks that map against the schemas. A sparse index holds only rows that carry a `tenantId`, so a tenant's list is complete only after the tenantId backfill (PPY-8f9462) has stamped every row.
+
+The 30 indexes ship in one release, one per table (the GSI ledger, `features_backend/gsi-ledger.feature`, refuses a second new index on a table, and reads every plugin's and function's schema as well as the core one). A dedicated site creates them on its existing tables when it takes that release. Spec: `features_backend/tenant-listing-index.feature`.
+
 ## Tenant, membership and domain records
 
 Three models hold the tenants themselves (PPY-31c45c). They are new tables, each created with all its indexes in one deploy, and they sit in the optional model group `tenancy` (`OPTIONAL_MODEL_GROUPS`), so a dedicated site can leave them out of a first deploy with `excludeModelGroups: ["tenancy"]`. Nothing reads or writes them yet.

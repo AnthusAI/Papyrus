@@ -4,8 +4,11 @@ Feature: One generated table says which keys are global and which tables can lis
   value that starts with a corpus id is safe once corpus ids are unique across tenants. A value that is another
   record's id is safe because ids are unique, but it cannot list a whole tenant. A constant, an enum, a slug or a
   person is shared by every tenant, so it must be prefixed before it is safe. The table also says, for every model,
-  whether at least one dense index can list every row of one tenant once its value is prefixed, and that column
-  decides which tables need a tenantId index.
+  whether at least one index can list every row of one tenant once its value is prefixed, and that column decides
+  which tables need a tenantId index. An index can when its keys are required in the schema (an optional field the
+  writers usually set does not count), or when its partition is tenantId itself: every row of a tenant carries it
+  once the tenantId backfill has run. A corpus id is a partition per corpus, and a tenant's corpora can be listed by
+  tenant, so an index on corpusId lists a tenant corpus by corpus.
 
   scripts/generate-tenant-key-inventory.ts writes docs/tenant-key-inventory.md from the same reading of the deployed
   schema that the tenant isolation case table uses (amplify/data/schema.ts plus every plugin's models). How each
@@ -40,3 +43,11 @@ Feature: One generated table says which keys are global and which tables can lis
     And the reference feed keys are corpus-prefixed and the record ids are record-id
     And the global models UserProfile, UserIdentity and PublicHandleClaim are listed as global by design
     And the models that need a tenantId index are listed
+
+  Scenario: A tenant's References are listed through its own corpora
+    When the inventory is read
+    Then Reference and KnowledgeArtifact list a tenant through their corpusId index, because KnowledgeCorpus lists a tenant
+
+  Scenario: An index on tenantId lists a tenant though the field is optional until the backfill
+    When the inventory is read
+    Then every index partitioned on tenantId with required sort fields lists a tenant without being dense

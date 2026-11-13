@@ -7,18 +7,20 @@ Every model, every index on it, and what its partition value is, for the multi-t
 ## Classes
 
 - `tenant-prefixed`: the stored value already starts with `<tenant>#` (or is the tenant id). Only Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection are written this way, plus `tenantId` on the tenancy records.
-- `corpus-prefixed`: the value is a corpus id or starts with `<corpusId>#`. Tenant-safe once corpus ids are unique across tenants, but a partition holds one corpus, so it cannot list a tenant.
+- `corpus-prefixed`: the value is a corpus id or starts with `<corpusId>#`. Tenant-safe once corpus ids are unique across tenants. A partition holds one corpus, so an index on a composite of the corpus id cannot list a tenant; an index on `corpusId` itself can, through the tenant's corpora (spread `parent`).
 - `record-id`: the value is, or is built from, another record's id. Tenant-safe because ids are unique, but a partition holds the rows of one record, so it cannot list a tenant.
 - `global`: any value shared across tenants (a constant, an enum, a slug, a person, a free-form key). Prefixing it with the tenant is what makes it tenant-safe.
 
-Spread is how many partitions one tenant's rows fall into: `one` (a constant or the tenant id), `closed` (a fixed set the caller can name, such as a status) or `open` (a value per record, slug, person or key). An index is dense when its partition field and every sort field are required in the schema, so every row of the model is in it (DynamoDB leaves a row out of an index when a key attribute is absent). An index lists a tenant when it is dense, its class is `tenant-prefixed` or `global`, and its spread is `one` or `closed`: with the tenant prefix on the value, one query (or one per value of the closed set) returns every row of that tenant.
+Spread is how many partitions one tenant's rows fall into: `one` (a constant or the tenant id), `closed` (a fixed set the caller can name, such as a status), `parent` (one partition per record of a parent model the tenant owns: `corpusId` has one per KnowledgeCorpus) or `open` (a value per record, slug, person or key). An index is dense when its partition field and every sort field are required in the schema, so every row of the model is in it (DynamoDB leaves a row out of an index when a key attribute is absent). The density rule reads the schema only: a field the schema leaves optional counts as absent even where the writers usually set it.
+
+An index lists a tenant when its keys cover every row of the tenant and one or a few queries return them all. Its keys cover the tenant when it is dense, or when its partition is `tenantId` and its sort fields are required: `tenantId` stays optional in the schema until the shared stack requires it, but every row of a tenant carries it once the tenantId backfill (PPY-8f9462) has run, so a `tenantId` index is complete for a tenant only after that backfill. Its queries suffice when its class is `tenant-prefixed` or `global` and its spread is `one` or `closed` (with the tenant prefix on the value, one query, or one per value of the closed set), or when its spread is `parent` and the parent model lists a tenant (list the tenant's parents, then one query per parent: a tenant's References are its corpora's References).
 
 ## Counts
 
-- 68 models, 188 indexes.
-- Indexes by class: tenant-prefixed 11, corpus-prefixed 15, record-id 68, global 94.
-- Indexes that list a tenant once prefixed: 36; dense indexes: 100.
-- Models: 27 with an index that lists a tenant, 33 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
+- 68 models, 217 indexes.
+- Indexes by class: tenant-prefixed 40, corpus-prefixed 15, record-id 68, global 94.
+- Indexes that list a tenant once prefixed: 72; dense indexes: 100.
+- Models: 58 with an index that lists a tenant, 2 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
 
 ## Models
 
@@ -29,62 +31,62 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `AnnouncementSpend` | 0 | no tenantId field |  |
 | `Assignment` | 10 | yes | `listAssignmentsByTypeStatusAndCreatedAt`, `listAssignmentsByStatusAndUpdatedAt` |
 | `AssignmentEvent` | 3 | yes | `listAssignmentEventsByTypeAndCreatedAt` |
-| `Automation` | 0 | no index, needs a tenantId index |  |
-| `Category` | 6 | yes | `listCategoriesByStatusAndName` |
-| `CategoryKeyword` | 4 | no, needs a tenantId index |  |
-| `CategorySet` | 4 | yes | `listCategorySetsByStatusAndName` |
-| `CurationDelegationRecord` | 1 | no, needs a tenantId index |  |
+| `Automation` | 1 | yes | `listAutomationsByTenant` |
+| `Category` | 6 | yes | `listCategoriesByCorpusAndName`, `listCategoriesByStatusAndName` |
+| `CategoryKeyword` | 5 | yes | `listCategoryKeywordsByTenant` |
+| `CategorySet` | 4 | yes | `listCategorySetsByCorpusAndClassifier`, `listCategorySetsByStatusAndName` |
+| `CurationDelegationRecord` | 2 | yes | `listCurationDelegationRecordsByTenant` |
 | `Edition` | 5 | yes | `listEditionsByStatusAndEditionDate` |
-| `EditionItem` | 2 | no, needs a tenantId index |  |
-| `EditorialCheckRun` | 1 | no, needs a tenantId index |  |
-| `EditorialCheckSettings` | 0 | no index, needs a tenantId index |  |
-| `EditorialFeedback` | 1 | no, needs a tenantId index |  |
-| `EditorialPolicy` | 0 | no index, needs a tenantId index |  |
+| `EditionItem` | 3 | yes | `listEditionItemsByTenant` |
+| `EditorialCheckRun` | 2 | yes | `listEditorialCheckRunsByTenant` |
+| `EditorialCheckSettings` | 1 | yes | `listEditorialCheckSettingsByTenant` |
+| `EditorialFeedback` | 2 | yes | `listEditorialFeedbackByTenant` |
+| `EditorialPolicy` | 1 | yes | `listEditorialPoliciesByTenant` |
 | `Item` | 11 | no, needs a tenantId index |  |
-| `ItemTag` | 2 | no, needs a tenantId index |  |
-| `KnowledgeArtifact` | 3 | no, needs a tenantId index |  |
+| `ItemTag` | 3 | yes | `listItemTagsByTenant` |
+| `KnowledgeArtifact` | 3 | yes | `listKnowledgeArtifactsByCorpusAndKind` |
 | `KnowledgeCorpus` | 1 | yes | `listKnowledgeCorporaByRoleAndName` |
-| `KnowledgeImportRun` | 3 | yes | `listKnowledgeImportRunsByKindAndImportedAt` |
-| `KnowledgeRawPayload` | 2 | no, needs a tenantId index |  |
+| `KnowledgeImportRun` | 3 | yes | `listKnowledgeImportRunsByCorpusAndImportedAt`, `listKnowledgeImportRunsByKindAndImportedAt` |
+| `KnowledgeRawPayload` | 3 | yes | `listKnowledgeRawPayloadsByTenant` |
 | `LexicalSteeringRule` | 4 | yes | `listLexicalSteeringRulesByScopeAndTerm`, `listLexicalSteeringRulesByStatusAndTerm` |
 | `LocalizationRequest` | 0 | no index, needs a tenantId index |  |
 | `MediaAsset` | 2 | yes | `listMediaAssetsByRoleAndItem` |
 | `Message` | 12 | yes | `listMessagesByKindAndCreatedAt`, `listMessagesByDomainAndCreatedAt`, `listMessagesByStatusAndCreatedAt` |
 | `MessageThread` | 5 | yes | `listMessageThreadsByKindAndUpdatedAt`, `listMessageThreadsByStatusAndUpdatedAt` |
 | `ModelAttachment` | 5 | yes | `listModelAttachmentsByRoleStatusAndCreatedAt` |
-| `ModerationAction` | 1 | no, needs a tenantId index |  |
-| `NewsroomSection` | 4 | yes | `listNewsroomSectionsByTypeAndSortOrder`, `listNewsroomSectionsByEnabledStatusAndSortOrder` |
+| `ModerationAction` | 2 | yes | `listModerationActionsByTenant` |
+| `NewsroomSection` | 4 | yes | `listNewsroomSectionsByTenantAndSortOrder`, `listNewsroomSectionsByTypeAndSortOrder`, `listNewsroomSectionsByEnabledStatusAndSortOrder` |
 | `ProcedureDefinition` | 3 | yes | `listProcedureDefinitionsByEnabledAndUpdatedAt` |
 | `ProcedureRun` | 4 | yes | `listProcedureRunsByStatusAndRequestedAt` |
 | `ProcedureVersion` | 3 | yes | `listProcedureVersionsByStatusAndUpdatedAt` |
 | `Proposal` | 1 | yes | `listProposalsByStateAndCreatedAt` |
 | `PublicHandleClaim` | 0 | global by design |  |
-| `PublishedCategory` | 4 | no, needs a tenantId index |  |
+| `PublishedCategory` | 5 | yes | `listPublishedCategoriesByTenant` |
 | `PublishedCategorySet` | 3 | yes | `listPublishedCategorySetsByStatusAndName` |
 | `PublishedEdition` | 4 | yes | `listPublishedEditionsByStatusAndEditionDate` |
-| `PublishedEditionItem` | 2 | no, needs a tenantId index |  |
-| `PublishedItem` | 5 | no, needs a tenantId index |  |
+| `PublishedEditionItem` | 3 | yes | `listPublishedEditionItemsByTenant` |
+| `PublishedItem` | 6 | yes | `listPublishedItemsByTenant` |
 | `PublishedMediaAsset` | 2 | yes | `listPublishedMediaAssetsByRoleAndItem` |
 | `ReaderComment` | 1 | yes | `listReaderCommentsByModerationAndCreatedAt` |
-| `ReaderFlag` | 0 | no index, needs a tenantId index |  |
-| `ReaderHandle` | 0 | no index, needs a tenantId index |  |
-| `ReaderProfile` | 1 | no, needs a tenantId index |  |
-| `ReaderReport` | 1 | no, needs a tenantId index |  |
+| `ReaderFlag` | 1 | yes | `listReaderFlagsByTenant` |
+| `ReaderHandle` | 1 | yes | `listReaderHandlesByTenant` |
+| `ReaderProfile` | 2 | yes | `listReaderProfilesByTenant` |
+| `ReaderReport` | 2 | yes | `listReaderReportsByTenant` |
 | `ReaderSubmission` | 2 | yes | `listReaderSubmissionsByDomainAndCreatedAt`, `listReaderSubmissionsByModerationAndCreatedAt` |
-| `ReaderVote` | 0 | no index, needs a tenantId index |  |
-| `Reference` | 15 | no, needs a tenantId index |  |
-| `ReferenceAttachment` | 4 | no, needs a tenantId index |  |
-| `ReviewReadMark` | 0 | no index, needs a tenantId index |  |
-| `ReviewRecipientRule` | 0 | no index, needs a tenantId index |  |
-| `ReviewRequest` | 0 | no index, needs a tenantId index |  |
-| `SemanticNode` | 6 | no, needs a tenantId index |  |
-| `SemanticRelation` | 9 | no, needs a tenantId index |  |
+| `ReaderVote` | 1 | yes | `listReaderVotesByTenant` |
+| `Reference` | 15 | yes | `listReferencesByCorpusAndExternalItem` |
+| `ReferenceAttachment` | 5 | yes | `listReferenceAttachmentsByTenant` |
+| `ReviewReadMark` | 1 | yes | `listReviewReadMarksByTenant` |
+| `ReviewRecipientRule` | 1 | yes | `listReviewRecipientRulesByTenant` |
+| `ReviewRequest` | 1 | yes | `listReviewRequestsByTenant` |
+| `SemanticNode` | 7 | yes | `listSemanticNodesByTenant` |
+| `SemanticRelation` | 10 | yes | `listSemanticRelationsByTenant` |
 | `SemanticRelationType` | 3 | yes | `listSemanticRelationTypesByDomainAndLabel`, `listSemanticRelationTypesByStatusAndLabel` |
-| `SignupEntry` | 1 | no, needs a tenantId index |  |
-| `SteeringDecision` | 2 | no, needs a tenantId index |  |
-| `SteeringProposal` | 4 | yes | `listSteeringProposalsByDomainAndStatus` |
-| `StoryVariation` | 1 | no, needs a tenantId index |  |
-| `Tag` | 2 | no, needs a tenantId index |  |
+| `SignupEntry` | 2 | yes | `listSignupEntriesByTenant` |
+| `SteeringDecision` | 3 | yes | `listSteeringDecisionsByTenant` |
+| `SteeringProposal` | 4 | yes | `listSteeringProposalsByCorpusAndKind`, `listSteeringProposalsByDomainAndStatus` |
+| `StoryVariation` | 2 | yes | `listStoryVariationsByTenant` |
+| `Tag` | 3 | yes | `listTagsByTenant` |
 | `Tenant` | 2 | no tenantId field | `listTenantsByStateKey` |
 | `TenantDomain` | 1 | yes | `listTenantDomainsByTenant` |
 | `TenantMembership` | 2 | yes | `listTenantMembershipsByTenant` |
@@ -95,39 +97,8 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 
 ## Models that need a tenantId index
 
-- `Automation` (no index at all)
-- `EditorialCheckSettings` (no index at all)
-- `EditorialPolicy` (no index at all)
 - `LocalizationRequest` (no index at all)
-- `ReaderFlag` (no index at all)
-- `ReaderHandle` (no index at all)
-- `ReaderVote` (no index at all)
-- `ReviewReadMark` (no index at all)
-- `ReviewRecipientRule` (no index at all)
-- `ReviewRequest` (no index at all)
-- `CategoryKeyword` (4 indexes, none lists a tenant)
-- `CurationDelegationRecord` (1 index, it does not list a tenant)
-- `EditionItem` (2 indexes, none lists a tenant)
-- `EditorialCheckRun` (1 index, it does not list a tenant)
-- `EditorialFeedback` (1 index, it does not list a tenant)
 - `Item` (11 indexes, none lists a tenant)
-- `ItemTag` (2 indexes, none lists a tenant)
-- `KnowledgeArtifact` (3 indexes, none lists a tenant)
-- `KnowledgeRawPayload` (2 indexes, none lists a tenant)
-- `ModerationAction` (1 index, it does not list a tenant)
-- `PublishedCategory` (4 indexes, none lists a tenant)
-- `PublishedEditionItem` (2 indexes, none lists a tenant)
-- `PublishedItem` (5 indexes, none lists a tenant)
-- `ReaderProfile` (1 index, it does not list a tenant)
-- `ReaderReport` (1 index, it does not list a tenant)
-- `Reference` (15 indexes, none lists a tenant)
-- `ReferenceAttachment` (4 indexes, none lists a tenant)
-- `SemanticNode` (6 indexes, none lists a tenant)
-- `SemanticRelation` (9 indexes, none lists a tenant)
-- `SignupEntry` (1 index, it does not list a tenant)
-- `SteeringDecision` (2 indexes, none lists a tenant)
-- `StoryVariation` (1 index, it does not list a tenant)
-- `Tag` (2 indexes, none lists a tenant)
 
 ## Partition fields
 
@@ -146,7 +117,7 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `classifierId` | global | open | `PublishedCategorySet` |
 | `cognitoSub` | global | open | `UserIdentity` |
 | `contentNeededKey` | corpus-prefixed | open | `Reference` |
-| `corpusId` | corpus-prefixed | open | `Category`, `CategorySet`, `KnowledgeArtifact`, `KnowledgeImportRun`, `LexicalSteeringRule`, `Reference`, `SemanticNode`, `SteeringProposal` |
+| `corpusId` | corpus-prefixed | parent (`KnowledgeCorpus`) | `Category`, `CategorySet`, `KnowledgeArtifact`, `KnowledgeImportRun`, `LexicalSteeringRule`, `Reference`, `SemanticNode`, `SteeringProposal` |
 | `corpusImportKindKey` | corpus-prefixed | open | `KnowledgeImportRun` |
 | `createdBySub` | global | open | `MessageThread` |
 | `curationStatus` | global | closed | `Reference` |
@@ -225,7 +196,7 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `subjectVersionKey` | record-id | open | `SemanticRelation` |
 | `tagId` | record-id | open | `ItemTag` |
 | `target` | record-id | open | `ModerationAction`, `ReaderReport` |
-| `tenantId` | tenant-prefixed | one | `NewsroomSection`, `TenantDomain`, `TenantMembership` |
+| `tenantId` | tenant-prefixed | one | `Automation`, `CategoryKeyword`, `CurationDelegationRecord`, `EditionItem`, `EditorialCheckRun`, `EditorialCheckSettings`, `EditorialFeedback`, `EditorialPolicy`, `ItemTag`, `KnowledgeRawPayload`, `ModerationAction`, `NewsroomSection`, `PublishedCategory`, `PublishedEditionItem`, `PublishedItem`, `ReaderFlag`, `ReaderHandle`, `ReaderProfile`, `ReaderReport`, `ReaderVote`, `ReferenceAttachment`, `ReviewReadMark`, `ReviewRecipientRule`, `ReviewRequest`, `SemanticNode`, `SemanticRelation`, `SignupEntry`, `SteeringDecision`, `StoryVariation`, `Tag`, `TenantDomain`, `TenantMembership` |
 | `tenantSlug` | tenant-prefixed | open | `Item`, `PublishedItem` |
 | `threadId` | record-id | open | `Message` |
 | `threadKind` | global | closed | `MessageThread` |
@@ -253,30 +224,38 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `AssignmentEvent` | `listAssignmentEventsByAssignmentAndCreatedAt` | `assignmentId` | `createdAt` | record-id | open | yes | no |
 | `AssignmentEvent` | `listAssignmentEventsByQueueAndCreatedAt` | `queueKey` | `createdAt` | global | open | yes | no |
 | `AssignmentEvent` | `listAssignmentEventsByTypeAndCreatedAt` | `eventType` | `createdAt` | global | closed | yes | yes |
+| `Automation` | `listAutomationsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `Category` | `listCategoriesByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `Category` | `listCategoriesBySetAndKey` | `categorySetId` | `categoryKey` | record-id | open | yes | no |
-| `Category` | `listCategoriesByCorpusAndName` | `corpusId` | `displayName` | corpus-prefixed | open | yes | no |
+| `Category` | `listCategoriesByCorpusAndName` | `corpusId` | `displayName` | corpus-prefixed | parent | yes | yes |
 | `Category` | `listCategoriesByParentAndRank` | `parentCategoryId` | `rank` | record-id | open | no | no |
 | `Category` | `listCategoriesByParentKeyAndRank` | `parentCategoryKey` | `rank` | global | open | no | no |
 | `Category` | `listCategoriesByStatusAndName` | `status` | `displayName` | global | closed | yes | yes |
+| `CategoryKeyword` | `listCategoryKeywordsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `CategoryKeyword` | `listCategoryKeywordsBySetKeyAndRank` | `categorySetId` | `categoryKey`, `rank` | record-id | open | no | no |
 | `CategoryKeyword` | `listCategoryKeywordsByCategoryKeyAndRank` | `categoryKey` | `rank` | global | open | no | no |
 | `CategoryKeyword` | `listCategoryKeywordsByNormalizedKeywordAndSet` | `normalizedKeyword` | `categorySetId` | global | open | yes | no |
 | `CategoryKeyword` | `listCategoryKeywordsByImportRunAndRank` | `importRunId` | `rank` | record-id | open | no | no |
 | `CategorySet` | `listCategorySetsByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `CategorySet` | `listCategorySetsByVersionStateAndGeneratedAt` | `versionState` | `generatedAt` | global | closed | no | no |
-| `CategorySet` | `listCategorySetsByCorpusAndClassifier` | `corpusId` | `classifierId` | corpus-prefixed | open | yes | no |
+| `CategorySet` | `listCategorySetsByCorpusAndClassifier` | `corpusId` | `classifierId` | corpus-prefixed | parent | yes | yes |
 | `CategorySet` | `listCategorySetsByStatusAndName` | `status` | `displayName` | global | closed | yes | yes |
+| `CurationDelegationRecord` | `listCurationDelegationRecordsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `CurationDelegationRecord` | `listCurationDelegationRecordsByGrantor` | `grantorSub` | `createdAt` | global | open | yes | no |
 | `Edition` | `listEditionsByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `Edition` | `listEditionsByVersionStateAndPublishedAt` | `versionState` | `publishedAt` | global | closed | no | no |
 | `Edition` | `editionBySlug` | `slug` | none | global | open | yes | no |
 | `Edition` | `listEditionsByStatusAndEditionDate` | `status` | `editionDate` | global | closed | yes | yes |
 | `Edition` | `listEditionsByStatusAndPublishedAt` | `status` | `publishedAt` | global | closed | no | no |
+| `EditionItem` | `listEditionItemsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `EditionItem` | `listEditionItemsByEditionAndSortKey` | `editionId` | `sortKey` | record-id | open | yes | no |
 | `EditionItem` | `listEditionItemsByItemAndEdition` | `itemId` | `editionId` | record-id | open | yes | no |
+| `EditorialCheckRun` | `listEditorialCheckRunsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `EditorialCheckRun` | `listEditorialCheckRunsByLineage` | `lineageId` | `versionNumber` | record-id | open | yes | no |
+| `EditorialCheckSettings` | `listEditorialCheckSettingsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
+| `EditorialFeedback` | `listEditorialFeedbackByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `EditorialFeedback` | `listEditorialFeedbackByItem` | `itemId` | none | record-id | open | yes | no |
+| `EditorialPolicy` | `listEditorialPoliciesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `Item` | `listItemsByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `Item` | `listItemsByVersionStateAndUpdatedAt` | `versionState` | `updatedAt` | global | closed | no | no |
 | `Item` | `listItemsByStageAndUpdatedAt` | `stage` | `updatedAt` | global | closed | no | no |
@@ -288,20 +267,22 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `Item` | `listItemsByHeadStageAndUpdatedAt` | `headStageKey` | `updatedAt` | tenant-prefixed | closed | no | no |
 | `Item` | `listItemsByLanguageGroupAndLanguage` | `languageGroupId` | `language` | tenant-prefixed | open | no | no |
 | `Item` | `listItemsByScheduleStateAndScheduledPublishAt` | `scheduleState` | `scheduledPublishAt` | global | closed | no | no |
+| `ItemTag` | `listItemTagsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `ItemTag` | `listItemTagsByItemAndTag` | `itemId` | `tagSlug` | record-id | open | yes | no |
 | `ItemTag` | `listItemTagsByTagAndPublishedAt` | `tagId` | `publishedAt` | record-id | open | no | no |
-| `KnowledgeArtifact` | `listKnowledgeArtifactsByCorpusAndKind` | `corpusId` | `artifactKind` | corpus-prefixed | open | yes | no |
+| `KnowledgeArtifact` | `listKnowledgeArtifactsByCorpusAndKind` | `corpusId` | `artifactKind` | corpus-prefixed | parent | yes | yes |
 | `KnowledgeArtifact` | `listKnowledgeArtifactsByKindAndCreatedAt` | `artifactKind` | `createdAt` | global | closed | no | no |
 | `KnowledgeArtifact` | `listKnowledgeArtifactsByImportRunAndKind` | `importRunId` | `artifactKind` | record-id | open | no | no |
 | `KnowledgeCorpus` | `listKnowledgeCorporaByRoleAndName` | `role` | `name` | global | closed | yes | yes |
-| `KnowledgeImportRun` | `listKnowledgeImportRunsByCorpusAndImportedAt` | `corpusId` | `importedAt` | corpus-prefixed | open | yes | no |
+| `KnowledgeImportRun` | `listKnowledgeImportRunsByCorpusAndImportedAt` | `corpusId` | `importedAt` | corpus-prefixed | parent | yes | yes |
 | `KnowledgeImportRun` | `listKnowledgeImportRunsByKindAndImportedAt` | `importKind` | `importedAt` | global | closed | yes | yes |
 | `KnowledgeImportRun` | `listKnowledgeImportRunsByCorpusKindAndImportedAt` | `corpusImportKindKey` | `importedAt` | corpus-prefixed | open | no | no |
+| `KnowledgeRawPayload` | `listKnowledgeRawPayloadsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `KnowledgeRawPayload` | `listKnowledgeRawPayloadsByOwnerAndKind` | `ownerId` | `payloadKind` | record-id | open | yes | no |
 | `KnowledgeRawPayload` | `listKnowledgeRawPayloadsByImportRunAndOwner` | `importRunId` | `ownerType` | record-id | open | no | no |
 | `LexicalSteeringRule` | `listLexicalSteeringRulesByScopeAndTerm` | `scope` | `normalizedTerm` | global | closed | yes | yes |
 | `LexicalSteeringRule` | `listLexicalSteeringRulesByStatusAndTerm` | `status` | `normalizedTerm` | global | closed | yes | yes |
-| `LexicalSteeringRule` | `listLexicalSteeringRulesByCorpusAndTerm` | `corpusId` | `normalizedTerm` | corpus-prefixed | open | no | no |
+| `LexicalSteeringRule` | `listLexicalSteeringRulesByCorpusAndTerm` | `corpusId` | `normalizedTerm` | corpus-prefixed | parent | no | no |
 | `LexicalSteeringRule` | `listLexicalSteeringRulesBySetAndTerm` | `categorySetId` | `normalizedTerm` | record-id | open | no | no |
 | `MediaAsset` | `listMediaAssetsByItemAndSortKey` | `itemId` | `sortKey` | record-id | open | yes | no |
 | `MediaAsset` | `listMediaAssetsByRoleAndItem` | `role` | `itemId` | global | closed | yes | yes |
@@ -327,8 +308,9 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `ModelAttachment` | `listModelAttachmentsByRoleStatusAndCreatedAt` | `role` | `status`, `createdAt` | global | closed | yes | yes |
 | `ModelAttachment` | `modelAttachmentByStoragePath` | `storagePath` | none | global | open | yes | no |
 | `ModelAttachment` | `listModelAttachmentsByImportRunKindAndRole` | `importRunId` | `ownerKind`, `role` | record-id | open | no | no |
+| `ModerationAction` | `listModerationActionsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `ModerationAction` | `listModerationActionsByTargetAndAt` | `target` | `at` | record-id | open | yes | no |
-| `NewsroomSection` | `listNewsroomSectionsByTenantAndSortOrder` | `tenantId` | `sortOrder` | tenant-prefixed | one | no | no |
+| `NewsroomSection` | `listNewsroomSectionsByTenantAndSortOrder` | `tenantId` | `sortOrder` | tenant-prefixed | one | no | yes |
 | `NewsroomSection` | `listNewsroomSectionsByTypeAndSortOrder` | `type` | `sortOrder` | global | closed | yes | yes |
 | `NewsroomSection` | `listNewsroomSectionsByEnabledStatusAndSortOrder` | `enabledStatus` | `sortOrder` | global | closed | yes | yes |
 | `NewsroomSection` | `listNewsroomSectionsBySortOrder` | `sortOrder` | `id` | global | open | yes | no |
@@ -343,6 +325,7 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `ProcedureVersion` | `listProcedureVersionsByProcedureAndCreatedAt` | `procedureId` | `createdAt` | record-id | open | yes | no |
 | `ProcedureVersion` | `listProcedureVersionsByStatusAndUpdatedAt` | `status` | `updatedAt` | global | closed | yes | yes |
 | `Proposal` | `listProposalsByStateAndCreatedAt` | `state` | `createdAt` | global | closed | yes | yes |
+| `PublishedCategory` | `listPublishedCategoriesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `PublishedCategory` | `listPublishedCategoriesBySetAndKey` | `publishedCategorySetId` | `categoryKey` | record-id | open | yes | no |
 | `PublishedCategory` | `listPublishedCategoriesByKeyAndSet` | `categoryKey` | `publishedCategorySetId` | global | open | yes | no |
 | `PublishedCategory` | `listPublishedCategoriesByParentAndRank` | `parentCategoryId` | `rank` | record-id | open | no | no |
@@ -354,9 +337,11 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `PublishedEdition` | `publishedEditionBySlug` | `slug` | none | global | open | yes | no |
 | `PublishedEdition` | `listPublishedEditionsByStatusAndEditionDate` | `status` | `editionDate` | global | closed | yes | yes |
 | `PublishedEdition` | `listPublishedEditionsByStatusAndPublishedAt` | `status` | `publishedAt` | global | closed | no | no |
+| `PublishedEditionItem` | `listPublishedEditionItemsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `PublishedEditionItem` | `listPublishedEditionItemsByEditionAndSortKey` | `publishedEditionId` | `sortKey` | record-id | open | yes | no |
 | `PublishedEditionItem` | `listPublishedEditionItemsByItemAndEdition` | `publishedItemId` | `publishedEditionId` | record-id | open | yes | no |
 | `PublishedItem` | `listPublishedItemsByLineageAndVersion` | `itemLineageId` | `versionNumber` | record-id | open | yes | no |
+| `PublishedItem` | `listPublishedItemsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `PublishedItem` | `listPublishedItemsByTypeStatusAndPublishedAt` | `typeStatus` | `publishedAt` | tenant-prefixed | closed | no | no |
 | `PublishedItem` | `publishedItemBySlug` | `slug` | none | global | open | yes | no |
 | `PublishedItem` | `publishedItemByTenantSlug` | `tenantSlug` | none | tenant-prefixed | open | no | no |
@@ -364,13 +349,18 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `PublishedMediaAsset` | `listPublishedMediaAssetsByItemAndSortKey` | `publishedItemId` | `sortKey` | record-id | open | yes | no |
 | `PublishedMediaAsset` | `listPublishedMediaAssetsByRoleAndItem` | `role` | `publishedItemId` | global | closed | yes | yes |
 | `ReaderComment` | `listReaderCommentsByModerationAndCreatedAt` | `moderation` | `createdAt` | global | closed | yes | yes |
+| `ReaderFlag` | `listReaderFlagsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
+| `ReaderHandle` | `listReaderHandlesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
+| `ReaderProfile` | `listReaderProfilesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `ReaderProfile` | `listReaderProfilesByReader` | `readerId` | none | record-id | open | yes | no |
+| `ReaderReport` | `listReaderReportsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `ReaderReport` | `listReaderReportsByTargetAndCreatedAt` | `target` | `createdAt` | record-id | open | yes | no |
 | `ReaderSubmission` | `listReaderSubmissionsByDomainAndCreatedAt` | `domain` | `createdAt` | global | closed | yes | yes |
 | `ReaderSubmission` | `listReaderSubmissionsByModerationAndCreatedAt` | `moderation` | `createdAt` | global | closed | yes | yes |
+| `ReaderVote` | `listReaderVotesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `Reference` | `listReferencesByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `Reference` | `listReferencesByVersionStateAndUpdatedAt` | `versionState` | `updatedAt` | global | closed | no | no |
-| `Reference` | `listReferencesByCorpusAndExternalItem` | `corpusId` | `externalItemId` | corpus-prefixed | open | yes | no |
+| `Reference` | `listReferencesByCorpusAndExternalItem` | `corpusId` | `externalItemId` | corpus-prefixed | parent | yes | yes |
 | `Reference` | `listReferencesByImportRunAndExternalItem` | `importRunId` | `externalItemId` | record-id | open | no | no |
 | `Reference` | `listReferencesByCurationStatusAndUpdatedAt` | `curationStatus` | `curationStatusUpdatedAt` | global | closed | no | no |
 | `Reference` | `listReferencesByCurationStatusKeyAndUpdatedAt` | `curationStatusKey` | `curationStatusUpdatedAt` | corpus-prefixed | open | no | no |
@@ -383,16 +373,22 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `Reference` | `listReferencesByStarFeedAndArrival` | `starFeedKey` | `feedArrivalAt` | corpus-prefixed | open | no | no |
 | `Reference` | `listReferencesByMediumFeedAndArrival` | `mediumFeedKey` | `feedArrivalAt` | corpus-prefixed | open | no | no |
 | `Reference` | `listReferencesByContentNeededAndArrival` | `contentNeededKey` | `feedArrivalAt` | corpus-prefixed | open | no | no |
+| `ReferenceAttachment` | `listReferenceAttachmentsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `ReferenceAttachment` | `listReferenceAttachmentsByReferenceLineageAndSortKey` | `referenceLineageId` | `sortKey` | record-id | open | yes | no |
 | `ReferenceAttachment` | `listReferenceAttachmentsByReferenceVersionAndSortKey` | `referenceVersionKey` | `sortKey` | record-id | open | yes | no |
 | `ReferenceAttachment` | `referenceAttachmentByStoragePath` | `storagePath` | none | global | open | no | no |
 | `ReferenceAttachment` | `listReferenceAttachmentsByImportRunAndSortKey` | `importRunId` | `sortKey` | record-id | open | no | no |
+| `ReviewReadMark` | `listReviewReadMarksByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
+| `ReviewRecipientRule` | `listReviewRecipientRulesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
+| `ReviewRequest` | `listReviewRequestsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
+| `SemanticNode` | `listSemanticNodesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `SemanticNode` | `listSemanticNodesByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `SemanticNode` | `listSemanticNodesByVersionStateAndUpdatedAt` | `versionState` | `updatedAt` | global | closed | no | no |
 | `SemanticNode` | `listSemanticNodesByNodeKeyAndVersion` | `nodeKey` | `versionNumber` | global | open | yes | no |
-| `SemanticNode` | `listSemanticNodesByCorpusAndNodeKey` | `corpusId` | `nodeKey` | corpus-prefixed | open | no | no |
+| `SemanticNode` | `listSemanticNodesByCorpusAndNodeKey` | `corpusId` | `nodeKey` | corpus-prefixed | parent | no | no |
 | `SemanticNode` | `listSemanticNodesByImportRunAndNodeKey` | `importRunId` | `nodeKey` | record-id | open | no | no |
 | `SemanticNode` | `listSemanticNodesByNewsroomFeedAndCreatedAt` | `newsroomFeedKey` | `createdAt` | global | one | no | no |
+| `SemanticRelation` | `listSemanticRelationsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `SemanticRelation` | `listSemanticRelationsByTypeAndImportedAt` | `relationTypeKey` | `importedAt` | global | closed | no | no |
 | `SemanticRelation` | `listSemanticRelationsByDomainAndImportedAt` | `relationDomain` | `importedAt` | global | closed | no | no |
 | `SemanticRelation` | `listSemanticRelationsBySubjectState` | `subjectStateKey` | `predicateObjectStateKey` | record-id | open | yes | no |
@@ -405,14 +401,18 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `SemanticRelationType` | `semanticRelationTypeByKey` | `key` | none | global | open | yes | no |
 | `SemanticRelationType` | `listSemanticRelationTypesByDomainAndLabel` | `domain` | `label` | global | closed | yes | yes |
 | `SemanticRelationType` | `listSemanticRelationTypesByStatusAndLabel` | `status` | `label` | global | closed | yes | yes |
+| `SignupEntry` | `listSignupEntriesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `SignupEntry` | `listSignupEntriesByFormAndSubmittedAt` | `form` | `submittedAt` | global | open | yes | no |
+| `SteeringDecision` | `listSteeringDecisionsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `SteeringDecision` | `listSteeringDecisionsByProposalAndCreatedAt` | `proposalId` | `createdAt` | record-id | open | yes | no |
 | `SteeringDecision` | `listSteeringDecisionsBySetAndCreatedAt` | `categorySetId` | `createdAt` | record-id | open | no | no |
 | `SteeringProposal` | `listSteeringProposalsBySetAndStatus` | `categorySetId` | `status` | record-id | open | no | no |
-| `SteeringProposal` | `listSteeringProposalsByCorpusAndKind` | `corpusId` | `proposalKind` | corpus-prefixed | open | yes | no |
+| `SteeringProposal` | `listSteeringProposalsByCorpusAndKind` | `corpusId` | `proposalKind` | corpus-prefixed | parent | yes | yes |
 | `SteeringProposal` | `listSteeringProposalsByDomainAndStatus` | `steeringDomain` | `status` | global | closed | yes | yes |
 | `SteeringProposal` | `listSteeringProposalsByStatusAndProposedAt` | `status` | `proposedAt` | global | closed | no | no |
+| `StoryVariation` | `listStoryVariationsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `StoryVariation` | `listStoryVariationsByStoryAndNumber` | `storyLineageId` | `variationNumber` | record-id | open | yes | no |
+| `Tag` | `listTagsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `Tag` | `tagBySlug` | `slug` | none | global | open | yes | no |
 | `Tag` | `listTagsByTypeAndLabel` | `type` | `label` | global | closed | no | no |
 | `Tenant` | `listTenantsByAccount` | `accountId` | none | record-id | open | yes | no |

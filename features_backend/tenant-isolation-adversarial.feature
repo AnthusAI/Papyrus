@@ -561,12 +561,14 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listAssignmentEventsByAssignmentAndCreatedAt         | returns nothing of "beta"        |
       | listAssignmentEventsByQueueAndCreatedAt              | returns nothing of "beta"        |
       | listAssignmentEventsByTypeAndCreatedAt               | returns nothing of "beta"        |
+      | listAutomationsByTenant                              | returns nothing of "beta"        |
       | listCategoriesByLineageAndVersion                    | returns nothing of "beta"        |
       | listCategoriesBySetAndKey                            | returns nothing of "beta"        |
       | listCategoriesByCorpusAndName                        | returns nothing of "beta"        |
       | listCategoriesByParentAndRank                        | returns nothing of "beta"        |
       | listCategoriesByParentKeyAndRank                     | returns nothing of "beta"        |
       | listCategoriesByStatusAndName                        | returns nothing of "beta"        |
+      | listCategoryKeywordsByTenant                         | returns nothing of "beta"        |
       | listCategoryKeywordsBySetKeyAndRank                  | returns nothing of "beta"        |
       | listCategoryKeywordsByCategoryKeyAndRank             | returns nothing of "beta"        |
       | listCategoryKeywordsByNormalizedKeywordAndSet        | returns nothing of "beta"        |
@@ -575,16 +577,22 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listCategorySetsByVersionStateAndGeneratedAt         | returns nothing of "beta"        |
       | listCategorySetsByCorpusAndClassifier                | returns nothing of "beta"        |
       | listCategorySetsByStatusAndName                      | returns nothing of "beta"        |
+      | listCurationDelegationRecordsByTenant                | returns nothing of "beta"        |
       | listCurationDelegationRecordsByGrantor               | returns nothing of "beta"        |
       | listEditionsByLineageAndVersion                      | returns nothing of "beta"        |
       | listEditionsByVersionStateAndPublishedAt             | returns nothing of "beta"        |
       | editionBySlug                                        | returns nothing of "beta"        |
       | listEditionsByStatusAndEditionDate                   | returns nothing of "beta"        |
       | listEditionsByStatusAndPublishedAt                   | returns nothing of "beta"        |
+      | listEditionItemsByTenant                             | returns nothing of "beta"        |
       | listEditionItemsByEditionAndSortKey                  | returns nothing of "beta"        |
       | listEditionItemsByItemAndEdition                     | returns nothing of "beta"        |
+      | listEditorialCheckRunsByTenant                       | returns nothing of "beta"        |
       | listEditorialCheckRunsByLineage                      | returns nothing of "beta"        |
+      | listEditorialCheckSettingsByTenant                   | returns nothing of "beta"        |
+      | listEditorialFeedbackByTenant                        | returns nothing of "beta"        |
       | listEditorialFeedbackByItem                          | returns nothing of "beta"        |
+      | listEditorialPoliciesByTenant                        | returns nothing of "beta"        |
       | listItemsByLineageAndVersion                         | returns nothing of "beta"        |
       | listItemsByVersionStateAndUpdatedAt                  | returns nothing of "beta"        |
       | listItemsByStageAndUpdatedAt                         | returns nothing of "beta"        |
@@ -596,6 +604,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listItemsByHeadStageAndUpdatedAt                     | returns nothing of "beta"        |
       | listItemsByLanguageGroupAndLanguage                  | returns nothing of "beta"        |
       | listItemsByScheduleStateAndScheduledPublishAt        | returns nothing of "beta"        |
+      | listItemTagsByTenant                                 | returns nothing of "beta"        |
       | listItemTagsByItemAndTag                             | returns nothing of "beta"        |
       | listItemTagsByTagAndPublishedAt                      | returns nothing of "beta"        |
       | listKnowledgeArtifactsByCorpusAndKind                | returns nothing of "beta"        |
@@ -605,6 +614,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listKnowledgeImportRunsByCorpusAndImportedAt         | returns nothing of "beta"        |
       | listKnowledgeImportRunsByKindAndImportedAt           | returns nothing of "beta"        |
       | listKnowledgeImportRunsByCorpusKindAndImportedAt     | returns nothing of "beta"        |
+      | listKnowledgeRawPayloadsByTenant                     | returns nothing of "beta"        |
       | listKnowledgeRawPayloadsByOwnerAndKind               | returns nothing of "beta"        |
       | listKnowledgeRawPayloadsByImportRunAndOwner          | returns nothing of "beta"        |
       | listLexicalSteeringRulesByScopeAndTerm               | returns nothing of "beta"        |
@@ -635,6 +645,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listModelAttachmentsByRoleStatusAndCreatedAt         | returns nothing of "beta"        |
       | modelAttachmentByStoragePath                         | returns nothing of "beta"        |
       | listModelAttachmentsByImportRunKindAndRole           | returns nothing of "beta"        |
+      | listModerationActionsByTenant                        | returns nothing of "beta"        |
       | listModerationActionsByTargetAndAt                   | returns nothing of "beta"        |
       | listNewsroomSectionsByTenantAndSortOrder             | returns nothing of "beta"        |
       | listNewsroomSectionsByTypeAndSortOrder               | returns nothing of "beta"        |
@@ -651,6 +662,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listProcedureVersionsByProcedureAndCreatedAt         | returns nothing of "beta"        |
       | listProcedureVersionsByStatusAndUpdatedAt            | returns nothing of "beta"        |
       | listProposalsByStateAndCreatedAt                     | returns nothing of "beta"        |
+      | listPublishedCategoriesByTenant                      | returns nothing of "beta"        |
       | listPublishedCategoriesBySetAndKey                   | returns nothing of "beta"        |
       | listPublishedCategoriesByKeyAndSet                   | returns nothing of "beta"        |
       | listPublishedCategoriesByParentAndRank               | returns nothing of "beta"        |
@@ -662,9 +674,11 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | publishedEditionBySlug                               | returns nothing of "beta"        |
       | listPublishedEditionsByStatusAndEditionDate          | returns nothing of "beta"        |
       | listPublishedEditionsByStatusAndPublishedAt          | returns nothing of "beta"        |
+      | listPublishedEditionItemsByTenant                    | returns nothing of "beta"        |
       | listPublishedEditionItemsByEditionAndSortKey         | returns nothing of "beta"        |
       | listPublishedEditionItemsByItemAndEdition            | returns nothing of "beta"        |
       | listPublishedItemsByLineageAndVersion                | returns nothing of "beta"        |
+      | listPublishedItemsByTenant                           | returns nothing of "beta"        |
       | listPublishedItemsByTypeStatusAndPublishedAt         | returns nothing of "beta"        |
       | publishedItemBySlug                                  | returns nothing of "beta"        |
       | publishedItemByTenantSlug                            | returns nothing of "beta"        |
@@ -672,10 +686,15 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listPublishedMediaAssetsByItemAndSortKey             | returns nothing of "beta"        |
       | listPublishedMediaAssetsByRoleAndItem                | returns nothing of "beta"        |
       | listReaderCommentsByModerationAndCreatedAt           | returns nothing of "beta"        |
+      | listReaderFlagsByTenant                              | returns nothing of "beta"        |
+      | listReaderHandlesByTenant                            | returns nothing of "beta"        |
+      | listReaderProfilesByTenant                           | returns nothing of "beta"        |
       | listReaderProfilesByReader                           | returns nothing of "beta"        |
+      | listReaderReportsByTenant                            | returns nothing of "beta"        |
       | listReaderReportsByTargetAndCreatedAt                | returns nothing of "beta"        |
       | listReaderSubmissionsByDomainAndCreatedAt            | returns nothing of "beta"        |
       | listReaderSubmissionsByModerationAndCreatedAt        | returns nothing of "beta"        |
+      | listReaderVotesByTenant                              | returns nothing of "beta"        |
       | listReferencesByLineageAndVersion                    | returns nothing of "beta"        |
       | listReferencesByVersionStateAndUpdatedAt             | returns nothing of "beta"        |
       | listReferencesByCorpusAndExternalItem                | returns nothing of "beta"        |
@@ -691,16 +710,22 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listReferencesByStarFeedAndArrival                   | returns nothing of "beta"        |
       | listReferencesByMediumFeedAndArrival                 | returns nothing of "beta"        |
       | listReferencesByContentNeededAndArrival              | returns nothing of "beta"        |
+      | listReferenceAttachmentsByTenant                     | returns nothing of "beta"        |
       | listReferenceAttachmentsByReferenceLineageAndSortKey | returns nothing of "beta"        |
       | listReferenceAttachmentsByReferenceVersionAndSortKey | returns nothing of "beta"        |
       | referenceAttachmentByStoragePath                     | returns nothing of "beta"        |
       | listReferenceAttachmentsByImportRunAndSortKey        | returns nothing of "beta"        |
+      | listReviewReadMarksByTenant                          | returns nothing of "beta"        |
+      | listReviewRecipientRulesByTenant                     | returns nothing of "beta"        |
+      | listReviewRequestsByTenant                           | returns nothing of "beta"        |
+      | listSemanticNodesByTenant                            | returns nothing of "beta"        |
       | listSemanticNodesByLineageAndVersion                 | returns nothing of "beta"        |
       | listSemanticNodesByVersionStateAndUpdatedAt          | returns nothing of "beta"        |
       | listSemanticNodesByNodeKeyAndVersion                 | returns nothing of "beta"        |
       | listSemanticNodesByCorpusAndNodeKey                  | returns nothing of "beta"        |
       | listSemanticNodesByImportRunAndNodeKey               | returns nothing of "beta"        |
       | listSemanticNodesByNewsroomFeedAndCreatedAt          | returns nothing of "beta"        |
+      | listSemanticRelationsByTenant                        | returns nothing of "beta"        |
       | listSemanticRelationsByTypeAndImportedAt             | returns nothing of "beta"        |
       | listSemanticRelationsByDomainAndImportedAt           | returns nothing of "beta"        |
       | listSemanticRelationsBySubjectState                  | returns nothing of "beta"        |
@@ -713,14 +738,18 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | semanticRelationTypeByKey                            | returns nothing of "beta"        |
       | listSemanticRelationTypesByDomainAndLabel            | returns nothing of "beta"        |
       | listSemanticRelationTypesByStatusAndLabel            | returns nothing of "beta"        |
+      | listSignupEntriesByTenant                            | returns nothing of "beta"        |
       | listSignupEntriesByFormAndSubmittedAt                | returns nothing of "beta"        |
+      | listSteeringDecisionsByTenant                        | returns nothing of "beta"        |
       | listSteeringDecisionsByProposalAndCreatedAt          | returns nothing of "beta"        |
       | listSteeringDecisionsBySetAndCreatedAt               | returns nothing of "beta"        |
       | listSteeringProposalsBySetAndStatus                  | returns nothing of "beta"        |
       | listSteeringProposalsByCorpusAndKind                 | returns nothing of "beta"        |
       | listSteeringProposalsByDomainAndStatus               | returns nothing of "beta"        |
       | listSteeringProposalsByStatusAndProposedAt           | returns nothing of "beta"        |
+      | listStoryVariationsByTenant                          | returns nothing of "beta"        |
       | listStoryVariationsByStoryAndNumber                  | returns nothing of "beta"        |
+      | listTagsByTenant                                     | returns nothing of "beta"        |
       | tagBySlug                                            | returns nothing of "beta"        |
       | listTagsByTypeAndLabel                               | returns nothing of "beta"        |
       | listTenantsByAccount                                 | returns nothing of "beta"        |
