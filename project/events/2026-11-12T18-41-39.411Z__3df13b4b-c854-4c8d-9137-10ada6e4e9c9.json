@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "3df13b4b-c854-4c8d-9137-10ada6e4e9c9",
+  "issue_id": "PPY-bf9d2658-3f3d-4740-8bb0-4698f5ab8a49",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T18:41:39.411Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Retire and correction handling for announcements",
+    "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md (\"Retirement and corrections\").\n\nGoal: a retired Story's announcement is removed from X; a correction leaves the post (its link shows the corrected page); an editor can withdraw a post whose own text became wrong.\n\nShape: `story_retire.py` retirement deletes the post through the channel (price recorded) and marks the announcement `withdrawn: Story retired`; a scheduled retired Story loses its schedule (scheduling story); \"Withdraw announcement\" in the drawer and the operation table; a new announcement for the same Story only by an editor's explicit approval. X API edit is out of scope until its eligibility rules are verified.\n\nDepends on: the channel framework story.\n\n```gherkin\nFeature: An announcement follows its Story when the Story is retired or corrected\n  We must never leave a post on X pointing readers at something we took back.\n\n  Scenario: Retiring a Story deletes its post\n    Given an announced Article\n    When an editor retires it with a redirect\n    Then its post is deleted from X\n    And the announcement says \"Withdrawn: Story retired\"\n\n  Scenario: A correction keeps the post\n    Given an announced Article\n    When a corrected version is published with a revision note\n    Then the post stays\n    And its link shows the corrected page\n\n  Scenario: Withdrawing a post whose text is wrong\n    Given the post repeats a claim the correction removed\n    When Sam chooses \"Withdraw announcement\"\n    Then the post is deleted and recorded as withdrawn by Sam\n    And Sam may approve a new announcement for the Story\n\n  Scenario: A failed delete is visible\n    Given X refuses to delete the post\n    Then the announcement shows \"Delete failed\" with X's message and a retry button\n```\n\nOpen questions: none.\n",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+    "labels": []
+  }
+}

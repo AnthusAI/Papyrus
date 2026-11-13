@@ -20,8 +20,12 @@ LITERAL_FILES = [
 ]
 # Roles written directly to storage by rehydration, never through the upload Lambda.
 NOT_UPLOADED = {"record"}
+# Constants named *ROLE that are not attachment roles (an agent's job description, a reader's role).
+NOT_ATTACHMENT_CONSTANTS = {"PAPYRUS_RUNTIME_ROLE"}
 
-_CONST = re.compile(r'^([A-Z][A-Z0-9_]*_ROLE)\s*=\s*"([a-z_]+)"\s*$', re.MULTILINE)
+# A role constant is named ROLE or ends in _ROLE (guidelines/store.py names its document role plain ROLE, which the older pattern missed).
+_CONST = re.compile(r'^((?:[A-Z][A-Z0-9_]*_)?ROLE)\s*=\s*"([a-z_]+)"', re.MULTILINE)
+_ROLE_MAP = re.compile(r'^ROLE_BY_[A-Z_]+\s*=\s*\{(.*?)\}', re.MULTILINE | re.DOTALL)
 _LITERAL = re.compile(r'(?:"role":\s*|\brole=)"([a-z_]+)"')
 
 
@@ -36,8 +40,11 @@ def python_roles() -> dict[str, str]:
     found: dict[str, str] = {}
     for path in SRC.rglob("*.py"):
         for name, value in _CONST.findall(path.read_text()):
-            if name != "PAPYRUS_RUNTIME_ROLE":
+            if name not in NOT_ATTACHMENT_CONSTANTS:
                 found[value] = f"{path.relative_to(ROOT)}:{name}"
+        for table in _ROLE_MAP.findall(path.read_text()):
+            for value in re.findall(r':\s*"([a-z_]+)"', table):
+                found[value] = f"{path.relative_to(ROOT)}:ROLE_BY_*"
     for rel in LITERAL_FILES:
         for value in _LITERAL.findall((SRC / rel).read_text()):
             found.setdefault(value, rel)
@@ -46,7 +53,7 @@ def python_roles() -> dict[str, str]:
 
 def test_extraction_sees_known_roles():
     roles = python_roles()
-    assert {"priming_outcome", "priming_attempts", "metadata"} <= set(roles)
+    assert {"priming_outcome", "priming_attempts", "metadata", "doctrine_document", "doctrine_asset", "visual_example", "image_record"} <= set(roles)
 
 
 def test_every_python_attachment_role_is_allowed_by_the_upload_lambda():
