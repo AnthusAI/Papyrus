@@ -35,6 +35,7 @@ import { NewsroomArticleEditor } from "./newsroom-article-editor";
 import { resolveArticlesBackend } from "../lib/newsroom-articles";
 import { StoryCardStars, useStoryCardSlots } from "./story-board-stars";
 import { StoryCardChecklist, useStoryChecklistSlots } from "./story-checklist-card";
+import { StoryCardSchedule, useStoryScheduleSlots } from "./story-schedule-card";
 import { StoryChecklistPanel } from "./story-checklist-panel";
 import { useStoryStars } from "./use-story-stars";
 import { NewsroomAssignmentDetail } from "./newsroom-assignment-detail";
@@ -83,8 +84,9 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const boardBodyRef = useRef<HTMLDivElement | null>(null);
   const articlesBackend = useMemo(() => resolveArticlesBackend(isLocalPreviewEnabled()), []);
   const storyStars = useStoryStars((itemId, stars) => articlesBackend.actions.setItemStars(itemId, stars));
-  const storyCardSlots = useStoryCardSlots(boardBodyRef, subject !== "assignment");
-  const storyChecklistSlots = useStoryChecklistSlots(boardBodyRef, subject !== "assignment");
+  const storyCardSlots = useStoryCardSlots(boardBodyRef, allowed && subject !== "assignment");
+  const storyChecklistSlots = useStoryChecklistSlots(boardBodyRef, allowed && subject !== "assignment");
+  const storyScheduleSlots = useStoryScheduleSlots(boardBodyRef, allowed && subject !== "assignment");
   const [typeFilter, setTypeFilter] = useState<string | null>("all");
   const showsContentItems = subject !== "assignment";
   const contentItemColumnKeyPrefix = `${contentItemBoardType()}/`;
@@ -189,10 +191,11 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
           emptyMessage={error ? "Records could not be loaded." : "No records in this selection."} />}
         {subject !== "assignment" ? <StoryCardStars issues={issues} slots={storyCardSlots} controller={storyStars} /> : null}
         {subject !== "assignment" ? <StoryCardChecklist issues={issues} slots={storyChecklistSlots} /> : null}
+        {subject !== "assignment" ? <StoryCardSchedule issues={issues} slots={storyScheduleSlots} /> : null}
         {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[]}>
           {issue.kind === "contentItem"
             ? <>
-              <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded starsController={storyStars} />
+              <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded starsController={storyStars} onScheduleChanged={() => refreshBoardNowRef.current()} />
               <StoryChecklistPanel key={`checklist-${issue.id}`} lineageId={issue.nativeId} storyIssueId={issue.id} onChanged={() => refreshBoardNowRef.current()} />
               <Link className="organizer-header-button" href={getNewsroomNavHref(issue.href)}>Open full page</Link>
             </>

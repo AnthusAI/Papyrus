@@ -313,3 +313,23 @@ def test_the_home_page_trigger_and_the_snapshot_agree_on_which_pending_rows_have
     assert trigger.can_show(image_of(accepted)) and is_chosen(accepted, None, HomePageSettings())
     for status in ("rejected", "archived"):
         assert not trigger.can_show(image_of(pending_row(curationStatus=status, predictedAcceptProbability=0.9)))
+
+
+def test_section_titles_are_keyed_by_the_id_a_reference_stores():
+    from papyrus_content.tenancy import tenant_row_with_bare_record_id
+
+    stored = [{"id": "machines-on-machines#security", "title": "Security"}, {"id": "machines-on-machines#music", "title": "Music"}]
+
+    class TenantClient:
+        def list_records(self, model_name):
+            return [tenant_row_with_bare_record_id(model_name, "machines-on-machines", row) for row in stored]   # what the real client returns
+
+    labels = export.section_labels_of(TenantClient())
+    assert labels == {"machines-on-machines#security": "Security", "machines-on-machines#music": "Music"}
+    assert labels.get("machines-on-machines#nothing") is None and labels.get("security") is None
+
+    class UntenantedClient:
+        def list_records(self, model_name):
+            return [{"id": "security", "title": "Security"}]
+
+    assert export.section_labels_of(UntenantedClient()) == {"security": "Security"}, "a backend with no tenant stores the id as it is"
