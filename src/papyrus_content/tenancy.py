@@ -33,7 +33,7 @@ TENANT_FIELD_MODELS = frozenset({
     "MessageThread", "ModelAttachment", "SemanticRelationType", "SemanticRelation", "Tag", "ItemTag", "Edition", "EditionItem",
     "PublishedEdition", "PublishedEditionItem", "PublishedCategorySet", "PublishedCategory", "EditorialPolicy",
     "EditorialCheckSettings", "EditorialFeedback", "EditorialCheckRun", "Proposal", "ReaderProfile", "ReaderHandle", "ReaderVote",
-    "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction", "SignupEntry",
+    "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction", "SignupEntry", "LocalizationRequest",
 })
 TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus", "headStageKey", "languageGroupId")
 TENANT_SLUG_FIELD = "tenantSlug"

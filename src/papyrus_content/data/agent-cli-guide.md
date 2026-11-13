@@ -462,6 +462,20 @@ papyrus stories head-index --apply --rate 5
 - Unlike most commands it is a **dry run unless `--apply`**. A dry run with `heads to set 0` and `keys to remove 0` is the health check. `--apply` writes only rows that differ, keeps each row's own `updatedAt`, never writes a superseded version, and writes at most `--rate` a second (default 5); a second run writes nothing.
 - On a site whose data API has no `headStageKey` yet the dry run counts every Story as needing it and `--apply` refuses: the site needs the backend deploy that adds the index first, and that deploy and the `--apply` run each need Ryan's approval.
 
+### Translate a published Story (editors)
+**Lane:** both. **Version:** the release after 5.109.0. **Writes:** yes, unless `--dry-run`.
+
+```sh
+papyrus stories localize --story LINEAGE --language zh-Hans --dry-run
+papyrus stories localize --story LINEAGE --language es-419 --automation SITE.story-localize
+```
+
+- Follow the run in the automation's history (`automations runs`).
+
+- Writes the translation request (`LocalizationRequest`, one per Story and language: the newest published source version) and starts the site's automation for the procedure `papyrus.story.localize` (docs/story-translation-procedure.md). The run translates the changed blocks, checks every block against the English (parity rules and a bilingual judge) and with the language's policies, polishes until the findings stop shrinking, and saves an unpublished version of `LINEAGE--TAG` by AI. It never publishes.
+- `--dry-run` prints the plan: blocks to translate and kept, the glossary terms the translator will be given, the predicted cost from the language's measured runs. It writes nothing.
+- A held translation (a faithfulness error remains) raises a flag review request saying why. `--ceiling-usd` caps one run's model spend.
+
 ### Give every Item row its language (operators)
 **Lane:** both. **Version:** the release after 5.109.0. **Writes:** yes, unless `--dry-run`.
 
