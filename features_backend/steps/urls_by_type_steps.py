@@ -306,7 +306,7 @@ def blocked_and_refused(context) -> None:
 
 def published_row(slug: str, section: str | None) -> dict:
     return {
-        "id": f"published-item-{slug}", "sourceItemId": f"item-{slug}", "itemLineageId": f"item-{slug}", "versionNumber": 1, "type": "article", "status": "published",
+        "id": f"published-item-{slug}", "sourceItemId": f"item-{slug}", "itemLineageId": f"item-{slug}", "versionNumber": 1, "type": "article", "status": "published", "language": "en", "languageGroupId": f"item-{slug}",
         "slug": slug, "section": section, "title": slug.title(), "bodyMarkus": "Body.\n", "aliases": [], "publishedAt": "2026-03-01T00:00:00Z",
         "metadata": {"frontMatterYaml": f"title: {slug.title()}\ndate: 2026-03-01\n"},
     }
