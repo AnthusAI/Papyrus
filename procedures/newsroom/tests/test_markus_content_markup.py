@@ -372,7 +372,7 @@ class ApaFormattingTests(unittest.TestCase):
     def test_the_url_is_cut_out_and_linked_with_live_whitespace(self) -> None:
         # Live: the URL is removed from the text (leaving the space before it)
         # and the link follows with nothing between. With a DOI and a different
-        # URL the text is not changed, so the link touches the DOI.
+        # URL the text is not changed, so the link follows the DOI after a space.
         webpage = CitationCollector({"w": CSL_WEBPAGE}, CitationRendering())
         webpage.marker_html("w")
         self.assertIn(
@@ -383,7 +383,7 @@ class ApaFormattingTests(unittest.TestCase):
         journal = CitationCollector({"j": CSL_JOURNAL}, CitationRendering())
         journal.marker_html("j")
         self.assertIn(
-            "arXiv.2511.23455<a href=\"https://arxiv.org/abs/2511.23455\"", journal.list_html()
+            "arXiv.2511.23455 <a href=\"https://arxiv.org/abs/2511.23455\"", journal.list_html()
         )
 
     def test_apostrophes_are_not_escaped_in_the_list(self) -> None:
