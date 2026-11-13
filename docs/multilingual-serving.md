@@ -4,6 +4,10 @@ Status: built in the engine (initiative PPY-82f150, epic PPY-756495); no site se
 
 A translation of a Story is a sibling Story (its lineage is `{primaryLineageId}--{language}`) joined to the original by its language group (`Item.language`, `Item.languageGroupId`, PPY-843a7c). This page covers what happens once such a localization is published: where it is served, what its page says about the other languages, and what each language's listings, sitemaps and links contain.
 
+## Deploying the release that adds languages
+
+The post-deploy render (`reprojectOnDeploy`) writes the language fields on every row written before them, first, before the editorial policies or the render read anything (`ensure_item_languages` in `src/papyrus_content/item_language_backfill.py`): the site's primary language (`en` when the site never set one) and each Story's own lineage as its group, on `Item` rows (read through the version-state index) and `PublishedItem` rows (one point read per lineage, by id), only where missing, keeping each row's own update time. A clean run leaves `_papyrus/migrations/item-languages.json` in the site store, so a later deploy reads that one object and writes nothing. A run that fails part-way fails the deploy before the render (CloudFormation rolls the backend back to the previous release, which does not read languages) and leaves no marker; the next deploy finishes it. `papyrus stories languages` is the same code run by hand. Specification: `features_backend/deploy-item-languages.feature`.
+
 ## The setting
 
 There is one languages setting: the editorial check settings' `languages` (Administration > Editorial checks, stored in `EditorialCheckSettings`). `primary` and `enabled` say which languages the site writes in ([editorial checks](editorial-checks.md)). Three more keys say how they are served (`src/papyrus_content/language_serving.py`):

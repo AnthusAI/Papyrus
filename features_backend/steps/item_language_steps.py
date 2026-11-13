@@ -250,7 +250,7 @@ def step_translated_untouched(context):
 
 @then("the rows were read through the version-state index, with no table scan")
 def step_index_reads(context):
-    reads = [call for call in context.client.calls if call[0] not in ("update",) and call[1] != "PublishedItemSummary"]
+    reads = [call for call in context.client.calls if call[0] not in ("update",) and not (call[0] == "get" and call[1] == "PublishedItem")]   # published rows: by id
     assert reads and all(call[0] == "list_by_index" and call[1] == "itemLanguageFieldsByVersionState" for call in reads), reads
 
 

@@ -485,8 +485,8 @@ papyrus stories languages
 ```
 
 - Every Item version carries `language` (a BCP 47 tag: `en`, `es-419`, `zh-Hans`) and `languageGroupId` (the primary Story's lineage; a localization is the sibling lineage `{primary}--{language}`). Writers set them from the release that adds them; `stories languages` writes them on the rows written before: the site's primary language and the row's own lineage as its group.
-- It reads the version-state index once (no table scan), prints one line per row it would write and a summary (`rows read`, `rows to write`, `already right`), writes only missing fields with each row's own `updatedAt`, and never changes a language a row has. A run with `rows to write 0` is the health check.
-- Run it once after the backend deploy that adds the fields, before anything checks a Story: a saved Story version without a language is refused by the editorial checks, never read as the primary language.
+- It reads the version-state index once (no table scan) and each published row by its id, prints one line per row it would write and a summary per model (`rows read`, `rows to write`, `already right`), writes only missing fields with each row's own `updatedAt`, and never changes a language a row has. A run with `rows to write 0` is the health check.
+- You do not need to run it after a deploy: the post-deploy render runs the same code first, once per site, before it renders (a marker in the site store records that it is done). Run it by hand only to check (`--dry-run`) or on a backend without the post-deploy render. A row written later without a language is still refused, by the projection and by the editorial checks; the deploy does not repair it.
 
 ### Backfill published dates (operators)
 **Lane:** both. **Version:** the release after 5.101.0. **Writes:** only with `--apply`; a dry run otherwise.
