@@ -197,6 +197,8 @@ remembers (a rename, a change of type folder). The register of these addresses i
 against the site as it is now, so when the target changes address every redirect points at the new address (never through a chain), a `.md` twin goes to the
 target's `.md` twin, and a target that is later retired is followed to the story it was retired into. The cross-story boilerplate check ignores retired stories.
 
+Before it writes, the command prints one `redirect` row per request path the projection will redirect, from the public address readers use (for example `/articles/face-match/`, `/articles/face-match`, `/articles/face-match/index.md`) to the target's public address. These come from the site's own projector (the same computation the projection uses for the redirects it writes), not from the Markdown source path the story is stored under, so the command needs the site's settings: run it where `PAPYRUS_SITE_PROJECTOR` is set or pass `--static-dir DIR` (the folder with `projection.json`); it refuses, and writes nothing, when it cannot find them. `--undo` prints no redirect rows.
+
 The command prints the pages the projection wrote and deleted and the exact paths purged (`page` and `purged` rows; `NOT purged` for a path the site's cap held back):
 the projection purges only the pages it wrote or deleted, both URL forms, never a wildcard, and a call over the cap is the person's decision (`--force-paths` is not
 offered here).

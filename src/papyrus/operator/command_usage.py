@@ -131,7 +131,7 @@ _ENTRIES = dict([
   _e("stories set-slug", "Give a Story a real address (a placeholder draft-<section>-<hash> slug cannot be published).",
      "--story LINEAGE|ID --slug lowercase-words [--force] [--no-trigger] [--dry-run]", "both", _DRY, "write-story"),
   _e("stories retire", "Take a Story down and redirect every address it was served at (301) to another published Story; --undo restores it.",
-     "--story LINEAGE|ID (--redirect-to LINEAGE|ID | --undo) [--no-trigger] [--dry-run]  (refuses an unpublished, missing, same or retired target; nothing is deleted)",
+     "--story LINEAGE|ID (--redirect-to LINEAGE|ID | --undo) [--static-dir DIR] [--no-trigger] [--dry-run]  (prints each redirect as the public address readers use, from the site's projection.json in --static-dir; refuses an unpublished, missing, same or retired target; nothing is deleted)",
      "both", _DRY, "publish"),
   _e("stories schedule", "Publish a Story's newest version at a chosen time (once, by the normal publish path), or remove its schedule.",
      "--story LINEAGE (--at TIME | --clear) [--item VERSION_ID] [--json] [--dry-run]  (TIME: 2026-11-13 09:00 is read in the publication's time zone, 2026-11-13T09:00:00-05:00 or ...Z is exact; "
