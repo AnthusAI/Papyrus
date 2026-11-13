@@ -26,6 +26,7 @@
     "test:pretext-layout": "tsx scripts/test-pretext-layout.ts",
     "test:public-forms": "tsx scripts/test-public-forms.ts",
     "test:guidelines": "poetry run pytest -q src/papyrus_content/guidelines && poetry run behave features_backend/guidelines-store.feature features_backend/guidelines-writing-resolve.feature features_backend/guidelines-image-sections.feature features_backend/image-profile.feature",
+    "test:tenant-claims": "tsx --test scripts/test-tenant-claims.ts && poetry run pytest -q src/papyrus_content/tenant_records_test.py && poetry run behave features_backend/tenant-session-claims.feature",
     "test:tenant-context": "tsx --test scripts/test-tenant-context.ts && poetry run pytest -q src/papyrus_content/tenant_context_test.py && poetry run behave features_backend/function-tenant-context.feature",
     "test:tenancy-mode": "tsx scripts/test-tenancy-mode.ts && poetry run pytest -q src/papyrus_content/tenancy_test.py && poetry run behave features_backend/tenancy-mode.feature",
     "test:schema-parity": "tsx scripts/test-schema-parity.ts",

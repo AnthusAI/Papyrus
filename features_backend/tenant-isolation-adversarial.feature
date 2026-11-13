@@ -528,6 +528,13 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | TenantMembership         | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | TenantMembership         | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | TenantMembership         | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | TenantSelection          | get                             | denied, or returns nothing of "beta"                                  |
+      | TenantSelection          | list                            | no row of "beta" is returned and pages are not short                  |
+      | TenantSelection          | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | TenantSelection          | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | TenantSelection          | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | TenantSelection          | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | TenantSelection          | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | UserIdentity             | get                             | reviewed: UserIdentity is global and holds no tenant data             |
       | UserIdentity             | list                            | reviewed: UserIdentity is global and holds no tenant data             |
       | UserIdentity             | create                          | reviewed: only the rule's own principals may create UserIdentity      |
@@ -979,6 +986,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | signup/function            | reads and writes nothing of "beta" |
       | slack-delivery             | reads and writes nothing of "beta" |
       | slack-events               | reads and writes nothing of "beta" |
+      | tenant-claims              | reads and writes nothing of "beta" |
 
   @isolation-pending
   Scenario Outline: Tenant A cannot reach tenant B outside the data API

@@ -13,6 +13,7 @@ import { monitoringViewSchemaDefinitions } from "../functions/monitoring-view/sc
 import { contentActions } from "../functions/content-actions/resource";
 import { knowledgeQuery } from "../functions/knowledge-query/resource";
 import { manageUserRole } from "../functions/manage-user-role/resource";
+import { tenantClaims } from "../functions/tenant-claims/resource";
 import { modelAttachmentUpload } from "../functions/model-attachment-upload/resource";
 import { newsroomSummary } from "../functions/newsroom-summary/resource";
 import { publicForms } from "../functions/public-forms/resource";
@@ -52,7 +53,7 @@ export const OPTIONAL_MODEL_GROUPS = {
   editorial: ["EditorialCheckRun", "EditorialFeedback", "EditorialPolicy", "EditorialCheckSettings"],
   steering: ["SteeringProposal", "SteeringDecision", "LexicalSteeringRule"],
   variations: ["StoryVariation"],
-  tenancy: ["Tenant", "TenantMembership", "TenantDomain", "SiteDocument", "SiteDocumentVersion"],
+  tenancy: ["Tenant", "TenantMembership", "TenantSelection", "TenantDomain", "SiteDocument", "SiteDocumentVersion"],
   localization: ["LocalizationRequest"],
 } as const;
 
@@ -2863,6 +2864,22 @@ const definitions = {
       allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
     ]),
 
+  /**
+   * The site a person's session acts for; id = the person's Cognito sub. The Google sign-in flow cannot tell the token trigger
+   * which site was chosen, so the choice is stored here and the trigger reads it (PPY-0bb0fd). A person writes only their
+   * own row (the owner is the id itself, so nobody can write another person's), and a selection without an active
+   * TenantMembership grants nothing. Group "tenancy".
+   */
+  TenantSelection: modelWithoutSubscriptions({
+      id: a.id().required(),
+      selectedTenantId: a.string().required(),
+      selectedAt: a.datetime().required(),
+    })
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("id").identityClaim("sub").to(["create", "read", "update"]),
+    ]),
+
   /** A hostname served for a tenant; id = the lowercase hostname, so it can belong to one tenant only (PPY-31c45c). Group "tenancy". */
   TenantDomain: modelWithoutSubscriptions({
       id: a.id().required(),
@@ -2951,6 +2968,8 @@ function functionGrants(allow: any) {
     allow.resource(newsroomSummary),
     allow.resource(procedureAction),
     allow.resource(publicForms).to(["mutate"]),
+    // The token trigger reads TenantMembership and TenantSelection by id; it can query, never write (PPY-0bb0fd).
+    allow.resource(tenantClaims).to(["query"]),
   ];
 }
 
