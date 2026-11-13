@@ -54,3 +54,8 @@ Feature: Every process counts its AppSync requests, says who made them, and warn
   Scenario: A new whole-table read in the code fails the build
     Given the allowlist of files that may read a whole table
     Then no file reads more whole tables than the allowlist records
+
+  Scenario: The video capture commands find the site's corpus through an index
+    Given a signed-in site with one canonical publication corpus
+    When capture-transcripts, capture-thumbnails and repair-titles resolve their corpus without a --corpus-key
+    Then each covers the canonical corpus and the request meter records no unbounded list of KnowledgeCorpus

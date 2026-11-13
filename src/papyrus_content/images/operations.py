@@ -92,7 +92,7 @@ PAGE = {"nextToken": text("Pass this to get the next page. Absent when there is 
 
 # image_generate and image_prompt_preview take the same input.
 GENERATE_INPUT = obj({
-    "target": TARGET, "use": USE, "imageType": IMAGE_TYPE, "brief": text("What the picture should show. The publication's style rules are added by the service, never written here."),
+    "target": TARGET, "sectionId": text("A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from."), "use": USE, "imageType": IMAGE_TYPE, "brief": text("What the picture should show. The publication's style rules are added by the service, never written here."),
     "count": whole("How many to make (default 1). More than 1 is for a person choosing; an agent asking for more gets set_needs_person."),
     "spread": choice("variations", "types", description="Four takes of one image type, or one take of each type the use allows that can be generated."),
     "imageTypes": many(text(), "Image types to spread across, from the profile."),
@@ -100,7 +100,7 @@ GENERATE_INPUT = obj({
     "acceptFallback": text("Id of a fallback offered in a capability_unsupported error, to use instead."),
     "references": many(text(), "Example ids of the chosen image type to send as style references. Nothing else is accepted."),
     "speed": choice("auto", "standard", "batch", description="Which lane: auto picks by who is asking (a person standard, an agent batch at half price)."),
-}, ("target", "use", "brief"))
+}, ("use", "brief"), "target may be left out: with no Story or Reference the round is private, there is nothing to apply, and it is for ad assets and section art.")
 ROUND_RESULT = record({
     "roundId": text(), "imageType": text(), "imageTypeChosenBy": TYPE_CHOSEN_BY, "candidates": many(CANDIDATE_SUMMARY), "estimate": COST_ESTIMATE,
 }, ("roundId", "candidates"), "Returned at once; the pictures arrive later (image_round_get).")
@@ -130,8 +130,9 @@ class Operation:
     positional: tuple[str, ...] = ()       # input properties the CLI takes as plain words, in order
     flags: tuple[tuple[str, str], ...] = ()    # (input property, CLI flag name) where the flag is not the property in kebab-case
     file_field: str | None = None          # the property the CLI fills from --file (a JSON or YAML document)
+    picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
-    group: Literal["images", "guidelines"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
+    group: Literal["images", "guidelines", "announcements"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
 
     @property
     def mcp_name(self) -> str:
@@ -170,10 +171,12 @@ ERRORS = (
     ErrorCode("capability_unsupported", "The configured model cannot do what was asked.", details="alternatives lists fallbacks the caller may opt into"),
     ErrorCode("provider_failed", "The image provider refused or failed.", retryable=True, details="providerMessage, retryable"),
     ErrorCode("provider_busy", "The image provider is busy. Try again shortly.", retryable=True, details="retryAfterSeconds"),
+    ErrorCode("spend_ceiling_exceeded", "The site's spending ceiling for a round or a day is reached, so this picture was not made.", details="the ceiling"),
     ErrorCode("batch_expired", "The picture was not ready within the batch window (24 hours). Nothing was charged.", retryable=True),
     ErrorCode("stale_version", "The Story has a newer version than the one you named. Read it again."),
     ErrorCode("candidate_not_ready", "The picture is still being made."),
     ErrorCode("candidate_closed", "The picture was already discarded, expired or applied."),
+    ErrorCode("settings_refused", "The announcement settings break a rule, so nothing was saved.", details="code names the rule"),
     ErrorCode("unknown_kind", "There is no such kind of guidelines.", details="kinds lists the kinds this site knows"),
     ErrorCode("resolver_not_available", "This kind of guidelines is resolved by its own command, not this one.", details="use names the command"),
     ErrorCode("document_hash_mismatch", "The stored guideline document does not match its recorded hash, so it was not used.", details="itemId"),
@@ -250,36 +253,58 @@ OPERATIONS: tuple[Operation, ...] = (
                                                    "contentHash": "sha256:0f3a"}]}),),
     ),
     Operation(
+        "image_profile_init", ("profile", "init"), "Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing.", "read",
+        obj({"brand": record({"name": text("The publication's name."), "palette": many(record({"name": text(), "hex": text("Like #1f2a44."), "token": text(), "role": text()},
+                                                                                              ("name", "hex")), "The brand colours, if known.")},
+                             (), "What the site's brand files say. Everything in it is optional.")}),
+        record({"document": PROFILE_DOCUMENT, "expectedCurrentVersionId": text("Pass this to image_profile_save when saving the draft."),
+                "notes": many(text(), "What an editor still has to write."), "profileExists": flag()}, ("document", "expectedCurrentVersionId", "notes", "profileExists")),
+        (),
+        (Example({"brand": {"name": "Example Daily", "palette": [{"name": "Ink blue", "hex": "#1f2a44", "token": "brand"}]}},
+                 {"document": {"schemaVersion": 2, "identity": {"palette": [{"name": "Ink blue", "hex": "#1f2a44", "token": "brand"}]}}, "expectedCurrentVersionId": "none",
+                  "notes": ["Write identity.summary and identity.masterPrompt."], "profileExists": False}),),
+        file_field="brand",
+        notes="The draft holds the shape of a profile and the colours the brand names, and no style wording: an editor writes that. Nothing is saved; save the draft "
+              "with image_profile_save after correcting it.",
+    ),
+    Operation(
         "image_profile_example_add", ("profile", "example", "add"), "Add an example or an avoid-this picture to the profile, as a new version.", "write",
-        obj({"uploadId": text("The id of a picture already uploaded through the newsroom's upload step."), "kind": choice("exemplar", "negative"),
+        obj({"attachmentId": text("The id of a picture already uploaded through the newsroom's upload step (PNG, JPEG or WebP, at most 10 MB)."),
+             "kind": choice("exemplar", "negative"),
              "note": text("Why this picture is a good example, or what to avoid."),
              "imageType": text("The image type this example belongs to, or identity for a brand-wide example."),
              "sendToProvider": flag("Send it to the image model as a style reference. Default false."), "reason": REASON,
              "expectedCurrentVersionId": text("The profile's current version id when you read it.")},
-            ("uploadId", "imageType", "kind", "note", "reason", "expectedCurrentVersionId")),
-        record({"attachmentId": text(), "sha256": text(), "versionNumber": whole()}, ("attachmentId", "sha256", "versionNumber")),
+            ("attachmentId", "imageType", "kind", "note", "reason", "expectedCurrentVersionId")),
+        record({"attachmentId": text(), "sha256": text(), "versionNumber": whole(), "imageType": text()}, ("attachmentId", "sha256", "versionNumber")),
         ("human_required", "image_type_unknown", "not_found", "stale_version"),
-        (Example({"uploadId": "upload-1", "imageType": "cover-illustration", "kind": "exemplar", "note": "The calm we want.", "reason": "Cover from the containment Story.",
+        (Example({"attachmentId": "model-attachment-1", "imageType": "cover-illustration", "kind": "exemplar", "note": "The calm we want.", "reason": "Cover from the containment Story.",
                   "expectedCurrentVersionId": "item-editorial-doctrine-visual-style-v3"},
-                 {"attachmentId": "model-attachment-1", "sha256": "sha256:aa10", "versionNumber": 4}),),
-        notes="Only a person may set sendToProvider for a picture that shows identifiable people or logos.",
+                 {"attachmentId": "model-attachment-1", "sha256": "sha256:aa10", "versionNumber": 4, "imageType": "cover-illustration"}),),
+        picture_field="attachmentId",
+        notes="From the command line, --file PICTURE uploads the picture first (the same three steps the newsroom takes) and fills in attachmentId. "
+              "Only a person may set sendToProvider: an agent asking for it gets human_required, because the service cannot tell whether a picture shows identifiable "
+              "people or logos. An example belongs to one image type; a child type does not inherit its parent's examples.",
     ),
     Operation(
         "image_profile_example_remove", ("profile", "example", "remove"), "Remove an example picture from the profile, as a new version.", "write",
-        obj({"attachmentId": text(), "reason": REASON, "expectedCurrentVersionId": text("The profile's current version id when you read it.")},
+        obj({"attachmentId": text(), "imageType": text("Remove it from this image type only (or identity). Left out, it is removed from every list that has it."),
+             "reason": REASON, "expectedCurrentVersionId": text("The profile's current version id when you read it.")},
             ("attachmentId", "reason", "expectedCurrentVersionId")),
-        record({"versionNumber": whole()}, ("versionNumber",)),
+        record({"versionNumber": whole(), "removedFrom": many(text(), "The image types (or identity) it was removed from.")}, ("versionNumber",)),
         ("not_found", "stale_version"),
         (Example({"attachmentId": "model-attachment-1", "reason": "Too photographic.", "expectedCurrentVersionId": "item-editorial-doctrine-visual-style-v4"},
-                 {"versionNumber": 5}),),
+                 {"versionNumber": 5, "removedFrom": ["cover-illustration"]}),),
         positional=("attachmentId",),
-        notes="The file stays for older profile versions.",
+        notes="The file stays for older profile versions, so a picture made from an older version keeps the examples it was made with.",
     ),
     # --- planning
     Operation(
         "image_capabilities", ("capabilities",), "Say which image models this site can use and whether spending is approved.", "read",
         obj({}),
-        record({"configured": flag(), "models": many({"type": "object"}), "approvedForSpend": flag()}, ("configured", "models", "approvedForSpend")),
+        record({"configured": flag(), "models": many({"type": "object"}), "approvedForSpend": flag(), "unreviewedMayPublish": flag(),
+                "spendCeilings": record({"perRoundUsd": {"type": ["number", "null"]}, "perDayUsd": {"type": ["number", "null"]}}), "spentTodayUsd": {"type": "number"}},
+               ("configured", "models", "approvedForSpend")),
         (), (Example({}, {"configured": False, "models": [], "approvedForSpend": False}),),
     ),
     Operation(
@@ -299,7 +324,8 @@ OPERATIONS: tuple[Operation, ...] = (
         ("capability_unsupported", "constraint_conflict", "generation_not_configured", "image_type_required", "image_type_unknown", "not_found",
          "set_needs_person", "source_not_allowed"),
         (Example({"target": _STORY, "use": "cover", "imageType": "cover-illustration", "brief": "A locked filing cabinet with one drawer ajar"},
-                 {"plans": [{"planVersion": "image-prompt/v1", "imageType": "cover-illustration", "segments": [], "avoid": []}], "estimate": _ESTIMATE, "capabilityCheck": {"ok": True}}),),
+                 {"plans": [{"planVersion": "image-prompt/v2", "imageType": "cover-illustration", "segments": [], "avoid": []}], "estimate": _ESTIMATE, "capabilityCheck": {"ok": True}}),),
+        flags=(("sectionId", "section"),),
     ),
     # --- finding and making
     Operation(
@@ -317,12 +343,12 @@ OPERATIONS: tuple[Operation, ...] = (
         "image_generate", ("generate",), "Make pictures from a brief in the publication's style. The pictures arrive later.", "spend",
         GENERATE_INPUT, ROUND_RESULT,
         ("capability_unsupported", "constraint_conflict", "generation_not_configured", "image_type_required", "image_type_unknown", "not_found", "provider_busy",
-         "set_needs_person", "source_not_allowed"),
+         "set_needs_person", "source_not_allowed", "spend_ceiling_exceeded"),
         (Example({"target": _STORY, "use": "cover", "imageType": "cover-illustration", "brief": "A locked filing cabinet with one drawer ajar"},
                  {"roundId": "round-1", "imageType": "cover-illustration", "imageTypeChosenBy": "request",
                   "candidates": [{"id": "candidate-1", "position": 0, "status": "queued", "imageType": "cover-illustration", "origin": "generated", "lane": "batch"}],
                   "estimate": _ESTIMATE}),),
-        flags=(("imageTypes", "image-types"),),
+        flags=(("imageTypes", "image-types"), ("sectionId", "section")),
         notes="Spends only when the site's image generation is configured and approved.",
     ),
     Operation(
@@ -349,7 +375,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "image_round_get", ("round",), "Read a round of pictures and say whether they are all done.", "read",
         obj({"roundId": text()}, ("roundId",)),
         record({"roundId": text(), "target": TARGET, "use": USE, "imageType": text(), "brief": {"type": "string"}, "candidates": many(CANDIDATE_SUMMARY), "done": flag()},
-               ("roundId", "target", "use", "candidates", "done")),
+               ("roundId", "use", "candidates", "done"), "target is absent for a private round."),
         ("not_found",),
         (Example({"roundId": "round-1"}, {"roundId": "round-1", "target": _STORY, "use": "cover", "imageType": "cover-illustration", "brief": "A locked filing cabinet with one drawer ajar",
                                           "candidates": [_CANDIDATE], "done": True}),),
@@ -449,7 +475,7 @@ OPERATIONS: tuple[Operation, ...] = (
                 "savedVersion": record({"versionId": text(), "versionNumber": whole()})}, ("patch", "mediaAsset", "reviewStatus")),
         ("candidate_closed", "candidate_not_ready", "checks_failed", "image_type_unknown", "not_found", "source_not_allowed", "stale_version"),
         (Example({"candidateId": "candidate-1", "target": _STORY, "use": "cover", "imageType": "cover-illustration", "expectedCurrentVersionId": _GUARD},
-                 {"patch": {"bodyDirective": "::image{src=\"media/assets/containment/cover.png\"}", "frontMatter": {"image": "media/assets/containment/cover.png"}},
+                 {"patch": {"bodyDirective": "::image{src=\"assets/containment/cover.png\"}", "frontMatter": {"image": "assets/containment/cover.png"}},
                   "mediaAsset": {"id": "media-asset-1"}, "imageType": "cover-illustration", "reviewStatus": "unreviewed", "reviewRequestId": "review-1",
                   "savedVersion": {"versionId": "item-story-containment-note-v8", "versionNumber": 8}}),),
         positional=("candidateId",),
@@ -549,6 +575,95 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
 )
 
 OPERATIONS = OPERATIONS + GUIDELINE_OPERATIONS
+
+# --- announcements (PPY-09ee86): the same table serves `papyrus announcements ...`, the MCP tools and the console ----------------------------------------
+STATE = choice("posting", "posted", "failed", "blocked", "dry_run", "withdrawn", description="One state of an announcement.")
+STORY_LINEAGE = text("The lineage id of the Story.")
+ANNOUNCEMENT = record({
+    "id": text(), "accountId": text(), "storyLineageId": text(), "storyVersionNumber": whole(), "state": STATE, "label": text("The state in plain words, such as Dry run: not sent."),
+    "blockedReason": text(), "mode": text(), "link": text(), "weight": whole(minimum=0), "draftedBy": text(), "checks": many(record({"name": text(), "passed": flag()}, ("name", "passed"))),
+    "postId": text(), "postedAt": text(), "cost": {"type": "string", "description": "Dollars Caducus charged on this announcement so far, as a decimal string."},
+    "attempts": whole(minimum=0), "error": {"type": "string"}, "history": many(record({"at": text(), "by": text(), "state": text(), "note": text()}, ("at", "by", "state", "note"))),
+    "withdrawnBy": text(), "createdAt": text(), "updatedAt": text(),
+}, ("id", "state", "label"))
+SETTINGS = record({
+    "mode": choice("off", "dry_run", "on"), "rules": {"type": "object", "description": "minStars, storyTypes and sections: what is announced."},
+    "budget": {"type": ["number", "null"], "description": "Dollars for each X billing cycle. No default."}, "billingCycleDay": {"type": ["integer", "null"]},
+    "prices": {"type": "object", "description": "X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied."},
+    "labelConfirmed": flag(), "pause": {"type": "object", "description": "paused, reason (budget, disconnected or manual), detail, by and at."},
+}, ("mode",))
+_EX_ROW = {"id": "mom#story-1", "accountId": "mom", "storyLineageId": "story-1", "state": "dry_run", "label": "Dry run: not sent", "mode": "dry_run", "weight": 120, "cost": "0",
+           "attempts": 0, "history": [{"at": "2026-11-13T09:00:00Z", "by": "system:announcements", "state": "dry_run", "note": "Dry run: not sent"}],
+           "createdAt": "2026-11-13T09:00:00Z", "updatedAt": "2026-11-13T09:00:00Z"}
+_EX_SETTINGS = {"mode": "dry_run", "rules": {"minStars": 5, "storyTypes": ["article"], "sections": []}, "budget": 10, "billingCycleDay": 1,
+                "prices": {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}, "labelConfirmed": True,
+                "pause": {"paused": False, "reason": None, "detail": None, "by": None, "at": None}}
+
+ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "announcements_list", ("list",), "List the account's announcements, newest first, optionally one state.", "read",
+        obj({"state": STATE, "limit": whole("How many to return; 50 when left out.")}),
+        record({"announcements": many(ANNOUNCEMENT)}, ("announcements",)), (),
+        (Example({"state": "dry_run"}, {"announcements": [_EX_ROW]}),), group="announcements",
+        notes="Read from the account's own index, newest first; nothing scans a table. A site with no account yet gets an empty list.",
+    ),
+    Operation(
+        "announcements_show", ("show",), "Show one Story's announcement: its row, its history, and the post text and checks kept in S3.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)),
+        record({"announcement": ANNOUNCEMENT, "document": {"type": "object", "description": "The stored post: text, post, link, weight, model and every check's problems."}}, ("announcement",)),
+        ("not_found",), (Example({"story": "story-1"}, {"announcement": _EX_ROW, "document": {"text": "A look at secrets.", "weight": 120}}),), positional=("story",), group="announcements",
+        notes="A posting announcement is first brought up to date from Caducus's delivery log.",
+    ),
+    Operation(
+        "announcements_dry_run", ("dry-run",), "Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)),
+        record({"lineageId": text(), "eligible": flag(), "reason": text(), "text": text(), "post": text(), "link": text(), "weight": whole(minimum=0),
+                "checks": many({"type": "object"}), "passed": flag(), "failures": many(text()), "sent": flag()}, ("lineageId", "post", "weight", "passed", "sent")),
+        ("not_found",), (Example({"story": "story-1"}, {"lineageId": "story-1", "eligible": True, "reason": "eligible", "text": "A look at secrets.", "post": "A look at secrets.\n\nhttps://example.org/s?utm_source=x",
+                                                          "link": "https://example.org/s?utm_source=x", "weight": 45, "checks": [], "passed": True, "failures": [], "sent": False}),),
+        positional=("story",), group="announcements",
+        notes="Makes one model call to draft the text. Works for any Story, announced or not, in any mode; `eligible` and `reason` say whether the site's rules would announce it.",
+    ),
+    Operation(
+        "announcements_pause", ("pause",), "Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused.", "write",
+        obj({}),
+        record({"paused": flag(), "pausedBy": text(), "pausedAt": text(), "pauseReason": text()}, ("paused",)), (),
+        (Example({}, {"paused": True, "pausedBy": "Ada Admin", "pausedAt": "2026-11-13T10:02:00Z", "pauseReason": "Paused by hand."}),), group="announcements",
+        notes="The site's announcements function lets only an admin change the pause. Announcements also pause by themselves, for the budget or a broken X connection, and say why.",
+    ),
+    Operation(
+        "announcements_resume", ("resume",), "Resume announcements and announce the Stories that waited.", "write",
+        obj({}), record({"released": many({"type": "object"}), "paused": flag()}, ("released", "paused")), (),
+        (Example({}, {"released": [], "paused": False}),), group="announcements",
+    ),
+    Operation(
+        "announcements_settings_show", ("settings", "show"), "Show the site's announcement settings: mode, bar, Story types, sections, account, budget, prices and the pause.", "read",
+        obj({}), record({"settings": SETTINGS, "connection": {"type": "object", "description": "The X connection's status: connection, handle, accountId and refresh health. Never a secret."}}, ("settings", "connection")), (),
+        (Example({}, {"settings": _EX_SETTINGS, "connection": {"connection": "connected", "handle": "@mom_test", "accountId": "mom"}}),), group="announcements",
+    ),
+    Operation(
+        "announcements_settings_set", ("settings", "set"), "Change announcement settings. Every rule is checked and every problem listed; nothing is saved when any fails.", "write",
+        obj({"mode": choice("off", "dry_run", "on", description="Off (default), Dry run (builds the post, sends nothing) or On."),
+             "minStars": whole("The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars)."),
+             "storyTypes": many(text(), "Story types that are announced: article, post. References are never announced."), "sections": many(text(), "Limit to these sections."),
+             "budget": text("Dollars for each X billing cycle, such as 10.00. No default."), "billingCycleDay": whole("The day of the month your X billing cycle starts."),
+             "prices": {"type": "object", "description": "X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it)."},
+             "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account.")}),
+        record({"settings": SETTINGS, "released": many({"type": "object"})}, ("settings", "released")), ("settings_refused", "human_required"),
+        (Example({"minStars": 5}, {"settings": _EX_SETTINGS, "released": []}),), group="announcements", agent_allowed=False,
+        notes="A person only: it sets what the publication says in public and how much it may spend. There is no approval setting: a draft that passes the automatic checks is posted. "
+              "prices is given with --input-file. The X account is connected in the browser, never here. Raising the budget, or any change while Stories wait on a guard, announces the Stories that waited.",
+    ),
+    Operation(
+        "announcements_account_status", ("account", "status"), "Show mode, pause, the cycle's spend against the budget, and the connected account.", "read",
+        obj({}), record({"mode": text(), "paused": flag(), "accountId": text(), "accountHandle": text(), "standing": text("For example $0.60 spent of $10.00 this cycle."),
+                         "pauseReason": text(), "pricesAsOf": text()}, ("mode", "paused")), (),
+        (Example({}, {"mode": "dry_run", "paused": False, "accountId": "mom", "standing": "$0.00 spent of $10.00 this cycle"}),), group="announcements",
+        notes="Connecting an X account needs the browser (OAuth): the newsroom's Administration > Announcements page. The CLI never accepts a secret.",
+    ),
+)
+
+OPERATIONS = OPERATIONS + ANNOUNCEMENT_OPERATIONS
 
 BY_NAME = {operation.name: operation for operation in OPERATIONS}
 BY_CLI = {(operation.group, operation.cli): operation for operation in OPERATIONS}

@@ -133,8 +133,8 @@ export async function handleNotificationsSubscribe(request: NextRequest, options
     page: limited(payload.page, 500),
     consent: limited(payload.consent, 500),
     formId: limited(payload.formId, 100),
+    origin: site.origin,
     honeypot: limited(payload.website, 200),
-    renderedAt: typeof payload.renderedAt === "number" || typeof payload.renderedAt === "string" ? payload.renderedAt : null,
     ip: clientAddress(request.headers),
     userAgent: limited(request.headers.get("user-agent"), NEWSLETTER_USER_AGENT_CHARACTERS),
   };
@@ -261,7 +261,16 @@ function configuredLists(plugin: Enabled, ids: string[]): Array<{ id: string; na
   });
 }
 
-/** GET /api/notifications/state: JSON for the pages' script. Failures answer 400, 502 or 503 with a status word, never 403 or 404. */
+function offeredLists(plugin: Enabled): Array<{ id: string; name: string; description: string }> {
+  const known = Array.isArray(plugin.settings.lists) ? (plugin.settings.lists as Array<{ id?: unknown; name?: unknown; description?: unknown }>) : [];
+  return known.flatMap((entry) =>
+    typeof entry.id === "string" && typeof entry.name === "string"
+      ? [{ id: entry.id, name: entry.name, description: typeof entry.description === "string" ? entry.description : "" }]
+      : [],
+  );
+}
+
+/** GET /api/notifications/state: JSON for the pages' script (`kind=offered` lists the site's lists and its consent wording for the subscribe form). Failures answer 400, 502 or 503 with a status word, never 403 or 404. */
 export async function handleNotificationsState(request: NextRequest, options: NotificationsApiOptions = {}): Promise<NextResponse> {
   const { plugin } = context(request, options);
   if (!plugin) return notFoundJson();
@@ -269,6 +278,12 @@ export async function handleNotificationsState(request: NextRequest, options: No
   const kind = params.get("kind");
   const json = (status: number, body: Record<string, unknown>) => NextResponse.json(body, { status, headers: NO_STORE });
   if (kind === "lists") return json(200, { status: "ready", lists: configuredLists(plugin, listIds(params.get("lists") ?? "")) });
+  // Every list the site offers, for the subscribe form. Public settings only; nothing about any reader.
+  if (kind === "offered") {
+    // The form shows exactly this sentence and posts it back; the function refuses any other wording (consent evidence).
+    const consent = typeof plugin.settings.consent === "string" ? plugin.settings.consent : "";
+    return json(200, { status: "ready", lists: offeredLists(plugin), consent });
+  }
   if (kind !== "confirm" && kind !== "preferences") return json(400, { status: "invalid" });
   const token = manageTokenFrom(params.get("t"));
   if (!token) return json(400, { status: "invalid" });

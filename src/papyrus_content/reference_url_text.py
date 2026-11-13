@@ -76,12 +76,10 @@ def build_reference_url_text_attachment_plans(
     graph_records: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
     items: list[dict[str, Any]] = []
-    filter_fallbacks: list[dict[str, Any]] = []
     skipped_existing = 0
     eligible = 0
     planned_references = 0
     filtered_count = 0
-    fallback_raw_count = 0
     skipped_missing_source = 0
     skipped_needs_find = 0
     skipped_non_pdf = 0
@@ -382,19 +380,9 @@ def build_reference_url_text_attachment_plans(
                 }
             )
 
-            canonical_status = "filtered" if filter_result.get("status") == "ok" else "fallback_raw"
-            if canonical_status == "filtered":
-                filtered_count += 1
-            else:
-                fallback_raw_count += 1
-                filter_fallback = {
-                    "referenceId": reference.get("id"),
-                    "externalItemId": reference.get("externalItemId"),
-                    "sourceUri": extraction_source_uri,
-                    "reason": filter_result.get("error")
-                    or {"code": "article_filter_failed", "message": "Article-text filter failed."},
-                }
-                filter_fallbacks.append(filter_fallback)
+            _require_filtered(filter_result)
+            canonical_status = "filtered"
+            filtered_count += 1
 
             canonical_metadata = {
                 "source": "biblicus-article-text-filter",
@@ -566,13 +554,11 @@ def build_reference_url_text_attachment_plans(
         "graphRecords": graph_records,
         "failures": failures,
         "items": items,
-        "filterFallbacks": filter_fallbacks,
         "eligibleCount": eligible,
         "plannedCount": planned_references,
         "plannedAttachmentCount": len(plans),
         "plannedReferenceMetadataCount": len(reference_records),
         "filteredCount": filtered_count,
-        "fallbackRawCount": fallback_raw_count,
         "skippedExistingCount": skipped_existing,
         "skippedMissingSourceCount": skipped_missing_source,
         "skippedNeedsFindCount": skipped_needs_find,
@@ -645,13 +631,11 @@ def run_reference_url_text_extraction(
         "graphRecords": graph_records,
         "failures": planned["failures"],
         "items": planned["items"],
-        "filterFallbacks": planned["filterFallbacks"],
         "eligibleCount": planned["eligibleCount"],
         "plannedCount": planned["plannedCount"],
         "plannedAttachmentCount": planned["plannedAttachmentCount"],
         "plannedReferenceMetadataCount": planned.get("plannedReferenceMetadataCount", 0),
         "filteredCount": planned["filteredCount"],
-        "fallbackRawCount": planned["fallbackRawCount"],
         "skippedExistingCount": planned["skippedExistingCount"],
         "skippedMissingSourceCount": planned.get("skippedMissingSourceCount", 0),
         "skippedNeedsFindCount": planned.get("skippedNeedsFindCount", 0),
@@ -730,13 +714,11 @@ def run_reference_source_find(
         "graphRecords": [],
         "failures": planned["failures"],
         "items": planned["items"],
-        "filterFallbacks": [],
         "eligibleCount": planned["eligibleCount"],
         "plannedCount": planned["plannedCount"],
         "plannedAttachmentCount": planned["plannedAttachmentCount"],
         "plannedReferenceMetadataCount": planned.get("plannedReferenceMetadataCount", 0),
         "filteredCount": 0,
-        "fallbackRawCount": 0,
         "skippedExistingCount": planned["skippedExistingCount"],
         "skippedMissingSourceCount": planned.get("skippedMissingSourceCount", 0),
         "skippedNeedsFindCount": 0,
@@ -1444,12 +1426,10 @@ def build_reference_extracted_text_filter_attachment_plans(
     plans: list[dict[str, Any]] = []
     items: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
-    filter_fallbacks: list[dict[str, Any]] = []
     attempted = 0
     planned_references = 0
     planned_attachments = 0
     filtered_count = 0
-    fallback_raw_count = 0
     skipped_missing_source = 0
     seen_lineages: set[str] = set()
     active_bucket = bucket or resolve_storage_bucket_name()
@@ -1576,20 +1556,9 @@ def build_reference_extracted_text_filter_attachment_plans(
                     original_subtitle=_original_subtitle(reference),
                     model=model,
                 )
-            canonical_status = "filtered" if filter_result.get("status") == "ok" else "fallback_raw"
-            if canonical_status == "filtered":
-                filtered_count += 1
-            else:
-                fallback_raw_count += 1
-                filter_fallbacks.append(
-                    {
-                        "referenceId": reference.get("id"),
-                        "externalItemId": reference.get("externalItemId"),
-                        "sourceUri": source_uri,
-                        "reason": filter_result.get("error")
-                        or {"code": "article_filter_failed", "message": "Article-text filter failed."},
-                    }
-                )
+            _require_filtered(filter_result)
+            canonical_status = "filtered"
+            filtered_count += 1
             canonical_text = str(filter_result.get("text") or "").strip() or source_text
 
             canonical_metadata = {
@@ -1662,7 +1631,7 @@ def build_reference_extracted_text_filter_attachment_plans(
     processed_reference_ids = [
         str(entry["reference"].get("id"))
         for entry in items
-        if entry.get("status") in {"filtered", "fallback_raw"}
+        if entry.get("status") == "filtered"
         and isinstance(entry.get("reference"), dict)
         and entry["reference"].get("id")
     ]
@@ -1670,12 +1639,10 @@ def build_reference_extracted_text_filter_attachment_plans(
         "plans": plans,
         "items": items,
         "failures": failures,
-        "filterFallbacks": filter_fallbacks,
         "attemptedCount": attempted,
         "plannedCount": planned_references,
         "plannedAttachmentCount": planned_attachments,
         "filteredCount": filtered_count,
-        "fallbackRawCount": fallback_raw_count,
         "skippedMissingSourceCount": skipped_missing_source,
         "processedReferenceIds": processed_reference_ids,
     }
@@ -1716,12 +1683,10 @@ def run_reference_extracted_text_filtering(
         "plans": planned["plans"],
         "items": planned["items"],
         "failures": planned["failures"],
-        "filterFallbacks": planned["filterFallbacks"],
         "attemptedCount": planned["attemptedCount"],
         "plannedCount": planned["plannedCount"],
         "plannedAttachmentCount": planned["plannedAttachmentCount"],
         "filteredCount": planned["filteredCount"],
-        "fallbackRawCount": planned["fallbackRawCount"],
         "skippedMissingSourceCount": planned["skippedMissingSourceCount"],
         "processedReferenceIds": planned["processedReferenceIds"],
         "changes": changes,
@@ -3172,6 +3137,14 @@ def _structured_summary_for_metadata(structured: dict[str, Any] | None) -> dict[
         },
         "warningCount": len(warnings),
     }
+
+
+def _require_filtered(filter_result: dict[str, Any]) -> None:
+    """A failed article-text filter fails the Reference. The raw extraction is never stored as its article text."""
+    if filter_result.get("status") != "ok":
+        raise ReferenceUrlTextExtractionError(
+            reason=filter_result.get("error") or {"code": "article_filter_failed", "message": "Article-text filter failed."}
+        )
 
 
 def _reference_url_text_failure_reason(error: Exception) -> dict[str, Any]:

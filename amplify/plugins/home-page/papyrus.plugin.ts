@@ -17,6 +17,8 @@ export const HOME_PAGE_SNAPSHOT_SCHEDULE_PREFIX = "papyrus-home-page-snapshot-";
 export const HOME_PAGE_SNAPSHOT_TASK = { projectionTask: { task: "home-page-snapshot" } };
 export const HOME_PAGE_STREAM_BATCH_SIZE = 100;
 export const HOME_PAGE_STREAM_BATCH_WINDOW_SECONDS = 10;
+/** A Message is a person waiting to see their post: its stream hands the trigger a record as soon as it arrives instead of filling a batch. */
+export const HOME_PAGE_MESSAGE_STREAM_BATCH_WINDOW_SECONDS = 0;
 export const HOME_PAGE_STREAM_RETRY_ATTEMPTS = 2;
 const MINUTES_PER_HOUR = 60;
 
@@ -181,7 +183,7 @@ export const homePagePlugin: PapyrusPlugin<HomePageConfig, { homePageTrigger: ty
         functionName: trigger.functionArn,
         startingPosition: "TRIM_HORIZON",
         batchSize: HOME_PAGE_STREAM_BATCH_SIZE,
-        maximumBatchingWindowInSeconds: HOME_PAGE_STREAM_BATCH_WINDOW_SECONDS,
+        maximumBatchingWindowInSeconds: HOME_PAGE_MESSAGE_STREAM_BATCH_WINDOW_SECONDS,
         bisectBatchOnFunctionError: true,
         maximumRetryAttempts: HOME_PAGE_STREAM_RETRY_ATTEMPTS,
         filterCriteria: { filters: [{ pattern: homePageMessageStreamFilterPattern() }] },
@@ -215,6 +217,7 @@ export const homePagePlugin: PapyrusPlugin<HomePageConfig, { homePageTrigger: ty
     trigger.addEnvironment("PAPYRUS_HOME_PAGE_SNAPSHOT_FUNCTION_ARN", contentActions.functionArn);
     trigger.addEnvironment("PAPYRUS_HOME_PAGE_SCHEDULER_ROLE_ARN", schedulerRole.roleArn);
     trigger.addEnvironment("PAPYRUS_HOME_PAGE_DEBOUNCE_SECONDS", String(config.debounceSeconds));
+    if (config.threads) trigger.addEnvironment("PAPYRUS_HOME_PAGE_THREAD_DEBOUNCE_SECONDS", String(config.threadDebounceSeconds));
     trigger.addEnvironment("PAPYRUS_PROJECTION_LOCK_TABLE", PROJECTION_LOCK_TABLE_NAME);
 
     if (config.intervalHours !== null) {

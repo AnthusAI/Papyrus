@@ -55,9 +55,9 @@ def step_cover(context):
     assert re.findall(r"^## (image_[a-z_]+)$", generate.DOCS.read_text(encoding="utf-8"), re.M) == NAMES
 
 
-@then("the table has the 24 operations the design describes")
+@then("the table has the 25 operations the design describes")
 def step_count(context):
-    assert len(NAMES) == 24
+    assert len(NAMES) == 25
 
 
 @then("the generate operation offers a speed of auto, standard or batch")
@@ -180,10 +180,12 @@ def step_invalid_one(context, field):
 
 @when("every operation that is not built is run with its example input and the default handlers")
 def step_all_default(context):
+    from papyrus_content.images.generation_binding import OPERATION_METHODS   # generation is built (step 5)
     from papyrus_content.images.profile_handlers import PROFILE_HANDLERS   # the style profile operations are built (step 2)
 
-    context.answers = [(item, mcp.call_image_tool(item.name, item.examples[0].input, Caller())) for item in OPERATIONS if item.name not in PROFILE_HANDLERS]
-    run_command(context, "round round-1")
+    context.answers = [(item, mcp.call_image_tool(item.name, item.examples[0].input, Caller())) for item in OPERATIONS
+                       if item.name not in PROFILE_HANDLERS and item.name not in OPERATION_METHODS]
+    run_command(context, "show candidate-1")
 
 
 @then("each answers not_implemented and names its operation")

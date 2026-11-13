@@ -606,9 +606,9 @@ def step_lint_negative(context):
 # --- what agents read -------------------------------------------------------------------------------------------------------------------------------------
 
 def style_row(document, number=1, tenant=None):
-    from papyrus_content.images.profile_store import next_record
+    from papyrus_content.images.profile_store import inline_next_record
 
-    record = next_record([], document, actor="Ada Admin", reason="Saved", now="2026-11-07T17:51:39Z", saved_by={"sub": "Ada Admin", "kind": "person"})
+    record = inline_next_record([], document, actor="Ada Admin", reason="Saved", now="2026-11-07T17:51:39Z", saved_by={"sub": "Ada Admin", "kind": "person"})
     record["id"] = f"item-editorial-doctrine-visual-style-v{number}"
     record["versionNumber"] = number
     record["tenantId"] = tenant

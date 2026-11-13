@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "8de1b027-0926-4f79-bf93-ced86a67969f",
+  "issue_id": "PPY-8fe7e6b8-54a6-428d-b0a0-f376497f4911",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T17:15:59.497Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A site defines its own Story procedure",
+    "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-a29894.\n\n`newsroom_process.STEPS` is one global list that gates publishing. Per-site procedure profiles are planned in PPY-7a61ca; Humorus needs them before its first automated piece.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Fable 5.2",
+      "name": "Humorus Planning"
+    }
+  }
+}

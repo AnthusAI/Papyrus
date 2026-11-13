@@ -1,0 +1,20 @@
+{
+  "id": "PPY-d50b66d2-a4bc-4231-9919-09a4a9ae1fe5",
+  "title": "Tighten the CDK execution policy (CloudFormationExecutionPolicies) for deployment accounts",
+  "description": "The CDK bootstrap in the Humorus account has an empty CloudFormationExecutionPolicies, so cdk-hnb659fds-cfn-exec-role has AdministratorAccess, and the app-shell pipeline deploys through it (docs/account-pipeline.md, The app shell). Define a narrower execution policy (Amplify, AppSync, Cognito, DynamoDB, Lambda, S3, CloudFront, Route 53 records, IAM limited by permissions boundary, SSM, CloudWatch, SQS, SNS, EventBridge) in the baseline and bootstrap with it; adopt the hand-made CDKToolkit stack under the pipeline. Not a blocker.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T04:14:47.513845Z",
+  "updated_at": "2026-11-12T04:14:47.513881Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

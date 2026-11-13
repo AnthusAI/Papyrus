@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "01378076-42fc-4000-943e-ef3f7839c0d9",
+  "issue_id": "PPY-03666dac-c222-4dd4-a0bf-85c167f7be54",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T20:37:05.481Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reusable workflow account-stacks.yml and the read-only PR plan",
+    "description": "workflow_call for deployment repos: lint, plan on pull requests, deploy on main, approval-gated roles job.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+    "labels": []
+  }
+}

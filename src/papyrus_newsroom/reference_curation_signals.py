@@ -2731,32 +2731,23 @@ def list_references_by_newsroom_feed_imported(
     }
     if corpus_id:
         filter_input["corpusId"] = {"eq": corpus_id}
-    try:
-        while True:
-            data = execute_graphql(
-                LIST_REFERENCES_BY_NEWSROOM_FEED_IMPORTED_QUERY,
-                {
-                    "newsroomFeedKey": "references",
-                    "sortDirection": "DESC",
-                    "limit": _page_size(limit, len(records)),
-                    "nextToken": next_token,
-                    "filter": filter_input,
-                },
-            )
-            connection = data.get("listReferencesByNewsroomFeedAndImportedAt") or {}
-            records.extend(connection.get("items") or [])
-            next_token = connection.get("nextToken")
-            if not next_token or (limit is not None and len(records) >= limit):
-                break
-    except Exception as exc:
-        message = str(exc)
-        if "FieldUndefined" not in message or "listReferencesByNewsroomFeedAndImportedAt" not in message:
-            raise
-    if records:
-        return [record for record in records if record.get("versionState") == "current"]
-    if not corpus_id:
-        return []
-    return list_references_by_corpus(corpus_id, limit=limit)
+    while True:
+        data = execute_graphql(
+            LIST_REFERENCES_BY_NEWSROOM_FEED_IMPORTED_QUERY,
+            {
+                "newsroomFeedKey": "references",
+                "sortDirection": "DESC",
+                "limit": _page_size(limit, len(records)),
+                "nextToken": next_token,
+                "filter": filter_input,
+            },
+        )
+        connection = data.get("listReferencesByNewsroomFeedAndImportedAt") or {}
+        records.extend(connection.get("items") or [])
+        next_token = connection.get("nextToken")
+        if not next_token or (limit is not None and len(records) >= limit):
+            break
+    return [record for record in records if record.get("versionState") == "current"]
 
 
 def load_publication_doctrine_context(*, graphql_func: Any | None = None) -> dict[str, Any]:

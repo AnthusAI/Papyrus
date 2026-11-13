@@ -44,7 +44,17 @@ class SlowOrFakeFunction(FakeAuthoringClient):
         self.mutations += 1
         if self.errors:
             raise self.errors.pop(0)
-        return {"publishItem": json.dumps(self.response)}
+        return {"publishItem": json.dumps(as_job(self.response))}
+
+
+def as_job(response: dict) -> dict:
+    """The answer the current backend gives for a sync-style test response: the save, and a job that has already ended with the build's outcome."""
+    if "projected" not in response:
+        return response
+    outcome = {key: response[key] for key in ("paths", "itemPaths", "invalidation", "url", "error") if key in response}
+    state = "done" if response["projected"] else "failed"
+    kept = {key: value for key, value in response.items() if key not in ("projected", "paths", "invalidation", "error", "live")}
+    return {**kept, "projection": {"jobId": "job-1", "state": state, **outcome}}
 
 
 def written(version_note: str = "") -> dict:

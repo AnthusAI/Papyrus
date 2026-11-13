@@ -46,7 +46,7 @@ def door(backend, name, identity, op, **arguments):
     if "input" in arguments and not isinstance(arguments["input"], str):
         arguments["input"] = json.dumps(arguments["input"])
     return handle({"info": {"fieldName": name}, "identity": identity, "arguments": {"op": op, **arguments}}, client_factory=lambda: backend,
-                  files_factory=lambda client: FakeFiles(backend))
+                  files_factory=lambda client: getattr(backend, "document_files", None) or FakeFiles(backend))
 
 
 def read(backend, identity=EDITOR, **input):
@@ -241,13 +241,14 @@ def test_diff_shows_the_change_and_binding_rule_changes_and_stores_nothing():
 
 def test_the_image_kind_runs_the_image_profile_operations_and_resolves_elsewhere():
     backend = ImageBackend("ours", profile=profile_copy())
-    handlers = with_client(backend, None)
+    handlers = with_client(backend, backend.document_files)
     got = execute("guidelines_get", {"kind": "image"}, Caller(), handlers)
     assert got["ok"] and got["result"]["kind"] == "image" and got["result"]["document"]["schemaVersion"] == 2
     assert execute("guidelines_history", {"kind": "image"}, Caller(), handlers)["result"]["versions"][0]["versionNumber"] == 1
     assert execute("guidelines_diff", {"kind": "image", "document": {"identity": {"mood": ["calm"]}}}, Caller(), handlers)["ok"]
-    assert execute("guidelines_resolve", {"kind": "image"}, Caller(), handlers)["error"]["code"] == "resolver_not_available"
-    assert execute("guidelines_get", {"kind": "image", "section": "news"}, Caller(), handlers)["error"]["code"] == "invalid_input"
+    resolved = execute("guidelines_resolve", {"kind": "image"}, Caller(), handlers)
+    assert resolved["ok"] and resolved["result"]["found"] and resolved["result"]["document"]["schemaVersion"] == 2
+    assert execute("guidelines_get", {"kind": "image", "section": "news"}, Caller(), handlers)["error"]["code"] == "not_found"
     guard = got["result"]["itemId"]
     save_input = {"kind": "image", "document": {"identity": {"mood": ["calm", "dry"]}}, "reason": "Mood", "expectedCurrentVersionId": guard}
     assert execute("guidelines_save", save_input, Caller(subject="Edie"), handlers)["error"]["code"] == "not_authorized"

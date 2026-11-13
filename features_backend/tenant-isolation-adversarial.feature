@@ -68,6 +68,27 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
 
     Examples: generated from the schema
       | model                    | operation                       | outcome                                                               |
+      | Announcement             | get                             | denied, or returns nothing of "beta"                                  |
+      | Announcement             | list                            | no row of "beta" is returned and pages are not short                  |
+      | Announcement             | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | Announcement             | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | Announcement             | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | Announcement             | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | Announcement             | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSettings     | get                             | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSettings     | list                            | no row of "beta" is returned and pages are not short                  |
+      | AnnouncementSettings     | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSettings     | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSettings     | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSettings     | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSettings     | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | get                             | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | list                            | no row of "beta" is returned and pages are not short                  |
+      | AnnouncementSpend        | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | Assignment               | get                             | denied, or returns nothing of "beta"                                  |
       | Assignment               | list                            | no row of "beta" is returned and pages are not short                  |
       | Assignment               | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
@@ -465,6 +486,27 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | Tag                      | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | Tag                      | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | Tag                      | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | get                             | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | list                            | no row of "beta" is returned and pages are not short                  |
+      | Tenant                   | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | Tenant                   | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | get                             | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | list                            | no row of "beta" is returned and pages are not short                  |
+      | TenantDomain             | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | TenantDomain             | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | get                             | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | list                            | no row of "beta" is returned and pages are not short                  |
+      | TenantMembership         | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | TenantMembership         | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | UserIdentity             | get                             | reviewed: UserIdentity is global and holds no tenant data             |
       | UserIdentity             | list                            | reviewed: UserIdentity is global and holds no tenant data             |
       | UserIdentity             | create                          | reviewed: only the rule's own principals may create UserIdentity      |
@@ -482,6 +524,13 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | UserRoleAssignment       | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | UserRoleAssignment       | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | UserRoleAssignment       | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | XConnection              | get                             | denied, or returns nothing of "beta"                                  |
+      | XConnection              | list                            | no row of "beta" is returned and pages are not short                  |
+      | XConnection              | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | XConnection              | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | XConnection              | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | XConnection              | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | XConnection              | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
 
   @isolation-pending
   Scenario Outline: Tenant A cannot read tenant B through any index
@@ -491,6 +540,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
 
     Examples: generated from the schema
       | query                                                | outcome                          |
+      | listAnnouncementsByAccountAndCreatedAt               | returns nothing of "beta"        |
       | listAssignmentsByTypeStatusAndCreatedAt              | returns nothing of "beta"        |
       | listAssignmentsByQueueStatusAndPriority              | returns nothing of "beta"        |
       | listAssignmentsByStatusAndUpdatedAt                  | returns nothing of "beta"        |
@@ -537,6 +587,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listItemsBySectionStatusAndPublishedAt               | returns nothing of "beta"        |
       | listItemsByParentAndOrder                            | returns nothing of "beta"        |
       | listItemsByHeadStageAndUpdatedAt                     | returns nothing of "beta"        |
+      | listItemsByScheduleStateAndScheduledPublishAt        | returns nothing of "beta"        |
       | listItemTagsByItemAndTag                             | returns nothing of "beta"        |
       | listItemTagsByTagAndPublishedAt                      | returns nothing of "beta"        |
       | listKnowledgeArtifactsByCorpusAndKind                | returns nothing of "beta"        |
@@ -664,6 +715,11 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listStoryVariationsByStoryAndNumber                  | returns nothing of "beta"        |
       | tagBySlug                                            | returns nothing of "beta"        |
       | listTagsByTypeAndLabel                               | returns nothing of "beta"        |
+      | listTenantsByAccount                                 | returns nothing of "beta"        |
+      | listTenantsByStateKey                                | returns nothing of "beta"        |
+      | listTenantDomainsByTenant                            | returns nothing of "beta"        |
+      | listTenantMembershipsByTenant                        | returns nothing of "beta"        |
+      | listTenantMembershipsByUserSub                       | returns nothing of "beta"        |
       | listUserIdentitiesByProfileAndLinkedAt               | reviewed: UserIdentity is global |
       | userIdentityByCognitoSub                             | reviewed: UserIdentity is global |
       | listUserIdentitiesByEmailAndStatus                   | reviewed: UserIdentity is global |
@@ -700,6 +756,15 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | operation                            | outcome                              |
       | abortModelAttachmentUpload           | denied, or returns nothing of "beta" |
       | addStoryAgentNote                    | denied, or returns nothing of "beta" |
+      | announcementsPause                   | denied, or returns nothing of "beta" |
+      | announcementsSaveSettings            | denied, or returns nothing of "beta" |
+      | announcementsSettings                | denied, or returns nothing of "beta" |
+      | announcementsXBegin                  | denied, or returns nothing of "beta" |
+      | announcementsXComplete               | denied, or returns nothing of "beta" |
+      | announcementsXDisconnect             | denied, or returns nothing of "beta" |
+      | announcementsXSaveApp                | denied, or returns nothing of "beta" |
+      | announcementsXStatus                 | denied, or returns nothing of "beta" |
+      | announcementsXUsage                  | denied, or returns nothing of "beta" |
       | applyKnowledgeReview                 | denied, or returns nothing of "beta" |
       | approveCurationDelegation            | denied, or returns nothing of "beta" |
       | archiveDraftCategory                 | denied, or returns nothing of "beta" |
@@ -803,6 +868,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | saveItemDraft                        | denied, or returns nothing of "beta" |
       | saveNewsroomProcedureDefinition      | denied, or returns nothing of "beta" |
       | saveNewsroomProcedureVersionDraft    | denied, or returns nothing of "beta" |
+      | scheduleItem                         | denied, or returns nothing of "beta" |
       | searchReferences                     | denied, or returns nothing of "beta" |
       | setItemStars                         | denied, or returns nothing of "beta" |
       | setPublicHandle                      | denied, or returns nothing of "beta" |
@@ -831,6 +897,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
     Examples: generated from the schema
       | function                   | outcome                            |
       | alexa/function             | reads and writes nothing of "beta" |
+      | announcements              | reads and writes nothing of "beta" |
       | assignment-action          | reads and writes nothing of "beta" |
       | automation-view            | reads and writes nothing of "beta" |
       | category-action            | reads and writes nothing of "beta" |

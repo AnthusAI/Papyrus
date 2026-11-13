@@ -9,10 +9,15 @@
   "creator": null,
   "parent": "PPY-82f150e8-9010-4a9f-949e-71168ffdbdc0",
   "labels": [],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "target": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+      "type": "blocked-by"
+    }
+  ],
   "comments": [],
   "created_at": "2026-11-07T16:00:12.159105Z",
-  "updated_at": "2026-11-07T16:00:12.159142Z",
+  "updated_at": "2026-11-12T15:39:09.690589Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

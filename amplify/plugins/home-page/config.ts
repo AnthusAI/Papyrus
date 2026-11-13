@@ -4,14 +4,18 @@ import type { PluginRequest, PluginResolveOptions } from "../types";
 
 /** The window default is the HTML `s-maxage` the writers set (PAPYRUS_HTML_S_MAXAGE_SECONDS): a page cannot be fresher than its edge lifetime. */
 export const DEFAULT_DEBOUNCE_SECONDS = 300;
-const REQUEST_KEYS = ["name", "debounceSeconds", "intervalHours"];
-const FRESHNESS_KEYS = ["debounceSeconds", "intervalHours", "purge"];
+/** A forum post reaches its page in a few seconds: the quiet time before the run that follows a changed Message. */
+export const DEFAULT_THREAD_DEBOUNCE_SECONDS = 3;
+const REQUEST_KEYS = ["name", "debounceSeconds", "threadDebounceSeconds", "intervalHours"];
+const FRESHNESS_KEYS = ["debounceSeconds", "threadDebounceSeconds", "intervalHours", "purge"];
 const THREADS_KEYS = ["enabled", "authors", "anonymousLabel"];
 const MINUTES_PER_HOUR = 60;
 
 export type HomePageConfig = {
   /** Quiet time between the first change and the snapshot run it schedules. */
   debounceSeconds: number;
+  /** Quiet time between a changed Message and the run it schedules (its own window, so a Reference change never delays it). */
+  threadDebounceSeconds: number;
   /** A rule runs the snapshot at this interval even without changes. `null` is off. */
   intervalHours: number | null;
   /** Mirrors `homePage.freshness.purge`; the projection task does the invalidation, the backend only reports it. */
@@ -20,7 +24,7 @@ export type HomePageConfig = {
   threads: boolean;
 };
 
-type ProjectionFreshness = { debounceSeconds?: unknown; intervalHours?: unknown; purge?: unknown; threads?: boolean };
+type ProjectionFreshness = { debounceSeconds?: unknown; threadDebounceSeconds?: unknown; intervalHours?: unknown; purge?: unknown; threads?: boolean };
 
 function wholeSeconds(value: unknown, where: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1) throw new Error(`${where} must be a whole number of seconds, at least 1`);
@@ -63,11 +67,13 @@ export function resolveHomePageConfig(request: PluginRequest, options: PluginRes
   if (unknown.length > 0) throw new Error(`Unknown home-page plugin settings: ${unknown.join(", ")}`);
   const projected = readProjectionFreshness(options) ?? {};
   const debounce = settings.debounceSeconds ?? projected.debounceSeconds ?? DEFAULT_DEBOUNCE_SECONDS;
+  const threadDebounce = settings.threadDebounceSeconds ?? projected.threadDebounceSeconds ?? DEFAULT_THREAD_DEBOUNCE_SECONDS;
   const interval = "intervalHours" in settings ? settings.intervalHours : projected.intervalHours;
   const purge = projected.purge ?? false;
   if (typeof purge !== "boolean") throw new Error("homePage.freshness.purge must be true or false");
   return {
     debounceSeconds: wholeSeconds(debounce, "home-page debounceSeconds"),
+    threadDebounceSeconds: wholeSeconds(threadDebounce, "home-page threadDebounceSeconds"),
     intervalHours: intervalHours(interval, "home-page intervalHours"),
     purge,
     threads: projected.threads === true,

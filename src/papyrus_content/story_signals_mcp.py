@@ -1,6 +1,6 @@
 """The Story signal operations as MCP tools, in the shape of ``page_refresh/mcp.py``: ``TOOLS.update(story_signal_tools())`` and
 ``DESCRIPTIONS.update(story_signal_descriptions())``, then ``call_story_signal_tool``. The inputs use the CLI's flag names in camelCase
-(``--min-stars`` is ``minStars``), and the results carry the CLI's columns by name. There is no stories tool in the MCP server today; this adds the three."""
+(``--min-stars`` is ``minStars``), and the results carry the CLI's columns by name. There is no stories tool in the MCP server today; this adds the three, and the two scheduling tools from story_schedule.OPERATIONS."""
 
 from __future__ import annotations
 
@@ -64,6 +64,16 @@ TOOLS_TABLE: dict[str, tuple[str, dict, str]] = {
 }
 
 
+def _schedule_tools() -> dict[str, tuple[str, dict, str]]:
+    """The scheduling tools come from the one operation table (story_schedule.OPERATIONS), so the CLI, the console and MCP cannot drift apart."""
+    from .story_schedule import OPERATIONS
+
+    return {operation.mcp: ("staff", operation.schema, operation.summary) for operation in OPERATIONS.values()}
+
+
+TOOLS_TABLE.update(_schedule_tools())
+
+
 def story_signal_tools() -> dict[str, tuple[str, dict]]:
     return {name: (audience, schema) for name, (audience, schema, _) in TOOLS_TABLE.items()}
 
@@ -86,6 +96,14 @@ def call_story_signal_tool(name: str, arguments: dict[str, Any], client, actor: 
         from .story_reporting import current_story_version
 
         return signals(current_story_version(client, args["storyLineageId"]), args.get("bucket") or DEFAULT_STORY_BUCKET, utc_today())
+    from .story_schedule import OPERATIONS as SCHEDULE_OPERATIONS, call_remote, refused_message
+
+    schedule_operation = next((operation for operation in SCHEDULE_OPERATIONS.values() if operation.mcp == name), None)
+    if schedule_operation is not None:
+        response = call_remote(client, schedule_operation.name, args)
+        if response.get("ok") is False:
+            raise ValueError(refused_message(response))
+        return response
     if name == "stories_set_stars":
         return set_story_stars(client, args["storyLineageId"], validated_stars(args["stars"], "stars"), apply=not args.get("dryRun"))
     if name == "papyrus_link_stories":

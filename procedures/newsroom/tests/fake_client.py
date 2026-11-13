@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any
 
 from papyrus_content.graphql_authoring import INDEX_DEFINITIONS
 
 INDEX_MODELS = {
+    "referencesByCorpusAndExternalItem": "Reference",
+    "knowledgeCorporaByRoleAndName": "KnowledgeCorpus",
     "itemBySlug": "Item",
     "itemsByLineageAndVersion": "Item",
+    "itemScheduleByLineage": "Item",
     "mediaAssetsByItemAndSortKey": "MediaAsset",
     "publishedMediaAssetsByItemAndSortKey": "PublishedMediaAsset",
     "modelAttachmentsByOwnerRoleAndSortKey": "ModelAttachment",
@@ -61,6 +65,15 @@ def head_stage_key_violations(client: "FakeAuthoringClient") -> list[str]:
 
 
 class FakeAuthoringClient:
+    tenant_id: str | None = None   # the real client always has one; None is a backend with no tenant
+
+    def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        """The only query a fake answers is the schema question of the deploy render: a backend that serves every field the tools select."""
+        from papyrus_content.live_schema import selected_fields
+        selected = selected_fields()
+        asked = re.findall(r'(t\d+): __type\(name: "(\w+)"\)', query)
+        return {alias: {"fields": [{"name": field} for field in sorted(selected[name])]} for alias, name in asked}
+
     def __init__(
         self,
         records: dict[str, list[dict[str, Any]]] | None = None,
@@ -98,7 +111,7 @@ class FakeAuthoringClient:
     def list_published_item_summaries(self) -> list[dict[str, Any]]:
         self.calls.append(("list", "PublishedItemSummary", None))
         summary_fields = (
-            "id sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
+            "id sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt versionPublishedAt versionPublishedBy metadata"
         ).split()
         return [
             {name: copy.deepcopy(row.get(name)) for name in summary_fields}
@@ -152,6 +165,43 @@ class FakeAuthoringClient:
         row = self._table(model_name).setdefault(payload["id"], {})
         row.update(copy.deepcopy(payload))
         self._maybe_fail("update", model_name)
+
+    def has_schedule_fields(self) -> bool:
+        return True
+
+    def update_record_if(self, model_name: str, payload: dict[str, Any], condition: dict[str, Any]) -> bool:
+        """A conditional update as AppSync does it: the whole write or nothing, decided on the stored row (``eq``, ``ne``, ``attributeExists``, ``or``)."""
+        row = self._table(model_name).get(payload["id"], {})
+
+        def holds(rule: dict[str, Any]) -> bool:
+            for name, test in rule.items():
+                if name == "or":
+                    if not any(holds(option) for option in test):
+                        return False
+                elif name == "and":
+                    if not all(holds(option) for option in test):
+                        return False
+                else:
+                    value = row.get(name)
+                    for operator, expected in test.items():
+                        if operator == "eq" and value != expected:
+                            return False
+                        if operator == "ne" and value == expected:
+                            return False
+                        if operator == "attributeExists" and (value is not None) != expected:
+                            return False
+            return True
+
+        self.calls.append(("conditional-update", model_name, payload["id"]))
+        if not holds(condition):
+            return False
+        self.update_record(model_name, payload)
+        return True
+
+    def list_schedule(self, state: str, start: str | None = None, end: str | None = None) -> list[dict[str, Any]]:
+        self.calls.append(("list_schedule", state, (start, end)))
+        return [copy.deepcopy(row) for row in self._table("Item").values()
+                if row.get("scheduleState") == state and (start is None or row["scheduledPublishAt"] >= start) and (end is None or row["scheduledPublishAt"] <= end)]
 
     def delete_record(self, model_name: str, record_id: str) -> None:
         self.calls.append(("delete", model_name, record_id))

@@ -4,6 +4,11 @@ Feature: Publishing through the content actions projects the site
   never fails the save: the response says the item is not live and the failure
   is queued for repair.
 
+  A page is cached at the edge for 300 seconds, which a forum cannot live with. A site that names live prefixes
+  (publication.cache.livePrefixes, such as "conversations/") has every page and Markdown twin under them stored with a
+  lifetime of a few seconds (liveSMaxAgeSeconds, 5 by default) and no stale-while-revalidate, so the edge never shows a
+  page once more after it expired. Nothing needs to be purged for it.
+
   Scenario: Publishing writes the item page and reports where it is live
     Given a content actions backend with an s3-projection publication
     When the editor publishes a new article
@@ -68,6 +73,21 @@ Feature: Publishing through the content actions projects the site
     When the editor publishes a new article
     Then the page "articles/hello.html" is cached at the edge for 60 seconds with stale-while-revalidate
     And the edge distribution was not invalidated
+
+  Scenario: Live pages, such as a forum, are cached for seconds and never served stale
+    Given a content actions backend with an s3-projection publication
+    And the site names the live prefix "conversations/"
+    When the projection writes the pages "conversations/index.html" and "tools/index.html"
+    Then the page "conversations/index.html" is cached at the edge for 5 seconds and is never served stale
+    And the page "tools/index.html" is cached at the edge for 300 seconds with stale-while-revalidate
+
+  Scenario: The live lifetime is the site's to set and covers every page under the prefix
+    Given a content actions backend with an s3-projection publication
+    And the site names the live prefix "conversations/"
+    And the site sets the live lifetime to 2 seconds
+    When the projection writes the pages "conversations/0123456789ab/index.html" and "conversations/index.md"
+    Then the page "conversations/0123456789ab/index.html" is cached at the edge for 2 seconds and is never served stale
+    And the page "conversations/index.md" is cached at the edge for 2 seconds and is never served stale
 
   Scenario: A failed purge leaves the page live and is retried on its own
     Given a content actions backend with an s3-projection publication

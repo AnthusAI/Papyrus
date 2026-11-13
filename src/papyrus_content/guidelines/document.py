@@ -275,9 +275,10 @@ VIDEO_FIELDS: dict[str, Field] = {
 
 
 def _validate_image(document: Any, scope: str) -> list[Problem]:
-    from papyrus_content.images.visual_style import validate_profile
+    from papyrus_content.images.visual_style import validate_profile, validate_section_style
 
-    return [Problem(p.path, p.message, p.code) for p in validate_profile(document)]
+    found = validate_section_style(document) if scope == "section" else validate_profile(document)
+    return [Problem(p.path, p.message, p.code) for p in found]
 
 
 def _validate_design_system(document: Any, scope: str) -> list[Problem]:
@@ -288,7 +289,7 @@ def _validate_design_system(document: Any, scope: str) -> list[Problem]:
 
 register_kind(KindSpec("writing", "writing", 1, WRITING_FIELDS))
 register_kind(KindSpec("video", "video", 1, VIDEO_FIELDS))
-# Image documents keep their own schema and resolver (images/visual_style.py); the store keeps them the same way as any other kind (PPY-c16829 wires it).
+# Image documents keep their own schema and resolver (images/visual_style.py); the store keeps them the same way as any other kind, the publication's and each section's (PPY-c16829).
 register_kind(KindSpec("image", "visual-style", 2, validate=_validate_image, layers=False))
 # A site's design system for figures (PPY-74ef89): the mapping, tokens, worked examples and figure settings as text, its fonts as attached files. The site's alone: it
 # has no section layer, and its own module (figures/records.py) validates it and reads it back.

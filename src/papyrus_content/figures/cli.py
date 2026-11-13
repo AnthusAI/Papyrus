@@ -1,8 +1,8 @@
-"""``papyrus figures ...``: render, check and describe figures. Everything here is local; nothing reaches a site.
+"""``papyrus figures ...``: render, check and describe figures. ``render`` and ``rules`` read the signed-in site's design system and figure rules; nothing is written to a site.
 
     papyrus figures render FOLDER... [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json]
     papyrus figures directive FOLDER
-    papyrus figures rules
+    papyrus figures rules [--packaged]
     papyrus figures primitives
 
 With neither ``--design-system`` nor ``--neutral-default``, ``render`` uses the design system the signed-in site stores (``papyrus design-system show``); a folder
@@ -75,6 +75,28 @@ def stored_design_system() -> DesignSystem:
     return load_design_system(stored.source)
 
 
+def rules_text(*, packaged_only: bool = False) -> str:
+    """The figure rules of the signed-in site (its own, when it saved them), or the packaged general rules. Where the site cannot be reached the packaged
+    rules are printed and the reason goes to stderr, so a person or agent never takes them for the site's own."""
+    packaged = packaged_text("rules.md")
+    if packaged_only:
+        return packaged
+    from papyrus_content.guidelines.figure_rules import figure_rules
+
+    try:
+        from papyrus_content.graphql_authoring import create_authoring_client
+
+        client, _ = create_authoring_client()
+        found = figure_rules(client, packaged)
+    except Exception as error:  # noqa: BLE001 - not signed in, no endpoint, offline
+        print(f"figures: could not read the site's figure rules ({error}); these are the packaged general rules.", file=sys.stderr)
+        return packaged
+    whose = "the site's own" if found["source"] == "site" else "the packaged general"
+    version = f", version {found['reference']['versionNumber']}" if found["reference"] else ""
+    print(f"figures: using {whose} figure rules{version}", file=sys.stderr)
+    return found["text"]
+
+
 def resolve_design_system(options: dict[str, str | bool]) -> DesignSystem:
     """The design system the flags name; with neither, the one the signed-in site stores. Never an invented one."""
     directory, neutral = options.get("--design-system"), bool(options.get("--neutral-default"))
@@ -139,8 +161,12 @@ def command(args: list[str]) -> int:
         return figures_render(rest)
     if name == "directive":
         return figures_directive(rest)
-    if name in ("rules", "primitives"):
+    if name == "rules":
+        _, options = _split(rest, (), ("--packaged",))
+        print(rules_text(packaged_only=bool(options.get("--packaged"))), end="")
+        return 0
+    if name == "primitives":
         _split(rest, (), ())
-        print(packaged_text("rules.md" if name == "rules" else "primitives.svg"), end="")
+        print(packaged_text("primitives.svg"), end="")
         return 0
     raise ValueError(f"Unsupported papyrus command: figures {name}".rstrip() + f"; the commands are {', '.join(COMMANDS)}.")

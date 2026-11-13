@@ -1167,9 +1167,12 @@ def editorial_context_receipt(client, publication: dict) -> dict:
         return {"contextHash": None, "reason": short(error)[:200]}
 
 
-def source_name_for(source_url: str, source_type: str | None = None) -> str:
-    """The name shown for a monitor's source. A feed is named for its host (`monitoring_feed.FEED_HOSTS`), and a source type that
-    shares a host with another (Hugging Face papers and models) by its type; everything else by the host of its source URL."""
+def source_name_for(source_url: str, source_type: str | None = None, name: str | None = None) -> str:
+    """The name shown for a monitor's source. The name the monitor's config gives (`sourceName`) comes first. A feed is named for its host
+    (`monitoring_feed.FEED_HOSTS`), and a source type that shares a host with another (Hugging Face papers and models) by its type; everything else by the
+    host of its source URL."""
+    if name:
+        return name
     host = urlsplit(source_url).hostname
     if source_type == "feed" or (source_type is None and host in FEED_HOSTS):
         return FEED_HOSTS.get(host, SOURCE_TYPES["feed"]["name"])
@@ -1218,7 +1221,7 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
     source_url = str(disc.get("sourceUrl") or "")
     monitor = Monitor(str(disc.get("monitorId") or "hn"), publication["corpusKey"], publication["corpusId"],
                       publication["appsyncEndpoint"], Path("/nonexistent"), source_url=source_url,
-                      source_name="Email submission" if disc.get("sourceType") == "email" else source_name_for(source_url, disc.get("sourceType")))
+                      source_name="Email submission" if disc.get("sourceType") == "email" else source_name_for(source_url, disc.get("sourceType"), disc.get("sourceName")))
     item = SourceItem(str(disc["sourceId"]), disc["title"], disc["canonicalUrl"], disc["sourceItemUrl"],
                       disc.get("sourcePublishedAt"), disc.get("mediaType") or "text/html", tuple(disc.get("aliases") or ()),
                       disc.get("details") or None)

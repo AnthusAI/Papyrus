@@ -52,7 +52,8 @@
     "amplifyAppId": "d260vp72hqglnc",
     "contentActionsFunction": "amplify-d260vp72hqglnc-ma-papyruscontentactionsE8B-Ri8ZqKDPLt2u",
     "plugins": [
-      "home-page"
+      "home-page",
+      "notifications"
     ],
     "siteBranch": "main",
     "staticSubdir": "web",

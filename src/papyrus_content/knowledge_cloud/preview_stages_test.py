@@ -28,7 +28,7 @@ def plan(**kinds):
         for kind, count in kinds.items()
         for n in range(count)
     ]
-    return {"mode": "dry-run", "counts": {}, "pages": pages, "retired": [], "warnings": [], "written": {}}
+    return {"mode": "dry-run", "counts": {}, "pages": pages, "warnings": [], "written": {}}
 
 
 def commands(shell, prefix):

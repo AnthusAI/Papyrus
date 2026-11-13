@@ -1,0 +1,168 @@
+# Reusable workflow: a deployment repository deploys its per-site app-shell CDK stack (the Amplify CMS app and friends) from Git.
+# Part of epic PPY-9bd776. The stack comes from infra/amplify-app-shell, synthesized by the published `papyrus-infra synth` command.
+# Public repositories only (free Actions minutes). See docs/account-pipeline.md, "The app shell".
+#
+# Caller:
+#   jobs:
+#     app-shell:
+#       permissions: { contents: read, id-token: write }
+#       uses: AnthusAI/Papyrus/.github/workflows/app-shell-deploy.yml@<papyrus tag>
+#       with:
+#         prefix: myco
+#         papyrus-ref: <the same tag>
+#         aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
+#         stack-name: <the CloudFormation stack name infra/site.json produces>
+#         site-id: <siteId>
+#
+# What runs:
+#   synth    (pull request, push, manual)  no AWS credentials: npm ci, papyrus-infra synth, then check_cdk_manifest.py refuses any
+#            assembly that does not hold exactly one stack with the expected name. Uploads cdk.out.
+#   deploy   (push or manual dispatch on main only)  <prefix>-github-deploy through GitHub OIDC; cdk deploy of the checked assembly.
+#   build    (optional)  starts the Amplify RELEASE job through amplify-deploy.yml.
+name: app-shell-deploy
+
+on:
+  workflow_call:
+    inputs:
+      prefix:
+        description: The deployment prefix the account baseline was seeded with (the deploy role is <prefix>-github-deploy)
+        required: true
+        type: string
+      aws-account-id:
+        description: 12-digit AWS account id; pass vars.AWS_ACCOUNT_ID
+        required: true
+        type: string
+      papyrus-ref:
+        description: Papyrus tag or branch that holds check_cdk_manifest.py (pin the same tag as the uses line)
+        required: false
+        type: string
+        default: main
+      site:
+        description: Path of the site configuration in the calling repository
+        required: false
+        type: string
+        default: infra/site.json
+      stack-name:
+        description: The CloudFormation stack name the synth must produce, and the only one that may deploy
+        required: true
+        type: string
+      node-version:
+        required: false
+        type: string
+        default: "22"
+      region:
+        required: false
+        type: string
+        default: us-east-1
+      start-amplify-build:
+        description: Start an Amplify RELEASE job after the stack deploys. Leave false until the app has a build source (there is no repository connection yet, so a job would fail)
+        required: false
+        type: boolean
+        default: false
+      site-id:
+        description: The site id; the Amplify job runs as <site-id>-github-deploy. Required when start-amplify-build is true
+        required: false
+        type: string
+        default: ""
+    outputs:
+      app-id:
+        description: The Amplify app id (stack output CmsAppId)
+        value: ${{ jobs.deploy.outputs.app-id }}
+
+permissions:
+  contents: read
+
+jobs:
+  synth:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: AnthusAI/Papyrus
+          ref: ${{ inputs.papyrus-ref }}
+          path: .papyrus-tool
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ inputs.node-version }}
+      - name: Install the calling repository's dependencies
+        run: npm ci
+      - name: Synthesize the app shell (no AWS access)
+        env:
+          SITE: ${{ inputs.site }}
+          PAPYRUS_AWS_ACCOUNT_ID: ${{ inputs.aws-account-id }}
+        run: npx papyrus-infra synth --site "$SITE" --out cdk.out
+      - name: Refuse any assembly that is not exactly the one expected stack
+        env:
+          STACK: ${{ inputs.stack-name }}
+        run: python3 .papyrus-tool/infra/pipeline/check_cdk_manifest.py --out cdk.out --expect "$STACK"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: cdk-out
+          path: cdk.out
+          if-no-files-found: error
+
+  deploy:
+    needs: synth
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: app-shell-deploy-${{ github.repository }}
+      cancel-in-progress: false
+    outputs:
+      app-id: ${{ steps.outputs.outputs.app-id }}
+    steps:
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ inputs.node-version }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: cdk-out
+          path: cdk.out
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.prefix }}-github-deploy
+          aws-region: ${{ inputs.region }}
+          role-session-name: gh-app-shell-${{ github.run_id }}
+      - name: Deploy the stack with the CDK
+        env:
+          STACK: ${{ inputs.stack-name }}
+        run: |
+          set -euo pipefail
+          # --app points at the already synthesized assembly, so the CLI deploys it as it is and does not synthesize again. --all is safe because the
+          # manifest check above allows exactly one stack; CDK selects stacks by construct id, not by the CloudFormation stack name.
+          npx --yes aws-cdk@2.1146.0 deploy --all --app cdk.out --require-approval never --method direct --no-notices
+      - name: Read the Amplify app id
+        id: outputs
+        env:
+          STACK: ${{ inputs.stack-name }}
+        run: |
+          set -euo pipefail
+          app_id="$(aws cloudformation describe-stacks --stack-name "$STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='CmsAppId'].OutputValue | [0]" --output text)"
+          if [ -z "$app_id" ] || [ "$app_id" = "None" ]; then
+            echo "::error::The stack ${STACK} has no CmsAppId output"
+            exit 1
+          fi
+          echo "app-id=${app_id}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: deploy
+    if: inputs.start-amplify-build
+    permissions:
+      contents: read
+      id-token: write
+    uses: AnthusAI/Papyrus/.github/workflows/amplify-deploy.yml@main
+    with:
+      app-id: ${{ needs.deploy.outputs.app-id }}
+      aws-account-id: ${{ inputs.aws-account-id }}
+      role-name: ${{ inputs.site-id }}-github-deploy
+      region: ${{ inputs.region }}

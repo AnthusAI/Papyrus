@@ -14,6 +14,7 @@ def test_an_empty_block_has_the_documented_defaults():
     assert (settings.references.default_count, settings.references.recommended_threshold) == (6, 0.5)
     assert (settings.threads.enabled, settings.threads.authors, settings.threads.anonymous_label) == (False, "handle", "Editor")
     assert (settings.freshness.debounce_seconds, settings.freshness.interval_hours, settings.freshness.purge) == (300, None, False)
+    assert settings.freshness.thread_debounce_seconds == 3
 
 
 def test_every_setting_is_read():
@@ -21,8 +22,9 @@ def test_every_setting_is_read():
         "layout": "sections", "perSection": 3,
         "references": {"corpus": "knowledge-corpus-x", "fields": ["title", "key", "status"], "defaultCount": 9, "recommendedThreshold": 0.7},
         "threads": {"enabled": True, "authors": "anonymous", "anonymousLabel": "Staff"},
-        "freshness": {"debounceSeconds": 60, "intervalHours": 6, "purge": True},
+        "freshness": {"debounceSeconds": 60, "threadDebounceSeconds": 2, "intervalHours": 6, "purge": True},
     })
+    assert settings.freshness.thread_debounce_seconds == 2
     assert (settings.layout, settings.per_section) == ("sections", 3)
     assert settings.references.fields == ("key", "status", "title", "rank"), "rank is in every snapshot record whatever the list says"
     assert settings.references.corpus == "knowledge-corpus-x"
@@ -44,6 +46,7 @@ def test_every_setting_is_read():
         ({"references": {"defaultCount": 0}}, "defaultCount"),
         ({"threads": {"anonymousLabel": "a@b.test"}}, "anonymousLabel"),
         ({"freshness": {"purge": "yes"}}, "purge"),
+        ({"freshness": {"threadDebounceSeconds": 0}}, "threadDebounceSeconds"),
     ],
 )
 def test_a_wrong_setting_is_a_build_error_that_names_it(raw, message):

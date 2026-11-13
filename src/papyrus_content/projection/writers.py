@@ -21,6 +21,10 @@ S3_MAX_POOL_CONNECTIONS = 32   # above HEAD_WORKERS and PUT_WORKERS, so parallel
 DEFAULT_HTML_S_MAXAGE_SECONDS = 300
 FALLBACK_HTML_S_MAXAGE_SECONDS = 60
 HTML_STALE_WHILE_REVALIDATE_SECONDS = 60
+#: A live page (``publication.cache.livePrefixes``, a forum) is served from the edge for a few seconds and never stale: with ``stale-while-revalidate`` the edge would
+#: show the old page once more after it expires, which is the delay a forum cannot have.
+DEFAULT_LIVE_S_MAXAGE_SECONDS = 5
+LIVE_STALE_WHILE_REVALIDATE_SECONDS = 0
 IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
 ERROR_PAGE_KEY = "404.html"
 ERROR_PAGE_CONTENT_TYPE = "text/html"
@@ -76,11 +80,11 @@ def content_type_for(key: str) -> str:
     return guessed or "application/octet-stream"
 
 
-def html_cache_control(s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS) -> str:
-    return (
-        f"public, max-age=0, s-maxage={s_maxage_seconds}, "
-        f"stale-while-revalidate={HTML_STALE_WHILE_REVALIDATE_SECONDS}"
-    )
+def html_cache_control(
+    s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS, stale_while_revalidate_seconds: int = HTML_STALE_WHILE_REVALIDATE_SECONDS
+) -> str:
+    base = f"public, max-age=0, s-maxage={s_maxage_seconds}"
+    return f"{base}, stale-while-revalidate={stale_while_revalidate_seconds}" if stale_while_revalidate_seconds > 0 else base
 
 
 def is_immutable_key(key: str) -> bool:
@@ -90,9 +94,21 @@ def is_immutable_key(key: str) -> bool:
     return HASHED_FILE_NAME.search(PurePosixPath(key).name) is not None
 
 
-def cache_control_for(key: str, html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS) -> str:
+def is_live_key(key: str, live_prefixes: tuple[str, ...]) -> bool:
+    """True for a key under one of the live prefixes (``conversations/``): site keys, before any output prefix is added."""
+    return any(key.startswith(prefix) for prefix in live_prefixes)
+
+
+def cache_control_for(
+    key: str,
+    html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS,
+    live_prefixes: tuple[str, ...] = (),
+    live_s_maxage_seconds: int = DEFAULT_LIVE_S_MAXAGE_SECONDS,
+) -> str:
     if is_immutable_key(key):
         return IMMUTABLE_CACHE_CONTROL
+    if is_live_key(key, live_prefixes):
+        return html_cache_control(live_s_maxage_seconds, LIVE_STALE_WHILE_REVALIDATE_SECONDS)
     return html_cache_control(html_s_maxage_seconds)
 
 
@@ -168,7 +184,13 @@ class S3PageWriter:
     source_markers = True   # item pages end with the papyrus-source-version marker (page_refresh/marker.py)
 
     def __init__(
-        self, bucket: str, s3_client: Any = None, html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS, output_prefix: str = ""
+        self,
+        bucket: str,
+        s3_client: Any = None,
+        html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS,
+        output_prefix: str = "",
+        live_prefixes: tuple[str, ...] = (),
+        live_s_maxage_seconds: int = DEFAULT_LIVE_S_MAXAGE_SECONDS,
     ) -> None:
         if s3_client is None:
             import boto3
@@ -179,6 +201,8 @@ class S3PageWriter:
         self._output_prefix = normalize_output_prefix(output_prefix)   # "" for a site that owns its bucket; keys are then untouched
         self._s3 = s3_client
         self._html_s_maxage_seconds = html_s_maxage_seconds
+        self._live_prefixes = tuple(live_prefixes)
+        self._live_s_maxage_seconds = live_s_maxage_seconds
 
     @staticmethod
     def _error_code(error: Exception) -> str:
@@ -241,7 +265,7 @@ class S3PageWriter:
             return {"ContentType": ERROR_PAGE_CONTENT_TYPE}
         return {
             "ContentType": content_type_for(key),
-            "CacheControl": cache_control_for(key, self._html_s_maxage_seconds),
+            "CacheControl": cache_control_for(key, self._html_s_maxage_seconds, self._live_prefixes, self._live_s_maxage_seconds),
         }
 
     def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None:

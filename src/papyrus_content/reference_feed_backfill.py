@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from . import request_meter
 from .ideas.digest import relations_of, relevance_of
 from .reference_capture_state import attachments_for_state, capture_state, normalize_capture_state
 from .reference_policy import normalize_reference_curation_status
@@ -27,7 +28,8 @@ def corpus_ids_for(client: Any, *, site: str | None, corpus_keys: str | None, al
     """The corpora one run covers: every KnowledgeCorpus the backend lists (``--all-corpora``), the comma-separated ``--corpus-key`` list, or
     the site's own ``knowledge-corpus-<site>``. A publication's References can sit in corpora named for something else than its site."""
     if all_corpora:
-        found = sorted({str(row["id"]) for row in client.list_records("KnowledgeCorpus") if row.get("id")})
+        with request_meter.sweep("references-all-corpora"):   # asked for by name with --all-corpora: the one intended listing of the (small) corpus table
+            found = sorted({str(row["id"]) for row in client.list_records("KnowledgeCorpus") if row.get("id")})
         if not found:
             raise ValueError("references backfill-feed-keys --all-corpora found no KnowledgeCorpus rows.")
         return found

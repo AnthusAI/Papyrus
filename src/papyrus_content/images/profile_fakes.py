@@ -5,6 +5,8 @@ import copy
 import json
 from typing import Any
 
+from papyrus_content.upload_rules_fake import assert_owner_exists, assert_upload_accepted
+
 MOM_PROFILE: dict = {
     "schemaVersion": 2,
     "identity": {
@@ -68,20 +70,41 @@ class FakeBackend:
         self.items: list[dict] = []
         self.sections: dict[str, dict] = {}
         self.writes: list[tuple[str, str, dict]] = []
+        self.reads: list[tuple[str, str]] = []
+        self.document_attachments: list[dict] = []
+        self.document_bodies: dict[str, bytes] = {}
+        self.document_files = FakeFiles(self)
+        self.attachments: dict[str, dict] = {}
+        self.media_assets: list[dict] = []
         if profile is not None:
             self.save_profile_version(profile, by="admin-account", reason="First profile.")
 
-    def save_profile_version(self, document: dict, *, by: str, reason: str) -> dict:
-        from .profile_store import next_record, profile_versions, store_next_version
+    def save_profile_version(self, document: dict, *, by: str, reason: str, section: str | None = None) -> dict:
+        """Save a document the way the store does now: a catalog row, the text in the fake S3."""
+        from .profile_store import document_store, IMAGE_KIND
+
+        store = document_store(self)
+        current = store.current_row(IMAGE_KIND, section)
+        saved = store.save(IMAGE_KIND, document, section=section, expected_current_version_id=current["id"] if current else "none", actor=by, reason=reason,
+                           now="2026-11-07T17:51:39Z", saved_by={"sub": by, "kind": "person"})
+        return next(row for row in self.items if row["id"] == saved["reference"]["itemId"])
+
+    def save_inline_profile_version(self, document: dict, *, by: str, reason: str) -> dict:
+        """Save a profile the way a site that has not moved yet holds it: inline in the row's metadata."""
+        from .profile_store import inline_next_record, profile_versions
 
         versions = profile_versions(self)
-        record = next_record(versions, document, actor=by, reason=reason, now="2026-11-07T17:51:39Z", saved_by={"sub": by, "kind": "person"})
-        store_next_version(self, versions, record)
+        record = inline_next_record(versions, document, actor=by, reason=reason, now="2026-11-07T17:51:39Z", saved_by={"sub": by, "kind": "person"})
+        self.create_record("Item", record)
+        for row in versions:
+            if row.get("versionState") == "current":
+                self.update_record("Item", {"id": row["id"], "versionState": "superseded"})
         return record
 
     def add_story(self, lineage: str, *, section: str | None = None, image_style: dict | None = None, version: int = 1) -> dict:
         metadata = {"imageStyle": image_style} if image_style else {}
         row = {"id": f"{lineage}-v{version}", "lineageId": lineage, "versionNumber": version, "versionState": "current", "type": "article", "section": section,
+               "slug": lineage, "status": "draft", "title": lineage, "bodyMarkus": "The story.", "versionCreatedAt": "2026-11-07T00:00:00Z",
                "tenantId": self.tenant_id, "metadata": json.dumps(metadata)}
         self.items.append(row)
         return row
@@ -92,15 +115,31 @@ class FakeBackend:
 
     # the calls the handlers make
     def list_by_index(self, index: str, key: str, **_: Any) -> list[dict]:
+        self.reads.append((index, key))
         if index == "knowledgeCorporaByRoleAndName":
             return copy.deepcopy(self.corpora)
         if index == "itemBySlug":
             return copy.deepcopy([row for row in self.items if row.get("slug") == key])
+        if index == "modelAttachmentsByOwnerRoleAndSortKey":
+            return copy.deepcopy([row for row in self.document_attachments if row.get("ownerId") == key])
+        if index == "itemsByParent":
+            return copy.deepcopy([row for row in self.items if row.get("parentLineageId") == key])
+        if index == "mediaAssetsByItemAndSortKey":
+            return copy.deepcopy([row for row in self.media_assets if row.get("itemId") == key])
         if index == "itemsByLineageAndVersion":
             return copy.deepcopy([row for row in self.items if row.get("lineageId") == key])
         raise AssertionError(f"unexpected index {index}")
 
+    def add_attachment(self, sha: str, *, role: str = "visual_example", media_type: str = "image/png", size: int = 200_000, filename: str | None = None, **fields: Any) -> str:
+        """An uploaded and completed picture, the way completeModelAttachmentUpload leaves it. Returns its attachment id."""
+        attachment_id = f"model-attachment-item-item-editorial-doctrine-visual-style-{role.replace('_', '-')}-{sha}"
+        self.attachments[attachment_id] = {"id": attachment_id, "ownerKind": "item", "ownerId": "item-editorial-doctrine-visual-style", "role": role, "sortKey": sha,
+                                           "filename": filename or f"{sha}.png", "mediaType": media_type, "byteSize": size, "sha256": sha, "status": "active", **fields}
+        return attachment_id
+
     def get_record(self, model: str, record_id: str) -> dict | None:
+        if model == "ModelAttachment":
+            return copy.deepcopy(self.attachments.get(record_id))
         return copy.deepcopy(self.sections.get(record_id)) if model == "NewsroomSection" else None
 
     def get_record_with_fields(self, model: str, record_id: str, extra_fields: str) -> dict | None:
@@ -114,7 +153,37 @@ class FakeBackend:
         self.writes.append(("create", model, copy.deepcopy(record)))
         self.items.append({**copy.deepcopy(record), "tenantId": self.tenant_id})
 
+    def upsert(self, model: str, record: dict) -> str:
+        assert model == "MediaAsset"
+        self.writes.append(("upsert", model, copy.deepcopy(record)))
+        self.media_assets = [row for row in self.media_assets if row["id"] != record["id"]] + [copy.deepcopy(record)]
+        return "created"
+
     def update_record(self, model: str, record: dict) -> None:
+        if model == "ModelAttachment":
+            self.writes.append(("update", model, copy.deepcopy(record)))
+            next(row for row in self.document_attachments if row["id"] == record["id"]).update(copy.deepcopy(record))
+            return
         assert model == "Item"
         self.writes.append(("update", model, copy.deepcopy(record)))
         next(row for row in self.items if row["id"] == record["id"]).update(copy.deepcopy(record))
+
+
+class FakeFiles:
+    """The S3 side of the fake: what the upload does with an attachment (it creates the ModelAttachment row) and what a download returns."""
+
+    def __init__(self, backend: FakeBackend):
+        self.backend = backend
+        self.downloads: list[str] = []
+
+    def put(self, attachment: dict, body: bytes) -> dict:
+        assert_upload_accepted(attachment)
+        assert_owner_exists(attachment, self.backend.items)
+        self.backend.document_attachments = [row for row in self.backend.document_attachments if row["id"] != attachment["id"]]   # the same slot again replaces its row
+        self.backend.document_attachments.append(copy.deepcopy(attachment))
+        self.backend.document_bodies[attachment["storagePath"]] = bytes(body)
+        return attachment
+
+    def get(self, attachment: dict) -> bytes | None:
+        self.downloads.append(attachment["ownerId"])
+        return self.backend.document_bodies.get(attachment["storagePath"])

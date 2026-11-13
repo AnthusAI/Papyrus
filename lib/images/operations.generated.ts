@@ -8,6 +8,7 @@ export type ImageOperationName =
   | "image_profile_diff"
   | "image_profile_save"
   | "image_profile_history"
+  | "image_profile_init"
   | "image_profile_example_add"
   | "image_profile_example_remove"
   | "image_capabilities"
@@ -32,6 +33,14 @@ export type ImageOperationName =
   | "guidelines_diff"
   | "guidelines_save"
   | "guidelines_history"
+  | "announcements_list"
+  | "announcements_show"
+  | "announcements_dry_run"
+  | "announcements_pause"
+  | "announcements_resume"
+  | "announcements_settings_show"
+  | "announcements_settings_set"
+  | "announcements_account_status"
 ;
 
 export type ImageErrorCode =
@@ -51,10 +60,12 @@ export type ImageErrorCode =
   | "capability_unsupported"
   | "provider_failed"
   | "provider_busy"
+  | "spend_ceiling_exceeded"
   | "batch_expired"
   | "stale_version"
   | "candidate_not_ready"
   | "candidate_closed"
+  | "settings_refused"
   | "unknown_kind"
   | "resolver_not_available"
   | "document_hash_mismatch"
@@ -184,10 +195,37 @@ export type ImageProfileHistoryResult = {
   nextToken?: string;
 };
 
+/** Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing. */
+export type ImageProfileInitInput = {
+  /** What the site's brand files say. Everything in it is optional. */
+  brand?: {
+    /** The publication's name. */
+    name?: string;
+    /** The brand colours, if known. */
+    palette?: {
+      name: string;
+      /** Like #1f2a44. */
+      hex: string;
+      token?: string;
+      role?: string;
+    }[];
+  };
+};
+
+export type ImageProfileInitResult = {
+  /** The visual style document: a full or partial profile (design section 5.2). */
+  document: Record<string, unknown>;
+  /** Pass this to image_profile_save when saving the draft. */
+  expectedCurrentVersionId: string;
+  /** What an editor still has to write. */
+  notes: string[];
+  profileExists: boolean;
+};
+
 /** Add an example or an avoid-this picture to the profile, as a new version. */
 export type ImageProfileExampleAddInput = {
-  /** The id of a picture already uploaded through the newsroom's upload step. */
-  uploadId: string;
+  /** The id of a picture already uploaded through the newsroom's upload step (PNG, JPEG or WebP, at most 10 MB). */
+  attachmentId: string;
   kind: "exemplar" | "negative";
   /** Why this picture is a good example, or what to avoid. */
   note: string;
@@ -205,11 +243,14 @@ export type ImageProfileExampleAddResult = {
   attachmentId: string;
   sha256: string;
   versionNumber: number;
+  imageType?: string;
 };
 
 /** Remove an example picture from the profile, as a new version. */
 export type ImageProfileExampleRemoveInput = {
   attachmentId: string;
+  /** Remove it from this image type only (or identity). Left out, it is removed from every list that has it. */
+  imageType?: string;
   /** Why, in plain words. It is recorded with who and when. */
   reason: string;
   /** The profile's current version id when you read it. */
@@ -218,6 +259,8 @@ export type ImageProfileExampleRemoveInput = {
 
 export type ImageProfileExampleRemoveResult = {
   versionNumber: number;
+  /** The image types (or identity) it was removed from. */
+  removedFrom?: string[];
 };
 
 /** Say which image models this site can use and whether spending is approved. */
@@ -227,6 +270,12 @@ export type ImageCapabilitiesResult = {
   configured: boolean;
   models: Record<string, unknown>[];
   approvedForSpend: boolean;
+  unreviewedMayPublish?: boolean;
+  spendCeilings?: {
+    perRoundUsd?: number | null;
+    perDayUsd?: number | null;
+  };
+  spentTodayUsd?: number;
 };
 
 /** Work out a starting brief and stock search from a Story's title and deck. */
@@ -262,11 +311,13 @@ export type ImageBriefDraftResult = {
 /** Show exactly what would be asked of the image model, and what it would cost, without making anything. */
 export type ImagePromptPreviewInput = {
   /** What the picture is for: a Story or a Reference. */
-  target: {
+  target?: {
     kind: "story" | "reference";
     /** The lineage id of the Story or Reference. */
     lineageId: string;
   };
+  /** A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from. */
+  sectionId?: string;
   /** Where the picture goes: the cover, inline in the body, or a social card. */
   use: "cover" | "inline" | "social";
   /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */
@@ -355,11 +406,13 @@ export type ImageSearchResult = {
 /** Make pictures from a brief in the publication's style. The pictures arrive later. */
 export type ImageGenerateInput = {
   /** What the picture is for: a Story or a Reference. */
-  target: {
+  target?: {
     kind: "story" | "reference";
     /** The lineage id of the Story or Reference. */
     lineageId: string;
   };
+  /** A section id; worked out from the Story when left out. With no target it is the only place the section layer comes from. */
+  sectionId?: string;
   /** Where the picture goes: the cover, inline in the body, or a social card. */
   use: "cover" | "inline" | "social";
   /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */
@@ -457,7 +510,7 @@ export type ImageRoundGetInput = {
 export type ImageRoundGetResult = {
   roundId: string;
   /** What the picture is for: a Story or a Reference. */
-  target: {
+  target?: {
     kind: "story" | "reference";
     /** The lineage id of the Story or Reference. */
     lineageId: string;
@@ -892,12 +945,213 @@ export type GuidelinesHistoryResult = {
   })[];
 };
 
+/** List the account's announcements, newest first, optionally one state. */
+export type AnnouncementsListInput = {
+  /** One state of an announcement. */
+  state?: "posting" | "posted" | "failed" | "blocked" | "dry_run" | "withdrawn";
+  /** How many to return; 50 when left out. */
+  limit?: number;
+};
+
+export type AnnouncementsListResult = {
+  announcements: ({
+    id: string;
+    accountId?: string;
+    storyLineageId?: string;
+    storyVersionNumber?: number;
+    /** One state of an announcement. */
+    state: "posting" | "posted" | "failed" | "blocked" | "dry_run" | "withdrawn";
+    /** The state in plain words, such as Dry run: not sent. */
+    label: string;
+    blockedReason?: string;
+    mode?: string;
+    link?: string;
+    weight?: number;
+    draftedBy?: string;
+    checks?: {
+      name: string;
+      passed: boolean;
+    }[];
+    postId?: string;
+    postedAt?: string;
+    /** Dollars Caducus charged on this announcement so far, as a decimal string. */
+    cost?: string;
+    attempts?: number;
+    error?: string;
+    history?: {
+      at: string;
+      by: string;
+      state: string;
+      note: string;
+    }[];
+    withdrawnBy?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  })[];
+};
+
+/** Show one Story's announcement: its row, its history, and the post text and checks kept in S3. */
+export type AnnouncementsShowInput = {
+  /** The lineage id of the Story. */
+  story: string;
+};
+
+export type AnnouncementsShowResult = {
+  announcement: {
+    id: string;
+    accountId?: string;
+    storyLineageId?: string;
+    storyVersionNumber?: number;
+    /** One state of an announcement. */
+    state: "posting" | "posted" | "failed" | "blocked" | "dry_run" | "withdrawn";
+    /** The state in plain words, such as Dry run: not sent. */
+    label: string;
+    blockedReason?: string;
+    mode?: string;
+    link?: string;
+    weight?: number;
+    draftedBy?: string;
+    checks?: {
+      name: string;
+      passed: boolean;
+    }[];
+    postId?: string;
+    postedAt?: string;
+    /** Dollars Caducus charged on this announcement so far, as a decimal string. */
+    cost?: string;
+    attempts?: number;
+    error?: string;
+    history?: {
+      at: string;
+      by: string;
+      state: string;
+      note: string;
+    }[];
+    withdrawnBy?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  };
+  /** The stored post: text, post, link, weight, model and every check's problems. */
+  document?: Record<string, unknown>;
+};
+
+/** Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything. */
+export type AnnouncementsDryRunInput = {
+  /** The lineage id of the Story. */
+  story: string;
+};
+
+export type AnnouncementsDryRunResult = {
+  lineageId: string;
+  eligible?: boolean;
+  reason?: string;
+  text?: string;
+  post: string;
+  link?: string;
+  weight: number;
+  checks?: Record<string, unknown>[];
+  passed: boolean;
+  failures?: string[];
+  sent: boolean;
+};
+
+/** Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused. */
+export type AnnouncementsPauseInput = Record<string, unknown>;
+
+export type AnnouncementsPauseResult = {
+  paused: boolean;
+  pausedBy?: string;
+  pausedAt?: string;
+  pauseReason?: string;
+};
+
+/** Resume announcements and announce the Stories that waited. */
+export type AnnouncementsResumeInput = Record<string, unknown>;
+
+export type AnnouncementsResumeResult = {
+  released: Record<string, unknown>[];
+  paused: boolean;
+};
+
+/** Show the site's announcement settings: mode, bar, Story types, sections, account, budget, prices and the pause. */
+export type AnnouncementsSettingsShowInput = Record<string, unknown>;
+
+export type AnnouncementsSettingsShowResult = {
+  settings: {
+    mode: "off" | "dry_run" | "on";
+    /** minStars, storyTypes and sections: what is announced. */
+    rules?: Record<string, unknown>;
+    /** Dollars for each X billing cycle. No default. */
+    budget?: number | null;
+    billingCycleDay?: number | null;
+    /** X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied. */
+    prices?: Record<string, unknown>;
+    labelConfirmed?: boolean;
+    /** paused, reason (budget, disconnected or manual), detail, by and at. */
+    pause?: Record<string, unknown>;
+  };
+  /** The X connection's status: connection, handle, accountId and refresh health. Never a secret. */
+  connection: Record<string, unknown>;
+};
+
+/** Change announcement settings. Every rule is checked and every problem listed; nothing is saved when any fails. */
+export type AnnouncementsSettingsSetInput = {
+  /** Off (default), Dry run (builds the post, sends nothing) or On. */
+  mode?: "off" | "dry_run" | "on";
+  /** The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars). */
+  minStars?: number;
+  /** Story types that are announced: article, post. References are never announced. */
+  storyTypes?: string[];
+  /** Limit to these sections. */
+  sections?: string[];
+  /** Dollars for each X billing cycle, such as 10.00. No default. */
+  budget?: string;
+  /** The day of the month your X billing cycle starts. */
+  billingCycleDay?: number;
+  /** X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it). */
+  prices?: Record<string, unknown>;
+  /** The account shows X's Automated label, managed by a person's account. */
+  labelConfirmed?: boolean;
+};
+
+export type AnnouncementsSettingsSetResult = {
+  settings: {
+    mode: "off" | "dry_run" | "on";
+    /** minStars, storyTypes and sections: what is announced. */
+    rules?: Record<string, unknown>;
+    /** Dollars for each X billing cycle. No default. */
+    budget?: number | null;
+    billingCycleDay?: number | null;
+    /** X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied. */
+    prices?: Record<string, unknown>;
+    labelConfirmed?: boolean;
+    /** paused, reason (budget, disconnected or manual), detail, by and at. */
+    pause?: Record<string, unknown>;
+  };
+  released: Record<string, unknown>[];
+};
+
+/** Show mode, pause, the cycle's spend against the budget, and the connected account. */
+export type AnnouncementsAccountStatusInput = Record<string, unknown>;
+
+export type AnnouncementsAccountStatusResult = {
+  mode: string;
+  paused: boolean;
+  accountId?: string;
+  accountHandle?: string;
+  /** For example $0.60 spent of $10.00 this cycle. */
+  standing?: string;
+  pauseReason?: string;
+  pricesAsOf?: string;
+};
+
 export interface ImageOperations {
   image_profile_get: { input: ImageProfileGetInput; result: ImageProfileGetResult };
   image_profile_resolve: { input: ImageProfileResolveInput; result: ImageProfileResolveResult };
   image_profile_diff: { input: ImageProfileDiffInput; result: ImageProfileDiffResult };
   image_profile_save: { input: ImageProfileSaveInput; result: ImageProfileSaveResult };
   image_profile_history: { input: ImageProfileHistoryInput; result: ImageProfileHistoryResult };
+  image_profile_init: { input: ImageProfileInitInput; result: ImageProfileInitResult };
   image_profile_example_add: { input: ImageProfileExampleAddInput; result: ImageProfileExampleAddResult };
   image_profile_example_remove: { input: ImageProfileExampleRemoveInput; result: ImageProfileExampleRemoveResult };
   image_capabilities: { input: ImageCapabilitiesInput; result: ImageCapabilitiesResult };
@@ -922,6 +1176,14 @@ export interface ImageOperations {
   guidelines_diff: { input: GuidelinesDiffInput; result: GuidelinesDiffResult };
   guidelines_save: { input: GuidelinesSaveInput; result: GuidelinesSaveResult };
   guidelines_history: { input: GuidelinesHistoryInput; result: GuidelinesHistoryResult };
+  announcements_list: { input: AnnouncementsListInput; result: AnnouncementsListResult };
+  announcements_show: { input: AnnouncementsShowInput; result: AnnouncementsShowResult };
+  announcements_dry_run: { input: AnnouncementsDryRunInput; result: AnnouncementsDryRunResult };
+  announcements_pause: { input: AnnouncementsPauseInput; result: AnnouncementsPauseResult };
+  announcements_resume: { input: AnnouncementsResumeInput; result: AnnouncementsResumeResult };
+  announcements_settings_show: { input: AnnouncementsSettingsShowInput; result: AnnouncementsSettingsShowResult };
+  announcements_settings_set: { input: AnnouncementsSettingsSetInput; result: AnnouncementsSettingsSetResult };
+  announcements_account_status: { input: AnnouncementsAccountStatusInput; result: AnnouncementsAccountStatusResult };
 }
 
 /** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */
@@ -931,6 +1193,7 @@ export const IMAGE_OPERATIONS = {
   image_profile_diff: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile diff" },
   image_profile_save: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images profile save" },
   image_profile_history: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile history" },
+  image_profile_init: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile init" },
   image_profile_example_add: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images profile example add" },
   image_profile_example_remove: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images profile example remove" },
   image_capabilities: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images capabilities" },
@@ -955,14 +1218,22 @@ export const IMAGE_OPERATIONS = {
   guidelines_diff: { effect: "read", agentAllowed: true, group: "guidelines", command: "papyrus guidelines diff" },
   guidelines_save: { effect: "write", agentAllowed: true, group: "guidelines", command: "papyrus guidelines save" },
   guidelines_history: { effect: "read", agentAllowed: true, group: "guidelines", command: "papyrus guidelines history" },
+  announcements_list: { effect: "read", agentAllowed: true, group: "announcements", command: "papyrus announcements list" },
+  announcements_show: { effect: "read", agentAllowed: true, group: "announcements", command: "papyrus announcements show" },
+  announcements_dry_run: { effect: "read", agentAllowed: true, group: "announcements", command: "papyrus announcements dry-run" },
+  announcements_pause: { effect: "write", agentAllowed: true, group: "announcements", command: "papyrus announcements pause" },
+  announcements_resume: { effect: "write", agentAllowed: true, group: "announcements", command: "papyrus announcements resume" },
+  announcements_settings_show: { effect: "read", agentAllowed: true, group: "announcements", command: "papyrus announcements settings show" },
+  announcements_settings_set: { effect: "write", agentAllowed: false, group: "announcements", command: "papyrus announcements settings set" },
+  announcements_account_status: { effect: "read", agentAllowed: true, group: "announcements", command: "papyrus announcements account status" },
 } as const;
 
-/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite. */
+/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements have no door yet (the console reads and writes their models directly). */
 export type ImageTransport = (request: {
   op: ImageOperationName;
   input: unknown;
   effect: "read" | "write" | "spend";
-  group: "images" | "guidelines";
+  group: "images" | "guidelines" | "announcements";
 }) => Promise<unknown>;
 
 export async function callImageOperation<Name extends ImageOperationName>(

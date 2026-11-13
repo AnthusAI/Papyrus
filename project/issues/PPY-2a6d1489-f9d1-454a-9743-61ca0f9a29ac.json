@@ -1,0 +1,28 @@
+{
+  "id": "PPY-2a6d1489-f9d1-454a-9743-61ca0f9a29ac",
+  "title": "A new deployment's account is seeded from a template, not a script",
+  "description": "```gherkin\nFeature: An account is seeded from a template, not a script\n\n  Scenario: One command seeds a new account\n    Given a new AWS account and a deployment repository\n    When a person applies the account baseline template once, giving the prefix, repository and budget name as parameters\n    Then the account has the GitHub OIDC provider, the plan, deploy, approval and service roles\n    And nothing in the template names AnthusAI, anth.us or another deployment's account\n    And no repository variable of any other repository is written\n\n  Scenario: The seed is the same template the pipeline later updates\n    Given a seeded account\n    When the template changes in Git\n    Then the pipeline updates the same stack and does not create a second one\n```",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7b18bc68-e1fd-4a16-818b-6d7f2364c659",
+      "author": "home",
+      "text": "Delivered 2026-11-11 (Papyrus PRs 1404, 1405, 1407, 1408, 1409). First real use: Humorus account pipeline run https://github.com/AnthusAI/Humorus/actions/runs/43117405856: roles applied with no approval, zone and budget imported (name servers and budget unchanged), SES created. docs/account-pipeline.md has the person-only list. Anthus imports (PPY-b5ddec) and the client-owned account (PPY-1f6e73) are still open design and dry-run work.",
+      "created_at": "2026-11-11T23:15:40.129139Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-11T20:36:48.970077Z",
+  "updated_at": "2026-11-11T23:15:41.138402Z",
+  "closed_at": "2026-11-11T23:15:41.138371Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

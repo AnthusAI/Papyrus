@@ -250,10 +250,11 @@ def corpus_ids_of(client: Any, corpus_keys: str | None) -> list[str]:
     keys = [key.strip() for key in (corpus_keys or "").split(",") if key.strip()]
     if keys:
         return [f"knowledge-corpus-{key}" for key in dict.fromkeys(keys)]
-    found = sorted({str(row["id"]) for row in client.list_records("KnowledgeCorpus") if row.get("id")})   # a handful of rows, the one read that is not an index partition
-    if not found:
-        raise Refusal("The site lists no corpus. Name one with --corpus-key.")
-    return found
+    from .editorial_context import hosted_publication
+    try:
+        return [hosted_publication(client)["corpusId"]]   # the site's one canonical publication corpus, read through its role index (the corpus `reporting create` uses)
+    except ValueError as missing:
+        raise Refusal(f"{missing} Name one with --corpus-key.") from None
 
 
 def command(argv: list[str], *, client=None, out: TextIO | None = None, fetch: Callable[[str], tuple[str | None, str | None]] | None = None,

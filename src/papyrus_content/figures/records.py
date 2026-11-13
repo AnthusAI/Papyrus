@@ -34,7 +34,13 @@ KIND = "design-system"
 SCHEMA_VERSION = 1
 MAPPING_FILE = "mapping.json"
 SETTINGS_FILE = "settings.json"        # in a design system folder only: the site's figure settings, kept in the document and not in `files`
-SETTINGS = {"requireDarkFigures": "refuse to save a figure that has no dark picture"}
+SETTINGS = {
+    "requireDarkFigures": "refuse to save a figure that has no dark picture",
+    "illustrationRequiredTypes": "the Story types whose checklist needs a stored cover before publishing (a list; articles when unset)",
+    "publishRequiresRating": "opt in to requiring an editor's star rating (papyrus stories set-stars) before a Story publishes or republishes (off when unset)",
+    "illustrationRequireApprovalCredit": "opt in to requiring a recorded cover approval (coverImage approvedBy) and an 'Approved by NAME' line on the cover's image (off when unset)",
+}
+LIST_SETTINGS = ("illustrationRequiredTypes",)   # the other settings are true or false
 TOP_LEVEL = ("schemaVersion", "publication", "files", "media", "settings")
 
 
@@ -102,6 +108,9 @@ def validate_design_system_document(document: Any, scope: str = "publication") -
         for key, value in settings.items():
             if key not in SETTINGS:
                 problems.append(Problem(f"settings.{key}", f"is not a figure setting; the settings are {', '.join(SETTINGS)}", "unknown_field"))
+            elif key in LIST_SETTINGS:
+                if not (isinstance(value, list) and all(isinstance(item, str) and item.strip() for item in value)):
+                    problems.append(Problem(f"settings.{key}", "must be a list of Story type names, for example [\"article\", \"post\"]"))
             elif not isinstance(value, bool):
                 problems.append(Problem(f"settings.{key}", "must be true or false"))
     return problems
