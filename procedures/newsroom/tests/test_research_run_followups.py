@@ -23,7 +23,7 @@ from test_research_assignments_worker import Backend, Research, assignment, run 
 from test_story_reporting import LINEAGE, NOW, FakeAuthoringClient, client_with_one_story  # noqa: E402
 
 
-# --- 1. the intake writes under a temporary directory when the root cannot be written ------------------------------------------------
+# --- 1. the intake writes under PAPYRUS_RUNS_DIR; an unwritable root without it is an error ------------------------------------------------
 
 @pytest.fixture
 def unwritable_root(tmp_path, monkeypatch):
@@ -31,16 +31,22 @@ def unwritable_root(tmp_path, monkeypatch):
     root.mkdir()
     root.chmod(stat.S_IRUSR | stat.S_IXUSR)
     monkeypatch.setattr(aw, "PAPYRUS_ROOT", root)
-    monkeypatch.setattr(aw.tempfile, "gettempdir", lambda: str(tmp_path / "temporary"))
-    (tmp_path / "temporary").mkdir()
+    monkeypatch.delenv("PAPYRUS_RUNS_DIR", raising=False)
     yield root
     root.chmod(stat.S_IRWXU)
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root can write anywhere")
-def test_a_run_directory_falls_back_to_the_temporary_directory(unwritable_root, tmp_path):
+def test_an_unwritable_root_is_an_error_that_names_the_setting(unwritable_root):
+    with pytest.raises(OSError, match="PAPYRUS_RUNS_DIR"):
+        aw.writable_run_dir("run-1")
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can write anywhere")
+def test_the_configured_directory_is_used_when_the_root_cannot_be_written(unwritable_root, tmp_path, monkeypatch):
+    monkeypatch.setenv("PAPYRUS_RUNS_DIR", str(tmp_path / "configured"))
     run_dir = aw.writable_run_dir("run-1")
-    assert run_dir == tmp_path / "temporary" / ".papyrus-runs" / "run-1" and run_dir.is_dir()
+    assert run_dir == tmp_path / "configured" / "run-1" and run_dir.is_dir()
 
 
 def test_a_run_directory_stays_under_the_root_when_it_can_be_written(tmp_path, monkeypatch):
@@ -49,7 +55,8 @@ def test_a_run_directory_stays_under_the_root_when_it_can_be_written(tmp_path, m
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root can write anywhere")
-def test_the_intake_writes_its_catalog_under_the_temporary_directory(unwritable_root, tmp_path):
+def test_the_intake_writes_its_catalog_under_the_configured_directory(unwritable_root, tmp_path, monkeypatch):
+    monkeypatch.setenv("PAPYRUS_RUNS_DIR", str(tmp_path / "configured"))
     packet = {"summary": "Nothing found.", "proposedReferences": []}
     entry = {"assignment": {"id": "assignment-1"}, "message": {"id": "message-1", "createdAt": "2026-11-03T12:00:00Z"}, "packet": packet}
     client = mock.Mock()
@@ -57,7 +64,7 @@ def test_the_intake_writes_its_catalog_under_the_temporary_directory(unwritable_
     client.list_records.return_value = []
     with mock.patch.object(aw, "load_assignment_research_packet_entries", return_value=[entry]):
         result = aw.intake_research_packet_proposals(client, {"assignment": "assignment-1", "corpus-key": "example", "dry-run": True})
-    assert result["catalogPath"].startswith(str(tmp_path / "temporary")) and Path(result["catalogPath"]).is_file()
+    assert result["catalogPath"].startswith(str(tmp_path / "configured")) and Path(result["catalogPath"]).is_file()
 
 
 # --- 2. process-proposals --cited-only finishes the job ------------------------------------------------------------------------------

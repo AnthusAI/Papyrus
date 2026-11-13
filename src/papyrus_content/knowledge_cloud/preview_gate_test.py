@@ -35,7 +35,7 @@ def plan(**kinds):
         for kind, count in kinds.items()
         for n in range(count)
     ]
-    return {"counts": {}, "pages": pages, "retired": []}
+    return {"counts": {}, "pages": pages}
 
 
 def runs(*counts_by_run):
@@ -46,9 +46,8 @@ def test_a_plans_series_count_what_it_would_write_by_kind_and_leave_unchanged_pa
     sync = plan(maker=2, tool=1)
     sync["pages"].append({"action": "unchanged", "section": "wiki", "slug": "x", "kind": "entity", "entityKind": "maker", "title": "X"})
     sync["pages"].append({"action": "update", "section": "wiki", "slug": "y", "kind": "entity", "entityKind": "tool", "title": "Y"})
-    sync["retired"] = [{"section": "wiki", "slug": "gone", "kind": "entity", "live": True, "title": "Gone", "entityKind": "personauthor"}]
     assert series_of(sync) == {
-        "entity/maker:create": 2, "entity/personauthor:retire": 1, "entity/tool:create": 1, "entity/tool:update": 1, TOTAL: 5,
+        "entity/maker:create": 2, "entity/tool:create": 1, "entity/tool:update": 1, TOTAL: 4,
     }
     assert series_of(plan()) == {}
 

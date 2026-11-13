@@ -4,6 +4,7 @@ Operating manual for any coding agent (Codex, Cursor, Claude Code) or person wor
 
 ## Read this first
 
+- **Using the `papyrus` CLI (agents included):** read [docs/agent-cli-guide.md](docs/agent-cli-guide.md) or run `papyrus guide` (`papyrus guide --list` lists the tasks). It has task-first recipes with exact syntax, the two lanes, which commands write by default, and a troubleshooting table. `papyrus <group> <command> --help` prints a command's real usage. Never guess a flag or invent a relation name.
 - This is the **engine**. Site repositories (Shipped-web, Distinctive-web, Pilobol.us, and so on) hold only site settings; fix the engine here, release it, bump the pin there.
 - Work in a **git worktree**, branched from `origin/develop`. The shared checkout `~/Projects/Papyrus` is used by several sessions: never switch its branch and **never `git stash`**.
 - Every task lives on the **Kanbus board** (project key `PPY`). Create or update the issue before coding.
@@ -17,10 +18,12 @@ Operating manual for any coding agent (Codex, Cursor, Claude Code) or person wor
 | --- | --- | --- |
 | Standard Markus projector and front end | `src/papyrus_content/markus_renderer/`, `src/papyrus_content/project_commands.py`, `web/projection.json` in a site | [building a static site](docs/building-a-papyrus-static-site.md), [standard site](docs/standard-site.md), [markus markup](docs/markus-content-markup.md) |
 | CMS backend and console | `amplify/` (data, auth, storage, `functions/`, `publication/`), `app/newsroom`, `components/` | [how Papyrus works](docs/how-papyrus-works.md), [newsroom operations](docs/newsroom-operations.md), [how a publish flows](docs/how-a-publish-flows.md) |
-| Plugins | `amplify/plugins/{signup,newsletter,reader-steering,home-page,alexa}`, registry in `amplify/plugins/registry.ts` | [plugins](docs/plugins.md) |
+| Plugins | `amplify/plugins/{signup,newsletter,notifications,reader-steering,home-page,alexa}`, registry in `amplify/plugins/registry.ts` | [plugins](docs/plugins.md) |
 | Proposals queue (core to every site; for reader-filed, concept, rename and merge proposals, not generated story ideas, which are Items at the `idea` stage): `Proposal` model, `fileProposal`, `transitionProposal`, `editProposal`, `listStoryDrafts`, Administration Proposals panel | `amplify/functions/proposal-actions`, `components/proposals-panel.tsx`, `lib/proposals-admin.ts`, `papyrus proposals` | [reader steering](docs/reader-steering.md#proposals) |
 | Reader steering: votes on any subject, flags, ratings, comments, votes on and public files for Proposals | `amplify/plugins/reader-steering`, `src/papyrus_content/reader_steering/`, `papyrus reader`, `papyrus proposals` | [reader steering](docs/reader-steering.md) |
 | Newsletter: double opt-in, clean `/newsletter/*` pages, branded email theme, roundups, alerts | `amplify/plugins/newsletter`, `app/api/newsletter/*`, `infra/newsletter/` | [newsletter](docs/newsletter.md) |
+| Notifications (Caducus in the site's stack): readers subscribe on the site's pages and each published story is mailed to them | `amplify/plugins/notifications`, `src/papyrus_content/notifications/`, `app/api/notifications/*`, `src/papyrus_content/projection/standard/notifications_pages.py` (reader pages), `src/papyrus_content/publish_alerts.py` | [notifications](docs/notifications.md) |
+| Announcements (a qualifying Story posted once on the publication's X account, through Caducus; dry run, budget, pause, audit) | `src/papyrus_content/announcements/`, `papyrus announcements`, models `Announcement`, `AnnouncementSettings`, `AnnouncementSpend` | [announcements](docs/announcements.md) |
 | Edge | `infra/edge/` (`s3-projection-cms.yaml`: NotFoundPage Lambda@Edge, `/api/*` pass-through, #560) | [edge README](infra/edge/README.md), [site hosting](docs/site-hosting.md) |
 | App shell (Amplify apps, roles, domains per site) | `infra/amplify-app-shell/` | [app-shell README](infra/amplify-app-shell/README.md), [site hosting](docs/site-hosting.md) |
 | Monitoring and the router | `src/papyrus_content/monitoring*.py`, `infra/monitoring/` | [monitoring in the cloud](docs/monitoring-cloud.md), [local HN worker](docs/monitoring-hn-pilot.md) |

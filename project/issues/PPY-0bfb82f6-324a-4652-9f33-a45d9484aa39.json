@@ -1,0 +1,20 @@
+{
+  "id": "PPY-0bfb82f6-324a-4652-9f33-a45d9484aa39",
+  "title": "Console links: papyrus links and console rows (agents hand the editor a link to the item)",
+  "description": "Task A route table in docs/console-links.md. papyrus links, console rows on stories create/save-version/show and references show, console_url in /.well-known/papyrus-site.json. Branch feat/console-links.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-10T01:08:42.777695Z",
+  "updated_at": "2026-11-10T01:08:42.777981Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

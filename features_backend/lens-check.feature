@@ -3,8 +3,8 @@ Feature: papyrus stories lens-check reports what code can check about a Story fo
   command reads one Story's current version and, when it is given the site's web directory, the site's settings. It reads nothing else
   from the site, writes nothing, calls no model and shows no number Papyrus made up. Every check ends in one of five states: it looks
   fine, it needs a look, it is a problem, it could not be checked or it does not apply. Each finding is one plain sentence with the
-  evidence behind it. Three problems must be fixed before a lens step can close as done, and the command says so clearly: an image with
-  no alt text, a third-party image with no credit, and a Markdown copy that differs from the Story's source. A check that could not be
+  evidence behind it. Four problems must be fixed before a lens step can close as done, and the command says so clearly: an image with
+  no alt text, a third-party image with no credit, a video with no title or no credit, and a Markdown copy that differs from the Story's source. A check that could not be
   made is never a pass: it says what Papyrus could not tell and why. The preview the checks judge is built by the same function the
   projector uses for the page's head, so a check never judges a stand-in.
 
@@ -105,15 +105,41 @@ Feature: papyrus stories lens-check reports what code can check about a Story fo
     When the lens checks run
     Then the finding "P10" is a "problem"
 
-  Scenario: A local picture with no record of where it came from could not be checked
+  Scenario: A local picture with no credit and no third-party origin is ours
     Given a Story with this body
       """
       ::image{src="assets/chart.png" alt="A chart of costs"}
       """
     When the lens checks run
-    Then the finding "P10" is a "not_assessable"
-    And the finding "P10" says "Papyrus cannot tell where this picture came from"
+    Then the finding "P10" is a "pass"
+    And the finding "C6" is a "pass"
     And no lens step is blocked
+
+  Scenario: A local picture with a credit passes
+    Given a Story with this body
+      """
+      ::image{src="assets/chart.png" alt="A chart of costs" credit="Image: Ana Example, CC BY 4.0"}
+      """
+    When the lens checks run
+    Then the finding "P10" is a "pass"
+    And no lens step is blocked
+
+  Scenario: A Reference's picture with no credit is a problem
+    Given a Story with the front matter
+      """
+      title: Board refuses
+      seededImage:
+        url: /assets/harbour/seeded.jpg
+      """
+    And the Story body
+      """
+      ::image{src="/assets/harbour/seeded.jpg" alt="A harbour"}
+
+      The harbour.
+      """
+    When the lens checks run
+    Then the finding "P10" is a "problem"
+    And the finding "C6" is a "problem"
 
   Scenario: The Markdown copy is the Story's source
     Given a Story with this body
@@ -481,3 +507,138 @@ Feature: papyrus stories lens-check reports what code can check about a Story fo
       """
     When I run "stories lens-check" with "--story story-1"
     Then the command read only the Story's own versions
+
+  # The share picture (check C4). A built address is not proof of a file: the check fetches the picture it would name in og:image, reads what came
+  # back, and says what it saw. It never claims what a platform will do; WebP and AVIF are a compatibility risk, not a proven failure.
+  Scenario Outline: The share picture is fetched and judged by what came back
+    Given the site is live with a public address
+    And a Story with the front matter
+      """
+      title: Board refuses
+      summary: The board refused the merger on March 3.
+      date: 2026-03-03
+      author: Dana Reyes
+      image: /assets/share.img
+      imageAlt: A harbour at dusk
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    And the share picture answers with status <status>, type "<type>" and a <format> of <width> by <height> pixels
+    When the lens checks run
+    Then the finding "C4" is a "<state>"
+    And the finding "C4" says "<words>"
+
+    Examples:
+      | status | type       | format | width | height | state   | words                                  |
+      | 200    | image/jpeg | jpeg   | 1200  | 630    | pass    | https://example.test/assets/share.img  |
+      | 200    | image/png  | png    | 1200  | 630    | pass    | 1200x630                               |
+      | 200    | image/webp | webp   | 912   | 572    | concern | JPEG or PNG                            |
+      | 200    | image/jpeg | jpeg   | 300   | 157    | concern | smaller                                |
+      | 200    | image/jpeg | png    | 1200  | 630    | concern | does not match                         |
+      | 404    | image/jpeg | jpeg   | 1200  | 630    | concern | status 404                             |
+
+  Scenario: A share picture that cannot be requested is not verified, not passed
+    Given the site is live with a public address
+    And a Story with the front matter
+      """
+      title: Board refuses
+      image: /assets/share.jpg
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    And the share picture cannot be requested
+    When the lens checks run
+    Then the finding "C1" is a "pass"
+    And the finding "C4" is a "not_assessable"
+    And the finding "C4" says "not verified"
+
+  Scenario: Without a fetch the picture is not verified even though its address can be built
+    Given the site is live with a public address
+    And a Story with the front matter
+      """
+      title: Board refuses
+      image: /assets/share.jpg
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    When the lens checks run
+    Then the finding "C1" is a "pass"
+    And the finding "C4" is a "not_assessable"
+
+  Scenario: A Story with no picture and a site with no default is flagged
+    Given the site is live with a public address
+    And a Story with this body
+      """
+      The board refused the merger.
+      """
+    And the share picture answers with status 200, type "image/jpeg" and a jpeg of 1200 by 630 pixels
+    When the lens checks run
+    Then the finding "C4" is a "concern"
+    And the finding "C4" says "no picture"
+
+  Scenario: A picture that is not at an absolute HTTPS address is flagged
+    Given the site is live with a public address
+    And a Story with the front matter
+      """
+      title: Board refuses
+      image: http://cdn.example.test/share.jpg
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    And the share picture answers with status 200, type "image/jpeg" and a jpeg of 1200 by 630 pixels
+    When the lens checks run
+    Then the finding "C4" is a "concern"
+    And the finding "C4" says "absolute HTTPS"
+
+  Scenario: The finding carries the line for the social review note
+    Given the site is live with a public address
+    And a Story with the front matter
+      """
+      title: Board refuses
+      image: /assets/share.webp
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    And the share picture answers with status 200, type "image/webp" and a webp of 912 by 572 pixels
+    When the lens checks run
+    Then the finding "C4" says "Record this in the social review note: Share picture https://example.test/assets/share.webp"
+    And the finding "C4" says "912x572"
+
+  Scenario: A dek that differs from the blurb is expected and raises nothing
+    Given a Story with the front matter
+      """
+      title: Board refuses the merger
+      dek: Directors said the price undervalued the company.
+      blurb: Acme Corp's board refused Beta Ltd's merger offer on Tuesday, saying the price undervalued the company.
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    When the lens checks run
+    Then the finding "P2" is a "pass"
+
+  Scenario: A dek that is a verbatim copy of the blurb is a concern
+    Given a Story with the front matter
+      """
+      title: Board refuses the merger
+      dek: The board refused the merger on Tuesday.
+      blurb: The board refused the merger on Tuesday.
+      """
+    And the Story body
+      """
+      The board refused the merger.
+      """
+    When the lens checks run
+    Then the finding "P2" is a "concern"
+    And the finding "P2" says "copy of the blurb"

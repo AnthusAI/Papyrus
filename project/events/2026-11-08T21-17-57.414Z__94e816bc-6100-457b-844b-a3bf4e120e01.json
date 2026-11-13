@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "94e816bc-6100-457b-844b-a3bf4e120e01",
+  "issue_id": "PPY-fdbbd71b-20b0-496d-af0b-0bf7dbcb89b0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:17:57.414Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Shared-tier sign-in: one Cognito pool, one shared Google client, one newsroom host",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

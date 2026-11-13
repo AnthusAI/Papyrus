@@ -3,7 +3,7 @@
   "title": "Spike (2 days): what Prospectus must add before a shared-tier site can be sold with no human step",
   "description": "Outcome: Answer, with the Prospectus session (tell it before anything merges there; its approval is needed for Prospectus changes), what Prospectus offers today and what it must add. Read so far (Prospectus develop 8b8e6b8, 2026-11-07): products are a reviewed file per site (accounts/papyrus-sites.json: one Cognito client, issuer and review id per Papyrus site); billing lines are per product per account with interval plans and \"pricing out of scope\" (docs/BILLING.md); Stripe is not built; billing \"never grants, disables or suspends an entitlement\" (no automatic suspension); the weekly quota with check, usage and reservation routes is built (docs/QUOTA.md); cost accounting in microdollars with per-deployment attribution and a split of shared resources by reported usage is agreed but not built (docs/COST_ACCOUNTING.md); lifecycle events (kanbus-6efecd) are a wait. Questions: (1) one \"papyrus\" product with one deployment per site instead of a product per site? (2) usage-priced plans and how metered usage becomes invoice lines; (3) an event when a payment fails and when an account cancels, and whether a past-due account is suspended automatically (owner decision); (4) does the per-deployment cost ledger accept Papyrus's daily per-tenant usage report for shared resources; (5) pairwise reader identity per site when every site shares one product. Output: a list of Prospectus issues (kanbus ids) with owners, and an update to the Papyrus wait task PPY-a1e75a.\n\nTouches (verified at origin/develop 23fabe1d): Read-only: the Prospectus repository (develop) docs/BILLING.md, docs/QUOTA.md, docs/COST_ACCOUNTING.md, docs/ARCHITECTURE.md, accounts/papyrus-sites.json; Papyrus lib/tenant-keys.ts (tenantIdForProspectusAccount), lib/prospectus-tenant.ts.\n\nAcceptance (Gherkin feature file: none (spike); produces the inputs for features_backend/tenant-provisioning.feature):\nScenario: Every Prospectus dependency of the shared tier is named\n    Given the five questions above\n    When the spike closes\n    Then each has an answer and, where Prospectus must change, a kanbus issue id\n\nDependencies: blocked by nothing. Blocks PPY-70a429, PPY-2321aa, PPY-d7274f, PPY-3fd951, PPY-5219fc. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-a1e75a.\n\nTesting: None (reading and conversation).\nRollout: None.\nRisk and mitigation: Risk: Papyrus builds provisioning against a Prospectus contract that changes. Mitigation: every Papyrus task that calls Prospectus waits on a named, deployed Prospectus route (same rule as PPY-a1e75a).\n\nReleasable on its own: not applicable (spike).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -18,10 +18,32 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6662eae4-3256-4f29-9a50-caf9b5c9c3c9",
+      "author": "home",
+      "text": "Prospectus session answered (2026-11-08, checked on Prospectus develop and main). (1) Products: no single papyrus product with deployments today; each site is its own product papyrus-<site> with its own Cognito pool/client/compute role, a reviewed entry in accounts/papyrus-sites.json capped at 40 (5 used). No self-serve provisioning: account creation grants only the caller's own product; staff can toggle a product for an account from the CRM but no product can via API; membership needs an already-enrolled Person, no invite by email. Open Prospectus cards: kanbus-59284c (provisioning/invite API), kanbus-4c99c6, kanbus-b09c91, kanbus-db57cb. One papyrus product with API-created tenant deployments held as data would be a NEW model needing Ryan's direction and its own security review. (2) Lifecycle events: none published; kanbus-6efecd (entitlement.changed) is open. Billing never changes access by design (docs/BILLING.md decision 7, kanbus-8e3174 no automatic access changes); past-due only creates a CRM follow-up. Our '14 days past due then read-only' rule contradicts that decision: Ryan must change it first. Stripe not built; invoice/payment ledger built but off. (3) Metering: the weekly quota service (docs/QUOTA.md) is live for Babulus only. docs/COST_ACCOUNTING.md (merged 2026-11-06, epic kanbus-bb0b6c) is design only: real-dollar private cost per Account/app/deployment/category/day, usage batched about once a minute to an SQS queue via a shared sender library, every AWS resource tagged anthus:app / anthus:account (Account UUID or shared) / anthus:deployment, daily Cost Explorer import, quota drawn against real cost (weekly budget = plan monthly amount / 4). Correction: billing is NOT usage-based today (plan per deployment; quota limits usage; nothing charges for overage). Usage billing is a new commercial decision. Ask for PPY-3fd951: use namespaced item kinds (openai.tokens.input, jev.tokens), name the tenant by Prospectus Account UUID plus a deployment id, tag shared multi-tenant resources anthus:account=shared. Spike conclusion: Prospectus needs (a) API-created deployments of one papyrus product, (b) lifecycle events (kanbus-6efecd), (c) Ryan's decision on automatic access changes from billing, (d) usage billing beyond quota, (e) the cost accounting build (kanbus-bb0b6c).",
+      "created_at": "2026-11-08T21:08:00.795257Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "8badacaa-2918-4067-b40e-5870a7ad4ce7",
+      "author": "home",
+      "text": "Answers from the Prospectus session (2026-11-08): each site today is product 'papyrus-<site>' with its own pool, client and compute role in accounts/papyrus-sites.json (cap about 40); no self-serve provisioning API; no invite by email (kanbus-59284c, kanbus-4c99c6, kanbus-b09c91, kanbus-db57cb); no lifecycle events (kanbus-6efecd); billing is a plan per deployment, not usage; the weekly quota service is live for Babulus only; cost accounting is designed (docs/COST_ACCOUNTING.md, epic kanbus-bb0b6c: private real-dollar cost per Account/app/deployment/category/day, usage batched to an SQS queue by a shared sender library, anthus:app/anthus:account/anthus:deployment tags, daily Cost Explorer import) and Ryan said build it and test it on our sites and the design partner's three new sites. Ryan decided (2026-11-08): one 'papyrus' product with tenant deployments created by API as data (question 1 answered yes); the lifecycle rule is accepted (question 3); overage billing is wanted. Filed: PPY-966ef5, PPY-6cb44b, PPY-8a3c6a, PPY-25e0d7. Remaining open: question 5 (pairwise reader subjects per deployment).",
+      "created_at": "2026-11-08T21:19:02.343508Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "2c02328e-5b86-4c08-b110-1ceb4552762d",
+      "author": "home",
+      "text": "Answered 2026-11-08 from the Prospectus board (develop a329ee1), so this spike closes:\n(1) One papyrus product with a deployment per site: yes, epic kanbus-b770c2 (kanbus-271b4a records and API; dedicated sites keep the per-site registry).\n(2) Usage-priced plans: the quota now runs on real cost in microdollars, weekly budget = monthly amount / 4 (kanbus-c7be53, merged); usage beyond the quota has no Prospectus design yet (Papyrus PPY-8a3c6a, off the M7 path).\n(3) Payment-failed, past-due and cancellation events and automatic access change: yes; decision 7 superseded in Prospectus docs/BILLING.md; standing derived (kanbus-b19d5a) and published through kanbus-6efecd.\n(4) Shared-resource split by Papyrus's per-tenant usage: yes, kanbus-f45f7f (one papyrus queue, ledger checks deployment ownership) on top of the merged ledger kanbus-6efec6.\n(5) Pairwise reader identity per site with one product: yes, reader subjects become pairwise per deployment (kanbus-3e5e82).\nRemaining asks moved to PPY-966ef5: deployment.changed event, changed-since list cursor, single-writer rules for deployments and hostnames.",
+      "created_at": "2026-11-09T00:20:34.709700Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:49:37.935833Z",
-  "updated_at": "2026-11-08T18:49:49.814065Z",
-  "closed_at": null,
+  "updated_at": "2026-11-09T00:20:34.803214Z",
+  "closed_at": "2026-11-09T00:20:34.803187Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

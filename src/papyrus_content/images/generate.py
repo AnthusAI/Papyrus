@@ -21,6 +21,7 @@ SKILL = REPO_ROOT / "skills" / "image-work" / "SKILL.md"
 DOCS = REPO_ROOT / "docs" / "images.md"
 
 SOURCE = "src/papyrus_content/images/operations.py"
+IMAGE_OPERATIONS = tuple(item for item in OPERATIONS if item.group == "images")   # the skill and docs/images.md describe pictures; guidelines are in the CLI guide
 BEGIN, END = "<!-- generated:image-operations -->", "<!-- /generated:image-operations -->"
 
 SKILL_TEMPLATE = f"""---
@@ -110,9 +111,11 @@ def cli_command(item: Operation) -> dict:
             flags.append(entry)
         # other objects are given with --input-file
     words = " ".join(item.cli)
-    parts = [f"papyrus images {words}"] + [f"<{kebab(field)}>" if field in required else f"[{kebab(field)}]" for field in item.positional]
+    parts = [f"papyrus {item.group} {words}"] + [f"<{kebab(field)}>" if field in required else f"[{kebab(field)}]" for field in item.positional]
     if item.file_field:
         parts.append("--file PATH")
+    if item.picture_field:
+        parts.append("[--file PICTURE]")
     seen_target = False
     for entry in flags:
         shown = {"string": "TEXT", "integer": "N", "boolean": "", "array": "TEXT ..."}.get(entry["kind"], "ID")
@@ -131,8 +134,8 @@ def cli_command(item: Operation) -> dict:
     parts.append("[--input-file PATH]")
     if item.effect != "read":
         parts.append("[--dry-run]")
-    return {"op": item.name, "words": list(item.cli), "summary": item.summary, "effect": item.effect, "agentAllowed": item.agent_allowed,
-            "usage": " ".join(parts), "positional": list(item.positional), "file": item.file_field, "flags": flags}
+    return {"op": item.name, "group": item.group, "words": list(item.cli), "summary": item.summary, "effect": item.effect, "agentAllowed": item.agent_allowed,
+            "usage": " ".join(parts), "positional": list(item.positional), "file": item.file_field, "picture": item.picture_field, "flags": flags}
 
 
 def render_cli() -> str:
@@ -203,13 +206,16 @@ def render_ts() -> str:
     out += ["}", "", "/** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */",
             "export const IMAGE_OPERATIONS = {"]
     for item in OPERATIONS:
-        out.append(f"  {item.name}: {{ effect: {json.dumps(item.effect)}, agentAllowed: {json.dumps(item.agent_allowed)}, command: {json.dumps(item.command)} }},")
+        out.append(f"  {item.name}: {{ effect: {json.dumps(item.effect)}, agentAllowed: {json.dumps(item.agent_allowed)}, group: {json.dumps(item.group)}, "
+                   f"command: {json.dumps(item.command)} }},")
     out += ["} as const;", "",
-            "export type ImageTransport = (request: { op: ImageOperationName; input: unknown; effect: \"read\" | \"write\" | \"spend\" }) => Promise<unknown>;", "",
+            "/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements have no door yet (the console reads and writes their models directly). */",
+            "export type ImageTransport = (request: {", "  op: ImageOperationName;", "  input: unknown;", "  effect: \"read\" | \"write\" | \"spend\";",
+            "  group: \"images\" | \"guidelines\" | \"announcements\";", "}) => Promise<unknown>;", "",
             "export async function callImageOperation<Name extends ImageOperationName>(",
             "  name: Name,", "  input: ImageOperations[Name][\"input\"],", "  send: ImageTransport,",
             "): Promise<ImageEnvelope<ImageOperations[Name][\"result\"]>> {",
-            "  const answer = await send({ op: name, input, effect: IMAGE_OPERATIONS[name].effect });",
+            "  const answer = await send({ op: name, input, effect: IMAGE_OPERATIONS[name].effect, group: IMAGE_OPERATIONS[name].group });",
             "  return answer as ImageEnvelope<ImageOperations[Name][\"result\"]>;", "}", ""]
     return "\n".join(out)
 
@@ -227,7 +233,7 @@ def skill_block() -> str:
     lines = [f"<!-- Generated from {SOURCE}. Do not edit by hand; run scripts/generate-image-operations.py. -->", "", "## Reference: the operations", "",
              "Each operation is a command and a tool with the same input and the same JSON result. A person-only operation returns `human_required` to an agent.", "",
              "| Operation (MCP tool) | Command | What it does | Agent may call | Errors it can return |", "| --- | --- | --- | --- | --- |"]
-    for item in OPERATIONS:
+    for item in IMAGE_OPERATIONS:
         errors = ", ".join(f"`{code}`" for code in item.errors) or "only the common ones"
         lines.append(f"| `{item.name}` | `{item.command}` | {cell(item.summary)} | {agent_words(item)} | {errors} |")
     lines += ["", f"Every operation may also return: {', '.join(f'`{code}`' for code in COMMON_ERRORS)}.", "", "### Every result", "",
@@ -255,7 +261,7 @@ def schema_table(schema: dict) -> list[str]:
 def docs_block() -> str:
     lines = [f"<!-- Generated from {SOURCE}. Do not edit by hand; run scripts/generate-image-operations.py. -->", "", "## Operations", "",
              "| Operation (MCP tool) | Command | Effect | What it does |", "| --- | --- | --- | --- |"]
-    for item in OPERATIONS:
+    for item in IMAGE_OPERATIONS:
         lines.append(f"| [`{item.name}`](#{item.name.replace('_', '-')}) | `{item.command}` | {item.effect} | {cell(item.summary)} |")
     lines += ["", "Effect: `read` changes nothing; `write` changes records; `spend` asks an image provider to make something, which costs money and only works when the "
               "site's image generation is configured and approved. Every operation needs an editor or admin of the site; readers get none.", "",
@@ -266,7 +272,7 @@ def docs_block() -> str:
               "prints it back as `{\"dryRun\": true, \"input\": ...}` in the result without calling anything. `--input-file PATH` gives the whole input as JSON; flags override it. "
               "A command is run as a person unless `PAPYRUS_ACTOR_KIND=agent` is set; an agent may not call person-only operations and gets one picture, not a set.", "",
               f"Every operation may return {', '.join(f'`{code}`' for code in COMMON_ERRORS)}.", "", *error_table(), ""]
-    for item in OPERATIONS:
+    for item in IMAGE_OPERATIONS:
         lines += [f"## {item.name}", "", item.summary, "", f"- Command: `{item.command}`", f"- MCP tool: `{item.name}`", f"- Effect: {item.effect}",
                   f"- Agent may call: {agent_words(item)}"]
         if item.notes:

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "a3ff0618-dc56-4288-8f03-a8d448e9f693",
+  "issue_id": "PPY-46635e53-2ba7-4791-ab0a-47180a1ba82b",
+  "event_type": "issue_deleted",
+  "occurred_at": "2026-11-08T21:32:06.294Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Tenancy mode setting: one synth-time switch, 'dedicated' (default) or 'shared'",
+    "issue_type": "task",
+    "status": "open"
+  }
+}

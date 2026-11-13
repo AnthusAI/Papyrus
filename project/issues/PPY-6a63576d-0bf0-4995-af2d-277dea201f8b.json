@@ -1,7 +1,7 @@
 {
   "id": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
   "title": "Milestones: the multi-tenant plan in releasable steps M0 to M8",
-  "description": "The order in which the initiative PPY-25ffa3 ships, as releasable milestones. Each child task is one milestone with entry and exit criteria, what is customer-visible, and the index deploys it contains. The full table is in the comment on PPY-25ffa3 and in docs/plans/multi-tenant-architecture.md.\n\nEarliest milestone at which Threat Intelligence can run on the shared stack: M5 (needs M3 isolation enforced, M4 shared serving and site as data, and the brand-neutral acceptance test PPY-7e396d).\nFirst outside paying tenant: M8.",
+  "description": "The order in which the initiative PPY-25ffa3 ships, as releasable milestones. Each child task is one milestone with entry and exit criteria, what is customer-visible, and the index deploys it contains. The full table is in the comment on PPY-25ffa3 and in docs/plans/multi-tenant-architecture.md.\n\nEarliest milestone at which Threat Intelligence can run on the shared stack: M5 (needs M3 isolation enforced, M4 shared serving and site as data, and the brand-neutral acceptance test PPY-7e396d).\nFirst outside tenants: the design partner's three sites, directly on the shared tier at M7 (Ryan, 2026-11-08; never dedicated first). Public self-serve sign-up: M8.",
   "type": "epic",
   "status": "open",
   "priority": 1,
@@ -20,10 +20,24 @@
       "text": "Milestones (epic PPY-6a6357; one task per milestone):\n\n| Milestone | Entry | Exit | Customer-visible | Index deploys |\n|---|---|---|---|---|\n| M0 Decisions and spikes (PPY-f0508e) | plan on the board | owner decisions answered; spikes PPY-9f3de0, PPY-3b3cc3, PPY-6d9a6d closed; PPY-9d27c2 done; PPY-cd5926, PPY-8f2c4f | nothing | none |\n| M1 Cost fixes + standard layout track (PPY-b5fab6) | M0 | PPY-7f1e54 B and C rolled out, PPY-ee02b8 closed (incl. ReferenceIntake scan), PPY-d647ee, PPY-3fd0aa at 1 tenant; front-end track PPY-c446fe, PPY-2a44b2, PPY-31efef | lower cost; sites unchanged or better | Reference.publicFeedKey (PR #1239), per site, alone |\n| M2 Tenant data foundations, additive (PPY-37c5df) | M0 (overlaps M1) | tenantId everywhere, new models, tenant keys, adoption tools, claims, tenant rules beside group rules, functions take tenant from caller | nothing | new tables only + PPY-1ce06f (one tenantId index per listed table, one release, never Reference) |\n| M3 Isolation enforced on staging shared stack (PPY-6cb791) | M2 | PPY-daf673 staging, storage, workers, no guest API, no subscriptions, suite blocking, group rules removed (PPY-bdc4ee), tenantId required; security gate 1; release gate on | nothing external | none |\n| M4 Shared serving + site as data (PPY-667a23) | M3, M1, PPY-7e396d passed | bucket prefixes, host routing, subdomains, freshness rules, shared newsroom host, SiteConfig/BrandPack/render from store, fair queue; two API-created test tenants served; load test passed; runbooks rehearsed | internal test tenants on staging | none |\n| M5 TI on the shared stack (PPY-486592) | M4 + TI custom domain | rehearsal, cut-over, ops move, 14 days green | TI readers: no change; TI editors: shared newsroom | none |\n| M6 Metering + spend ceilings (PPY-a36a7a) | M4 (parallel to M5) | metering events, spend gate, platform usage report, adaptive throttling, cost model | operators only | none |\n| M7 Provisioning, lifecycle, export/delete, reader features (PPY-dad077) | M5, M6, Prospectus changes deployed | paid sign-up to live site with no human step in staging (PPY-e54eca) | staging sign-up | none |\n| M8 First outside paying tenant (PPY-cf9039) | M7, Stripe live in Prospectus | external security review; terms + ownership statement; docs and p.apyr.us pages | public sign-up | none |\n\nEarliest milestone at which Threat Intelligence runs on the shared stack: M5. Parallel and outside the milestones: dedicated sites adopt their fixed tenant one at a time (PPY-13fbea); managed upgrades (PPY-297ebe); Distinctive Mark's staged upgrade.",
       "created_at": "2026-11-08T18:48:43.366880Z",
       "comment_type": "default"
+    },
+    {
+      "id": "2c766ea3-c4a3-4eb7-b3a5-fb00cdb1c64a",
+      "author": "home",
+      "text": "Milestone effects of Ryan's decisions of 2026-11-08 (launching a site is a data change only; lifecycle rule accepted; overage billing wanted; one shared Google client; public sites at <site>.p.apyr.us):\n- M0 adds: Prospectus asks filed (PPY-966ef5 one 'papyrus' product with data deployments, PPY-6cb44b revise kanbus-8e3174 and build lifecycle events kanbus-6efecd, PPY-8a3c6a overage billing) and the design-partner launch PPY-37f2ec.\n- M1 adds (now, parallel): PPY-25e0d7 cost accounting tags and token reports on our dedicated sites, then on the shared stack, where the design partner's three sites are attributed per deployment from launch at M7. This is the first real test of Prospectus cost accounting (kanbus-bb0b6c).\n- M4 adds: PPY-fdbbd7 shared sign-in (one pool, one shared Google client, fixed callbacks, newsroom.p.apyr.us). Default subdomains become <site>.p.apyr.us (PPY-82de58).\n- M6 now depends on PPY-25e0d7: metering goes through the Prospectus SQS sender library, not the quota usage route (live for Babulus only).\n- M7 now also needs PPY-966ef5 (Prospectus data deployments; without it a shared-tier site would still need a reviewed file entry and a deploy), PPY-6cb44b (lifecycle events) and passes only after PPY-1da916 (security review of data-driven provisioning). M7 is the earliest point a design-partner site can launch on the shared tier.\n- Design partner's three sites (corrected 2026-11-08 by Ryan): they launch DIRECTLY on the shared tier at M7 as tenant deployments (PPY-37f2ec); never dedicated, no later move.\n- After M7 (optional): PPY-496c0b bring-your-own Google client, after spike PPY-8eca5b.\n- Unchanged: TI's earliest shared-stack point is still M5; first outside paying tenant still M8 (overage billing PPY-8a3c6a is not a launch blocker; the weekly quota stop is the default).",
+      "created_at": "2026-11-08T21:19:01.805601Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6bdd2ab9-3f75-43bd-8eaf-70e33cce7e53",
+      "author": "home",
+      "text": "Board sync 2026-11-13: closed PPY-46635e, PPY-94d609, PPY-31c45c, PPY-65e5a9, PPY-16d75b (merged earlier but left open) and PPY-8f2c4f, PPY-ee1e02, PPY-cd5926, PPY-cc8a4c (merged today: #1388, #1390, #1481, #1482). Spike findings #1372 merged; both auth spikes and the CDN spike still need a sandbox run (D9). Nothing released or deployed.",
+      "created_at": "2026-11-13T17:08:55.409380Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T18:46:17.993849Z",
-  "updated_at": "2026-11-08T18:48:43.367099Z",
+  "updated_at": "2026-11-13T17:08:55.409779Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

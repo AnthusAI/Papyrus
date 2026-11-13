@@ -13,11 +13,12 @@ import { DEFAULT_RESOLVER_WAVE_SIZE, orderModelStacksInWaves } from "./resolver-
 import { resolveSitePublication } from "./publication/default-publication";
 import { REPROJECT_ON_DEPLOY_TIMEOUT_SECONDS, addReprojectOnDeploy, reprojectDeployToken } from "./publication/reproject-on-deploy";
 import { addProjectionRetries, addS3ProjectionPublication, type S3ProjectionPublication } from "./publication/s3-projection";
+import { addScheduledPublishing, MAXIMUM_SITE_ID_LENGTH } from "./publication/scheduled-publishing";
 import { planRenditions } from "./publication/renditions-settings";
 import { addProjectionLeaseAccess } from "./publication/projection-lease";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
-import { assertValidMonitoringConfig, assertValidPublicationConfig } from "./site-backend-config";
+import { assertValidMonitoringConfig, assertValidPublicationConfig, assertValidTenancyConfig, resolveTenancyMode, tenancyFunctionEnvironment } from "./site-backend-config";
 import { revalidateSecretReadStatement } from "./revalidate-secret-policy";
 import {
   revalidateDistributionEnvironment,
@@ -25,6 +26,7 @@ import {
   validateRevalidateDistributionIds,
 } from "./revalidate-invalidation-settings";
 import { enablePointInTimeRecoveryOnDataTables } from "./data-table-recovery";
+import { applySiteBackendCostTags, siteCostAttribution, wireSiteUsageSender } from "./cost-attribution";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, trustClientOnIdentityPool } from "./auth/prospectus-google-client";
@@ -38,6 +40,8 @@ import { automationView } from "./functions/automation-view/resource";
 import { imageService } from "./functions/image-service/resource";
 import { wireImageService } from "./functions/image-service/wire";
 import { wireAutomationView } from "./functions/automation-view/wire";
+import { announcements } from "./functions/announcements/resource";
+import { wireAnnouncements } from "./functions/announcements/wire";
 import { proposalActions } from "./functions/proposal-actions/resource";
 import { wireProposalActions } from "./functions/proposal-actions/wire";
 import { monitoringView } from "./functions/monitoring-view/resource";
@@ -65,6 +69,7 @@ import { sesInboundReceive } from "./functions/ses-inbound-receive/resource";
 import { slackDelivery } from "./functions/slack-delivery/resource";
 import { slackEvents } from "./functions/slack-events/resource";
 import { addInboundEmailSesIntake } from "./inbound-email/ses-intake";
+import { inboundDnsRecordName, resolveInboundEmailSettings } from "./inbound-email/settings";
 import { InboundEmailStack } from "./inbound-email/stack";
 import {
   deriveKnowledgeVectorIndexName,
@@ -74,6 +79,7 @@ import {
   isLegacyProductionPipeline,
   planInboundEmailSes,
   resolveSiteBackendFeatureFlags,
+  sanitizeAwsName,
   type SiteBackendIdentity,
 } from "./site-backend-names";
 import { addStorageBackups } from "./storage-backups/construct";
@@ -84,6 +90,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   // `papyrus.config.ts`'s default export. Backend options live under `backend`;
   // the default brand id namespaces account-global resources.
   const site = { brandId: papyrusSite.defaultBrand, ...papyrusSite.backend };
+  // Prospectus cost accounting: on when `papyrus-infra backend-deploy` asks for a cost tag wave (PAPYRUS_COST_TAG_WAVE).
+  // Null, from a plain `ampx pipeline-deploy`, leaves the backend untouched.
+  const costAttribution = siteCostAttribution();
   const knowledgeVectorDimension = 1536;
   const knowledgeEmbeddingModel = "text-embedding-3-small";
 
@@ -119,6 +128,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const publication = resolveSitePublication(site, activeBrand?.renderer?.kind);
   if (publication !== undefined) assertValidPublicationConfig(publication);
   assertValidMonitoringConfig(site.monitoring);
+  assertValidTenancyConfig(site.tenancy);
+  const tenancyMode = resolveTenancyMode(site.tenancy);
   const emailMonitorId = site.monitoring?.emailMonitorId ?? "hn";
   const publicationPlan = planS3ProjectionBackend(publication);
   const renditionsPlan = planRenditions(publication, process.cwd());
@@ -137,6 +148,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const cliFederationCallbackUrls = cliFederationClientCallbackUrls(featureFlags.cliOnFederationClient, process.env);
   const backend = defineBackend({
     ...pluginFunctions,
+    announcements,
     assignmentAction,
     automationView,
     auth: defineSiteAuth(authConfig, cliRemoteLoginPlan ? [cliRemoteLoginPlan.callbackUri] : []),
@@ -160,6 +172,13 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     slackDelivery,
     storage,
   });
+
+  // Tenancy mode reaches every function; dedicated adds nothing, so an existing site's template is unchanged.
+  for (const resource of Object.values(backend) as Array<{ resources?: { lambda?: unknown }; addEnvironment?: unknown }>) {
+    const lambda = resource?.resources?.lambda;
+    if (!(lambda instanceof LambdaFunction)) continue;
+    for (const [name, value] of Object.entries(tenancyFunctionEnvironment(tenancyMode))) lambda.addEnvironment(name, value);
+  }
 
   enablePointInTimeRecoveryOnDataTables(backend.data.resources.cfnResources.amplifyDynamoDbTables);
 
@@ -228,17 +247,15 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   ) {
     process.env.PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD = "true";
   }
-  const inboundEmailDomain = (process.env.PAPYRUS_INBOUND_EMAIL_DOMAIN ?? "p.apyr.us").trim().toLowerCase();
   const inboundEmailLocalParts = (process.env.PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS ?? "submissions,suggestions")
     .split(",")
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
-  const inboundEmailCorpusKey = (process.env.PAPYRUS_INBOUND_EMAIL_CORPUS_KEY ?? "AI-ML-research").trim();
-  const inboundDnsZoneId = (process.env.PAPYRUS_ROUTE53_HOSTED_ZONE_ID ?? "Z10285921B1G7MVRV06W9").trim();
-  const inboundDnsZoneName = (process.env.PAPYRUS_ROUTE53_HOSTED_ZONE_NAME ?? "apyr.us").trim().replace(/\.$/, "");
-  const inboundDnsRecordName = inboundEmailDomain.endsWith(`.${inboundDnsZoneName}`)
-    ? inboundEmailDomain.slice(0, -(inboundDnsZoneName.length + 1))
-    : inboundEmailDomain;
+  const inboundSesPlan = planInboundEmailSes(siteBackendIdentity, enableInboundEmail, site.inboundEmailSes);
+  // Undefined while the site has inbound email off; when it is on, a missing setting stops the synth here.
+  const inbound = enableInboundEmail
+    ? resolveInboundEmailSettings(process.env, { manageDomainIdentity: inboundSesPlan.manageDomainIdentity })
+    : undefined;
 
   let slackEventsUrl: string | undefined;
 
@@ -546,6 +563,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   if (s3ProjectionPublication !== undefined) {
     addProjectionRetries(contentActionsLambda, s3ProjectionPublication.deadLetterQueue);
     addProjectionLeaseAccess(contentActionsLambda);
+    if (publication?.timeZone !== undefined) {
+      addScheduledPublishing(contentActionsLambda, { siteId: sanitizeAwsName(siteBackendIdentity.brandId, MAXIMUM_SITE_ID_LENGTH), timeZone: publication.timeZone });
+    }
     // Rating a Story asks content-actions (one asynchronous call) to re-render the listings whose order the rating changed.
     const categoryActionLambda = backend.categoryAction.resources.lambda as LambdaFunction;
     contentActionsLambda.grantInvoke(categoryActionLambda);
@@ -603,7 +623,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     grantNewsroomReadWrite(backend.sesInboundReceive.resources.lambda as LambdaFunction);
   }
 
-  if (enableInboundEmail) {
+  if (inbound) {
     if (!backend.sesInboundReceive || !backend.emailSubmissionProcessor) {
       throw new Error("Inbound email is enabled but sesInboundReceive/emailSubmissionProcessor were not registered.");
     }
@@ -612,6 +632,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     const receiveLambda = inboundReceive.resources.lambda as LambdaFunction;
     const processorLambda = inboundProcessor.resources.lambda as LambdaFunction;
     const graphqlEndpoint = backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl;
+    const inboundEmailDomain = inbound.domain;
+    const inboundEmailCorpusKey = inbound.corpusKey;
     const inboundRecipients = inboundEmailLocalParts.map((localPart) => `${localPart}@${inboundEmailDomain}`);
 
     inboundReceive.addEnvironment(
@@ -630,7 +652,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       "PAPYRUS_INBOUND_FEEDBACK_FROM_EMAIL",
       `Papyrus Submissions <submissions@${inboundEmailDomain}>`,
     );
-    inboundProcessor.addEnvironment("PAPYRUS_PUBLIC_SITE_BASE_URL", "https://p.apyr.us");
+    inboundProcessor.addEnvironment("PAPYRUS_PUBLIC_SITE_BASE_URL", inbound.publicSiteBaseUrl);
     inboundProcessor.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
 
     receiveLambda.addToRolePolicy(
@@ -692,7 +714,6 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
     // SES allows one active receipt rule set per account and region, so a non-legacy site
     // creates its own brand-named rule set and never activates it here.
-    const inboundSesPlan = planInboundEmailSes(siteBackendIdentity, enableInboundEmail, site.inboundEmailSes);
     if (inboundSesPlan.createReceiptRules) {
       addInboundEmailSesIntake(storageStack, {
         storageBucket,
@@ -701,12 +722,12 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         existingRuleSetName: site.inboundEmailSes?.existingReceiptRuleSetName,
         ruleName: deriveReceiptRuleName(siteBackendIdentity),
         activateRuleSet: inboundSesPlan.activateReceiptRuleSet,
-        domainIdentity: inboundSesPlan.manageDomainIdentity
+        domainIdentity: inbound.dnsZone
           ? {
               domain: inboundEmailDomain,
-              hostedZoneId: inboundDnsZoneId,
-              hostedZoneName: inboundDnsZoneName,
-              recordName: inboundDnsRecordName,
+              hostedZoneId: inbound.dnsZone.id,
+              hostedZoneName: inbound.dnsZone.name,
+              recordName: inboundDnsRecordName(inboundEmailDomain, inbound.dnsZone.name),
             }
           : undefined,
       });
@@ -841,12 +862,12 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       prospectusSignIn: prospectusGoogleOnlyClient
         ? { clientId: prospectusGoogleOnlyClient.ref, callbackPath: PROSPECTUS_SIGN_IN_CALLBACK_PATH }
         : null,
-      inboundEmail: enableInboundEmail
+      inboundEmail: inbound
         ? {
-            domain: inboundEmailDomain,
+            domain: inbound.domain,
             localParts: inboundEmailLocalParts,
-            addresses: inboundEmailLocalParts.map((localPart) => `${localPart}@${inboundEmailDomain}`),
-            corpusKey: inboundEmailCorpusKey,
+            addresses: inboundEmailLocalParts.map((localPart) => `${localPart}@${inbound.domain}`),
+            corpusKey: inbound.corpusKey,
           }
         : null,
       referenceWordIndex: { tableName: referenceWordIndex.tableName },
@@ -874,10 +895,21 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     },
   });
   wireEditorialChecks(backend);
+  // The functions that call models report their tokens to the site's Prospectus usage queue.
+  if (costAttribution) {
+    const editorialChecksLambda = backend.editorialChecks.resources.lambda as LambdaFunction;
+    wireSiteUsageSender(editorialChecksLambda, costAttribution);
+    wireSiteUsageSender(knowledgeQueryLambda, costAttribution);
+    // Every resource in every backend stack carries the anthus: cost tags (Prospectus reads cost by them), in waves that
+    // each fit one CloudFormation operation; the usage senders' stacks change in the first pass, so they go first.
+    applySiteBackendCostTags(backend.stack, costAttribution, [Stack.of(editorialChecksLambda), Stack.of(knowledgeQueryLambda)]);
+  }
   wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);
   wireImageService(backend);
   wireProposalActions(backend);
+  // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
+  wireAnnouncements(backend, siteBackendIdentity.brandId);
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
 
   return backend;

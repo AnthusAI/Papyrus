@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "69f8d9f9-d5b4-4c0f-aeb3-436363a47862",
+  "issue_id": "PPY-e80a391b-6e4b-4acf-8a43-8241c2a40a0b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T00:37:22.946Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Trim transparent margins when processing uploaded or generated images",
+    "description": "Found 2026-11-10 on Machines on Machines: the hero image mvave-fm1 was a 1000x1000 webp whose content filled only rows 248-751, so the page showed large blank bands above and below. Audit of all 123 published articles and posts found it was the only image with transparent padding over 12 percent on any side. When the image toolchain processes an uploaded or generated image (image_apply, save-version --images, figure add), compute the bounding box of non-transparent pixels, and crop to it with a small even margin (about 4 percent of the content size) when any side leaves more than about 12 percent empty. Keep it transparent, keep the file name stem and the caption and credit, record the trim in the candidate's checks, and never trim opaque designed compositions (full-bleed covers) or SVG. Add a Gherkin spec.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

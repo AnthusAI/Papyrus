@@ -49,6 +49,8 @@ those stored paths. What counts as a picture:
 
 - an `::image{src="..."}` line, or a Markdown `![...](...)`, whose `src` is a relative path that resolves to a file inside the folder (web addresses, absolute paths, and paths the folder does not hold are left alone; the latter are listed as `image-unresolved`);
 - its dark version, if any: a file named like the light one with `.dark` before the extension (`figure.png`, `figure.dark.png`), or the file named by `srcDark="..."`. It is uploaded too and the `::image{}` line gets an explicit `srcDark` with the stored path. `srcDark="none"` keeps pairing off. A Markdown `![]()` has no `srcDark`, so its dark file is uploaded but only an `::image{}` line can show it.
+- the card pictures in the front matter (`image`, `cover`, `ogImage`, `thumbnail` and their Night counterparts `imageDark`, `coverDark`, `thumbnailDark`): a file name found in the folder is uploaded and replaced by its stored path, and a stored path whose picture was numbered (`assets/<slug>/chart.png` became `chart-2.png` because the folder now holds a different `chart.png`) is moved to the new path, so the card and the social image name the file that was just uploaded. A web address and a rendition path are left alone. A dry run lists each move as `front-matter`. Spec: `features_backend/story-version-images.feature`.
+- on the site, a card, a hero or any `<img>` whose address is a stored picture with renditions shows the rendition the article page shows (`features_backend/card-rendition-images.feature`), so a card never depends on the original file being in the site store; the social image tags keep the picture as written.
 
 Everything is checked before any write: at most 10 MB per file; a PNG, JPEG, GIF, WebP, AVIF or SVG picture; and a dark
 version whose width-to-height ratio is within 0.5% of the light one's. A rejection names each bad file and saves
@@ -89,7 +91,7 @@ published. Repair them without uploading anything again:
 
 ```bash
 papyrus stories repair-image-paths --story <lineage>           # prints what it would do; writes nothing
-papyrus stories repair-image-paths --story <lineage> --write   # copies inside the bucket, then points the media rows at the new keys
+papyrus stories repair-image-paths --story <lineage> --write   # copies inside the bucket (only what is missing), then points the media and published media rows at the one key
 ```
 
 It reads every version's `MediaAsset` rows, copies each object whose key is not `media/<srcPath>` to that key inside the
@@ -172,6 +174,37 @@ Content is not changed. The live record stays current if the story is published;
 A human editing in the story editor presses "Save draft" to correct the current draft in place, or "Save as new version"
 to keep the previous text.
 
+### Retiring a story and redirecting its address (`stories retire`)
+
+Merging two stories into one article leaves the retired story's public addresses with nothing to say. `stories set-slug --force` keeps only a
+story's *own* old slug as a redirect to itself, and `ops content unpublish` leaves a 404. To send a story's readers to another story:
+
+```bash
+papyrus stories retire --story <lineage|id> --redirect-to <lineage|id> --dry-run   # lists what would change
+papyrus stories retire --story <lineage|id> --redirect-to <lineage|id>             # writes (like the other mutating commands)
+papyrus stories retire --story <lineage|id> --undo [--dry-run]                     # brings it back
+```
+
+`--no-trigger` skips the projection (as in `stories set-slug`); run `papyrus ops content project --item <id>` later. The command refuses, and writes nothing, when the
+target is missing, is not published, is the story itself, or is retired (a redirect never points at another redirect; point at the story it was retired into), and when
+the story was never published (spike it instead). It does not need the same type: an article and a post can both redirect to an article.
+
+What it writes: the live version is unpublished (`unpublish_item`, the same operation as `ops content unpublish`), and the story's head version moves to the
+`retired` stage with `metadata.retiredInto` (`toLineageId`, `liveItemId`, `versionIds`, `previousStage`, `at`, `by`). No version is deleted. The projection then
+removes the story from the listings, the sitemap, the feeds and the public data, deletes its pages, and writes one permanent (301) redirect for every address the
+story was served at: its current address and Markdown twin, its aliases, the addresses of its earlier published versions and the former addresses the projection
+remembers (a rename, a change of type folder). The register of these addresses is `_papyrus/retired.json` in the site store; the redirects are computed from it
+against the site as it is now, so when the target changes address every redirect points at the new address (never through a chain), a `.md` twin goes to the
+target's `.md` twin, and a target that is later retired is followed to the story it was retired into. The cross-story boilerplate check ignores retired stories.
+
+The command prints the pages the projection wrote and deleted and the exact paths purged (`page` and `purged` rows; `NOT purged` for a path the site's cap held back):
+the projection purges only the pages it wrote or deleted, both URL forms, never a wildcard, and a call over the cap is the person's decision (`--force-paths` is not
+offered here).
+
+`--undo` clears `retiredInto` (kept as `metadata.unretired`), moves the story out of the retired stage and publishes the retired version again; the projection then
+rebuilds its page and removes its redirects. A site that requires approval to publish (`publish_gate`) refuses the undo from the CLI: restore from the console. When
+the story has a newer working version than the one that was live, nothing is republished and the redirects still go; publish the working version when it is ready.
+
 ## References: consulted versus cited
 
 Attach a reference as soon as you read it. One link exists per story and reference. Its `role` says what the reference
@@ -190,9 +223,168 @@ papyrus stories link-reference --story <lineage> --reference <reference id> \
 
 Signed in (`papyrus login`), the link records the person who signed in, taken from the sign-in session, as who added it. `--author-label` is optional there and is ignored (the command says so on stderr), so a link never names someone else. The label comes from the CLI session, not from the newsroom (the relation is written directly, not through a mutation that stamps the author the way `postMessage` does), so it identifies the person for the trail rather than proving it against a caller who writes the record by hand. With an operator's AWS credentials (`PAPYRUS_GRAPHQL_AUTH=iam`) there is no sign-in, so `--author-label` is required and is recorded as given. The `write` line prints only after the link was saved.
 
-Running `link-reference` again for the same pair changes its role and keeps who added it and when. The Reporting trail
+Running `link-reference` again for the same pair changes its role and keeps who added it and when. A signed-in editor's token may
+create a `SemanticRelation` but never update one (the model is append-only for the editor and administrator groups, so category notes,
+provenance and reference links cannot be rewritten from a browser or a signed-in CLI). When the site refuses that direct update, the CLI
+changes the role through the site's `setStoryReferenceRole` mutation (editor and admin groups, `category-action` Lambda). It refuses any
+relation that is not a Story's `uses_evidence` source, writes only the role, the citation key, the note, `updatedBy` (from the sign-in)
+and `updatedVia`, and never weakens `based_on`. The IAM lane keeps writing the row directly. A site whose backend predates the mutation
+answers with a message that says to use the IAM lane until it is deployed ([spec](../features_backend/story-reference-role.feature)). The Reporting trail
 shows each reference with its role, note and the person or agent who attached it, and marks a reference "in the text" when
 the latest draft's citations include its citation key.
+
+## Linking stories to each other
+
+A story's "See also" list names other stories an editor or agent says to read too (an article to related articles, a larger story to several posts). The link is one
+`SemanticRelation` of type `see_also` between two stories (Items), written by `reference_links.link_items` like every reference edge: one row (the lower
+lineage id as subject, a deterministic id from the pair), `relationState` `current`, metadata `kind: item.link`, `provenance` (`human` from the CLI, `derived` from the
+agent tools), `addedBy`, `addedAt` and an optional `note`. A link a person rejected is never flipped back by any writer (the command prints `rejected` and a
+warning; only a person's decision in the newsroom reinstates it). **This is the only supported way to write one, and the public page reads exactly this relation**: the name lives in one constant
+(`STORY_LINK_RELATION` in `src/papyrus_content/story_links.py`) that the writer, `stories show` and the tests all use. `SemanticRelation.predicate` is a
+free string in the schema, so the guard is in our writers: no command, tool or argument can choose another relation name (`--relation see_also` is
+tolerated, any other value is refused with the allowed value), and `link_stories` refuses to write any other predicate or a record without the seeded
+relation type. A story-to-story relation someone writes by hand under another name is never shown as See also; `stories show` lists it as an
+`unofficial-relation` line (`stories show --json` as `unofficialRelations`) so it is visible instead of silently ignored.
+
+```bash
+papyrus stories link-story --story <lineage-or-slug> --to <lineage-or-slug> [--to <...>] [--note TEXT] [--dry-run] [--json]
+```
+
+Both ends must be existing stories (any story type, article or post; not a wiki page or doctrine), a story cannot be linked to itself, and everything
+is checked before anything is written. `see_also` is symmetric, so A to B and B to A are the same link: if either direction exists the line says
+`exists` and nothing is written, so repeating is safe. Each target prints its title, type and stage; a target that is not published yet gets a warning
+(not an error) because the public block shows published stories only. Who added it is taken from the sign-in session exactly as for `link-reference`
+(`--author-label` ignored when signed in, required on the IAM lane); the `write` line prints only after the save, and `--dry-run` prints `dry run`.
+`papyrus stories show` lists the related stories from either end (`related` lines: lineage id, title, type, stage, note).
+
+Agents use the same code through `papyrus_link_stories(story, see_also_stories[], author_label, note?)` (a Tactus tool in
+`papyrus_newsroom/tactus_tools.py`, available to every procedure that loads the `papyrus` toolset) and the MCP-shaped `papyrus_link_stories`
+(`story_signals_mcp.py`, `additionalProperties: false`, no relation field). Neither has any field for a relation type. No server registers the MCP-shaped table today.
+
+**Linking a story to a Reference ("read this source too").** The same `see_also` also runs from a story to a Reference: a looser association than citing or consulting
+(`uses_evidence` stays the reporting trail and is never shown as a related Reference). It is directional, story to Reference, one `SemanticRelation` written by
+`reference_links.link_item_reference_see_also` (metadata `kind: item.reference-link`, deterministic id from the predicate, the story lineage and the Reference lineage,
+`relationState` `current`, the same provenance, `addedBy`, `addedAt` and `note`). It is idempotent (an existing edge writes nothing), never flips a rejected edge back,
+and refuses a Reference that is not accepted, because only accepted References are shown on the page.
+
+```bash
+papyrus stories link-story --story <lineage-or-slug> --reference <reference-id> [--reference <...>] [--to <lineage-or-slug>] [--note TEXT] [--dry-run] [--json]
+```
+
+All Reference ids are checked before anything is written; if one does not exist or is not accepted the command stops with a plain message naming it and writes nothing (no
+override). Each line prints the Reference's title, host and curation status. `stories show` lists them (`see-also-reference` lines; `--json` as `relatedReferences`). Agents
+pass `see_also_references[]` to `papyrus_link_stories` (Tactus and the MCP-shaped table). The site build reads these edges into `page.related_references`
+([surfable site](surfable-site.md)). `stories check-links` treats a current edge to an accepted Reference as official and flags a state that is not `current`, a wrong kind, a
+Reference that is missing or not accepted, and any other story-to-Reference predicate than `uses_evidence` and `see_also`.
+
+**Deploy.** `see_also` is a new seeded relation type. A site accepts the row without it (`relationTypeId` is a plain id and `predicate` a free string; the seed now also allows a Reference object), but its relation-type table should hold it: on each site run `papyrus relations import-types --config corpora/papyrus-semantic-relation-types.yml` (an idempotent upsert of the seeds; the CLI must be the release that carries the new seed). No schema change, no backfill (no `see_also` row exists yet).
+
+**Removing a link is not a command.** The editor and administrator groups can create a `SemanticRelation` but never update or delete one, so removal
+needs a backend change: a `status` (or `relationState: retired`) field written through a new route like `setStoryReferenceRole`
+(a mutation on the `category-action` Lambda, editor and admin groups, refusing any relation that is not an `item.link`), a reader that skips
+retired links, and an `unlink-story` command that calls it. Today an operator on the IAM lane (`PAPYRUS_GRAPHQL_AUTH=iam`) can delete the row, or an
+editor can ask an operator to; there is no editor-side retirement. Spec: `features_backend/story-links.feature`.
+
+## Tagging with concepts
+
+A story or a Reference is tagged with a concept by one edge: `tagged_with` (label "tagged with"), from the story or Reference to a `SemanticNode` whose status is
+`accepted`, `relationState` `current`, metadata `kind` `item.concept` (stories) or `reference.concept` (References), `provenance` `human` (a signed-in person) or
+`derived` (an agent), `addedBy`, `addedAt` and an optional `note`. The writers are `link_item_concept` and `link_concept` in `reference_links.py`; the row id is
+deterministic (it includes the predicate), so a repeat is the same row. `mentions` stays for concepts the enrichment found in text. `related_to` was the tag's name
+before 2026-11-09. Every writer (the console and the CLI through `createReferenceLink`, the vector suggestions, the idea pack builder) now writes `tagged_with`; `related_to` stays
+for two References and for two concepts. Rows written under the old name are still read (`CONCEPT_TAG_PREDICATES` in Python and `lib/reference-links.ts`), the audit lists them as
+"legacy: migrate", and a tag writer does not add a second row beside a legacy one (a rejected legacy tag stays rejected).
+
+`papyrus relations migrate-concept-tags [--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]` moves them (operator lane, IAM: editors cannot update relations).
+**A dry run is the default** and writes nothing: it prints the counts by subject kind (story or Reference), state and provenance, and a sample. With `--apply`, for each legacy
+`related_to` edge from a story or a Reference to a concept, in the states `current`, `suggested` and `rejected`, it writes the equivalent `tagged_with` row (same ends, state,
+score, classifier, and the whole metadata: provenance, who added and decided it and when, the decision, reason, note and explanation, plus `migratedFromRelationId`), then
+retires the old row: `relationState` `superseded`, its state keys rewritten (readers query `...#current`, `...#suggested`, `...#rejected`, so it is out of every reader's view),
+and `supersededBy` and `supersededAt` in its metadata. Nothing is deleted. A rejected tag becomes a rejected `tagged_with` row, so the rejection is kept. It is idempotent and
+resumable: a retired row is no longer found, and a pair whose `tagged_with` row exists (an interrupted run, or a tag made after the rename) only has its legacy row retired.
+Two `related_to` kinds never move: Reference to Reference and concept to concept. The legacy rows are found with the `semanticRelationsByObjectState` index (three keys per concept,
+25 to a request) after the one read of the concept list; no relation table scan. `--corpus-key` / `--site` keep the References of `knowledge-corpus-<key>`; stories are
+always included; `--limit` takes at most N edges. A report is written to `.papyrus-runs/concept-tag-migration-<time>/migration-report.json`. After a run,
+`check-links --legacy-only` prints only the legacy tags and their count (zero when done), and a `superseded` row is never reported. Production steps:
+[concept tag migration runbook](concept-tag-migration-runbook.md).
+
+```bash
+papyrus stories link-concept --story <lineage-or-slug> --concept <name|#hashtag|nodeKey> [--concept ...] [--note TEXT] [--dry-run] [--json]
+papyrus references link-concept --reference <id> --concept <name|#hashtag|nodeKey> [--concept ...] [--note TEXT] [--dry-run] [--json]
+```
+
+**The pages update at once, without a purge.** After a real write that created a link, `link-story` and `link-concept` (stories) ask the site to re-render exactly the published stories whose page changed (both ends of a story link; the story of a Reference or concept link; a Reference has no public page) with `papyrus ops content rerender --story LINEAGE --no-invalidate` behind the scenes. Nothing is purged: the HTML lifetime is five minutes, so the link shows within about five minutes. Each story prints `rerender  LINEAGE  no purge  ok`, then `visible on the site within about five minutes; nothing was purged`. A dry run, a repeat that wrote nothing and unpublished stories re-render nothing; `--no-rerender` skips it. At most 20 stories are re-rendered per command; the rest are listed as exact commands. A failed or timed-out re-render is a warning on stderr naming the stories and the manual command (a timeout may still have completed on the server); the link stays and the command succeeds. The server has no batch path, so the stories are re-rendered one after another and one call can take about a minute; a progress line `rerendering LINEAGE (about a minute)...` is printed on stderr before each, and the wait follows `PAPYRUS_GRAPHQL_TIMEOUT_SECONDS` (30 seconds signed in, 120 on the operator lane, when it is unset), so raise it for a command with several targets or pass `--no-rerender` and re-render later. The agent tools `papyrus_link_stories` and `papyrus_link_concepts` do the same and return a `rerendered` list (and `rerenderWarnings` on a failure).
+
+These are rigid on purpose, because an outside agent uses them. No option or field chooses a predicate, a state or a new concept (`--predicate`, `--relation`,
+`--state` and `--create` are refused). A concept is never created: it must already be an accepted SemanticNode, found by exact node key, exact hashtag (the part after
+`--`) or exact name or alias, ignoring case, never fuzzily. An unknown name is an error listing the closest accepted concepts; a name several kinds share
+(`task--translation`, `concept--translation`) is an error listing them, and a node key picks one; a concept that is rejected or suggested is refused. Every concept is
+checked before anything is written. A tag that already exists in any accepted form (`tagged_with`, the older `related_to`, or a `mentions`) is reported as `exists` and
+nothing is written; a tag a person rejected stays rejected (the line says `rejected`; only the newsroom reinstates it). Each line says whether the concept has a public
+wiki page (a published wiki page whose `entityKey` is the concept's slug, the part after `editor_concept--`, or its whole node key) and warns when it has none: the
+story page links a concept only once a page exists. Who added it comes from the sign-in as for `link-reference` (`human`); on the IAM lane `--author-label` is required
+(`derived`). The agent tool is `papyrus_link_concepts(target_kind, target, concepts[], author_label, note?)` (Tactus, `tactus_tools.py`; `target_kind` is `story` or
+`reference`) and the MCP-shaped entry of the same name in `story_signals_mcp.py`. The older `papyrus references link --concept` (editors; it can create a concept and
+writes `tagged_with` through the site's `createReferenceLink`, which also accepts `related_to` for a concept and writes `tagged_with`) is not the agent route.
+
+`papyrus stories check-links [--story ...] [--json]` and `papyrus references check-links (--reference ID | --corpus-id ID) [--json]` are read only audits. They list every
+story-to-story, story-to-concept and Reference-to-concept relation that is not the official shape: a wrong predicate or kind, a state that is not `current`, a concept that
+is missing, not accepted or without a public page, a story target that is not published, a legacy `related_to` tag (`--legacy-only` lists only those and counts them; a `superseded` row is not reported), and duplicate pairs. `mentions` to an accepted
+concept is an accepted shape. Fixing is out of scope. Cost: the stories audit reads the published-story summaries once, then three index reads per story (25 keys to a
+request) and one batched concept read; the References audit reads the corpus's accepted References through `referencesByCurationStatusKey` and the same three index reads
+per Reference (827 References: about 100 relation requests), with no table scan. Specs: `features_backend/concept-tags.feature`.
+
+## Suggesting related content
+
+Ryan, 2026-11-09: linking a story to related articles, posts and References starts from the story's concepts and is computed from the graph, with no model call, so a
+person or model judges a short ranked list. Two hops: first the **related concepts**, then the **carriers** of those concepts.
+
+```bash
+papyrus stories suggest-links --story <lineage-or-slug> [--kinds articles,posts,references] [--limit N] [--min-score S] [--include-linked] [--json]
+papyrus stories suggest-associations (--story <lineage-or-slug> | --reference <id>) [--kinds articles,posts,references] [--limit N] [--json]
+papyrus knowledge concepts related --concept <name|#hashtag|nodeKey> [--limit N] [--json]
+papyrus knowledge concepts search "free text" [--limit N] [--json]      # or: --list
+```
+
+`suggest-links` is read only. The story's own concepts weigh 1.0 when curated (`tagged_with`, or the older `related_to`) and 0.4 when only an accepted `mentions`. Related
+concepts add: a confirmed concept link (`related_to`, `same_as`, `alias_of` between two concepts, with the explanation a person wrote) about 0.5, a concept that appears
+together with one of the story's on the newest 60 published stories and accepted References that carry it about 0.3 times a lift-based strength (so hubs do not dominate;
+at least 2 shared carriers and lift 1.5). Then every published article, post and accepted Reference that carries any of those concepts is scored: the sum of the concept's
+weight times its rarity (`ln((N+1)/(df+1))`), a mention counting 0.6 of a tag, with up to 10% more for recent content. A concept carried by more than 25% of the published
+stories counts at a low weight. Left out: the story itself, stories already linked by `see_also` in either direction, References already linked by `uses_evidence` (any role)
+or a `see_also` edge from the story, unpublished stories, References that are not accepted, and concepts that are not accepted. Output is grouped **See also**
+(articles), **Posts** and **Related findings** (References), top 5 each by default: score, title, type, date or host, the shared concepts by readable name, the path
+(`direct` or `via A, then B`), and the exact ready command (`papyrus stories link-story --story <lineage> --to <lineage>` or `--reference <id>`). A story with no accepted
+concept says so; tag it first with `link-concept`. The last line is the request count (about 20 to 35 for one story on the live Machines on Machines site; no table is
+scanned: indexes and 25-key batched gets only).
+
+`concepts related` lists the concepts near one concept with the reason (`confirmed`, `alias`, `linked`, `cooccurrence`), found with the same exact resolver as
+`link-concept` (never created, never fuzzy). `concepts search` finds accepted concepts for free text by meaning: the text is embedded once (`text-embedding-3-small`, the
+same provider as `references suggest-links`) and only `concept_card` and `ontology_concept_profile` vectors are queried; popularity never affects the order. A typed
+exact (then prefix) concept name or alias comes first, labelled `name match`; the rest are `meaning`. Each result shows the similarity, whether the concept has a public wiki
+page (a published `wiki_page` Item whose `entityKey` is the bare slug, the part of the node key after `--`, read from the published-item summaries when the type index is empty;
+the same check `stories link-concept` and `check-links` use), how many published stories and accepted References carry it (information only), and duplicate flags in three
+tiers: `same name` (equal once case and punctuation are ignored, or the same words in any order), `likely duplicate` (concept cards at least 0.90 alike) and `possible
+duplicate`, a suggestion for a person to check (cards at least 0.60 alike and a shared word of 4+ letters; the two "contextual integrity" cards are only 0.66 alike).
+
+**Free-text search needs an embedding key and is not validated against live data.** It embeds the query with `OPENAI_API_KEY`, which must be set and valid in the shell. The
+signed-in editor lane has no embedding key (unlike `references search`, which embeds on the server through the `searchReferences` query), so there the command stops with
+that explanation instead of a raw HTTP 401. A server-side lane (a new query field next to `searchReferences`) is a follow-up. Name matches, `--list`, `concepts related` and
+`suggest-links` need no key. It says plainly when the index has no concept vectors or is missing some accepted concepts, and prints the `knowledge-vector-index --action sync` command that
+repairs it. `--list` prints every accepted concept alphabetically. Agent tools (read only, closed argument lists): `papyrus_suggest_links`, `papyrus_related_concepts`,
+`papyrus_search_concepts` (Tactus `tactus_tools.py` and `story_signals_mcp.py`). The story checklist has a **Related content** step (`related_content`, not required) that
+points here. Code: `src/papyrus_content/link_suggestions.py`, `concept_search.py`; specs: `features_backend/suggest-links.feature`.
+
+**`suggest-associations` (no search phrases to invent).** `suggest-links` needs concepts the story already carries. `papyrus stories suggest-associations --story X` (or
+`--reference X`) builds one query from the item itself (title, summary, the first ~300 words of the body) and (1) finds the accepted concepts that text names: the
+concept's name, aliases and `#hashtag`, matched as whole words (a short name is never found inside a longer word; a name of three letters or fewer keeps its letter case),
+ranked by rarity and position (title over summary over body); no model, no embedding key, so it works in the signed-in editor lane. When the shell has `OPENAI_API_KEY` and a
+vector index, the concepts nearest the text by meaning are added, otherwise one `NOTE` line says it matched by name only (a server-side concept query is still the follow-up above).
+(2) The top concepts seed the `suggest-links` graph pass (weight 0.4 to 0.8, below a curated tag), so related articles, posts and References are ranked even for an untagged
+item. Every concept and candidate prints its exact `link-concept` / `link-story` command; a concept the item already carries is marked `already tagged`. For a Reference the
+related stories carry `papyrus stories link-story --story <candidate> --reference <id>`, and its own text comes from the curation card and stored text (title alone if those
+cannot be read). Read only: it never writes a relation (it does not use `references suggest-links`). Code: `src/papyrus_content/association_suggestions.py`; specs:
+`features_backend/suggest-associations.feature`.
 
 ## Notes: people write Messages, agents write agent notes
 
@@ -245,12 +437,15 @@ The other writers that still create Messages without a person (research and repo
 
 ```bash
 papyrus stories list [--stage STAGE] [--section ID|SLUG|NAME] [--limit N]
-papyrus stories show --story <lineage>
+papyrus stories show --story <lineage> [--bucket day|week|none]
+papyrus stories set-stars --story <lineage> --stars <0-5> [--agent NAME] [--dry-run]
 papyrus references show <reference lineage id or record id> [--corpus-key KEY]
 papyrus assignments show --assignment <id>
 ```
 
-`stories list` prints the lineage ids that `stories show --story` takes. The lineage ids of the References that `stories show` lists are accepted by `references show` (so are the `...-v1` record ids that `references list` prints). `assignments show` prints an Assignment's status, type, queue, section, Story and holder, then its events.
+`stories list` prints the lineage ids that `stories show --story` takes. It lists a Story's newest version that is not superseded (`draft` until the Story is first published, then `current`), one line per Story, the same Stories the Stories board shows; the last line `N of TOTAL` counts the Stories that matched, and `--limit` (default 50) only caps the lines printed. The lineage ids of the References that `stories show` lists are accepted by `references show` (so are the `...-v1` record ids that `references list` prints). `assignments show` prints an Assignment's status, type, queue, section, Story and holder, then its events.
+
+`stories list` also takes `--type article|post`, `--stars N` (0 finds unrated Stories), `--min-stars N`, `--max-stars N` (these two match rated Stories only), `--sort updated|stars|rank` and `--bucket day|week|none`. After the six original columns it appends the layout signals by their layout names: `stars` (the effective quality rating, 0 when unrated), `source` (`editor` today, `none` when unrated), `votes`, `bucket` (the rolling window: `week:0` is the last seven days, `week:1` the seven before; `none`; `undated`), `type`, `words` and `published` (the last-published date). `--sort stars` is rated high to low with unrated last; `--sort rank` is what the Articles and Posts page shows first: it calls the projection's own `rank_entries` (newest bucket first, rated Stories first inside a bucket, then newest first) with the site's default bucket. The rating comes from the Item rows the list already reads in one batched request, so a list costs no request per Story and never reads the private rating map. `stories show` prints a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt). `stories set-stars` sets the editor's rating (1 to 5, 0 clears) through the `setItemStars` mutation, so the site re-renders the listings whose order changed; it prints the previous and new rating and writes unless `--dry-run`. The effective rating is read in one place (`effective_rating` in `item_stars.py`); a vote aggregate would plug into `aggregate_rating` there. Ratings are private: none of this output reaches a published row, page, twin or feed. The MCP tools `stories_list`, `stories_show` and `stories_set_stars` (`story_signals_mcp.py`) use the same names (`minStars` for `--min-stars`).
 
 `stories show` prints the latest version, how many versions exist, each stage move, every attached reference with its role, each Message on the Story's threads (`message`, time, `<author> (<kind>)`, summary; oldest first, active ones only) and each agent note (labelled `AI agent <name>`).
 

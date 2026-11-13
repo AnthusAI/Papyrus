@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { newsroomDeskOptions } from "../lib/newsroom-sections";
 import { StoryReportingTrailView } from "./story-reporting-trail";
-import { loadStoryReportingTrail } from "./story-reporting-trail-client";
+import { loadNewestStoryVersion } from "./story-reporting-trail-client";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,6 +26,9 @@ import { isGeneratedIdeaFrontMatter, stageForIdeaDecision, writeIdeaDecision, ty
 import { IdeaDecision } from "./idea-decision";
 import { SeededFromReferenceNote } from "./seeded-from-reference-note";
 import { CoverImagePicker, type PickedImage } from "./cover-image-picker";
+import { StoryHeadlineImage } from "./story-headline-image";
+import { StoryPreviewHeading } from "./story-preview-heading";
+import { headlineImageState, readHeadlineImage, type MediaIndex } from "../lib/story-headline-image";
 import { accessTokenFromAmplify, createLiveStockImageClient } from "../lib/stock-images/client";
 import { createDemoStockImageClient } from "../lib/stock-images/demo-client";
 import { bodyWithCover, coverDirective, coverRecord, creditLine, frontMatterWithCover, replaceableCoverSources } from "../lib/stock-images/cover";
@@ -63,6 +66,9 @@ import { demoEditorialBackend } from "../lib/editorial-checks-demo";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
 import { StarRating } from "./star-rating";
+import { StorySchedulePanel } from "./story-schedule-panel";
+import { useScheduleZone } from "../lib/schedule-zone";
+import { scheduleFromEntries, scheduleFromResult, type StorySchedule } from "../lib/story-schedule";
 import { useStoryStars, type StoryStarsController } from "./use-story-stars";
 import { EditorialPreviewPopover, type PreviewPopoverTarget } from "./editorial-preview-popover";
 import { MarkusBodyEditor, type MarkusBodyEditorHandle } from "./markus-body-editor";
@@ -117,12 +123,14 @@ function failureMessage(error: unknown): string {
 
 const NO_DESK_VALUE = "__no-desk__";
 
-export function NewsroomArticleEditor({ articleId, demo, embedded = false, starsController }: {
+export function NewsroomArticleEditor({ articleId, demo, embedded = false, starsController, onScheduleChanged }: {
   articleId: string;
   demo: boolean;
   embedded?: boolean;
   /** The rating store of the surface this editor sits in (the board's), so the card, the drawer and this editor show one rating. Without it the editor keeps its own. */
   starsController?: StoryStarsController;
+  /** Called after the editor set, changed or cleared this Story's schedule, so a board can show it on the card. */
+  onScheduleChanged?: () => void;
 }) {
   const session = useOptionalNewsDeskClient();
   const blocked = !(demo || isLocalPreviewEnabled()) && articlesAccessBlocked(session?.shell.phase);
@@ -141,6 +149,11 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const [savedType, setSavedType] = useState<string | null>(null);
   const [publishedType, setPublishedType] = useState<string | null>(null);
   const [aliases, setAliases] = useState<string[]>([]);
+  /** What the backend's `schedule_list` says about this Story (not what the loaded row holds, which may be an older version). */
+  const [schedule, setSchedule] = useState<StorySchedule | undefined>(undefined);
+  /** False until `schedule_list` has answered for the loaded Story, so the drawer never shows "Not scheduled" and then changes its mind. */
+  const [scheduleKnown, setScheduleKnown] = useState(false);
+  const { zone: scheduleZone } = useScheduleZone();
   /** The rating the Story had when it was loaded; the store shows what was tapped since. */
   const [savedStars, setSavedStars] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -163,6 +176,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
   const [reloadToken, setReloadToken] = useState(0);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [mediaIndex, setMediaIndex] = useState<MediaIndex>({ loaded: false, failed: false, assets: [] });
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageNotice, setImageNotice] = useState<string | null>(null);
@@ -183,6 +197,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
       .then((article) => {
         if (cancelled) return;
         setEditor(stateFromArticle(article));
+        setBodyIr(null);   // the Preview never carries another version's body over while this one is checked
         setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
         setSavedStars(article.starRating ?? null);
@@ -200,10 +215,22 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
     };
   }, [activeArticleId, backend, blocked, isNew, reloadToken]);
 
+  useEffect(() => {
+    setScheduleKnown(false);
+    if (!scheduleZone || !lineageId) { setSchedule(undefined); return; }
+    let cancelled = false;
+    backend.actions
+      .scheduleList({ storyLineageId: lineageId })
+      .then((result) => { if (!cancelled) { setSchedule(scheduleFromEntries(result.schedules)); setScheduleKnown(true); } })
+      .catch((error: unknown) => { if (!cancelled) setNotice({ tone: "error", text: `The schedule could not be read. ${failureMessage(error)}` }); });
+    return () => { cancelled = true; };
+  }, [backend, lineageId, scheduleZone, reloadToken]);
+
   const savedItemId = editor?.id ?? null;
   useEffect(() => {
     if (blocked || savedItemId === null) return;
     let cancelled = false;
+    setMediaIndex({ loaded: false, failed: false, assets: [] });
     mediaBackend
       .listMediaAssets(savedItemId)
       .then(async (assets) => {
@@ -220,8 +247,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         if (cancelled) return;
         const loaded = Object.fromEntries(entries.filter((entry) => entry !== null));
         setImageUrls((current) => ({ ...loaded, ...current }));
+        setMediaIndex({ loaded: true, failed: false, assets });
       })
-      .catch(() => undefined);
+      .catch(() => { if (!cancelled) setMediaIndex({ loaded: true, failed: true, assets: [] }); });
     return () => {
       cancelled = true;
     };
@@ -359,8 +387,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   useEffect(() => {
     if (!lineageId || isNew) { setLatestVersion(null); return; }
     let cancelled = false;
-    loadStoryReportingTrail(lineageId, activeArticleId)
-      .then(trail => { if (!cancelled) { const newest = trail.versions[0]; setLatestVersion(newest ? { id: newest.id, number: newest.versionNumber } : null); } })
+    loadNewestStoryVersion(lineageId)
+      .then(newest => { if (!cancelled) setLatestVersion(newest ? { id: newest.id, number: newest.versionNumber } : null); })
       .catch(() => { if (!cancelled) setLatestVersion(null); });
     return () => { cancelled = true; };
   }, [activeArticleId, isNew, lineageId, reloadToken]);
@@ -520,6 +548,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         current ? { ...current, id, status: "published", versionNumber: result.versionNumber } : current,
       );
       setEverPublished(true);
+      setSchedule(undefined);   // publishing now ends the schedule
       setSavedType(editor.type);
       setPublishedType(editor.type);
       const base = result.changed
@@ -582,7 +611,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         // so nothing moves when the article arrives. The heights live in newsroom-organizer.css (data-skeleton-*).
         <div aria-label="Loading article" aria-busy="true" className="space-y-4" data-newsroom-article-skeleton role="status">
           <div className="rounded-md bg-muted" data-skeleton-toolbar />
+          {!isNew && scheduleZone !== null ? <div className="rounded-md bg-muted" data-skeleton-schedule /> : null}
           {!isNew ? <div className="max-w-md rounded-md bg-muted" data-skeleton-stars /> : null}
+          <div className="rounded-md bg-muted" data-skeleton-headline />
           <div className="grid gap-6">
             <div className="rounded-md bg-muted" data-skeleton-fields />
             <div className="h-10 w-72 max-w-full rounded-md bg-muted" data-skeleton-tabs />
@@ -727,6 +758,21 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
             </div>
           ) : null}
 
+          {scheduleZone !== null && editor.id !== null && lineageId && !(scheduleZone && scheduleKnown) ? <div className="rounded-md bg-muted" data-skeleton-schedule /> : null}
+          {scheduleZone && editor.id !== null && lineageId && scheduleKnown ? (
+            <StorySchedulePanel
+              zone={scheduleZone}
+              schedule={schedule}
+              blockedReason={editor.dirty ? "Save your changes first: a schedule publishes the saved version." : isOlderVersion ? "This is an older version of the Story." : null}
+              save={async (scheduledPublishAt) => {
+                const saved = scheduleFromResult(await backend.actions.scheduleStory({ itemId: editor.id!, lineageId, scheduledPublishAt }));
+                setSchedule(saved);
+                onScheduleChanged?.();
+                return saved;
+              }}
+            />
+          ) : null}
+
           {editor.id !== null ? (
             <div className="max-w-md" data-newsroom-article-stars>
               <StarRating
@@ -737,6 +783,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               />
             </div>
           ) : null}
+
+          <StoryHeadlineImage state={headlineImageState(readHeadlineImage(editor.frontMatterYaml, editor.bodyMarkus), mediaIndex, imageUrls)} />
 
           <div className="grid gap-6">
             <div
@@ -1017,12 +1065,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               data-newsroom-article-preview-column
             >
               <div className="relative rounded-xl border border-border bg-card p-4" data-newsroom-article-preview ref={previewRef}>
-                {(readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) || readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)) ? (
-                  <div className="newsroom-article-summary" data-newsroom-article-summary>
-                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) ? <p className="newsroom-article-subtitle">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)}</p> : null}
-                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY) ? <p className="newsroom-article-blurb">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)}</p> : null}
-                  </div>
-                ) : null}
+                <StoryPreviewHeading frontMatterYaml={editor.frontMatterYaml} slug={editor.slug} />
                 {invalid && bodyIr ? (
                   <p className="mb-2 text-xs text-muted-foreground">Showing the last valid version.</p>
                 ) : null}

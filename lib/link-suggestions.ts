@@ -23,7 +23,8 @@ export type SuggestionRow = RelationRow & { createdAt?: string | null; importedA
 
 /** Whether a row is an open suggestion between a Reference and a Reference or concept. */
 export function isOpenSuggestion(row: Pick<RelationRow, "relationState" | "predicate" | "subjectKind" | "objectKind">): boolean {
-  return row.relationState === "suggested" && row.predicate === "related_to" && row.subjectKind === "reference" && (row.objectKind === "reference" || row.objectKind === "semanticNode");
+  return row.relationState === "suggested" && row.subjectKind === "reference"
+    && ((row.predicate === "related_to" && (row.objectKind === "reference" || row.objectKind === "semanticNode")) || (row.predicate === "tagged_with" && row.objectKind === "semanticNode"));
 }
 
 /** Most likely first; a row without a close match last; ties go to the newest, then by id so the order never wobbles. */

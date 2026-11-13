@@ -1,0 +1,20 @@
+{
+  "id": "PPY-dde1330c-686e-4780-822f-7d8963f7699c",
+  "title": "Rename concept tagging related_to to tagged_with, with a migration",
+  "description": "Ryan 2026-11-09: one predicate, one meaning. Story and Reference to concept tagging becomes tagged_with (mentions stays for extracted text; related_to stays generic and Reference to Reference). New writers write tagged_with; readers accept both during the transition; a migration (dry-run by default, IAM lane) writes tagged_with rows for legacy current related_to concept edges and retires the old ones; the audit reports legacy rows. Readers to update: about 14 Python modules and 8 TS files mention related_to. Ask ChatGPT to pause new concept batches until the commands land.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T13:03:48.783279Z",
+  "updated_at": "2026-11-09T13:03:48.783357Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

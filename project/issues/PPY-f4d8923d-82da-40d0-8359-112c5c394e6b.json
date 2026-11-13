@@ -1,0 +1,31 @@
+{
+  "id": "PPY-f4d8923d-82da-40d0-8359-112c5c394e6b",
+  "title": "Auth spike part 2: index list pages, subscriptions, tenantId immutability, and which token and Cognito plan the claims need",
+  "description": "Outcome: Same sandbox shape as part 1, run in its own sandbox. Answer: do lists through a GSI keyed '<tenant>#...' return full pages; are subscriptions filtered per tenant or must they be off; can tenantId be made immutable after create; which token the Amplify v6 data client sends for userPool auth and whether customising its claims needs the Cognito Essentials feature plan (and its price per monthly active user). Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) spike-tenant-claims-2, branch feature/<this issue id>-spike-tenant-claims-2 from origin/develop (spikes: branch spike/<this issue id>-spike-tenant-claims-2, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): as part 1, plus an index on Reference keyed by a prefixed value.\n\nAcceptance (Gherkin feature file: features_backend/tenant-claims-spike.feature):\nScenario: An index list returns full pages for the caller's tenant\n    Given 300 alpha and 300 beta References under prefixed keys\n    When alpha lists 100 at a time through the index\n    Then each page holds 100 alpha rows and no beta row\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: ampx sandbox; findings on this issue.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: none in production.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9f3de056-b9e3-45e8-92ee-c71395ae25d4",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7c53bb2f-b2e9-4a69-9d54-fac5ebd0fa41",
+      "author": "home",
+      "text": "Findings merged to develop: AnthusAI/Papyrus#1372 (f9c84705e, 2026-11-13), sandbox scenarios tagged @sandbox. Static evidence only; the runtime scenarios still need a sandbox deploy (decision D9). Left open for that.",
+      "created_at": "2026-11-13T17:08:54.864157Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T21:32:22.535254Z",
+  "updated_at": "2026-11-13T17:08:54.864718Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

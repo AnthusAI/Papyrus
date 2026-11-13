@@ -131,10 +131,10 @@ const scenarios: Record<string, () => Promise<void>> = {
       const { browser, page, errors } = await setup(board, 1440, 1000, mode);
       try {
         await progress(page, COPYWRITING.lineage).waitFor();
-        assert.equal(await progress(page, COPYWRITING.lineage).innerText(), "6/11 · 1 skipped", "done and not-applicable over all, then the skipped count");
+        assert.equal(await progress(page, COPYWRITING.lineage).innerText(), "6/15 · 1 skipped", "done and not-applicable over all, then the skipped count");
         assert.equal(await progress(page, COPYWRITING.lineage).locator("svg").count(), 1, "a Lucide icon");
-        assert.match(await progress(page, COPYWRITING.lineage).getAttribute("aria-label") ?? "", /Checklist: 6\/11 · 1 skipped/, "the words for a screen reader");
-        assert.equal(await progress(page, IDEA.lineage).innerText(), "0/11", "an idea has done nothing yet");
+        assert.match(await progress(page, COPYWRITING.lineage).getAttribute("aria-label") ?? "", /Checklist: 6\/15 · 1 skipped/, "the words for a screen reader");
+        assert.equal(await progress(page, IDEA.lineage).innerText(), "0/15", "an idea has done nothing yet");
         assert.equal(await card(page, COPYWRITING.lineage).locator(".issue-card-owner [data-story-checklist-progress]").count(), 1, "in the card's owner row");
         await shot(page, `card-${mode}-1440-v5`);
         await progress(page, COPYWRITING.lineage).click();
@@ -172,7 +172,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       try {
         await openStory(page, COPYWRITING.lineage);
         const cards = panel(page).locator(".issue-card");
-        assert.equal(await cards.count(), 11, "every live step of the template");
+        assert.equal(await cards.count(), 15, "every live step of the template");
         assert.equal(await cards.evaluateAll(nodes => nodes.every(node => node.getAttribute("data-type") === "sub-task")), true, "Kanbus sub-task cards");
         assert.equal(await step(page, "outline").getAttribute("data-priority"), "Skipped");
         assert.match(await step(page, "outline").innerText(), /Reason: The editor wrote the draft straight from the reporting notes\./);
@@ -197,7 +197,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       try {
         await openStory(page, COPYWRITING.lineage);
         const kinds = (key: string) => actions(page, key).locator("[data-step-action]").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-step-action")));
-        assert.equal(await panel(page).locator("[data-story-step-actions]").count(), 11, "buttons under every step, none of them chosen first");
+        assert.equal(await panel(page).locator("[data-story-step-actions]").count(), 15, "buttons under every step, none of them chosen first");
         for (const key of ["review_reader_agents", "review_search", "review_social", "publish"]) assert.deepEqual(await kinds(key), ["done", "skipped", "not_applicable", "note"], `${key}: an open step offers done, skip, not applicable and a note`);
         for (const key of ["choose", "outline", "review_people"]) assert.deepEqual(await kinds(key), ["open", "note"], `${key}: a closed step offers reopen and a note`);
         assert.equal(await panel(page).locator("[data-story-step-actions] button svg").count() >= 20, true, "Lucide icons on the buttons");
@@ -223,7 +223,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         await actions(page, "review_social").locator("textarea").fill("No image on this Story.");
         await actions(page, "review_social").locator('[data-step-action="save"]').click();
         await step(page, "review_social").locator('.issue-accent-priority:has-text("Skipped")').waitFor();
-        assert.match(await panel(page).locator(".story-checklist-progress").innerText(), /^7\/11 · 2 skipped$/, "the panel's progress follows");
+        assert.match(await panel(page).locator(".story-checklist-progress").innerText(), /^7\/15 · 2 skipped$/, "the panel's progress follows");
         // Not applicable also needs a reason; a done step is reopened by a person.
         await actions(page, "review_reader_agents").locator('[data-step-action="not_applicable"]').click();
         await actions(page, "review_reader_agents").locator("textarea").fill("Agents do not read this page.");
@@ -286,7 +286,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     const { browser, page, errors } = await setup(board);
     try {
       await openStory(page, PUBLISHED.lineage);
-      assert.equal(await progress(page, PUBLISHED.lineage).innerText(), "10/11 · 1 skipped");
+      assert.equal(await progress(page, PUBLISHED.lineage).innerText(), "14/15 · 1 skipped");
       assert.equal(await step(page, "review_social").getAttribute("data-priority"), "Not applicable");
       assert.match(await step(page, "review_social").innerText(), /Reason: This Story has no image to preview\./);
       assert.equal(await panel(page).locator('.issue-card[data-priority="Open"]').count(), 0);

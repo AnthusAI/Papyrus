@@ -19,10 +19,17 @@
       "text": "Inputs gathered in PPY-6d9a6d: Prospectus's plan catalogue has interval plans only and states pricing is out of scope; usage-priced plans and metered invoice lines are Prospectus work to request there.",
       "created_at": "2026-11-08T18:48:44.733106Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e65d9ca3-68b6-43d7-8f75-ab489439431f",
+      "author": "home",
+      "text": "Ryan (2026-11-08): usage billing beyond the quota is wanted; filed as PPY-8a3c6a. Data-driven product model PPY-966ef5.",
+      "created_at": "2026-11-08T21:19:02.984131Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-07T21:42:49.138437Z",
-  "updated_at": "2026-11-08T18:48:44.733323Z",
+  "updated_at": "2026-11-08T21:19:02.984384Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

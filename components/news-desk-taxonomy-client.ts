@@ -10,7 +10,7 @@ import { hasEditorRights } from "../lib/staff-groups";
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { AUTO_ACCEPTED_PAGE_SIZE, autoAcceptedFromRecords, autoAcceptedServerFilter, collectAutoAcceptedPage, type AutoAcceptedPage } from "../lib/auto-accepted-references";
-import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
+import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences, createLocalPreviewScheduledVersions } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
@@ -68,8 +68,10 @@ import {
   type ConversationViewer,
 } from "../lib/conversation";
 import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "../lib/post-message";
-import { isStoryItemType, legacyStageKeysToLoad, storyItemTypeFilter, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
-import { collectFilteredPage } from "../lib/story-stage-paging";
+import { isStoryItemType, legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { readScheduledRange, SCHEDULE_PAGE_STATES, type ScheduleQueryFetch } from "../lib/story-schedule-query";
+import { readStoryStageChangesSince, readStoryStagePage, STORY_STAGE_PAGE_LIMIT, type StageQueryFetch } from "../lib/story-stage-query";
+import { readWithStoryStageIndex } from "../lib/story-stage-mode";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
@@ -279,15 +281,6 @@ const NEWSROOM_ASSIGNMENT_FEED_QUERY = `
   }
 `;
 
-const NEWSROOM_REFERENCE_FEED_QUERY = `
-  query ListReferencesByNewsroomFeedAndCreatedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
-    listReferencesByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
-      nextToken
-    }
-  }
-`;
-
 const NEWSROOM_REFERENCE_IMPORTED_FEED_QUERY = `
   query ListReferencesByNewsroomFeedAndImportedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByNewsroomFeedAndImportedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
@@ -309,15 +302,6 @@ const LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY = `
 const LIST_REFERENCES_BY_REVIEWED_FEED_AND_UPDATED_AT_QUERY = `
   query ListReferencesByReviewedFeedAndUpdatedAt($reviewedFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByReviewedFeedAndUpdatedAt(reviewedFeedKey: $reviewedFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
-      nextToken
-    }
-  }
-`;
-
-const LIST_REFERENCES_FALLBACK_QUERY = `
-  query ListReferencesFallback($limit: Int, $nextToken: String) {
-    listReferences(limit: $limit, nextToken: $nextToken) {
       items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
       nextToken
     }
@@ -920,7 +904,7 @@ export async function loadEditorNewsDeskDashboard({ isAdmin }: { isAdmin: boolea
 
 export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: boolean }): Promise<CategorySteeringDashboard> {
   const procedureDataPromise = isAdmin
-    ? loadEditorProcedureData().catch(() => ({ definitions: [], versions: [], runs: [] }))
+    ? loadEditorProcedureData()
     : Promise.resolve<{ definitions: ProcedureDefinitionRecord[]; versions: ProcedureVersionRecord[]; runs: ProcedureRunRecord[] }>({
       definitions: [],
       versions: [],
@@ -946,24 +930,24 @@ export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: bo
     procedureData,
     userDirectory,
   ] = await Promise.all([
-    loadDashboardSlice("KnowledgeCorpus", () => listUserPoolModel<CategorySteeringCorpus>("KnowledgeCorpus"), [] as CategorySteeringCorpus[]),
-    loadDashboardSlice("KnowledgeImportRun", () => listUserPoolModel<CategorySteeringImportRun>("KnowledgeImportRun"), [] as CategorySteeringImportRun[]),
-    loadDashboardSlice("CategorySet", () => listUserPoolModel<CategorySteeringCategorySet>("CategorySet"), [] as CategorySteeringCategorySet[]),
-    loadDashboardSlice("Category", () => listUserPoolModel<CategorySteeringCategory>("Category"), [] as CategorySteeringCategory[]),
-    loadDashboardSlice("CategoryKeyword", () => listOptionalUserPoolModel<CategoryKeywordRecord>("CategoryKeyword"), [] as CategoryKeywordRecord[]),
-    loadDashboardSlice("LexicalSteeringRule", () => listOptionalUserPoolModel<LexicalSteeringRuleRecord>("LexicalSteeringRule"), [] as LexicalSteeringRuleRecord[]),
-    loadDashboardSlice("SteeringProposal", () => listSteeringProposalsViaGraphql(), [] as CategorySteeringProposal[]),
-    loadDashboardSlice("KnowledgeArtifact", () => listUserPoolModel<CategorySteeringArtifact>("KnowledgeArtifact"), [] as CategorySteeringArtifact[]),
-    loadDashboardSlice("Reference", () => listUserPoolModel<ReferenceRecord>("Reference"), [] as ReferenceRecord[]),
-    loadDashboardSlice("ReferenceAttachment", () => listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"), [] as ReferenceAttachmentRecord[]),
-    loadDashboardSlice("SemanticNode", () => listUserPoolModel<SemanticNodeRecord>("SemanticNode"), [] as SemanticNodeRecord[]),
-    loadDashboardSlice("Message", () => listUserPoolModel<MessageRecord>("Message"), [] as MessageRecord[]),
-    loadDashboardSlice("SemanticRelation", () => listUserPoolModel<SemanticRelationRecord>("SemanticRelation"), [] as SemanticRelationRecord[]),
-    loadDashboardSlice("Assignments", () => loadEditorAssignmentsData(), { assignments: [], assignmentEvents: [] }),
-    loadDashboardSlice("EditionSlot", () => listOptionalUserPoolModel<EditionSlotRecord>("EditionSlot"), [] as EditionSlotRecord[]),
-    loadDashboardSlice("NewsroomSection", () => listOptionalUserPoolModel<NewsroomSectionRecord>("NewsroomSection"), [] as NewsroomSectionRecord[]),
+    listUserPoolModel<CategorySteeringCorpus>("KnowledgeCorpus"),
+    listUserPoolModel<CategorySteeringImportRun>("KnowledgeImportRun"),
+    listUserPoolModel<CategorySteeringCategorySet>("CategorySet"),
+    listUserPoolModel<CategorySteeringCategory>("Category"),
+    listOptionalUserPoolModel<CategoryKeywordRecord>("CategoryKeyword"),
+    listOptionalUserPoolModel<LexicalSteeringRuleRecord>("LexicalSteeringRule"),
+    listSteeringProposalsViaGraphql(),
+    listUserPoolModel<CategorySteeringArtifact>("KnowledgeArtifact"),
+    listUserPoolModel<ReferenceRecord>("Reference"),
+    listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"),
+    listUserPoolModel<SemanticNodeRecord>("SemanticNode"),
+    listUserPoolModel<MessageRecord>("Message"),
+    listUserPoolModel<SemanticRelationRecord>("SemanticRelation"),
+    loadEditorAssignmentsData(),
+    listOptionalUserPoolModel<EditionSlotRecord>("EditionSlot"),
+    listOptionalUserPoolModel<NewsroomSectionRecord>("NewsroomSection"),
     procedureDataPromise,
-    loadDashboardSlice("UserDirectory", () => (isAdmin ? loadUserDirectory() : Promise.resolve([])), [] as UserDirectoryEntry[]),
+    (isAdmin ? loadUserDirectory() : Promise.resolve([])),
   ]);
 
   const sortedCorpora = corpora.sort((left, right) => left.name.localeCompare(right.name));
@@ -1016,15 +1000,6 @@ export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: bo
     procedureRuns: procedureData.runs,
     loadError: null,
   };
-}
-
-async function loadDashboardSlice<T>(label: string, loader: () => Promise<T>, fallback: T): Promise<T> {
-  try {
-    return await loader();
-  } catch (error) {
-    console.warn(`Newsroom dashboard slice failed: ${label}`, error);
-    return fallback;
-  }
 }
 
 export async function loadEditorProcedureData(): Promise<{
@@ -2284,23 +2259,7 @@ export async function loadNewsroomReferencePage(options: NewsroomReferencePageOp
   if (isLocalPreviewEnabled()) return { items: createLocalPreviewReferences(), nextToken: null, hasMore: false };
   configureAmplifyClient();
   const order = normalizeNewsroomReferencePageOrder(options.order);
-  if (order === "imported") {
-    try {
-      const importedPage = await loadReferencePageByImportedFeed(options);
-      if (importedPage.items.length > 0 || options.nextToken) return importedPage;
-    } catch (error) {
-      if (!isMissingGraphQLQueryFieldError(error, "listReferencesByNewsroomFeedAndImportedAt")) {
-        throw error;
-      }
-      console.warn(
-        "listReferencesByNewsroomFeedAndImportedAt is not deployed in this environment; "
-        + "falling back to legacy reference queries with client-side import-date sort.",
-      );
-    }
-    const fallbackPage = await loadReferencePageByFallbackList(options);
-    if (fallbackPage.items.length > 0 || options.nextToken) return fallbackPage;
-    // Continue into status-index loaders below when the table scan is empty.
-  }
+  if (order === "imported") return loadReferencePageByImportedFeed(options);
   const normalizedStatus = normalizeReferenceStatusKey(options.status);
   if (normalizedStatus) {
     const indexedPage = await loadReferencePageByStatus({
@@ -2309,38 +2268,27 @@ export async function loadNewsroomReferencePage(options: NewsroomReferencePageOp
       nextToken: options.nextToken,
       corpusId: options.corpusId,
     });
-    if (indexedPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(indexedPage, order);
-    const legacyPage = await loadReferencePageByLegacyFeed(options);
-    if (legacyPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(legacyPage, order);
-    return loadReferencePageByFallbackList(options);
+    return sortReferencePageByOrder(indexedPage, order);
   }
   if (options.excludePending) {
     // Use the curation-status merge, not reviewedFeedKey. The reviewed-feed GSI is only
     // populated for references that went through backfill; treating it as authoritative
     // capped production at ~100 rows while thousands exist in the status indexes.
-    const mergedReviewedPage = await loadMergedReferenceStatusPage({
+    return loadMergedReferenceStatusPage({
       statuses: ["accepted", "rejected", "archived"],
       limit: options.limit,
       nextToken: options.nextToken,
       corpusId: options.corpusId,
       order,
     });
-    if (mergedReviewedPage.items.length > 0 || options.nextToken) return mergedReviewedPage;
-    const legacyPage = await loadReferencePageByLegacyFeed(options);
-    if (legacyPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(legacyPage, order);
-    return loadReferencePageByFallbackList(options);
   }
-  const mergedPage = await loadMergedReferenceStatusPage({
+  return loadMergedReferenceStatusPage({
     statuses: REFERENCE_STATUS_KEYS,
     limit: options.limit,
     nextToken: options.nextToken,
     corpusId: options.corpusId,
     order,
   });
-  if (mergedPage.items.length > 0 || options.nextToken) return mergedPage;
-  const legacyPage = await loadReferencePageByLegacyFeed(options);
-  if (legacyPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(legacyPage, order);
-  return loadReferencePageByFallbackList(options);
 }
 
 function referencePageMatchesFilters(
@@ -2356,18 +2304,6 @@ function referencePageMatchesFilters(
   return true;
 }
 
-async function loadReferencePageByLegacyFeed(options: NewsroomReferencePageOptions): Promise<NewsroomRecordPage<ReferenceRecord>> {
-  const normalizedStatus = normalizeReferenceStatusKey(options.status);
-  return loadNewsroomFeedPage<ReferenceRecord>({
-    query: NEWSROOM_REFERENCE_FEED_QUERY,
-    field: "listReferencesByNewsroomFeedAndCreatedAt",
-    newsroomFeedKey: "references",
-    limit: options.limit,
-    nextToken: options.nextToken,
-    matches: (reference) => referencePageMatchesFilters(reference, options, normalizedStatus),
-  });
-}
-
 async function loadReferencePageByImportedFeed(options: NewsroomReferencePageOptions): Promise<NewsroomRecordPage<ReferenceRecord>> {
   const normalizedStatus = normalizeReferenceStatusKey(options.status);
   return loadNewsroomFeedPage<ReferenceRecord>({
@@ -2378,68 +2314,6 @@ async function loadReferencePageByImportedFeed(options: NewsroomReferencePageOpt
     nextToken: options.nextToken,
     matches: (reference) => referencePageMatchesFilters(reference, options, normalizedStatus),
   });
-}
-
-async function loadReferencePageByFallbackList(options: NewsroomReferencePageOptions): Promise<NewsroomRecordPage<ReferenceRecord>> {
-  const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ReferenceRecord>>;
-  };
-  const limit = Math.max(1, Math.min(options.limit ?? NEWSROOM_PAGE_LIMIT, 200));
-  const normalizedStatus = normalizeReferenceStatusKey(options.status);
-  const items: ReferenceRecord[] = [];
-  let cursor = options.nextToken ?? null;
-  let connectionNextToken: string | null = null;
-  let pageCount = 0;
-
-  do {
-    pageCount += 1;
-    let response: GraphQLConnectionResponse<ReferenceRecord>;
-    try {
-      response = await client.graphql({
-        query: LIST_REFERENCES_FALLBACK_QUERY,
-        variables: {
-          limit,
-          nextToken: cursor,
-        },
-        authMode: USER_POOL_AUTH_MODE,
-      });
-    } catch (error) {
-      throw new Error(normalizeUnknownErrorMessage(error, "Failed to load listReferences fallback"));
-    }
-
-    const connection = response.data?.listReferences;
-    if (!connection) {
-      assertNoGraphQLErrors(response.errors);
-      throw new Error("Missing GraphQL connection payload for listReferences fallback.");
-    }
-    if (response.errors?.length) {
-      console.warn("GraphQL returned partial data for listReferences fallback.", response.errors);
-    }
-
-    connectionNextToken = connection.nextToken ?? null;
-    const pageItems = ((connection.items ?? []).filter(Boolean) as ReferenceRecord[])
-      .filter((reference) => {
-        if (reference.versionState && reference.versionState !== "current") return false;
-        if (options.corpusId && reference.corpusId !== options.corpusId) return false;
-        const status = normalizeReferenceStatusKey(reference.curationStatus) ?? "pending";
-        if (normalizedStatus) return status === normalizedStatus;
-        if (options.excludePending) return status !== "pending";
-        return true;
-      });
-    items.push(...pageItems);
-    cursor = connectionNextToken;
-  } while (items.length < limit && cursor && pageCount < 40);
-
-  const order = normalizeNewsroomReferencePageOrder(options.order);
-  const sorted = sortReferencePageByOrder({
-    items,
-    nextToken: connectionNextToken,
-    hasMore: Boolean(connectionNextToken),
-  }, order);
-  return {
-    ...sorted,
-    items: sorted.items.slice(0, limit),
-  };
 }
 
 /**
@@ -2626,23 +2500,28 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
   });
 }
 
-const CONTENT_ITEMS_BY_STAGE_QUERY = `
-  query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $filter: ModelItemFilterInput, $limit: Int, $nextToken: String) {
-    listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, filter: $filter, limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating }
-      nextToken
-    }
-  }
-`;
-
-export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = 25;
+export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = STORY_STAGE_PAGE_LIMIT;
 
 export type ContentItemStagePage = {
   versions: ContentItemVersionRecord[];
   nextToken: string | null;
 };
 
-/** One newest-updated-first page of the content items in one stage, so a board column can load as it is scrolled. */
+function contentItemStageFetch(): StageQueryFetch {
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as {
+    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
+  };
+  return async ({ query, field, variables }) => {
+    const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({ query, variables, authMode: USER_POOL_AUTH_MODE });
+    assertNoGraphQLErrors(response.errors);
+    const connection = response.data?.[field];
+    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+    return { items: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[], nextToken: connection.nextToken ?? null };
+  };
+}
+
+/** One newest-updated-first page of the stories in one stage, so a board column can load as it is scrolled (lib/story-stage-query.ts). */
 export async function loadNewsroomContentItemStagePage(
   stage: string,
   nextToken: string | null = null,
@@ -2657,64 +2536,28 @@ export async function loadNewsroomContentItemStagePage(
       nextToken: followingOffset < versionsInStage.length ? String(followingOffset) : null,
     };
   }
-  configureAmplifyClient();
-  const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
-  };
-  const field = "listItemsByStageAndUpdatedAt";
-  // Only story types, filtered in the query. The filter runs after DynamoDB reads a page, so read until the column has its page.
-  const page = await collectFilteredPage<ContentItemVersionRecord>(async (token, scanLimit) => {
-    const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
-      query: CONTENT_ITEMS_BY_STAGE_QUERY,
-      variables: { stage, sortDirection: "DESC", filter: storyItemTypeFilter(), limit: Math.max(limit, scanLimit), nextToken: token },
-      authMode: USER_POOL_AUTH_MODE,
-    });
-    assertNoGraphQLErrors(response.errors);
-    const connection = response.data?.[field];
-    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
-    return { items: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[], nextToken: connection.nextToken ?? null };
-  }, { nextToken, wanted: limit });
+  const fetch = contentItemStageFetch();
+  const page = await readWithStoryStageIndex(mode => readStoryStagePage(fetch, mode, stage, { nextToken, limit }));
   return { versions: page.items, nextToken: page.nextToken };
 }
 
-const CONTENT_ITEMS_CHANGED_SINCE_QUERY = `
-  query ListItemsChangedSince($stage: String!, $updatedAt: ModelStringKeyConditionInput, $sortDirection: ModelSortDirection, $filter: ModelItemFilterInput, $limit: Int, $nextToken: String) {
-    listItemsByStageAndUpdatedAt(stage: $stage, updatedAt: $updatedAt, sortDirection: $sortDirection, filter: $filter, limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating }
-      nextToken
-    }
-  }
-`;
-
 /**
- * Every story-type Item in one stage whose `updatedAt` is at or after `since`, newest first. This is a key condition on the stage index's
- * sort key, so DynamoDB reads only the changed rows: a quiet board costs one small request per stage that returns nothing. `since` is
- * inclusive (a row written in the same instant as the newest row already shown is read again, and the caller merges by id).
+ * Every story in one stage whose `updatedAt` is at or after `since`, newest first. This is a key condition on the index's sort key, so
+ * DynamoDB reads only the changed rows: a quiet board costs one small request per stage that returns nothing. `since` is inclusive (a row
+ * written in the same instant as the newest row already shown is read again, and the caller merges by id).
  */
 export async function loadNewsroomContentItemsChangedSince(stage: string, since: string): Promise<ContentItemVersionRecord[]> {
   if (isLocalPreviewEnabled()) {
     return createLocalPreviewContentItemVersions().filter(version => version.stage === stage && isStoryItemType(version.type) && String(version.updatedAt ?? "") >= since);
   }
-  configureAmplifyClient();
-  const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
-  };
-  const field = "listItemsByStageAndUpdatedAt";
-  const changed: ContentItemVersionRecord[] = [];
-  let nextToken: string | null = null;
-  do {
-    const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
-      query: CONTENT_ITEMS_CHANGED_SINCE_QUERY,
-      variables: { stage, updatedAt: { ge: since }, sortDirection: "DESC", filter: storyItemTypeFilter(), limit: CONTENT_ITEM_COLUMN_PAGE_LIMIT, nextToken },
-      authMode: USER_POOL_AUTH_MODE,
-    });
-    assertNoGraphQLErrors(response.errors);
-    const connection = response.data?.[field];
-    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
-    changed.push(...((connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[]));
-    nextToken = connection.nextToken ?? null;
-  } while (nextToken);
-  return changed;
+  const fetch = contentItemStageFetch();
+  return readWithStoryStageIndex(mode => readStoryStageChangesSince(fetch, mode, stage, since));
+}
+
+/** Every Story version scheduled between two UTC instants, in any state the Schedule page shows, read from the schedule index (lib/story-schedule-query.ts). */
+export async function loadNewsroomScheduledStories(from: string, to: string): Promise<ContentItemVersionRecord[]> {
+  if (isLocalPreviewEnabled()) return createLocalPreviewScheduledVersions(from, to, SCHEDULE_PAGE_STATES);
+  return readScheduledRange(contentItemStageFetch() as ScheduleQueryFetch, from, to);
 }
 
 export async function loadModelPayloadsForOwner(
@@ -3735,11 +3578,6 @@ async function loadNewsroomFeedPage<T>({
     }
     const connection = response.data?.[field];
     if (!connection) {
-      if (isMissingGraphQLQueryFieldError(response.errors, field)) {
-        throw new Error(
-          `Validation error of type FieldUndefined: Field '${field}' in type 'Query' is undefined @ '${field}'`,
-        );
-      }
       assertNoGraphQLErrors(response.errors);
       throw new Error(`Missing GraphQL connection payload for ${field}.`);
     }
@@ -4229,14 +4067,6 @@ function assertNoGraphQLErrors(errors?: unknown[] | null) {
     })
     .join("; ");
   throw new Error(details);
-}
-
-function isMissingGraphQLQueryFieldError(error: unknown, fieldName: string): boolean {
-  if (Array.isArray(error)) {
-    return error.some((entry) => isMissingGraphQLQueryFieldError(entry, fieldName));
-  }
-  const message = normalizeUnknownErrorMessage(error, "");
-  return message.includes("FieldUndefined") && message.includes(fieldName);
 }
 
 function normalizeUnknownErrorMessage(error: unknown, fallback: string): string {

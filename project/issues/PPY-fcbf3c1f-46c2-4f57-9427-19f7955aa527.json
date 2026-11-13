@@ -1,0 +1,20 @@
+{
+  "id": "PPY-fcbf3c1f-46c2-4f57-9427-19f7955aa527",
+  "title": "Capture: SEC EDGAR fetch with a declared User-Agent contact and data.sec.gov JSON endpoints",
+  "description": "sec.gov refuses anonymous automated requests (403 'Your Request Originates from an Undeclared Automated Tool'), so every EDGAR Reference captures as blocked and gets no text or summary. Needed: a User-Agent of the form '<name> <contact>' where the contact is read from AWS config/SSM (SecureString per ssm-over-secrets-manager), never from the repo; use it only for sec.gov / data.sec.gov hosts; stay under 10 requests/second. Prefer data.sec.gov/submissions/CIK##########.json and data.sec.gov/api/xbrl/companyfacts/CIK##########.json for deal terms and financials over the 10-K HTML (a 300k-character filing is cut at 400 KB of markup). Needs a person to supply the contact value. Guide note already added in docs/agent-cli-guide.md (references text PR).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-10T03:29:25.567485Z",
+  "updated_at": "2026-11-10T03:29:25.567530Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

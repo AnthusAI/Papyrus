@@ -48,6 +48,15 @@ assert.deepEqual(validatePublicationConfig({ kind: "s3-projection", cache: { inv
 for (const htmlSMaxAgeSeconds of [-1, 1.5, 86401]) {
   assert.match(problemsOf({ kind: "s3-projection", cache: { htmlSMaxAgeSeconds } }), /htmlSMaxAgeSeconds/, String(htmlSMaxAgeSeconds));
 }
+assert.deepEqual(validatePublicationConfig({ kind: "s3-projection", cache: { livePrefixes: ["conversations/", "tools/conversations/"], liveSMaxAgeSeconds: 5 } }), []);
+assert.deepEqual(validatePublicationConfig({ kind: "s3-projection", cache: { livePrefixes: ["conversations/"] } }), []);
+for (const livePrefixes of [[], ["conversations"], ["/conversations/"], ["a/../b/"], ["a,b/"], [""], ["/"], [7]]) {
+  assert.match(problemsOf({ kind: "s3-projection", cache: { livePrefixes: livePrefixes as string[] } }), /livePrefixes/, JSON.stringify(livePrefixes));
+}
+for (const liveSMaxAgeSeconds of [-1, 1.5, 61]) {
+  assert.match(problemsOf({ kind: "s3-projection", cache: { livePrefixes: ["conversations/"], liveSMaxAgeSeconds } }), /liveSMaxAgeSeconds/, String(liveSMaxAgeSeconds));
+}
+assert.match(problemsOf({ kind: "s3-projection", cache: { liveSMaxAgeSeconds: 5 } }), /needs publication.cache.livePrefixes/);
 assert.match(problemsOf({ kind: "s3-projection", cache: { invalidation: "wildcard" } }), /invalidation must be/);
 for (const projector of ["../x.py", "/abs/x.py", "web/projector.js", "web/../../x.py", ""]) {
   assert.match(problemsOf({ kind: "s3-projection", projector }), /projector/, projector);
@@ -76,6 +85,11 @@ const cachedEnvironment = s3ProjectionEnvironment({
 });
 assert.equal(cachedEnvironment.PAPYRUS_HTML_S_MAXAGE_SECONDS, "120");
 assert.equal(cachedEnvironment.PAPYRUS_EDGE_INVALIDATION, "off");
+assert.equal(cachedEnvironment.PAPYRUS_HTML_LIVE_PREFIXES, undefined, "no live prefixes unless the site sets them");
+const liveEnvironment = s3ProjectionEnvironment({ ...settingsInput, cache: { livePrefixes: ["conversations/", "tools/conversations/"], liveSMaxAgeSeconds: 3 } });
+assert.equal(liveEnvironment.PAPYRUS_HTML_LIVE_PREFIXES, "conversations/,tools/conversations/");
+assert.equal(liveEnvironment.PAPYRUS_HTML_LIVE_S_MAXAGE_SECONDS, "3");
+assert.equal(s3ProjectionEnvironment({ ...settingsInput, cache: { livePrefixes: ["conversations/"] } }).PAPYRUS_HTML_LIVE_S_MAXAGE_SECONDS, undefined, "the Python side owns the default");
 // "off" stops a Save purging, but an editor's explicit page refresh (PPY-105508) still needs the permission.
 assert.equal(
   s3ProjectionPolicyStatements({ ...settingsInput, bucketName: "b", distributionArn: edgeArn, cache: { invalidation: "off" } }).some((statement) =>
@@ -83,6 +97,11 @@ assert.equal(
   true,
 );
 assert.equal(s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn }).PAPYRUS_EDGE_INVALIDATION, undefined);
+// "targeted" is the default (PPY-2745c1) and sets nothing; "all" is the explicit, billable legacy mode; the per-call cap travels either way.
+const targetedEnvironment = s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn, cache: { invalidation: "targeted", maxInvalidationPaths: 12 } });
+assert.equal(targetedEnvironment.PAPYRUS_EDGE_INVALIDATION, undefined);
+assert.equal(s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn, cache: { invalidation: "all" } }).PAPYRUS_EDGE_INVALIDATION, "all");
+assert.equal(targetedEnvironment.PAPYRUS_INVALIDATION_MAX_PATHS, "12");
 assert.deepEqual(
   s3ProjectionEnvironment({
     ...settingsInput,

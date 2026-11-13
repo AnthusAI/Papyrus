@@ -78,7 +78,7 @@ PEOPLE = Lens(
     note="Human readers: read the Story as a reader would, run the checks, fix what you can and record the findings.",
     checks=(
         _c("P1", "The headline is present, is not a placeholder and is not another Story's headline", AUTO, WARN, "the title, and the other Story if duplicated", (_CW, _ED), built=True),
-        _c("P2", "The Story has a dek (the summary line under the headline)", AUTO, WARN, "which field was used, or that the page will use the first paragraph", (_CW, _ED), built=True),
+        _c("P2", "The Story has a dek (the summary line under the headline)", AUTO, WARN, "which field was used, that the page will use the first paragraph, or that the dek is a verbatim copy of the blurb (a dek that merely differs from the blurb is expected)", (_CW, _ED), built=True),
         _c("P3", "The dek adds something the headline does not", JEV, INFO, "the question, the answer and its probability", (_CW,),
            question="Does the dek say anything the headline does not?"),
         _c("P4", "The headline does not promise what the Story does not deliver", JEV, WARN, "the question, the answer and the sentence compared", (_CW,),
@@ -98,6 +98,10 @@ PEOPLE = Lens(
         _c("P13", "Every claim a model wrote has been fact-checked", AUTO, WARN, "claims held, by group, or that the draft check has not run", (_CW, _RP)),
         _c("P14", "The Story is fair, engaging and worth reading", HUMAN, None, "the person's findings note", (_ED,)),
         _c("P15", "The readability is typical for this site", AUTO, INFO, "the Story's value against the site's own median and spread"),
+        _c("P16", "Every video has a title (its accessible name) and a credit", AUTO, ERROR,
+           "each video, its title and credit, and whatever is missing", (_CW, _ED, _RP), built=True),
+        _c("P17", "Every video has a caption", AUTO, WARN, "the videos with no caption", (_CW, _ED), built=True),
+        _c("P18", "A video plays on this site: the site lists its provider", AUTO, WARN, "the site's embeds setting, each video's provider", (_ED,), built=True),
     ),
 )
 
@@ -124,6 +128,7 @@ READER_AGENTS = Lens(
         _c("A12", "After publishing: the Markdown copy is served and the page links to it", AUTO, WARN, "the addresses fetched, their status and content type"),
         _c("A13", "The site is live and open to readers", AUTO, INFO, "whether the site asks readers to stay away", built=True),
         _c("A14", "The Story does not claim access to a source it did not read", HUMAN, None, "the person's findings note", (_RP,)),
+        _c("A15", "A credited video is one of the Story's citations", AUTO, WARN, "the credited videos whose address is not among the citations", (_CW, _RP), built=True),
     ),
 )
 
@@ -165,7 +170,7 @@ SOCIAL = Lens(
         _c("C1", "The preview resolves: the page and picture addresses can be built", AUTO, WARN, "the resolved addresses", (), built=True),
         _c("C2", "The description is the Story's own, not the site fallback", AUTO, WARN, "which source the description came from", (_CW,), mirrors=("S2",), built=True),
         _c("C3", "The Story has its own picture, or is knowingly using the site's", AUTO, INFO, "where the picture came from", (_ED,), built=True),
-        _c("C4", "The picture file exists and its size and shape are known", AUTO, WARN, "the path, size and ratio", (_ED,)),
+        _c("C4", "The share picture file exists, is a JPEG or PNG and its size and shape are known", AUTO, WARN, "the address, status, Content-Type, format, size and ratio", (_ED,), built=True),
         _c("C5", "The picture has a description for the share card", AUTO, WARN, "the description used, or that none is emitted", (_CW,), built=True),
         _c("C6", "A third-party picture is credited", AUTO, ERROR, "as P10", (_CW, _ED), mirrors=("P10",), built=True),
         _c("C7", "Every name, number and quotation in the title and description is in the Story", AUTO, WARN, "the terms not found", (_CW,), built=True),
@@ -176,7 +181,7 @@ SOCIAL = Lens(
         _c("C10", "The preview is not a teaser that withholds the point", JEV, INFO, "the choice and its probability", (_CW,),
            question="Which best describes the description: informs, teases, withholds?"),
         _c("C11", "A drawn approximation of the card is shown to the approver", AUTO, INFO, "the approximation and its inputs"),
-        _c("C12", "After publishing: the live tags equal the predicted ones", AUTO, WARN, "the fetch results"),
+        _c("C12", "After publishing: the live og:image and twitter:image equal the tested picture and it can be fetched", AUTO, WARN, "the fetch results"),
         _c("C13", "The picture is tasteful, on brand and relevant", HUMAN, None, "the person's findings note", (_ED,)),
     ),
 )
@@ -223,7 +228,7 @@ TRADE_OFFS = ("The lenses can pull against each other. Accuracy and natural writ
 AGENT_DUTY = ("These review steps are mainly for agents to do before a person reviews the Story, so obvious problems are fixed before any human time is "
               "spent. An agent may complete a lens step, and it is recorded under the agent's name. Only a person gives the final approval.")
 
-MUST_FIX = ("Three problems must be fixed before a step can be closed as done: an image with no alt text, a third-party image with no credit, and a "
+MUST_FIX = ("Four problems must be fixed before a step can be closed as done: an image with no alt text, a third-party image with no credit, a video with no title or no credit, and a "
             "Markdown copy that differs from the Story's source. Sites that publish without a person's approval depend on these checks even more.")
 
 
@@ -266,7 +271,9 @@ def lens_lines(states: Mapping[str, str] | None = None, counts: Mapping[str, Map
         if (states or {}).get(lens.step) in ("done", "skipped", "not_applicable"):
             continue
         found = (counts or {}).get(lens.step)
-        if found:
+        if (states or {}).get(lens.step) == "stale":
+            summary = "STALE: recorded done against an earlier version of the Story"
+        elif found:
             summary = "\t".join(f"{label}: {found.get(state, 0)}" for state, label in STATE_LABELS)
         else:
             summary = "not checked yet"

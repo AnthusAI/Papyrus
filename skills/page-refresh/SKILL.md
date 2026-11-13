@@ -16,7 +16,7 @@ For anything else, pick the smallest operation that covers the edit, and look be
 | One or a few pages look old | `site_refresh_pages` (`paths`) | `refresh --path /articles/my-story/` |
 | A Story was edited: its page, and the home page, list and section pages that show it | `site_refresh_story` (`storyLineageId`) | `refresh --story LINEAGE` |
 | The index pages look old (a ranking or a card changed) | `site_refresh_indexes` | `refresh --indexes` |
-| A template or hook change is deployed but existing pages still have the old markup | `site_rerender_pages` (`scope`: `story`, `indexes` or `all`) | `rerender --story LINEAGE`, `--indexes` or `--all` |
+| A template or hook change is deployed but existing pages still have the old markup | `site_rerender_pages` (`scope`: `story`, `indexes` or `all`) | `rerender --story LINEAGE`, `--indexes` (optionally `--under /PREFIX/`, repeatable, to rebuild only the index pages under that URL path) or `--all` |
 
 Rules:
 
@@ -28,3 +28,4 @@ Rules:
 - A publish already purges the pages it rewrote on a site that invalidates on Save. Use a refresh for what a publish did not reach: index pages that were not rewritten, a story edited some other way, a site that does not invalidate on Save.
 - Read the answer: `rendered.ok` (re-render only) and `invalidation.ok` are separate. `invalidation.status` is `invalidated` with the CloudFront invalidation `id` and `status` (`InProgress` completes in seconds to a minute), or `failed` with the reason. The first 1,000 paths a month are free, then 0.005 USD each.
 - From the signed-in lane a re-render of the index pages or the whole site is scheduled, not finished, when the answer says `scheduled`.
+- A publish reports its own stages (`saved`, `projected`, `invalidated`, `verified`) with an exit code per failed stage: `papyrus ops content publish --id ID --json`, and `--verify` to wait for the public page. Check the exit code (3 checklist open, 4 page not built, 5 still building, 6 cache not purged, 7 public page stale), never a text marker. A purge failure (6) is not a write failure: the page is written; use a refresh. See `docs/site-hosting.md`, "What `content publish` reports".

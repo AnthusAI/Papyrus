@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "8b25b5d7-da1b-44fa-a5e8-0dd4867532eb",
+  "issue_id": "PPY-8eca5bb4-5fcf-4515-8f8d-193cb351c152",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:17:57.540Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Spike (2 days): can one Cognito pool hold a Google client per tenant, and what are the real limits?",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

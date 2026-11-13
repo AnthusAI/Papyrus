@@ -8,10 +8,22 @@ release number. Publishing uses npm and PyPI trusted publishing (OIDC); there is
 ## How releases are cut
 
 - Commit with conventional commits (`feat:`, `fix:`, `feat!:` or `BREAKING CHANGE` for real breaks).
+- A squash merge takes the pull request's title as its commit message, so the title must start with `feat:` or `fix:` (a title like "Hooks: ..." releases nothing).
+- A push that changes only files under `project/**` (the Kanbus board) never starts the Release workflow, so a release pull request must carry at least one change outside it. An empty commit or a board-only difference between `develop` and `main` publishes nothing (2026-11-09, #1317 and #1318).
 - A push to `develop` publishes a prerelease `X.Y.Z-next.N` (npm dist-tag `next`; PyPI `X.Y.Z.devN`).
 - A push to `main` publishes the stable version. `main` only changes by a release: a `develop` to `main` pull request with a merge commit, once or twice a day. Agents release only when told to, and an extra release needs Ryan's say-so (`AGENTS.md`, Git workflow, policy of 2026-11-04). Site bumps go to each site's `develop` and ship in that site's release.
 - Versions are stamped into the staged copies only; nothing is committed back.
 - Do not hand-tag. Semantic Release picks the first version (`1.0.0-next.1`).
+
+## One new index per table per release
+
+DynamoDB creates or deletes one global secondary index per table in one update, and a table holds at most 20. The GSI ledger check (`scripts/check-gsi-ledger.ts`, run by the `ts-misc` job and by `npm run test:gsi-ledger`) compares the indexes in `amplify/data/schema.ts` with the last stable release tag (the `ts-misc` job checks out the full history so tags exist; with no tag the check fails and says so) and fails when:
+
+- a table gains more than one index since that tag (it names the table and every new index);
+- an index keeps its name but changes its keys (add a new index and remove the old one in a later release);
+- a table has more than 20 indexes, the DynamoDB limit per table.
+
+It reports how many index slots each changed table has left, and prints the release order the pending indexes need: release 1 takes the first new index of each table, release 2 the second, and so on. A renamed index counts as a removal plus an addition. Rules and examples: `features_backend/gsi-ledger.feature`.
 
 ## Shared AWS stacks: pipeline roles
 

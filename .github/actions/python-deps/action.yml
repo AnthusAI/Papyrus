@@ -1,0 +1,16 @@
+name: python-deps
+description: Python 3.12 with the project's poetry environment installed (poetry cache keyed on poetry.lock).
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - shell: bash
+      run: pip install poetry
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/pypoetry
+        key: poetry-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+    - shell: bash
+      run: poetry install --no-interaction --extras "newsroom markus priming" --with cyclotron

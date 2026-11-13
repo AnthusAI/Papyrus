@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from ..editorial_checks import EditorialChecksDisabled, GraphQLEditorialStore, Services, check_editorial, check_run_record
+from ..editorial_checks import EditorialChecksDisabled, GraphQLEditorialStore, Services, check_editorial, check_run_record, settings_from, story_language
 
 
 class HumanusGate:
@@ -29,8 +29,10 @@ class HumanusGate:
         return cls(Services(store=GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None))))
 
     def check(self, body: str, section: str | None) -> dict[str, Any]:
+        """Check a new idea's text. An idea is a new Story, so it is checked in the language a Story is written in (``story_language``)."""
         try:
-            return check_editorial({"body": body, "format": "markus", "section": section}, self.services)
+            language = story_language(None, settings_from(self.services.store))
+            return check_editorial({"body": body, "format": "markus", "section": section, "language": language}, self.services)
         except EditorialChecksDisabled:
             return {"skipped": "disabled"}
 

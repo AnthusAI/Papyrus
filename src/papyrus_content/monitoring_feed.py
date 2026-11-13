@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Callable
 from urllib.error import HTTPError
+import ipaddress
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
@@ -39,6 +40,7 @@ from .monitoring_web import arxiv_paper_id
 FEED_HOSTS = {
     "rss.arxiv.org": "arXiv",
     "export.arxiv.org": "arXiv",
+    "metr.org": "METR",
 }
 #: Larger than the 2 MB of the Hacker News feed: arXiv's combined daily feed for five categories is about 3.6 MB.
 MAX_FEED_DOCUMENT_BYTES = 8_000_000
@@ -86,25 +88,48 @@ def is_arxiv_id(value) -> bool:
 
 # --- config and fetch ------------------------------------------------------------------------------
 
-def check_feed_url(url: str) -> str:
+def public_host(host: str | None) -> bool:
+    """A name on the public internet: not an address, not ``localhost``, not a single label or an internal suffix. A feed a site names must pass this, so adding one as
+    data can never point the reader at the network it runs in."""
+    if not host or "." not in host or host.endswith((".local", ".internal", ".localhost", ".lan", ".home", ".corp", ".test", ".invalid", ".example")):
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return bool(re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}", host))
+
+
+def check_feed_url(url: str, named: bool = False) -> str:
+    """The address of a feed: https, no credentials, no fragment, and a host that is built in (``FEED_HOSTS``) or, when the monitor's config names the source
+    (``sourceName``, ``named``), any public host. A site adds a feed host by naming it in the monitor's config, with no engine release."""
     parts = urlsplit(url)
-    if parts.scheme != "https" or parts.hostname not in FEED_HOSTS or parts.username or parts.password or parts.fragment:
-        raise ValueError(f"A feed must be an https URL on one of: {', '.join(sorted(FEED_HOSTS))}")
+    allowed = parts.hostname in FEED_HOSTS or (named and public_host(parts.hostname))
+    if parts.scheme != "https" or not allowed or parts.username or parts.password or parts.fragment or parts.port not in (None, 443):
+        raise ValueError(f"A feed must be an https URL on one of: {', '.join(sorted(FEED_HOSTS))}, or on a public host when the monitor's config names the source (sourceName)")
     return url
 
 
+def validate_source_name(value) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 80 or any(ord(character) < 32 for character in value):
+        raise ValueError("Config sourceName must be a short name (up to 80 characters) for the source")
+    return value.strip()
+
+
 def validate_feed_config(raw: dict) -> dict:
-    """The feed part of a monitor CONFIG (the common fields are validated by the caller): the address only. A feed is read
-    whole each pass and has no window, page size or item limit of its own."""
+    """The feed part of a monitor CONFIG (the common fields are validated by the caller): the address and, for a host that is not built in, the ``sourceName``
+    shown for it. A feed is read whole each pass and has no window, page size or item limit of its own."""
+    name = validate_source_name(raw["sourceName"]) if raw.get("sourceName") is not None else None
     try:
-        check_feed_url(str(raw.get("sourceUrl") or ""))
+        check_feed_url(str(raw.get("sourceUrl") or ""), named=name is not None)
     except ValueError as error:
         raise ValueError(f"Config sourceUrl: {error} (for a feed monitor)") from error
-    return {}
+    return {"sourceName": name} if name else {}
 
 
-def fetch_feed(url: str) -> bytes:
-    check_feed_url(url)
+def fetch_feed(url: str, named: bool = False) -> bytes:
+    check_feed_url(url, named)
     request = Request(url, headers={"User-Agent": USER_AGENT,
                                     "Accept": "application/rss+xml, application/atom+xml, application/xml"})
     try:
@@ -262,7 +287,7 @@ def feed_source(config: dict, fetch: Callable[[str], bytes] | None) -> dict:
 
     def items_of():
         if "items" not in cache:
-            cache["items"] = parse_feed((fetch or fetch_feed)(config["sourceUrl"]), config["sourceUrl"])
+            cache["items"] = parse_feed((fetch or (lambda address: fetch_feed(address, bool(config.get("sourceName")))))(config["sourceUrl"]), config["sourceUrl"])
         return cache["items"]
 
     return {"key": "feed", "fetch_page": feed_page_reader(items_of), "items": lambda rows: (rows, False), "stop_at_seen": True}

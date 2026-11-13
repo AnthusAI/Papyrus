@@ -27,6 +27,19 @@ class WholeSiteInvalidationRefused(ValueError):
     """Callers name exact paths; the wildcard is only ever chosen here, when a run is too large to list."""
 
 
+class InvalidationCapped(Exception):
+    """A targeted purge listed more paths than the per-call cap. ``invalidated`` were purged; ``skipped`` were not (never collapsed to a wildcard).
+
+    Not a failure of the write or of the purge it did make: the caller reports the skipped paths and does not retry them (a retry would be over the cap again).
+    """
+
+    def __init__(self, invalidated: list[str], skipped: list[str], cap: int) -> None:
+        super().__init__(f"{len(skipped)} of {len(invalidated) + len(skipped)} paths were not purged: over the cap of {cap} paths per call (publication.cache.maxInvalidationPaths).")
+        self.invalidated = invalidated
+        self.skipped = skipped
+        self.cap = cap
+
+
 def encoded_path(path: str) -> str:
     return quote(path, safe="/*")
 

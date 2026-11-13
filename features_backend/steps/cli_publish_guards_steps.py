@@ -18,6 +18,7 @@ from papyrus_content.publish_commands import content_publish, content_unpublish 
 from papyrus_content.publishing import ItemFields, publish_item, save_item  # noqa: E402
 from papyrus_content.story_commands import stories_move  # noqa: E402
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient  # noqa: E402
+from procedures.newsroom.tests.test_publish_stages import as_job  # noqa: E402
 
 ITEM_ID = "item-articles-hello"
 NOW = "2026-10-05T12:00:00Z"
@@ -33,7 +34,7 @@ class Client(FakeAuthoringClient):
     def graphql(self, query, variables=None):
         name = "unpublishItem" if "unpublishItem" in query else "publishItem"
         self.mutations.append((name, json.loads(variables["input"])))
-        return {name: json.dumps(self.response)}
+        return {name: json.dumps(as_job(self.response))}
 
 
 def save(context, slug: str) -> None:
@@ -126,7 +127,10 @@ def records_written(context) -> None:
 
 @then('the projection was requested through the "{mutation}" mutation for the story')
 def mutation_requested(context, mutation: str) -> None:
-    assert context.client.mutations == [(mutation, {"id": ITEM_ID})], context.client.mutations
+    # A publish and an unpublish both ask for a background build (async) and wait on its job (PPY-3acc8d, PPY-f171b4).
+    expected = {"id": ITEM_ID, "async": True}
+    assert context.client.mutations[:1] == [(mutation, expected)], context.client.mutations
+    assert all(name == mutation and payload == {"id": ITEM_ID, "jobStatus": True} for name, payload in context.client.mutations[1:]), context.client.mutations
 
 
 @then("no AWS function was invoked")
@@ -147,7 +151,7 @@ def exits_ok(context) -> None:
 
 @then("the command exits with an error")
 def exits_error(context) -> None:
-    assert context.exit_code == 1, (context.exit_code, context.stdout, context.stderr)
+    assert context.exit_code not in (0, None), (context.exit_code, context.stdout, context.stderr)
 
 
 @then("the output says the data is published but the page is not")
@@ -221,3 +225,8 @@ def stage_unchanged(context) -> None:
 @then("no publish warning is printed")
 def no_warning(context) -> None:
     assert context.stderr == ""
+
+
+@then("the command exits with code {code:d}")
+def exits_with_code(context, code: int) -> None:
+    assert context.exit_code == code, (context.exit_code, context.stdout, context.stderr)

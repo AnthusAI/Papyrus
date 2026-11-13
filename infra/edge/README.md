@@ -17,6 +17,10 @@ CloudFormation templates of the hand-run `papyrus-edge-<site>` stacks that front
 
 Update a stack with a change set, never in place, and read the change set before executing it.
 
+## Cost tags
+
+Every costed resource (each distribution) carries the Prospectus cost tags (Prospectus `docs/COST_ACCOUNTING.md`): `anthus:account` = `owner`, `anthus:app` = `papyrus`, `anthus:deployment` = the site ID and `anthus:cost-key` = `owner/papyrus/<site>`. Prospectus charges whichever Account holds the `papyrus-<site>` entitlement. The site ID is the `CostDeployment` parameter, defaulting to the site in the Pilobol.us, p.apyr.us and Shipped templates; `s3-projection-cms.yaml` and the Threat Intelligence templates have no default, so pass `ParameterKey=CostDeployment,ParameterValue=<site>`. Adding the tags updates the distributions in place. `scripts/test-cost-tags.ts` fails CI on an untagged costed resource. The Anth.us templates are left unchanged.
+
 ## Refreshing a template from the live stack
 
 When a stack has been changed outside git, refresh the file from the deployed template (read-only; the template parameters, such as certificate and bucket values, are never written into the file):
@@ -87,3 +91,9 @@ Expected change set: one added `AWS::CloudFront::CachePolicy`, and a modify of t
 Expected diff in step 2: `ReaderEdgeFunction` code, one `FunctionAssociations` entry on `MarketingDistribution`'s default behavior. Nothing is replaced.
 
 The p.apyr.us site runs this adoption from its own Amplify build with `papyrus-infra deploy-edge`. A template parameter the live stack does not have yet takes its template default, so adding a parameter never blocks the change set.
+
+## Consent region function (reference, not deployed)
+
+`consent-region-function.js` is a CloudFront Function (runtime `cloudfront-js-2.0`, viewer-request) that answers the consent address (`/_papyrus/consent`) from the edge with `{"country":"DE","notice":true}` and `cache-control: private, no-store`. With no usable `cloudfront-viewer-country` header it answers `{"country":"","notice":true}`. It is not associated with any distribution and no template here references it. The design, the fail-closed rules and the open questions are in [region-aware consent](../../docs/region-aware-consent.md).
+
+The country list inside it is generated, never hand-edited: `PYTHONPATH=src python infra/edge/generate_consent_region_function.py --write` (add `--settings web/projection.json` for a site's own overrides). A CloudFormation template would inline the file with `Fn::Sub` or `Fn::Join` into `AWS::CloudFront::Function.FunctionCode`. Test: `node --test scripts/test-consent-region-function.mjs`.

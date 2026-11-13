@@ -1,0 +1,26 @@
+{
+  "name": "tenant-claims-spike-2",
+  "private": true,
+  "type": "module",
+  "description": "PPY-f4d892: throwaway Amplify Gen 2 project. Index lists, subscriptions, tenantId immutability, token and Cognito plan. Sandbox only.",
+  "scripts": {
+    "sandbox": "ampx sandbox --once --identifier ppy-f4d892",
+    "sandbox:delete": "ampx sandbox delete --identifier ppy-f4d892 -y",
+    "spike": "tsx run-spike.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.700.0",
+    "aws-amplify": "^6.17.0"
+  },
+  "devDependencies": {
+    "@aws-amplify/backend": "^1.22.0",
+    "@aws-amplify/backend-cli": "^1.8.2",
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.0.0",
+    "aws-cdk-lib": "^2.257.0",
+    "constructs": "^10.4.2",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

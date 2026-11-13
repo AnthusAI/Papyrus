@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "ba55cf77-66a0-4db6-ae6b-d0c78b9e427c",
+  "issue_id": "PPY-849bf1d5-bd78-4065-ac56-cf67eb49159c",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-12T13:04:04.357Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Roundup selection by declared Story types plus editor cuts",
+        "to": "Roundup inserter: standing rules for which items go in (type, three stars, recency, non-duplication)"
+      }
+    }
+  }
+}

@@ -14,6 +14,7 @@ import re
 from typing import Any, Iterable
 
 TENANT_ID_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_ID"
+TENANCY_MODE_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANCY_MODE"
 TENANT_KEY_SEPARATOR = "#"
 TENANT_ITEM_ID_SEPARATOR = "."
 TENANT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
@@ -22,13 +23,31 @@ TENANT_MEDIA_PREFIX_TEMPLATE = "media/{tenant_id}/"
 TENANT_MODELS = frozenset(
     {"Item", "PublishedItem", "MediaAsset", "PublishedMediaAsset", "NewsroomSection"}
 )
-TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus")
+#: Models that carry an optional ``tenantId`` and nothing else tenant-shaped yet (PPY-94d609): a tenant client stamps the field, keys and ids stay bare.
+#: Global identity models (UserProfile, UserIdentity, PublicHandleClaim) stay out.
+TENANT_FIELD_MODELS = frozenset({
+    "UserRoleAssignment", "Assignment", "AssignmentEvent", "ProcedureDefinition", "ProcedureVersion", "ProcedureRun", "Automation",
+    "ReviewRequest", "ReviewReadMark", "StoryVariation", "ReviewRecipientRule", "KnowledgeCorpus", "KnowledgeImportRun",
+    "KnowledgeRawPayload", "CurationDelegationRecord", "KnowledgeArtifact", "CategorySet", "Category", "CategoryKeyword",
+    "LexicalSteeringRule", "SteeringProposal", "SteeringDecision", "Reference", "ReferenceAttachment", "SemanticNode", "Message",
+    "MessageThread", "ModelAttachment", "SemanticRelationType", "SemanticRelation", "Tag", "ItemTag", "Edition", "EditionItem",
+    "PublishedEdition", "PublishedEditionItem", "PublishedCategorySet", "PublishedCategory", "EditorialPolicy",
+    "EditorialCheckSettings", "EditorialFeedback", "EditorialCheckRun", "Proposal", "ReaderProfile", "ReaderHandle", "ReaderVote",
+    "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction", "SignupEntry",
+})
+TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus", "headStageKey")
 TENANT_SLUG_FIELD = "tenantSlug"
 TENANT_SLUG_MODELS = frozenset({"Item", "PublishedItem"})
-TENANT_MEDIA_PATH_MODELS = frozenset({"MediaAsset", "PublishedMediaAsset"})
 TENANT_SCOPED_RECORD_ID_MODELS = frozenset({"NewsroomSection"})
 STORED_RECORD_ID_FIELD = "storedId"
 TENANT_INDEX_REDIRECTS = {"itemBySlug": "itemByTenantSlug"}
+#: Indexes whose partition key is stored tenant-prefixed (a field in TENANT_SCOPED_INDEX_FIELDS): a query names the tenant's own partition.
+TENANT_PREFIXED_INDEXES = frozenset({"itemsByHeadStage"})
+
+
+def is_shared_stack() -> bool:
+    """True on a shared stack. The only reader of ``PAPYRUS_TENANCY_MODE``; unset means a dedicated stack."""
+    return (os.environ.get(TENANCY_MODE_ENVIRONMENT_VARIABLE) or "").strip().lower() == "shared"
 
 
 class TenantError(ValueError):
@@ -120,9 +139,16 @@ def tenant_stamped_payload(model_name: str, tenant_id: str | None, payload: dict
             stamped[field_name] = tenant_scoped_value(tenant_id, stamped[field_name])
     if model_name in TENANT_SLUG_MODELS and isinstance(stamped.get("slug"), str):
         stamped[TENANT_SLUG_FIELD] = tenant_scoped_value(tenant_id, stamped["slug"])
-    if model_name in TENANT_MEDIA_PATH_MODELS and isinstance(stamped.get("storagePath"), str):
-        stamped["storagePath"] = tenant_media_path(tenant_id, stamped["storagePath"])
+    # storagePath is never stamped: a picture's object is media/<srcPath> on every site (renditions.media_key_for_source),
+    # and a row that names another key points at nothing (PPY-5978b4).
     return stamped
+
+
+def tenant_field_stamped_payload(model_name: str, tenant_id: str | None, payload: dict[str, Any]) -> dict[str, Any]:
+    """Stamp ``tenantId`` on a TENANT_FIELD_MODELS write; no tenant, another model, or a caller-set value leaves the payload as it was."""
+    if not tenant_id or model_name not in TENANT_FIELD_MODELS or payload.get("tenantId"):
+        return payload
+    return {**payload, "tenantId": tenant_id}
 
 
 def row_belongs_to_tenant(model_name: str, tenant_id: str | None, row: dict[str, Any] | None) -> bool:
@@ -136,6 +162,21 @@ def rows_for_tenant(model_name: str, tenant_id: str | None, rows: Iterable[dict[
 
 
 def tenant_scoped_index(tenant_id: str | None, index_name: str, key_value: str) -> tuple[str, str]:
+    if tenant_id and index_name in TENANT_PREFIXED_INDEXES:
+        return index_name, tenant_scoped_value(tenant_id, key_value)
     if not tenant_id or index_name not in TENANT_INDEX_REDIRECTS:
         return index_name, key_value
     return TENANT_INDEX_REDIRECTS[index_name], tenant_scoped_value(tenant_id, key_value)
+
+
+def require_tenant_for_tenanted_rows(tenant_id: str | None, rows: Iterable[dict[str, Any]]) -> None:
+    """Refuse a command that has no tenant when the backend's Items carry one: what it wrote would have no tenant stamp,
+    and every tenant-scoped reader (the renders, the console) would never see it. Pass the Items the command already read."""
+    if tenant_id:
+        return
+    tenants = sorted({str(row["tenantId"]) for row in rows if row.get("tenantId")})
+    if tenants:
+        raise TenantError(
+            f"This backend's Items belong to tenant {', '.join(tenants)}, but this command has no tenant, so what it writes would be invisible to the publication. "
+            "Pass --tenant, or set PAPYRUS_TENANT_ID (the cloud knowledge run: the knowledgeRun `environment` of the site's infra/site.json)."
+        )

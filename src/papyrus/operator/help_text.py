@@ -7,7 +7,10 @@ VERSION = "0.1.0"
 TOP_LEVEL_HELP = """\
 Usage: papyrus [--help] [--version] [--backend local|cloud] <group> <command> [options]
 
+Agents: run `papyrus guide` (or `papyrus guide --list`) for task-first recipes with exact syntax. Every command has `--help`.
+
 Operator groups:
+  guide         Print the agent CLI guide (papyrus guide --list; papyrus guide TASK)
   references    List or show references (local pod or cloud GraphQL); search them by words and meaning (signed in)
   monitors      Monitoring state (overview, page; signed in, read-only) and Hacker News worker checkpoints
   assignments   List newsroom assignments (cloud) or pod stories (local)
@@ -28,10 +31,15 @@ Operator groups:
   items         Stories as a whole (items link-references)
   home-page     Public data of the home page (home-page snapshot)
   images        Pictures for Stories: stock search, generation, review, apply and undo (images <command>)
+  guidelines    Writing, image and video guidelines for the site or a section (guidelines show|resolve|diff|save|history)
+  announcements Announce Stories on the publication's X account: dry runs, the audit trail, budget and pause (announcements list|show|dry-run|pause|resume|settings|account)
+  figures       Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it (figures render|directive|rules|primitives)
+  design-system The site's design system for figures, kept in the backend (design-system show|pull|push)
   editorial     Editorial context and quality loop commands
   publication   Create the backend's canonical publication (publication init)
   site          Site repository operations (site google-secrets set|check)
   batch         Batch registration and enrichment
+  links         Console addresses of a Story, Reference, Concept, Assignment or review item (links --story|--reference|--concept|--assignment|--review)
   login         Google newsroom sign-in using a configured native OAuth client
   logout        Remove the local user session and attempt provider revocation
   whoami        Renew and identify the selected newsroom user
@@ -135,6 +143,7 @@ def build_editorial_parser() -> argparse.ArgumentParser:
   check = subparsers.add_parser("check", help="Check a draft against the site's editorial policies (Humanus)")
   check.add_argument("--draft", required=True, help="Markus/Markdown body to check (read-only).")
   check.add_argument("--section", help="Desk key, for desk policies.")
+  check.add_argument("--language", help="Language of the draft (en, es-419, zh-Hans ...). Default: the site's primary language.")
   check.add_argument("--pack", help="Use this Humanus policy-pack file instead of the site's policies.")
   check.add_argument("--output")
   suggest = subparsers.add_parser("suggest", help="Rewrite options for one finding or a passage; never edits the draft")
@@ -142,6 +151,8 @@ def build_editorial_parser() -> argparse.ArgumentParser:
   suggest.add_argument("--finding-id")
   suggest.add_argument("--select")
   suggest.add_argument("--note")
+  suggest.add_argument("--section")
+  suggest.add_argument("--language", help="Language of the draft. Default: the site's primary language.")
   subparsers.add_parser("pack", help="Print the site's effective policy pack for a desk")
   subparsers.add_parser("import", help="Add a style profile's controls as editorial policies")
   subparsers.add_parser("policies", help="List policies, import a starter pack, ensure the default packs, add policies from a policy-pack file (add), or export them (export)")
@@ -155,29 +166,18 @@ def build_editorial_parser() -> argparse.ArgumentParser:
 
 
 def print_group_help(group: str) -> None:
-  builders = {
-    "references": build_references_parser,
-    "assignments": build_assignments_parser,
-    "knowledge": build_knowledge_parser,
-    "editorial": build_editorial_parser,
-  }
-  builder = builders.get(group)
-  if builder is None:
-    from papyrus.operator.group_commands import generic_group_help
+  """`papyrus <group>`: every command of the group with a one-line description (from the usage table), the useful ones first."""
+  from papyrus.operator.help_dispatch import group_text, route_tree
 
-    text = generic_group_help(group)
-    print(text if text is not None else TOP_LEVEL_HELP)
+  node = route_tree().get(group)
+  if node is None:
+    print(TOP_LEVEL_HELP)
     return
-  parser = builder()
+  print(group_text([group], node))
   if group == "assignments":
-    print("Cloud rows are GraphQL Assignment work records (kind: newsroom-assignment).")
+    print("\nCloud rows are GraphQL Assignment work records (kind: newsroom-assignment).")
     print("Local rows are Kanbus pod stories (kind: pod-story).")
     print("Use kbs for board columns, transitions, and workflow state.")
-  parser.print_help()
-  # The parser describes some of the group's commands; the rest are routed elsewhere, so list them too.
-  from papyrus.operator.help_dispatch import route_tree
-
-  described = {name for action in parser._actions for name in (getattr(action, "choices", None) or {})}
-  others = [name for name in route_tree().get(group, {}) if name not in described]
-  if others:
-    print("\nOther commands: " + ", ".join(others))
+  if group == "references":
+    print("\nFiling and linking References as an agent: `papyrus guide find`, `papyrus guide file-reference`, `papyrus guide tag-and-link`.")
+    print("`register` is for the local pod only; it does not file a Reference on a site.")

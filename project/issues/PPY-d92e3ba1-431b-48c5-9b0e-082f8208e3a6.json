@@ -1,0 +1,25 @@
+{
+  "id": "PPY-d92e3ba1-431b-48c5-9b0e-082f8208e3a6",
+  "title": "Illustration is missing from the story checklist and publish gate",
+  "description": "On Machines on Machines, “AI Makes It Easier to Look Up a Stranger” was published without a cover while the newsroom checklist showed 13/13. The cover has since been added and approved by Ryan. The incident exposed a gap in the shared Papyrus procedure.\n\nReproduction (Papyrus CLI 5.103.0): run papyrus stories next --story content-item-when-an-ai-investigation-mistakes-a-match-for-a-fact-8da5a199bdb2d1b2 --all. It prints Illustration as unknown/not_built and omits it from the persisted checklist and denominator. Trying stories step --step illustration --state done returns “Step 'illustration' is not live in the procedure yet, so it has no checklist item.” The publish dry run succeeds when the other steps are closed, even with no cover.\n\nRoot cause confirmed on origin/develop 713bee0f: src/papyrus_content/newsroom_process.py defines illustration as NOT_BUILT although the figure and cover workflows exist. Inspect checklist materialization and publication validation in src/papyrus_content/story_checklist.py. This is distinct from PPY-4fb47b, where checklist rows existed and were already closed, and from PPY-46f122, which documented the workflow.\n\nAcceptance: make Illustration a persisted, visible step in the CLI and newsroom UI for stories where illustration is required. Give existing drafts a migration/backfill path. Permit an explicit, documented editorial exception where policy allows it. Publication must refuse a covered story type with unresolved required Illustration and explain how to resolve it. Verify completion evidence for approved cover assets, including light/dark variants where required by publication policy. Preserve already published history and test the behavior for both first publication and revisions. Add regression coverage for checklist progress, CLI/UI parity, and publish with and without the required evidence.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T20:59:24.656784Z",
+  "updated_at": "2026-11-11T20:59:24.656887Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6",
+    "name": "Codex"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

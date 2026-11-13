@@ -10,6 +10,7 @@ New commands join the tree from the same tables that route them, so they inherit
 """
 from __future__ import annotations
 
+import re
 import sys
 
 from papyrus_content.command_help import HELP_FLAGS, ported_commands, wants_help
@@ -18,8 +19,8 @@ Tree = dict[str, "Tree"]
 
 CONTENT_GROUPS = ("stories", "editions", "batch", "messages", "reader", "proposals", "ideas", "cyclotron", "items", "home-page",
                   "automations", "reviews", "videos")
-LEAF_GROUPS = ("doctor", "login", "logout", "whoami", "auth", "help")
-REFERENCE_EXTRAS = ("list", "show", "register", "search", "capture-transcripts", "repair-titles", "capture-thumbnails",
+LEAF_GROUPS = ("doctor", "links", "login", "logout", "whoami", "auth", "help", "guide")
+REFERENCE_EXTRAS = ("list", "show", "text", "register", "search", "capture-transcripts", "repair-titles", "capture-thumbnails",
                     "curate-recent", "summaries", "summarize", "summarize-batch", "summary-cleanup-legacy", "quality", "title-subtitle")
 ASSIGNMENT_EXTRAS = ("list", "run-story-cycle", "story-cycle-output", "build-assignment-agent-context")
 KNOWLEDGE_EXTRAS = ("query", "vector-index", "signals", "publish-run", "snapshot", "archive", "topic-config", "extract-entities",
@@ -33,6 +34,10 @@ def _leaves(names) -> Tree:
 
 def route_tree() -> Tree:
     from papyrus.operator.group_commands import PROCEDURES_COMMANDS, REPORTING_COMMANDS, RESEARCH_COMMANDS, SECTIONS_COMMANDS
+    from papyrus_content.figures.cli import route_tree as figures_route_tree
+    from papyrus_content.guidelines.cli import route_tree as guidelines_route_tree
+    from papyrus_content.announcements.cli import route_tree as announcements_route_tree
+    from papyrus_content.figures.design_system_cli import route_tree as design_system_route_tree
     from papyrus_content.images.cli import route_tree as images_route_tree
 
     knowledge_names = ported_commands("knowledge")
@@ -65,6 +70,10 @@ def route_tree() -> Tree:
         "editorial": _leaves({*ported_commands("editorial"), "context"}),
         "monitors": {},
         "images": images_route_tree(),
+        "guidelines": guidelines_route_tree(),
+        "announcements": announcements_route_tree(),
+        "figures": figures_route_tree(),
+        "design-system": design_system_route_tree(),
     }
     for group in CONTENT_GROUPS:
         tree[group] = _leaves(ported_commands(group))
@@ -110,14 +119,26 @@ def _resolve(words: list[str]) -> tuple[list[str], str | None]:
     return resolved, None
 
 
-def _group_text(path: list[str], node: Tree) -> str:
-    from papyrus.operator.group_commands import COMMAND_USAGE
+def group_text(path: list[str], node: Tree) -> str:
+    """`papyrus <group> [<subgroup>]`: its commands, each with a one-line description, the useful ones first."""
+    from papyrus.operator.command_usage import GROUP_ORDER, summary_for_path
 
+    order = {name: index for index, name in enumerate(GROUP_ORDER.get(" ".join(path), ()))}
+    names = sorted(node, key=lambda name: (order.get(name, len(order)), not summary_for_path([*path, name]), name))
+    width = max((len(name) for name in names), default=0)
     lines = [f"Usage: papyrus {' '.join(path)} <command> [options]", "", "Commands:"]
-    for name in node:
-        usage = COMMAND_USAGE.get((path[-1], name))
-        lines.append(f"  {name}" + (f"  {usage}" if usage else ""))
+    for name in names:
+        summary = summary_for_path([*path, name])
+        if node[name]:
+            summary = summary or f"({', '.join(node[name])})"
+        lines.append(f"  {name.ljust(width)}  {summary}".rstrip())
+    lines.append("")
+    lines.append(f"`papyrus {' '.join(path)} <command> --help` prints a command's flags, its lane and whether it writes. "
+                 "Mutating commands write by default; pass --dry-run to preview. Tasks and exact recipes: `papyrus guide`.")
     return "\n".join(lines)
+
+
+_group_text = group_text
 
 
 def _top_level_line(group: str) -> str:
@@ -130,7 +151,7 @@ def _top_level_line(group: str) -> str:
 
 
 def _command_text(path: list[str]) -> str:
-    from papyrus.operator.group_commands import COMMAND_USAGE
+    from papyrus.operator.command_usage import usage_for_path
 
     if path[0] == "images":
         from papyrus_content.images.cli import usage_for
@@ -138,12 +159,16 @@ def _command_text(path: list[str]) -> str:
         found = usage_for(path[1:])
         if found:
             return found
+    entry = usage_for_path(path)
+    if entry is not None:
+        return entry.render()
 
+    if path == ["links"]:
+        from papyrus_content.console_links import LINKS_USAGE
+
+        return LINKS_USAGE
     lines = [f"Usage: papyrus {' '.join(path)} [options]"]
-    usage = COMMAND_USAGE.get((path[-2], path[-1])) if len(path) > 1 else None
-    if usage:
-        lines.append(f"  {usage}")
-    elif len(path) == 1 and _top_level_line(path[0]):
+    if len(path) == 1 and _top_level_line(path[0]):
         lines.append(f"  {_top_level_line(path[0])}")
     return "\n".join(lines)
 
@@ -203,6 +228,67 @@ def answer_help(args: list[str]) -> int | None:
         else:
             print(_group_text(resolved, node))
         return 0
-    if not _print_parser_command_help(resolved):
+    from papyrus.operator.command_usage import usage_for_path
+
+    # The usage table first; the group's argparse stub (`usage: papyrus knowledge query [-h]`) only for a command nobody has described.
+    if resolved[0] == "images" or usage_for_path(resolved) is not None or not _print_parser_command_help(resolved):
         print(_command_text(resolved))
     return 0
+
+
+REQUIRED_ARGUMENT_ERROR = re.compile(r"\b(required?|requires?|needs?|missing|exactly one|pass --)\b", re.IGNORECASE)
+
+
+def _leaf_path(args: list[str]) -> list[str] | None:
+    """The words that name a command (not a group) when `args` is that command followed by nothing else or by its flags."""
+    words = list(args)
+    if words[:1] == ["--site"]:
+        words = words[2:]
+    elif words[:1] and words[0].startswith("--site="):
+        words = words[1:]
+    named: list[str] = []
+    for word in words:
+        if word.startswith("-"):
+            break
+        named.append(word)
+    if not named:
+        return None
+    node = route_tree()
+    resolved: list[str] = []
+    for word in named:
+        if resolved and not node:
+            break  # the command's own positional arguments
+        if word not in node:
+            return None
+        node = node[word]
+        resolved.append(word)
+    return resolved if not node else None
+
+
+def bare_invocation_error(args: list[str]) -> str | None:
+    """A message when `args` is a command that cannot work without arguments, named with nothing after it."""
+    path = _leaf_path(args)
+    if path is None or len(path) < 2 or len(args) != len(path):
+        return None
+    from papyrus.operator.command_usage import usage_for_path
+
+    entry = usage_for_path(path)
+    if entry is None or not entry.usage.strip() or entry.usage.lstrip().startswith("["):
+        return None
+    return f"papyrus {' '.join(path)} needs arguments."
+
+
+_USAGE_SHOWN: list[tuple[str, ...]] = []
+
+
+def print_usage_for_error(args: list[str], error: BaseException, *, force: bool = False) -> None:
+    """Print the command's usage to standard error (once per run) when it is about to fail, or has failed, for missing or wrong arguments."""
+    if not force and not REQUIRED_ARGUMENT_ERROR.search(str(error)):
+        return
+    path = _leaf_path(args)
+    if path is None or tuple(path) in _USAGE_SHOWN:
+        return
+    text = _command_text(path)
+    if text:
+        _USAGE_SHOWN.append(tuple(path))
+        print(text, file=sys.stderr)

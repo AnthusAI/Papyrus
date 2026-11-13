@@ -27,7 +27,7 @@ from ..edge_invalidation import FREE_PATHS_PER_MONTH, USD_PER_PATH_AFTER_FREE, i
 from .budget import DRY_RUN_ABOVE, Budget
 from ..projection.model import SiteIndex
 from ..publishing import published_item_id_for
-from .paths import InvalidPagePath, expand_site_paths, forms_of_path, paths_for_page_keys
+from .paths import InvalidPagePath, expand_site_paths, forms_of_path, keys_under, normalize_prefixes, paths_for_page_keys
 
 STATE_PREFIX = "_state/"
 RERENDER_SCOPES = ("story", "indexes", "all")
@@ -110,11 +110,17 @@ class RefreshService:
         result["pages"] = {"indexes": keys}
         return result
 
-    def rerender(self, scope: str, *, lineage: str | None = None, invalidate: bool = True, dry_run: bool = False, confirm: bool = False, force_paths: int | None = None) -> dict[str, Any]:
+    def rerender(self, scope: str, *, lineage: str | None = None, invalidate: bool = True, dry_run: bool = False, confirm: bool = False, force_paths: int | None = None, under: Sequence[str] | None = None) -> dict[str, Any]:
         if scope not in RERENDER_SCOPES:
             raise RefreshError("invalid_input", f"scope must be one of {', '.join(RERENDER_SCOPES)}.")
         if (scope == "story") != bool(lineage):
             raise RefreshError("invalid_input", "scope story needs a Story lineage id, and no other scope takes one.")
+        if under and scope != "indexes":
+            raise RefreshError("invalid_input", "--under (under) limits a re-render of the index pages: use it with --indexes.")
+        try:
+            prefixes = normalize_prefixes(under) if under else []
+        except InvalidPagePath as error:
+            raise RefreshError("invalid_input", str(error)) from error
         context = self._projection()
         context.invalidate = None   # this operation purges, below, with exact paths; the engine's own purge turns a big run into /*
         site = context.source.site_index()
@@ -126,16 +132,24 @@ class RefreshService:
             item_id = summary.item_id
             target.update({"storyLineageId": lineage, "itemId": item_id})
         planned = planned_rerender_keys(projector, site, scope, item_id)
+        if prefixes:
+            every = planned
+            planned = keys_under(every, prefixes, url_style_of(projector))
+            if not planned:
+                raise RefreshError("no_pages_match", f"No index page has a URL path starting with {', '.join(prefixes)}. This site has {len(every)} index page files; the first are: {', '.join('/' + key for key in every[:8])}.")
+            target["under"] = prefixes
         planned_paths = paths_for_page_keys(planned, url_style_of(projector)) if invalidate else []
         verdict = self._guard(planned_paths, dry_run=dry_run, confirm=confirm, force_paths=force_paths, requested=invalidate)
         if verdict["dry"] or verdict["refusal"]:
             result = self._finish("site_rerender_pages", target, planned_paths, dry_run=dry_run, invalidate=invalidate, confirm=confirm, force_paths=force_paths, verdict=verdict)
             result["rendered"] = {"ok": True, "dryRun": True, "wouldWrite": planned, "count": len(planned), "errors": []}
             return result
-        report = run_rerender(context, scope, item_id)
+        report = run_rerender(context, scope, item_id, only=planned if prefixes else None)
         written = [key for key in report.written if not key.startswith(STATE_PREFIX)]
-        rendered = {"ok": report.ok, "written": written, "count": len(written), "deleted": list(report.deleted), "errors": list(report.errors)}
-        pages = [key for key in [*written, *report.deleted] if key.endswith(PAGE_SUFFIXES)]
+        rendered = {"ok": report.ok, "written": written, "count": len(written), "unchanged": len(report.unchanged), "deleted": list(report.deleted), "errors": list(report.errors)}
+        # An editor's explicit re-render purges every page it rendered, including pages whose stored bytes were already current: the edge may
+        # still hold an older copy, and these paths were counted and approved by the guard above. Only a publish skips unchanged pages (PPY-3acc8d).
+        pages = [key for key in dict.fromkeys([*written, *report.unchanged, *report.deleted]) if key.endswith(PAGE_SUFFIXES)]
         result = self._finish("site_rerender_pages", target, paths_for_page_keys(pages, url_style_of(projector)) if invalidate else [], dry_run=False, invalidate=invalidate, confirm=True, force_paths=force_paths)
         result["rendered"] = rendered
         result["ok"] = bool(rendered["ok"] and result["invalidation"]["ok"])
@@ -174,25 +188,11 @@ class RefreshService:
 
     def _verify(self, own_keys: list[str], version: int | None, seconds: int) -> dict[str, Any]:
         """Fetch the story's public page under both URL forms until each shows ``version`` in its source-version marker, or the time is up."""
-        from .marker import source_version_of
-
         if not self.public_url:
             return {"checked": False, "reason": "this site has no public URL configured (PAPYRUS_SITE_PUBLIC_URL)"}
         html_keys = [key for key in own_keys if key.endswith(".html")][:1]
         urls = [self.public_url.rstrip("/") + path for path in paths_for_page_keys(html_keys) if not path.endswith(".md")]
-        deadline = time.monotonic() + max(0, seconds)
-        seen: dict[str, Any] = {}
-        while True:
-            for url in urls:
-                try:
-                    status, headers, body = self.fetch(url)
-                    seen[url] = {"status": status, "sourceVersion": source_version_of(body), "age": headers.get("age"), "xCache": headers.get("x-cache")}
-                except Exception as error:  # noqa: BLE001 - a fetch failure is evidence, not a crash
-                    seen[url] = {"status": None, "error": f"{type(error).__name__}: {error}"}
-            current = all(entry.get("status") == 200 and entry.get("sourceVersion") == version for entry in seen.values())
-            if current or time.monotonic() >= deadline:
-                return {"checked": True, "expectedVersion": version, "current": current, "urls": seen}
-            self.sleep(5)
+        return verify_public_urls(urls, version, seconds, fetch=self.fetch, sleep=self.sleep)
 
     # ------------------------------------------------------------------ inspect: what is wrong with a page, stage by stage
 
@@ -347,6 +347,28 @@ class RefreshService:
         return {**base, "ok": True, "status": "invalidated", "requests": made, "distributionId": self.distribution_id}
 
 
+def verify_public_urls(urls: Sequence[str], version: int | None, seconds: float, *, fetch: Callable = _fetch, sleep: Callable[[float], None] = time.sleep) -> dict[str, Any]:
+    """Fetch these public URLs until each shows ``version`` in its source-version marker, or ``seconds`` pass. The one check ``update-live`` and
+    ``content publish --verify`` share (PPY-f3b296); ``current`` is true only when every URL answered 200 with that version."""
+    from .marker import source_version_of
+
+    if not urls:
+        return {"checked": False, "reason": "there is no public page URL to check"}
+    deadline = time.monotonic() + max(0, seconds)
+    seen: dict[str, Any] = {}
+    while True:
+        for url in urls:
+            try:
+                status, headers, body = fetch(url)
+                seen[url] = {"status": status, "sourceVersion": source_version_of(body), "age": headers.get("age"), "xCache": headers.get("x-cache")}
+            except Exception as error:  # noqa: BLE001 - a fetch failure is evidence, not a crash
+                seen[url] = {"status": None, "error": f"{type(error).__name__}: {error}"}
+        current = all(entry.get("status") == 200 and entry.get("sourceVersion") == version for entry in seen.values())
+        if current or time.monotonic() >= deadline:
+            return {"checked": True, "expectedVersion": version, "current": current, "urls": seen}
+        sleep(5)
+
+
 def verdict_of(rendered: dict, invalidation: dict, verification: dict) -> str:
     if not rendered.get("ok"):
         return "NOT LIVE: the page could not be re-projected."
@@ -408,11 +430,11 @@ def planned_rerender_keys(projector: Any, site: SiteIndex, scope: str, item_id: 
     return sorted({*items, *projector.listing_inputs(site), *indexes})
 
 
-def run_rerender(context: Any, scope: str, item_id: str | None):
+def run_rerender(context: Any, scope: str, item_id: str | None, only: Sequence[str] | None = None):
     from ..projection.engine import project, project_all, project_listings
 
     if scope == "story":
         return project(context, item_id)
     if scope == "indexes":
-        return project_listings(context)
+        return project_listings(context, only=only)
     return project_all(context)

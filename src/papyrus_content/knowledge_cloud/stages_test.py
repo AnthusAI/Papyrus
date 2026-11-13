@@ -150,15 +150,14 @@ def test_wiki_publish_does_not_trigger_a_projection(tmp_path):
     assert publish[publish.index("--actor") + 1] == "ai"
 
 
-def test_the_wiki_sync_publishes_only_the_vocabularys_kinds_and_retires_the_rest(tmp_path):
+def test_the_wiki_sync_publishes_only_the_vocabularys_kinds_and_never_retires_a_page(tmp_path):
     run, shell = make_run(tmp_path)
     assert run_stage("wiki-sync", run) == 0
     dry, applied = commands(shell, ["papyrus", "knowledge", "wiki", "sync"])
     vocabulary = str(tmp_path / "config" / "vocabulary.yml")
     for call in (dry, applied):
-        assert call[call.index("--vocabulary") + 1] == vocabulary and "--retire" in call
+        assert call[call.index("--vocabulary") + 1] == vocabulary and "--retire" not in call and "--retired-out" not in call
     assert "--apply" not in dry and "--apply" in applied
-    assert applied[applied.index("--retired-out") + 1] == str(tmp_path / "runs" / "2026-W44" / "retired-wiki-items.json")
 
 
 def test_the_snapshot_and_the_archive_link_only_the_vocabularys_kinds(tmp_path):
@@ -168,21 +167,7 @@ def test_the_snapshot_and_the_archive_link_only_the_vocabularys_kinds(tmp_path):
     assert snapshot[snapshot.index("--vocabulary") + 1] == str(tmp_path / "config" / "vocabulary.yml")
 
 
-def test_projection_removes_the_pages_of_retired_wiki_pages_before_the_bulk_projection(tmp_path):
-    run, shell = make_run(tmp_path)
-    shell.retired = ["item-wiki-personauthor-a", "item-wiki-personauthor-b"]
-    assert run_stage("wiki-sync", run) == 0
-    assert run.ledger.table.get_item(Key={"publication": "shipped", "runKey": "2026-W44#manual-1#wiki-sync"})["Item"]["details"]["retired"] == 2
-    assert run_stage("projection", run) == 0
-    projects = commands(shell, ["papyrus", "ops", "content", "project"])
-    removal, bulk = projects
-    assert removal[removal.index("--unpublished-items") + 1].endswith("retired-wiki-items.json") and "--allow-deletions" not in removal
-    assert "--all" in bulk  # the bulk projection comes last
-    removed = next(env for call, env in zip(shell.calls, shell.envs) if "--unpublished-items" in call)
-    assert "PYTHONPATH" not in removed or removed["PYTHONPATH"] != str(tmp_path / "pinned")
-
-
-def test_a_run_that_retired_nothing_projects_no_item(tmp_path):
+def test_the_projection_never_removes_a_page_by_item(tmp_path):
     run, shell = make_run(tmp_path)
     assert run_stage("wiki-sync", run) == 0 and run_stage("projection", run) == 0
     assert not [call for call in commands(shell, ["papyrus", "ops", "content", "project"]) if "--unpublished-items" in call]

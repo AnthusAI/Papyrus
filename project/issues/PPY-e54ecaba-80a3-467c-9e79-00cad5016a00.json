@@ -1,7 +1,7 @@
 {
   "id": "PPY-e54ecaba-80a3-467c-9e79-00cad5016a00",
-  "title": "Sign-up to live site with no human step (staging)",
-  "description": "What: payment, account creation, entitlement, tenant provisioning and first sign-in chained; payment is required before the site exists.\nAcceptance:\nScenario: A paid sign-up reaches a live site\n  Given a new person completes payment in staging\n  When provisioning finishes\n  Then their subdomain serves a starter site and they can sign in as admin",
+  "title": "A deployment record reaches a live site with no human step (staging, then production)",
+  "description": "What: the end-to-end acceptance check of M7 (PPY-dad077). Creating a Prospectus deployment record for product papyrus (operator-triggered; self-serve checkout and payment come at M8) chains provisioning (PPY-70a429), the starter site, the subdomain and the owner's first Google sign-in on newsroom.p.apyr.us, with no code change, no deploy and no Cognito or certificate change.\nAcceptance:\nScenario: A deployment record reaches a live site with no human step\n  Given an Account entitled to a shared-tier site in staging\n  When an operator creates deployment \"harbour-news\" through the Prospectus API\n  Then harbour-news.p.apyr.us serves the starter site, the owner signs in as admin, and neither repository changed nor deployed\n\nScenario: A paid sign-up reaches a live site (M8 variant)\n  Given a new person completes Stripe checkout in staging\n  When provisioning finishes\n  Then their subdomain serves a starter site and they can sign in as admin\n\nThe design partner's three deployments at M7 are this check's first production runs (PPY-37f2ec). Checks: run on staging, then on production with an internal test deployment; record timings and the git and deploy history showing no change.",
   "type": "story",
   "status": "open",
   "priority": 1,
@@ -11,7 +11,16 @@
   "labels": [
     "standard-frontend-plan"
   ],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "target": "PPY-70a4296d-b01e-4ba6-90a0-0493512e6744",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fdbbd71b-20b0-496d-af0b-0bf7dbcb89b0",
+      "type": "blocked-by"
+    }
+  ],
   "comments": [
     {
       "id": "d9b4fd51-62b4-40d6-b62e-5aa9a4d892d7",
@@ -22,7 +31,7 @@
     }
   ],
   "created_at": "2026-11-07T21:42:49.263434Z",
-  "updated_at": "2026-11-08T18:48:44.460690Z",
+  "updated_at": "2026-11-09T00:29:55.722036Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

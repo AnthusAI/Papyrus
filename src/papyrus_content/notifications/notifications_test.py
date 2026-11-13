@@ -1,0 +1,493 @@
+"""The notifications adapter on Caducus's in-memory fakes. ``Site`` is also what the Gherkin steps drive."""
+
+from __future__ import annotations
+
+import json
+import re
+from typing import Any, Mapping
+
+import pytest
+from botocore.exceptions import ClientError
+from caducus.notify.audience import StaticDomains
+from caducus.notify.fakes import FakeClock, FakeMailer
+from caducus.notify.directory import StaticDirectory
+from caducus.notify.queues import MemoryQueues
+from caducus.notify.store import MemoryStore
+
+from papyrus_content.notifications import handler as notifications_handler
+from papyrus_content.notifications.events import story_published_detail
+from papyrus_content.notifications.pause import alarm_names, handle_alarm
+from papyrus_content.notifications.runtime import Runtime, assemble
+from papyrus_content.notifications.sending import SendingPaused
+from papyrus_content.notifications.settings import Settings
+
+THEME = {"accent": "#aa3300", "text": "#111111", "background": "#ffffff"}
+CONSENT = "I agree to get new stories by email and can unsubscribe at any time."
+POSTAL = "1 Example Way\nExample City, EX 00000"
+
+
+def slug_of(title: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+
+
+class Site:
+    """One site's notifications function with its own table, queue, mailer and published items."""
+
+    def __init__(
+        self, site_id: str = "alpha", *, rule: Mapping[str, Any] | None = None, readers: int = 1, postal_address: str | None = POSTAL,
+        base_path: str = "",
+    ) -> None:
+        self.settings = Settings(
+            site_id=site_id,
+            site_origin=f"https://{site_id}.example.test",
+            base_path=base_path,
+            from_name=f"{site_id.title()} News",
+            from_address=f"notify@{site_id}.example.test",
+            configuration_set=f"papyrus-{site_id}",
+            item_url_style="html",
+            theme=THEME,
+            lists=(
+                {"id": "stories", "name": "New stories", "description": "", "rule": dict(rule or {}), "approval": "admin"},
+                {"id": "security", "name": "Security", "description": "", "rule": {"sections": ["security"]}, "approval": "admin"},
+            ),
+            consent=CONSENT,
+        )
+        self.rows: dict[str, dict[str, Any]] = {}
+        self.store, self.queues, self.mailer, self.clock = MemoryStore(), MemoryQueues(), FakeMailer(), FakeClock()
+        self.domains, self.unsuppressed = StaticDomains(), []
+        self.runtime: Runtime = assemble(
+            self.settings,
+            store=self.store,
+            queues=self.queues,
+            directory=StaticDirectory([], f"recipient-key-{site_id}"),
+            mailer=self.mailer,
+            read_item=self.rows.get,
+            clock=self.clock,
+            postal_address=lambda: postal_address,
+            key_secret=f"recipient-key-{site_id}",
+            domains=self.domains,
+            unsuppress=self.unsuppressed.append,
+        )
+        self.addresses = [f"reader{number}@{site_id}.example.test" for number in range(readers)]
+        self.manage: dict[str, str] = {}
+        for address in self.addresses:
+            self.manage[address] = self.join(address, ["stories"])
+        self.mailer.calls.clear()
+
+    # -- readers, as the CMS routes send their actions --------------------------------------------------------------
+
+    def act(self, action: str, **fields: Any) -> dict[str, Any]:
+        return notifications_handler.route(self.runtime, {"action": action, **fields})
+
+    def subscribe(self, address: str, lists: list[str], **extra: Any) -> dict[str, Any]:
+        event = {"action": "subscribe", "email": address, "lists": lists, "consent": CONSENT, "formId": "notifications",
+                 "page": self.settings.site_origin + "/notifications/", "origin": self.settings.site_origin,
+                 "honeypot": "", "ip": "203.0.113.9", "userAgent": "Reader/1.0", **extra}
+        answer = notifications_handler.route(self.runtime, event)
+        self.play_queue()
+        return answer
+
+    def confirm_link(self, address: str) -> str:
+        mail = [call for call in self.mailer.calls if call["to"] == address and "Confirm" in call["subject"]][-1]
+        found = re.search(r"https://[^\s\"<>]+/notifications/confirm/\?token=[A-Za-z0-9_.\-]+", mail["text"])
+        assert found, mail["text"]
+        return found.group(0)
+
+    def join(self, address: str, lists: list[str]) -> str:
+        """Subscribe and confirm: returns the manage token."""
+        assert self.subscribe(address, lists)["body"]["status"] == "check_email"
+        token = self.confirm_link(address).split("token=", 1)[1]
+        answer = self.act("confirm", token=token, userAgent="Reader/1.0")
+        assert answer["body"]["status"] == "confirmed", answer
+        return answer["body"]["manageToken"]
+
+    def add_story(self, title: str, section: str, *, status: str = "published") -> str:
+        lineage = f"item-{section}-{slug_of(title)}"
+        self.rows["published-" + lineage] = {
+            "id": "published-" + lineage,
+            "status": status,
+            "type": "article",
+            "section": section,
+            "slug": slug_of(title),
+            "title": title,
+            "metadata": json.dumps({"frontMatterYaml": f"title: {title}\n"}),
+        }
+        return lineage
+
+    @staticmethod
+    def announcement(lineage: str) -> dict[str, Any]:
+        return {
+            "task": "story-published",
+            "itemId": lineage,
+            "lineageId": lineage,
+            "eventId": "story.published:" + lineage,
+            "publishedItemId": "published-" + lineage,
+        }
+
+    def announce(self, lineage: str) -> dict[str, Any]:
+        return notifications_handler.route(self.runtime, self.announcement(lineage))
+
+    def publish(self, title: str, section: str) -> dict[str, Any]:
+        return self.announce(self.add_story(title, section))
+
+    def ses_event(self, kind: str, message_id: str, *, site: str | None = None, delivery: str = "d1", **extra: Any) -> dict[str, Any]:
+        tags = {"site": [site or self.settings.site_id], "delivery": [delivery], "kind": ["story.published"]}
+        return {"source": "aws.ses", "detail": {"eventType": kind, "mail": {"messageId": message_id, "tags": tags}, **extra}}
+
+    def deliveries(self) -> list[dict[str, Any]]:
+        """Story deliveries (not confirmations)."""
+        return [
+            row for (_pk, sk), row in sorted(self.store.items.items()) if sk.startswith("DELIVERY#") and row["kind"] == "story.published"
+        ]
+
+    def play_queue(self) -> int:
+        """Play the email queue through the sender, as SQS would, until it is empty (fan-out pages queue deliveries)."""
+        handled = 0
+        while self.queues.sent:
+            batch = {
+                "Records": [{"messageId": str(number), "body": json.dumps(body)} for number, (_channel, body) in enumerate(self.queues.sent)]
+            }
+            self.queues.sent.clear()
+            result = notifications_handler.email_with(self.runtime, batch)
+            assert result == {"batchItemFailures": []}, result
+            handled += sum(1 for record in batch["Records"] if "fanout" not in record["body"])
+        return handled
+
+
+# -- events ---------------------------------------------------------------------------------------------------------------
+
+
+def test_a_story_becomes_an_event_whose_id_comes_from_the_lineage() -> None:
+    site = Site()
+    lineage = site.add_story("Rates held steady", "news")
+    detail = story_published_detail(
+        site.rows["published-" + lineage], event_id="story.published:" + lineage, settings=site.settings, occurred_at="2026-11-09T12:00:00Z"
+    )
+    assert detail is not None
+    assert detail["eventId"] == "story.published:item-news-rates-held-steady"
+    assert detail["kind"] == "story.published" and detail["product"] == "papyrus" and detail["site"] == "alpha"
+    assert detail["lists"] == ["stories"], "the lists whose rule matches the story"
+    assert detail["facts"] == {"title": "Rates held steady", "url": "https://alpha.example.test/news/rates-held-steady.html"}
+
+
+def test_a_rule_that_does_not_match_raises_no_event() -> None:
+    site = Site(rule={"sections": ["security"]})
+    lineage = site.add_story("Rates held steady", "news")
+    assert story_published_detail(site.rows["published-" + lineage], event_id="story.published:x", settings=site.settings, occurred_at="2026-11-09T12:00:00Z") is None
+
+
+def test_the_deck_becomes_the_summary() -> None:
+    site = Site()
+    lineage = site.add_story("Rates held steady", "news")
+    site.rows["published-" + lineage]["deck"] = "The bank left them alone."
+    detail = story_published_detail(site.rows["published-" + lineage], event_id="story.published:x", settings=site.settings, occurred_at="2026-11-09T12:00:00Z")
+    assert detail is not None and detail["facts"]["summary"] == "The bank left them alone."
+
+
+# -- the function ---------------------------------------------------------------------------------------------------------
+
+
+def test_a_published_story_is_mailed_once_to_each_subscriber_in_the_sites_theme() -> None:
+    site = Site()
+    answer = site.publish("Rates held steady", "news")
+    assert answer["status"] == "accepted"
+    assert site.play_queue() == 1
+    (mail,) = site.mailer.calls
+    assert mail["to"] == site.addresses[0] and mail["subject"] == "Rates held steady"
+    assert "https://alpha.example.test/news/rates-held-steady.html" in mail["html"]
+    assert "#aa3300" in mail["html"], "the site's accent colour"
+    assert "Alpha News" in mail["text"]
+    assert "someone entered this address" not in mail["text"], "story mail does not use the sign-up wording"
+    assert mail["tags"]["kind"] == "story.published"
+
+
+def test_the_same_announcement_twice_mails_once() -> None:
+    site = Site()
+    lineage = site.add_story("Rates held steady", "news")
+    assert site.announce(lineage)["status"] == "accepted"
+    assert site.announce(lineage)["status"] == "duplicate"
+    site.play_queue()
+    assert len(site.mailer.calls) == 1
+
+
+def test_titles_cannot_inject_markup_or_links() -> None:
+    site = Site()
+    site.publish("<script>alert(1)</script> [x](https://evil.example.test)", "news")
+    site.play_queue()
+    (mail,) = site.mailer.calls
+    assert "<script>" not in mail["html"]
+    assert 'href="https://evil.example.test' not in mail["html"], "a title is text, never a link"
+
+
+def test_a_story_no_list_matches_queues_nothing() -> None:
+    site = Site(rule={"sections": ["security"]})
+    assert site.publish("Rates held steady", "news") == {"status": "ignored", "reason": "no_matching_list"}
+    assert site.queues.sent == [] and site.deliveries() == []
+
+
+def test_a_story_that_is_no_longer_published_is_ignored() -> None:
+    site = Site()
+    lineage = site.add_story("Rates held steady", "news", status="unpublished")
+    assert site.announce(lineage) == {"status": "ignored", "reason": "not_published"}
+    assert notifications_handler.route(site.runtime, {**Site.announcement("item-gone")}) == {"status": "ignored", "reason": "not_published"}
+
+
+@pytest.mark.parametrize(
+    "event_id", ["", "item-1", "story.published:", "story.published:a b", "story.published:" + "x" * 300, "story.published:other"]
+)
+def test_a_malformed_or_mismatched_event_id_is_refused_without_touching_the_log(event_id: str) -> None:
+    site = Site(readers=0)
+    lineage = site.add_story("Rates held steady", "news")
+    answer = notifications_handler.route(site.runtime, {**Site.announcement(lineage), "eventId": event_id})
+    assert answer == {"status": "ignored", "reason": "bad_event"}
+    assert site.store.items == {}
+
+
+def test_a_non_text_event_id_is_refused() -> None:
+    site = Site()
+    assert notifications_handler.route(site.runtime, {"task": "story-published", "eventId": 5, "lineageId": "x"})["reason"] == "bad_event"
+
+
+def test_unknown_events_do_nothing() -> None:
+    assert notifications_handler.route(Site().runtime, {"task": "something-else"}) == {"status": "ignored", "reason": "unknown_event"}
+
+
+def test_sites_do_not_share_data() -> None:
+    alpha, beta = Site("alpha"), Site("beta", readers=0)
+    alpha.publish("Rates held steady", "news")
+    alpha.play_queue()
+    assert len(alpha.deliveries()) == 1 and beta.deliveries() == [] and beta.store.items == {}
+
+
+# -- readers ----------------------------------------------------------------------------------------------------------------
+
+
+def test_no_reader_action_answers_503_any_more() -> None:
+    site = Site(readers=0)
+    for action in sorted(notifications_handler.public.READER_ACTIONS):
+        assert notifications_handler.route(site.runtime, {"action": action, "token": "x", "email": "bad"})["statusCode"] != 503
+
+
+def test_subscribing_mails_one_themed_confirmation_with_a_button_to_the_sites_confirm_page() -> None:
+    site = Site(readers=0, base_path="posts")
+    assert site.subscribe("reader@example.test", ["stories", "security"]) == {"statusCode": 202, "body": {"status": "check_email"}}
+    (mail,) = site.mailer.calls
+    assert mail["subject"] == "Confirm your subscription to Alpha News"
+    assert site.confirm_link("reader@example.test").startswith("https://alpha.example.test/posts/notifications/confirm/?token=v1.")
+    assert "New stories, Security" in mail["text"] and "#aa3300" in mail["html"]
+    assert "reader@example.test" not in site.confirm_link("reader@example.test")
+    assert "List-Unsubscribe" not in mail["headers"], "a confirmation is not a list message"
+
+
+def test_the_confirmation_needs_no_postal_address() -> None:
+    site = Site(readers=0, postal_address=None)
+    site.subscribe("reader@example.test", ["stories"])
+    assert len(site.mailer.calls) == 1
+
+
+def test_a_story_reaches_only_the_lists_whose_rule_matches() -> None:
+    site = Site(readers=0)
+    site.join("all@example.test", ["stories"])
+    site.join("sec@example.test", ["security"])
+    site.mailer.calls.clear()
+    site.publish("A breach", "security")
+    site.play_queue()
+    assert sorted(call["to"] for call in site.mailer.calls) == ["all@example.test", "sec@example.test"]
+    site.mailer.calls.clear()
+    site.publish("Rates held steady", "news")
+    site.play_queue()
+    assert [call["to"] for call in site.mailer.calls] == ["all@example.test"]
+
+
+def test_public_mail_carries_one_click_unsubscribe_and_the_readers_links() -> None:
+    site = Site()
+    site.publish("Rates held steady", "news")
+    site.play_queue()
+    (mail,) = site.mailer.calls
+    assert mail["headers"]["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
+    assert mail["headers"]["List-Unsubscribe"].startswith("<https://alpha.example.test/api/notifications/unsubscribe?t=v1.")
+    assert "https://alpha.example.test/notifications/preferences/?token=v1." in mail["text"]
+    assert "https://alpha.example.test/notifications/unsubscribe/?token=v1." in mail["text"]
+    assert site.addresses[0] not in json.dumps(mail["headers"])
+
+
+def test_one_click_unsubscribe_stops_the_next_story() -> None:
+    site = Site()
+    site.publish("Rates held steady", "news")
+    site.play_queue()
+    one_click = site.mailer.calls[0]["headers"]["List-Unsubscribe"].strip("<>")
+    token = re.search(r"t=([^&]+)", one_click).group(1)
+    assert site.act("unsubscribe", token=token, list="stories")["body"]["status"] == "unsubscribed"
+    site.mailer.calls.clear()
+    site.publish("Another story", "news")
+    site.play_queue()
+    assert site.mailer.calls == []
+
+
+def test_a_permanent_bounce_suppresses_the_reader() -> None:
+    site = Site()
+    message_id = sent_message(site)
+    notifications_handler.ses_events_with(site.runtime, site.ses_event("Bounce", message_id, bounce={"bounceType": "Permanent"}))
+    assert site.runtime.audience.suppression(site.runtime.audience._keys.recipient(site.addresses[0])) == "bounce"
+    site.mailer.calls.clear()
+    site.publish("Another story", "news")
+    site.play_queue()
+    assert site.mailer.calls == []
+
+
+def test_a_reader_lifting_a_bounce_also_clears_the_ses_account_suppression() -> None:
+    site = Site()
+    message_id = sent_message(site)
+    notifications_handler.ses_events_with(site.runtime, site.ses_event("Complaint", message_id))
+    assert site.act("update_preferences", token=site.manage[site.addresses[0]], lists=["stories"])["body"]["status"] == "saved"
+    assert site.unsuppressed == [site.addresses[0]]
+
+
+def test_every_failure_in_caducus_reaches_lambda_so_it_retries() -> None:
+    site = Site()
+    lineage = site.add_story("Rates held steady", "news")
+
+    def explode(_id: str) -> None:
+        raise RuntimeError("content API down")
+
+    site.runtime.read_item = explode
+    with pytest.raises(RuntimeError):
+        site.announce(lineage)
+
+
+# -- sending as the site ---------------------------------------------------------------------------------------------------
+
+
+def test_every_message_carries_the_site_delivery_and_kind_tags_and_the_sites_set() -> None:
+    site = Site()
+    site.publish("Rates held steady", "news")
+    site.play_queue()
+    (mail,) = site.mailer.calls
+    assert set(mail["tags"]) == {"site", "delivery", "kind"}
+    assert mail["tags"]["site"] == "alpha" and mail["tags"]["kind"] == "story.published"
+    assert site.settings.configuration_set == "papyrus-alpha", "the newsletter's set: one reputation and one pause per site"
+
+
+def test_a_send_on_a_paused_set_is_a_failed_delivery_with_a_reason_and_no_retry() -> None:
+    site = Site()
+    site.publish("Rates held steady", "news")
+    site.mailer.script = [SendingPaused("sending is paused for configuration set papyrus-alpha")]
+    assert site.play_queue() == 1  # the batch reports no failure: the delivery is final, SQS does not retry it
+    (row,) = site.deliveries()
+    assert row["status"] == "failed" and row["reason"] == "sending is paused for configuration set papyrus-alpha"
+    assert site.mailer.calls == []
+
+
+def test_ses_pause_refusal_is_recognised_by_its_error_code() -> None:
+    from caducus.notify.channels.email import Mailer
+
+    from papyrus_content.notifications.sending import SiteMailer
+
+    class Refusing(Mailer):
+        def send(self, **_message: Any) -> str:
+            raise ClientError({"Error": {"Code": "SendingPausedException", "Message": "paused"}}, "SendEmail")
+
+    with pytest.raises(SendingPaused, match="papyrus-alpha"):
+        SiteMailer(Refusing(), "alpha", "papyrus-alpha").send(to_address="a@example.test", subject="s", text="t", html="h", tags={})
+
+    class Other(Refusing):
+        def send(self, **_message: Any) -> str:
+            raise ClientError({"Error": {"Code": "MessageRejected", "Message": "no"}}, "SendEmail")
+
+    with pytest.raises(ClientError):
+        SiteMailer(Other(), "alpha", "papyrus-alpha").send(to_address="a@example.test", subject="s", text="t", html="h", tags={})
+
+
+def test_public_mail_is_refused_without_a_postal_address() -> None:
+    site = Site(postal_address=None)
+    site.publish("Rates held steady", "news")
+    site.play_queue()
+    (row,) = site.deliveries()
+    assert row["status"] == "failed" and row["reason"] == "postal address missing"
+    assert site.mailer.calls == []
+
+
+def test_public_mail_carries_the_postal_address_in_the_footer() -> None:
+    site = Site(postal_address="1 Example Way\nExample City, EX 00000")
+    site.publish("Rates held steady", "news")
+    site.play_queue()
+    (mail,) = site.mailer.calls
+    assert "1 Example Way" in mail["html"] and "Example City, EX 00000" in mail["text"]
+
+
+def sent_message(site: Site) -> str:
+    site.publish("Rates held steady", "news")
+    site.play_queue()
+    return "fake-message-1"
+
+
+@pytest.mark.parametrize(
+    "kind, extra, status",
+    [
+        ("Delivery", {}, "delivered"),
+        ("Bounce", {"bounce": {"bounceType": "Permanent"}}, "bounced"),
+        ("Bounce", {"bounce": {"bounceType": "Transient"}}, "delayed"),
+        ("Complaint", {}, "complained"),
+        ("Reject", {}, "rejected"),
+        ("DeliveryDelay", {}, "delayed"),
+    ],
+)
+def test_ses_events_for_the_sites_mail_reach_its_delivery_log(kind: str, extra: dict[str, Any], status: str) -> None:
+    site = Site()
+    message_id = sent_message(site)
+    assert notifications_handler.ses_events_with(site.runtime, site.ses_event(kind, message_id, **extra)) == status
+    (row,) = site.deliveries()
+    assert row["status"] == status
+
+
+def test_a_late_delivery_event_does_not_undo_a_bounce() -> None:
+    site = Site()
+    message_id = sent_message(site)
+    notifications_handler.ses_events_with(site.runtime, site.ses_event("Bounce", message_id, bounce={"bounceType": "Permanent"}))
+    notifications_handler.ses_events_with(site.runtime, site.ses_event("Delivery", message_id))
+    assert site.deliveries()[0]["status"] == "bounced"
+
+
+def test_ses_events_that_are_not_this_sites_notification_mail_change_nothing() -> None:
+    site = Site()
+    message_id = sent_message(site)
+    before = dict(site.store.items)
+    newsletter_mail = {"detail": {"eventType": "Bounce", "bounce": {"bounceType": "Permanent"}, "mail": {"messageId": message_id, "tags": {"sub": ["a" * 32]}}}}
+    for event in [
+        site.ses_event("Bounce", message_id, site="beta", bounce={"bounceType": "Permanent"}),
+        newsletter_mail,
+        site.ses_event("Send", message_id),
+        site.ses_event("Delivery", "unknown-message"),
+        {},
+    ]:
+        assert notifications_handler.ses_events_with(site.runtime, event) in {"ignored", "unknown_message"}
+    assert site.store.items == before
+
+
+class FakeSes:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def put_configuration_set_sending_options(self, **call: Any) -> None:
+        self.calls.append(call)
+
+
+def alarm(name: str, state: str) -> dict[str, Any]:
+    return {"source": "aws.cloudwatch", "detail": {"alarmName": name, "state": {"value": state}}}
+
+
+def test_a_rate_alarm_of_this_site_pauses_its_configuration_set() -> None:
+    site, ses = Site(), FakeSes()
+    for name in alarm_names("alpha"):
+        assert handle_alarm(site.settings, ses, alarm(name, "ALARM")) == "paused"
+    assert ses.calls == [{"ConfigurationSetName": "papyrus-alpha", "SendingEnabled": False}] * 2
+
+
+@pytest.mark.parametrize("name, state", [("papyrus-notifications-beta-bounce-rate", "ALARM"), ("papyrus-notifications-alpha-bounce-rate", "OK"), ("papyrus-newsletter-alpha-bounce-rate", "ALARM")])
+def test_other_alarms_and_recoveries_do_not_pause(name: str, state: str) -> None:
+    site, ses = Site(), FakeSes()
+    assert handle_alarm(site.settings, ses, alarm(name, state)) == "ignored" and ses.calls == []
+
+
+def test_the_alarm_names_follow_the_site_id() -> None:
+    assert alarm_names("alpha") == ("papyrus-notifications-alpha-bounce-rate", "papyrus-notifications-alpha-complaint-rate")

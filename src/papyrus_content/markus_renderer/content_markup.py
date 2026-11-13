@@ -1,4 +1,4 @@
-"""Papyrus-layer content markup: ``::image{}``, ``[@key]``, ``::citations{}``.
+"""Papyrus-layer content markup: ``::image{}``, ``::video{}``, ``[@key]``, ``::citations{}``.
 
 Why a Papyrus layer at all
 --------------------------
@@ -30,10 +30,11 @@ from __future__ import annotations
 import html
 import re
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from .citations import CitationCollector, CitationRendering
 from .images import ImageBuilder, ImagePipeline, ImageRequest
+from .video import VideoRendering, VideoRequest, parse_video, provider_of, render_plain, render_video
 
 #: Deliberately alphanumeric: Markdown cannot style it, Markus's typography
 #: pass cannot rewrite it, and HTML escaping cannot alter it.
@@ -46,6 +47,7 @@ _TOKEN_RE = re.compile(r"PAPYRUSMARKUP(\d{5})END")
 # attribute value is not supported (quote-aware block scanning would be, but
 # nothing in the corpus needs it).
 _IMAGE_DIRECTIVE_RE = re.compile(r"^[ \t]*::image\{(?P<attrs>[^}]*)\}[ \t]*$", re.M)
+_VIDEO_DIRECTIVE_RE = re.compile(r"^[ \t]*::video\{(?P<attrs>[^}]*)\}[ \t]*$", re.M)
 _CITATIONS_DIRECTIVE_RE = re.compile(
     r"^[ \t]*::citations(?:\{(?P<attrs>[^}]*)\})?[ \t]*$", re.M
 )
@@ -66,6 +68,10 @@ class ContentMarkupError(RuntimeError):
     """Raised for malformed Papyrus content markup."""
 
 
+class VideoMarkupError(ContentMarkupError):
+    """Raised for a malformed ``::video{...}`` (save reports it as ``video-attrs``)."""
+
+
 def parse_attrs(raw: str) -> dict[str, str]:
     """Parse ``key="value"`` / ``key='value'`` / ``key=value`` pairs."""
     out: dict[str, str] = {}
@@ -77,6 +83,58 @@ def parse_attrs(raw: str) -> dict[str, str]:
             value = match.group("bare") or ""
         out[match.group("key")] = value
     return out
+
+
+_MACHINE_CREDIT_RE = re.compile(
+    r"""^\s*(?:(?:illustration|image|picture|art|artwork|cover|photo)\s+)?
+    (?:
+        (?:(?:drafted|generated|made|created|produced|rendered)\s+(?:with|by)\s+
+           (?:an?\s+)?(?:ai|a\.i\.|model|artificial\s+intelligence|machine))
+      | (?:ai[\s-]+(?:generated|drafted|made|created|produced|rendered))
+      | generated
+    )\s*\.?\s*$""",
+    re.I | re.X,
+)
+
+
+def is_machine_credit(text: str | None) -> bool:
+    """True when a credit only says a machine made the picture ("Illustration generated with AI", "Generated").
+
+    A generated image has no credit at all, so such a credit is dropped, never shown. Any other credit (a person, a photographer, a source) is real."""
+    return bool(text and _MACHINE_CREDIT_RE.match(text))
+
+
+def without_machine_credit(text: str | None) -> str | None:
+    """The credit to show: ``None`` for a machine-made statement, otherwise the credit unchanged."""
+    return None if is_machine_credit(text) else text
+
+
+def drop_machine_credits(markus: str) -> str:
+    """The Markus source with the ``credit`` attribute removed from every ``::image{...}`` whose credit only says a machine made it.
+
+    Only the attribute is cut (with the space that separated it), so the rest of the directive, including a multi-line one, stays valid."""
+
+    def directive(match: re.Match) -> str:
+        attrs = match.group("attrs")
+        out, pos = [], 0
+        for attr in _ATTR_RE.finditer(attrs):
+            value = attr.group("dq") if attr.group("dq") is not None else attr.group("sq") if attr.group("sq") is not None else attr.group("bare")
+            if attr.group("key") != "credit" or not is_machine_credit(value):
+                continue
+            start, end = attr.start(), attr.end()
+            before = attrs[pos:start]
+            stripped = before.rstrip()
+            if stripped:   # there is an attribute before it: cut the space that separated them
+                out.append(stripped)
+            else:          # it is first: cut the space after it instead
+                out.append(before)
+                end = len(attrs) - len(attrs[end:].lstrip())
+            pos = end
+        out.append(attrs[pos:])
+        cut = "".join(out)
+        return match.group(0) if cut == attrs else match.group(0).replace("{" + attrs + "}", "{" + cut + "}", 1)
+
+    return _IMAGE_DIRECTIVE_RE.sub(directive, markus)
 
 
 # -- front matter ----------------------------------------------------------
@@ -131,6 +189,7 @@ class PreparedPage:
 
     markdown: str
     images: dict[str, ImageRequest] = field(default_factory=dict)
+    videos: dict[str, VideoRequest] = field(default_factory=dict)
     citation_keys: dict[str, list[str]] = field(default_factory=dict)
     citation_lists: dict[str, str | None] = field(default_factory=dict)
     entries: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -138,11 +197,11 @@ class PreparedPage:
     @property
     def block_tokens(self) -> set[str]:
         """Tokens that stood alone on their own line in the source."""
-        return set(self.images) | set(self.citation_lists)
+        return set(self.images) | set(self.videos) | set(self.citation_lists)
 
     @property
     def touched(self) -> bool:
-        return bool(self.images or self.citation_keys or self.citation_lists)
+        return bool(self.images or self.videos or self.citation_keys or self.citation_lists)
 
 
 def _mask_code(body: str) -> tuple[str, list[str]]:
@@ -196,12 +255,15 @@ def prepare_page(
     *,
     images: ImagePipeline | None,
     citations: CitationRendering | None,
+    videos: VideoRendering | None = None,
 ) -> PreparedPage:
     """Lower Papyrus markup in ``text`` to sentinels.
 
-    Returns the page unchanged when neither capability is enabled.
+    Returns the page unchanged when no capability is enabled. ``videos`` lowers ``::video{}`` only when it lists a provider, and then only
+    the ones whose address is of a provider in the registry; every other ``::video`` stays as written for the site's hooks.
     """
-    if images is None and citations is None:
+    handles_videos = videos is not None and videos.enabled   # with no provider listed core does not read ::video: it is exactly as it was
+    if images is None and citations is None and not handles_videos:
         return PreparedPage(markdown=text)
 
     front_matter, body = split_front_matter(text)
@@ -247,7 +309,7 @@ def prepare_page(
                 alt=attrs.get("alt", ""),
                 layout=attrs.get("layout"),
                 caption=attrs.get("caption"),
-                credit=attrs.get("credit"),
+                credit=without_machine_credit(attrs.get("credit")),
                 sizes=attrs.get("sizes"),
                 loading=attrs.get("loading"),
                 src_dark=attrs.get("srcDark"),
@@ -256,6 +318,22 @@ def prepare_page(
             return token
 
         masked = _IMAGE_DIRECTIVE_RE.sub(lower_image, masked)
+
+    if handles_videos:
+
+        def lower_video(match: re.Match[str]) -> str:
+            # Only an address of a registered provider is core's. Any other ::video (a site's own embed of some other service) is left as written.
+            if provider_of(parse_attrs(match.group("attrs")).get("src", "")) is None:
+                return match.group(0)
+            try:
+                request = parse_video(parse_attrs(match.group("attrs")), match.group(0))
+            except ValueError as error:
+                raise VideoMarkupError(str(error)) from None
+            token = next_token()
+            page.videos[token] = request
+            return token
+
+        masked = _VIDEO_DIRECTIVE_RE.sub(lower_video, masked)
 
     if citations is not None:
 
@@ -351,6 +429,7 @@ def resolve_fragment(
     depth: int = 0,
     image_builder: ImageBuilder | None = None,
     citations: CitationRendering | None = None,
+    videos: VideoRendering | None = None,
 ) -> str:
     """Substitute real HTML for the sentinels in a converted fragment."""
     if image_builder is not None and image_builder.pipeline.upgrade_plain_images:
@@ -373,8 +452,10 @@ def resolve_fragment(
         CitationCollector(page.entries, citations) if citations is not None else None
     )
     list_placeholders: dict[str, str] = {}
+    video_style_emitted = False
 
     def substitute(match: re.Match[str]) -> str:
+        nonlocal video_style_emitted
         token = match.group(0)
         if token in page.images:
             if image_builder is None:
@@ -383,6 +464,15 @@ def resolve_fragment(
                     "(pass images=ImagePipeline(...) to build_markus_site)"
                 )
             return image_builder.render(page.images[token], depth=depth)
+        if token in page.videos:
+            request = page.videos[token]
+            rendering = videos if videos is not None else VideoRendering()
+            pipeline = image_builder.pipeline if image_builder is not None else ImagePipeline()
+            if request.provider not in rendering.providers:   # embeds are on but this provider is not listed: the plain linked credit line
+                return render_plain(request)
+            html_text = render_video(request, rendering, classes=pipeline.classes_for(request.layout), with_style=not video_style_emitted)
+            video_style_emitted = True
+            return html_text
         if collector is not None and token in page.citation_keys:
             rendered = [collector.marker_html(key) for key in page.citation_keys[token]]
             return "".join(bit for bit in rendered if bit)

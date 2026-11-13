@@ -19,6 +19,11 @@ do nothing. Anything that needs more than a slot is a signal to add a core optio
                                     ``page.page_actions``, the page-actions markup (empty when off), for a body that places it itself;
                                     ``page.article_actions()`` returns the same markup and is the call a ``main`` or ``page_body`` hook makes.
 
+``byline(entry) -> str | None``     the complete byline text of an item ("By various bots and Ryan Porter"), plain text that core escapes; core shows it
+                                    in place of the linked author names in the item page's byline (when ``components.itemByline`` is on) and in the
+                                    Markdown twin's "By ..." line. ``None``, or no hook, keeps the author names (and their links). It reads only
+                                    the entry, so it makes no page depend on other entries.
+
 ``derive(summary) -> dict``         fields computed from an item's summary (a tier, a week); they appear as ``entry.derived``,
                                     are part of every fingerprint, and are how a site's row or card component is chosen
 ``page`` is a :class:`papyrus_content.projection.standard.page.StandardPage`.
@@ -50,6 +55,26 @@ The hooks that shape an item page before and after it is converted (a site whose
 that rendered page, so a site's own card drawing applies to cards loaded later. Those pages read no Story unless ``DEPENDS_ON`` names
 ``"reference_list"`` (or is a list of sections).
 
+``page.concept_links`` and ``page.related_stories`` (item pages) are the Story's public concept pages and its related published Stories, read from its
+relations (see docs/surfable-site.md); a hook that draws them is rendered again when a relation changes.
+
+``page.related_references`` (item pages) is a tuple of the accepted References the Story points a reader to: "read this source too", a looser association
+than citing or consulting (those are the reporting trail and are not shown here). It is read from the Story's current ``see_also`` relations to a Reference
+(``papyrus stories link-story --story S --reference R``), newest linked first. Each is a plain mapping ``{referenceId, lineageId, title, url, host, image,
+summary, medium, acceptedAt, note}``; ``image``, ``summary``, ``medium`` and ``note`` are ``None`` when there is none (``summary`` is the generated card
+summary, ``note`` the editor's or agent's note on the link), and the captured text is never included. Pending, recommended and rejected References are left
+out. It is empty on a wiki page, where the Story has none, and on a build that reads no relations. Adding, removing or retiring a link, or a Reference
+changing status or being edited, renders the pages that show it again. For example::
+
+    def page_finish(html, page):
+        items = "".join(f'<li><a href="{r["url"]}">{r["title"]}</a> ({r["host"]})</li>' for r in page.related_references)
+        return html.replace("</main>", f"<ul class='sources'>{items}</ul></main>") if items else html
+
+``page.ranked(entries, bucket=None)`` returns entries (newest first, as ``page.entries`` is) in the Story ranking the home page and listings use
+(the newest rolling bucket first, the editors' stars inside it; ``bucket`` is ``day``, ``week`` or ``none``, default the site's ``listings.bucket``).
+A hook that builds its own listing calls it instead of sorting; with nothing rated it returns the list unchanged. A rating or a new day that
+moves the order re-renders the pages of a site whose hooks take ``page``.
+
 A hook that takes ``page`` can read any entry, so by default every page depends on all of them. A module may narrow
 that with ``DEPENDS_ON = ["essays", "@root"]`` (section names; ``@root`` is the items with no section) or ``[]`` for
 "nothing beyond the page's own entry and the listing slice". It may also be a dict keyed by page id (``home``,
@@ -69,7 +94,7 @@ from .knowledge_lookup import KnowledgeLookup
 
 HOOK_NAMES = (
     "masthead", "footer", "card", "head_extra", "body_class", "item_decorator", "main", "page_body", "derive",
-    "item_filter", "source", "item_transform", "image_pipeline", "page_finish", "block", "page_inputs", "redirects", "page_head",
+    "item_filter", "source", "item_transform", "image_pipeline", "page_finish", "block", "page_inputs", "redirects", "page_head", "byline",
 )
 
 
@@ -93,6 +118,7 @@ class Hooks:
     page_inputs: object = None
     redirects: object = None
     page_head: object = None
+    byline: object = None
     fingerprint: str = ""
     depends_on: tuple[str, ...] | dict | None = None
 

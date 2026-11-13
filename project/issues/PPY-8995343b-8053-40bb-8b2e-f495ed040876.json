@@ -1,0 +1,30 @@
+{
+  "id": "PPY-8995343b-8053-40bb-8b2e-f495ed040876",
+  "title": "Document multilingual copy-editing and localization on p.apyr.us (S)",
+  "description": "Every Papyrus feature epic ends with a docs page on the marketing and docs site, p.apyr.us (Papyrus-web).\n\nAdd pages covering multilingual copy-editing as it ships:\n- Humanus language packs (Spanish and Chinese built together), typography fixed by code, and what \"not supported\" means for a language with no pack;\n- the source-against-translation checks and the glossary / do-not-translate list;\n- the `papyrus.story.localize` procedure: the convergence loop in which the machine rewrites its own translation and re-checks it against the English, never touching wording a person corrected;\n- stock phrasing reported back on the English Story;\n- target-locale conventions through the per-language glossary and pack, never omitting or altering a factual claim;\n- how quality is evaluated: automated measures only (held-out set, per-language regression suite, bilingual model judges, parity, back-translation as a reading aid), with the plain statement that nobody in-house can verify Chinese quality so the measures are proxies;\n- a rule may drive rewrites only at about 9 in 10 correct on held-out examples, measured per language;\n- the `papyrus stories localize` CLI and the language quality page.\n\nThe Papyrus marketing website redesign session owns Papyrus-web. Coordinate with it before editing. Source: docs/plans/multilingual-publishing.md, ~/Projects/papyrus-multilingual-humanus-design.md.\n\nAcceptance: the pages are live on p.apyr.us, linked from the docs index, and accurate to the released version.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+  "labels": [
+    "size-S"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "d519679c-1c24-4894-9938-314deb54770f",
+      "author": "home",
+      "text": "Source for the p.apyr.us page: PPY-d0132d shipped (PR #1486, merged to develop, not released). docs/editorial-checks.md section 'Every check is in one language' covers per-language policies, the site languages setting and Spanish variant (es-419), refusal of languages without a Humanus pack, starter packs per language, and writing-guideline language overlays.",
+      "created_at": "2026-11-13T18:17:02.854107Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-13T14:31:23.112783Z",
+  "updated_at": "2026-11-13T18:17:02.854370Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

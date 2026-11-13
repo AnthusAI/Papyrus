@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Papyrus account stack: a labelled placeholder page on a site's domain (apex and www), served by CloudFront with no bucket and no
+  upload. A CloudFront Function answers every request with one small HTML page, so the stack is plain CloudFormation and the account
+  pipeline can deploy it. It is a stand-in until the real site (the Papyrus app shell reader, or an edge stack) takes the domain over:
+  replace this stack's records with the real distribution then. Depends on the certificate stack, so it waits for DNS delegation too.
+
+Parameters:
+  DomainName:
+    Type: String
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Supplied by the pipeline from the DNS stack's zone.
+  CertificateArn:
+    Type: String
+    Description: The certificate for the domain and www, in us-east-1. Supplied by the pipeline from the certificate stack.
+  SiteName:
+    Type: String
+    AllowedPattern: "^[^\"'`\\\\<>&$]{1,80}$"
+    Description: The site's name as it should appear on the page.
+  Label:
+    Type: String
+    AllowedPattern: "^[^\"'`\\\\<>&$]{1,200}$"
+    Description: The satire label. It appears on the page, in the page description and in the structured data.
+  Message:
+    Type: String
+    AllowedPattern: "^[^\"'`\\\\<>&$]{1,300}$"
+    Description: One short line saying what is coming.
+
+Resources:
+  PageFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${AWS::StackName}-page"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Answers every request with the labelled placeholder page.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: !Sub |
+        function handler(event) {
+          var html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            + '<title>${SiteName}</title>'
+            + '<meta name="description" content="${Label}">'
+            + '<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"${SiteName}","description":"${Label}"}</script>'
+            + '<style>body{font-family:system-ui,sans-serif;max-width:40rem;margin:20vh auto;padding:0 1.5rem;line-height:1.5}'
+            + 'p.label{display:inline-block;padding:.25rem .75rem;border-radius:.5rem;background:#eee;font-weight:600}</style></head>'
+            + '<body><h1>${SiteName}</h1><p class="label">${Label}</p><p>${Message}</p></body></html>';
+          return {
+            statusCode: 200,
+            statusDescription: 'OK',
+            headers: {
+              'content-type': { value: 'text/html; charset=utf-8' },
+              'cache-control': { value: 'public, max-age=300' }
+            },
+            body: html
+          };
+        }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "Placeholder for ${DomainName}"
+        Aliases:
+          - !Ref DomainName
+          - !Sub "www.${DomainName}"
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        # Never reached: the viewer-request function answers first. CloudFront still requires an origin.
+        Origins:
+          - Id: unused
+            DomainName: !Sub "placeholder.${DomainName}"
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+        DefaultCacheBehavior:
+          TargetOriginId: unused
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt PageFunction.FunctionMetadata.FunctionARN
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+
+  ApexA:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+  ApexAaaa:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+  WwwA:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "www.${DomainName}"
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+  WwwAaaa:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "www.${DomainName}"
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+
+Outputs:
+  DistributionDomain:
+    Value: !GetAtt Distribution.DomainName

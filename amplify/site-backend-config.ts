@@ -35,12 +35,21 @@ export type PapyrusPublicationCacheConfig = {
   /** Shared-cache lifetime (seconds) of projected HTML. Default 300 with targeted invalidation, 60 with `invalidation: "off"`. */
   htmlSMaxAgeSeconds?: number;
   /** `targeted` (default): purge exactly the written paths after each projection. `off`: rely on the short lifetime alone. */
-  invalidation?: "targeted" | "off";
+  invalidation?: "targeted" | "off" | "all";
   /** Most paths one explicit page-refresh call may invalidate (default 25). A larger call is refused unless the caller names `--force-paths N`. */
   maxInvalidationPaths?: number;
+  /**
+   * Site-key prefixes (each ends in `/`, for example `conversations/`) whose pages are live: a forum cannot work behind an edge that keeps a page for minutes.
+   * Every page and Markdown twin under a prefix is stored with `liveSMaxAgeSeconds` and no stale-while-revalidate. Needs no invalidation.
+   */
+  livePrefixes?: string[];
+  /** Shared-cache lifetime (seconds) of the pages under `livePrefixes` (default 5). */
+  liveSMaxAgeSeconds?: number;
 };
 
 export const MAXIMUM_HTML_S_MAXAGE_SECONDS = 86400;
+/** The live lifetime is a few seconds by intent; a larger value is `htmlSMaxAgeSeconds` with extra steps. */
+export const MAXIMUM_LIVE_S_MAXAGE_SECONDS = 60;
 
 export type PapyrusMonitoringConfig = {
   /** Existing shared Monitoring partition that stores this site's private email receipts. */
@@ -87,13 +96,33 @@ export type PapyrusPublicationConfig = {
    * Markus site gets when it sets none, false when `publication` is written out in the site config.
    */
   reprojectOnDeploy?: boolean;
+  /**
+   * The publication's IANA time zone ("America/New_York"). Setting it turns scheduled publishing on (docs/scheduled-publishing.md): editors pick a time in this zone,
+   * only the UTC instant is stored, and the deploy wires the Scheduler role, dead letter queue and alarm. Needs the S3 projection publication.
+   */
+  timeZone?: string;
 };
 
 const CLOUDFRONT_DISTRIBUTION_ARN = /^arn:aws[a-z-]*:cloudfront::\d{12}:distribution\/[A-Z0-9]+$/;
 
+function isLivePrefix(value: unknown): boolean {
+  return typeof value === "string" && value.length > 1 && value.endsWith("/") && !value.startsWith("/") && !value.includes(",") && !value.split("/").includes("..");
+}
+
 function isRelativePathWithoutParentSegments(value: string): boolean {
   if (value === "" || value.startsWith("/") || value.includes("\\")) return false;
   return !value.split("/").includes("..");
+}
+
+/** An IANA zone name the runtime knows ("America/New_York"); the Python side reads times in it. */
+export function isIanaTimeZone(name: unknown): boolean {
+  if (typeof name !== "string" || !/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$|^UTC$/.test(name)) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: name });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function validatePublicationConfig(publication: unknown): string[] {
@@ -118,6 +147,9 @@ export function validatePublicationConfig(publication: unknown): string[] {
   if (config.edgeDistributionArn !== undefined && !CLOUDFRONT_DISTRIBUTION_ARN.test(config.edgeDistributionArn)) {
     problems.push("publication.edgeDistributionArn must be a CloudFront distribution ARN (arn:aws:cloudfront::<account>:distribution/<id>)");
   }
+  if (config.timeZone !== undefined && !isIanaTimeZone(config.timeZone)) {
+    problems.push("publication.timeZone must be an IANA time zone name such as America/New_York");
+  }
   if (config.reprojectOnDeploy !== undefined && typeof config.reprojectOnDeploy !== "boolean") {
     problems.push("publication.reprojectOnDeploy must be a boolean");
   }
@@ -127,12 +159,24 @@ export function validatePublicationConfig(publication: unknown): string[] {
     if (lifetime !== undefined && (!Number.isInteger(lifetime) || lifetime < 0 || lifetime > MAXIMUM_HTML_S_MAXAGE_SECONDS)) {
       problems.push(`publication.cache.htmlSMaxAgeSeconds must be an integer from 0 to ${MAXIMUM_HTML_S_MAXAGE_SECONDS}`);
     }
+    const liveLifetime = cache.liveSMaxAgeSeconds;
+    if (liveLifetime !== undefined && (!Number.isInteger(liveLifetime) || liveLifetime < 0 || liveLifetime > MAXIMUM_LIVE_S_MAXAGE_SECONDS)) {
+      problems.push(`publication.cache.liveSMaxAgeSeconds must be an integer from 0 to ${MAXIMUM_LIVE_S_MAXAGE_SECONDS}`);
+    }
+    if (cache.livePrefixes !== undefined) {
+      const prefixes = cache.livePrefixes;
+      if (!Array.isArray(prefixes) || prefixes.length === 0 || !prefixes.every(isLivePrefix)) {
+        problems.push("publication.cache.livePrefixes must be a non-empty list of site-key prefixes that end in '/' (for example \"conversations/\"), with no leading '/', no '..' and no ','");
+      }
+    } else if (liveLifetime !== undefined) {
+      problems.push("publication.cache.liveSMaxAgeSeconds needs publication.cache.livePrefixes");
+    }
     for (const name of ["maxInvalidationPaths"] as const) {
       const value = cache[name];
       if (value !== undefined && (!Number.isInteger(value) || value < 1)) problems.push(`publication.cache.${name} must be a positive integer`);
     }
-    if (cache.invalidation !== undefined && cache.invalidation !== "targeted" && cache.invalidation !== "off") {
-      problems.push('publication.cache.invalidation must be "targeted" or "off"');
+    if (cache.invalidation !== undefined && cache.invalidation !== "targeted" && cache.invalidation !== "off" && cache.invalidation !== "all") {
+      problems.push('publication.cache.invalidation must be "targeted" (the default), "off" or "all" (billable, discouraged)');
     }
   }
   const distribution = config.distribution;
@@ -159,7 +203,46 @@ export function assertValidPublicationConfig(publication: unknown): void {
   if (problems.length > 0) throw new Error(`Invalid backend.publication: ${problems.join("; ")}`);
 }
 
+/**
+ * Tenancy mode (docs/multi-tenancy.md). `dedicated` (the default) is one stack per site, exactly as every site has been.
+ * `shared` is one stack serving several tenants. The mode reaches functions as PAPYRUS_TENANCY_MODE, which only the
+ * helpers `papyrus_content.tenancy` (Python) and `lib/tenant-keys.ts` (TypeScript) may read.
+ */
+export type PapyrusTenancyMode = "dedicated" | "shared";
+export type PapyrusTenancyConfig = { mode?: PapyrusTenancyMode };
+
+export const TENANCY_MODE_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANCY_MODE";
+
+export function validateTenancyConfig(tenancy: unknown): string[] {
+  if (tenancy === undefined) return [];
+  if (typeof tenancy !== "object" || tenancy === null || Array.isArray(tenancy)) return ["tenancy must be an object"];
+  const mode = (tenancy as { mode?: unknown }).mode;
+  if (mode !== undefined && mode !== "dedicated" && mode !== "shared") {
+    return [`tenancy.mode must be "dedicated" or "shared" (got ${JSON.stringify(mode)})`];
+  }
+  return [];
+}
+
+export function assertValidTenancyConfig(tenancy: unknown): void {
+  const problems = validateTenancyConfig(tenancy);
+  if (problems.length > 0) throw new Error(`Invalid backend.tenancy: ${problems.join("; ")}`);
+}
+
+export function resolveTenancyMode(tenancy: PapyrusTenancyConfig | undefined): PapyrusTenancyMode {
+  return tenancy?.mode === "shared" ? "shared" : "dedicated";
+}
+
+/**
+ * Environment every function gets. Dedicated sets nothing (an unset variable means dedicated), so a site
+ * without a tenancy setting synthesises the template it always did.
+ */
+export function tenancyFunctionEnvironment(mode: PapyrusTenancyMode): Record<string, string> {
+  return mode === "shared" ? { [TENANCY_MODE_ENVIRONMENT_VARIABLE]: "shared" } : {};
+}
+
 export type PapyrusSiteBackendConfig = {
+  /** One synth-time switch: `{ mode: "dedicated" | "shared" }`. Default dedicated; see `PapyrusTenancyMode`. */
+  tenancy?: PapyrusTenancyConfig;
   /** Brand id; namespaces account-global resources (S3 Vectors index name). */
   brandId?: string;
   /**

@@ -11,7 +11,7 @@ export type S3ProjectionSettingsInput = {
   distributionArn?: string;
   distributionId?: string;
   publicHostName?: string;
-  cache?: { htmlSMaxAgeSeconds?: number; invalidation?: "targeted" | "off"; maxInvalidationPaths?: number };
+  cache?: { htmlSMaxAgeSeconds?: number; invalidation?: "targeted" | "off" | "all"; maxInvalidationPaths?: number; livePrefixes?: string[]; liveSMaxAgeSeconds?: number };
   projector?: string;
   staticDir?: string;
 };
@@ -21,6 +21,7 @@ export type S3ProjectionPolicyStatementSpec = {
   resources: string[];
 };
 
+export const LIVE_PREFIX_SEPARATOR = ",";
 export const S3_PROJECTION_PROJECTOR_MODULE = "site_projector";
 export const S3_PROJECTION_STATIC_DIRECTORY = "/var/task/site_static";
 
@@ -39,8 +40,13 @@ export function s3ProjectionEnvironment(input: S3ProjectionSettingsInput): Recor
   environment.PAPYRUS_REDIRECTS_KVS_ARN = input.keyValueStoreArn;
   environment.PAPYRUS_PROJECTION_DLQ_URL = input.deadLetterQueueUrl;
   if (input.cache?.htmlSMaxAgeSeconds !== undefined) environment.PAPYRUS_HTML_S_MAXAGE_SECONDS = String(input.cache.htmlSMaxAgeSeconds);
+  // The Python side splits the list on this separator; validatePublicationConfig refuses a prefix that contains it.
+  if (input.cache?.livePrefixes !== undefined) environment.PAPYRUS_HTML_LIVE_PREFIXES = input.cache.livePrefixes.join(LIVE_PREFIX_SEPARATOR);
+  if (input.cache?.liveSMaxAgeSeconds !== undefined) environment.PAPYRUS_HTML_LIVE_S_MAXAGE_SECONDS = String(input.cache.liveSMaxAgeSeconds);
   if (input.cache?.maxInvalidationPaths !== undefined) environment.PAPYRUS_INVALIDATION_MAX_PATHS = String(input.cache.maxInvalidationPaths);
   if (input.cache?.invalidation === "off") environment.PAPYRUS_EDGE_INVALIDATION = "off";
+  // "targeted" is the default (unset). "all" is the old collapse-to-/* purge: billable and discouraged.
+  if (input.cache?.invalidation === "all") environment.PAPYRUS_EDGE_INVALIDATION = "all";
   if (input.publicHostName !== undefined) environment.PAPYRUS_SITE_PUBLIC_URL = `https://${input.publicHostName}`;
   if (input.projector !== undefined) environment.PAPYRUS_SITE_PROJECTOR = S3_PROJECTION_PROJECTOR_MODULE;
   if (input.staticDir !== undefined) environment.PAPYRUS_SITE_STATIC_DIR = S3_PROJECTION_STATIC_DIRECTORY;

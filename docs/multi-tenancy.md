@@ -6,9 +6,35 @@ A signed-in editor does not set the tenant by hand: the site publishes its own t
 
 The key helpers live in `papyrus_content.tenancy`; `PapyrusGraphQLAuthoringClient(tenant_id=...)` applies them at the client boundary so callers never build tenant keys themselves.
 
+## Tenancy mode
+
+A backend is either `dedicated` (one stack per site, the default and what every site is today) or `shared` (one stack serving several tenants). Set it in the site backend config: `tenancy: { mode: "shared" }`. A site with no `tenancy` setting synthesises exactly the template it always did: `dedicated` adds nothing to any function, and an unset `PAPYRUS_TENANCY_MODE` means dedicated.
+
+On `shared`, `amplify/site-backend.ts` sets `PAPYRUS_TENANCY_MODE=shared` on every function. Code never reads the variable itself; it asks `papyrus_content.tenancy.is_shared_stack()` in Python or `isSharedStack()` in `lib/tenant-keys.ts`. `scripts/test-tenancy-mode.ts` fails if any other file names the variable. `rulesForTenancyMode` in `amplify/data/schema.ts` is the helper the shared stack will use to vary access rules by mode; nothing uses it yet. Tests: `npm run test:tenancy-mode`.
+
+## Tenant context in functions
+
+A function builds the tenant it acts for once, with `build_tenant_context(identity, explicit_tenant=None)` in `papyrus_content.tenant_context` or `buildTenantContext(identity, { explicitTenant })` in `amplify/functions/shared/tenant-context.ts`, from the AppSync event's `identity`. It returns `{tenantId, roles, mode, operator}`. A signed-in caller's roles are the ones whose claim (`papyrus_tenant_admin`, `_editor`, `_curator`, `_member`) holds the tenant; claims naming two tenants are refused. An IAM caller (`operator` true) names its tenant explicitly. On a shared stack a call that cannot name exactly one tenant is refused before anything is read; on a dedicated stack the tenant is the fixed `PAPYRUS_TENANT_ID` (none when unset, as today) and a claim or explicit tenant that differs is refused. Every refusal is one typed error (`TenantContextRefusal`) with a `reason` code. The tenant never comes from the request body. Both builders read `features_backend/fixtures/tenant-context/vectors.json`. No handler uses it yet. Tests: `npm run test:tenant-context`.
+
 ## What the tenant models carry
 
 Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows get a `tenantId`. The index values that would be global (`typeStatus`, `sectionStatus`, slug lookups) are prefixed with `<tenant>#`, media rows are listed, read, updated and deleted by their own tenant only (see [story pictures](#story-pictures-and-the-one-key-rule) for the key), and a tenant client lists, reads, updates and deletes only its own rows.
+
+The generated [tenant key inventory](tenant-key-inventory.md) lists every model's indexes, whether each partition value is tenant-prefixed, corpus-prefixed, a record id or global, and which tables have no index that can list one tenant's rows; CI fails when it is stale or a new index is unclassified.
+
+## Tenant, membership and domain records
+
+Three models hold the tenants themselves (PPY-31c45c). They are new tables, each created with all its indexes in one deploy, and they sit in the optional model group `tenancy` (`OPTIONAL_MODEL_GROUPS`), so a dedicated site can leave them out of a first deploy with `excludeModelGroups: ["tenancy"]`. Nothing reads or writes them yet.
+
+| Model | Id | Fields | Indexes |
+| --- | --- | --- | --- |
+| `Tenant` | the site id (`validate_tenant_id`) | `accountId` (the Prospectus Account), `displayName`, `state` (`active`, `past_due`, `suspended`, `deleted_pending`, `deleted`), `stateKey` (`state#<state>`), `plan`, `entitlements`, `createdAt`, `stateChangedAt` | `accountId`, `stateKey` |
+| `TenantMembership` | `<tenant>#<userSub>` | `tenantId`, `userSub`, `userProfileId` (the stable person key; one person can have two subs), `role` (`admin`, `editor`, `curator`, `member`), `status`, `grantedBy`, `grantedAt` | `userSub` (the token Lambda), `tenantId` |
+| `TenantDomain` | the lowercase hostname | `tenantId`, `kind` (`subdomain`, `custom`), `status` (`pending_dns`, `pending_certificate`, `active`, `failed`, `removed`), `verification`, `certificateRef` | `tenantId` |
+
+Because a domain's id is its hostname, a hostname can belong to one tenant only: a second create fails on the key. `papyrus_content.tenant_records` holds the key shapes and the two lookups callers must share (`list_memberships_for_user` is one query on the `userSub` index, never a scan; `claim_domain` refuses a hostname already held).
+
+Access: the `admin` group (the platform operator) has full access; a tenant's admin may read its own rows through the `papyrus_tenant_admin` claim (`ownerDefinedIn("id")` on Tenant, `ownerDefinedIn("tenantId")` on the others). The claim is not issued yet (PPY-0bb0fd), so today only the operator group has any access. The claim rule is read-only, so it needs no field lock on `tenantId`. The tenant-claims and provisioning functions use IAM grants, which their own tasks add. The `userSub` index partition is a person, not a tenant: only the token Lambda (IAM) queries it.
 
 ## NewsroomSection ids
 
@@ -46,6 +72,8 @@ Why there is no tenant folder in the key: the folder was added so that two tenan
 
 Before this rule `stories save-version --images` stored tenant pictures at `media/<tenant>/assets/...` (PPY-a96347). Their renditions were made under the tenant folder, the projector looked for none, and a publish failed with missing renditions; the command the error suggested pointed at an object that did not exist. Existing objects are not moved by a deploy. `papyrus stories repair-image-paths --story <lineage> [--write]` copies a story's pictures to `media/<srcPath>` inside the bucket (no new upload) and points its rows at them; see [story-reporting.md](story-reporting.md#saving-a-draft-with-its-pictures). `papyrus ops content renditions --source <srcPath>` signed in asks the site's image function to make renditions again, and names the old tenant key if that is where the object is.
 
+The write path used to undo that rule for the rows: the tenant stamp rewrote every `MediaAsset` and `PublishedMediaAsset` `storagePath` to `media/<tenant>/<srcPath>` while the object sat at `media/<srcPath>`, so the console preview signed a key with no object (PPY-5978b4). The stamp no longer touches `storagePath`. `stories repair-image-paths` also re-points rows (media and published media) whose object is already at `media/<srcPath>`, copying and deleting nothing; the dry run lists each row.
+
 `content import-markus --tenant` and `content copy-backend --stamp-tenant` still place objects under `media/<tenant>/...` and keep their `storagePath` rows to match; a site that makes renditions from those objects needs the same repair per story (the command works from the rows, not from how they were saved).
 
 ## Adopting data written before tenant scoping
@@ -80,5 +108,7 @@ What it will not do:
 A backend copied from a tenant site keeps the tenant on its sections and stories, and the editorial check refuses a record whose tenant is not the client's. Two settings make the backend consistent with its data: the router publication's `tenantId` (see [monitoring in the cloud](monitoring-cloud.md)) and, for the backend's own Lambdas (create a story from a Reference, edit a story, the assignment and category actions, and the editorial-checks function, which refuses an editorial context whose tenant differs from its own), the build variable `PAPYRUS_TENANT_ID` on the site, which `amplify/site-backend.ts` passes to those Lambdas. Rows that carry no tenant (for example the doctrine Items) are invisible to a tenant client until `content adopt-tenant-data --tenant <id>` has adopted them (dry run first).
 
 ### Single-publication backends and Reference intake
+
+The wiki commands (`knowledge wiki sync`, `knowledge wiki publish`) and the cloud knowledge run write under the publication's tenant like every other command. The cloud run takes it from `PAPYRUS_TENANT_ID` in the site's `knowledgeRun` `environment` (`infra/site.json`). A command with no tenant refuses to write when the backend's Items already belong to a tenant (rows written without the stamp are invisible to the tenant's renders), and names the tenant to pass.
 
 Reference intake (`papyrus references create-from-catalog --status pending`, the email-candidate import) refuses a backend that carries a tenant, because knowledge data (References, corpora) has no tenant isolation. A backend copied from a tenant site that holds one publication only does not share that data, so it declares so: add `"PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"` to `cms.environment` in the site's `infra/site.json`. `amplify/site-backend.ts` passes it to the content-actions Lambda only when `PAPYRUS_TENANT_ID` is also set and the value is exactly `true`. A token that carries a tenant is refused regardless. **If a second publication is ever added to that backend, remove the declaration first** (in the same change), or the second publication's editors could write into the first one's corpus. Details: [user-session intake](reference-intake/user-session-intake.md#publication-and-actor-boundary).

@@ -329,6 +329,22 @@ class SaveVersionCarriesMedia(unittest.TestCase):
         self.assertEqual(len(media_of(self.client, v3["id"])), 1)
         self.assertTrue(publish_item(self.client, v3["id"], actor="t", now=NOW).changed)
 
+    def test_a_body_only_save_carries_both_files_of_a_day_and_night_picture(self) -> None:
+        from papyrus_content.story_illustration import cover_evidence, inputs_for_item, default_policy, DONE
+
+        body = '::image{{src="assets/a-story/chart.png" srcDark="assets/a-story/chart.dark.png" alt="A chart"}}\n\nVersion {n}.\n'
+        front_matter = "title: Hello\nimage: assets/a-story/chart.png\nimageDark: assets/a-story/chart.dark.png\n"
+        for src in ("assets/a-story/chart.png", "assets/a-story/chart.dark.png"):
+            add_media(self.client, f"{LINEAGE}-v1", src)
+        v2 = save_story_version(self.client, LINEAGE, front_matter_yaml=front_matter, body_markus=body.format(n=2), actor="t",
+                                change_reason="body only", now="2026-10-05T12:02:00Z")
+        stored = sorted(json.loads(row["metadata"])["srcPath"] for row in media_of(self.client, v2["id"]))
+        self.assertEqual(stored, ["assets/a-story/chart.dark.png", "assets/a-story/chart.png"])
+        policy = {**default_policy(), "requireDark": True}
+        state, text = cover_evidence(inputs_for_item(self.client, v2, json.loads(v2["metadata"]), policy))
+        self.assertEqual(state, DONE, text)
+        self.assertTrue(publish_item(self.client, v2["id"], actor="t", now=NOW).changed)
+
     def test_image_on_no_earlier_version_still_blocks_publish(self) -> None:
         from papyrus_content.publishing import PublishError
 
@@ -337,3 +353,19 @@ class SaveVersionCarriesMedia(unittest.TestCase):
         with self.assertRaises(PublishError) as raised:
             publish_item(self.client, v2["id"], actor="t", now=NOW)
         self.assertEqual(raised.exception.code, "image-missing")
+
+
+class SavedColumnsFollowFrontMatter(unittest.TestCase):
+    """A saved version's title and headline columns are the front matter title; the deck column is only the deck."""
+
+    TITLE = "A Home Surveillance Drone with Cloud AI — What Could Go Wrong?"
+    DECK = "Ring's Drone Cam is sold as security. To do its job it has to see every room and send the video to the cloud, which is a privacy risk of its own."
+
+    def test_title_and_deck_land_in_their_own_columns(self) -> None:
+        import yaml
+
+        client = FakeAuthoringClient()
+        make_story(client, versions=1)
+        front = yaml.safe_dump({"title": self.TITLE, "deck": self.DECK, "blurb": "Two or three lines."}, sort_keys=False, allow_unicode=True)
+        record = save_story_version(client, LINEAGE, front_matter_yaml=front, body_markus="Body.\n", actor="t", change_reason="edit", now="2026-10-05T12:09:00Z")
+        self.assertEqual((record["title"], record["headline"], record["sortTitle"], record["deck"]), (self.TITLE, self.TITLE, self.TITLE, self.DECK))

@@ -49,10 +49,17 @@ def test_a_body_without_markers_gets_no_bibliography():
     assert "citationslist" not in render("Plain words.\n")
 
 
-def test_default_links_are_external_and_unchanged():
+def test_default_links_are_external_and_unchanged_for_a_source_with_no_page_of_ours():
     page = render(WITH_DIRECTIVE)
     assert page == render(WITH_DIRECTIVE, {"citations": True}) == render(WITH_DIRECTIVE, {"citations": {"links": "external"}})
-    assert '<a href="https://example.org/outside" target="_blank" rel="noopener noreferrer">https://example.org/outside</a>' in page
+    assert '<a href="https://example.net/other" target="_blank" rel="noopener noreferrer">https://example.net/other</a>' in page
+    assert "citation-external" not in page and "<svg" not in page   # the icon is opt-in (citations.externalIcon)
+
+
+def test_a_source_whose_entry_names_a_page_of_ours_links_to_it_in_the_default_mode():
+    """Deliberate change (surfable site): the default mode honours ``internalUrl`` instead of linking out; ``internal`` and ``none`` are as before."""
+    page = render(WITH_DIRECTIVE)
+    assert '<a href="/references/smith/">A Page Cited' in page and "example.org/outside" not in page
 
 
 @pytest.mark.parametrize("body", [WITH_DIRECTIVE, WITHOUT_DIRECTIVE])

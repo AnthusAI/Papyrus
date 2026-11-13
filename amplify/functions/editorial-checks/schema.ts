@@ -13,8 +13,12 @@ export const editorialChecksSchemaDefinitions = {
     EditorialPolicy: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         policyKey: a.string().required(),
         scope: a.string().required(),
+        // The language the policy is written for: a tag (en, es-419, zh-Hans) or "*" for a language-neutral policy (PPY-d0132d). Papyrus
+        // requires it; the field stays nullable here only so policies saved before it existed can be read until the deploy writes their language.
+        language: a.string(),
         version: a.integer().required(),
         title: a.string().required(),
         guidance: a.string().required(),
@@ -30,6 +34,7 @@ export const editorialChecksSchemaDefinitions = {
     EditorialCheckSettings: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         settings: a.json().required(),
       })
       .disableOperations(["subscriptions"])
@@ -37,6 +42,7 @@ export const editorialChecksSchemaDefinitions = {
     EditorialFeedback: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         itemId: a.string().required(),
         findingId: a.string().required(),
         policyId: a.string().required(),
@@ -53,6 +59,7 @@ export const editorialChecksSchemaDefinitions = {
     EditorialCheckRun: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         itemId: a.string().required(),
         lineageId: a.string().required(),
         versionNumber: a.integer().required(),
@@ -81,7 +88,7 @@ export const editorialChecksSchemaDefinitions = {
       .handler(functionHandler("editorialChecks", editorialChecks)),
     checkEditorial: a
       .query()
-      .arguments({ body: a.string().required(), format: a.string(), section: a.string() })
+      .arguments({ body: a.string().required(), format: a.string(), section: a.string(), language: a.string().required() })
       .returns(a.json())
       .authorization((allow) => [allow.groups(editors)])
       .handler(functionHandler("editorialChecks", editorialChecks)),
@@ -91,6 +98,7 @@ export const editorialChecksSchemaDefinitions = {
         body: a.string().required(),
         format: a.string(),
         section: a.string(),
+        language: a.string().required(),
         finding: a.json(),
         selection: a.json(),
         note: a.string(),
@@ -106,7 +114,7 @@ export const editorialChecksSchemaDefinitions = {
       .handler(functionHandler("editorialChecks", editorialChecks)),
     tryEditorialPolicy: a
       .query()
-      .arguments({ policy: a.json().required(), text: a.string().required(), format: a.string() })
+      .arguments({ policy: a.json().required(), text: a.string().required(), format: a.string(), language: a.string().required() })
       .returns(a.json())
       .authorization((allow) => [allow.group("admin")])
       .handler(functionHandler("editorialChecks", editorialChecks)),

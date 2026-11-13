@@ -1,7 +1,7 @@
 {
   "id": "PPY-f0508e58-5142-4378-80b5-f4a0ba718563",
   "title": "M0 Decisions and spikes",
-  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: This plan on the board; the design note PR open.\nExit criteria: Owner decisions in the design note answered; spikes PPY-9f3de0, PPY-3b3cc3, PPY-6d9a6d closed with findings; PPY-9d27c2 (record the reversal) done.\nCustomer-visible: Nothing.\nIndex-adding deploys in this milestone: None.\nContains: PPY-9f3de0, PPY-3b3cc3, PPY-6d9a6d, PPY-9d27c2, PPY-cd5926, PPY-8f2c4f\nFollows: nothing.",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3). Critical-path plan: PPY-e38a2d. Design note: docs/plans/multi-tenant-architecture.md (PR #1305).\n\nEntry criteria: This plan on the board; the design note PR open.\nExit criteria: The open decisions in the design note answered (or their recommended defaults accepted); the two spikes closed with findings and a chosen design (access-rule claims PPY-9f3de0 via PPY-867f76 and PPY-f4d892; edge PPY-3b3cc3 via PPY-7cd7a2 and PPY-8891e2); the Prospectus spike PPY-6d9a6d closed (answered 2026-11-08 from Prospectus epic kanbus-b770c2); PPY-9d27c2 (record the reversal) done; inventory PPY-cd5926 and GSI ledger PPY-8f2c4f merged.\nCustomer-visible: Nothing.\nIndex-adding deploys in this milestone: None.\nContains: PPY-9f3de0 (PPY-867f76, PPY-f4d892), PPY-3b3cc3 (PPY-7cd7a2, PPY-8891e2), PPY-6d9a6d, PPY-9d27c2, PPY-cd5926, PPY-8f2c4f, PPY-46635e\nNot gating: PPY-8eca5b (bring-your-own Google client spike; after M7).\nFollows: nothing.\n\nAcceptance (Gherkin; the scenarios live in the named feature files, each also on its task):\nScenario: A token for alpha cannot touch beta's Item (features_backend/tenant-claims-spike.feature, PPY-867f76)\nScenario: An editor cannot move a row to another tenant (same file, PPY-9f3de0)\nScenario: An index list returns full pages for the caller's tenant (same file, PPY-f4d892)\nScenario: Purging alpha's page leaves beta's cached (features_backend/shared-edge-spike.feature, PPY-7cd7a2)\nScenario: A customer domain serves one tenant (same file, PPY-8891e2)\nScenario: The inventory is current (features_backend/tenant-key-inventory.feature, PPY-cd5926)\nScenario: Two new indexes on one table fail the build (features_backend/gsi-ledger.feature, PPY-8f2c4f)\nScenario: An existing site synthesises exactly as before (features_backend/tenancy-mode.feature, PPY-46635e)\nScenario: The docs state both tiers (PPY-9d27c2)\n\nAcceptance checks (evidence recorded on this issue):\n1. Each spike issue has a yes/no answer per sub-question with evidence and names the design chosen; if the claim rules fail, the fallback (custom resolvers reading claims) is written into the design note the same day and the isolation chain re-estimated.\n2. Sandbox stacks from the spikes are destroyed (aws cloudformation list-stacks shows none left).\n3. npx tsx scripts/generate-tenant-key-inventory.ts --check and the GSI ledger check pass in CI on develop.\n4. The design note's open-decisions list shows each item answered or \"default accepted\".",
   "type": "task",
   "status": "open",
   "priority": 1,
@@ -13,9 +13,17 @@
     "multi-tenant"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b5c0b0c0-f29b-474e-bb06-0c264671c662",
+      "author": "home",
+      "text": "Adds (Ryan 2026-11-08): file the Prospectus asks PPY-966ef5, PPY-6cb44b, PPY-8a3c6a, and confirm the design-partner launch path PPY-37f2ec.",
+      "created_at": "2026-11-08T21:19:01.895294Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:26.388881Z",
-  "updated_at": "2026-11-08T18:46:49.541397Z",
+  "updated_at": "2026-11-09T00:20:14.671017Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

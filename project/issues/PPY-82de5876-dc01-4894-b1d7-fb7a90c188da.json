@@ -26,9 +26,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5fb65f65-dc4e-4061-8969-4ceb034369ec",
+      "author": "home",
+      "text": "Hostname decision changed (Ryan 2026-11-08): public sites are <site>.p.apyr.us on a wildcard certificate for *.p.apyr.us (p.apyr.us itself and newsroom.p.apyr.us are specific records that win over the wildcard; 'newsroom' joins the reserved list). Recommendation: register p.apyr.us on the Public Suffix List so browsers treat each <site>.p.apyr.us as its own site (no shared cookies between tenants); the entry needs a _psl TXT record and is slow to add or remove.",
+      "created_at": "2026-11-08T21:19:03.258840Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:21.498872Z",
-  "updated_at": "2026-11-08T18:46:59.321596Z",
+  "updated_at": "2026-11-08T21:19:03.259094Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

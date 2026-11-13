@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "dec024b6-80fe-42ed-b237-76670a9502b6",
+  "issue_id": "PPY-1d5b1a2d-d811-469b-b58e-af590c391d79",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:32:23.390Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Fair projection part 1: the projection lease is keyed per tenant",
+    "description": "(being written)",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-994bd093-b3f2-442c-9711-0ac8e5819220",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

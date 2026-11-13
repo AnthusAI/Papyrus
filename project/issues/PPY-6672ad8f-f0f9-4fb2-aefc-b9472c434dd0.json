@@ -1,0 +1,20 @@
+{
+  "id": "PPY-6672ad8f-f0f9-4fb2-aefc-b9472c434dd0",
+  "title": "Follow-up: mission, policy and section prose move from DynamoDB rows into S3 documents",
+  "description": "After guidelines as data ships (design: docs/plans/guidelines-as-data.md, section 'Out of scope'), move the remaining inline doctrine text the same way: doctrine Items editorial-doctrine-mission and -policy (bodyMarkus) and NewsroomSection editorialMission, editorialPolicy, assignmentGuidance, killCriteria become doctrine_document attachments on versioned doctrine Items (desk-doctrine-<sectionKey>-mission / -policy, matching lib/doctrine.ts). Readers: amplify/functions/shared/editorial-context.ts, src/papyrus_content/editorial_context.py, console-chat-responder (Rust, load_publication_doctrine). Also give the Rust console chat the resolved guidelines. Needs Ryan's go-ahead (decision 4 in the design). Gherkin: features_backend/editorial-context.feature scenarios 'Mission and policy text is read from S3', 'A section mission saved as a document replaces the inline field'.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T00:15:52.053262Z",
+  "updated_at": "2026-11-09T00:15:52.053295Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

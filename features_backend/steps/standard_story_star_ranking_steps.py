@@ -302,3 +302,26 @@ def step_look_up(context):
 def step_still_stars(context):
     assert context.found_stars == {"rated": 4} and context.refusing_store.load() == {}
 
+
+
+@given("a site whose hook page lists the Stories through page.ranked")
+def hook_site(context) -> None:
+    context.site = ranking.hooked_site()
+    context.add_cleanup(context.site.cleanup)
+    context.before = dict(context.site.tree)
+
+
+@then("the hook page lists the Stories newest first")
+def hook_page_newest_first(context) -> None:
+    assert ranking.hooked(context.site) == ranking.newest_first(), ranking.hooked(context.site)
+
+
+@then("the hook page starts with {slugs}")
+def hook_page_starts(context, slugs: str) -> None:
+    expected = [part.strip() for part in slugs.split(",")]
+    assert ranking.hooked(context.site)[: len(expected)] == expected, ranking.hooked(context.site)
+
+
+@then('the page "{page}" was rewritten')
+def page_rewritten(context, page: str) -> None:
+    assert page in context.result["rewritten"], context.result

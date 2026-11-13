@@ -4,12 +4,14 @@ import json
 import os
 from typing import Any
 
+from papyrus_content import request_meter
 from papyrus_content.edge_invalidation import distribution_ids_from_environment, invalidate_revalidated_paths
 from papyrus_content.graphql_authoring import create_authoring_client
 from papyrus_content.markus_renderer.body_features import install_body_features
 from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
 from papyrus_content.projection.lease import ProjectionLeaseHeld
+from papyrus_content.projection.publish_jobs import DONE, FAILED, QUEUED, RUNNING, publish_jobs_from_environment
 from papyrus_content.projection.engine import project, project_all, project_item_pages
 from papyrus_content.page_refresh.operations import BY_NAME as PAGE_REFRESH_OPERATIONS, run_operation as run_page_refresh, validate as validate_page_refresh
 from papyrus_content.page_refresh.budget import DRY_RUN_ABOVE, budget_from_environment
@@ -22,6 +24,7 @@ from papyrus_content.projection.runtime import (
     DEAD_LETTER_QUEUE_ENV,
     EDGE_DISTRIBUTION_ENV,
     context_from_environment,
+    targeted_invalidation,
     projection_configured,
     public_item_url,
     render_body_preflight,
@@ -36,6 +39,8 @@ from papyrus_content.rebuild_trigger import (
     trigger_staging_build,
 )
 from papyrus_content.story_reporting import save_story_version
+from papyrus_content.story_schedule import TASK_NAME as PUBLISH_SCHEDULED_TASK, Caller, ScheduleError, ScheduleService, run_operation as run_schedule_operation, scheduler_from_environment, ZONE_ENV as PUBLICATION_ZONE_ENV
+from papyrus_content.live_schema import wait_for_live_schema
 from papyrus_content.publication import ensure_publication_from_environment
 from papyrus_content.editorial_checks import GraphQLEditorialStore, ensure_default_policies
 from papyrus_content.reference_intake import IntakeError, intake_email_submission_references, intake_references
@@ -78,7 +83,10 @@ def failure_response(error: PublishError) -> dict:
         errors = [body_error.to_dict() for body_error in error.errors]
     else:
         errors = [{"code": error.code, "message": error.message, "line": None}]
-    return {"ok": False, "errors": errors}
+    response = {"ok": False, "errors": errors}
+    if error.details:
+        response["details"] = error.details   # e.g. {"openSteps": [{"key", "label"}]} for checklist-open
+    return response
 
 
 def derive_markus_action(arguments: dict) -> dict:
@@ -90,6 +98,7 @@ def derive_markus_action(arguments: dict) -> dict:
         "features": site_body_features().to_dict(),
         "bodyIrBytes": len(json.dumps(derivation.body_ir, separators=(",", ":")).encode("utf-8")),
         "errors": [],
+        "warnings": [body_error.to_dict() for body_error in derivation.warnings],   # e.g. an equation shown as TeX, or a video on a site with embeds off
     }
     if arguments.get("includeIr") is True:
         response["bodyIr"] = derivation.body_ir
@@ -98,6 +107,22 @@ def derive_markus_action(arguments: dict) -> dict:
 
 PROJECTION_TASK_KEY = "projectionTask"
 HOME_PAGE_SNAPSHOT_WORKERS = 8
+# A publish answered before its pages are built (PPY-3acc8d): how long a build waits for a busy site before it leaves its story queued for the
+# lease holder (and Lambda's retry) instead of blocking for the default two minutes; and how long a publish that projects inline waits, so its
+# answer comes back inside the 30 seconds AppSync allows (a held lease then schedules the build).
+QUEUED_LEASE_WAIT_SECONDS = 10.0
+INLINE_LEASE_WAIT_SECONDS = 20.0
+# Draining stops this long before the function's own timeout; what is left is handed to a fresh invocation.
+DRAIN_RESERVE_SECONDS = 45.0
+ITEM_PAGES_JOB = "__item-pages__"   # the follow-up that renders every item page: one queued run covers every publish before it
+
+
+INVOKED_FUNCTION_ARN: str | None = None   # this function's own ARN, from the invocation: the Scheduler's target (an environment variable of it would be a circular reference)
+
+
+def schedule_service(client) -> ScheduleService:
+    """The site's scheduled-publishing service: the publication's time zone and its Scheduler come from the environment the deploy set."""
+    return ScheduleService(client, zone_name=os.environ.get(PUBLICATION_ZONE_ENV), scheduler=scheduler_from_environment(invoked_function_arn=INVOKED_FUNCTION_ARN))
 
 
 class ProjectionTaskFailed(Exception):
@@ -146,6 +171,14 @@ def projection_context(client):
     return context
 
 
+def bulk_projection_context(client):
+    """The context for a deploy-time or whole-site render: in targeted mode (the default) it never purges, however few pages it wrote."""
+    context = projection_context(client)
+    if targeted_invalidation(os.environ):
+        context.invalidate = None
+    return context
+
+
 def project_item_action(client, item_id: str, *, unpublished: bool, published_item_id: str | None = None) -> dict:
     """Project one item. ``published_item_id`` is passed only for a real publish: the alert is announced once the page
     is live, here when the projection succeeds, or by the scheduled retry (which carries the same marker) when it did not."""
@@ -157,13 +190,15 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     task = {"task": "item", "itemId": item_id, "unpublished": unpublished}
     if published_item_id:
         task[PUBLISHED_TASK_KEY] = {"publishedItemId": published_item_id}
+    context = projection_context(client)
+    shorten_lease_wait(context, INLINE_LEASE_WAIT_SECONDS)
     try:
-        report = project(projection_context(client), item_id, unpublished=unpublished)
+        report = project(context, item_id, unpublished=unpublished)
     except Exception as error:  # noqa: BLE001 - a projection failure never fails the save
         message = f"{type(error).__name__}: {error}"
         schedule_projection_task(task, message)
         return {**liveness, "projected": False, "paths": [], "error": message}
-    response = {"projected": report.ok, "paths": [*report.written, *report.deleted]}
+    response = {"projected": report.ok, "paths": [*report.written, *report.deleted], "itemPaths": list(report.item_paths), "invalidation": invalidation_outcome(context, report)}
     if not unpublished:
         response["live"] = report.ok
         url = public_item_url(os.environ, report.item_paths)
@@ -179,11 +214,45 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     if report.unpurged:
         response["edgePurged"] = False
         schedule_unpurged_invalidation(report.unpurged)
+    if report.invalidation_capped:
+        # targeted mode, over publication.cache.maxInvalidationPaths: the first paths were purged, the rest are named and not retried (never a wildcard)
+        response["edgePurged"] = False
+        response["invalidationCapped"] = report.invalidation_capped
     if report.follow_up_item_pages:
-        schedule_projection_task({"task": "item-pages", "exceptItemId": item_id}, "follow-up")
+        schedule_item_pages(item_id)
     if report.ok and published_item_id:
         announce_published(item_id, published_item_id)
     return response
+
+
+def shorten_lease_wait(context, seconds: float) -> None:
+    lease = getattr(context, "lease", None)
+    if isinstance(getattr(lease, "wait_seconds", None), (int, float)):
+        lease.wait_seconds = min(lease.wait_seconds, seconds)
+
+
+def schedule_item_pages(except_item_id: str | None) -> None:
+    """Schedule the follow-up that renders every item page again, unless one is already queued: that run reads the site when it starts, so it covers this change too."""
+    jobs = publish_jobs_from_environment()
+    if jobs is not None:
+        job, joined = jobs.request(ITEM_PAGES_JOB, None)
+        if joined:
+            return
+        schedule_projection_task({"task": "item-pages", "exceptItemId": except_item_id, "jobId": job["jobId"]}, "follow-up")
+        return
+    schedule_projection_task({"task": "item-pages", "exceptItemId": except_item_id}, "follow-up")
+
+
+def invalidation_outcome(context, report) -> dict:
+    """What the edge purge of this projection did, as its own outcome (PPY-2745c1): ``ok``, ``skipped`` (the site's setting or no distribution),
+    ``failed`` (retried by the function) or ``capped`` (targeted mode over its cap; the rest is named, never a wildcard)."""
+    if context.invalidate is None:
+        return {"status": "skipped", "reason": "this site does not invalidate on publish (publication.cache.invalidation is off, or it has no CloudFront distribution)", "paths": []}
+    if report.unpurged:
+        return {"status": "failed", "reason": "the purge was refused or failed; the function retries it", "paths": [], "unpurgedKeys": list(report.unpurged)}
+    if report.invalidation_capped:
+        return {"status": "capped", "reason": "more paths than publication.cache.maxInvalidationPaths; the first were purged, the rest were not", "paths": list(report.invalidated), "skippedPaths": list(report.invalidation_capped)}
+    return {"status": "ok", "paths": list(report.invalidated)}
 
 
 def schedule_unpurged_invalidation(keys: list[str]) -> None:
@@ -234,11 +303,13 @@ def refresh_site_pages_action(arguments: dict, who: str = "content-actions") -> 
         if not inputs.get("confirm") and checked["invalidation"]["count"] > DRY_RUN_ABOVE:
             return {**checked, "needsRun": True, "hint": "This was a dry run: more than 5 paths need a second, explicit call. Repeat the same request with --run (confirm: true) to do it."}
         task = {"task": PAGE_REFRESH_RERENDER_TASK, "scope": inputs["scope"], "invalidate": inputs.get("invalidate", True), "forcePaths": inputs.get("forcePaths"), "who": who}
+        if inputs.get("under"):
+            task["under"] = list(inputs["under"])
         if not schedule_projection_task(task, "page refresh"):
             return {"ok": False, "operation": name, "error": {"code": "not_scheduled", "message": "The re-render could not be scheduled; nothing was written."}}
         return {
             "ok": True, "operation": name, "dryRun": False, "target": {"scope": inputs["scope"]}, "scheduled": True,
-            "rendered": {"ok": None, "scheduled": True, "count": 0, "errors": []},
+            "rendered": {"ok": None, "scheduled": True, "requested": (checked.get("rendered") or {}).get("count", 0), "errors": []},
             "invalidation": {"ok": True, "status": "scheduled" if inputs.get("invalidate", True) is not False else "not-requested", "paths": checked["invalidation"]["paths"], "count": checked["invalidation"]["count"], "requests": [], "cost": checked["invalidation"]["cost"]},
         }
     return run_page_refresh(name, inputs, service)
@@ -258,7 +329,10 @@ def run_deploy_render_task(client) -> dict:
     ensure_publication_from_environment(client)
     ensure_default_editorial_policies(client)
     context = projection_context(client)
+    if targeted_invalidation(os.environ):
+        context.invalidate = None  # the default, "targeted": a deploy never purges; pages age out with the HTML lifetime (PPY-2745c1)
     report = deploy_render(context)
+    after_release(publish_jobs_from_environment())   # publishes that arrived during the render were queued; build them now
     print(drift_metric_line(report))
     if report.render.unpurged:
         schedule_unpurged_invalidation(report.render.unpurged)
@@ -291,25 +365,180 @@ def run_home_page_snapshot_task(client, task: dict | None = None) -> dict:
     return {"ok": True, **report}
 
 
-def run_projection_task(task: dict) -> dict:
+def run_projection_task(task: dict, lambda_context=None) -> dict:
     """An asynchronous projection task. Raising makes Lambda retry it, then send the event to the dead letter queue."""
     try:
-        return _run_projection_task(task)
+        return _run_projection_task(task, lambda_context)
     except ProjectionLeaseHeld as held:  # another projection of this publication outlasted the wait: retry later
         raise ProjectionTaskFailed(str(held)) from held
 
 
-def _run_projection_task(task: dict) -> dict:
+def _deadline_of(lambda_context) -> float:
+    """The time (``time.monotonic``) by which draining must stop, from the invocation's remaining time; an hour when there is none (a test)."""
+    import time
+
+    remaining = getattr(lambda_context, "get_remaining_time_in_millis", None)
+    seconds = remaining() / 1000.0 if callable(remaining) else 3600.0
+    return time.monotonic() + seconds - DRAIN_RESERVE_SECONDS
+
+
+def build_item_job(client, context, jobs, item_id: str, job_id: str | None, *, unpublished: bool = False, published: dict | None = None):
+    """Build one item's pages under the lease the caller holds, with its job record kept up to date. Returns the report."""
+    request_meter.add_units(1)   # the build budget grows with the Stories built in this invocation, never with the size of the site
+    if jobs is not None:
+        jobs.take(item_id)
+        job_id = jobs.start(item_id, job_id)
+        published = published or jobs.announcement(item_id)
+    try:
+        report = project(context, item_id, unpublished=unpublished)
+    except Exception as error:
+        if jobs is not None and job_id:
+            jobs.finish(item_id, job_id, ok=False, outcome={"error": f"{type(error).__name__}: {error}"[:1000]})
+        raise
+    if report.unpurged:
+        schedule_unpurged_invalidation(report.unpurged)
+    if report.follow_up_item_pages:
+        schedule_item_pages(item_id)
+    if jobs is not None and job_id:
+        outcome = {"paths": [*report.written, *report.deleted], "itemPaths": list(report.item_paths), "unchanged": len(report.unchanged), "invalidation": invalidation_outcome(context, report)}
+        url = public_item_url(os.environ, report.item_paths)
+        if url:
+            outcome["url"] = url
+        if not report.ok:
+            outcome["error"] = "; ".join(report.errors)
+        jobs.finish(item_id, job_id, ok=report.ok, outcome=outcome)
+    if report.ok and not unpublished and isinstance(published, dict):
+        # A real publish (the CLI marks it, as does the newsroom's retry): the page is live, so tell the newsletter.
+        announce_published(item_id, published.get("publishedItemId"))
+    return report
+
+
+def build_item_pages_job(client, context, jobs, job_id: str | None, except_item_id: str | None):
+    request_meter.add_units(1)
+    if jobs is not None:
+        jobs.take(ITEM_PAGES_JOB)
+        job_id = jobs.start(ITEM_PAGES_JOB, job_id)
+    try:
+        report = project_item_pages(context, except_item_id=except_item_id)
+    except Exception as error:
+        if jobs is not None:
+            jobs.finish(ITEM_PAGES_JOB, job_id, ok=False, outcome={"error": f"{type(error).__name__}: {error}"[:1000]})
+        raise
+    if jobs is not None:
+        jobs.finish(ITEM_PAGES_JOB, job_id, ok=report.ok, outcome={"written": len(report.written), **({"error": "; ".join(report.errors)} if not report.ok else {})})
+    return report
+
+
+def drain_queue(client, context, jobs, deadline: float, *, done: set[str]) -> list[str]:
+    """While this invocation holds the lease, build what is queued (publishes that found the site busy), until the deadline. Returns what it built."""
+    import time
+
+    if jobs is None:
+        return []
+    built: list[str] = []
+    while time.monotonic() < deadline:
+        waiting = sorted(jobs.queued_items() - done)
+        if not waiting:
+            break
+        item_id = waiting[0]
+        done.add(item_id)
+        fresh = projection_context(client)
+        fresh.lease = context.lease   # the hold this invocation already has (nested holds share it)
+        try:
+            if item_id == ITEM_PAGES_JOB:
+                build_item_pages_job(client, bulk_projection_context_from(fresh), jobs, None, None)
+            else:
+                build_item_job(client, fresh, jobs, item_id, None)
+            built.append(item_id)
+        except ProjectionLeaseHeld:
+            raise
+        except Exception as error:  # noqa: BLE001 - one story that fails must not stop the others; its job says why, and it is retried
+            print(json.dumps({"event": "papyrus_publish_drain_failed", "itemId": item_id, "error": f"{type(error).__name__}: {error}"[:500]}))
+            schedule_projection_task({"task": "item", "itemId": item_id}, f"drain: {error}")
+    return built
+
+
+def bulk_projection_context_from(context):
+    if targeted_invalidation(os.environ):
+        context.invalidate = None
+    return context
+
+
+def after_release(jobs) -> None:
+    """Something was queued while this invocation was finishing: hand it to a fresh invocation rather than leave it waiting for a retry."""
+    if jobs is None:
+        return
+    try:
+        if jobs.queued_items():
+            schedule_projection_task({"task": "drain"}, "queued publishes")
+    except Exception as error:  # noqa: BLE001 - the queued builds' own retries still run
+        print(json.dumps({"event": "papyrus_publish_drain_not_scheduled", "error": f"{type(error).__name__}: {error}"[:500]}))
+
+
+def run_queued_build(client, task: dict, lambda_context=None) -> dict:
+    """An ``item``, ``item-pages`` or ``drain`` task: take the lease (waiting a few seconds at most), build, build what else is queued, let go.
+
+    A build that finds the site busy leaves its story queued for whoever holds the lease and fails, so Lambda retries it once later; a retry
+    whose job a drain already finished does nothing."""
+    kind = task.get("task")
+    jobs = publish_jobs_from_environment()
+    item_id = ITEM_PAGES_JOB if kind == "item-pages" else task.get("itemId")
+    job_id = task.get("jobId")
+    if jobs is not None and item_id and job_id:
+        current = jobs.status(item_id)
+        if current is not None and current.get("jobId") == job_id and current.get("state") in (DONE, FAILED):
+            return {"ok": current.get("state") == DONE, "alreadyBuilt": True, "jobId": job_id, "state": current.get("state")}
+    context = bulk_projection_context(client) if kind == "item-pages" else projection_context(client)
+    if jobs is None:
+        # No lock table (a local run): no records, no queue; the engine takes the lease itself, as it always did.
+        if kind == "item-pages":
+            report = build_item_pages_job(client, context, None, None, task.get("exceptItemId"))
+        elif kind == "item":
+            report = build_item_job(client, context, None, item_id, None, unpublished=bool(task.get("unpublished")), published=task.get(PUBLISHED_TASK_KEY))
+        else:
+            return {"ok": True, "drained": []}
+        if not report.ok:
+            raise ProjectionTaskFailed("; ".join(report.errors))
+        return {"ok": True, "paths": [*report.written, *report.deleted]}
+    shorten_lease_wait(context, QUEUED_LEASE_WAIT_SECONDS)
+    deadline = _deadline_of(lambda_context)
+    report = None
+    built: list[str] = []
+    try:
+        with context.leased():
+            done: set[str] = set()
+            if kind == "item-pages":
+                report = build_item_pages_job(client, context, jobs, job_id, task.get("exceptItemId"))
+                done.add(ITEM_PAGES_JOB)
+            elif kind == "item":
+                report = build_item_job(client, context, jobs, item_id, job_id, unpublished=bool(task.get("unpublished")), published=task.get(PUBLISHED_TASK_KEY))
+                done.add(item_id)
+            built = drain_queue(client, context, jobs, deadline, done=done)
+    except ProjectionLeaseHeld:
+        if jobs is not None and item_id:
+            jobs.enqueue(item_id)   # whoever holds the lease builds it before letting go; this task's retry is the backstop
+            if job_id:
+                jobs.touch(item_id, job_id)
+        if kind == "drain":
+            return {"ok": True, "busy": True}
+        raise
+    after_release(jobs)
+    if report is None:
+        return {"ok": True, "drained": built}
+    if not report.ok:
+        raise ProjectionTaskFailed("; ".join(report.errors))
+    return {"ok": True, "paths": [*report.written, *report.deleted], "drained": built}
+
+
+def _run_projection_task(task: dict, lambda_context=None) -> dict:
     client, _claims = create_authoring_client()
-    if task.get("task") == "item-pages":
-        report = project_item_pages(projection_context(client), except_item_id=task.get("exceptItemId"))
-    elif task.get("task") == "item":
-        report = project(projection_context(client), task["itemId"], unpublished=bool(task.get("unpublished")))
-        if report.follow_up_item_pages:
-            schedule_projection_task({"task": "item-pages", "exceptItemId": task["itemId"]}, "follow-up")
-    elif task.get("task") == "all":
-        report = project_all(projection_context(client))
+    if task.get("task") in ("item", "item-pages", "drain"):
+        return run_queued_build(client, task, lambda_context)
+    if task.get("task") == "all":
+        report = project_all(bulk_projection_context(client))
+        after_release(publish_jobs_from_environment())
     elif task.get("task") == "deploy-render":
+        wait_for_live_schema(client)   # the deploy that adds attributes updates the schema and this code together; the schema can lag
         return run_deploy_render_task(client)
     elif task.get("task") == READER_SNAPSHOT_TASK:
         return run_reader_snapshot(projection_context(client), client, poll_retirements=task.get("retirementPoll") is True).to_dict()
@@ -321,10 +550,12 @@ def _run_projection_task(task: dict) -> dict:
             raise ProjectionTaskFailed("; ".join(result["errors"]))
         return result
     elif task.get("task") == PAGE_REFRESH_RERENDER_TASK:
-        result = refresh_service(client, task.get("who") or "scheduled").rerender(task["scope"], lineage=task.get("storyLineageId"), invalidate=task.get("invalidate", True) is not False, confirm=True, force_paths=task.get("forcePaths"))
+        result = refresh_service(client, task.get("who") or "scheduled").rerender(task["scope"], lineage=task.get("storyLineageId"), invalidate=task.get("invalidate", True) is not False, confirm=True, force_paths=task.get("forcePaths"), under=task.get("under"))
         if not result["ok"]:
             raise ProjectionTaskFailed(json.dumps({"rendered": result.get("rendered"), "invalidation": {key: result["invalidation"].get(key) for key in ("status", "error")}}))
         return result
+    elif task.get("task") == PUBLISH_SCHEDULED_TASK:
+        return publish_scheduled_action(client, task)
     elif task.get("task") == "invalidate":
         invalidate = projection_context(client).invalidate
         if invalidate is None:
@@ -336,10 +567,6 @@ def _run_projection_task(task: dict) -> dict:
         schedule_unpurged_invalidation(report.unpurged)
     if not report.ok:
         raise ProjectionTaskFailed("; ".join(report.errors))
-    published = task.get(PUBLISHED_TASK_KEY)
-    if task.get("task") == "item" and not task.get("unpublished") and isinstance(published, dict):
-        # A real publish (the CLI marks it, as does the newsroom's retry): the page is live, so tell the newsletter.
-        announce_published(task["itemId"], published.get("publishedItemId"))
     return {"ok": True, "paths": [*report.written, *report.deleted]}
 
 
@@ -467,7 +694,64 @@ def site_triggers_for(client, item_id: str) -> dict:
     return triggers
 
 
+def job_answer(job: dict | None) -> dict:
+    """What a caller is told about a build: its job id and state, and once it ended, its outcome (pages, the page's URL, the edge purge, an error)."""
+    if not job:
+        return {"state": "unknown"}
+    found = {key: job[key] for key in ("jobId", "state", "version", "requestedAt", "startedAt", "finishedAt", "stale") if key in job}
+    found.update(job.get("outcome") or {})
+    return found
+
+
+def projection_status_action(arguments: dict) -> dict:
+    """``publishItem`` with ``{"id", "jobStatus": true}``: where the build of this story's pages stands. Reads one record; changes nothing."""
+    if not projection_configured():
+        return {"ok": True, "projection": {"state": "not-applicable"}}
+    jobs = publish_jobs_from_environment()
+    if jobs is None:
+        return {"ok": True, "projection": {"state": "unknown", "reason": "this site keeps no build records (no projection lock table)"}}
+    client, _claims = create_authoring_client()
+    candidate = client.get_record("Item", arguments["id"]) or {}
+    job = jobs.status(arguments["id"])
+    answer = job_answer(job)
+    if job is not None and job.get("state") in (QUEUED, RUNNING) and not job.get("stale"):
+        answer["queued"] = arguments["id"] in jobs.queued_items() if job.get("state") == QUEUED else False
+    return {"ok": True, "itemId": arguments["id"], "lineageId": candidate.get("lineageId"), "projection": answer}
+
+
+def start_projection_job(client, item_id: str, *, version: int | None, published_item_id: str | None, unpublished: bool = False) -> dict:
+    """Start building a story's pages (or, for ``unpublished``, taking them down) in the background, or join the build already queued or running for it.
+    Returns what the caller is told. The build decides from the stored state whether the page stays or goes, so a queued unpublish is built by the same drain."""
+    context = projection_context(client)
+    item_paths: list[str] = []
+    row = context.source.published_row(item_id)
+    if row is not None:
+        from papyrus_content.projection.source import summary_from_row
+
+        item_paths = list(context.projector.item_page_paths(summary_from_row(row)))
+    answer: dict = {"projected": None, "scheduled": True, "itemPaths": item_paths, "live": False}
+    url = public_item_url(os.environ, item_paths)
+    if url:
+        answer["url"] = url
+    task = {"task": "item", "itemId": item_id, "unpublished": unpublished}
+    if published_item_id:
+        task[PUBLISHED_TASK_KEY] = {"publishedItemId": published_item_id}
+    jobs = publish_jobs_from_environment()
+    if jobs is None:
+        answer["projection"] = {"state": "scheduled" if schedule_projection_task(task, "publish") else "not-scheduled"}
+        return answer
+    job, joined = jobs.request(item_id, version, announce={"publishedItemId": published_item_id} if published_item_id else None)
+    if not joined:
+        if not schedule_projection_task({**task, "jobId": job["jobId"]}, "publish"):
+            jobs.finish(item_id, job["jobId"], ok=False, outcome={"error": "the build could not be started"})
+            job = jobs.status(item_id)
+    answer["projection"] = {**job_answer(job), "joined": joined}
+    return answer
+
+
 def publish_item_action(arguments: dict, actor: str, approved_by: str | None = None) -> dict:
+    if arguments.get("jobStatus"):
+        return projection_status_action(arguments)
     client, _claims = create_authoring_client()
     candidate = client.get_record("Item", arguments["id"]) or {}
     live = client.get_record("PublishedItem", published_item_id_for(candidate.get("lineageId") or arguments["id"]))
@@ -478,26 +762,84 @@ def publish_item_action(arguments: dict, actor: str, approved_by: str | None = N
         "changed": result.changed,
         "publishedId": result.published_item_id,
         "versionNumber": result.version_number,
+        **remove_schedules(client, candidate, int(candidate["versionNumber"]) if candidate.get("versionNumber") else None),   # publishing now ends the schedule
     }
     if result.changed and live is not None and live.get("type") and live.get("type") != candidate.get("type"):
         # The type decides the address (urls.types), so the live page moves; the projection leaves a redirect from the old address.
         response["typeChangedFrom"] = live["type"]
     if result.changed:
         response.update(site_triggers_for(client, arguments["id"]))
-    response.update(
-        project_item_action(client, arguments["id"], unpublished=False, published_item_id=result.published_item_id if result.changed else None)
-    )
+    published_item_id = result.published_item_id if result.changed else None
+    if arguments.get("async") is True and projection_configured():
+        # The CLI asks for this (PPY-3acc8d): the data is saved now and the pages are built in the background; it asks for the job's status.
+        response.update(start_projection_job(client, arguments["id"], version=result.version_number, published_item_id=published_item_id))
+        return response
+    response.update(project_item_action(client, arguments["id"], unpublished=False, published_item_id=published_item_id))
     return response
+
+
+def remove_schedules(client, item: dict, version_number: int | None) -> dict:
+    """A publish or a takedown makes a Story's schedule meaningless: remove the schedules of its versions up to ``version_number`` (all of them when None). The publish
+    has already happened, so a failure here is reported and never undoes it; the schedule then finds its version published (or the Story gone) and does nothing."""
+    from papyrus_content.content_item_lifecycle import is_story_item_type
+
+    if not is_story_item_type(item.get("type")):
+        return {}
+    try:
+        removed = schedule_service(client).clear_through(str(item.get("lineageId") or item["id"]), version_number)
+    except Exception as error:  # noqa: BLE001 - reported to the caller in the answer
+        return {"schedule": {"removed": [], "error": f"{type(error).__name__}: {error}"}}
+    return {"schedule": {"removed": removed}} if removed else {}
 
 
 def unpublish_item_action(arguments: dict, actor: str) -> dict:
     client, _claims = create_authoring_client()
+    candidate = client.get_record("Item", arguments["id"]) or {}
     result = unpublish_item(client, arguments["id"], actor=actor)
     response = {"ok": True, "changed": result.changed}
+    if candidate:
+        response.update(remove_schedules(client, candidate, None))
     if result.changed:
         response.update(site_triggers_for(client, arguments["id"]))
+    if arguments.get("async") is True and projection_configured():
+        # As for a publish (PPY-f171b4): rewriting the listings, feeds and redirects can outlast AppSync's 30 seconds, so the data is saved now,
+        # the work runs in the background, and the caller asks for the job's status until it ends.
+        response.update(start_projection_job(client, arguments["id"], version=None, published_item_id=None, unpublished=True))
+        return response
     response.update(project_item_action(client, arguments["id"], unpublished=True))
     return response
+
+
+def caller_from_event(event: dict) -> Caller:
+    identity = event.get("identity") or {}
+    groups = identity.get("groups")
+    return Caller(actor=actor_from_event(event), person=person_from_event(event), groups=tuple(groups or ()) if identity.get("sub") else None)
+
+
+def schedule_item_action(arguments: dict, event: dict) -> dict:
+    """``scheduleItem`` ``{"operation": "schedule" | "schedule_list", "arguments": {...}}``: the one operation table of scheduled publishing (story_schedule.OPERATIONS)."""
+    client, _claims = create_authoring_client()
+    try:
+        service = schedule_service(client)
+    except ScheduleError as error:
+        return error.to_response()
+    return run_schedule_operation(str(arguments.get("operation") or ""), arguments.get("arguments") or {}, service, caller_from_event(event))
+
+
+def publish_scheduled_action(client, task: dict) -> dict:
+    """The Scheduler's event at the scheduled moment: claim the schedule once, then publish its pinned version by the normal publish path (see story_schedule.py).
+    A refusal of the publish (an open checklist, an unrendered page) fails the run so Lambda retries it and then sends it to the dead letter queue; the version stays
+    scheduled and is shown as overdue."""
+    service = schedule_service(client)
+
+    def publish(row: dict) -> dict:
+        by = str(row.get("scheduledBy") or "unknown")
+        return publish_item_action({"id": row["id"], "async": True}, f"scheduled by {by}", by)
+
+    try:
+        return service.run_scheduled_publish(str(task["itemId"]), str(task["scheduledPublishAt"]), publish)
+    except PublishError as error:
+        raise ProjectionTaskFailed(f"scheduled publish of {task['itemId']} refused [{error.code}]: {error.message}") from error
 
 
 def move_story_stage_action(arguments: dict, actor: str) -> dict:
@@ -577,9 +919,31 @@ def create_story_from_reference_action(arguments: dict, actor: str) -> dict:
     return {"ok": True, **result}
 
 
-def handler(event, context):
+SWEEP_TASKS = frozenset({"all", "deploy-render", PAGE_REFRESH_RERENDER_TASK})   # whole-site renders: their reads are a named sweep, never over budget
+
+
+def metered_caller(event: dict) -> tuple[str, bool]:
+    """The request meter's name for one invocation (``lambda:content-actions:<field or task>``), and whether it is a whole-site sweep."""
     if PROJECTION_TASK_KEY in event:
-        return run_projection_task(event[PROJECTION_TASK_KEY])
+        name = str((event.get(PROJECTION_TASK_KEY) or {}).get("task") or "task")
+        return f"lambda:content-actions:{name}", name in SWEEP_TASKS
+    if "refreshSitePages" in event:
+        return "lambda:content-actions:refreshSitePages", False
+    return f"lambda:content-actions:{event.get('fieldName') or 'unknown'}", False
+
+
+def handler(event, context=None):
+    """One metered run per invocation: its AppSync requests are counted and summarised in one ``papyrus_request_summary`` log line (docs/request-meter.md)."""
+    global INVOKED_FUNCTION_ARN
+    INVOKED_FUNCTION_ARN = getattr(context, "invoked_function_arn", None)
+    caller, sweep = metered_caller(event)
+    with request_meter.run(caller, emit="log", sweep=sweep):
+        return _handle(event, context)
+
+
+def _handle(event, context=None):
+    if PROJECTION_TASK_KEY in event:
+        return run_projection_task(event[PROJECTION_TASK_KEY], context)
     if "refreshSitePages" in event:   # a direct invocation by an operator's profile: the operator lane needs no CloudFront rights of its own
         return refresh_site_pages_action(event["refreshSitePages"], str(event.get("who") or "operator"))
     field = event["fieldName"]
@@ -627,6 +991,8 @@ def handler(event, context):
             return add_story_agent_note_action(arguments, person_from_event(event))
         if field == "unpublishItem":
             return unpublish_item_action(arguments, actor)
+        if field == "scheduleItem":
+            return schedule_item_action(arguments, event)
         if field == "suggestReferenceLinks":
             return suggest_reference_links_action(arguments)
         if field == "refreshSitePages":

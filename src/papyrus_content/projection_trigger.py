@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import re
 from typing import Any
 
+from .operator_errors import GraphQLTimeoutError
 from .publish_alerts import PUBLISHED_TASK_KEY
 from .projection.runtime import PUBLICATION_KIND_ENV, S3_PROJECTION_KIND, projection_configured
 
 CONTENT_ACTIONS_FUNCTION_ENV = "PAPYRUS_CONTENT_ACTIONS_FUNCTION"
+PROJECTION_TIMEOUT_ENV = "PAPYRUS_PROJECTION_TIMEOUT_SECONDS"
+# The page-building function runs up to about 75 s on a large site; the ordinary 30 s GraphQL timeout gave up while it was still writing (PPY-4611d5).
+DEFAULT_PROJECTION_TIMEOUT_SECONDS = 120.0
+SERVER_TIMEOUT = re.compile(r"execution timed out|task timed out|timed out after|Lambda:ExecutionTimeout", re.IGNORECASE)
 PROJECT_ALL_COMMAND = "papyrus ops content project --all"
 SKIP_LINE = f"projection skipped (--no-trigger); run `{PROJECT_ALL_COMMAND}` later to project the published pages"
 
@@ -123,45 +130,121 @@ def retry_command(item_id: str, *, unpublished: bool) -> str:
     return f"papyrus ops content {'unpublish' if unpublished else 'publish'} --id {item_id}"
 
 
-def trigger_projection_as_user(client, task: dict[str, Any]) -> dict[str, Any]:
+def projection_timeout_seconds(environment: Any = None) -> float:
+    """How long the signed-in lane waits for the page-building mutation (``PAPYRUS_PROJECTION_TIMEOUT_SECONDS``, default 120 s); never less than the client's own timeout."""
+    raw = ((os.environ if environment is None else environment).get(PROJECTION_TIMEOUT_ENV) or "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_PROJECTION_TIMEOUT_SECONDS
+    return value if value > 0 else DEFAULT_PROJECTION_TIMEOUT_SECONDS
+
+
+JOB_POLL_SECONDS = 3.0
+
+
+def _ask(client, mutation: str, payload: dict[str, Any]) -> dict[str, Any]:
+    data = client.graphql(f"mutation Project($input: AWSJSON!) {{ {mutation}(input: $input) }}", {"input": json.dumps(payload)})
+    response = data.get(mutation)
+    return json.loads(response) if isinstance(response, str) else (response or {})
+
+
+def wait_for_job(client, item_id: str, job: dict[str, Any], *, seconds: float, retry: str, sleep=None, clock=None) -> dict[str, Any]:
+    """Ask ``publishItem`` (``jobStatus``) where the build of a story's pages stands, every few seconds, until it has ended or ``seconds`` passed.
+
+    Each question is one short request, so the 30 seconds AppSync allows a call never matter however long the build takes (PPY-3acc8d)."""
+    import time
+
+    sleep = sleep or time.sleep
+    clock = clock or time.monotonic
+    started = clock()
+    state = job
+    while state.get("state") not in ("done", "failed") and clock() - started < seconds:
+        sleep(min(JOB_POLL_SECONDS, max(0.0, seconds - (clock() - started))))
+        try:
+            state = (_ask(client, "publishItem", {"id": item_id, "jobStatus": True}).get("projection") or state)
+        except Exception as error:  # noqa: BLE001 - a failed question is asked again; the build goes on regardless
+            state = {**state, "lastError": f"{type(error).__name__}: {error}"}
+    details = {key: state[key] for key in ("paths", "itemPaths", "invalidation", "url") if key in state}
+    job_fields = {"jobId": state.get("jobId") or job.get("jobId"), "jobState": state.get("state")}
+    if state.get("state") == "done":
+        return {"ok": True, "status": "projected", "ran": "item", "via": "publishItem job", "projectsPages": True, **job_fields, **details}
+    if state.get("state") == "failed":
+        return {"ok": False, "status": "failed", "error": state.get("error") or "the page could not be built", "projectsPages": True, "retry": retry, **job_fields, **details}
+    where = "waiting for the site to be free" if state.get("state") == "queued" else "being built"
+    return {
+        "ok": None, "status": "still-running", "projectsPages": True, "retry": retry, **job_fields, **details,
+        "error": f"the data is saved and the page is still {where} after {seconds:.0f} s (job {job_fields['jobId']}), which is not a failure",
+    }
+
+
+def trigger_projection_as_user(client, task: dict[str, Any], *, sleep=None, clock=None) -> dict[str, Any]:
     """The signed-in lane has no AWS credentials, so it cannot invoke the content-actions function the way the IAM lane does.
 
     It asks the newsroom's own ``publishItem`` (or ``unpublishItem``) mutation instead, as the console's Publish button does.
-    Both are idempotent: the records are already written, so the function finds nothing to change, projects the page and
-    returns the outcome (``projected``, ``paths``, ``live``, ``url``, ``error``). A projection it could not finish is retried by the
-    function itself too. Never raises.
+    Both are idempotent: the records are already written, so the function finds nothing to change.
+
+    A publish or unpublish asks for the build to run in the background (``async``): the function answers at once with a job id (joining the build
+    already queued or running for this story, if any), and this lane asks about the job until it ends or
+    ``PAPYRUS_PROJECTION_TIMEOUT_SECONDS`` pass. A backend that predates jobs (unpublish only gained them with PPY-f171b4) is refused with a message that says to deploy a current one; there is no
+    fallback to waiting inside the call. Never raises.
     """
     mutation = "unpublishItem" if task.get("unpublished") else "publishItem"
+    retry = retry_command(task["itemId"], unpublished=bool(task.get("unpublished")))
+    long_call = getattr(client, "long_call", None)
+    payload: dict[str, Any] = {"id": task["itemId"]}
+    payload["async"] = True   # publish and unpublish alike: the function answers at once with a job, so AppSync's 30 s never cut a build off (PPY-f171b4)
     try:
-        data = client.graphql(
-            f"mutation Project($input: AWSJSON!) {{ {mutation}(input: $input) }}",
-            {"input": json.dumps({"id": task["itemId"]})},
-        )
-        response = data.get(mutation)
-        response = json.loads(response) if isinstance(response, str) else (response or {})
-        # The function answers ``projected`` only for a site that projects its pages, so this is how the signed-in lane learns which kind it is.
-        projects = "projected" in response
+        with (long_call(projection_timeout_seconds()) if callable(long_call) else contextlib.nullcontext()):
+            response = _ask(client, mutation, payload)
+        job = response.get("projection") if isinstance(response.get("projection"), dict) else None
+        if response.get("ok") is not False and job is not None and job.get("jobId"):
+            outcome = wait_for_job(client, task["itemId"], job, seconds=projection_timeout_seconds(), retry=retry, sleep=sleep, clock=clock)
+            if outcome.get("ok") and response.get("url") and "url" not in outcome:
+                outcome["url"] = response["url"]
+            if "itemPaths" not in outcome and response.get("itemPaths"):
+                outcome["itemPaths"] = response["itemPaths"]
+            if job.get("joined"):
+                outcome["joined"] = True   # a build of this story was already queued or running: this publish waited for it instead of starting another
+            return outcome
+        if response.get("ok") is not False and job is not None:
+            # Started in the background on a site that keeps no build records: nothing to ask about, so the public page is the check (--verify).
+            scheduled = job.get("state") == "scheduled"
+            return {"ok": True if scheduled else False, "status": "scheduled" if scheduled else "failed", "scheduled": "item" if scheduled else None, "projectsPages": True,
+                    "itemPaths": response.get("itemPaths") or [], **({"url": response["url"]} if response.get("url") else {}),
+                    **({} if scheduled else {"error": "the build could not be started", "retry": retry})}
         if response.get("ok") is False:
             errors = "; ".join(str(entry.get("message") or entry) for entry in response.get("errors") or [])
-            return {"ok": False, "error": errors or f"{mutation} refused the request", "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished")))}
-        if response.get("projected") is False:
+            return {"ok": False, "status": "failed", "error": errors or f"{mutation} refused the request", "retry": retry}
+        if "projected" in response:
+            # Only a backend that ignored ``async`` builds the pages inside the call; both mutations answer a job now (PPY-f171b4).
             return {
                 "ok": False,
-                "error": response.get("error") or "the newsroom could not project the page",
-                "projectsPages": True,
-                "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished"))),
+                "status": "failed",
+                "error": f"the newsroom backend does not support background {mutation} (it built the pages inside the call, which AppSync cuts off at 30 s). "
+                         f"Deploy a backend that includes PPY-f171b4 (Papyrus releases after v5.105.0) to this site, then run the command again",
+                "retry": retry,
             }
-        outcome: dict[str, Any] = {"ok": True, "ran": task["task"], "via": f"{mutation} mutation"}
-        if projects:
-            outcome["projectsPages"] = True
+        # A site that does not project its pages answers neither a job nor ``projected``: the data is saved and there is no page work.
+        outcome: dict[str, Any] = {"ok": True, "status": "projected", "ran": task["task"], "via": f"{mutation} mutation"}
         if response.get("url"):
             outcome["url"] = response["url"]
         return outcome
+    except GraphQLTimeoutError as error:
+        # The client stopped waiting; the function may still be writing the pages, and running the same command again is safe (it changes nothing already done).
+        return {
+            "ok": None,
+            "status": "still-running",
+            "error": f"{error}. The data is saved; the page-building function may still be running, which is not a failure",
+            "retry": retry,
+        }
     except Exception as error:  # noqa: BLE001
+        timed_out = bool(SERVER_TIMEOUT.search(str(error)))
         return {
             "ok": False,
-            "error": f"{type(error).__name__}: {error}",
-            "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished"))),
+            "status": "timed-out" if timed_out else "failed",
+            "error": f"{type(error).__name__}: {error}" + (". The function ran out of time; running the same command again is safe and finishes what is left" if timed_out else ""),
+            "retry": retry,
         }
 
 

@@ -182,7 +182,7 @@ bundling is unaffected: it installs with `--python-version 3.12
 
 **Removing a local `tactus @ file:///...` checkout path (done in PR #100).**
 `tactus >=0.52,<1` from PyPI (0.52.0) replaces it; the wheel metadata has no
-`file:` or `git+` requirement. `humanus` is pinned to one minor release (`humanus >=0.33,<0.34`): Humanus is
+`file:` or `git+` requirement. `humanus` is pinned to one minor release (`humanus >=0.36,<0.37`): Humanus is
 below 1.0, so a minor release may change its contracts; move the pin deliberately.
 Local Tactus development uses a dev-only override
 (`[tool.uv.sources]` or a local `pip install -e`), never the published
@@ -473,6 +473,31 @@ Place it on any authored page (a `videos` page, a home page band, a section fron
 **Off by default, per site.** Nothing appears until a site adds the include to a page; a site without `homePage` fails the build naming the page, exactly as any references include does. To turn it on for a site: 1. have `homePage` in its `projection.json` (and `references.fields` either `"all"` or a list that includes `medium`, which is a public field now: the snapshot gains it, so the first snapshot after the engine ships rewrites every page that places a references include, once); 2. the engine release that carries the medium (the snapshot reads `medium` from the Reference, or from its address when the Reference has none stored yet, so **the block works before the backfill**); 3. add the include to a page, and a nav or section entry if it should be linked; 4. (optional) run `papyrus references backfill-medium` so the newsroom card shows the label and the medium index is filled. The home-page trigger watches `medium`, so a backfill reaches the pages through the usual debounce. No data API deploy is needed for the public block; it is needed for the stored fields and the index.
 
 Tests: `features_backend/reference-medium.feature` (the page lists only accepted videos, newest first; the stars never appear in any file; no embeds or scripts; unknown medium is a build error) and `src/papyrus_content/projection/standard` card markup in `procedures/newsroom/tests/test_home_page_references.py`.
+
+### Video embeds (`embeds`)
+
+`::video{...}` in a Story ([the markup](markus-content-markup.md#videos)) is the provider's standard iframe embed: the provider draws its own thumbnail and play button, and we ship no poster, placeholder or script. Which providers play is one setting in `projection.json`:
+
+```json
+"embeds": { "providers": ["youtube", "vimeo", "instagram"] }
+```
+
+`providers` names any of the registry's providers (`youtube`, `vimeo`, `instagram`); it is empty by default. **With no `embeds`, or an empty list, nothing about the
+site changes**: core does not read `::video`, the site publishes the same files, and the site's own hooks keep the line. With providers listed, the site also publishes
+`_config/content-security-policy.txt`, a one-line fragment such as
+`frame-src https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com`, with the frame origins of each listed provider and nothing else, for the site's edge (`customHttp.yml` or the
+CloudFront response-headers policy) to include. A known provider that is not listed shows as a plain linked credit line.
+
+**Privacy.** The iframe loads with the page (YouTube through `youtube-nocookie.com`, Vimeo with `dnt=1`), so the provider is contacted when a reader opens the page, not when they press play. A site that wants no such contact leaves `embeds.providers` empty.
+
+**Migrating a site that embeds with its own hooks (Pilobolus).** Pilobolus lifts `::video{src="https://www.instagram.com/..." title="..."}` lines in its `hooks.py`
+(`source`, then `item_decorator`) and draws Instagram's `blockquote` embed, which loads Instagram's own script on every page view. Nothing changes until the site opts in, so it can move one step at a time:
+(1) for each Instagram line add `credit="..."` (required),
+(2) delete the Instagram handling from `hooks.py` and the loading of Instagram's script, (3) add `"embeds": {"providers": ["instagram"]}` to `projection.json`, (4) add the published
+`_config/content-security-policy.txt` fragment (`frame-src https://www.instagram.com`) to the site's headers and drop Instagram's script and the `script-src` entries it needed,
+(5) check the Stories with `papyrus stories lens-check` (P16 and P18). Steps 1 to 3 go in one deploy, because a line without a credit is refused at save once Instagram is listed.
+
+Tests: `features_backend/video-embed.feature`.
 
 ### Images and citations
 

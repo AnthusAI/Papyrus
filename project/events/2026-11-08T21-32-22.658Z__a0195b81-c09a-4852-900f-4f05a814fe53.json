@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "a0195b81-c09a-4852-900f-4f05a814fe53",
+  "issue_id": "PPY-7cd7a2f1-72a3-4499-b134-5a9bf0030fc6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:32:22.658Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "CDN spike part 1: host routing function with a KeyValueStore, and whether a purge can be limited to one tenant",
+    "description": "(being written)",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-3b3cc320-6ca0-4fd7-adc4-3be1a2b5f201",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

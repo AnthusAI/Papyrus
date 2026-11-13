@@ -18,11 +18,14 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 
 from papyrus_content.images import cli as images_cli  # noqa: E402
 from papyrus_content.images import generate, mcp  # noqa: E402
-from papyrus_content.images.cli_generated import COMMANDS  # noqa: E402
+from papyrus_content.images.cli_generated import COMMANDS as ALL_COMMANDS  # noqa: E402
 from papyrus_content.images.handlers import Caller, Outcome  # noqa: E402
-from papyrus_content.images.operations import BY_NAME, OPERATIONS  # noqa: E402
+from papyrus_content.images.operations import BY_NAME  # noqa: E402
+from papyrus_content.images.operations import OPERATIONS as ALL_OPERATIONS  # noqa: E402
 from papyrus_content.images.operations_test import argv_for, fake_handlers  # noqa: E402
 
+OPERATIONS = [item for item in ALL_OPERATIONS if item.group == "images"]   # the guideline operations share the table; their specs are guidelines-cli.feature
+COMMANDS = [entry for entry in ALL_COMMANDS if entry["group"] == "images"]
 NAMES = [item.name for item in OPERATIONS]
 
 
@@ -45,16 +48,16 @@ def step_check_mode(context):
 @then("the command spec, the MCP tool schema, the TypeScript types, the skill block and the docs each list the same operations as the table, in the same order")
 def step_cover(context):
     assert [entry["op"] for entry in COMMANDS] == NAMES
-    assert list(mcp.image_tools()) == NAMES
+    assert list(mcp.image_tools()) == [item.name for item in ALL_OPERATIONS]
     assert re.findall(r"^  (image_[a-z_]+): \{ input:", generate.TS_TYPES.read_text(encoding="utf-8"), re.M) == NAMES
     skill = generate.SKILL.read_text(encoding="utf-8")
     assert re.findall(r"^\| `(image_[a-z_]+)` \| `papyrus images", skill[skill.index(generate.BEGIN):skill.index(generate.END)], re.M) == NAMES
     assert re.findall(r"^## (image_[a-z_]+)$", generate.DOCS.read_text(encoding="utf-8"), re.M) == NAMES
 
 
-@then("the table has the 24 operations the design describes")
+@then("the table has the 25 operations the design describes")
 def step_count(context):
-    assert len(NAMES) == 24
+    assert len(NAMES) == 25
 
 
 @then("the generate operation offers a speed of auto, standard or batch")
@@ -177,10 +180,12 @@ def step_invalid_one(context, field):
 
 @when("every operation that is not built is run with its example input and the default handlers")
 def step_all_default(context):
+    from papyrus_content.images.generation_binding import OPERATION_METHODS   # generation is built (step 5)
     from papyrus_content.images.profile_handlers import PROFILE_HANDLERS   # the style profile operations are built (step 2)
 
-    context.answers = [(item, mcp.call_image_tool(item.name, item.examples[0].input, Caller())) for item in OPERATIONS if item.name not in PROFILE_HANDLERS]
-    run_command(context, "round round-1")
+    context.answers = [(item, mcp.call_image_tool(item.name, item.examples[0].input, Caller())) for item in OPERATIONS
+                       if item.name not in PROFILE_HANDLERS and item.name not in OPERATION_METHODS]
+    run_command(context, "show candidate-1")
 
 
 @then("each answers not_implemented and names its operation")

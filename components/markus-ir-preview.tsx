@@ -14,6 +14,7 @@ const WHOLE_TOKEN_PATTERN = /^PAPYRUSMARKUP\d{5}END$/;
 
 type PreviewSidecar = {
   images: Record<string, Record<string, unknown>>;
+  videos: Record<string, Record<string, unknown>>;
   citations: Record<string, string[]>;
   citationLists: Record<string, unknown>;
   bibliography: string[];
@@ -48,11 +49,14 @@ function readSidecar(envelope: Record<string, unknown>): PreviewSidecar {
   const sidecar = envelope.papyrus;
   if (!isRecord(sidecar)) throw new Error("bodyIr.papyrus is missing");
   const { images, citations, citationLists, bibliography } = sidecar;
+  const videos = sidecar.videos ?? {};
+  if (!isRecord(videos)) throw new Error("bodyIr.papyrus.videos must be an object");
   if (!isRecord(images) || !isRecord(citations) || !isRecord(citationLists) || !Array.isArray(bibliography)) {
     throw new Error("bodyIr.papyrus must contain images, citations, citationLists and bibliography");
   }
   return {
     images: images as PreviewSidecar["images"],
+    videos: videos as PreviewSidecar["videos"],
     citations: citations as PreviewSidecar["citations"],
     citationLists,
     bibliography: bibliography.map(String),
@@ -92,6 +96,17 @@ function imagePlaceholder(token: string, context: PreviewContext): ReactNode {
       data-markus-preview-image
     >
       {`Image: ${src} (${alt})`}
+    </div>
+  );
+}
+
+function videoPlaceholder(token: string, context: PreviewContext): ReactNode {
+  const entry = context.sidecar.videos[token];
+  const title = typeof entry?.title === "string" ? entry.title : "";
+  const credit = typeof entry?.credit === "string" ? entry.credit : "";
+  return (
+    <div className="my-3 rounded-lg bg-muted/30 px-3 py-6 text-center text-xs text-muted-foreground" data-markus-preview-video>
+      {`Video: ${title} (${credit})`}
     </div>
   );
 }
@@ -262,6 +277,7 @@ function renderBlock(block: MarkusBlock, index: number, context: PreviewContext)
     case "paragraph": {
       const token = soleToken(block.inline);
       if (token && token in context.sidecar.images) return <div key={index}>{imagePlaceholder(token, context)}</div>;
+      if (token && token in context.sidecar.videos) return <div key={index}>{videoPlaceholder(token, context)}</div>;
       if (token && token in context.sidecar.citationLists) {
         return (
           <ol className="my-3 list-decimal space-y-1 pl-6 text-sm" data-markus-preview-bibliography key={index}>

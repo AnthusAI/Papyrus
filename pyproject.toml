@@ -10,7 +10,7 @@ dependencies = [
     "citeproc-py >=0.8.2,<1.0.0",
     # The `papyrus` CLI imports humanus at import time, and Papyrus is
     # integrating it more deeply, so it is a base dependency (Ryan, 2026-10-05).
-    "humanus >=0.34,<0.35",
+    "humanus >=0.36,<0.37",
     "biblicus >=1.15.0,<2",
     # `papyrus stories save-version` (and every save that derives bodyIr) imports markusmd, so a plain
     # `pipx install papyrus-newsroom` needs it (PPY-a4ae21).
@@ -26,6 +26,8 @@ dependencies = [
     # The Jev client (`papyrus knowledge extract-entities`) calls the TypeSafe API with it; the knowledge-run image had no copy, so the
     # typed-extraction stage failed on `import requests` (2026-11-08).
     "requests >=2.32.3,<3",
+    # SiteConfig (the shared tier's settings) is validated against its JSON schema (PPY-ee1e02).
+    "jsonschema >=4.23,<5",
     # The shared CLI login library: `papyrus login` stores sessions in the platform's secure store
     # (macOS Keychain, Linux Secret Service/kernel keyring/memory agent, Windows Credential Manager).
     "cli-login ==0.4.1 ; sys_platform != 'linux'",
@@ -58,6 +60,7 @@ packages = [
     { include = "papyrus", from = "src" },
     { include = "papyrus_newsroom", from = "src" },
     { include = "papyrus_knowledge_query", from = "src" },
+    { include = "papyrus_cost_usage", from = "src" },
     { include = "papyrus_content", from = "src" },
     { include = "papyrus_web", from = "src" },
 ]
@@ -75,10 +78,13 @@ decision-flywheel = { git = "https://github.com/AnthusAI/Cyclotron.git", rev = "
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"
+pytest-xdist = "^3.8.0"
 behave = "^1.2.6"
 requests = "^2.32.3"
 kanbus = ">=0.18.3"
 moto = {version = ">=5,<6", extras = ["dynamodb"]}
+# The notifications plugin's Lambdas install this exact version (amplify/plugins/notifications/function/requirements.txt); tests run against the same one.
+caducus = {version = "==0.3.0", extras = ["notify"]}
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]

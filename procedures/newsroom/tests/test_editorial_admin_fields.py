@@ -34,7 +34,7 @@ def test_admin_values_reach_the_effective_context_and_the_copy_edit_pack():
         assert value in context['text']
     store = SimpleNamespace(list_policies=lambda: [], context_mode='cloud',
                             get_editorial_context=lambda section: resolve_editorial_context(database, endpoint=ENDPOINT, section_id=section))
-    pack = editing_pack(store, 'science', {})
+    pack = editing_pack(store, 'science', {}, 'en')
     assert 'ADMIN_POLICY_TEXT' in pack['guidance'] and 'ADMIN_SECTION_POLICY' in pack['guidance']
     assert pack['version'].endswith(context['contextHash'])
 

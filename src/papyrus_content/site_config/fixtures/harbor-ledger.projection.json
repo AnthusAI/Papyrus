@@ -1,0 +1,146 @@
+{
+  "theme": null,
+  "site": {
+    "name": "Harbor Ledger",
+    "publisher": "Harbor Ledger Press",
+    "tagline": "Port, tide and trade, reported daily.",
+    "description": "Independent reporting on the shipping lanes and the towns that live off them.",
+    "productionUrl": "https://harbor-ledger.example",
+    "language": "en",
+    "componentsCss": false
+  },
+  "storyTypes": {
+    "default": "post",
+    "types": [
+      "post",
+      "article"
+    ]
+  },
+  "urls": {
+    "style": "directory",
+    "sections": {
+      "Tides": {
+        "base": "tides",
+        "label": "Tides"
+      },
+      "Cargo": {
+        "base": "cargo",
+        "label": "Cargo",
+        "description": "What moves through the harbour and who pays for it."
+      },
+      "Piers": {
+        "base": "piers",
+        "label": "Piers"
+      },
+      "Dispatches": {
+        "base": "field-dispatches",
+        "label": "Dispatches",
+        "feed": false,
+        "pageSize": 24
+      }
+    }
+  },
+  "nav": {
+    "links": [
+      {
+        "label": "Latest",
+        "href": "/"
+      },
+      {
+        "label": "Cargo",
+        "href": "/cargo/"
+      },
+      {
+        "label": "Subscribe",
+        "href": "/subscribe/",
+        "cta": true
+      },
+      {
+        "label": "Port authority",
+        "href": "https://port.example/",
+        "external": true
+      }
+    ]
+  },
+  "footer": {
+    "text": "Published by Harbor Ledger Press.",
+    "columns": [
+      {
+        "title": "Privacy",
+        "links": [
+          {
+            "label": "Privacy policy",
+            "href": "/policies/#privacy"
+          },
+          {
+            "label": "Cookie settings",
+            "href": "#cookie-settings"
+          }
+        ]
+      },
+      {
+        "title": "About",
+        "links": [
+          {
+            "label": "Masthead",
+            "href": "/about/"
+          }
+        ]
+      }
+    ]
+  },
+  "listings": {
+    "homeCount": 12,
+    "pageSize": 50
+  },
+  "feeds": {
+    "formats": [
+      "rss",
+      "atom"
+    ],
+    "count": 30
+  },
+  "sitemap": {
+    "style": "single",
+    "lastmod": true
+  },
+  "fonts": {
+    "stylesheet": "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+  },
+  "icons": {
+    "icon": "/assets/icon.svg",
+    "iconType": "image/svg+xml"
+  },
+  "chrome": {
+    "stylesheets": [
+      "css/site-theme.css"
+    ],
+    "scripts": [
+      "assets/theme.js"
+    ],
+    "title_template": "{title} | {site}"
+  },
+  "pages": [
+    {
+      "id": "about",
+      "path": "about",
+      "title": "About Harbor Ledger",
+      "description": "Who writes the Ledger.",
+      "source": "pages/about.md"
+    }
+  ],
+  "hooks": "hooks.py",
+  "homePage": {
+    "layout": "sections",
+    "threads": {
+      "enabled": true,
+      "authors": "handle",
+      "anonymousLabel": "Reader"
+    }
+  },
+  "embeds": {
+    "providers": [
+      "youtube"
+    ]
+  }
+}

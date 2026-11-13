@@ -15,12 +15,13 @@ script is loaded.
 from __future__ import annotations
 
 import re
+from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from datetime import date
 from typing import Any
 
 from ...home_page.export import clip_summary
-from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records
+from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records, utc_today
 from ...home_page.settings import HomePageSettings
 from ...reference_medium import MEDIUMS
 from . import home_page_components as parts
@@ -37,7 +38,7 @@ THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty", "section"
 THREAD_SELECTIONS = ("recent",)
 THREAD_LAYOUTS = ("list", "grid")
 THREAD_LEDGER_PREFIX = "thread:"
-ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium", "paged", "id", "image", "counts", "explainer", "explainerKicker", "explainerBody"}
+ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium", "notMedium", "notSection", "paged", "id", "image", "counts", "explainer", "explainerKicker", "explainerBody"}
 LIST_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SELECTIONS = ("recent", "confident", "recommended")
 CARDS = ("tile", "row")
@@ -67,6 +68,10 @@ def check(attributes: Mapping, source: str) -> None:
         raise ValueError(f"{source}: ::include references bucket must be one of {', '.join(BUCKETS)}, got {attributes['bucket']!r}")
     if "medium" in attributes and attributes["medium"] not in MEDIUMS:
         raise ValueError(f"{source}: ::include references medium must be one of {', '.join(MEDIUMS)}, got {attributes['medium']!r}")
+    if "notMedium" in attributes and attributes["notMedium"] not in MEDIUMS:
+        raise ValueError(f"{source}: ::include references notMedium must be one of {', '.join(MEDIUMS)}, got {attributes['notMedium']!r}")
+    if attributes.get("medium") and attributes.get("notMedium"):
+        raise ValueError(f"{source}: ::include references cannot use medium and notMedium together")
     if attributes.get("card", "tile") not in CARDS:
         raise ValueError(f"{source}: ::include references card must be one of {', '.join(CARDS)}, got {attributes['card']!r}")
     if "more" in attributes and not safe_href(attributes["more"]):
@@ -103,9 +108,31 @@ def _text(record: Mapping, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
+ORDERED_CACHE_SIZE = 256
+_ordered_cache: "OrderedDict[tuple, tuple[list, list[Mapping]]]" = OrderedDict()
+
+
 def ordered(records: list[Mapping], selection: str, bucket: str | None = None, as_of: date | None = None) -> list[Mapping]:
     """The records of one selection in its order. ``recent`` is newest accepted first (then newest arrival, then key); ``confident`` and ``recommended``
-    are the shared order of ``home_page/ordering.py``. With a ``bucket`` the newest bucket comes first and the shared order applies inside each."""
+    are the shared order of ``home_page/ordering.py``. With a ``bucket`` the newest bucket comes first and the shared order applies inside each.
+
+    One render of a site asks for the same order hundreds of times (every page, Markdown twin, digest and paged list that shows References), and each
+    sort of a large snapshot is costly (7,000 References: about 40 ms). The order of one snapshot document is therefore worked out once per selection,
+    bucket and day, and a copy handed out (PPY-3acc8d). The cache holds the document's list itself, so a new snapshot is a new entry."""
+    day = (as_of or utc_today()) if bucket else as_of
+    key = (id(records), len(records), selection, bucket, day)
+    found = _ordered_cache.get(key)
+    if found is not None and found[0] is records:
+        _ordered_cache.move_to_end(key)
+        return list(found[1])
+    result = _ordered(records, selection, bucket, day)
+    _ordered_cache[key] = (records, result)
+    while len(_ordered_cache) > ORDERED_CACHE_SIZE:
+        _ordered_cache.popitem(last=False)
+    return list(result)
+
+
+def _ordered(records: list[Mapping], selection: str, bucket: str | None = None, as_of: date | None = None) -> list[Mapping]:
     wanted = "recommended" if selection == "recommended" else "accepted"
     chosen = [record for record in records if isinstance(record, Mapping) and record.get("status") == wanted and record.get("key")]
     if bucket:
@@ -123,9 +150,35 @@ def _in_section(record: Mapping, section: str, labels: Mapping[str, str]) -> boo
     return _text(record, "section").casefold() in wanted
 
 
+def _section_values(value: str) -> list[str]:
+    return [part.strip() for part in str(value).split("|") if part.strip()]
+
+
+def _in_any_section(record: Mapping, value: str, labels: Mapping[str, str]) -> bool:
+    return any(_in_section(record, section, labels) for section in _section_values(value))
+
+
 def candidates_of(document: Mapping | None, attributes: Mapping, section_labels: Mapping[str, str] | None = None, as_of: date | None = None) -> list[Mapping[str, Any]]:
-    """Every Reference an include's selection could place, in the order it places them: no ledger, no count."""
+    """Every Reference an include's selection could place, in the order it places them: no ledger, no count. Worked out once per snapshot document,
+    selection, filter and day, like :func:`ordered`; the caller gets its own copy."""
     records = (document or {}).get("references") or []
+    bucket = attributes.get("bucket")
+    labels = section_labels or {}
+    day = (as_of or utc_today()) if bucket else as_of
+    key = ("candidates", id(records), len(records), attributes["select"], bucket, day, attributes.get("medium"), attributes.get("image"),
+           attributes.get("section"), labels.get(attributes.get("section") or "", ""))
+    found = _ordered_cache.get(key)
+    if found is not None and found[0] is records:
+        _ordered_cache.move_to_end(key)
+        return list(found[1])
+    result = _candidates(records, attributes, labels, as_of)
+    _ordered_cache[key] = (records, result)
+    while len(_ordered_cache) > ORDERED_CACHE_SIZE:
+        _ordered_cache.popitem(last=False)
+    return list(result)
+
+
+def _candidates(records: list, attributes: Mapping, section_labels: Mapping[str, str], as_of: date | None) -> list[Mapping[str, Any]]:
     candidates = ordered(records, attributes["select"], attributes.get("bucket"), as_of)
     if attributes.get("medium"):   # only the References whose address certainly says this medium; a record with no `medium` field never matches
         candidates = [record for record in candidates if record.get("medium") == attributes["medium"]]
@@ -133,8 +186,12 @@ def candidates_of(document: Mapping | None, attributes: Mapping, section_labels:
         candidates = [record for record in candidates if not _text(record, "image")]
     elif attributes.get("image") == "any":   # only the References with a picture
         candidates = [record for record in candidates if _text(record, "image")]
+    if attributes.get("notMedium"):   # a record with no `medium` field passes
+        candidates = [record for record in candidates if record.get("medium") != attributes["notMedium"]]
     if attributes.get("section"):
-        candidates = [record for record in candidates if _in_section(record, attributes["section"], section_labels or {})]
+        candidates = [record for record in candidates if _in_any_section(record, attributes["section"], section_labels or {})]
+    if attributes.get("notSection"):   # a record with no section, or a section not listed, passes
+        candidates = [record for record in candidates if not (_text(record, "section") and _in_any_section(record, attributes["notSection"], section_labels or {}))]
     return candidates
 
 

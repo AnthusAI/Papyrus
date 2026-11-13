@@ -1,7 +1,7 @@
 {
   "id": "PPY-cf9039f1-fbd0-4ec0-9aa4-abadba8c51b5",
-  "title": "M8 First outside paying tenant",
-  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M7; Stripe live in Prospectus (Prospectus scope).\nExit criteria: Security gate 2 (external review) passed; terms with the ownership statement (PPY-2f1bb2) and acceptable use; PPY-bd73b2 and the p.apyr.us pages (PPY-c7244c) published; one outside tenant live and billed by usage.\nCustomer-visible: Public sign-up on p.apyr.us.\nIndex-adding deploys in this milestone: None.\nContains: PPY-bd73b2, PPY-2f1bb2, PPY-c7244c, PPY-3ff465 (gate 2)\nFollows: M7.",
+  "title": "M8 Public self-serve sign-up",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3). Critical-path plan: PPY-e38a2d. Design note: docs/plans/multi-tenant-architecture.md (PR #1305).\n\nThe first outside tenants (the design partner's three sites) launch at M7, created by an operator. M8 opens public self-serve sign-up.\n\nEntry criteria: M7; Stripe self-serve checkout live in Prospectus (Prospectus scope); usage billing beyond the quota decided (PPY-8a3c6a).\nExit criteria: terms with the ownership statement (PPY-2f1bb2) and acceptable use; PPY-bd73b2 and the p.apyr.us pages (PPY-c7244c) published; a stranger signs up, pays through checkout and reaches a live site with no operator step; guided onboarding (PPY-810f42) if not done at M7.\nCustomer-visible: Public sign-up on p.apyr.us.\nIndex-adding deploys in this milestone: None.\nContains: PPY-bd73b2, PPY-2f1bb2, PPY-c7244c, PPY-8a3c6a, PPY-810f42\nFollows: M7.\n\nAcceptance (Gherkin):\nScenario: A paid sign-up reaches a live site (self-serve checkout variant of PPY-e54eca)\nScenario: A tenant that opted in keeps working past its quota and is billed for it (features_backend/model-spend-ceiling.feature, PPY-8a3c6a)\nScenario: A new admin sets up their site in one sitting (features/tenant-onboarding.feature, PPY-810f42)\nScenario: The statement is on all three (PPY-2f1bb2)\nScenario: The docs describe enforced isolation (PPY-bd73b2)\nScenario: Each shipped feature has a page (PPY-c7244c)\n\nAcceptance checks:\n1. A self-serve tenant's first invoice matches its usage in the Prospectus ledger.\n2. p.apyr.us pages and docs/multi-tenancy.md describe enforced isolation, the ownership statement and the freshness promise.\n3. Provisioning rate limits hold under a scripted burst of sign-ups on staging.",
   "type": "task",
   "status": "open",
   "priority": 1,
@@ -20,7 +20,7 @@
   ],
   "comments": [],
   "created_at": "2026-11-08T18:46:27.396755Z",
-  "updated_at": "2026-11-08T18:47:14.650597Z",
+  "updated_at": "2026-11-09T00:29:46.905818Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

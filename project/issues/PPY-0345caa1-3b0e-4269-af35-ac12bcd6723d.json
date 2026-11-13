@@ -1,0 +1,20 @@
+{
+  "id": "PPY-0345caa1-3b0e-4269-af35-ac12bcd6723d",
+  "title": "Import the Anthus budget papyrus-amplify-monthly with a template that matches it exactly",
+  "description": "Read-only facts (2026-11-11): monthly COST budget 72.78 USD, cost filter Service = AWS Amplify, all eleven cost-type flags as in budget.yaml, one notification (ACTUAL > 100%), one subscriber of type SNS (an existing topic), no tags, no actions, in no stack. NotificationsWithSubscribers and BudgetName are create-only, so the template must declare them exactly or the import is refused. Add a variant account stack (cost filters, a notification and subscriber list as parameters, SNS subscriber type) and the dry-run per PPY-b5ddec. Leave the budget hand-made until then. amplify-cost-check.mjs reads it by name.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T04:14:47.362915Z",
+  "updated_at": "2026-11-12T04:14:47.362995Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

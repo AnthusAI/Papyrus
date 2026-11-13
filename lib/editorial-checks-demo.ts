@@ -159,6 +159,6 @@ export const demoEditorialBackend: EditorialChecksBackend = {
   checkVersion: async (itemId) => {
     demoProbe().versionChecks.push(itemId);
   },
-  suggest: async (body, _section, target) => demoSuggest(body, target),
+  suggest: async (body, _section, _language, target) => demoSuggest(body, target),
   recordFeedback: async () => undefined,
 };

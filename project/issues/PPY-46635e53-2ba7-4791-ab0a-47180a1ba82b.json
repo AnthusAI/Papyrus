@@ -1,0 +1,31 @@
+{
+  "id": "PPY-46635e53-2ba7-4791-ab0a-47180a1ba82b",
+  "title": "Tenancy mode setting: one synth-time switch, 'dedicated' (default) or 'shared'",
+  "description": "Outcome: Several shared-stack differences (no guest API reads, no subscriptions, no global group rules, no wildcard purge, tenant from the caller, no bundled site files, hooks refused) need one switch read at synth time and at run time. Add tenancy: { mode: \"dedicated\" | \"shared\" } to the site backend config (default dedicated, so every existing site is unchanged), pass it to functions as PAPYRUS_TENANCY_MODE, and expose one helper in Python (papyrus_content.tenancy) and TypeScript (lib/tenant-keys.ts) so code asks 'is this a shared stack?' in one way. Worktree Papyrus-worktrees/tenancy-mode (beside the Papyrus checkout), branch feature/<this id>-tenancy-mode.\n\nTouches (verified at origin/develop 23fabe1d): amplify/site-backend-config.ts, amplify/site-backend.ts (environment for functions), amplify/data/schema.ts (helper to vary rules by mode, unused yet), src/papyrus_content/tenancy.py, lib/tenant-keys.ts, docs/multi-tenancy.md.\n\nAcceptance (Gherkin feature file: features_backend/tenancy-mode.feature):\nScenario: An existing site synthesises exactly as before\n    Given a site config with no tenancy setting\n    When the backend is synthesised\n    Then the template is identical to the previous release's\n\nScenario: Functions on a shared stack know it\n    Given tenancy mode \"shared\"\n    When content-actions starts\n    Then the tenancy helper reports shared in Python and in TypeScript\n\nDependencies: blocked by nothing. Blocks PPY-baa75d, PPY-e01d82, PPY-daf673, PPY-ca247b. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: npm run typecheck; npm test (add scripts/test-tenancy-mode.ts); poetry run pytest src/papyrus_content/tenancy_test.py; npm run test:schema-parity; synth snapshot comparison.\nRollout: Releasable alone; no behaviour change on any site.\nRisk and mitigation: Low. Risk: a second, competing switch appears later. Mitigation: the helper is the only reader and a lint forbids reading the variable directly.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "closed",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "cab18e2c-76dc-4ec7-8dc6-2d8f7fed9ec3",
+      "author": "home",
+      "text": "Merged to develop: AnthusAI/Papyrus#1374 (2026-11-10). Not released. Closed in the 2026-11-13 board sync.",
+      "created_at": "2026-11-13T17:08:51.363891Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T21:32:22.251501Z",
+  "updated_at": "2026-11-13T17:08:51.816441Z",
+  "closed_at": "2026-11-13T17:08:51.816089Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

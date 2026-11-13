@@ -106,12 +106,19 @@ def find_section(client, value: str) -> dict | None:
 def resolve_editorial_context(client, *, endpoint: str, publication_key: str | None = None,
                               section_id: str | None = None, story_lineage_id: str | None = None,
                               assignment_id: str | None = None, max_characters: int = 0,
-                              optional_publication_doctrine: bool = False, include_visual_style: bool = False) -> dict:
+                              optional_publication_doctrine: bool = False, include_visual_style: bool = False,
+                              include_design_system: bool = False, include_guidelines: bool = False) -> dict:
     """``optional_publication_doctrine``: no current mission or policy record is reported in ``missingPublicationDoctrine``
     instead of failing (the editorial check's rule lane needs no doctrine); more than one current record is treated the same way, with a warning that names the publication.
 
     ``include_visual_style`` adds the publication's image style (the optional third doctrine) when it has one; a publication without it simply has no such entry.
-    Context packs leave it off because the illustrator's pack has its own layer for it."""
+    Context packs leave it off because the illustrator's pack has its own layer for it.
+
+    ``include_guidelines`` adds a pointer for each writing and image style guidelines document the site has, at the publication and at the section (``writing-guidelines`` and
+    ``visual-style`` entries with the version, hash and sha256); a scope with no document has no entry. Context packs leave it off: their guidelines layers carry the documents in full.
+
+    ``include_design_system`` adds a short pointer when the site stores a design system for figures (PPY-74ef89): that it exists, its version and hash, and the commands
+    that read it. It costs one index query and no download; the design system itself is read with ``papyrus design-system show`` or pulled when a figure is drawn."""
     if not endpoint:
         raise ValueError('An endpoint is required for hosted editorial context.')
     publication = hosted_publication(client, publication_key)
@@ -166,6 +173,12 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
         style, _, style_row = read_current_profile(client)
         if style and style_text(style):
             entries.append(_entry('publication', 'visual-style', style_text(style), style_row))
+    if include_design_system:
+        from .figures.context_entry import design_system_entry
+
+        entry = design_system_entry(client)
+        if entry:
+            entries.append(_entry('publication', 'design-system', entry['text'], entry['row']))
     if section_id:
         try:
             section = find_section(client, section_id)
@@ -188,6 +201,12 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
                 requested_section = section_id
             section_id = section['id']
             _section_entries(entries, warnings, section)
+    if include_guidelines:
+        from .guidelines.context_entry import guideline_entries
+
+        taken = tuple(entry['kind'] for entry in entries if entry['scope'] == 'publication')
+        for pointer in guideline_entries(client, section_id.split('#')[-1] if section_id else None, skip_publication=taken):
+            entries.append(_entry(pointer['scope'], pointer['kind'], pointer['text'], pointer['row']))
     if assignment:
         if getattr(client, 'tenant_id', None) and not (story_lineage_id or section_id):
             raise ValueError('A tenant assignment needs a scoped story or section to establish its publication.')
@@ -235,7 +254,7 @@ def configured_context(*, publication_key=None, section_id=None, story_lineage_i
     client, _ = create_authoring_client()
     return resolve_editorial_context(client, endpoint=graphql_endpoint(), publication_key=publication_key,
                                      section_id=section_id, story_lineage_id=story_lineage_id,
-                                     assignment_id=assignment_id, max_characters=max_characters, include_visual_style=True)
+                                     assignment_id=assignment_id, max_characters=max_characters, include_visual_style=True, include_design_system=True, include_guidelines=True)
 
 
 def editorial_context_command(flags: list[str]) -> None:

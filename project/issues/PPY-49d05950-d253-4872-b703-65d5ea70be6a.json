@@ -26,9 +26,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9e5029f6-85b6-4857-b5c7-47669f91d488",
+      "author": "home",
+      "text": "Follows the Prospectus convention: shared-stack resources tagged anthus:account=shared and anthus:app=papyrus, split by the per-tenant usage this task reports; tagging aspect and CI check land first in PPY-25e0d7.",
+      "created_at": "2026-11-08T21:19:02.798436Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:23.193074Z",
-  "updated_at": "2026-11-08T18:47:05.210102Z",
+  "updated_at": "2026-11-08T21:19:02.798647Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

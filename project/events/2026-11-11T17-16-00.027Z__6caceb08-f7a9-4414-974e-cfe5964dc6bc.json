@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "6caceb08-f7a9-4414-974e-cfe5964dc6bc",
+  "issue_id": "PPY-804b7b19-3ee6-4a74-b277-97b4be80c3f7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T17:16:00.027Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A site sets its own byline policy",
+    "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-e7acbb.\n\nSatire uses pen names; today the rule is to attribute to AI and never invent an author. Make it a site policy with the honest rule as the default.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Fable 5.2",
+      "name": "Humorus Planning"
+    }
+  }
+}

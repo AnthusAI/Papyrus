@@ -22,9 +22,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f70b8c4a-578a-4d26-aca5-e2184b52bff4",
+      "author": "home",
+      "text": "Host is newsroom.p.apyr.us (recommended; still open for Ryan). A wildcard certificate covers one label only, so newsroom.<site>.p.apyr.us would need a certificate per site, and Cognito's 100-callback-URL limit per app client also argues for one shared host where the site is chosen after sign-in. Sign-in details: PPY-fdbbd7.",
+      "created_at": "2026-11-08T21:19:03.349926Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:21.854641Z",
-  "updated_at": "2026-11-08T18:47:00.421824Z",
+  "updated_at": "2026-11-08T21:19:03.350145Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -128,7 +128,7 @@ On a line of its own:
 | `alt` | — | Alt text. Use `alt=""` for decoration. |
 | `layout` | — | Named layout; drives the CSS class and the `sizes` attribute. Defaults to `inline`. |
 | `caption` | — | Renders a `<figcaption>`. |
-| `credit` | — | Appended to the caption in `<span class="papyrus-image-credit">`. |
+| `credit` | — | Appended to the caption in `<span class="papyrus-image-credit">`. A generated image has no credit line at all; leave credit off. A credit that only says a machine made the picture ("Illustration generated with AI", "Drafted by AI.", "Generated") is dropped: the page shows the caption alone and the Markdown copy has no `credit` attribute on that `::image`. |
 | `sizes` | — | Override the layout's `sizes` for this one image. |
 | `loading` | — | `lazy` (default) or `eager`. `eager` also sets `fetchpriority="high"`. |
 | `srcDark` | — | The dark-mode picture of `src`. See [Light and dark pictures](#light-and-dark-pictures). `srcDark="none"` turns off name pairing for this one image. |
@@ -336,6 +336,47 @@ publications that have not opted in do not need it. WebP works on Pillow 10.3;
 (`pip install "Pillow>=11.3,<12"`). Configuring `avif` on an older Pillow
 raises `ImagePipelineError`.
 
+## Videos
+
+### `::video{…}`
+
+A video is written like an image, on a line of its own:
+
+```
+::video{src="https://youtu.be/UytYrhYLOKI" title="Aircraft sound localisation demonstration" caption="Two microphones, one jet." credit="Example Channel" start="90"}
+```
+
+| Attribute | Required | Meaning |
+|-----------|----------|---------|
+| `src` | yes | The address of the video. YouTube (`watch?v=`, `youtu.be`, `shorts`, `live`, `embed`), Vimeo (`vimeo.com/ID`, `player.vimeo.com/video/ID`) and Instagram (`/p/`, `/reel/`, `/tv/`) are known. |
+| `title` | yes | The frame's accessible name (the iframe `title`). |
+| `credit` | yes | Who made the video. Third-party media is always credited; the credit links to the video. |
+| `caption` | no | What the reader will see before pressing play. |
+| `start` | no | Whole seconds to start from. Refused for a provider that cannot start part way (Instagram). |
+| `layout` | no | `inline` (default) or `full`, the same classes as `::image`. |
+| `poster` | no | Accepted and ignored. The provider draws its own thumbnail, so older lines that carry it keep working. |
+
+**The provider's own embed.** A video is the provider's standard `<iframe>` (YouTube through `youtube-nocookie.com`, Vimeo with `dnt=1`, Instagram's own embed address), lazy-loaded,
+in a responsive 16:9 wrapper (Instagram is portrait with a minimum height). The provider draws its own thumbnail and play button; there is no poster, no placeholder and no script of ours,
+and no poster-capture step. **Privacy:** the provider loads with the page, so it may set its own cookies or measure the visit as soon as the page opens. A site that does not want that
+leaves `embeds.providers` empty. The credit line under the frame links to the video on the provider.
+
+**The provider registry is data** (`markus_renderer/video.py`, `REGISTRY`): for each provider, its hosts and address shapes, the plain address, the iframe
+address, and the origins the Content-Security-Policy must allow. Adding a provider is adding a row.
+
+**Which providers play** is a setting of the site, `embeds.providers` in `projection.json` (see [the standard front end](standard-site.md#video-embeds-embeds)):
+
+* No `embeds`, or an empty `providers` list (the default): the feature is **absent**. Core does not read `::video` at all, so a site's own hooks see the line exactly as before,
+  the site publishes exactly the files it did, and a Story saves with no list of videos.
+* A provider listed: its `::video` is the provider's embed, as above.
+* Another registered provider that the site does not list, while some provider is listed: a plain linked credit line, `Video: <title linked to the video>. <caption>. Credit: <credit>.`,
+  with no frame and no picture.
+* An address of a host that is not in the registry is never core's: the line is left for the site's hooks.
+
+The Markdown copy of the Story keeps the directive exactly as written.
+
+**Checks.** The four-lens review has P16 (title and credit, a problem that blocks), P17 (caption), P18 (the site lists the video's provider) and A15 (a credited video is among the Story's citations).
+
 ## Citations
 
 ### Data lives in front matter
@@ -431,24 +472,35 @@ keys are not among the Story's entries.
 A publication chooses in `web/projection.json`:
 
 ```json
-{ "citations": { "links": "internal" } }
+{ "citations": { "links": "internal", "externalIcon": false } }
 ```
 
 `citations` is `true` / `false` (as before: `false` turns citations off) or an
-object with one key, `links`:
+object with the keys `links` and (optional, default `false`) `externalIcon`:
 
 | `links` | Bibliography entry |
 | --- | --- |
-| `external` (default; also what `true` or no setting gives) | The formatted entry plus the source's own URL as a link, exactly as above. Output is byte-identical to before. |
+| `external` (default; also what `true` or no setting gives) | The formatted entry plus the source's own URL as a link, exactly as above, (outside links already open in a new tab with `target="_blank" rel="noopener noreferrer"`). With `"citations": {"externalIcon": true}` an outside link also gets the class `citation-external` and ends with the Lucide `external-link` icon (`svg.citation-external-icon`, `data-icon="external-link"`, drawn in `currentColor`); without it the markup is byte-identical to before. An entry whose CSL-JSON carries `internalUrl` links to that page of this site instead: the formatted entry is the link text, with no icon and no new tab. |
 | `internal` | No outside address, linked or printed. An entry is linked only to the site's own page for it when its CSL-JSON carries `internalUrl` (a path starting with `/` on this site), otherwise it is plain text. |
 | `none` | Plain text: title, publisher and date. No link of any kind in the list. |
 
 `URL` and `DOI` are left out of the entry text for `internal` and `none`. An
 `internalUrl` that is an address (`https://...`, `//...`, `javascript:`) is never
 linked. The inline markers link to `#citation-N` on the same page in every mode,
-which is not an outbound link. Today the engine publishes no page per Reference,
-so no entry carries `internalUrl` yet and `internal` renders plain text until a
-site's Stories add one. Machines on Machines sets `internal`.
+which is not an outbound link.
+
+#### Where `internalUrl` comes from
+
+A page's own front matter may name it. The standard front end also fills it
+when a published Story is `based_on` the accepted Reference whose `sourceUri`
+is the entry's `URL` (matched with `story_from_reference.url_key`, which
+ignores tracking parameters, the fragment, `www.` and a trailing slash). The
+link goes to the newest published Story based on that Reference, never to the
+page being rendered; a withdrawn or unpublished Story does not count. The order
+for an entry is: our Story, then (not built yet, PPY-13fb8aa8) our page for the
+Reference, then the outside address. The data and its cost are described in
+[surfable site](surfable-site.md). Machines on Machines used `internal` while no
+page existed to link to; with the lookup it can use `external`.
 
 ### Formatting
 

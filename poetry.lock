@@ -829,6 +829,29 @@ files = [
 ]
 
 [[package]]
+name = "caducus"
+version = "0.3.0"
+description = "CLI for collecting ops events and running reinforcement-memory analysis."
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "caducus-0.3.0-py3-none-any.whl", hash = "sha256:223669d919f46d086d75cce6e79151c37cc95cf1a5ce2c18fccf0e1852a5db7c"},
+    {file = "caducus-0.3.0.tar.gz", hash = "sha256:251e2e15d008f86598b66d56440da60366e395434efc2c81abb2cd9729b5bdc6"},
+]
+
+[package.dependencies]
+boto3 = {version = ">=1.35.8", optional = true, markers = "extra == \"notify\""}
+dnspython = {version = ">=2.6", optional = true, markers = "extra == \"notify\""}
+
+[package.extras]
+dev = ["behave (>=1.2.6)", "black (>=24.0)", "build (>=1.2.2)", "pytest (>=8.0)", "python-semantic-release (>=10.5.3)", "ruff (>=0.4.0)"]
+notify = ["boto3 (>=1.35.8)", "dnspython (>=2.6)"]
+notify-dev = ["PyYAML (>=6.0)", "boto3 (>=1.35.8)", "dnspython (>=2.6)", "jsonschema (>=4.0)", "moto[dynamodb,ses,sqs,ssm] (>=5.0)", "pytest-cov (>=5.0)"]
+radar = ["PyYAML (>=6.0)", "virtuus (>=0.4.0)"]
+reinforcement-memory = ["biblicus (>=1.6.0)", "scikit-learn (>=1.3.0)"]
+
+[[package]]
 name = "catalogue"
 version = "2.0.10"
 description = "Super lightweight function registries for your library"
@@ -1763,6 +1786,27 @@ files = [
 markers = {main = "extra == \"newsroom\""}
 
 [[package]]
+name = "dnspython"
+version = "2.9.2"
+description = "DNS toolkit"
+optional = false
+python-versions = ">=3.11"
+groups = ["dev"]
+files = [
+    {file = "dnspython-2.9.2-py3-none-any.whl", hash = "sha256:af15f7d385a6ae2fb35a796fde2138004c8c42c7389090e2addc83e3b3340fd8"},
+    {file = "dnspython-2.9.2.tar.gz", hash = "sha256:8d4d39a513e649d634004ce4d39ade2352efcea472a0247535a5c2d18a9d7ba9"},
+]
+
+[package.extras]
+dev = ["black (>=26.5)", "coverage (>=7.15)", "hypercorn (>=0.18.0)", "pyright (>=1.1.411)", "pytest (>=9.1)", "pytest-cov (>=7.1)", "quart-trio (>=0.12.0)", "ruff (>=0.16.0)", "sphinx (>=9.1.0) ; python_full_version >= \"3.12.0\"", "sphinx-rtd-theme (>=3.1.0) ; python_full_version >= \"3.12.0\"", "trustme (>=1.2.1)", "ty (>=0.0.85)"]
+dnssec = ["cryptography (>=50)"]
+doh = ["h2 (>=4.4)", "httpcore2 (>=2.13)", "httpx2 (>=2.13)"]
+doq = ["aioquic (>=1.3.0)"]
+idna = ["idna (>=3.20)"]
+trio = ["trio (>=0.34)"]
+wmi = ["wmi (>=1.5.1) ; sys_platform == \"win32\""]
+
+[[package]]
 name = "docker"
 version = "7.2.0"
 description = "A Python library for the Docker Engine API."
@@ -1869,6 +1913,21 @@ files = [
     {file = "et_xmlfile-2.0.0.tar.gz", hash = "sha256:dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54"},
 ]
 markers = {main = "extra == \"newsroom\""}
+
+[[package]]
+name = "execnet"
+version = "2.1.2"
+description = "execnet: rapid multi-Python deployment"
+optional = false
+python-versions = ">=3.8"
+groups = ["dev"]
+files = [
+    {file = "execnet-2.1.2-py3-none-any.whl", hash = "sha256:67fba928dd5a544b783f6056f449e5e3931a5c378b128bc18501f7ea79e296ec"},
+    {file = "execnet-2.1.2.tar.gz", hash = "sha256:63d83bfdd9a23e35b9c6a3261412324f964c2ec8dcd8d3c6916ee9373e0befcd"},
+]
+
+[package.extras]
+testing = ["hatch", "pre-commit", "pytest", "tox"]
 
 [[package]]
 name = "fastapi"
@@ -2716,13 +2775,14 @@ pyreadline3 = {version = "*", markers = "sys_platform == \"win32\" and python_ve
 
 [[package]]
 name = "humanus"
-version = "0.34.0"
+version = "0.36.0"
 description = "Configurable editorial compliance checks: policy packs, deterministic rules, zero-shot decision models and rewrite suggestions."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "humanus-0.34.0-py3-none-any.whl", hash = "sha256:0f2f1897a7020ece6b36e21b187bb1f5c4703ad76800a654516ae06ae5672ca5"},
+    {file = "humanus-0.36.0-py3-none-any.whl", hash = "sha256:0f188958ea32055d7e891047339c86e2614d6cea91d54048353cebc0d5de6e6b"},
+    {file = "humanus-0.36.0.tar.gz", hash = "sha256:495e11411bd174f2ab3d873053a3a5e3e8c8eab200b4f32c636a5d7bf7c4a226"},
 ]
 
 [package.dependencies]
@@ -5880,6 +5940,27 @@ pygments = ">=2.7.2"
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
 
 [[package]]
+name = "pytest-xdist"
+version = "3.8.0"
+description = "pytest xdist plugin for distributed testing, most importantly across multiple CPUs"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "pytest_xdist-3.8.0-py3-none-any.whl", hash = "sha256:202ca578cfeb7370784a8c33d6d05bc6e13b4f25b5053c30a152269fd10f0b88"},
+    {file = "pytest_xdist-3.8.0.tar.gz", hash = "sha256:7e578125ec9bc6050861aa93f2d59f1d8d085595d6551c2c90b6f4fad8d3a9f1"},
+]
+
+[package.dependencies]
+execnet = ">=2.1"
+pytest = ">=7.0.0"
+
+[package.extras]
+psutil = ["psutil (>=3.0)"]
+setproctitle = ["setproctitle"]
+testing = ["filelock"]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 description = "Extensions to the standard Python datetime module"
@@ -9026,4 +9107,4 @@ transcripts = ["youtube-transcript-api"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "bba9740813c622877e51098a965e62315002e4f69dc6af729b6cf78590665480"
+content-hash = "17bd770a67179b82520370be3da65c12d7801c1dc9727e21cc0900485af8b8bd"

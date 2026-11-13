@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a67d6969-e9dd-40c9-a199-b1bf2389ca58",
+  "issue_id": "PPY-1e732a03-5217-48e8-991e-0148ff5962aa",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T15:42:53.820Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Papyrus 5.99.0 cost tags do not deploy: data stack hits a CloudFormation limit",
+    "description": "2026-11-09: Machines on Machines job 80 (app d260vp72hqglnc) rolled the data stack back (UPDATE_ROLLBACK_COMPLETE, production unchanged) with 'Limit on the number of resources in a single stack operation exceeded' on about 60 table nested stacks: the cost tags touch every table in one deploy. Also the backend refuses to build without the Amplify branch variable PAPYRUS_SITE_ID unless the app-shell stack was deployed first (set by hand on Machines on Machines). Fix: apply the tags in smaller steps (stagger nested stacks, or several releases), and make a site build without PAPYRUS_SITE_ID fall back or fail with a clear step. Machines on Machines is pinned to 5.98.0 until fixed; the article rail, concepts row and citations to our own stories wait for it.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+    "labels": []
+  }
+}

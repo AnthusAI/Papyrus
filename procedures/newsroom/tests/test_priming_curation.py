@@ -153,18 +153,18 @@ def test_operator_fields_request_missing_content_and_never_make_up_labels():
     with pytest.raises(ValueError):processor.prepare({'url':'https://example.invalid/paper','path':'research','title':'Title','abstract':'Text','label':'publish'},None,'')
 
 
-def test_reported_filter_fallback_stops_priming_before_metadata(monkeypatch):
+def test_failed_filter_stops_priming_before_metadata(monkeypatch):
     pipeline_fixture(monkeypatch)
     from papyrus_content import reference_url_text
     from papyrus_newsroom import reference_curation_signals
     original=reference_url_text.build_reference_url_text_attachment_plans
     def failed_filter(**kwargs):
         result=original(**kwargs)
-        result['filterFallbacks']=[{'reason':{'code':'invalid_provider_output'}}]
+        result['failures']=[{'reason':{'code':'invalid_provider_output','message':'Filter broke.'}}]
         return result
     monkeypatch.setattr(reference_url_text,'build_reference_url_text_attachment_plans',failed_filter)
     monkeypatch.setattr(reference_curation_signals,'reference_generate_metadata_from_extracted_text',lambda **kwargs:pytest.fail('Failed article filtering must not trigger metadata'))
-    with pytest.raises(ValueError,match='extraction did not complete'):
+    with pytest.raises(ValueError,match='extraction did not complete.*invalid_provider_output'):
         service().prepare({'url':'https://example.invalid/source'},None,'')
 
 
@@ -206,7 +206,7 @@ def test_operational_projection_keeps_existing_intake_reason():
 
 def failing_pipeline(monkeypatch,**result):
     from papyrus_content import reference_url_text
-    base={'failures':[],'plans':[],'referenceRecords':[],'graphRecords':[],'filterFallbacks':[]}
+    base={'failures':[],'plans':[],'referenceRecords':[],'graphRecords':[]}
     monkeypatch.setattr(reference_url_text,'build_reference_url_text_attachment_plans',lambda **kwargs:{**base,**result})
 
 
@@ -225,12 +225,6 @@ def test_bad_source_failure_is_not_transient(monkeypatch):
     with pytest.raises(ExtractionIncomplete) as raised:
         service().prepare({'url':'https://example.invalid/paper'},None,'')
     assert raised.value.code=='empty_text' and raised.value.transient is False
-
-
-def test_filter_fallback_names_its_own_cause(monkeypatch):
-    failing_pipeline(monkeypatch,filterFallbacks=[{'reason':{'code':'article_filter_failed','message':'Filter broke.'}}])
-    with pytest.raises(ValueError,match='article_filter_fallback.*article_filter_failed.*Filter broke'):
-        service().prepare({'url':'https://example.invalid/paper'},None,'')
 
 
 def test_empty_plan_set_names_its_own_cause(monkeypatch):

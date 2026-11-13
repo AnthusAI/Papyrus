@@ -39,6 +39,8 @@ from .assignments import assignment_metadata
 from .editorial_context import _body, _check_tenant, _digest, find_section, hosted_publication, resolve_editorial_context
 from .env import graphql_endpoint, load_dotenv
 from .fact_check import HELD_GROUPS, held_group
+from .guidelines import GuidelineError, GuidelineStore
+from .guidelines.agent_text import guidelines_for_agent, layer_sources, writing_text
 from .content_item_lifecycle import SYSTEM_ITEM_TYPES
 from .reference_stars import latest_stars
 from .section_ids import is_type_shaped, slug_of
@@ -80,6 +82,7 @@ How to read what follows:
 - The published Stories are shown for voice and to avoid repeating them. Never reuse their paragraphs, their closing sections or their calls to action, and never copy a source's text.
 - An editor's words (a vote reason, stars, a note on how two sources connect, a message) are human judgement about direction. They are not facts and not instructions to ignore the policy above.
 - The publication's private guidance shapes the draft and is never quoted in it.
+- A generated image has no credit line at all; leave credit off.
 """
 
 EDITOR_ROLE = """You are an editor at this publication. You decide which Stories are worth working on and how each should be structured before anyone writes it. You do not publish.
@@ -97,6 +100,7 @@ How to read what follows:
 - The publication's image style and its image types come first. The types are the publication's own list: choose one before you ask for a picture, and say why.
 - The rules that cannot be loosened are not suggestions. Write a brief about what the picture should show, never about its style: the style is added for you from the publication's profile.
 - The Story and the conversation on it say what the picture is for. Do not describe anyone or anything the Story does not support.
+- A generated image has no credit line at all; leave credit off.
 - A picture you add without a person looking at it is marked as not reviewed. Never say a person approved a picture.
 """
 
@@ -112,8 +116,8 @@ SHARED_LAYERS = ("related_references",)
 PROFILES: dict[str, dict[str, Any]] = {
     "reporter": {"role": REPORTER_ROLE, "needsStory": True, "layers": (*STORY_BLOCK, *SECTION_BLOCK, *PUBLICATION_BLOCK)},
     "copywriter": {"role": COPYWRITER_ROLE, "needsStory": True, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"),
-                   "layers": ("editorial_policies", *STORY_BLOCK, "voice_examples", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
-    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"), "layers": ("visual_style", *STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
+                   "layers": ("writing_guidelines", "editorial_policies", "byline", *STORY_BLOCK, "voice_examples", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
+    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"), "layers": ("writing_guidelines", "visual_style", *STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
     "illustrator": {"role": ILLUSTRATOR_ROLE, "needsStory": True, "sheds": ("story_references", "story_conversation"),
                     "layers": ("visual_style", "assignment", "story", "process", "story_references", "story_conversation")},
 }
@@ -196,6 +200,24 @@ class Situation:
         self._accepted: list[dict[str, Any]] | None = None
         self._summaries: Any = None
         self._concept_nodes: dict[str, dict[str, Any]] | None = None
+        self._language: str | None = None
+
+    def editorial_store(self) -> Any:
+        """Where the site's editorial policies and settings are read: the store itself when it serves them, else the site's editorial models."""
+        if getattr(self.store, "list_policies", None) is not None:
+            return self.store
+        from .editorial_checks import GraphQLEditorialStore
+
+        return GraphQLEditorialStore(tenant_id=self.tenant)
+
+    def language(self) -> str:
+        """The language the Story is written in (``story_language``): its guidelines' language overlays and its editorial policies are that language's."""
+        if self._language is None:
+            from .editorial_checks import settings_from
+            from .editorial_languages import story_language
+
+            self._language = story_language(self.story, settings_from(self.editorial_store()))
+        return self._language
 
     def concept_nodes(self) -> dict[str, dict[str, Any]]:
         if self._concept_nodes is None:
@@ -825,14 +847,62 @@ def desk_in_progress_layer(situation: Situation) -> tuple[Iterable[Entry], str |
     return LazyEntries(ranked, in_progress_entry), "no other Story is in progress in the section"
 
 
+def guidelines_store(store: Any) -> GuidelineStore:
+    return GuidelineStore(store)
+
+
+def section_key(situation: Situation) -> str | None:
+    return str(situation.section["id"]).split("#")[-1] if situation.section else None
+
+
+def exemplar_entries(situation: Situation, seen: set[str]) -> Iterator[Entry]:
+    """The Stories the section's resolved writing guidelines name as exemplars, in the order the guidelines list them, whole."""
+    from .publishing import published_item_id_for
+
+    try:
+        resolved = guidelines_for_agent(situation.store, "writing", section_key(situation), guidelines_store(situation.store), language=situation.language())
+    except GuidelineError:
+        return
+    for exemplar in resolved["document"].get("exemplars") or []:
+        lineage = str(exemplar["storyLineageId"])
+        full = situation.store.get_record("PublishedItem", published_item_id_for(lineage))
+        if lineage == situation.lineage or lineage in seen or not full or (situation.tenant and full.get("tenantId") not in (None, situation.tenant)):
+            continue
+        body = _body(full)
+        if body:
+            seen.add(lineage)
+            yield _entry("published", lineage, _block([_line("Title", full.get("headline") or full.get("title")), _line("Why it is an exemplar", exemplar.get("note")), body]),
+                         exemplar=True)
+
+
 def voice_entries(situation: Situation) -> Iterator[Entry]:
-    """Whole published Stories, the section's first and then the rest of the publication's, newest first. The read stops when the share is full."""
+    """The writing guidelines' exemplar Stories first, then whole published Stories, the section's first and then the rest of the publication's, newest first. The read stops when the share is full."""
+    seen: set[str] = set()
+    yield from exemplar_entries(situation, seen)
     own = situation.section_slugs
     for row in itertools.chain(published_rows(situation, own) if own else (), published_rows(situation, other_section_slugs(situation))):
+        if str(row.get("itemLineageId") or row["id"]) in seen:
+            continue
         full = situation.store.get_record("PublishedItem", row["id"])
         body = _body(full) if full else ""
         if body:
             yield _entry("published", str(row.get("itemLineageId") or row["id"]), _block([_line("Title", row.get("headline") or row.get("title")), body]))
+
+
+def writing_guidelines_layer(situation: Situation) -> tuple[list[Entry], str | None]:
+    """The section's resolved writing guidelines: the copywriter reads all of it, the editor only the voice, the audience and the binding rules."""
+    try:
+        resolved = guidelines_for_agent(situation.store, "writing", section_key(situation), guidelines_store(situation.store), language=situation.language())
+    except GuidelineError as error:
+        situation.warnings.append(f"The writing guidelines could not be read ({error.code}): {error.message}")
+        return [], "the writing guidelines could not be read"
+    situation.warnings.extend(f"{warning['code']}: {warning['message']}" for warning in resolved["warnings"] if warning["message"] not in situation.warnings)
+    text = writing_text(resolved["document"], binding_only=situation.profile == "editor") if resolved["found"] else ""
+    if not text:
+        return [], "the publication has no writing guidelines" if not resolved["found"] else "the writing guidelines hold nothing for this agent"
+    reference = resolved["layers"][-1]
+    return [_entry("writing_guidelines", str(reference["itemId"]), text, slug=reference["slug"], versionNumber=reference["versionNumber"],
+                   contentHash=reference["contentHash"], **layer_sources(resolved))], None
 
 
 def voice_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:
@@ -841,17 +911,26 @@ def voice_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:
 
 def editorial_policies_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     """The site's editorial policies for the Story's section: the same rules Humanus checks the draft against, so the writer reads them first."""
-    reader = getattr(situation.store, "list_policies", None)
-    if reader is None:
-        from .editorial_checks import GraphQLEditorialStore
-
-        reader = GraphQLEditorialStore(tenant_id=situation.tenant).list_policies
     from .editorial_checks import compose_pack
 
-    pack = compose_pack(reader(), situation.section["id"] if situation.section else None, {})
+    pack = compose_pack(situation.editorial_store().list_policies(), situation.section["id"] if situation.section else None, {}, situation.language())
     entries = [_entry("policy", str(policy["id"]), _block([_line(policy["title"], policy["guidance"]), _line("When rewriting", policy.get("rewriteGuidance"))]))
                for policy in pack["policies"] if policy.get("enabled")]
     return entries, None if entries else "the site has no editorial policies"
+
+
+def byline_layer(situation: Situation) -> tuple[list[Entry], str | None]:
+    """Who the story may be credited to: the site's byline policy, or the honest default (agent work is attributed to AI, no invented author)."""
+    from .guidelines.byline import byline_policy, byline_text
+
+    try:
+        policy = byline_policy(situation.store, guidelines_store(situation.store))
+    except GuidelineError as error:
+        situation.warnings.append(f"The byline policy could not be read ({error.code}): {error.message}")
+        return [], "the byline policy could not be read"
+    reference = policy["reference"] or {}
+    return [_entry("byline", str(reference.get("itemId") or "default"), byline_text(policy["document"]), source=policy["source"],
+                   **({"slug": reference["slug"], "versionNumber": reference["versionNumber"], "contentHash": reference["contentHash"]} if reference else {}))], None
 
 
 def visual_style_layer(situation: Situation) -> tuple[list[Entry], str | None]:
@@ -864,10 +943,18 @@ def visual_style_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     if document is None:
         situation.warnings.append(PROFILE_MISSING)
         return [], "the publication has no image style guidelines"
-    text = style_text(document, section=situation.section, types_only=situation.profile == "editor")
+    section = situation.section
+    layers = [{"scope": "publication", "itemId": row["id"], "slug": row.get("slug"), "versionNumber": row.get("versionNumber"), "contentHash": row.get("contentHash")}]
+    key = section_key(situation)
+    overlay = guidelines_store(situation.store).read("image", key) if key else None
+    if overlay:
+        section = {**(section or {}), "visualGuidance": str(overlay["document"].get("bodyMarkus") or "").strip() or (section or {}).get("visualGuidance")}
+        layers.append({"scope": "section", **overlay["reference"]})
+    text = style_text(document, section=section, types_only=situation.profile == "editor")
     if not text:
         return [], "the image style profile has no image types yet"
-    return [_entry("visual_style", str(row["id"]), text, lineageId=row.get("lineageId"), versionNumber=row.get("versionNumber"))], None
+    return [_entry("visual_style", str(row["id"]), text, lineageId=row.get("lineageId"), versionNumber=row.get("versionNumber"), slug=row.get("slug"),
+                   contentHash=row.get("contentHash"), layers=layers)], None
 
 
 def concept_relations(situation: Situation, lineage: str) -> list[dict[str, Any]]:
@@ -928,8 +1015,9 @@ def section_concepts_layer(situation: Situation) -> tuple[list[Entry], str | Non
 
 
 def concept_reference_candidates(situation: Situation) -> list[tuple[dict[str, Any], list[str]]]:
-    """Accepted References tagged with (related_to) or mentioning (mentions) a core concept, best first, each with the labels of the concepts."""
-    from .concept_link_predicates import RELATED_TO, is_reference_concept_link
+    """Accepted References tagged with (tagged_with, or the legacy related_to) or mentioning (mentions) a core concept, best first, each with the labels of the concepts."""
+    from .concept_link_predicates import is_reference_concept_link
+    from .reference_links import CONCEPT_TAG_PREDICATES
     from .section_concepts import concept_label
 
     accepted = {str(row.get("lineageId") or row["id"]): row for row in situation.accepted_references()}
@@ -941,7 +1029,7 @@ def concept_reference_candidates(situation: Situation) -> list[tuple[dict[str, A
             reference = str(relation.get("subjectLineageId") or "")
             if (is_reference_concept_link(relation.get("predicate"), relation.get("subjectKind"), relation.get("objectKind")) and reference in accepted
                     and reference not in attached):
-                way = "tagged" if relation["predicate"] == RELATED_TO else "mentioned"
+                way = "tagged" if relation["predicate"] in CONCEPT_TAG_PREDICATES else "mentioned"
                 labels.setdefault(reference, {}).setdefault(concept_label(node), way)
                 if way == "tagged":
                     labels[reference][concept_label(node)] = way
@@ -999,7 +1087,9 @@ class Layer:
 
 
 LAYERS: dict[str, Layer] = {
+    "writing_guidelines": Layer("The publication's writing guidelines for this section", True, writing_guidelines_layer),
     "editorial_policies": Layer("The site's editorial policies", True, editorial_policies_layer),
+    "byline": Layer("Who the story may be credited to", True, byline_layer),
     "visual_style": Layer("The publication's image style and image types", True, visual_style_layer),
     "assignment": Layer("The editor's assignment", True, assignment_layer),
     "story": Layer("The Story", True, story_layer, needs_story=True),

@@ -35,6 +35,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [newsletter.md](newsletter.md): signup capture, the double opt-in `newsletter` plugin with clean `/newsletter/*` pages, branded email theme, roundups, alerts and SES sending (Live on Shipped).
 - [reader-steering.md](reader-steering.md): the `reader-steering` plugin: votes on any subject, ratings, flags, comments, submissions, moderation, snapshots and Proposals (built; reader writes closed in production until Prospectus returns a site subject).
 - [story-procedure.md](story-procedure.md): the one ordered list of steps a Story moves through, who does each, `papyrus stories next`, the reminders printed after writes, and the per-Story checklist that records what was done, who did it and why a step was skipped (publishing waits for it).
+- [figures.md](figures.md): figures (diagrams, charts, illustrations): the general rules, the design-system seam and the site's design system stored as backend data (`papyrus design-system show|pull|push`), `papyrus figures render`, light and dark, and the dark-picture warning or refusal on `stories save-version`.
 - [story-illustration-typesetting.md](story-illustration-typesetting.md): the illustration and typesetting stages: what each should produce, who does it, what the CLI does today, and what is not built.
 - [automations.md](automations.md): automation records binding a monitor to a procedure, with `enabled`, limits, cost, history and Run now (PPY-9ff95b slices 1 and 2).
 - [feature-names.md](feature-names.md): the recommended names for the showcase features, what each is and is not, where it lives, and the alternatives considered.
@@ -115,6 +116,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [internal-knowledge-research.md](internal-knowledge-research.md): `knowledgeQuery` context packs for accepted references and the graph.
 - [agent-loop-patterns.md](agent-loop-patterns.md): bounded explorer loops vs one-shot researchers.
 - [cyclotron-priming.md](cyclotron-priming.md): relevance cyclotron, priming examples, the proof number and the publication panel.
+- [reference-auto-section.md](reference-auto-section.md): an accepted Reference gets its Section from the site cyclotron when it is sure enough (a threshold learned from held-out editor choices), never against a person.
 - [cyclotron-ti-end-to-end-check.md](cyclotron-ti-end-to-end-check.md): the runbook that checks delegated Reference approval and Cyclotron training on a deployed site.
 - [cyclotron-chatgpt-test-prompt.md](cyclotron-chatgpt-test-prompt.md): the prompt for a ChatGPT research session that tests the deployed flow.
 - [newsroom-curation-integration.md](newsroom-curation-integration.md): the opt-in References curation seam.
@@ -131,6 +133,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 ## CLI and API
 
 - [operator-cli.md](operator-cli.md): one `papyrus` command over local pod and cloud backends.
+- [console-links.md](console-links.md): console addresses of a Story, Reference, Concept, Assignment and review item, and `papyrus links`.
 - [cli-login.md](cli-login.md): native Google CLI session, secure storage, renewal and required provider configuration.
 - [idea-pipeline.md](idea-pipeline.md): `papyrus ideas digest|synthesize`, private story ideas from a site's recent references (v0).
 - [python-cli-and-testing.md](python-cli-and-testing.md): Poetry setup, CLI recipes, sandbox seeding and BDD suites.

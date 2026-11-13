@@ -109,7 +109,7 @@ class PublishProjectionTests(unittest.TestCase):
                 contextlib.redirect_stdout(output):
             with self.assertRaises(SystemExit) as raised:
                 content_publish(["--id", "item-articles-hello", "--json"])
-        self.assertEqual(raised.exception.code, 1)
+        self.assertEqual(raised.exception.code, 4)   # the page could not be built: exit 4 (publish_stages)
         payload = json.loads(output.getvalue())
         self.assertFalse(payload["ok"])
         self.assertFalse(payload["projection"]["ok"])

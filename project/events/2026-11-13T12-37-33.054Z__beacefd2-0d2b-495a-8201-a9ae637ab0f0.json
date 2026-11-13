@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "beacefd2-0d2b-495a-8201-a9ae637ab0f0",
+  "issue_id": "PPY-5759b8ec-01d8-4195-9015-1c0932047ee4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T12:37:33.054Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The public knowledge files are linked data",
+    "description": "As a consumer of the public knowledge snapshot, I want each entity file to carry the concept identifier, type and a reference to the Papyrus vocabulary, so that the files read as a graph without changing what the page blocks show.\n\n```gherkin\nFeature: Knowledge snapshot entity files carry identifiers and a context\n  Scenario: An entity file is readable as a graph\n    Given a knowledge snapshot for a site\n    When an entity file is written\n    Then it carries the concept's identifier, its type and a reference to the Papyrus vocabulary\n    And the page blocks that read the file show what they showed before\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-25fae4b5-5fe6-4ebd-b3fe-34f9a1764edf",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}
