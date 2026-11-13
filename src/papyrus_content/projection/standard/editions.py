@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from ..model import ItemSummary
 from .config import NavLink, StandardSettings
 from .interface_strings import LANGUAGE_NAME_KEY
+from .wiki import DEFAULT_WIKI_SECTION
 
 
 @dataclass(frozen=True)
@@ -178,8 +179,6 @@ CONCEPTS_BASE = "concepts"
 
 def is_concepts_group(standard: StandardSettings, section) -> bool:
     """The URL group that holds the site's wiki pages: a type group of a wiki type, or the section the wiki sync files them under."""
-    from ...knowledge_wiki.commands import DEFAULT_WIKI_SECTION
-
     return section.item_type in standard.wiki.types if section.is_type else section.name == DEFAULT_WIKI_SECTION
 
 

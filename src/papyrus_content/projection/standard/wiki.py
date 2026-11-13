@@ -27,6 +27,10 @@ SUPERSEDED_MARK = "✕"
 def _q(value) -> str:
     return html.escape(str(value), quote=True)
 
+#: The section the wiki sync files wiki pages under unless told otherwise (``papyrus knowledge wiki sync``); a language edition serves it at
+#: ``/<prefix>/concepts/`` (editions.py).
+DEFAULT_WIKI_SECTION = "wiki"
+
 
 def is_wiki_entry(entry, settings: StandardSettings) -> bool:
     return entry is not None and entry.type in settings.wiki.types
