@@ -813,6 +813,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
 
   SuggestEventSourceMapping:
@@ -1003,6 +1004,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
           EDITORIAL_JUDGMENT_KEY_PARAMETER: !If [HasEditorialJudgmentKey, !Ref EditorialJudgmentKeyParameter, !Ref AWS::NoValue]
@@ -1186,6 +1188,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
           SUGGEST_QUEUE_URL: !Ref SuggestQueue
           STORY_QUEUE_URL: !Ref StoryQueue
@@ -1737,6 +1740,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
           PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
