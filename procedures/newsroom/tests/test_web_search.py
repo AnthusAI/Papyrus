@@ -196,8 +196,8 @@ def test_a_malformed_answer_and_a_network_error_are_failures():
 
 def test_chain_configuration_precedence():
     assert chain_names(None, {}) == ["tavily", "perplexity", "openai"]
-    assert chain_names(None, {"WEB_SEARCH_PROVIDER": "openai"}) == ["openai"]
-    assert chain_names(None, {"WEB_SEARCH_PROVIDER": "openai", "WEB_SEARCH_PROVIDERS": " Perplexity, openai ,tavily,openai,bogus"}) == ["perplexity", "openai", "tavily"]
+    assert chain_names(None, {"WEB_SEARCH_PROVIDERS": "openai"}) == ["openai"]
+    assert chain_names(None, {"WEB_SEARCH_PROVIDERS": " Perplexity, openai ,tavily,openai,bogus"}) == ["perplexity", "openai", "tavily"]
     assert chain_names("gemini,tavily", {"WEB_SEARCH_PROVIDERS": "openai"}) == ["gemini", "tavily"]
     assert chain_names(None, {"WEB_SEARCH_PROVIDERS": "bogus"}) == ["tavily", "perplexity", "openai"]
     with pytest.raises(ValueError):
