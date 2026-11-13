@@ -55,10 +55,11 @@ def references_for_external_items(client: Any, corpus_id: str, external_item_ids
 
 
 def reference_by_token(client: Any, token: str, *, corpus_id: str | None = None) -> list[dict[str, Any]]:
-    """Rows a person's token names: an id, a lineage id, or an item id (in the given corpus, else in each corpus: the corpus list is small). Empty when none."""
+    """Rows a person's token names: an id, a lineage id, or an item id (in the given corpus, else in the site's canonical publication corpus). Empty when none."""
     rows = references_for_tokens(client, [token])
     if not rows:
-        corpus_ids = [corpus_id] if corpus_id else [str(row["id"]) for row in client.list_records("KnowledgeCorpus")]
+        from .editorial_context import hosted_publication
+        corpus_ids = [corpus_id] if corpus_id else [hosted_publication(client)["corpusId"]]   # the site's canonical publication corpus, through its role index
         for candidate in corpus_ids:
             rows.extend(references_for_external_items(client, candidate, [token]))
     return rows
