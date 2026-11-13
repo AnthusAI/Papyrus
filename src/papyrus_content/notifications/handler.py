@@ -1,7 +1,7 @@
 """Lambda entry points of the ``notifications`` plugin. Each builds its dependencies once per container.
 
-* ``router``     direct (asynchronous) invocations: ``story-published`` from a publish, reader actions from the CMS routes
-* ``email``      the site's email queue: one queued delivery per message
+* ``router``     direct (asynchronous) invocations: ``story-published`` from a publish, reader actions from the CMS routes (Caducus's public audience)
+* ``email``      the site's email queue: one queued delivery, or one fan-out page of a public kind, per message
 * ``flush``      every minute: groups whose window ended
 * ``ses_events`` EventBridge, SES events of the site's configuration set for mail this site sent
 * ``pause``      EventBridge, the bounce and complaint alarms: turns sending off (only on a site without the newsletter)
@@ -51,7 +51,7 @@ def route(rt: Runtime, event: Mapping[str, Any]) -> dict[str, Any]:
     if event.get("task") == "story-published":
         return story_published(rt, event)
     if event.get("action") in public.READER_ACTIONS:
-        return public.handle(event)
+        return public.handle(rt.audience, event)
     return _ignored("unknown_event")
 
 
@@ -64,7 +64,7 @@ def router(event: Mapping[str, Any], context: Any = None) -> dict[str, Any]:
 def email_with(rt: Runtime, event: Mapping[str, Any]) -> dict[str, Any]:
     from caducus.notify.handlers.email_sender import handle_batch
 
-    return handle_batch(rt.store, rt.email, event)
+    return handle_batch(rt.store, rt.email, event, fan_out=rt.router.fan_out_page)
 
 
 def email(event: Mapping[str, Any], context: Any = None) -> dict[str, Any]:
@@ -80,7 +80,7 @@ def flush(event: Any = None, context: Any = None) -> dict[str, int]:
 
 
 def ses_events_with(rt: Runtime, event: Mapping[str, Any]) -> str:
-    return apply_ses_event(rt.store, rt.log, rt.settings, event)
+    return apply_ses_event(rt.store, rt.log, rt.settings, event, rt.audience)
 
 
 def ses_events(event: Mapping[str, Any], context: Any = None) -> Mapping[str, Any]:

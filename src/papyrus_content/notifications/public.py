@@ -1,18 +1,38 @@
-"""The reader-facing actions the ``/api/notifications`` routes send (subscribe, confirm, preferences, unsubscribe, state).
+"""The reader-facing actions the ``/api/notifications`` routes send, answered by Caducus's public audience.
 
-Caducus 0.2.0 routes only to operators named in the host's AWS configuration. It has no reader directory, consent record
-or preferences yet, and this adapter does not invent them. Every reader action therefore answers ``unavailable`` and stores
-nothing, so the routes are in place and a later Caducus release lights them up without a route change.
+The routes have already checked that a request came from the site's own pages (``lib/notifications-api.ts``). Subscribers,
+consent, suppression and tokens are Caducus's (``caducus.notify.audience``, docs/public-audiences.md in AnthusAI/Caducus);
+this module only builds the audience's settings from the site's and hands the event over.
 """
 
 from __future__ import annotations
 
 from typing import Any, Mapping
 
-READER_ACTIONS = frozenset(
-    {"subscribe", "confirm", "confirm_page_state", "preferences_state", "update_preferences", "unsubscribe", "delete_subscriber"}
-)
+from caducus.notify.audience import AudienceList, AudienceSettings
+from caducus.notify.handlers.public import READER_ACTIONS, dispatch
+
+from .events import KIND, PRODUCT
+from .links import SiteLinks
+from .settings import Settings
+
+__all__ = ["READER_ACTIONS", "audience_settings", "handle"]
 
 
-def handle(event: Mapping[str, Any]) -> dict[str, Any]:
-    return {"statusCode": 503, "body": {"status": "unavailable"}}
+def audience_settings(settings: Settings, unsuppress: Any = None) -> AudienceSettings:
+    return AudienceSettings(
+        lists=tuple(
+            AudienceList(id=entry["id"], kind=KIND, name=entry["name"], description=entry.get("description", ""))
+            for entry in settings.lists
+        ),
+        consent=settings.consent,
+        confirm_window_seconds=settings.confirm_window_seconds,
+        links=SiteLinks(settings),
+        product=PRODUCT,
+        site=settings.site_id,
+        provider_unsuppress=unsuppress,
+    )
+
+
+def handle(audience: Any, event: Mapping[str, Any]) -> dict[str, Any]:
+    return dispatch(audience, event)

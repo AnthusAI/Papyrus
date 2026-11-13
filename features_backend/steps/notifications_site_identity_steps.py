@@ -41,11 +41,6 @@ def was_sent(context, title: str) -> None:
     context.site.play_queue()
 
 
-@when("the delivery is marketing mail")
-def marketing(context) -> None:
-    context.site.make_public()
-
-
 @when('SES reports "{event}" for the message')
 def reports(context, event: str) -> None:
     kind, extra = BOUNCES[event]

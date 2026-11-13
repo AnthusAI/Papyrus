@@ -10,7 +10,7 @@ import { hasEditorRights } from "../lib/staff-groups";
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { AUTO_ACCEPTED_PAGE_SIZE, autoAcceptedFromRecords, autoAcceptedServerFilter, collectAutoAcceptedPage, type AutoAcceptedPage } from "../lib/auto-accepted-references";
-import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
+import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences, createLocalPreviewScheduledVersions } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
@@ -69,6 +69,7 @@ import {
 } from "../lib/conversation";
 import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "../lib/post-message";
 import { isStoryItemType, legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { readScheduledRange, SCHEDULE_PAGE_STATES, type ScheduleQueryFetch } from "../lib/story-schedule-query";
 import { readStoryStageChangesSince, readStoryStagePage, STORY_STAGE_PAGE_LIMIT, type StageQueryFetch } from "../lib/story-stage-query";
 import { readWithStoryStageIndex } from "../lib/story-stage-mode";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
@@ -903,7 +904,7 @@ export async function loadEditorNewsDeskDashboard({ isAdmin }: { isAdmin: boolea
 
 export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: boolean }): Promise<CategorySteeringDashboard> {
   const procedureDataPromise = isAdmin
-    ? loadEditorProcedureData().catch(() => ({ definitions: [], versions: [], runs: [] }))
+    ? loadEditorProcedureData()
     : Promise.resolve<{ definitions: ProcedureDefinitionRecord[]; versions: ProcedureVersionRecord[]; runs: ProcedureRunRecord[] }>({
       definitions: [],
       versions: [],
@@ -929,24 +930,24 @@ export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: bo
     procedureData,
     userDirectory,
   ] = await Promise.all([
-    loadDashboardSlice("KnowledgeCorpus", () => listUserPoolModel<CategorySteeringCorpus>("KnowledgeCorpus"), [] as CategorySteeringCorpus[]),
-    loadDashboardSlice("KnowledgeImportRun", () => listUserPoolModel<CategorySteeringImportRun>("KnowledgeImportRun"), [] as CategorySteeringImportRun[]),
-    loadDashboardSlice("CategorySet", () => listUserPoolModel<CategorySteeringCategorySet>("CategorySet"), [] as CategorySteeringCategorySet[]),
-    loadDashboardSlice("Category", () => listUserPoolModel<CategorySteeringCategory>("Category"), [] as CategorySteeringCategory[]),
-    loadDashboardSlice("CategoryKeyword", () => listOptionalUserPoolModel<CategoryKeywordRecord>("CategoryKeyword"), [] as CategoryKeywordRecord[]),
-    loadDashboardSlice("LexicalSteeringRule", () => listOptionalUserPoolModel<LexicalSteeringRuleRecord>("LexicalSteeringRule"), [] as LexicalSteeringRuleRecord[]),
-    loadDashboardSlice("SteeringProposal", () => listSteeringProposalsViaGraphql(), [] as CategorySteeringProposal[]),
-    loadDashboardSlice("KnowledgeArtifact", () => listUserPoolModel<CategorySteeringArtifact>("KnowledgeArtifact"), [] as CategorySteeringArtifact[]),
-    loadDashboardSlice("Reference", () => listUserPoolModel<ReferenceRecord>("Reference"), [] as ReferenceRecord[]),
-    loadDashboardSlice("ReferenceAttachment", () => listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"), [] as ReferenceAttachmentRecord[]),
-    loadDashboardSlice("SemanticNode", () => listUserPoolModel<SemanticNodeRecord>("SemanticNode"), [] as SemanticNodeRecord[]),
-    loadDashboardSlice("Message", () => listUserPoolModel<MessageRecord>("Message"), [] as MessageRecord[]),
-    loadDashboardSlice("SemanticRelation", () => listUserPoolModel<SemanticRelationRecord>("SemanticRelation"), [] as SemanticRelationRecord[]),
-    loadDashboardSlice("Assignments", () => loadEditorAssignmentsData(), { assignments: [], assignmentEvents: [] }),
-    loadDashboardSlice("EditionSlot", () => listOptionalUserPoolModel<EditionSlotRecord>("EditionSlot"), [] as EditionSlotRecord[]),
-    loadDashboardSlice("NewsroomSection", () => listOptionalUserPoolModel<NewsroomSectionRecord>("NewsroomSection"), [] as NewsroomSectionRecord[]),
+    listUserPoolModel<CategorySteeringCorpus>("KnowledgeCorpus"),
+    listUserPoolModel<CategorySteeringImportRun>("KnowledgeImportRun"),
+    listUserPoolModel<CategorySteeringCategorySet>("CategorySet"),
+    listUserPoolModel<CategorySteeringCategory>("Category"),
+    listOptionalUserPoolModel<CategoryKeywordRecord>("CategoryKeyword"),
+    listOptionalUserPoolModel<LexicalSteeringRuleRecord>("LexicalSteeringRule"),
+    listSteeringProposalsViaGraphql(),
+    listUserPoolModel<CategorySteeringArtifact>("KnowledgeArtifact"),
+    listUserPoolModel<ReferenceRecord>("Reference"),
+    listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"),
+    listUserPoolModel<SemanticNodeRecord>("SemanticNode"),
+    listUserPoolModel<MessageRecord>("Message"),
+    listUserPoolModel<SemanticRelationRecord>("SemanticRelation"),
+    loadEditorAssignmentsData(),
+    listOptionalUserPoolModel<EditionSlotRecord>("EditionSlot"),
+    listOptionalUserPoolModel<NewsroomSectionRecord>("NewsroomSection"),
     procedureDataPromise,
-    loadDashboardSlice("UserDirectory", () => (isAdmin ? loadUserDirectory() : Promise.resolve([])), [] as UserDirectoryEntry[]),
+    (isAdmin ? loadUserDirectory() : Promise.resolve([])),
   ]);
 
   const sortedCorpora = corpora.sort((left, right) => left.name.localeCompare(right.name));
@@ -999,15 +1000,6 @@ export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: bo
     procedureRuns: procedureData.runs,
     loadError: null,
   };
-}
-
-async function loadDashboardSlice<T>(label: string, loader: () => Promise<T>, fallback: T): Promise<T> {
-  try {
-    return await loader();
-  } catch (error) {
-    console.warn(`Newsroom dashboard slice failed: ${label}`, error);
-    return fallback;
-  }
 }
 
 export async function loadEditorProcedureData(): Promise<{
@@ -2560,6 +2552,12 @@ export async function loadNewsroomContentItemsChangedSince(stage: string, since:
   }
   const fetch = contentItemStageFetch();
   return readWithStoryStageIndex(mode => readStoryStageChangesSince(fetch, mode, stage, since));
+}
+
+/** Every Story version scheduled between two UTC instants, in any state the Schedule page shows, read from the schedule index (lib/story-schedule-query.ts). */
+export async function loadNewsroomScheduledStories(from: string, to: string): Promise<ContentItemVersionRecord[]> {
+  if (isLocalPreviewEnabled()) return createLocalPreviewScheduledVersions(from, to, SCHEDULE_PAGE_STATES);
+  return readScheduledRange(contentItemStageFetch() as ScheduleQueryFetch, from, to);
 }
 
 export async function loadModelPayloadsForOwner(

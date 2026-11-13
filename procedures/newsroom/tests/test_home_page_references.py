@@ -55,10 +55,10 @@ def test_every_page_gets_its_own_ledger():
 def test_a_source_with_no_store_and_no_directory_reads_nothing():
     source = HomePageSource()
     assert source.configured is False
-    assert source.references() is None and source.digest() == ""
+    assert source.references() is None
 
 
-def test_a_source_reads_the_store_and_digests_the_bytes():
+def test_a_source_reads_the_store_once():
     body = json.dumps(document(record("a"))).encode()
     asked = []
     source = HomePageSource()
@@ -67,14 +67,6 @@ def test_a_source_reads_the_store_and_digests_the_bytes():
     assert source.references()["references"][0]["key"] == "a"
     assert source.references() is source.references()
     assert asked == ["_data/home-page/references.json"]
-    assert len(source.digest()) == 16
-
-
-def test_a_changed_file_changes_the_digest():
-    first, second = HomePageSource(), HomePageSource()
-    first.attach_store(lambda key: json.dumps(document(record("a"))).encode())
-    second.attach_store(lambda key: json.dumps(document(record("b"))).encode())
-    assert first.digest() != second.digest()
 
 
 def test_a_directory_wins_over_the_store_in_either_call_order(tmp_path):

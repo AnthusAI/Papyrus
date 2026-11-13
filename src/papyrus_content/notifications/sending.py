@@ -47,10 +47,10 @@ class SiteMailer(Mailer):
         self._site_id = site_id
         self._set = configuration_set
 
-    def send(self, *, to_address, subject, text, html, tags):  # type: ignore[no-untyped-def]
+    def send(self, *, to_address, subject, text, html, tags, headers=None):  # type: ignore[no-untyped-def]
         try:
             return self._inner.send(
-                to_address=to_address, subject=subject, text=text, html=html, tags={**tags, "site": self._site_id}
+                to_address=to_address, subject=subject, text=text, html=html, tags={**tags, "site": self._site_id}, headers=headers
             )
         except ClientError as error:
             if error.response.get("Error", {}).get("Code") == PAUSED_CODE:
@@ -103,8 +103,12 @@ def _tag(mail: Mapping[str, Any], name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-def apply_ses_event(store: Store, log: DeliveryLog, settings: Settings, envelope: Mapping[str, Any]) -> str:
-    """Apply one EventBridge SES event to the delivery log. Returns what happened."""
+def apply_ses_event(
+    store: Store, log: DeliveryLog, settings: Settings, envelope: Mapping[str, Any], audience: Any = None
+) -> str:
+    """Apply one EventBridge SES event to the delivery log, and a permanent bounce or a complaint to the reader.
+
+    Returns what happened."""
     detail = envelope.get("detail") or {}
     mail = detail.get("mail") or {}
     if _tag(mail, "site") != settings.site_id or not _tag(mail, "delivery"):
@@ -128,5 +132,7 @@ def apply_ses_event(store: Store, log: DeliveryLog, settings: Settings, envelope
     row = store.get(MESSAGE_PARTITION + message_id, MESSAGE_SORT) if isinstance(message_id, str) else None
     if row is None:
         return "unknown_message"
-    log.advance(row["eventId"], row["deliveryId"], status, reason=reason)
+    delivery = log.advance(row["eventId"], row["deliveryId"], status, reason=reason)
+    if audience is not None and status in ("bounced", "complained"):
+        audience.provider_event(delivery["recipientKey"], status)  # suppresses readers; ignores operators
     return status
