@@ -282,6 +282,27 @@ def stories_head_index(flags: list[str]) -> None:
     run_head_index(client, apply=apply, stages=stages, rate=rate)
 
 
+def stories_languages(flags: list[str]) -> None:
+    """papyrus stories languages [--dry-run] [--rate <writes per second>]
+
+    Writes the language and the language group on every Item row written before those fields existed (src/papyrus_content/item_language.py,
+    docs/plans/multilingual-publishing.md): each such row is a primary-language row, so it gets the site's primary language (its editorial check
+    settings' languages.primary) and its own lineage as its language group. Reads the version-state index once, state by state (no table scan),
+    writes only rows that lack a field, each with its own updatedAt, at most --rate a second (default 5), and never changes a language a row has.
+
+    Writes by default; --dry-run prints one line per row it would write and a summary (rows read, rows to write, already right). A run that reports
+    0 rows to write is the health check; a second run writes nothing."""
+    from .item_language_backfill import DEFAULT_RATE, run_languages
+
+    options = parse_options(flags)
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    rate = float(options.get("rate") or DEFAULT_RATE)
+    if rate <= 0 or rate > 25:
+        raise ValueError("--rate must be more than 0 and at most 25 writes a second.")
+    client, _ = create_authoring_client()
+    run_languages(client, primary=client.primary_language(), dry_run=dry_run, rate=rate)
+
+
 def stories_backfill_published_dates(flags: list[str]) -> None:
     """papyrus stories backfill-published-dates [--apply] [--rate <writes per second>]
 
@@ -1116,3 +1137,52 @@ def stories_fire_triggers(flags: list[str]) -> None:
 
     client, _ = create_authoring_client()
     deliver_from_environment(client, _required_option(options, "story"))
+
+
+def stories_localize(flags: list[str]) -> None:
+    """papyrus stories localize --story LINEAGE --language TAG [--automation ID] [--ceiling-usd N] [--dry-run] [--json]
+
+    Asks for a translation of a published Story into one language (the Story translation procedure, papyrus.story.localize): writes the
+    desired-state record for the Story and language (LocalizationRequest: the newest published source version), then starts the site's
+    translation automation (--automation, the automation that runs papyrus.story.localize) for it. The run translates only the blocks whose
+    source changed, checks every block against the English, polishes until the findings stop shrinking and saves the result as an unpublished
+    version of <story>--<language>; it never publishes. Run `papyrus automations runs --id ID` to follow it.
+
+    Writes by default; --dry-run prints the plan (blocks to translate, glossary terms the translator will be given, the predicted cost from this
+    language's measured runs) and writes nothing."""
+    from .localize.desired_state import want
+    from .localize.record import collect
+    from .story_reporting import published_story_version
+
+    options = parse_options(flags)
+    story = _required_option(options, "story")
+    language = _required_option(options, "language")
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    ceiling = float(options["ceiling-usd"]) if options.get("ceiling-usd") else None
+    client, _ = create_authoring_client()
+    request = collect(client, story=story, language=language, judge=None, procedure_version="plan", ceiling_usd=ceiling)
+    from .localize.blocks import blocks_of
+    from .localize.engine import plan_slots
+
+    slots = plan_slots(blocks_of(request.source.body, title=request.source.title, deck=request.source.deck), request.previous)
+    to_translate = [slot for slot in slots if slot.translate]
+    terms = [entry["term"] for entry in request.glossary.entries_in([slot.source.text for slot in to_translate], request.source.language)]
+    prediction = request.prediction.payload() if request.prediction else {}
+    plan = {"story": story, "language": request.language, "localization": request.localization_lineage, "sourceVersion": request.source.version_number,
+            "blocksToTranslate": len(to_translate), "blocksKept": len(slots) - len(to_translate), "glossaryTerms": terms, "prediction": prediction}
+    if dry_run:
+        print("\t".join(["stories", "localize", "plan", json.dumps(plan, ensure_ascii=False)]))
+        return
+    automation = _required_option(options, "automation")
+    source = published_story_version(client, story)
+    record = want(client, source=source, language=request.language, requested_by="cli")
+    from .automations_signed_in import RUN_MUTATION
+
+    answer = client.graphql(RUN_MUTATION, {"automationId": automation, "input": json.dumps({"story": story, "language": request.language,
+                                                                                               "ceilingUsd": ceiling or 0})})
+    started = answer.get("runAutomation")
+    started = json.loads(started) if isinstance(started, str) else (started or {})
+    if started.get("state") != "started":
+        raise ValueError(f"The translation is requested ({record['id']}), but the automation {automation} did not start: "
+                         f"{started.get('reason') or started.get('state') or 'no answer'}. Start it again with the same command.")
+    print("\t".join(["stories", "localize", "requested", record["id"], f"source v{record['sourceVersionNumber']}", "run", str(started.get("key"))]))

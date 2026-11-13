@@ -8,7 +8,8 @@ Feature: Every table can list one tenant's rows without reading the others
   tenant key inventory (docs/tenant-key-inventory.md) names the tables that have none, either because they have no
   index at all (ReaderVote, ReviewRequest, Automation and others) or because every index they have leaves rows out
   (Item's indexes sort on fields an idea does not have yet). Each of those tables gets one sparse index partitioned
-  on tenantId and sorted by id. The tenant client reads a tenant's rows through it with one paged Query
+  on tenantId and sorted by id. Item's waits one release: the release this lands in already gives Item its language
+  group index, and a table gains one index per release (follow-up PPY-e958b5). The tenant client reads a tenant's rows through it with one paged Query
   (`list_tenant_rows`), never a Scan. The index holds only rows that carry a tenantId, so a listing is complete once
   the tenantId backfill (PPY-8f9462) has stamped every row.
 

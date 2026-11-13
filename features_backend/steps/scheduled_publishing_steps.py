@@ -6,6 +6,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import shlex
 import sys
 import tempfile
@@ -288,7 +289,9 @@ def _retire(context, old, new) -> None:
     session = SiteClient(w.client, w.service)
     context.retire_session = session
     out = io.StringIO()
-    with contextlib.redirect_stdout(out), mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(session, {"sub": "ed-sub"})):
+    with contextlib.redirect_stdout(out), mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(session, {"sub": "ed-sub"})), \
+            mock.patch.dict(os.environ, {"PAPYRUS_SITE_PROJECTOR": "site.projector"}), \
+            mock.patch("papyrus_content.projection.runtime.load_projector", lambda *args, **kwargs: w.retire_site.projector):
         story_retire.stories_retire(["--story", "item-old", "--redirect-to", "item-new", "--no-trigger"])
     context.retire_output = out.getvalue()
 

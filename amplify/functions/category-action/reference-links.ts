@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { changeReasonAfterNewDescription } from "./knowledge-review";
+import { REFERENCE_LINK_FEED_KEY, SEMANTIC_NODE_FEED_KEY, globalKey } from "../../../lib/tenant-knowledge-keys";
 
 export const REFERENCE_LINK_KIND = "reference.link";
 export const REFERENCE_CONCEPT_KIND = "reference.concept";
 export const ITEM_CONCEPT_KIND = "item.concept";
 /** A link an editor makes between two concepts, with the words that say how they relate. The same row as a Reference link: related_to, metadata note. */
 export const CONCEPT_LINK_KIND = "concept.link";
-export const REFERENCE_LINK_FEED_KEY = "reference-links";
+export { REFERENCE_LINK_FEED_KEY };
 export const RELATED_TO = "related_to";
 /** Tagging a Reference or a story with a concept (renamed from `related_to` on 2026-11-09; stored `related_to` tag rows are read until `papyrus relations migrate-concept-tags` has run). */
 export const TAGGED_WITH = "tagged_with";
@@ -180,7 +181,7 @@ export function buildHumanEdgeRow(input: { relationId: string; kind: string; pre
     reviewRecommended: false,
     importedAt: input.now,
     updatedAt: input.now,
-    newsroomFeedKey: REFERENCE_LINK_FEED_KEY,
+    newsroomFeedKey: globalKey(REFERENCE_LINK_FEED_KEY),
     metadata: JSON.stringify(metadata),
   };
 }
@@ -288,7 +289,7 @@ export async function ensureEditorConcept(store: ReferenceLinkStore, name: strin
   const node = {
     id: `${lineageId}-v1`, lineageId, versionNumber: 1, versionState: "current", versionCreatedAt: now, versionCreatedBy: callerSub, changeReason: options.origin && options.origin !== "newsroom" ? `Invented by an editor with a hashtag (via ${options.origin})` : "Invented by an editor with a hashtag",
     nodeKey: editorConceptKey(slug), nodeKind: EDITOR_CONCEPT_KIND, displayName, status: "accepted", aliases: [], createdAt: now, updatedAt: now,
-    newsroomFeedKey: "semanticNodes",
+    newsroomFeedKey: globalKey(SEMANTIC_NODE_FEED_KEY),
   };
   await store.createSemanticNode(node);   // false: it exists now (a second tap); read it back either way
   const made = await store.getSemanticNode(lineageId);

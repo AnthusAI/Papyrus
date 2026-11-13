@@ -149,10 +149,11 @@ def _ask(client, mutation: str, payload: dict[str, Any]) -> dict[str, Any]:
     return json.loads(response) if isinstance(response, str) else (response or {})
 
 
-def wait_for_job(client, item_id: str, job: dict[str, Any], *, seconds: float, retry: str, sleep=None, clock=None) -> dict[str, Any]:
-    """Ask ``publishItem`` (``jobStatus``) where the build of a story's pages stands, every few seconds, until it has ended or ``seconds`` passed.
+def poll_job(job: dict[str, Any], ask, *, seconds: float, sleep=None, clock=None) -> dict[str, Any]:
+    """Call ``ask()`` (which returns the job's current state) every few seconds until the job is ``done`` or ``failed`` or ``seconds`` passed.
 
-    Each question is one short request, so the 30 seconds AppSync allows a call never matter however long the build takes (PPY-3acc8d)."""
+    Each question is one short request, so the 30 seconds AppSync allows a call never matter however long the build takes (PPY-3acc8d).
+    A failed question is asked again; the job goes on regardless. Returns the last state known."""
     import time
 
     sleep = sleep or time.sleep
@@ -162,9 +163,15 @@ def wait_for_job(client, item_id: str, job: dict[str, Any], *, seconds: float, r
     while state.get("state") not in ("done", "failed") and clock() - started < seconds:
         sleep(min(JOB_POLL_SECONDS, max(0.0, seconds - (clock() - started))))
         try:
-            state = (_ask(client, "publishItem", {"id": item_id, "jobStatus": True}).get("projection") or state)
-        except Exception as error:  # noqa: BLE001 - a failed question is asked again; the build goes on regardless
+            state = ask() or state
+        except Exception as error:  # noqa: BLE001
             state = {**state, "lastError": f"{type(error).__name__}: {error}"}
+    return state
+
+
+def wait_for_job(client, item_id: str, job: dict[str, Any], *, seconds: float, retry: str, sleep=None, clock=None) -> dict[str, Any]:
+    """Ask ``publishItem`` (``jobStatus``) where the build of a story's pages stands until it has ended or ``seconds`` passed."""
+    state = poll_job(job, lambda: _ask(client, "publishItem", {"id": item_id, "jobStatus": True}).get("projection"), seconds=seconds, sleep=sleep, clock=clock)
     details = {key: state[key] for key in ("paths", "itemPaths", "invalidation", "url") if key in state}
     job_fields = {"jobId": state.get("jobId") or job.get("jobId"), "jobState": state.get("state")}
     if state.get("state") == "done":

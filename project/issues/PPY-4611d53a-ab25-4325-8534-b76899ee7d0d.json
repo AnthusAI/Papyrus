@@ -19,10 +19,17 @@
       "text": "Branch feature/PPY-2745c1-publish-stages, PR https://github.com/AnthusAI/Papyrus/pull/1304 (stacked on #1302). Verified with fakes only (pytest + behave, see PR); nothing run against real AWS. Needs deploy: content-actions function per site.",
       "created_at": "2026-11-08T17:45:30.879373Z",
       "comment_type": "default"
+    },
+    {
+      "id": "4e1f261e-88b5-4094-b086-dbf73e753c82",
+      "author": "home",
+      "text": "2026-11-13: PR #1498 (merged to develop) moves ops content rerender and the re-render that stories link-story / link-concept trigger onto the publish job mechanism from #1304: refreshSitePages takes async and returns a jobKey, the CLI polls jobStatus and reports done / failed / still running (exit 5, not failed) / outcome unknown, with ops content rerender --status to ask again. Publish was covered by #1304. Live once a release ships the content-actions handler; a CLI newer than the backend is refused by the old handler (async is unknown there). Not closed until that release is deployed and seen working.",
+      "created_at": "2026-11-13T20:28:58.480015Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T16:40:45.345188Z",
-  "updated_at": "2026-11-08T17:45:30.879604Z",
+  "updated_at": "2026-11-13T20:28:58.484570Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

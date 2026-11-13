@@ -2,8 +2,8 @@
 
     papyrus editorial pack [--section KEY] [--language TAG] [--output FILE]
     papyrus editorial import --profile publications/<pub>/style-profile.yml [--replace]
-    papyrus editorial check --draft FILE [--section KEY] [--language TAG] [--pack FILE] [--output FILE]
-    papyrus editorial suggest --draft FILE (--finding-id ID | --select TEXT) [--note TEXT] [--section KEY] [--language TAG] [--pack FILE]
+    papyrus editorial check --draft FILE [--story LINEAGE] [--section KEY] [--language TAG] [--pack FILE] [--output FILE]
+    papyrus editorial suggest --draft FILE [--story LINEAGE] (--finding-id ID | --select TEXT) [--note TEXT] [--section KEY] [--language TAG] [--pack FILE]
     papyrus editorial policies list | import-starter NAME | ensure-defaults
     papyrus editorial policies add --file PACK [--dry-run] [--publication KEY] [--actor NAME]
     papyrus editorial policies export --file PACK [--language TAG] [--pack-id ID] [--pack-version V]
@@ -35,6 +35,7 @@ from .editorial_checks import (
     PUBLICATION_SCOPE,
     GraphQLEditorialStore,
     Services,
+    check_draft,
     check_editorial,
     ensure_default_policies,
     import_starter_pack,
@@ -45,6 +46,7 @@ from .editorial_checks import (
 )
 from .editorial_languages import ANY_LANGUAGE, primary_language, site_language
 
+STORY_HELP = "The story (lineage id or slug) this draft revises, so its own saved versions are not compared as other stories by the cross-story boilerplate check."
 LANGUAGE_HELP = "Language of the draft (en, es-419, zh-Hans ...). Default: the site's primary language, the language its Stories are written in."
 
 
@@ -163,14 +165,15 @@ def editorial_import(flags: list[str]) -> None:
 def editorial_check(flags: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="papyrus editorial check", description="Check a draft against the site's editorial policies.")
     parser.add_argument("--draft", required=True, help="Markus/Markdown body to check (read-only).")
+    parser.add_argument("--story", default=None, help=STORY_HELP)
     parser.add_argument("--section", default=None, help="Desk key, for desk policies.")
     parser.add_argument("--language", default=None, help=LANGUAGE_HELP)
-    parser.add_argument("--pack", default=None, help="Use this Humanus policy-pack file instead of the site's policies.")
+    parser.add_argument("--pack", default=None, help="Use this Humanus policy-pack file instead of the site's policies. A policy file has no stories, so the cross-story boilerplate check cannot run; the output's notRun list says so.")
     parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
     services = Services(store=_store(args.pack))
     language = _language(args, settings_from(services.store))
-    _emit(check_editorial({"body": _read_draft(args.draft), "format": "markus", "section": args.section, "language": language}, services), args.output)
+    _emit(check_draft({"body": _read_draft(args.draft), "format": "markus", "section": args.section, "language": language}, services, story=args.story), args.output)
 
 
 def editorial_suggest(flags: list[str]) -> None:
@@ -183,6 +186,7 @@ def editorial_suggest(flags: list[str]) -> None:
     target.add_argument("--finding-id", help="A finding id from `papyrus editorial check` on the same draft.")
     target.add_argument("--select", help="Exact text of the draft to rewrite.")
     parser.add_argument("--note", default=None, help="Editor note, e.g. 'shorter'.")
+    parser.add_argument("--story", default=None, help=STORY_HELP)
     parser.add_argument("--section", default=None)
     parser.add_argument("--language", default=None, help=LANGUAGE_HELP)
     parser.add_argument("--pack", default=None)
@@ -193,7 +197,7 @@ def editorial_suggest(flags: list[str]) -> None:
     language = _language(args, settings_from(services.store))
     arguments: dict[str, Any] = {"body": body, "format": "markus", "section": args.section, "language": language, "note": args.note}
     if args.finding_id:
-        result = check_editorial({"body": body, "format": "markus", "section": args.section, "language": language}, services)
+        result = check_draft({"body": body, "format": "markus", "section": args.section, "language": language}, services, story=args.story)
         finding = next((f for f in result["findings"] if f["id"] == args.finding_id), None)
         if finding is None:
             raise ValueError(f"No finding {args.finding_id} in this draft; run `papyrus editorial check` again.")

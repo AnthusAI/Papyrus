@@ -17,10 +17,10 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 
 ## Counts
 
-- 67 models, 217 indexes.
+- 68 models, 217 indexes.
 - Indexes by class: tenant-prefixed 40, corpus-prefixed 15, record-id 68, global 94.
-- Indexes that list a tenant once prefixed: 73; dense indexes: 100.
-- Models: 59 with an index that lists a tenant, 0 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
+- Indexes that list a tenant once prefixed: 72; dense indexes: 100.
+- Models: 58 with an index that lists a tenant, 2 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
 
 ## Models
 
@@ -42,13 +42,14 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `EditorialCheckSettings` | 1 | yes | `listEditorialCheckSettingsByTenant` |
 | `EditorialFeedback` | 2 | yes | `listEditorialFeedbackByTenant` |
 | `EditorialPolicy` | 1 | yes | `listEditorialPoliciesByTenant` |
-| `Item` | 11 | yes | `listItemsByTenant` |
+| `Item` | 11 | no, needs a tenantId index |  |
 | `ItemTag` | 3 | yes | `listItemTagsByTenant` |
 | `KnowledgeArtifact` | 3 | yes | `listKnowledgeArtifactsByCorpusAndKind` |
 | `KnowledgeCorpus` | 1 | yes | `listKnowledgeCorporaByRoleAndName` |
 | `KnowledgeImportRun` | 3 | yes | `listKnowledgeImportRunsByCorpusAndImportedAt`, `listKnowledgeImportRunsByKindAndImportedAt` |
 | `KnowledgeRawPayload` | 3 | yes | `listKnowledgeRawPayloadsByTenant` |
 | `LexicalSteeringRule` | 4 | yes | `listLexicalSteeringRulesByScopeAndTerm`, `listLexicalSteeringRulesByStatusAndTerm` |
+| `LocalizationRequest` | 0 | no index, needs a tenantId index |  |
 | `MediaAsset` | 2 | yes | `listMediaAssetsByRoleAndItem` |
 | `Message` | 12 | yes | `listMessagesByKindAndCreatedAt`, `listMessagesByDomainAndCreatedAt`, `listMessagesByStatusAndCreatedAt` |
 | `MessageThread` | 5 | yes | `listMessageThreadsByKindAndUpdatedAt`, `listMessageThreadsByStatusAndUpdatedAt` |
@@ -96,7 +97,8 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 
 ## Models that need a tenantId index
 
-None.
+- `LocalizationRequest` (no index at all)
+- `Item` (11 indexes, none lists a tenant)
 
 ## Partition fields
 
@@ -136,6 +138,7 @@ None.
 | `itemId` | record-id | open | `EditionItem`, `EditorialFeedback`, `ItemTag`, `MediaAsset` |
 | `itemLineageId` | record-id | open | `Assignment`, `PublishedItem` |
 | `key` | global | open | `SemanticRelationType` |
+| `languageGroupId` | tenant-prefixed | open | `Item` |
 | `lineageId` | record-id | open | `Category`, `CategorySet`, `Edition`, `EditorialCheckRun`, `Item`, `Reference`, `SemanticNode` |
 | `mediumFeedKey` | corpus-prefixed | open | `Reference` |
 | `messageDomain` | global | closed | `Message` |
@@ -193,7 +196,7 @@ None.
 | `subjectVersionKey` | record-id | open | `SemanticRelation` |
 | `tagId` | record-id | open | `ItemTag` |
 | `target` | record-id | open | `ModerationAction`, `ReaderReport` |
-| `tenantId` | tenant-prefixed | one | `Automation`, `CategoryKeyword`, `CurationDelegationRecord`, `EditionItem`, `EditorialCheckRun`, `EditorialCheckSettings`, `EditorialFeedback`, `EditorialPolicy`, `Item`, `ItemTag`, `KnowledgeRawPayload`, `ModerationAction`, `NewsroomSection`, `PublishedCategory`, `PublishedEditionItem`, `PublishedItem`, `ReaderFlag`, `ReaderHandle`, `ReaderProfile`, `ReaderReport`, `ReaderVote`, `ReferenceAttachment`, `ReviewReadMark`, `ReviewRecipientRule`, `ReviewRequest`, `SemanticNode`, `SemanticRelation`, `SignupEntry`, `SteeringDecision`, `StoryVariation`, `Tag`, `TenantDomain`, `TenantMembership` |
+| `tenantId` | tenant-prefixed | one | `Automation`, `CategoryKeyword`, `CurationDelegationRecord`, `EditionItem`, `EditorialCheckRun`, `EditorialCheckSettings`, `EditorialFeedback`, `EditorialPolicy`, `ItemTag`, `KnowledgeRawPayload`, `ModerationAction`, `NewsroomSection`, `PublishedCategory`, `PublishedEditionItem`, `PublishedItem`, `ReaderFlag`, `ReaderHandle`, `ReaderProfile`, `ReaderReport`, `ReaderVote`, `ReferenceAttachment`, `ReviewReadMark`, `ReviewRecipientRule`, `ReviewRequest`, `SemanticNode`, `SemanticRelation`, `SignupEntry`, `SteeringDecision`, `StoryVariation`, `Tag`, `TenantDomain`, `TenantMembership` |
 | `tenantSlug` | tenant-prefixed | open | `Item`, `PublishedItem` |
 | `threadId` | record-id | open | `Message` |
 | `threadKind` | global | closed | `MessageThread` |
@@ -254,7 +257,6 @@ None.
 | `EditorialFeedback` | `listEditorialFeedbackByItem` | `itemId` | none | record-id | open | yes | no |
 | `EditorialPolicy` | `listEditorialPoliciesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `Item` | `listItemsByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
-| `Item` | `listItemsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `Item` | `listItemsByVersionStateAndUpdatedAt` | `versionState` | `updatedAt` | global | closed | no | no |
 | `Item` | `listItemsByStageAndUpdatedAt` | `stage` | `updatedAt` | global | closed | no | no |
 | `Item` | `listItemsByTypeStatusAndPublishedAt` | `typeStatus` | `publishedAt` | tenant-prefixed | closed | no | no |
@@ -263,6 +265,7 @@ None.
 | `Item` | `listItemsBySectionStatusAndPublishedAt` | `sectionStatus` | `publishedAt` | tenant-prefixed | open | no | no |
 | `Item` | `listItemsByParentAndOrder` | `parentLineageId` | `sortTitle` | record-id | open | no | no |
 | `Item` | `listItemsByHeadStageAndUpdatedAt` | `headStageKey` | `updatedAt` | tenant-prefixed | closed | no | no |
+| `Item` | `listItemsByLanguageGroupAndLanguage` | `languageGroupId` | `language` | tenant-prefixed | open | no | no |
 | `Item` | `listItemsByScheduleStateAndScheduledPublishAt` | `scheduleState` | `scheduledPublishAt` | global | closed | no | no |
 | `ItemTag` | `listItemTagsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `ItemTag` | `listItemTagsByItemAndTag` | `itemId` | `tagSlug` | record-id | open | yes | no |

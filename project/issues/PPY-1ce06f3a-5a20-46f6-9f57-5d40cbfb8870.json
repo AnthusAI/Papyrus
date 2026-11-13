@@ -26,9 +26,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3d5d5c44-98fc-4f10-bbec-9ffaf0c52c43",
+      "author": "home",
+      "text": "Merged develop into #1501 on 2026-11-13: develop's PPY-843a7c adds an Item index in the same unreleased batch, so Item's tenantId index moved out of this PR to PPY-e958b5 (one index per table per release). LocalizationRequest, new on develop, also needs one: same follow-up.",
+      "created_at": "2026-11-13T21:31:25.349979Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:20.654589Z",
-  "updated_at": "2026-11-13T18:52:34.695824Z",
+  "updated_at": "2026-11-13T21:31:25.350251Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

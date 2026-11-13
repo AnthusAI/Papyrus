@@ -214,6 +214,8 @@ class RecordingClient(PapyrusGraphQLAuthoringClient):
         self.schema_checks = 0
 
     def _send_graphql(self, query, variables=None):
+        if "GetEditorialCheckSettings" in query:
+            return {"getEditorialCheckSettings": None}   # no stored settings: an English site (the client writes its primary language on new Items)
         if "PapyrusSchemaCheck" in query:
             self.schema_checks += 1
             return {"__type": {"name": "Item", "fields": [{"name": name} for name in self.item_fields]}}

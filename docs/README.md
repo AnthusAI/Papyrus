@@ -47,6 +47,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [code-map.md](code-map.md): where the main files live.
 - [how-a-publish-flows.md](how-a-publish-flows.md): what happens when an editor saves or publishes, and what to do when it looks wrong.
 - [multi-tenancy.md](multi-tenancy.md): several publications on one backend, with `--tenant`.
+- [plans/multi-tenant-architecture.md](plans/multi-tenant-architecture.md): design for many sites on one shared Papyrus (additive groundwork merged, isolation not built yet), with real tenant isolation (PPY-25ffa3).
 - [content-item-lifecycle.md](content-item-lifecycle.md): one content item and one lifecycle, with a configurable name (default Story).
 - [verification.md](verification.md): what to run before calling a change done, plus the reader browser smoke test.
 - [local-preview.md](local-preview.md): `npm run dev:preview` seeded newsroom Board with no AWS, plus headless screenshots for reviews.
@@ -72,6 +73,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [site-hosting.md](site-hosting.md): hosting runbook for Markus (S3 and CloudFront) and Pretext (Amplify) sites.
 - [site-stacks.md](site-stacks.md): ops UI and reader output as independent plugins.
 - [site-theme-packs.md](site-theme-packs.md): theme packs and ops chrome on `SiteBrand`.
+- [brand-pack.md](brand-pack.md): the shared-tier brand pack: roles, fonts from an allow-list, contrast and colour-safe checks, shared vectors.
 - [site-workspace.md](site-workspace.md): the local folder convention for a split reader and CMS.
 - [standard-site.md](standard-site.md): the approved design for the standard Papyrus site (design record, 2026-10-05; the packages it calls a spike are now published).
 - [pluggable-publishers.md](pluggable-publishers.md): Pretext and Markus publication front ends.
@@ -101,6 +103,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [automated-processes.md](automated-processes.md): the template every automated process states, an inventory of the real ones with their gaps, and the Reference identity gate.
 - [monitoring-cloud.md](monitoring-cloud.md): the Hacker News and TTAB collectors, the router, the shared Cyclotron routing to several sites, and the Monitoring page.
 - [procedure-runner.md](procedure-runner.md): the cloud Lambda that runs a site's registered Tactus procedure; `papyrus procedures register`.
+- [story-translation-procedure.md](story-translation-procedure.md): `papyrus.story.localize`, one published Story into one language per run; `papyrus stories localize`.
 - [monitoring-hn-pilot.md](monitoring-hn-pilot.md): the local Hacker News monitor worker.
 - [console-chat-runbook.md](console-chat-runbook.md): the editor-only console chat on `/newsroom`.
 - [slack-agent.md](slack-agent.md): the Slack channel for the console agent.

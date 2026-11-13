@@ -1,9 +1,9 @@
 {
   "generatedBy": "scripts/generate-tenant-isolation-cases.ts",
   "summary": {
-    "models": 67,
+    "models": 68,
     "globalModels": 3,
-    "modelCases": 463,
+    "modelCases": 470,
     "indexCases": 217,
     "subscriptionCases": 9,
     "operationCases": 133,
@@ -1297,6 +1297,62 @@
       "subject": "LexicalSteeringRule",
       "operation": "delete-foreign-row",
       "probe": "alpha deletes \"beta\"'s LexicalSteeringRule",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:get",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s LocalizationRequest by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:list",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "list",
+      "probe": "alpha lists LocalizationRequest rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:LocalizationRequest:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists LocalizationRequest rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a LocalizationRequest with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own LocalizationRequest setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:update-foreign-row",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s LocalizationRequest",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:delete-foreign-row",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s LocalizationRequest",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -4092,14 +4148,6 @@
       "expect": "returns nothing of \"beta\""
     },
     {
-      "id": "index:listItemsByTenant",
-      "kind": "index",
-      "subject": "listItemsByTenant",
-      "operation": "list-by-index-at-foreign-key",
-      "probe": "alpha calls listItemsByTenant on Item with tenantId at one of \"beta\"'s keys",
-      "expect": "returns nothing of \"beta\""
-    },
-    {
       "id": "index:listItemsByVersionStateAndUpdatedAt",
       "kind": "index",
       "subject": "listItemsByVersionStateAndUpdatedAt",
@@ -4161,6 +4209,14 @@
       "subject": "listItemsByHeadStageAndUpdatedAt",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listItemsByHeadStageAndUpdatedAt on Item with headStageKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listItemsByLanguageGroupAndLanguage",
+      "kind": "index",
+      "subject": "listItemsByLanguageGroupAndLanguage",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listItemsByLanguageGroupAndLanguage on Item with languageGroupId at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -7106,6 +7162,11 @@
     },
     {
       "code": "index-not-tenant-prefixed",
+      "subject": "listItemsByLanguageGroupAndLanguage",
+      "note": "partition key languageGroupId on Item is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
       "subject": "listItemsByLineageAndVersion",
       "note": "partition key lineageId on Item is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
@@ -7911,6 +7972,11 @@
     },
     {
       "code": "no-tenant-claim-rule",
+      "subject": "LocalizationRequest",
+      "note": "access rests on group rules, none compares tenantId with a token claim"
+    },
+    {
+      "code": "no-tenant-claim-rule",
       "subject": "MediaAsset",
       "note": "access rests on group rules, none compares tenantId with a token claim"
     },
@@ -8272,6 +8338,11 @@
     {
       "code": "tenantId-can-be-changed",
       "subject": "LexicalSteeringRule",
+      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
+    },
+    {
+      "code": "tenantId-can-be-changed",
+      "subject": "LocalizationRequest",
       "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
     },
     {

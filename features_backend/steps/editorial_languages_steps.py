@@ -168,7 +168,7 @@ def step_regression_policies(context):
 @when("the English regression story is checked as a saved Story")
 def step_check_regression(context):
     body = (FIXTURES / "english-story.md").read_text(encoding="utf-8")
-    item = {"id": "story-v1", "lineageId": "story", "versionNumber": 1, "section": "engineering", "bodyMarkus": body}
+    item = {"id": "story-v1", "lineageId": "story", "versionNumber": 1, "language": "en", "section": "engineering", "bodyMarkus": body}
     _check(context, body, story_language(item, editorial.settings_from(context.store)), "engineering")
     assert context.check_error is None, context.check_error
 

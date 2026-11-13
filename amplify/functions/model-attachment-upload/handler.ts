@@ -41,6 +41,8 @@ const ALLOWED_ROLES = new Set([
   "assignment_brief",
   "assignment_instructions",
   "item_body",
+  "localization_provenance",   // a translation version's provenance record (src/papyrus_content/localize/record.py)
+  "localize_stage",            // a translation run's stored stage results, on the source version (src/papyrus_content/localize/record.py)
   "item_excerpt",
   "message_body",
   "metadata",

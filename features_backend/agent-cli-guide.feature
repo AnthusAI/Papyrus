@@ -57,3 +57,21 @@ Feature: An agent can use the Papyrus CLI without guessing
     Then the command succeeded
     And the printed text contains "intentionally different"
     And the printed text contains "must not report it as an inconsistency"
+
+  Scenario: The help and the guide say how to set a Story's type
+    Stories created from the CLI can be given a type, and a Story that is not published yet can change it. The help and the guide
+    must say so, so an agent does not leave a Story untyped (which cannot be published) or send an editor to the newsroom for it.
+    When an agent runs "papyrus stories create --help"
+    Then the command succeeded
+    And the printed text contains "--type"
+    When an agent runs "papyrus guide write-story"
+    Then the printed text contains "stories create --type TYPE"
+    And the printed text contains "stories set-type --story LINEAGE --type article"
+
+  Scenario: The help and the guide name the citation key of a Reference link
+    A link from a Story to a Reference it cites carries the key the body cites it by only when the agent gives one.
+    When an agent runs "papyrus stories link-reference --help"
+    Then the command succeeded
+    And the printed text contains "--citation-key"
+    When an agent runs "papyrus guide tag-and-link"
+    Then the printed text contains "--citation-key KEY"

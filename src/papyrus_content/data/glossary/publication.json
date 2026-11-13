@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "bodyMarkus": "The publication's shared glossary: terms every language keeps exactly as the source writes them. Names of people, organisations and products need no entry; they stay unchanged unless a language's glossary gives an approved local form.",
+  "entries": [
+    {"term": "abliteration", "doNotTranslate": true, "note": "A model-editing technique; not 'ablation'. The 2026-11-12 translation spike rendered it as 消融 (ablation)."}
+  ]
+}

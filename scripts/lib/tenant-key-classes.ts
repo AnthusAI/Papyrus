@@ -41,6 +41,7 @@ export const PARTITION_FIELD_CLASSES: Record<string, FieldClass> = {
   headStageKey: tenantPrefixed("closed"),
   sectionStatus: tenantPrefixed("open"),
   tenantSlug: tenantPrefixed("open"),
+  languageGroupId: tenantPrefixed("open"),   // the primary Story's lineage id (src/papyrus_content/item_language.py)
 
   // corpus-prefixed: "<corpusId>" or "<corpusId>#..." (src/papyrus_content/reference_feed_keys.py and the knowledge import keys).
   // The corpus id itself: one partition per corpus, and a tenant's corpora are its own KnowledgeCorpus rows.
