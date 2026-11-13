@@ -48,6 +48,25 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", folded.lower()).strip("-")
 
 
+_SCRIPT_SLUG = re.compile(r"^[^\W_]+(?:-[^\W_]+)*$")
+
+
+def _folds_to_ascii(character: str) -> bool:
+    return unicodedata.category(character).startswith("M") or bool(unicodedata.normalize("NFKD", character).encode("ascii", "ignore"))
+
+
+def page_slug(name: str) -> str:
+    """The URL slug of a stored slug or a file stem: :func:`slugify`, except for a slug written in a script that has no ASCII form.
+
+    A name whose every character folds to ASCII (English, Spanish with its accents) gets :func:`slugify` exactly as before. A name that
+    is already a slug in another script, lowercase letters and digits joined by single hyphens with at least one character that does not
+    fold (Chinese characters), is kept as it is, in Unicode NFC: ``能泄露你住在哪里的声音`` stays, where ASCII folding would leave nothing."""
+    normalized = unicodedata.normalize("NFC", name)
+    if not all(_folds_to_ascii(character) for character in normalized) and normalized == normalized.lower() and _SCRIPT_SLUG.match(normalized):
+        return normalized
+    return slugify(name)
+
+
 def _discover_markdown(directory: Path) -> list[tuple[str, Path]]:
     """``(slug, path)`` for every page in ``directory``, sorted by file name.
 

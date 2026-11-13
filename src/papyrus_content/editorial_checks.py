@@ -230,7 +230,11 @@ def policy_identity(record: dict[str, Any]) -> tuple[str, str, str]:
 
 
 def settings_from(store: EditorialStore) -> dict[str, Any]:
-    stored = store.get_settings()
+    return settings_from_row(store.get_settings())
+
+
+def settings_from_row(stored: dict[str, Any] | None) -> dict[str, Any]:
+    """The settings of a stored ``EditorialCheckSettings`` row (or None) over the defaults: what every reader of the settings sees."""
     values = _json((stored or {}).get("settings"), {})
     settings = {**DEFAULT_SETTINGS, **values}
     settings["lanes"] = {**DEFAULT_SETTINGS["lanes"], **values.get("lanes", {})}

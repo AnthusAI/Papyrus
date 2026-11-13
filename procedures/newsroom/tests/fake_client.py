@@ -115,7 +115,7 @@ class FakeAuthoringClient:
     def list_published_item_summaries(self) -> list[dict[str, Any]]:
         self.calls.append(("list", "PublishedItemSummary", None))
         summary_fields = (
-            "id sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt versionPublishedAt versionPublishedBy metadata"
+            "id sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt versionPublishedAt versionPublishedBy metadata language languageGroupId"
         ).split()
         return [
             {name: copy.deepcopy(row.get(name)) for name in summary_fields}

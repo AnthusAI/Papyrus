@@ -51,6 +51,15 @@ def item_language(row: dict[str, Any]) -> str:
     return str(language)
 
 
+def item_language_group(row: dict[str, Any]) -> str:
+    """The language group a saved row belongs to (as stored, tenant-prefixed on a tenant backend). Refuses a row without one, naming the command that writes it."""
+    group = row.get(LANGUAGE_GROUP_FIELD)
+    if not group:
+        raise ItemLanguageMissing(f"Item {row.get('id') or row.get('lineageId') or '?'} has no language group yet. "
+                                  "Run `papyrus stories languages` (it writes each row's own lineage as its group on every row written before the field existed).")
+    return str(group)
+
+
 def bare_group_id(value: str | None, tenant_id: str | None) -> str | None:
     """A stored ``languageGroupId`` without its tenant prefix: the primary lineage id."""
     if not value:

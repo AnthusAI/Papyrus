@@ -170,11 +170,11 @@ ITEM_FIELDS = (
 )
 PUBLISHED_ITEM_FIELDS = (
     "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
-    "title headline deck body byline dateline publishedAt versionPublishedAt versionPublishedBy editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
+    "title headline deck body byline dateline publishedAt versionPublishedAt versionPublishedBy editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata language languageGroupId"
 )
 SUMMARY_PAGE_SIZE = 1000
 PUBLISHED_ITEM_SUMMARY_FIELDS = (
-    "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt versionPublishedAt versionPublishedBy metadata"
+    "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt versionPublishedAt versionPublishedBy metadata language languageGroupId"
 )
 MEDIA_ASSET_FIELDS = (
     "id itemId tenantId type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
