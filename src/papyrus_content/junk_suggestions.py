@@ -12,6 +12,7 @@ from typing import Any
 
 from papyrus_knowledge_query.concept_kinds import is_concept
 
+from .tenant_knowledge_keys import global_key
 from .reference_links import REFERENCE_LINK_FEED_KEY, decide
 from .suggestion_calibration import FEED_INDEX, _metadata
 
@@ -23,7 +24,7 @@ def find_junk_suggestions(client: Any) -> list[dict[str, Any]]:
     """Open vector suggestions to a node that is not a concept: ``{relationId, referenceLineageId, nodeKey, nodeKind, score}``."""
     nodes: dict[str, dict[str, Any] | None] = {}
     found: list[dict[str, Any]] = []
-    for row in client.list_by_index(FEED_INDEX, REFERENCE_LINK_FEED_KEY):
+    for row in client.list_by_index(FEED_INDEX, global_key(REFERENCE_LINK_FEED_KEY)):
         metadata = _metadata(row)
         if row.get("relationState") != "suggested" or row.get("objectKind") != "semanticNode" or not str(metadata.get("suggestedBy") or row.get("classifierId") or "").startswith("vector:"):
             continue

@@ -10,6 +10,7 @@ from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+from .tenant_knowledge_keys import REFERENCE_FEED_KEY, corpus_key_of, is_corpus_id, SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
 from .biblicus_runner import BiblicusFailureEnvelopeError, BiblicusRunner, BiblicusRunnerError
 from .env import load_amplify_outputs, storage_bucket_from_amplify_outputs
 from .corpus_storage_paths import corpus_storage_path_prefix
@@ -2719,7 +2720,7 @@ def _resolve_or_build_cited_reference_record(
         "curationStatusUpdatedAt": now,
         "curationStatusUpdatedBy": "papyrus-reference-url-text",
         "curationStatusReason": "auto-created from GROBID citation graph",
-        "newsroomFeedKey": "references",
+        "newsroomFeedKey": global_key(REFERENCE_FEED_KEY),
         "reviewedFeedKey": None,
         "metadata": json.dumps(metadata, sort_keys=True),
         "updatedAt": now,
@@ -2839,7 +2840,7 @@ def _author_semantic_node_record(*, author: dict[str, Any], now: str) -> dict[st
         "status": "accepted",
         "importRunId": None,
         "createdAt": now,
-        "newsroomFeedKey": "semanticNodes",
+        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
         "updatedAt": now,
     }
 
@@ -2898,7 +2899,7 @@ def _semantic_relation_record(
         "importedAt": now,
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": json.dumps(metadata, sort_keys=True),
     }
     return {key: value for key, value in relation.items() if value is not None}
@@ -3333,8 +3334,8 @@ def _iter_candidate_references(
 
 def _corpus_key_from_reference(reference: dict[str, Any]) -> str:
     corpus_id = str(reference.get("corpusId") or "")
-    if corpus_id.startswith("knowledge-corpus-"):
-        return corpus_id.removeprefix("knowledge-corpus-")
+    if is_corpus_id(corpus_id):
+        return corpus_key_of(corpus_id)
     return "unknown"
 
 

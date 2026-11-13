@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, Sequence
 
+from .tenant_knowledge_keys import SEMANTIC_NODE_FEED_KEY, global_key, tenant_unique_id
 from .auto_decision_gate import auto_decision_gate, load_approved_proof
 from .assignments import active_claim_held_by_different_assignee
 from .catalog import _record, semantic_relation_record
@@ -97,7 +98,7 @@ def site_decision_node_key(classifier: str, label: str) -> str:
 
 
 def site_decision_node_lineage_id(classifier: str, label: str) -> str:
-    return f"semantic-node-{safe_id(site_decision_node_key(classifier, label))}"
+    return tenant_unique_id(f"semantic-node-{safe_id(site_decision_node_key(classifier, label))}")
 
 
 def site_decision_node_record(classifier: str, label: str, *, now: str) -> dict[str, Any]:
@@ -110,7 +111,7 @@ def site_decision_node_record(classifier: str, label: str, *, now: str) -> dict[
         "versionCreatedAt": now, "versionCreatedBy": "papyrus-cyclotron", "changeReason": "siteDecision-seed",
         "contentHash": hash_short([key, SITE_DECISION_NODE_KIND, display, description]),
         "nodeKey": key, "nodeKind": SITE_DECISION_NODE_KIND, "displayName": display, "description": description,
-        "aliases": [label], "status": "accepted", "createdAt": now, "updatedAt": now, "newsroomFeedKey": "semanticNodes",
+        "aliases": [label], "status": "accepted", "createdAt": now, "updatedAt": now, "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
     })
 
 

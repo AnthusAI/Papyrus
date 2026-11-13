@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from .tenant_knowledge_keys import REFERENCE_REVIEWED_FEED_KEY, global_key
 from .batched_reads import chunks, current_relations_of_many
 from . import request_meter
 from .ideas.digest import parse_time, relations_of, relevance_of
@@ -41,9 +42,6 @@ DEFAULT_PRECISION = 0.9
 DEFAULT_LATENCY_QUANTILE = 0.9
 WILSON_Z = 1.96   # two-sided 95%
 POLICY_KEYS = ("enabled", "precision", "latencyQuantile")
-REVIEWED_FEED_KEY = "references#reviewed"
-
-
 def is_auto_actor(actor: Any) -> bool:
     return str(actor or "").strip() in (AUTO_ACTOR, RULE_ACTOR)
 
@@ -194,7 +192,7 @@ def accept_reference_automatically(client: Any, reference: Mapping[str, Any], *,
         "id": reference["id"], "curationStatus": "accepted", "curationStatusKey": f"{current['corpusId']}#accepted",
         "curationStatusUpdatedAt": now, "curationStatusUpdatedBy": actor, "curationStatusReason": reason,
         **vote_fields(RULE_ACTOR_KIND if by_rule else CYCLOTRON_CURATION_ACTOR_KIND),
-        "reviewedFeedKey": REVIEWED_FEED_KEY, "feedStateKey": feed_state_key({**current, "curationStatus": "accepted"}),   # a vote moves it to the rated feed; its prediction stays
+        "reviewedFeedKey": global_key(REFERENCE_REVIEWED_FEED_KEY), "feedStateKey": feed_state_key({**current, "curationStatus": "accepted"}),   # a vote moves it to the rated feed; its prediction stays
         **medium_key_patch(current, curationStatus="accepted"), **public_key_patch(current, curationStatus="accepted"), "updatedAt": now})
     return True
 

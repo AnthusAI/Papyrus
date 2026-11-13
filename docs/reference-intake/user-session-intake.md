@@ -45,6 +45,8 @@ currently carry tenant-level authorization, so shared-publication knowledge data
 is refused (it needs a separately reviewed tenancy design, not a caller-supplied
 publication or corpus field):
 
+**On a dedicated stack** (the default; every site today):
+
 - A token that carries `tenantId` or `custom:tenantId` is always refused.
 - A backend whose content-actions Lambda has `PAPYRUS_TENANT_ID` is refused,
   unless its environment has `PAPYRUS_SINGLE_PUBLICATION_BACKEND=true`. Only the
@@ -52,6 +54,12 @@ publication or corpus field):
   off, so the check fails closed. With no tenant set, nothing changes.
 - The issuer, subject and editor-group checks apply either way, so the flag never
   makes a reader an editor.
+
+**On a shared stack** (`PAPYRUS_TENANCY_MODE=shared`) the knowledge keys carry the tenant (see
+[multi-tenancy](../multi-tenancy.md#knowledge-keys-and-the-tenancy-mode)), so intake acts for the one tenant the
+caller's claims name (`papyrus_tenant_editor` and the other role claims). A call that names no tenant is refused. The
+corpus is `<tenant>.<corpus>`, a corpus of another tenant is refused, and neither the tenant-claim refusal nor the
+single-publication declaration applies.
 
 A site with its own backend and exactly one publication (a tenant id only so its
 sections and stories carry the site's tenant, as on Machines on Machines) sets the

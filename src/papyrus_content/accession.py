@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 import yaml
 
+from .tenant_knowledge_keys import REFERENCE_REVIEWED_FEED_KEY, global_key
 from .biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
 from .reference_feed_keys import feed_keys
 from .reference_reads import attachments_for_references
@@ -662,7 +663,7 @@ def new_reference_for_accession_replacement(
         "reviewedFeedKey": (
             None
             if (reference.get("curationStatus") or "pending") == "pending"
-            else "references#reviewed"
+            else global_key(REFERENCE_REVIEWED_FEED_KEY)
         ),
         "metadata": json.dumps(metadata, sort_keys=True),
         "updatedAt": now,

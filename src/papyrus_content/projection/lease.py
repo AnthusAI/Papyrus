@@ -3,7 +3,8 @@
 A deploy-time reprojection, a ``papyrus`` CLI projection, a publish-time item
 projection and a scheduled cloud run all write the same site bucket. Each takes
 a lease in a shared DynamoDB table before it writes and gives it back when it
-finishes. The lease is a single item keyed by the site bucket name:
+finishes. The lease is a single item keyed by the site bucket name (on a shared stack,
+``<bucket>#<tenant>``, so tenants in one bucket never queue behind each other):
 
 * acquire is a conditional put that succeeds when no item exists or the
   existing item has expired, so a crashed holder blocks nobody for longer than
@@ -30,6 +31,8 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
+
+from ..tenancy import TENANT_KEY_SEPARATOR, TenantError, is_shared_stack, validate_tenant_id
 
 TABLE_ENV = "PAPYRUS_PROJECTION_LOCK_TABLE"
 TABLE_PARAMETER = "/papyrus/projection-lock/table-name"
@@ -60,6 +63,21 @@ class ProjectionLeaseHeld(RuntimeError):
             f"To clear it now: aws dynamodb delete-item --table-name {table} "
             f"--key '{{\"publication\":{{\"S\":\"{key}\"}}}}'"
         )
+
+
+class ProjectionTenantRequired(TenantError):
+    """A projection on a shared stack that names no tenant: there is no lease key to take, and none is guessed."""
+
+
+def lease_key(bucket: str, tenant_id: str | None = None) -> str:
+    """The lease item key. A dedicated stack keeps the bucket name, with or without a tenant id; a shared stack takes ``<bucket>#<tenant>``."""
+    if not is_shared_stack():
+        return bucket
+    if not tenant_id:
+        raise ProjectionTenantRequired(
+            f"A projection of {bucket} on a shared stack needs a tenant; set PAPYRUS_TENANT_ID or pass --tenant."
+        )
+    return f"{bucket}{TENANT_KEY_SEPARATOR}{validate_tenant_id(tenant_id)}"
 
 
 class ProjectionLeaseLost(RuntimeError):
@@ -225,11 +243,13 @@ def lease_from_environment(
     environ: Mapping[str, str] | None,
     bucket: str,
     *,
+    tenant_id: str | None = None,
     ssm_client: Any = None,
     dynamodb: Any = None,
     **options: Any,
 ) -> ProjectionLease | None:
-    """The lease for the publication stored in ``bucket``, or None when no lock table is configured."""
+    """The lease for the publication stored in ``bucket`` (for ``tenant_id`` on a shared stack; see ``lease_key``), or None when no lock table is configured."""
+    key = lease_key(bucket, tenant_id)
     environment = os.environ if environ is None else environ
     name = _lock_table_name(environment, ssm_client)
     if not name:
@@ -245,4 +265,4 @@ def lease_from_environment(
     if wait:
         options.setdefault("wait_seconds", float(wait))
     options.setdefault("purpose", purpose)
-    return ProjectionLease(dynamodb.Table(name), bucket, table_name=name, **options)
+    return ProjectionLease(dynamodb.Table(name), key, table_name=name, **options)

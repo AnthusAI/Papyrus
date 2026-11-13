@@ -47,6 +47,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [code-map.md](code-map.md): where the main files live.
 - [how-a-publish-flows.md](how-a-publish-flows.md): what happens when an editor saves or publishes, and what to do when it looks wrong.
 - [multi-tenancy.md](multi-tenancy.md): several publications on one backend, with `--tenant`.
+- [plans/multi-tenant-architecture.md](plans/multi-tenant-architecture.md): design for many sites on one shared Papyrus (additive groundwork merged, isolation not built yet), with real tenant isolation (PPY-25ffa3).
 - [content-item-lifecycle.md](content-item-lifecycle.md): one content item and one lifecycle, with a configurable name (default Story).
 - [verification.md](verification.md): what to run before calling a change done, plus the reader browser smoke test.
 - [local-preview.md](local-preview.md): `npm run dev:preview` seeded newsroom Board with no AWS, plus headless screenshots for reviews.
@@ -72,6 +73,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [site-hosting.md](site-hosting.md): hosting runbook for Markus (S3 and CloudFront) and Pretext (Amplify) sites.
 - [site-stacks.md](site-stacks.md): ops UI and reader output as independent plugins.
 - [site-theme-packs.md](site-theme-packs.md): theme packs and ops chrome on `SiteBrand`.
+- [brand-pack.md](brand-pack.md): the shared-tier brand pack: roles, fonts from an allow-list, contrast and colour-safe checks, shared vectors.
 - [site-workspace.md](site-workspace.md): the local folder convention for a split reader and CMS.
 - [standard-site.md](standard-site.md): the approved design for the standard Papyrus site (design record, 2026-10-05; the packages it calls a spike are now published).
 - [pluggable-publishers.md](pluggable-publishers.md): Pretext and Markus publication front ends.
