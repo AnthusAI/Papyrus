@@ -12,6 +12,10 @@ A backend is either `dedicated` (one stack per site, the default and what every 
 
 On `shared`, `amplify/site-backend.ts` sets `PAPYRUS_TENANCY_MODE=shared` on every function. Code never reads the variable itself; it asks `papyrus_content.tenancy.is_shared_stack()` in Python or `isSharedStack()` in `lib/tenant-keys.ts`. `scripts/test-tenancy-mode.ts` fails if any other file names the variable. `rulesForTenancyMode` in `amplify/data/schema.ts` is the helper the shared stack will use to vary access rules by mode; nothing uses it yet. Tests: `npm run test:tenancy-mode`.
 
+## Tenant context in functions
+
+A function builds the tenant it acts for once, with `build_tenant_context(identity, explicit_tenant=None)` in `papyrus_content.tenant_context` or `buildTenantContext(identity, { explicitTenant })` in `amplify/functions/shared/tenant-context.ts`, from the AppSync event's `identity`. It returns `{tenantId, roles, mode, operator}`. A signed-in caller's roles are the ones whose claim (`papyrus_tenant_admin`, `_editor`, `_curator`, `_member`) holds the tenant; claims naming two tenants are refused. An IAM caller (`operator` true) names its tenant explicitly. On a shared stack a call that cannot name exactly one tenant is refused before anything is read; on a dedicated stack the tenant is the fixed `PAPYRUS_TENANT_ID` (none when unset, as today) and a claim or explicit tenant that differs is refused. Every refusal is one typed error (`TenantContextRefusal`) with a `reason` code. The tenant never comes from the request body. Both builders read `features_backend/fixtures/tenant-context/vectors.json`. No handler uses it yet. Tests: `npm run test:tenant-context`.
+
 ## What the tenant models carry
 
 Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows get a `tenantId`. The index values that would be global (`typeStatus`, `sectionStatus`, slug lookups) are prefixed with `<tenant>#`, media rows are listed, read, updated and deleted by their own tenant only (see [story pictures](#story-pictures-and-the-one-key-rule) for the key), and a tenant client lists, reads, updates and deletes only its own rows.
