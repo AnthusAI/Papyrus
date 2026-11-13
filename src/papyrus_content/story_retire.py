@@ -23,7 +23,7 @@ from .content_item_lifecycle import CONTENT_ITEM_STAGES, RETIRED_INTO_KEY, RETIR
 from .markus_export import item_output_path
 from .projection.model import ItemSummary, SiteIndex
 from .projection.retired import entry_for, registry_redirects
-from .projection.source import PublishedContentSource, summary_from_row
+from .projection.source import summary_from_row
 from .publishing import _parse_json_object, published_item_id_for, unpublish_item, utc_now_iso
 from .record_helpers import to_aws_json
 from .story_reporting import current_story_version, published_story_version, story_versions
@@ -51,6 +51,8 @@ class RetirePlan:
     served: list[ItemSummary] = field(default_factory=list)
     #: ``(request path, target path)`` of every redirect the projection will write, from the site's own projector (``public_redirects``).
     redirects: list[tuple[str, str]] = field(default_factory=list)
+    #: The target's published version (its head when it has none), as the projection summarises it: the only site item the redirect list needs.
+    target_summary: ItemSummary | None = None
     #: The ids of those versions, recorded in ``metadata.retiredInto.versionIds`` for the projection (the live one stops saying it was published).
     version_ids: list[str] = field(default_factory=list)
     unchanged: bool = False
@@ -91,12 +93,20 @@ def served_summaries(versions: list[dict[str, Any]], head: dict[str, Any], live:
     return [summary_from_row(row, item_id=head["id"]) for row in distinct.values()]
 
 
-def public_redirects(client, plan: RetirePlan, projector) -> list[tuple[str, str]]:
-    """The redirects the projection writes for this plan, as ``(request path, target path)``: the projection's own computation (``registry_redirects``)
-    over the site's projector, so each source is the public address readers use, not the Markdown source path the Story is stored under."""
+def public_redirects(plan: RetirePlan, projector) -> list[tuple[str, str]]:
+    """The redirects the projection will write for this plan, as ``(request path, target path)``: the projection's own computation (``registry_redirects``)
+    over the site's projector, so each source is the public address readers use, not the Markdown source path the Story is stored under.
+
+    It reads nothing from the site: the plan already holds the retiring Story's served summaries and the target's published version (from the
+    indexed lookup in ``check_target``), and the site index passed on holds only the target. The projection's exclusion of an address that is a
+    live page of another Story needs the whole site and is left to the projection, so the printed list is what will be redirected except any
+    address another live Story has since taken over."""
     entry = entry_for(projector, plan.head_id, plan.lineage_id, plan.target_lineage, plan.served, ())
-    items = tuple(summary for summary in PublishedContentSource(client).site_index().items if summary.lineage_id != plan.lineage_id)
-    site = SiteIndex(items=items, load_item=lambda item_id: PublishedContentSource(client).load_item(item_id))
+
+    def no_page_bodies(item_id: str):
+        raise LookupError(f"the retire dry run loads no pages ({item_id})")
+
+    site = SiteIndex(items=(plan.target_summary,), load_item=no_page_bodies)
     return sorted(registry_redirects(projector, site, {plan.lineage_id: entry}).items())
 
 
@@ -149,8 +159,10 @@ def plan_retire(client, story: str, redirect_to: str | None, *, undo: bool = Fal
         raise RetireRefused("--redirect-to is required (the story whose address replaces this one).")
     if not is_story_item_type(head.get("type")):
         raise RetireRefused(f"{lineage_id} is not a story (type {head.get('type')!r}).")
-    target, _target_row = check_target(client, lineage_id, redirect_to)
+    target, target_row = check_target(client, lineage_id, redirect_to)
     plan.target_lineage = target
+    published = client.get_record("PublishedItem", published_item_id_for(target))
+    plan.target_summary = summary_from_row(published, item_id=published.get("sourceItemId") or target_row["id"])
     plan.served = served_summaries(versions, head, live)
     plan.version_ids = [row["id"] for row in _served_rows(versions, head, live)]
     if info is None and live is None and not any(_was_published(row) for row in versions):
@@ -256,7 +268,7 @@ def stories_retire(flags: list[str]) -> None:
         from .projection.runtime import load_projector
 
         require_standard_site(options, _projection_environment(options))
-        plan.redirects = public_redirects(client, plan, load_projector(_projection_environment(options)))
+        plan.redirects = public_redirects(plan, load_projector(_projection_environment(options)))
     if apply and not plan.unchanged and plan.republish:
         from .publish_gate import REQUIRED, publish_approval
 

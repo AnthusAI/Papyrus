@@ -104,3 +104,19 @@ def test_the_redirects_a_retire_prints_are_the_redirects_the_projection_writes(t
     printed = redirect_rows(run_retire(site, monkeypatch, capsys, "--story", "a", "--redirect-to", "y", "--dry-run"))
     retire(site, "a", "y")
     assert printed == site.redirects.mapping
+
+
+def test_the_dry_run_lists_no_site_items_beyond_the_target(tmp_path: Path, monkeypatch, capsys) -> None:
+    from papyrus_content.projection import source
+
+    site = standard_site(tmp_path)
+    put(site, "a", "face-match", "article")
+    put(site, "y", "computer-picked", "article")
+    put(site, "z", "unrelated", "article")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("the dry run listed the whole site")
+
+    monkeypatch.setattr(source.PublishedContentSource, "site_index", forbidden)
+    printed = redirect_rows(run_retire(site, monkeypatch, capsys, "--story", "a", "--redirect-to", "y", "--dry-run"))
+    assert printed["/articles/face-match/"] == "/articles/computer-picked/"
