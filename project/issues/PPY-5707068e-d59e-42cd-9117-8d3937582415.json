@@ -3,17 +3,25 @@
   "title": "The monitoring router speaks Cyclotron's decision contract",
   "description": "Cyclotron step 3 (docs/general-decision-engine.md in AnthusAI/Cyclotron): the router calls /machine/bindings/{id}/operations and /commands/{job}, sends contractVersion cyclotron-decision/v1, reads bindingId and the decisions map, and sends feedback as caller/reviewer instead of editor {site, subject}. Papyrus's own config keeps publicationId. The curation host and routing selection client stay on cyclotron-publication/v1 until Cyclotron gives its curation routes a neutral form.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ab0076fa-842c-4268-a221-709259038326",
+      "author": "home",
+      "text": "Merged to develop in AnthusAI/Papyrus#878 (2026-10-30), CI green. Branch feature/PPY-570706-decision-contract. Verification: router pytest 196 passed; new feature monitoring-decision-contract (4 scenarios) and the monitoring features pass; the full suites fail only where untouched develop fails locally. Not deployed: the papyrus-monitoring router is older than main and develop carries unreleased router changes, so it ships with the next release through a change set a person reads. No develop to main PR from this work (release PR #876 is open).",
+      "created_at": "2026-10-30T10:35:12.253397Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-30T09:43:04.976274Z",
-  "updated_at": "2026-10-30T09:43:08.182744Z",
-  "closed_at": null,
+  "updated_at": "2026-10-30T10:35:12.419768Z",
+  "closed_at": "2026-10-30T10:35:12.419740Z",
   "agent": {
     "platform": "claude_code",
     "model": "Claude Opus 5.5",
