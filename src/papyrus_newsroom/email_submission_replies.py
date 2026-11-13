@@ -369,7 +369,6 @@ def enqueue_console_chat_for_email_reply(
     envelope: InboundMimeEnvelope,
     parent_message: dict[str, Any],
     parent_metadata: dict[str, Any],
-    failure_reason: str | None = None,
 ) -> dict[str, Any]:
     from papyrus_content.newsroom_commands import now_iso
 
@@ -386,8 +385,6 @@ def enqueue_console_chat_for_email_reply(
         f"Inbound reply message id: {reply_message_id}",
         f"Subject: {envelope.subject or parent_message.get('summary') or '(no subject)'}",
     ]
-    if failure_reason:
-        prompt_lines.append(f"Automatic attachment filing did not complete: {failure_reason}")
     if user_text:
         prompt_lines.extend(["", "Submitter wrote:", user_text])
     else:
@@ -462,7 +459,6 @@ def enqueue_console_chat_for_email_reply(
                 "channel": "email_reply",
                 "parentSubmissionMessageId": parent_message_id,
                 "replyMessageId": reply_message_id,
-                "failureReason": failure_reason,
             },
             sort_keys=True,
         ),
@@ -629,6 +625,16 @@ def _message_body_text(client: Any, message: dict[str, Any]) -> str:
         except Exception:
             pass
     return str(message.get("content") or "")
+
+
+def _report_intake_failure(client: Any, *, message_id: str, error_message: str, details: dict[str, Any]) -> dict[str, Any]:
+    """An attachment or PDF that cannot be filed fails the message and tells the sender why; no chat agent steps in to improvise."""
+    from papyrus_content.newsroom_commands import now_iso
+    from papyrus_newsroom.email_submissions import _mark_message_failed, _try_send_submission_feedback
+
+    _mark_message_failed(client, message_id=message_id, finished_at=now_iso(), error_message=error_message)
+    feedback = _try_send_submission_feedback(client, message_id=message_id, processing_error=error_message)
+    return {"ok": False, "messageId": message_id, "status": "failed", "error": error_message, "feedbackEmail": feedback, **details}
 
 
 def process_inbound_email_submission(
@@ -798,42 +804,12 @@ def process_inbound_email_submission(
                 "filing": filing,
             }
 
-        parent_message = client.get_record("Message", parent_message_id) or {}
-        parent_metadata = _message_metadata(parent_message)
-        chat = enqueue_console_chat_for_email_reply(
-            client,
-            reply_message_id=message_id,
-            parent_message_id=parent_message_id,
-            envelope=envelope,
-            parent_message=parent_message,
-            parent_metadata=parent_metadata,
-            failure_reason=str(filing.get("reason") or "attachment-filing-failed"),
-        )
-        metadata["attachmentOnlyFiling"] = filing
-        metadata["chatFallback"] = chat
-        finished_at = now_iso()
-        _mark_message_completed(
+        return _report_intake_failure(
             client,
             message_id=message_id,
-            finished_at=finished_at,
-            result={"mode": "chat_fallback", "parentSubmissionMessageId": parent_message_id, "filing": filing, "chat": chat},
+            error_message=f"The attachment could not be filed: {filing.get('reason') or 'attachment-filing-failed'}",
+            details={"filing": filing},
         )
-        client.graphql(
-            """
-            mutation UpdateEmailReplyMetadata($input: UpdateMessageInput!) {
-              updateMessage(input: $input) { id }
-            }
-            """,
-            {"input": {"id": message_id, "metadata": json.dumps(metadata, sort_keys=True), "updatedAt": finished_at}},
-        )
-        return {
-            "ok": True,
-            "messageId": message_id,
-            "status": "completed",
-            "mode": "chat_fallback",
-            "filing": filing,
-            "chat": chat,
-        }
 
     if classification == "pdf_only_intake" and envelope:
         started_at = now_iso()
@@ -900,44 +876,12 @@ def process_inbound_email_submission(
                 "feedbackEmail": feedback,
             }
 
-        chat = enqueue_console_chat_for_email_intake(
-            client,
-            submission_message_id=message_id,
-            envelope=envelope,
-            message=message,
-            metadata=metadata,
-            citations=[],
-            corpus_key=corpus_key,
-        )
-        metadata["pdfOnlyIntake"] = pdf_result
-        metadata["chatFallback"] = chat
-        finished_at = now_iso()
-        _mark_message_completed(
+        return _report_intake_failure(
             client,
             message_id=message_id,
-            finished_at=finished_at,
-            result={
-                "mode": "pdf_only_agent_fallback",
-                "pdfOnly": pdf_result,
-                "chat": chat,
-            },
+            error_message=f"The PDF could not be filed: {pdf_result.get('reason') or pdf_result.get('error') or 'pdf-only-intake-failed'}",
+            details={"pdfOnly": pdf_result},
         )
-        client.graphql(
-            """
-            mutation UpdateEmailPdfOnlyFallbackMetadata($input: UpdateMessageInput!) {
-              updateMessage(input: $input) { id }
-            }
-            """,
-            {"input": {"id": message_id, "metadata": json.dumps(metadata, sort_keys=True), "updatedAt": finished_at}},
-        )
-        return {
-            "ok": True,
-            "messageId": message_id,
-            "status": "completed",
-            "mode": "pdf_only_agent_fallback",
-            "pdfOnly": pdf_result,
-            "chat": chat,
-        }
 
     if classification == "conversational_reply" and parent_message_id and envelope:
         started_at = now_iso()

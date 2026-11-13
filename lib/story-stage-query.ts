@@ -10,6 +10,7 @@
  *   Machines on Machines). The fallback for a site whose backend has no head stage index, or whose index is not filled yet.
  */
 import { boardStoryFilter, storyItemTypeFilter, type ContentItemVersionRecord } from "./content-item-lifecycle";
+import { SCHEDULE_ROW_FIELDS } from "./story-schedule";
 import { collectFilteredPage, type FilteredPage } from "./story-stage-paging";
 
 export type StageIndexMode = "head" | "stage";
@@ -19,7 +20,7 @@ export type StageQueryFetch = (request: { query: string; field: string; variable
 
 export const STORY_STAGE_PAGE_LIMIT = 25;
 
-const STAGE_ROW_FIELDS = "id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating versionState";
+const STAGE_ROW_FIELDS = `id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating versionState ${SCHEDULE_ROW_FIELDS}`;
 
 const STAGE_INDEX = {
   head: { field: "listItemsByHeadStageAndUpdatedAt", key: "headStageKey", name: "ListItemsByHeadStageAndUpdatedAt" },

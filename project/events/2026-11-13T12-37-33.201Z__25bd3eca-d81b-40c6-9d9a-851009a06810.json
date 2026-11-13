@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "25bd3eca-d81b-40c6-9d9a-851009a06810",
+  "issue_id": "PPY-7f8b9ce2-ba8d-4efd-91fd-7ea323615b0e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T12:37:33.201Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Nothing private reaches any linked-data output",
+    "description": "As Ryan, I want every linked-data output built from a fixed field allowlist, so that private facts cannot leak by accident. Editor words on a link stay private (Ryan decision 1).\n\n```gherkin\nFeature: Public outputs are built from an allowlist\n  Scenario: The field set is pinned\n    Given the list of fields each linked-data output may carry\n    When a field is added to an output without being added to the list\n    Then the build fails\n\n  Scenario: Private facts stay private\n    Given a Reference with a star rating, a vote reason and an editor's note on a link\n    When every linked-data output of the site is built\n    Then none of them contains the rating, the reason, the note or an editor's account\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-25fae4b5-5fe6-4ebd-b3fe-34f9a1764edf",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}
