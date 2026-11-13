@@ -3,17 +3,25 @@
   "title": "Editorial policies and guidelines carry a language",
   "description": "As a publication editor, I want each language of a publication checked against its own rules and voice, so a Chinese or Spanish Story is never judged by English phrase rules.\n\nDesign: ~/Projects/papyrus-multilingual-humanus-design.md section 2.4. `EditorialPolicy` gains a required `language` (`*` for neutral); `compose_pack` selects the Story's language; the publication's voice is written once and applies everywhere; a language overlay (guideline kind `writing`, scope `language:<tag>`) holds only what is specific to the language, including the target locale's conventions of naming, register and press norms (Ryan 2026-11-13), expressed through the overlay and the per-language glossary and pack, never by omitting or altering a factual claim. Spanish and Chinese starter packs are built together.\n\n```gherkin\nFeature: Each language of a publication is checked against its own rules\n  Scenario: A Chinese Story is not checked against English phrase rules\n    Given a publication with English and Chinese policies\n    When a Chinese localization is checked\n    Then only Chinese and language-neutral policies run\n    And the check result names the language pack and its version\n\n  Scenario: The publication's voice applies in every language\n    Given the publication's writing guidelines set the audience and constraints\n    And a Chinese overlay adds register notes and words to avoid\n    When the guidelines are resolved for a Chinese Story in the Security section\n    Then the answer has the publication's constraints, the section's guidance and the Chinese notes\n    And says which layer each part came from\n\n  Scenario: The target locale's conventions come from the overlay and never change a fact\n    Given the Chinese overlay records the locale's convention for naming an organisation\n    When a Chinese localization is translated and checked\n    Then the convention is applied through the glossary and overlay\n    And every factual claim of the English Story is still present\n\n  Scenario: Turning on a language brings its starter rules\n    Given a site that enables Simplified Chinese\n    Then the Chinese typography, translationese and AI-tells starter policies exist for that site\n    And the Spanish starter policies exist when Spanish is enabled\n```",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3316e322-8b26-4c2a-acfe-96925358f967",
+      "author": "home",
+      "text": "Done in PR #1486 (https://github.com/AnthusAI/Papyrus/pull/1486), merged to develop as d82d1e6; not released. Humanus pinned 0.36.0. EditorialPolicy.language (tag or *), compose_pack per language (neutral, base, variant; section beats publication), required language on checkEditorial/suggest/try, story_language() single accessor (site primary language until Item.language), site languages setting {primary, enabled} with exact variants (MoM: es-419), deploy backfill of older policies' language, starter packs per enabled language, writing-guideline language overlays (guidelines ... --language). Pack fingerprint covers the Humanus language pack version. Router zip trimmed (RECORD, stubs, wheel tests) to 5,950,601 bytes under the 6,000,000 cap. Specs: features_backend/editorial-languages.feature, guidelines-language-overlay.feature; English findings byte-identical to Humanus 0.34. Open for PPY-843a7c: the 'every factual claim still present' scenario belongs to the translation procedure.",
+      "created_at": "2026-11-13T18:16:47.570638Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-13T14:31:17.596786Z",
-  "updated_at": "2026-11-13T14:31:17.596824Z",
-  "closed_at": null,
+  "updated_at": "2026-11-13T18:17:02.396623Z",
+  "closed_at": "2026-11-13T18:17:02.396283Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
