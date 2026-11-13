@@ -48,10 +48,17 @@
       "text": "Branch feature/PPY-0bb0fd-tenant-session-claims, PR https://github.com/AnthusAI/Papyrus/pull/1512. Verified (no AWS, no sandbox): features_backend/tenant-session-claims.feature, scripts/test-tenant-claims.ts, schema parity, tenant key inventory and isolation cases (regenerated), gsi ledger, tenancy-mode, lint, bootstrap stage 1975 resources. Follow-ups: PPY-9619f7 (site switcher and CLI), PPY-9d1316 (removal revokes membership and signs out). Needs Ryan: Cognito Essentials plan and trigger v2.",
       "created_at": "2026-11-13T23:36:58.861861Z",
       "comment_type": "default"
+    },
+    {
+      "id": "dcf74c16-e837-4da7-82bf-0adb044ef91d",
+      "author": "home",
+      "text": "Branch feature/PPY-0bb0fd-tenant-session-claims, PR https://github.com/AnthusAI/Papyrus/pull/1512. Verified (no AWS, no sandbox): features_backend/tenant-session-claims.feature, scripts/test-tenant-claims.ts, schema parity, tenant key inventory and isolation cases (regenerated), gsi ledger, tenancy-mode, lint, bootstrap stage 1975 resources. Follow-ups: PPY-9619f7 (site switcher and CLI), PPY-9d1316 (removal revokes membership and signs out). Needs Ryan: Cognito Essentials plan and trigger v2.",
+      "created_at": "2026-11-13T23:37:07.696647Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T18:46:18.460528Z",
-  "updated_at": "2026-11-13T23:36:58.862720Z",
+  "updated_at": "2026-11-13T23:37:07.696930Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
