@@ -1568,7 +1568,6 @@ def references_fetch_url_text(flags: list[str]) -> None:
     )
     print(f"references\tprocess-fetch-url-text\tcitation-graph-warnings\t{len(result.get('citationGraphWarnings') or [])}")
     print(f"references\tprocess-fetch-url-text\tfiltered\t{result.get('filteredCount', 0)}")
-    print(f"references\tprocess-fetch-url-text\tfallback-raw\t{result.get('fallbackRawCount', 0)}")
     print(f"references\tprocess-fetch-url-text\tchanges\t{result['changeCount']}")
     print(f"references\tprocess-fetch-url-text\tgraph-changes\t{result.get('graphChangeCount', 0)}")
     print(f"references\tprocess-fetch-url-text\treference-metadata-changes\t{result.get('referenceMetadataChangeCount', 0)}")
@@ -1604,12 +1603,6 @@ def references_fetch_url_text(flags: list[str]) -> None:
         print(
             f"reference-url-text\tfailed\t{failure.get('referenceId') or '-'}\t"
             f"{failure.get('sourceUri') or '-'}\t{failure.get('error') or 'unknown error'}"
-        )
-    for fallback in (result.get("filterFallbacks") or [])[:print_limit]:
-        print(
-            f"reference-url-text\tfilter-fallback\t{fallback.get('referenceId') or '-'}\t"
-            f"{fallback.get('sourceUri') or '-'}\t"
-            f"{json.dumps(fallback.get('reason') or {}, sort_keys=True)}"
         )
     needs_find_rows = [
         item for item in (result.get("items") or [])
@@ -1934,7 +1927,6 @@ def references_filter_extracted_text(flags: list[str]) -> None:
     print(f"references\tprocess-filter-text\tplanned\t{result['plannedCount']}")
     print(f"references\tprocess-filter-text\tplanned-attachments\t{result['plannedAttachmentCount']}")
     print(f"references\tprocess-filter-text\tfiltered\t{result['filteredCount']}")
-    print(f"references\tprocess-filter-text\tfallback-raw\t{result['fallbackRawCount']}")
     print(f"references\tprocess-filter-text\tskipped-missing-source\t{result['skippedMissingSourceCount']}")
     print(f"references\tprocess-filter-text\tchanges\t{result['changeCount']}")
     print(f"references\tprocess-filter-text\tfailures\t{len(result['failures'])}")
@@ -1966,11 +1958,6 @@ def references_filter_extracted_text(flags: list[str]) -> None:
         print(
             f"reference-filter-text\tfailed\t{failure.get('referenceId') or '-'}\t"
             f"{failure.get('sourceUri') or '-'}\t{failure.get('error') or 'unknown error'}"
-        )
-    for fallback in (result.get("filterFallbacks") or [])[:print_limit]:
-        print(
-            f"reference-filter-text\tfallback-raw\t{fallback.get('referenceId') or '-'}\t"
-            f"{fallback.get('sourceUri') or '-'}\t{json.dumps(fallback.get('reason') or {}, sort_keys=True)}"
         )
     if len(result["failures"]) > print_limit:
         print(
