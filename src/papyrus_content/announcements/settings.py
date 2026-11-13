@@ -27,6 +27,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "pause": {"paused": False, "reason": None, "detail": None, "by": None, "at": None},
     "rules": {"minStars": MAX_STARS, "storyTypes": list(STORY_TYPES), "sections": []},
     "budget": None,
+    # The day of the month the owner's X billing cycle starts (1 to 31): the budget is per cycle, so the spend counter needs to know where a cycle begins.
+    "billingCycleDay": None,
     "prices": DEFAULT_PRICES,
     "labelConfirmed": False,
 }
@@ -65,6 +67,9 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
     budget = proposed.get("budget")
     if budget is not None and (isinstance(budget, bool) or not isinstance(budget, (int, float)) or budget < 0):
         raise _fail("budget_invalid", "The budget is an amount of money, zero or more, per X billing cycle.")
+    cycle_day = proposed.get("billingCycleDay")
+    if cycle_day is not None and (isinstance(cycle_day, bool) or not isinstance(cycle_day, int) or not 1 <= cycle_day <= 31):
+        raise _fail("billing_cycle_day_invalid", "The billing cycle day is the day of the month (1 to 31) your X billing cycle starts.")
     prices = proposed.get("prices") or {}
     for name in ("createPost", "createPostWithUrl", "deletePost", "readPost"):
         price = prices.get(name)
@@ -84,6 +89,7 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
         "mode": mode,
         "rules": {"minStars": stars, "storyTypes": list(types), "sections": list(sections)},
         "budget": budget,
+        "billingCycleDay": cycle_day,
         "prices": {name: prices[name] for name in ("createPost", "createPostWithUrl", "deletePost", "readPost", "asOf")},
         "labelConfirmed": label,
     }

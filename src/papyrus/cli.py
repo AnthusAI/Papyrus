@@ -379,6 +379,12 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             return 0
         from papyrus_content.guidelines.cli import command as guidelines_command
         return guidelines_command(args[1:])
+    if group == "announcements":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.announcements.cli import command as announcements_command
+        return announcements_command(args[1:])
     if group == "figures":
         if len(args) == 1:
             print_group_help(group)

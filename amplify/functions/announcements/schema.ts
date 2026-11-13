@@ -23,6 +23,56 @@ export const announcementsSchemaDefinitions = {
     })
     .disableOperations(["subscriptions"])
     .authorization((allow) => [allow.group("admin").to(["read"])]),
+  /**
+   * One announcement of a Story on the publication's X account: the audit row (who, what, when, post id, cost, mode, outcome). id = "<accountId>#<storyLineageId>",
+   * created with a condition so a Story is announced once per account. The post text is in S3 (ModelAttachment role announcement_document). Editors and admins read;
+   * the announcement pipeline writes.
+   */
+  Announcement: a
+    .model({
+      id: a.id().required(),
+      accountId: a.string().required(),
+      accountHandle: a.string(),
+      storyLineageId: a.id().required(),
+      storyItemId: a.id(),
+      storyVersionNumber: a.integer(),
+      channel: a.string().required(),
+      state: a.string().required(),
+      blockedReason: a.string(),
+      mode: a.string().required(),
+      trigger: a.string(),
+      link: a.string(),
+      weight: a.integer(),
+      draftedBy: a.string(),
+      checks: a.json(),
+      postId: a.string(),
+      postedAt: a.datetime(),
+      cost: a.string(),
+      attempts: a.integer(),
+      round: a.integer(),
+      error: a.string(),
+      history: a.json(),
+      withdrawnBy: a.string(),
+      withdrawnAt: a.datetime(),
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime().required(),
+    })
+    .secondaryIndexes((index) => [
+      index("accountId").sortKeys(["createdAt"]).queryField("listAnnouncementsByAccountAndCreatedAt"),
+    ])
+    .disableOperations(["subscriptions"])
+    .authorization((allow) => [allow.groups(editors).to(["read"])]),
+  /** What an account spent on X in one billing cycle: id = "<accountId>#<cycle start date>", raised once for every charge Caducus records. */
+  AnnouncementSpend: a
+    .model({
+      id: a.id().required(),
+      accountId: a.string().required(),
+      cycleStart: a.string().required(),
+      total: a.string().required(),
+      updatedAt: a.datetime().required(),
+    })
+    .disableOperations(["subscriptions"])
+    .authorization((allow) => [allow.groups(editors).to(["read"])]),
   XConnection: a
     .model({
       id: a.id().required(),

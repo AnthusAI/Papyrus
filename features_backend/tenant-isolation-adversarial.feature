@@ -68,6 +68,13 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
 
     Examples: generated from the schema
       | model                    | operation                       | outcome                                                               |
+      | Announcement             | get                             | denied, or returns nothing of "beta"                                  |
+      | Announcement             | list                            | no row of "beta" is returned and pages are not short                  |
+      | Announcement             | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | Announcement             | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | Announcement             | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | Announcement             | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | Announcement             | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | AnnouncementSettings     | get                             | denied, or returns nothing of "beta"                                  |
       | AnnouncementSettings     | list                            | no row of "beta" is returned and pages are not short                  |
       | AnnouncementSettings     | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
@@ -75,6 +82,13 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | AnnouncementSettings     | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | AnnouncementSettings     | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | AnnouncementSettings     | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | get                             | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | list                            | no row of "beta" is returned and pages are not short                  |
+      | AnnouncementSpend        | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | AnnouncementSpend        | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | Assignment               | get                             | denied, or returns nothing of "beta"                                  |
       | Assignment               | list                            | no row of "beta" is returned and pages are not short                  |
       | Assignment               | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
@@ -526,6 +540,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
 
     Examples: generated from the schema
       | query                                                | outcome                          |
+      | listAnnouncementsByAccountAndCreatedAt               | returns nothing of "beta"        |
       | listAssignmentsByTypeStatusAndCreatedAt              | returns nothing of "beta"        |
       | listAssignmentsByQueueStatusAndPriority              | returns nothing of "beta"        |
       | listAssignmentsByStatusAndUpdatedAt                  | returns nothing of "beta"        |
