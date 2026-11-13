@@ -31,6 +31,10 @@ def drop_sub_tasks(client) -> None:
         client.delete_record("Item", row_id)
 
 
+#: Every live step but Rated, which is not applicable (no item) for a site that has not turned on publishRequiresRating.
+ITEMS_PER_STORY = len(checklist.template_steps()) - 1
+
+
 def lineage_of(client) -> str:
     return sorted({row["lineageId"] for row in client.tables["Item"].values()})[0]
 
@@ -53,7 +57,7 @@ def test_create_story_makes_a_checklist_with_the_template_version():
     client = FakeAuthoringClient()
     item = create_story(client, title="A Story", section_key=None, actor="AI")
     rows = checklist.read_steps(client, item["lineageId"])
-    assert len(rows) == len(checklist.template_steps()) and {row["templateVersion"] for row in rows} == {process.TEMPLATE_VERSION}
+    assert len(rows) == ITEMS_PER_STORY and {row["templateVersion"] for row in rows} == {process.TEMPLATE_VERSION}
     assert [row["stepOrder"] for row in rows] == sorted(row["stepOrder"] for row in rows)
     assert all(row["title"] and row["state"] == "open" for row in rows)
     assert any(row["command"].endswith("--state done --note <findings>") and item["lineageId"] in row["command"] for row in rows)
@@ -63,7 +67,7 @@ def test_the_editors_create_story_from_a_reference_makes_a_checklist_with_the_ch
     client = reference_backend()
     result = create_from_reference(client)
     rows = {row["stepKey"]: row for row in checklist.read_steps(client, result["lineageId"])}
-    assert len(rows) == len(checklist.template_steps())
+    assert len(rows) == ITEMS_PER_STORY
     assert rows["choose"]["state"] == "done" and rows["choose"]["actorKind"] == "system"   # created at copywriting
     assert rows["review_people"]["state"] == "open"
 
@@ -76,7 +80,7 @@ def test_an_assignment_that_mints_a_story_makes_its_checklist():
     version = build_new_content_item_version(lineage_id="minted-1", title="Minted", summary=None, section_key=None, stage="assignment", actor_label="AI", now="2026-11-07T10:00:00Z")
     client.create_record("Item", version)
     _checklist_for_new_content_item(client, version)
-    assert len(checklist.read_steps(client, "minted-1")) == len(checklist.template_steps())
+    assert len(checklist.read_steps(client, "minted-1")) == ITEMS_PER_STORY
     _checklist_for_new_content_item(client, None)   # an Assignment on an existing Story mints nothing
 
 
@@ -97,7 +101,7 @@ def test_the_console_save_of_a_story_makes_a_checklist_and_a_page_is_left_alone(
     item = create_story(client, title="Saved", section_key=None, actor="AI")
     drop_sub_tasks(client)
     handler.sync_story_checklist(client, item)
-    assert len(checklist.read_steps(client, item["lineageId"])) == len(checklist.template_steps())
+    assert len(checklist.read_steps(client, item["lineageId"])) == ITEMS_PER_STORY
     drop_sub_tasks(client)
     handler.sync_story_checklist(client, {**item, "type": "wiki_page"})
     assert checklist.read_steps(client, item["lineageId"]) == []
@@ -154,7 +158,7 @@ def test_the_summary_on_the_story_changes_with_each_step_and_moves_its_updated_t
     checklist.set_step(client, lineage, "outline", "skipped", actor=PERSON, reason="Later", now="2026-11-07T10:30:00Z")
     latest = latest_story_version(client, lineage)
     summary = json.loads(latest["metadata"])["checklist"]
-    assert (summary["total"], summary["skipped"], summary["open"]) == (len(checklist.template_steps()), 1, len(checklist.template_steps()) - 1)
+    assert (summary["total"], summary["skipped"], summary["open"]) == (ITEMS_PER_STORY, 1, ITEMS_PER_STORY - 1)
     assert "outline" not in summary["requiredOpen"] and "draft" in summary["requiredOpen"]
     assert latest["updatedAt"] == "2026-11-07T10:30:00Z"   # the board refreshes by this time
     assert checklist.progress_text(summary) == f"0/{summary['total']} · 1 skipped"
@@ -164,7 +168,7 @@ def test_a_new_version_keeps_the_summary_the_story_carries():
     client = FakeAuthoringClient()
     lineage = create_story(client, title="Versions", section_key=None, actor="AI")["lineageId"]
     save_story_version(client, lineage, front_matter_yaml='title: "Versions"', body_markus="Text.", actor="AI", change_reason="draft")
-    assert json.loads(latest_story_version(client, lineage)["metadata"])["checklist"]["total"] == len(checklist.template_steps())
+    assert json.loads(latest_story_version(client, lineage)["metadata"])["checklist"]["total"] == ITEMS_PER_STORY
 
 
 def test_the_summary_is_not_rewritten_when_nothing_changed():
@@ -206,7 +210,7 @@ def test_the_backfill_pages_every_stage_counts_and_writes_nothing_on_a_dry_run()
     original = client.iterate_newest_first
     client.iterate_newest_first = lambda index, key, *, page_size=50: pages.append((index, key, page_size)) or original(index, key, page_size=page_size)
     dry = checklist.backfill(client, apply=False, page_size=10)
-    assert client.write_calls() == [] and dry["stories"] == 2 and dry["created_items"] == 2 * len(checklist.template_steps())
+    assert client.write_calls() == [] and dry["stories"] == 2 and dry["created_items"] == 2 * ITEMS_PER_STORY
     assert {page[2] for page in pages} == {10} and {page[1] for page in pages} >= {"idea", "reporting", "published"}   # every stage, paged
     applied = checklist.backfill(client, apply=True)
     assert applied["created_items"] == dry["created_items"] and len(sub_tasks(client)) == dry["created_items"]

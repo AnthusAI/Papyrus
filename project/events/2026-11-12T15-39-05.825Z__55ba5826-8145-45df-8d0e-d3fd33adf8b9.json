@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "55ba5826-8145-45df-8d0e-d3fd33adf8b9",
+  "issue_id": "PPY-d50d270f-717f-438a-9c6e-d797c71ba078",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T15:39:05.825Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Spike: language group fields and index through the real publish path",
+    "description": "In a sandbox backend: add language and languageGroupId to Item with a languageGroupId+language index, create one Spanish localization lineage beside its English primary, publish both through publish_item and the projection, and measure invalidation paths per publish against maxInvalidationPaths. Confirm per-lineage approvals keyed by content hash keep the languages separate. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+    "labels": []
+  }
+}

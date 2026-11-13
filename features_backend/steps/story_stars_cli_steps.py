@@ -16,6 +16,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
         sys.path.insert(0, str(entry))
 
 import test_story_stars_cli as support  # noqa: E402
+
 from papyrus_content import story_commands  # noqa: E402
 
 DATES = {"a": "2026-11-07T10:00:00Z", "b": "2026-11-01T10:00:00Z", "c": "2026-11-06T10:00:00Z", "d": "2026-10-01T10:00:00Z"}

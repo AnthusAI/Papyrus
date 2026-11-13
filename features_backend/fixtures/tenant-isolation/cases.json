@@ -4,9 +4,9 @@
     "models": 63,
     "globalModels": 3,
     "modelCases": 435,
-    "indexCases": 185,
+    "indexCases": 186,
     "subscriptionCases": 9,
-    "operationCases": 123,
+    "operationCases": 124,
     "functionCases": 30,
     "surfaceCases": 9
   },
@@ -3860,6 +3860,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listItemsByScheduleStateAndScheduledPublishAt",
+      "kind": "index",
+      "subject": "listItemsByScheduleStateAndScheduledPublishAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listItemsByScheduleStateAndScheduledPublishAt on Item with scheduleState at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listItemTagsByItemAndTag",
       "kind": "index",
       "subject": "listItemTagsByItemAndTag",
@@ -5884,6 +5892,14 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "operation:scheduleItem",
+      "kind": "operation",
+      "subject": "scheduleItem",
+      "operation": "call-scope",
+      "probe": "alpha calls scheduleItem with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "operation:searchReferences",
       "kind": "operation",
       "subject": "searchReferences",
@@ -6545,6 +6561,11 @@
       "code": "index-not-tenant-prefixed",
       "subject": "listItemsByParentAndOrder",
       "note": "partition key parentLineageId on Item is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listItemsByScheduleStateAndScheduledPublishAt",
+      "note": "partition key scheduleState on Item is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",
