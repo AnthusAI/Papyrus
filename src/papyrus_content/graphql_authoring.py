@@ -124,6 +124,9 @@ REVIEW_REQUEST_FIELDS = (
     "id subject mode reason ask raisedBy raisedAt deadline state answer links history appliedIn updatedAt"
 )
 REVIEW_READ_MARK_FIELDS = "id requestId userKey readAt"
+LOCALIZATION_REQUEST_FIELDS = (
+    "id tenantId languageGroupId language sourceVersionId sourceVersionNumber sourceContentHash state requestedBy requestedAt runKey reason updatedAt"
+)
 STORY_VARIATION_FIELDS = (
     "id storyLineageId variationNumber status point headline deck bodyMarkus section connections origin basedOnVariationIds requestMessageId "
     "pointCheck runId model createdBy decidedBySub decidedByLabel decidedAt decisionReason createdAt updatedAt"
@@ -218,6 +221,7 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "Automation": {"field": "listAutomations", "fields": AUTOMATION_FIELDS},
     "ReviewRequest": {"field": "listReviewRequests", "fields": REVIEW_REQUEST_FIELDS},
     "ReviewReadMark": {"field": "listReviewReadMarks", "fields": REVIEW_READ_MARK_FIELDS},
+    "LocalizationRequest": {"field": "listLocalizationRequests", "fields": LOCALIZATION_REQUEST_FIELDS},
     "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
     "Announcement": {"field": "listAnnouncements", "fields": ANNOUNCEMENT_FIELDS},
     "AnnouncementSpend": {"field": "listAnnouncementSpends", "fields": ANNOUNCEMENT_SPEND_FIELDS},
