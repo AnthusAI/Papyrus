@@ -157,11 +157,14 @@ call. The other stories' windows are built once per check. Rules:
 - Runs do not cross those excluded spans, so a quotation in the middle of a paragraph splits it.
 - These findings are recomputed on every check, even when the story's own text is unchanged, because another story
   may have changed. They are stored in the version's `EditorialCheckRun` like any finding, so the editor and the
-  filing gate show them. A policy-pack file (`--pack`) has no corpus and reports none.
+  filing gate show them. A policy-pack file (`--pack`) has no corpus, so the check cannot run there (see `notRun` below).
 - A draft check runs this check through the same function a saved version uses (`with_cross_story_findings`), so the
   same passage gives the same finding either way. A draft file that revises an existing story names it with
   `--story LINEAGE` (lineage id or slug) so that story's own saved version is not counted as another story; without
   `--story` the draft is compared with every story on the site. A `--story` the site does not have is refused.
+- A draft check lists every check that did not run in `notRun` (always present, an empty list when all ran), each
+  entry `{"check", "reason"}`. With `--pack` it holds `{"check": "cross-story-boilerplate", "reason": "a policy file has
+  no stories to compare with"}`. The command prints JSON only, so the same list is in the printed output.
 - The function's role needs `listItemsByVersionStateAndUpdatedAt` (added to the least-privilege list); a site picks
   it up when its backend next deploys.
 

@@ -91,3 +91,15 @@ def test_a_store_without_stories_adds_no_boilerplate_finding():
         pass
 
     assert editorial.with_cross_story_findings({"id": "draft", "bodyMarkus": CLOSING}, [], editorial.Services(store=PolicyFile())) == []
+
+
+def test_draft_check_names_the_check_a_store_without_stories_could_not_run(monkeypatch):
+    monkeypatch.setattr(editorial, "check_editorial", lambda arguments, services: {"findings": []})
+
+    class PolicyFile:
+        pass
+
+    result = editorial.check_draft({"body": CLOSING}, editorial.Services(store=PolicyFile()))
+    assert result["notRun"] == [{"check": "cross-story-boilerplate", "reason": "a policy file has no stories to compare with"}]
+    with_stories = editorial.check_draft({"body": CLOSING}, editorial.Services(store=StoryStore(site_rows(CLOSING))))
+    assert with_stories["notRun"] == [] and with_stories["findings"]

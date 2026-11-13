@@ -168,7 +168,7 @@ def editorial_check(flags: list[str]) -> None:
     parser.add_argument("--story", default=None, help=STORY_HELP)
     parser.add_argument("--section", default=None, help="Desk key, for desk policies.")
     parser.add_argument("--language", default=None, help=LANGUAGE_HELP)
-    parser.add_argument("--pack", default=None, help="Use this Humanus policy-pack file instead of the site's policies. A policy file has no stories, so the cross-story boilerplate check does not run.")
+    parser.add_argument("--pack", default=None, help="Use this Humanus policy-pack file instead of the site's policies. A policy file has no stories, so the cross-story boilerplate check cannot run; the output's notRun list says so.")
     parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
     services = Services(store=_store(args.pack))

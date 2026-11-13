@@ -886,6 +886,16 @@ def step_cli_same_xstory(context, slug):
     assert printed and printed == stored, (printed, stored)
 
 
+@then('the printed check result lists "{check}" as not run because "{reason}"')
+def step_cli_not_run(context, check, reason):
+    assert context.cli_result["notRun"] == [{"check": check, "reason": reason}], context.cli_result.get("notRun")
+
+
+@then("the printed check result lists no checks as not run")
+def step_cli_none_not_run(context):
+    assert context.cli_result["notRun"] == [], context.cli_result.get("notRun")
+
+
 @then('the draft check is refused with "{text}"')
 def step_draft_check_refused(context, text):
     assert context.cli_error and text in context.cli_error, context.cli_error

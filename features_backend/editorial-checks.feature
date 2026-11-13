@@ -386,6 +386,16 @@ Feature: Editorial checks
     When an operator runs papyrus editorial check on a draft that ends with the standard closing and revises "this-article"
     Then the printed check result has no "cross-story-boilerplate" finding
 
+  Scenario: A draft check against a policy file says the boilerplate check did not run
+    Given a policy-pack file whose policy "no-hype" flags "game-changing"
+    When an operator runs papyrus editorial check on a draft saying "This is game-changing."
+    Then the printed check result lists "cross-story-boilerplate" as not run because "a policy file has no stories to compare with"
+
+  Scenario: A draft check against the site has nothing left unrun
+    Given the site has a current story "other-article" that ends with the standard closing
+    When an operator runs papyrus editorial check on a draft that ends with the standard closing
+    Then the printed check result lists no checks as not run
+
   Scenario: Naming a story the site does not have is refused
     Given the site has a current story "other-article" that ends with the standard closing
     When an operator runs papyrus editorial check on a draft that revises "no-such-story"

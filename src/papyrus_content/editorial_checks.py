@@ -597,6 +597,14 @@ def reusable_check_run(item: dict[str, Any], services: Services, *, pack_version
     return None
 
 
+NO_STORIES_NOT_RUN = {"check": "cross-story-boilerplate", "reason": "a policy file has no stories to compare with"}
+
+
+def has_story_corpus(services: Services) -> bool:
+    """Whether the store can list the site's stories, which the cross-story boilerplate check compares a text with."""
+    return getattr(services.store, "list_story_versions", None) is not None
+
+
 def with_cross_story_findings(item: dict[str, Any], findings: list[dict[str, Any]], services: Services, segments: list[dict[str, Any]] | None = None, *, story: str | None = None) -> list[dict[str, Any]]:
     """``findings`` with this text's cross-story boilerplate findings, computed now against the site's other stories.
 
@@ -608,10 +616,9 @@ def with_cross_story_findings(item: dict[str, Any], findings: list[dict[str, Any
     from . import cross_story_boilerplate as boilerplate
 
     kept = [finding for finding in findings if finding.get("policyId") != boilerplate.POLICY_ID]
-    list_versions = getattr(services.store, "list_story_versions", None)
-    if list_versions is None:
+    if not has_story_corpus(services):
         return kept
-    stories = boilerplate.latest_stories(list_versions())
+    stories = boilerplate.latest_stories(services.store.list_story_versions())
     lineage_id = item.get("lineageId") or item["id"]
     if story is not None:
         named = next((candidate for candidate in stories if story in (candidate.lineage_id, candidate.slug)), None)
@@ -633,7 +640,8 @@ def check_draft(arguments: dict[str, Any], services: Services, *, story: str | N
     """
     result = check_editorial(arguments, services)
     item = {"id": "draft", "bodyMarkus": arguments["body"]}
-    return {**result, "findings": with_cross_story_findings(item, result.get("findings") or [], services, result.get("segments"), story=story)}
+    findings = with_cross_story_findings(item, result.get("findings") or [], services, result.get("segments"), story=story)
+    return {**result, "findings": findings, "notRun": [] if has_story_corpus(services) else [NO_STORIES_NOT_RUN]}
 
 
 def _counts(findings: list[dict[str, Any]]) -> dict[str, int]:
