@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ade7f326-7ac2-4b5c-9dd7-452073a98ae9",
+      "author": "home",
+      "text": "Another occurrence reported 2026-11-13 by the Machines on Machines story session on CLI 5.109.0: a post publish waited about 14 minutes 'waiting for the site to be free' before its page was built, consistent with the lease holder draining and the loser waiting on the lease. Recorded here, not filed separately.",
+      "created_at": "2026-11-13T18:50:25.299452Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-13T15:42:42.742147Z",
-  "updated_at": "2026-11-13T15:42:42.742313Z",
+  "updated_at": "2026-11-13T18:50:25.299807Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

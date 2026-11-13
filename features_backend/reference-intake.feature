@@ -96,8 +96,8 @@ Feature: Publication-scoped pending Reference intake
     Given a catalog file of 31 sources and a signed-in editor session
     When the editor runs references create-from-catalog
     Then the command sent 31 requests of one source each, in catalog order
-    And it printed one recorded line per source, numbered "1/31" to "31/31"
-    And it ended with a summary of 31 confirmed and 0 not confirmed
+    And it printed one created line per source, numbered "1/31" to "31/31"
+    And it ended with a summary of 31 created, 0 already existed and 0 not confirmed
 
   Scenario: One source that times out is reported and the rest are still sent
     Given a catalog file of 3 sources and a signed-in editor session
@@ -105,11 +105,29 @@ Feature: Publication-scoped pending Reference intake
     When the editor runs references create-from-catalog
     Then the command sent 3 requests of one source each, in catalog order
     And it printed a failed line for "2/3" naming the source
-    And it ended with a summary of 2 confirmed and 1 not confirmed
+    And it ended with a summary of 2 created, 0 already existed and 1 not confirmed
     And the command failed telling the editor to run the same command again
 
-  Scenario: Running the same catalog again returns the same records
+  Scenario: Running the same catalog again returns the same records and says they already existed
     Given a catalog file of 3 sources and a signed-in editor session
     When the editor runs references create-from-catalog twice
-    Then both runs recorded the same Reference ids
+    Then both runs reported the same Reference ids, the second as already existing
+
+  Scenario: A source a person already accepted keeps its status and the output says it already existed
+    The run asks for pending, but a Reference that is already recorded is returned as it is. The output must
+    not read as if this run had created it as accepted.
+    Given a catalog file of 3 sources and a signed-in editor session
+    And the catalog source "paper-2" is already recorded and accepted
+    When the editor runs references create-from-catalog
+    Then it printed an already-existed line for "2/3" showing the status accepted and that pending was not applied
+    And the Reference "paper-2" is still accepted on the server
+    And it ended with a summary of 2 created, 1 already existed and 0 not confirmed
+
+  Scenario: A backend that does not say whether a Reference was created is reported as unknown
+    The CLI needs a backend at the same or later version. Without the field it does not guess.
+    Given a catalog file of 1 sources and a signed-in editor session
+    And the backend does not report whether a request created a Reference
+    When the editor runs references create-from-catalog
+    Then it printed that the outcome of "1/1" is unknown because the backend predates this CLI
+    And the summary counts 1 outcome as unknown
 

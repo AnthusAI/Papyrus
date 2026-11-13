@@ -68,9 +68,9 @@ _ENTRIES = dict([
   # ---- references: find -------------------------------------------------------------------------------------------
   _e("references list", "List References, newest first (no stars filter: use `references search` or `stories list --min-stars`).",
      "[--status pending|accepted|rejected] [--order newest] [--limit N] [--corpus-key KEY] [--backend local|cloud]", "both", "reads", "find"),
-  _e("references show", "Show one Reference by record id (`...-v1`) or lineage id.", "REFERENCE_ID [--backend local|cloud]", "both", "reads", "find"),
+  _e("references show", "Show one Reference by record id (`...-v1`) or lineage id.", "REFERENCE_ID | --reference REFERENCE_ID [--corpus-key KEY] [--backend local|cloud]", "both", "reads", "find"),
   _e("references text", "Read the captured text of a Reference (what the newsroom stored), a slice at a time, with its total length and whether the capture was cut.",
-     "--reference ID|LINEAGE [--offset N] [--limit N] [--json]  (default --limit 20000 characters; --limit 0 reads to the end; exits 1 when nothing was captured)", "both", "reads", "find"),
+     "REFERENCE_ID | --reference REFERENCE_ID [--offset N] [--limit N] [--json]  (default --limit 20000 characters; --limit 0 reads to the end; exits 1 when nothing was captured)", "both", "reads", "find"),
   _e("references search", "Find References by words and meaning, rated or not, accepted or not.",
      "\"plain words\" [--show unrated|rated|all] [--limit N] [--cursor CURSOR] [--site HOST] [--json]", "editor", "reads", "find"),
   _e("references register", "Register a Reference in the local pod only (a developer's Kanbus pod; it does not touch a site).",
@@ -119,8 +119,8 @@ _ENTRIES = dict([
   _e("stories versions", "List a Story's saved versions (`LINEAGE-vN`); `ops content publish --id` takes one of these.", "--story LINEAGE", "both", "reads", "write-story"),
   _e("stories pull", "Write a Story's stored body and front matter to two files, exactly what `stories save-version` takes back. Read only.",
      "--story LINEAGE --body-file FILE --front-matter-file FILE [--version N] [--json]", "both", "reads", "write-story"),
-  _e("stories create", "Create a Story. It always makes a new one (list first). There is no --type: set post or article in the newsroom editor.",
-     "--title TEXT [--section ID|SLUG|NAME] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--reference REFERENCE_ID ...] [--with-assignment] [--actor-label NAME] [--dry-run]",
+  _e("stories create", "Create a Story. It always makes a new one (list first). --type sets the Story type (post, article); without it the site's default applies.",
+     "--title TEXT [--type TYPE] [--section ID|SLUG|NAME] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--reference REFERENCE_ID ...] [--with-assignment] [--actor-label NAME] [--dry-run]",
      "both", _DRY, "write-story"),
   _e("stories save-version", "Save the body and front matter as a new version (never publishes).",
      "--story LINEAGE --body-file FILE --reason TEXT [--front-matter-file FILE] [--author-label NAME] [--stage STAGE | --advance] [--outline] [--no-check] "
@@ -131,7 +131,7 @@ _ENTRIES = dict([
   _e("stories set-slug", "Give a Story a real address (a placeholder draft-<section>-<hash> slug cannot be published).",
      "--story LINEAGE|ID --slug lowercase-words [--force] [--no-trigger] [--dry-run]", "both", _DRY, "write-story"),
   _e("stories retire", "Take a Story down and redirect every address it was served at (301) to another published Story; --undo restores it.",
-     "--story LINEAGE|ID (--redirect-to LINEAGE|ID | --undo) [--no-trigger] [--dry-run]  (refuses an unpublished, missing, same or retired target; nothing is deleted)",
+     "--story LINEAGE|ID (--redirect-to LINEAGE|ID | --undo) [--static-dir DIR] [--no-trigger] [--dry-run]  (prints each redirect as the public address readers use, from the site's projection.json in --static-dir; refuses an unpublished, missing, same or retired target; nothing is deleted)",
      "both", _DRY, "publish"),
   _e("stories schedule", "Publish a Story's newest version at a chosen time (once, by the normal publish path), or remove its schedule.",
      "--story LINEAGE (--at TIME | --clear) [--item VERSION_ID] [--json] [--dry-run]  (TIME: 2026-11-13 09:00 is read in the publication's time zone, 2026-11-13T09:00:00-05:00 or ...Z is exact; "
@@ -215,7 +215,7 @@ _ENTRIES = dict([
   _e("ops content update-live", "Re-project one Story, purge exactly its pages and the index pages that list it, check the live page.",
      "--story LINEAGE [--run] [--force-paths N] [--verify-seconds N] [--dry-run] [--json]  (without --run a wide purge stays a dry run)", "both", _DRY, "publish"),
   _e("ops content rerender", "Rebuild pages from the deployed hooks, then purge what was written (--no-invalidate: do not purge).",
-     "(--story LINEAGE | --indexes | --all) [--no-invalidate] [--dry-run] [--json]", "both", _DRY, "publish"),
+     "(--story LINEAGE | --indexes | --all) [--no-invalidate] [--status] [--dry-run] [--json]  (the job is followed to the end: exit 0 done, 1 failed, 5 still running or outcome not known, neither a failure; --status asks once where the job stands)", "both", _DRY, "publish"),
   _e("ops content refresh", "Purge exact pages at the edge now (both URL forms and the Markdown twin); never the whole site.",
      "(--path PATH [--path PATH ...] | --story LINEAGE | --indexes) [--run] [--force-paths N] [--dry-run] [--json]  (over 5 paths is a dry run until --run; over 25 refused without --force-paths N)",
      "both", _DRY, "publish"),
@@ -237,9 +237,9 @@ _ENTRIES = dict([
   _e("items link-references", "Operator backfill: link each Story to the References it used.", "--site KEY [--role consulted|cited|based_on] [--json] [--dry-run]", "operator", _DRY, ""),
   # ---- editorial --------------------------------------------------------------------------------------------------
   _e("editorial check-version", "Run the editorial rules on a saved version and store the result with it.", "--item LINEAGE-vN [--json]", "both", "writes", "checks"),
-  _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--section KEY] [--language TAG] [--pack FILE] [--output FILE]", "both", "reads", ""),
+  _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--story LINEAGE] [--section KEY] [--language TAG] [--pack FILE] [--output FILE]", "both", "reads", ""),
   _e("editorial check-drafts", "Check every unpublished draft version not yet checked.", "[--limit N] [--dry-run]", "operator", _DRY, ""),
-  _e("editorial suggest", "Rewrite options for one finding or a passage; never edits the draft.", "--draft FILE [--finding-id ID] [--select N] [--note TEXT] [--section KEY] [--language TAG]", "both", "reads", ""),
+  _e("editorial suggest", "Rewrite options for one finding or a passage; never edits the draft.", "--draft FILE [--finding-id ID] [--select N] [--note TEXT] [--story LINEAGE] [--section KEY] [--language TAG]", "both", "reads", ""),
   # ---- sign-in ----------------------------------------------------------------------------------------------------
   _e("login", "Sign in with Google in a browser; prints nothing secret.", "SITE_HOST", "editor", "writes", "orientation"),
   _e("logout", "Remove the local session and attempt provider revocation.", "[SITE_HOST]", "editor", "writes", "orientation"),

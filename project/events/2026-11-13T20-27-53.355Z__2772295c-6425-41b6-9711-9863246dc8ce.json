@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2772295c-6425-41b6-9711-9863246dc8ce",
+  "issue_id": "PPY-bb400126-300b-4a08-939a-ae8b951a7fe4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T20:27:53.355Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The core components' fixed words are interface strings, so a language edition shows none in English",
+    "description": "As a Spanish reader of a site that does not draw its own body, I want the skip link, the menu button and the Newer and Older paging links in Spanish. Today components.py writes 'Skip to main content', 'Menu', 'Newer', 'Older' and the page-actions labels in English. Move them into the interface strings (projection/standard/interface_strings.py) as engine keys core.skipLink, core.menu, core.newer, core.older and core.pageActions.*; a public language must have them (the completeness check names any missing).\n\nFeature: Core words in the page's language\n  Scenario: The paging links of a Spanish listing are in Spanish\n    Given a Spanish edition whose interface strings name core.newer and core.older\n    When its second listing page is rendered\n    Then the paging links read the Spanish words and no English word appears",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-75649552-f242-4ed9-9b93-d27bbb29e4ce",
+    "labels": []
+  }
+}

@@ -52,6 +52,40 @@ def renders(context, kind: str) -> None:
     context.page = render(BODIES[kind], context.citations_raw)
 
 
+PAPER = (
+    "title: Hello\ncitations:\n  lemley:\n    type: article\n    title: Foundation Models and Fair Use\n    container-title: SSRN\n"
+    "    author: [{family: Lemley, given: Mark}]\n    issued: {date-parts: [[2026]]}\n"
+)
+PAPER_DOI = "    DOI: 10.2139/ssrn.7682724\n"
+PAPER_URL = "    URL: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7682724\n"
+PAPER_IDENTIFIERS = {"both a DOI and a URL": PAPER_DOI + PAPER_URL, "only a DOI": PAPER_DOI, "only a URL": PAPER_URL}
+
+
+@when("the site renders a Story citing a paper that has {identifiers}")
+def renders_paper(context, identifiers: str) -> None:
+    site = MarkusSiteProjector(settings_from_mapping(context.citations_raw), read_static_files(None, None))
+    front = PAPER + PAPER_IDENTIFIERS[identifiers]
+    context.page = site._fragment(f"---\n{front}---\n" + "As shown [@lemley].\n\n::citations\n", 1)
+
+
+@then("the bibliography entry ends with the DOI, a space, and the link to the URL")
+def doi_then_url(context) -> None:
+    entry = item_of(context.page, "Foundation Models and Fair Use")
+    assert "ssrn.7682724 <a " in entry and "ssrn.7682724<a" not in entry, entry
+
+
+@then("the bibliography entry shows the DOI and no link")
+def doi_only(context) -> None:
+    entry = item_of(context.page, "Foundation Models and Fair Use")
+    assert entry.endswith("ssrn.7682724</li>") and "<a " not in entry, entry
+
+
+@then("the bibliography entry shows the link to the URL after a space and no DOI")
+def url_only(context) -> None:
+    entry = item_of(context.page, "Foundation Models and Fair Use")
+    assert ". <a " in entry and "doi.org" not in entry, entry
+
+
 @then("every citation number links to an entry on the same page")
 def numbers_resolve(context) -> None:
     targets = re.findall(r'<span class="citation"><a href="#([^"]+)">', context.page)

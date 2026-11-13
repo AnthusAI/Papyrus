@@ -42,3 +42,64 @@ def test_latest_stories_takes_the_highest_current_or_draft_version_per_lineage()
         {"id": "a-v3", "lineageId": "a", "versionNumber": 3, "versionState": "draft", "slug": "a", "bodyMarkus": "draft"},
     ]
     assert [(s.lineage_id, s.body) for s in latest_stories(rows)] == [("a", "draft")]
+
+
+# --- the draft check runs the boilerplate check a saved version gets -------------------------------------------------------
+
+import pytest
+from papyrus_content import editorial_checks as editorial
+
+
+class StoryStore:
+    """Only what ``with_cross_story_findings`` and ``check_draft`` ask a store for besides the Humanus lanes."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def list_story_versions(self):
+        return self.rows
+
+
+def site_rows(*bodies):
+    return [{"id": f"s{n}-v1", "lineageId": f"s{n}", "versionNumber": 1, "versionState": "current", "slug": f"slug-{n}", "bodyMarkus": body} for n, body in enumerate(bodies)]
+
+
+def test_draft_findings_are_the_findings_a_saved_version_gets():
+    services = editorial.Services(store=StoryStore(site_rows(f"Other intro.\n\n{CLOSING}.")))
+    body = f"Intro here.\n\n{CLOSING}."
+    saved = editorial.with_cross_story_findings({"id": "mine-v1", "lineageId": "mine", "bodyMarkus": body}, [], services)
+    draft = editorial.with_cross_story_findings({"id": "draft", "bodyMarkus": body}, [], services)
+    assert saved and saved == draft
+
+
+def test_a_named_story_is_left_out_by_lineage_id_or_slug():
+    services = editorial.Services(store=StoryStore(site_rows(CLOSING)))
+    item = {"id": "draft", "bodyMarkus": CLOSING}
+    assert editorial.with_cross_story_findings(item, [], services)
+    assert editorial.with_cross_story_findings(item, [], services, story="s0") == []
+    assert editorial.with_cross_story_findings(item, [], services, story="slug-0") == []
+
+
+def test_a_story_the_site_does_not_have_is_refused():
+    services = editorial.Services(store=StoryStore(site_rows(CLOSING)))
+    with pytest.raises(ValueError, match="No story found for 'nope'"):
+        editorial.with_cross_story_findings({"id": "draft", "bodyMarkus": CLOSING}, [], services, story="nope")
+
+
+def test_a_store_without_stories_adds_no_boilerplate_finding():
+    class PolicyFile:
+        pass
+
+    assert editorial.with_cross_story_findings({"id": "draft", "bodyMarkus": CLOSING}, [], editorial.Services(store=PolicyFile())) == []
+
+
+def test_draft_check_names_the_check_a_store_without_stories_could_not_run(monkeypatch):
+    monkeypatch.setattr(editorial, "check_editorial", lambda arguments, services: {"findings": []})
+
+    class PolicyFile:
+        pass
+
+    result = editorial.check_draft({"body": CLOSING}, editorial.Services(store=PolicyFile()))
+    assert result["notRun"] == [{"check": "cross-story-boilerplate", "reason": "a policy file has no stories to compare with"}]
+    with_stories = editorial.check_draft({"body": CLOSING}, editorial.Services(store=StoryStore(site_rows(CLOSING))))
+    assert with_stories["notRun"] == [] and with_stories["findings"]
