@@ -57,6 +57,8 @@ import { contentActions, setSiteFilesForContentActionsBundle } from "./functions
 import { knowledgeQuery } from "./functions/knowledge-query/resource";
 import { wireReferenceWordIndex } from "./functions/reference-word-index/wire";
 import { manageUserRole } from "./functions/manage-user-role/resource";
+import { tenantClaims } from "./functions/tenant-claims/resource";
+import { applyTenantSessionClaims } from "./auth/tenant-session-claims";
 import { modelAttachmentUpload } from "./functions/model-attachment-upload/resource";
 import { newsroomSummary } from "./functions/newsroom-summary/resource";
 import { derivePublicFormOrigins } from "./functions/public-forms/origins";
@@ -171,6 +173,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     slackEvents,
     slackDelivery,
     storage,
+    tenantClaims,
   });
 
   // Tenancy mode reaches every function; dedicated adds nothing, so an existing site's template is unchanged.
@@ -190,6 +193,14 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     backend.data.resources.graphqlApi.node.scope as Construct,
     Object.keys(backend.data.resources.tables),
     site.resolverWaveSize ?? DEFAULT_RESOLVER_WAVE_SIZE,
+  );
+
+  // Session role claims (PPY-0bb0fd): the pre-token trigger moves to event version 2 on the Essentials plan and reads the two
+  // tenancy models when the `tenancy` model group is deployed. Dark: no authorization rule reads the claims yet.
+  applyTenantSessionClaims(
+    backend.auth.resources.cfnResources.cfnUserPool,
+    backend.tenantClaims.resources.lambda,
+    "TenantMembership" in backend.data.resources.tables && "TenantSelection" in backend.data.resources.tables,
   );
 
   const requestedCognitoDomainPrefix = (authConfig.cognitoDomainPrefix ?? "").trim();
@@ -492,7 +503,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   if (backendTenantId !== "") {
     // editorialChecks too: it compares the site's editorial context (a tenant's publication) with its own tenant and refuses a mismatch,
     // so without the variable every check after a save-version on a tenant site fails with "Editorial context tenant mismatch" (PPY-49303f).
-    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda]) {
+    // tenantClaims: a dedicated stack's fixed tenant is the one its session claims name (PPY-0bb0fd).
+    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda, backend.tenantClaims.resources.lambda]) {
       (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
     }
   }

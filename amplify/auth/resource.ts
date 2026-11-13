@@ -1,5 +1,6 @@
 import { defineAuth, secret } from "@aws-amplify/backend";
 import { manageUserRole } from "../functions/manage-user-role/resource";
+import { tenantClaims } from "../functions/tenant-claims/resource";
 import { Stack } from "aws-cdk-lib";
 import { CfnUserPoolDomain, CfnUserPoolIdentityProvider } from "aws-cdk-lib/aws-cognito";
 import type { PapyrusAuthConfig } from "../site-backend-config";
@@ -88,6 +89,8 @@ export function defineSiteAuth(config: PapyrusAuthConfig, extraCallbackUrls: rea
           }),
     },
     groups: ["admin", "editor", "curator"],
+    // Wired as version 1 by Amplify; amplify/auth/tenant-session-claims.ts moves it to version 2 (access-token claims).
+    triggers: { preTokenGeneration: tenantClaims },
     access: (allow) => [
       allow.resource(manageUserRole).to(["addUserToGroup", "removeUserFromGroup", "listUsers", "listGroupsForUser"]),
     ],

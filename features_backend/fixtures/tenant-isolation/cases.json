@@ -1,13 +1,13 @@
 {
   "generatedBy": "scripts/generate-tenant-isolation-cases.ts",
   "summary": {
-    "models": 70,
+    "models": 71,
     "globalModels": 3,
-    "modelCases": 484,
+    "modelCases": 491,
     "indexCases": 218,
     "subscriptionCases": 9,
     "operationCases": 133,
-    "functionCases": 31,
+    "functionCases": 32,
     "surfaceCases": 9
   },
   "cases": [
@@ -3692,6 +3692,62 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "model:TenantSelection:get",
+      "kind": "model",
+      "subject": "TenantSelection",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s TenantSelection by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantSelection:list",
+      "kind": "model",
+      "subject": "TenantSelection",
+      "operation": "list",
+      "probe": "alpha lists TenantSelection rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:TenantSelection:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "TenantSelection",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists TenantSelection rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantSelection:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "TenantSelection",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a TenantSelection with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantSelection:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "TenantSelection",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own TenantSelection setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantSelection:update-foreign-row",
+      "kind": "model",
+      "subject": "TenantSelection",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s TenantSelection",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:TenantSelection:delete-foreign-row",
+      "kind": "model",
+      "subject": "TenantSelection",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s TenantSelection",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "model:UserIdentity:get",
       "kind": "model",
       "subject": "UserIdentity",
@@ -7012,6 +7068,14 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:tenant-claims",
+      "kind": "function",
+      "subject": "tenant-claims",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/tenant-claims (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
       "id": "surface:s3-presign-foreign-key",
       "kind": "surface",
       "subject": "s3-presign-foreign-key",
@@ -7988,6 +8052,11 @@
     {
       "code": "model-without-tenantId",
       "subject": "Tenant",
+      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
+    },
+    {
+      "code": "model-without-tenantId",
+      "subject": "TenantSelection",
       "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
     },
     {

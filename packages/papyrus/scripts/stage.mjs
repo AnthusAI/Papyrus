@@ -125,7 +125,7 @@ for (const rel of copied) rewriteFile(rel);
 import { createRequire } from "node:module";
 const requireTs = createRequire(path.join(process.env.PAPYRUS_TS_RESOLVE_FROM ?? repo, "noop.js"));
 const ts = requireTs("typescript");
-const HANDLER_SIDE = /^amplify\/(functions\/[^/]+\/handler\.ts|functions\/shared\/(?!python-bundle)|seed\/|.*\.test\.)/;
+const HANDLER_SIDE = /^amplify\/(functions\/(?:[^/]+\/handler|tenant-claims\/claims)\.ts|functions\/shared\/(?!python-bundle)|seed\/|.*\.test\.)/;
 const compileList = [...copied].filter((r) => /^amplify\/.*\.ts$/.test(r) && !HANDLER_SIDE.test(r));
 compileList.push("lib/define-site.ts");
 // The alexa plugin's speech and content modules read the Markus IR types and schema version.
