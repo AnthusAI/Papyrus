@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "251db331-0a9f-412f-b2c3-571e33982420",
+  "issue_id": "PPY-4b298158-a457-404d-8bec-a1b557f38033",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T19:21:48.826Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Register p.apyr.us on the Public Suffix List (D12, decided)",
+    "description": "Why: once p.apyr.us is on the Public Suffix List, browsers treat each <site>.p.apyr.us as its own site, so one tenant's pages cannot set or read cookies for another tenant's subdomain or for p.apyr.us itself. Ryan decided (D12, 2026-11-13) to register early: review takes weeks and the guidelines promise no review time. Off the critical path.\n\nSteps (checked against github.com/publicsuffix/list/wiki/Guidelines, read 2026-11-13; full text in docs/plans/multi-tenant-architecture.md, section Public Suffix List entry):\n1. Check that apyr.us has at least two years of registration left, and keep it renewed with more than a year left (the list removes entries whose registration runs low).\n2. Ryan, as the domain owner's authorised representative, opens a pull request to github.com/publicsuffix/list adding p.apyr.us in the PRIVATE section (between ===BEGIN PRIVATE DOMAINS=== and ===END PRIVATE DOMAINS===), placed by company name, under a header of the form '// Anthus : https://anth.us/' and '// Submitted by <name> <contact address at the owner>'. The address goes only in that pull request, never in this repository. The description says why (independent customer sites under one name), gives an example (alpha.p.apyr.us and beta.p.apyr.us are separate sites), the number of names (one), that it serves outside customers, and the registration commitment. make test passes before it is opened. An agent may draft the text; Ryan submits it.\n3. Add a TXT record _psl.p.apyr.us whose value is that pull request's URL, through the DNS template in Git applied by the pipeline (never by hand; if the apyr.us zone is not yet managed by a template, adopt it by import first). Keep the record for as long as the entry exists; a missing record can get the entry removed.\n4. Wait for review. The guidelines say small or private projects are likely to be declined, so the description must show the shared tier serves outside customers.\n\nDesign rule that follows (checked in review of every shared-tier change): nothing may rely on a cookie scoped to p.apyr.us. The newsroom on newsroom.p.apyr.us keeps its session on its own host; reader pages and the reader API keep state on the tenant's own host. Custom domains are unaffected.\n\nAcceptance: the PSL pull request is open with the _psl record resolving to its URL; then merged into the list. Not verified yet: the apyr.us registration term; whether the zone is already under a template in Git.\n\nCustomer-visible: nothing directly. Releasable on its own: yes (DNS template only). DynamoDB index: none. AppSync authorisation: unchanged.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+    "labels": [
+      "multi-tenant",
+      "standard-frontend-plan"
+    ]
+  }
+}
