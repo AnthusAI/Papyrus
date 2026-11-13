@@ -57,6 +57,8 @@ const ALLOWED_ROLES = new Set([
   "visual_negative",
   "image_record",
   "image_candidate_file",
+  "doctrine_document",
+  "doctrine_asset",
 ]);
 const ALLOWED_MEDIA_TYPES = new Set([
   "application/json",

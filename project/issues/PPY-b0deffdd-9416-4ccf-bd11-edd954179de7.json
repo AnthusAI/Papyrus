@@ -1,0 +1,25 @@
+{
+  "id": "PPY-b0deffdd-9416-4ccf-bd11-edd954179de7",
+  "title": "Finish the Cyclotron English-only sources audit and relabel what it finds",
+  "description": "Ryan's decision 10. Read-only audit so far found no English-only rule in Papyrus code, Cyclotron main (04ae377), site repositories, the live writing guidelines and editorial context of MoM, Anth.us, Threat Intelligence, Shipped and Pilobolus, or the titles of their 72 rejected References. English bias that exists: topic-model English stop words (knowledge_snapshot/topic_config.py:28), Cyclotron lexical retrieval en-v1 stop words and ascii-v1 tokenizer (decision_flywheel/lexical_retrieval.py:56-65), search tokenizer, YouTube transcript preference (references_transcripts.py:127), English fact checker.\n\nRemaining (operator lane, read-only first): (1) read curationStatusReason notes matching language words and detect the language of rejected References' titles on every site including Data Parade and p.apyr.us; (2) read each site Cyclotron's learned rubric for language criteria; (3) for each hit run papyrus references approve --reference ID --dry-run and have a person confirm; (4) retrain through the retrain trigger; (5) make the stop-word and tokenizer settings language-aware. Change list today: empty. No live Cyclotron data is changed until the list is confirmed. Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6f91de8e-2cce-4326-8ef1-852a50c36e5c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T16:22:19.356564Z",
+  "updated_at": "2026-11-12T16:22:19.511701Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

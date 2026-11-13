@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d9efa763-6c3a-40a5-9a80-e0282fd23309",
+  "issue_id": "PPY-38f01637-98c3-4b55-a64d-06715d51baa7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T18:41:38.479Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom schedule view by day, week and month (FullCalendar)",
+    "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md (\"The schedule view\", \"Calendar choice\").\n\nGoal: a newsroom page \"Schedule\" shows scheduled, overdue, blocked and recently published Stories by day, week (default) or month, in the publication's time zone, using FullCalendar 7 (`@fullcalendar/react`, MIT) loaded client-only on that page.\n\nShape: query the `scheduleState+scheduledPublishAt` index for the visible range and the existing `publishedAt` indexes for published items; FullCalendar `timeZone` set to the publication zone; `eventInteractive` so events are focusable; list view by default on screens too narrow for the week grid; border variables set flat; each event shows icon + word + title; a plain list of the same items under the calendar (keyboard and screen-reader path); drag to reschedule calls the reschedule operation (revalidated) with undo; empty state. Spike and evidence: spikes/scheduling-calendar/ and the plan's comparison table.\n\nDepends on: the scheduling backend story.\n\n```gherkin\nFeature: Editors see the publishing schedule\n  To spread Stories out, editors need to see what is going out when, and what\n  already went out, on one page.\n\n  Scenario: The week is the default view\n    Given three Stories are scheduled this week and two were published on Monday\n    When Sam opens the Schedule page\n    Then the current week is shown in New York time\n    And each Story shows an icon, its state in words and its title\n\n  Scenario: Switching to day and month\n    When Sam chooses \"Month\"\n    Then the whole month is shown with the same items\n    And choosing \"Day\" shows one day by the hour\n\n  Scenario: On a phone the week is a list\n    Given Sam opens the page on a screen 375 pixels wide\n    Then the week is shown as a list by day\n    And nothing scrolls sideways\n\n  Scenario: Keyboard and screen readers have a plain list\n    When Sam tabs past the calendar\n    Then a list of the same items follows, each with its time, title, state and a link to the Story\n\n  Scenario: Dragging a Story to a new time\n    Given a Story scheduled for Thursday 09:00\n    When Sam drags it to Friday 10:00\n    Then it is rescheduled for Friday 10:00\n    And a notice offers \"Undo\"\n\n  Scenario: Dragging into the past is refused\n    When Sam drags a Story to yesterday\n    Then it returns to its time with \"That time has passed.\"\n\n  Scenario: Nothing scheduled\n    Given nothing is scheduled this week\n    Then the page says \"Nothing is scheduled this week.\"\n    And offers \"Schedule a Story\"\n```\n\nOpen questions: none.\n",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+    "labels": []
+  }
+}

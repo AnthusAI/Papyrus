@@ -35,3 +35,12 @@ Feature: One correct path that fails clearly
     Given the news desk client source
     When it is read for how it loads a page of References
     Then each ordering and status filter reads its own index, an empty page is an empty page, and no table scan or older feed query takes over
+
+  Scenario: Inbound email settings belong to the site and a missing one stops the build by name
+    Given the inbound email settings
+    When a site turns inbound email on without one of them
+    Then the synth fails naming the missing setting, and no domain, corpus, hosted zone or site address of Papyrus's own is written into the engine
+  Scenario: The steering workspace refreshes References without a subscription
+    Given the steering workspace source
+    When it is read for how the References page stays current
+    Then it opens no realtime stream for References or relations, probes no subscription method, and shows no realtime status banner

@@ -1,0 +1,33 @@
+{
+  "id": "PPY-d50d270f-717f-438a-9c6e-d797c71ba078",
+  "title": "Spike: language group fields and index through the real publish path",
+  "description": "In a sandbox backend: add language and languageGroupId to Item with a languageGroupId+language index, create one Spanish localization lineage beside its English primary, publish both through publish_item and the projection, and measure invalidation paths per publish against maxInvalidationPaths. Confirm per-lineage approvals keyed by content hash keep the languages separate. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c2e1675f-b47c-4ea5-809c-51285b5f07b1",
+      "author": "home",
+      "text": "Design review of the publish path (no writes): option B fits publish_item and the projection per lineage, with three required changes: language in typeStatus/sectionStatus/headStageKey (else English listings include translations), localization ids {primaryLineageId}--{lang} instead of item_id_for(section, slug) (a Chinese localization sharing the English slug would collide), and a language filter on the seven itemBySlug call sites. The trigger must be a durable record written where announce_published runs (no stream on Item; announce_published swallows errors). Invalidation paths per publish move to Slice 1 (sandbox). Folded into PPY-9b4f52.",
+      "created_at": "2026-11-12T16:22:40.001158Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-12T15:39:05.824999Z",
+  "updated_at": "2026-11-12T16:22:40.115089Z",
+  "closed_at": "2026-11-12T16:22:40.115048Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

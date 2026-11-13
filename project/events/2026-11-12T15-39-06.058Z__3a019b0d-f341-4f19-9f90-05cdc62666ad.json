@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "3a019b0d-f341-4f19-9f90-05cdc62666ad",
+  "issue_id": "PPY-063c7130-5ba4-42da-97da-28d3d5b18037",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T15:39:06.058Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Spike: count published Stories and reads per site to size backfill",
+    "description": "From indexes (no table scans), count published Stories per site and their read counts and star ratings, so backfill order (traffic and stars) and its budget can be sized for MoM Spanish. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+    "labels": []
+  }
+}

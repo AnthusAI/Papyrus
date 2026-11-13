@@ -20,12 +20,12 @@ from typing import Any, Callable
 
 from papyrus_content.editorial_context import _check_tenant
 from papyrus_content.guidelines.document import digest
-from papyrus_content.guidelines.store import DocumentFiles, ModelAttachmentFiles
+from papyrus_content.guidelines.store import PENDING, DocumentFiles, ModelAttachmentFiles
 from papyrus_content.record_helpers import to_aws_json
 
 RECORD_ROLE = "image_record"
 PICTURE_ROLE = "image_candidate_file"
-ROUND_TYPE, CANDIDATE_TYPE, REQUEST_TYPE, SPEND_TYPE = "image-round", "image-candidate", "image-request", "image-spend"
+ROUND_TYPE, CANDIDATE_TYPE, REQUEST_TYPE, SPEND_TYPE, FILE_TYPE = "image-round", "image-candidate", "image-request", "image-spend", "image-file"
 INACTIVE = {"deleted", "aborted"}
 
 
@@ -64,7 +64,9 @@ class ItemCandidateStore:
         from papyrus_content.model_attachments import build_json_model_payload_attachment, semantic_version_key
 
         lineage = f"item-{slug}" + (f"-{key}" if key else "")
-        versions = [row for row in self._rows(slug, type_) if row.get("lineageId") == lineage]
+        rows = [row for row in self._rows(slug, type_) if row.get("lineageId") == lineage]
+        versions = [row for row in rows if row.get("versionState") != PENDING]
+        pending = next((row for row in rows if row.get("versionState") == PENDING), None)
         number = int(versions[0].get("versionNumber") or 0) + 1 if versions else 1
         stamp = self.now()
         row_id = f"{lineage}-v{number}"
@@ -81,8 +83,13 @@ class ItemCandidateStore:
         entry = build_json_model_payload_attachment({"ownerKind": "item", "ownerId": row_id, "ownerLineageId": row["lineageId"], "ownerVersionNumber": number,
                                                      "ownerVersionKey": semantic_version_key("item", row_id), "role": RECORD_ROLE, "sortKey": "record",
                                                      "filename": "record.json", "content": record, "now": stamp})
+        # The upload function only accepts a file for an Item that exists: the row goes first, pending (no read sees it; the same save again finishes it), then the file, then the row is current.
+        if pending is None:
+            self.client.create_record("Item", {**row, "versionState": PENDING})
+        else:
+            self.client.update_record("Item", {**{key: value for key, value in row.items() if key != "id"}, "id": pending["id"], "versionState": PENDING})
         self.files.put(entry["attachment"], entry["body"])
-        self.client.create_record("Item", row)
+        self.client.update_record("Item", {"id": row_id, "versionState": "current"})
         for earlier in versions:
             if earlier.get("versionState") == "current":
                 self.client.update_record("Item", {"id": earlier["id"], "versionState": "superseded"})
@@ -132,13 +139,20 @@ class ItemCandidateStore:
         return round(sum(float(json.loads(row["metadata"]).get("costUsd") or 0) if isinstance(row.get("metadata"), str) else float((row.get("metadata") or {}).get("costUsd") or 0)
                          for row in rows), 6)
 
-    def _picture_owner(self, path: str) -> str:
+    @staticmethod
+    def _picture_slug(path: str) -> str:
         return "image-file-" + hashlib.sha256(path.encode()).hexdigest()[:24]
+
+    def _picture_owner(self, path: str) -> str:
+        """The id of the catalog row a picture is attached to (the first version of its lineage)."""
+        return f"item-{self._picture_slug(path)}-v1"
 
     def put_file(self, path: str, data: bytes) -> None:
         from papyrus_content.model_attachments import build_model_payload_attachment
 
         owner = self._picture_owner(path)
+        if self._current(self._picture_slug(path), FILE_TYPE)[1] is None:   # the upload function only accepts a file for an Item that exists
+            self._save(self._picture_slug(path), FILE_TYPE, {"path": path}, {"path": path})
         entry = build_model_payload_attachment({"ownerKind": "item", "ownerId": owner, "role": PICTURE_ROLE, "sortKey": "file", "filename": path.rsplit("/", 1)[-1],
                                                 "content": bytes(data), "mediaType": _media_type_of(path), "now": self.now()})
         self.files.put(entry["attachment"], entry["body"])

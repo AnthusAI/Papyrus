@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "dbd4d2f2-a0e8-4830-b63c-d76ef9d07c6a",
+  "issue_id": "PPY-41967878-0bae-4763-8945-8e20396fff81",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T17:36:12.204Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document publication transparency on p.apyr.us",
+    "description": "Part of the publication transparency epic. Design: docs/plans/revision-history-and-published-dates.md (story 7).\n\nDepends on: 6. A p.apyr.us page: what readers see, how editors write public notes, what is noted automatically, and the setting.\n\n```gherkin\nFeature: The Papyrus site explains publication transparency\n  Scenario: A prospective publisher reads about it\n    When a visitor opens the transparency feature page on p.apyr.us\n    Then it shows an example revision history and explains how to turn it on\n```\n\nOpen question: none.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-156614d5-c0b6-4f4e-a1c5-70873a94b1b3",
+    "labels": []
+  }
+}
