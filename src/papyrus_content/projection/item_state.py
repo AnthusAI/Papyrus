@@ -47,6 +47,8 @@ def summary_to_json(summary: ItemSummary) -> dict:
         "frontMatter": summary.front_matter,
         "aliases": list(summary.aliases),
         "publishedAt": summary.published_at,
+        "language": summary.language,
+        "languageGroupId": summary.language_group_id,
     }
 
 
@@ -63,6 +65,10 @@ def summary_from_json(raw: dict) -> ItemSummary:
         front_matter=dict(raw["frontMatter"]),
         aliases=tuple(raw["aliases"]),
         published_at=raw["publishedAt"],
+        # A state written before summaries had a language has none; the standard projector reads it as a page of the primary edition, because no
+        # localization was projected before summaries carried their language (standard/projector.py, ``_tag_of``).
+        language=raw.get("language"),
+        language_group_id=raw.get("languageGroupId"),
     )
 
 

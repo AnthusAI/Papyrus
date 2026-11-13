@@ -201,10 +201,33 @@ def safe_key(value: str) -> str:
     return re.sub(r"^-+|-+$", "", re.sub(r"[^a-z0-9]+", "-", str(value).strip().lower())) or "topic"
 
 
-def slug_for(kind: str, section: str | None = None) -> str:
-    """editorial-doctrine-<word> for the publication, desk-doctrine-<sectionKey>-<word> for a section (mirrors lib/doctrine.ts)."""
+def slug_for(kind: str, section: str | None = None, language: str | None = None) -> str:
+    """editorial-doctrine-<word> for the publication, desk-doctrine-<sectionKey>-<word> for a section (mirrors lib/doctrine.ts).
+
+    A language overlay adds ``-lang-<tag>`` (``editorial-doctrine-writing-lang-zh-hans``, ``desk-doctrine-security-writing-lang-zh-hans``)."""
     word = kind_spec(kind).slug_word
-    return f"editorial-doctrine-{word}" if not section else f"desk-doctrine-{safe_key(section)}-{word}"
+    slug = f"editorial-doctrine-{word}" if not section else f"desk-doctrine-{safe_key(section)}-{word}"
+    return f"{slug}-lang-{safe_key(language)}" if language else slug
+
+
+def overlay_language(kind: str, language: str | None) -> str | None:
+    """The language of a language overlay, in Humanus's spelling (``zh-CN`` is ``zh-Hans``), or None for a document every language shares.
+
+    Only a kind that layers takes an overlay; a language Humanus has no pack for is refused, naming it."""
+    if not language:
+        return None
+    spec = kind_spec(kind)
+    if not spec.layers:
+        raise GuidelineError("invalid_input", f"{kind} guidelines have no language overlays.")
+    from papyrus_content.editorial_languages import ANY_LANGUAGE, canonical
+
+    try:
+        tag = canonical(language)
+    except LookupError as error:
+        raise GuidelineError("invalid_input", str(error)) from error
+    if tag == ANY_LANGUAGE:
+        raise GuidelineError("invalid_input", "A language overlay names one language; leave the language out for the guidelines every language shares.")
+    return tag
 
 
 def digest(document: Any) -> str:
@@ -236,6 +259,39 @@ def validate_document(kind: str, document: Any, scope: str = "publication") -> l
             if message:
                 problems.append(Problem(key, message))
     return problems
+
+
+GLOSSARY_KIND = "glossary"
+GLOSSARY_ENTRY_KEYS = ("term", "translations", "doNotTranslate", "note", "caseSensitive", "originalOnFirstMention")
+
+
+def translation_glossary_entries(value: Any) -> str | None:
+    """Why a translation glossary's ``entries`` cannot be saved, or None (src/papyrus_content/translation_glossary.py has the entry shape)."""
+    if not isinstance(value, list):
+        return "must be a list"
+    seen: set[str] = set()
+    for index, entry in enumerate(value, start=1):
+        if not isinstance(entry, dict) or not _is_text(entry.get("term")):
+            return f"entry {index} needs a term"
+        unknown = sorted(set(entry) - set(GLOSSARY_ENTRY_KEYS))
+        if unknown:
+            return f"entry {index} has an unknown key {unknown[0]!r}; use {', '.join(GLOSSARY_ENTRY_KEYS)}"
+        if entry["term"] in seen:
+            return f"the term {entry['term']!r} appears twice"
+        seen.add(entry["term"])
+        translations, keep = entry.get("translations"), entry.get("doNotTranslate")
+        if keep not in (None, True):
+            return f"entry {index}: doNotTranslate is true or absent"
+        if (translations is None) == (keep is None):
+            return f"entry {index} ({entry['term']}) needs either translations or doNotTranslate: true"
+        if translations is not None and (not isinstance(translations, list) or not translations or not all(_is_text(t) for t in translations)):
+            return f"entry {index}: translations must be a list of approved renderings, the preferred first"
+        for flag in ("caseSensitive", "originalOnFirstMention"):
+            if flag in entry and not isinstance(entry[flag], bool):
+                return f"entry {index}: {flag} must be true or false"
+        if "note" in entry and not _is_text(entry["note"]):
+            return f"entry {index}: note must be a non-empty sentence"
+    return None
 
 
 # --- the kinds ---------------------------------------------------------------------------------------------------------------------------------------
@@ -294,3 +350,5 @@ register_kind(KindSpec("image", "visual-style", 2, validate=_validate_image, lay
 # A site's design system for figures (PPY-74ef89): the mapping, tokens, worked examples and figure settings as text, its fonts as attached files. The site's alone: it
 # has no section layer, and its own module (figures/records.py) validates it and reads it back.
 register_kind(KindSpec("design-system", "design-system", 1, validate=_validate_design_system, layers=False))
+# The translation glossary and do-not-translate list (PPY-795b4b): entries by term, laid over per language (src/papyrus_content/translation_glossary.py).
+register_kind(KindSpec(GLOSSARY_KIND, GLOSSARY_KIND, 1, {"entries": Field(translation_glossary_entries, GLOSSARY, lockable=True), "bodyMarkus": Field(markus, PROSE)}))

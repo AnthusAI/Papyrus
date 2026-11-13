@@ -84,6 +84,8 @@ from .alexa_pages import ALEXA_PLUGIN
 from .newsletter_pages import NEWSLETTER_PLUGIN
 from .notifications_pages import NOTIFICATIONS_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
+from .editions import LanguageView, edition_nav_hrefs, edition_settings, language_groups, language_name
+from .interface_strings import LANGUAGE_NAME_KEY, InterfaceStringsIncomplete, missing_keys, read_interface_strings, required_keys
 
 
 def copy_directories(static_directory: Path | None, names, files: dict[str, bytes]) -> list[str]:
@@ -142,6 +144,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
     ) -> None:
         files = dict(static_files)
         static_directory = kwargs.pop("static_directory", None)
+        #: ``{tag: {key: text}}`` from the site's ``strings/<tag>.json`` (interface_strings.py): the words of the chrome in each language.
+        self._interface_strings: Mapping[str, Mapping[str, str]] = kwargs.pop("interface_strings", None) or {}
+        self._given_renditions = kwargs.get("renditions")
+        self._editions = {}
+        self._own_sites = []
+        self._view_cache = None
         if "css/markus-vendor.css" not in settings.chrome.stylesheets:
             files.pop("css/markus-vendor.css", None)  # a site that does not link Markus's stylesheet does not publish it
         self._passthrough = frozenset(copy_directories(static_directory, standard.static_copy, files))
@@ -188,7 +196,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     raise ValueError(f"islands.prerender names {path!r}, which is not a file of the static directory")
         super().__init__(settings, files, **kwargs)
         if standard.base_path and self._renditions is not None:
-            self._renditions = PrefixedRenditionStore(self._renditions, standard.base_path)   # renditions live under urls.basePath, like pages
+            self._renditions = PrefixedRenditionStore(self._renditions, standard.base_path)   # never the language prefix: every language shows the same pictures   # renditions live under urls.basePath, like pages
         self._static_directory = static_directory
         self._hook_sites: list[HookSite] = []
         self._pipeline_cache = None
@@ -215,7 +223,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         #: ``key -> (page id, item ids it lists)`` of the generated listing pages, kept beside the plan (``listing_keys_of``, ``index_page_keys``).
         self._plan_meta: dict[str, tuple[str, frozenset[str]]] = {}
         self._shared_fingerprint = digest_of(
-            [dataclasses.asdict(standard), self.environment.fingerprint(), repr(settings.chrome), hooks.fingerprint, self.version, prerendered_bytes.decode("utf-8", "replace")]
+            [dataclasses.asdict(standard), self.environment.fingerprint(), repr(settings.chrome), hooks.fingerprint, self.version, prerendered_bytes.decode("utf-8", "replace"),
+             *([sorted((tag, sorted(strings.items())) for tag, strings in self._interface_strings.items())] if self._interface_strings else [])]
         )
 
     @property
@@ -241,7 +250,235 @@ class StandardMarkusProjector(MarkusSiteProjector):
             hooks=load_hooks(static_directory, standard.hooks_path),
             environment=resolve_environment(standard, environ),
             renditions=renditions,
+            interface_strings=read_interface_strings(static_directory),
         )
+
+    # ------------------------------------------------------------------ language editions (editions.py, docs/multilingual-serving.md)
+
+    _languages_reader: Callable[[], Any] | None = None
+    _serving: Any = None
+    #: Set on every edition once the site's languages are known: the language this projector renders (the primary's on the site's own projector).
+    _edition_tag: str | None = None
+    #: The language view of the site version being rendered, set by the site's projector on itself and on each edition before it renders.
+    _view: LanguageView | None = None
+
+    def use_languages(self, reader: Callable[[], Any]) -> None:
+        """Where the site's languages come from (``PublishedContentSource.serving_languages``): read once, when a projection first needs them. A projector
+        without a reader (a site whose content is a directory) has one language, ``site.language``, and renders every item."""
+        self._languages_reader = reader
+        self._serving = None
+        self._editions: dict[str, "StandardMarkusProjector"] = {}
+        self._own_sites: list[tuple[object, str, SiteIndex]] = []
+        self._view_cache: tuple[object, LanguageView] | None = None
+
+    def _serving_languages(self):
+        if self._languages_reader is None:
+            return None
+        if self._serving is None:
+            serving = self._languages_reader()
+            self._editions = self._build_editions(serving)
+            self._edition_tag = serving.primary
+            self._serving = serving
+        return self._serving
+
+    def _build_editions(self, serving) -> dict[str, "StandardMarkusProjector"]:
+        """One projector per public language other than the primary. Refuses a site that serves several languages with a ``site.language`` other than
+        its primary language, a prefix that is already a path of the site, and a public language whose interface strings are incomplete."""
+        others = [tag for tag in serving.public if tag != serving.primary]
+        if not others:
+            return {}
+        if self.standard.identity.language != serving.primary:
+            raise ValueError(f"projection.json site.language is {self.standard.identity.language!r} but the site's primary language is {serving.primary!r} "
+                             "(the editorial check settings' languages.primary): they name the same language; make them the same.")
+        taken = {section.base.split("/")[0] for section in self.standard.sections if section.base} | {custom.path.split("/")[0] for custom in self.standard.pages if custom.path}
+        taken |= set(self.standard.static_copy) | {"assets", "css", "_data", "_plugins", self.standard.listings.tag_base, self.standard.listings.flat_path}
+        primary_strings = self._interface_strings.get(serving.primary, {})
+        problems = [f"{serving.primary}: {LANGUAGE_NAME_KEY}"] if not (primary_strings.get(LANGUAGE_NAME_KEY) or "").strip() else []
+        required = required_keys(self.standard, primary_strings, edition_nav_hrefs(self.standard))
+        for tag in others:
+            prefix = serving.prefix(tag)
+            if prefix in taken:
+                raise ValueError(f"languages.prefixes: /{prefix}/ for {tag} is already a path of this site; choose another prefix.")
+            missing = missing_keys(self._interface_strings.get(tag, {}), required)
+            if missing:
+                problems.append(f"{tag}: {', '.join(missing)}")
+        if problems:
+            raise InterfaceStringsIncomplete(
+                "A public language needs its interface strings complete (strings/<tag>.json in the site's static directory): " + "; ".join(problems)
+                + ". Complete them, or leave the language out of languages.public until they are.")
+        editions: dict[str, StandardMarkusProjector] = {}
+        for tag in others:
+            child = StandardMarkusProjector(
+                dataclasses.replace(self._settings, plugins=(), public_data=None),
+                {},
+                edition_settings(self.standard, tag, serving.prefix(tag), self._interface_strings[tag]),
+                hooks=self.hooks,
+                environment=self.environment,
+                renditions=self._given_renditions,
+                interface_strings=self._interface_strings,
+                static_directory=self._static_directory,
+            )
+            child.version = self.version
+            child._edition_tag = tag
+            child._is_edition = True
+            editions[tag] = child
+        return editions
+
+    def _tag_of(self, summary: ItemSummary) -> str | None:
+        """The language edition a summary belongs to. A summary read back from projection state written before summaries had a language is a page of
+        the primary edition: no localization was projected before they did (item_state.py)."""
+        return summary.language or self._serving.primary
+
+    def _edition_for(self, summary: ItemSummary) -> "StandardMarkusProjector | None":
+        """The projector that renders ``summary``: itself on a one-language site; the edition of its language; None for a language that is not public."""
+        serving = self._serving_languages()
+        if serving is None:
+            return self
+        tag = self._tag_of(summary)
+        if tag == serving.primary:
+            return self
+        return self._editions.get(tag)
+
+    def _own_site(self, site: SiteIndex, tag: str) -> SiteIndex:
+        """The site as one edition sees it: the published items in its language only. Kept per site version, so each edition's caches hold."""
+        for items, found_tag, found in self._own_sites:
+            if items is site.items and found_tag == tag:
+                return found
+        own = dataclasses.replace(site, items=tuple(summary for summary in site.items if self._tag_of(summary) == tag))
+        self._own_sites.append((site.items, tag, own))
+        del self._own_sites[: -2 * (len(self._editions) + 1)]
+        return own
+
+    def _editions_of(self, site: SiteIndex) -> list[tuple["StandardMarkusProjector", SiteIndex]]:
+        """Every edition with the site as it sees it, the primary first; on a one-language site, this projector and the site unchanged."""
+        serving = self._serving_languages()
+        if serving is None:
+            return [(self, site)]
+        view = self._language_view(site)
+        found = [(self, self._own_site(site, serving.primary))]
+        found += [(edition, self._own_site(site, tag)) for tag, edition in self._editions.items()]
+        for edition, _own in found:
+            edition._view = view
+        self._full_site = site
+        return found
+
+    def _language_view(self, site: SiteIndex) -> LanguageView:
+        if self._view_cache is not None and self._view_cache[0] is site.items:
+            return self._view_cache[1]
+        serving = self._serving
+        editions = {serving.primary: self, **self._editions}
+        bases: dict[str, list[str]] = {}
+        for tag, edition in editions.items():
+            own = self._own_site(site, tag)
+            listed = [entry for entry in edition._entries(own) if entry.listed]
+            for base in ((("",) if listed or edition is self else ()) + tuple(base for base, _label, _section, _members in edition._listing_groups(listed))):
+                bases.setdefault(base, []).append(tag)
+
+        def item_url(tag: str, summary: ItemSummary) -> str | None:
+            entry = editions[tag]._entry(summary)
+            return entry.url if entry is not None and entry.key else None
+
+        view = LanguageView(
+            primary=serving.primary,
+            public=tuple(editions) if len(editions) > 1 else (serving.primary,),
+            names={tag: language_name(self._interface_strings, tag) for tag in editions},
+            groups=language_groups(site.items, tuple(editions), serving.primary),
+            item_url=item_url,
+            listing_bases={base: tuple(tags) for base, tags in bases.items()},
+            roots={tag: edition.policy.root for tag, edition in editions.items()},
+        )
+        self._view_cache = (site.items, view)
+        return view
+
+    # The engine's interface (``SiteProjector``): each call is answered by the edition(s) it concerns, on the site as that edition sees it.
+
+    def item_page_paths(self, summary: ItemSummary) -> tuple[str, ...]:
+        edition = self._edition_for(summary)
+        return () if edition is None else edition._own_item_page_paths(summary)
+
+    def item_pages(self, item: ProjectedItem, site: SiteIndex) -> dict[str, bytes]:
+        edition = self._edition_for(item.summary)
+        if edition is None:
+            return {}
+        own = dict(self._editions_of(site))[edition]
+        return edition._own_item_pages(item, own)
+
+    _is_edition = False
+    #: The whole site (every language) of the projection call being answered, set by ``_editions_of``.
+    _full_site: SiteIndex | None = None
+
+    def _listing_alternates_digest(self, key: str) -> list:
+        """The other languages of a home or section listing page (they are in its ``hreflang`` and switcher), for its input digest."""
+        view = self._view
+        if view is None or not view.multilingual:
+            return []
+        relative = self.policy.relative_key(key) or ""
+        if relative == "index.html":
+            base = ""
+        elif relative.endswith("/index.html") and "/page/" not in f"/{relative}":
+            base = relative[: -len("/index.html")]
+        else:
+            return []
+        return [[alternate.tag, alternate.url, alternate.name] for alternate in view.listing_alternates(base)]
+
+    def _edition_sitemaps(self) -> list[tuple[str, list[SitemapUrl]]]:
+        """``(root, urls)`` of every language edition: one sitemap per language, all in the site's sitemap index (written by the primary edition)."""
+        found = []
+        for tag, edition in getattr(self, "_editions", {}).items():
+            if self._full_site is None:
+                continue
+            own = self._own_site(self._full_site, tag)
+            entries = edition._entries(own)
+            listed = [entry for entry in entries if entry.listed]
+            if not entries:
+                continue   # a language with nothing published has no sitemap
+            edition._use_site(own)
+            found.append((edition.policy.root, edition._sitemap_urls(own, entries, listed, {})))
+        return found
+
+    def listing_inputs(self, site: SiteIndex) -> dict[str, str]:
+        return {key: digest for edition, own in self._editions_of(site) for key, digest in edition._own_listing_inputs(own).items()}
+
+    def listing_pages(self, site: SiteIndex, keys: Collection[str] | None = None) -> dict[str, bytes]:
+        return {key: body for edition, own in self._editions_of(site) for key, body in edition._own_listing_pages(own, keys).items()}
+
+    def shared_inputs(self, site: SiteIndex) -> str:
+        editions = self._editions_of(site)
+        if len(editions) == 1 and editions[0][1] is site:
+            return self._own_shared_inputs(site)
+        return digest_of([edition._own_shared_inputs(own) for edition, own in editions])
+
+    def owns_page_key(self, key: str) -> bool:
+        self._serving_languages()
+        return self._own_owns_page_key(key) or any(edition._own_owns_page_key(key) for edition in getattr(self, "_editions", {}).values())
+
+    def redirects(self, site: SiteIndex) -> dict[str, str]:
+        return {source: target for edition, own in self._editions_of(site) for source, target in edition._own_redirects(own).items()}
+
+    def index_page_keys(self, site: SiteIndex) -> list[str]:
+        return sorted({key for edition, own in self._editions_of(site) for key in edition._own_index_page_keys(own)})
+
+    def listing_keys_of(self, site: SiteIndex, item_id: str) -> list[str]:
+        return sorted({key for edition, own in self._editions_of(site) for key in edition._own_listing_keys_of(own, item_id)})
+
+    def dependent_item_ids(self, before: SiteIndex, after: SiteIndex, item_id: str) -> list[str]:
+        """The other published items whose pages change because ``item_id`` was published, renamed or taken down: the other languages of its language
+        group, whose alternates (switcher, ``hreflang``) list it. As many as the group has languages; none on a one-language site."""
+        if self._serving_languages() is None or len(self._serving.public) < 2:
+            return []
+        self._editions_of(before)
+        view_before = self._language_view(before)
+        self._editions_of(after)
+        view_after = self._language_view(after)
+        groups = {summary.language_group_id for site in (before, after) for summary in site.items if summary.item_id == item_id and summary.language_group_id}
+        changed = []
+        for group in sorted(groups):
+            for summary in view_after.groups.get(group, {}).values():
+                if summary.item_id == item_id:
+                    continue
+                if view_before.group_digest(summary) != view_after.group_digest(summary):
+                    changed.append(summary.item_id)
+        return changed
 
     # ------------------------------------------------------------------ knowledge snapshot
 
@@ -249,8 +486,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """Read the knowledge snapshot (``_data/knowledge/``) from the site store the projection writes to, under ``urls.basePath``.
 
         A directory set with :meth:`use_knowledge_directory` is kept, so the two calls work in either order."""
-        self._knowledge.attach_store(lambda key: writer.get(self.policy.key(key)))
-        self._home_page.attach_store(lambda key: writer.get(self.policy.key(key)))
+        self._knowledge.attach_store(lambda key: writer.get(self.policy.asset_key(key)))
+        self._home_page.attach_store(lambda key: writer.get(self.policy.asset_key(key)))
 
     def use_knowledge_directory(self, directory) -> None:
         """Read the knowledge snapshot from a local directory (``index.json``, ``clusters.json``, ``entities/``) instead of the store."""
@@ -639,7 +876,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _image_url_root(self) -> str | None:
         """Under ``urls.basePath`` images are addressed from the base path (``/articles/assets/responsive/...``), as the stylesheets are; at the root they stay relative to the page."""
-        return "/" + self.policy.root if self.standard.base_path else None
+        return "/" + self.policy.asset_root if self.standard.base_path or self.standard.language_prefix else None
 
     def _pipeline(self):
         pipeline = super()._pipeline()
@@ -717,7 +954,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     # ------------------------------------------------------------------ item pages
 
-    def item_page_paths(self, summary: ItemSummary) -> tuple[str, ...]:
+    def _own_item_page_paths(self, summary: ItemSummary) -> tuple[str, ...]:
         if PurePosixPath(summary.output_path).name.startswith(("_", ".")):
             return ()
         if self._is_home_source(summary):
@@ -729,10 +966,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
         twin = md_key(keys[0]) if self.standard.agents.markdown and not noindex else None
         return keys + ((twin,) if twin else ())
 
-    def item_pages(self, item: ProjectedItem, site: SiteIndex) -> dict[str, bytes]:
+    def _own_item_pages(self, item: ProjectedItem, site: SiteIndex) -> dict[str, bytes]:
         self._use_site(site)
         summary = item.summary
-        paths = self.item_page_paths(summary)
+        paths = self._own_item_page_paths(summary)
         if not paths:
             return {}
         key = paths[0]
@@ -818,7 +1055,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _page_inputs(self, site: SiteIndex):
         return self.hooks.page_inputs(self._hook_site(site)) if self.hooks.page_inputs is not None else None
 
-    def shared_inputs(self, site: SiteIndex) -> str:
+    def _own_shared_inputs(self, site: SiteIndex) -> str:
         self._use_site(site)
         entries = self._entries(site) if self._depends_on_entries() else []
         inputs = self._page_inputs(site)
@@ -829,7 +1066,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _plan(self, site: SiteIndex) -> dict[str, tuple[str, Callable[[], bytes]]]:
         """``key -> (input digest, renderer)`` for every generated page; cached per site index."""
         self._use_site(site)
-        if self._plan_cache is not None and self._plan_cache[0] is site.items:
+        full_items = self._full_site.items if self._full_site is not None else None   # the primary's plan also lists every edition's sitemap
+        if self._plan_cache is not None and self._plan_cache[0] is site.items and self._plan_cache[2] is full_items:
             return self._plan_cache[1]
         entries = self._entries(site)
         listed = [entry for entry in entries if entry.listed]
@@ -845,15 +1083,16 @@ class StandardMarkusProjector(MarkusSiteProjector):
             listed_ids = frozenset(entry.item_id for entry in members)
             meta[key] = (page_id, listed_ids)
             dependency = self._dependency_digest(entries, page_id)
-            digest = digest_of([shared, key, digest_input, dependency, page_inputs, ranking])
+            alternates = self._listing_alternates_digest(key)
+            digest = digest_of([shared, key, digest_input, dependency, page_inputs, ranking, *([alternates] if alternates else [])])
             plan[key] = (digest, lambda: self._render(build_page()))
-            twin = md_key(key) if markdown and self.standard.agents.markdown else None
+            twin = md_key(key) if markdown and self.standard.agents.markdown and not self._is_edition else None
             if twin:
                 meta[twin] = (page_id, listed_ids)
                 plan[twin] = (digest_of([digest, "markdown"]), lambda: self._markdown_for(build_page()).encode("utf-8"))
 
-        # home
-        if not self._authored_home(site) and not any(custom.path == "" for custom in self.standard.pages):
+        # home (a language edition has one once it has a Story to list: a language with nothing published has no page at all)
+        if not self._authored_home(site) and not any(custom.path == "" for custom in self.standard.pages) and (listed or not self._is_edition):
             home_entries = tuple(self._ranked(listed)[: self.standard.listings.home_count])
             home_blocks: tuple[HomeSectionBlock, ...] = ()
             home_digest: list = [self._fingerprints(home_entries), self._section_links()]
@@ -1003,6 +1242,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 lambda thread=thread, reference=reference: forum_pages.thread_page(self, site, listed, thread, reference, self._forum().thread_base),
             )
 
+        if self._is_edition:   # a language edition has no 404 of its own (the site's is at the root), no plugin pages and no sitemap files (below)
+            selection = feed_selection(entries, self.standard) if listed else []
+            for key, body in (feed_files(selection, self.standard, self.environment) if listed else {}).items():
+                plan[key] = (hashlib.sha256(body).hexdigest()[:16], lambda body=body: body)
+            self._plan_cache = (site.items, plan, full_items)
+            self._plan_meta = meta
+            return plan
+
         # 404
         not_found = self.standard.not_found
         not_found_input: list = []
@@ -1068,12 +1315,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 )
 
         # sitemap, feeds
-        sitemap = sitemap_files(self.standard.sitemap_style, self.environment, self._sitemap_urls(site, entries, listed, plan), lastmod=self.standard.sitemap_lastmod, root=self.policy.root)
+        sitemap = sitemap_files(self.standard.sitemap_style, self.environment, self._sitemap_urls(site, entries, listed, plan), lastmod=self.standard.sitemap_lastmod, root=self.policy.root,
+                                languages=self._edition_sitemaps())
         selection = feed_selection(entries, self.standard)
         for key, body in {**sitemap, **feed_files(selection, self.standard, self.environment)}.items():
             plan[key] = (hashlib.sha256(body).hexdigest()[:16], lambda body=body: body)
         self._add_llms_files(plan, site, entries, listed)
-        self._plan_cache = (site.items, plan)
+        self._plan_cache = (site.items, plan, full_items)
         self._plan_meta = meta
         return plan
 
@@ -1081,7 +1329,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     INDEX_PAGE_IDS = ("home", "listing:", "archive:", "tags", "tag")
 
-    def index_page_keys(self, site: SiteIndex) -> list[str]:
+    def _own_index_page_keys(self, site: SiteIndex) -> list[str]:
         """The keys of the home page, every list page and every section page (and their Markdown twins), read from the plan the site is projected with.
 
         Covers paging, archives and tag pages. An authored home (a Story or page file) is not in the plan, so its key is added."""
@@ -1089,7 +1337,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         keys = {key for key, (page_id, _members) in self._plan_meta.items() if page_id == "home" or page_id.startswith(self.INDEX_PAGE_IDS[1:])}
         return self._with_home(sorted(keys), site)
 
-    def listing_keys_of(self, site: SiteIndex, item_id: str) -> list[str]:
+    def _own_listing_keys_of(self, site: SiteIndex, item_id: str) -> list[str]:
         """The keys of the index pages that list this item: the home page, and every list, section, archive and tag page (twins included) that shows it."""
         self._plan(site)
         keys = {key for key, (page_id, members) in self._plan_meta.items() if item_id in members and page_id != "not_found"}
@@ -1551,12 +1799,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
             unique.setdefault(url.path, url)
         return list(unique.values())
 
-    def listing_inputs(self, site: SiteIndex) -> dict[str, str]:
+    def _own_listing_inputs(self, site: SiteIndex) -> dict[str, str]:
         inputs = {key: digest for key, (digest, _render) in self._plan(site).items()}
         inputs.update(self._public_data_inputs(site))
         return inputs
 
-    def listing_pages(self, site: SiteIndex, keys: Collection[str] | None = None) -> dict[str, bytes]:
+    def _own_listing_pages(self, site: SiteIndex, keys: Collection[str] | None = None) -> dict[str, bytes]:
         pages = {key: render() for key, (_digest, render) in self._plan(site).items() if keys is None or key in keys}
         pages.update(self._public_data_pages(site, keys))
         return pages
@@ -1586,7 +1834,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     # ------------------------------------------------------------------ ownership, static files, redirects
 
-    def owns_page_key(self, key: str) -> bool:
+    def _own_owns_page_key(self, key: str) -> bool:
         if key == NOT_FOUND_KEY or key == self.policy.key(LEGACY_NEWSLETTER_SHELL_KEY):
             return True   # the legacy shell (before the newsletter pages were projected) is owned only so the reconcile removes it
         relative = self.policy.relative_key(key)
@@ -1618,10 +1866,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """The public path of a page key (what rename redirects point at)."""
         return self.policy.url_for_key(key)
 
-    def redirects(self, site: SiteIndex) -> dict[str, str]:
+    def _own_redirects(self, site: SiteIndex) -> dict[str, str]:
         mapping: dict[str, str] = {}
         for summary in site.items:
-            paths = self.item_page_paths(summary)
+            paths = self._own_item_page_paths(summary)
             for alias in summary.aliases if paths else ():
                 source = alias if alias.startswith("/") else "/" + alias
                 mapping[source] = self.policy.url_for_key(paths[0])
@@ -1630,13 +1878,46 @@ class StandardMarkusProjector(MarkusSiteProjector):
         for source, target in self.standard.exact_redirects:
             mapping[source] = target
         live = {path for key in self._plan(site) for path in request_paths_for_key(key)}
-        live |= {path for summary in site.items for key in self.item_page_paths(summary) for path in (*request_paths_for_key(key), self.policy.url_for_key(key))}
+        live |= {path for summary in site.items for key in self._own_item_page_paths(summary) for path in (*request_paths_for_key(key), self.policy.url_for_key(key))}
         return {source: target for source, target in mapping.items() if source not in live and source != target}
 
     # ------------------------------------------------------------------ rendering
 
+    def _alternates_of(self, kind: str, extra: dict) -> tuple:
+        """The page in every public language it exists in (editions.py): a Story page's language group, the home, and page 1 of a section listing."""
+        view = self._view
+        if view is None or not view.multilingual:
+            return ()
+        if kind == "item" and extra.get("entry") is not None:
+            return view.item_alternates(extra["entry"].summary)
+        if kind == "home":
+            return view.listing_alternates("")
+        listing = extra.get("listing")
+        if kind == "listing" and listing is not None and listing.page == 1 and listing.section is not None and not listing.tag and not listing.collection:
+            return view.listing_alternates(listing.base)
+        return ()
+
+    def _language_fields(self, kind: str, head: PageHead, extra: dict) -> tuple[PageHead, dict]:
+        """The page's language: ``<html lang>`` comes from the edition's settings; the page also gets its alternates, its interface strings and the
+        link map, and the head its ``hreflang`` links, ``x-default``, ``og:locale`` and JSON-LD ``inLanguage`` (on a site that serves several languages)."""
+        language = self.standard.identity.language
+        fields = {"language": language, "strings": self._interface_strings.get(language, {})}
+        view = self._view
+        if view is None or not view.multilingual:
+            return head, fields
+        alternates = self._alternates_of(kind, extra)
+        primary_url = next((alternate.url for alternate in alternates if alternate.tag == view.primary), "")
+        head = dataclasses.replace(
+            head, language=language,
+            alternates=tuple((alternate.tag, self.head.absolute(alternate.url) or alternate.url) for alternate in alternates),
+            x_default=(self.head.absolute(primary_url) or primary_url) if primary_url else "",
+        )
+        fields.update(primary_language=view.primary, alternates=tuple(alternate.as_dict() for alternate in alternates), link_map=view.links)
+        return head, fields
+
     def _page(self, kind: str, head: PageHead, site: SiteIndex, *, entries=(), **extra) -> StandardPage:
         crumbs = extra.pop("crumbs", ())
+        head, language_fields = self._language_fields(kind, head, extra)
         page = StandardPage(
             kind=kind,
             path=head.path,
@@ -1650,6 +1931,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             breadcrumbs=crumbs,
             site=self._hook_site(site),
             ranker=self._ranked,
+            **language_fields,
             **extra,
         )
         if kind not in ("item", "custom") and not (kind in EVERYWHERE_KINDS and self.standard.page_actions.everywhere):
@@ -1725,7 +2007,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             stylesheet_versions=own_versions,
             scripts=scripts,
             head_html=base.head_html + head_html,
-            asset_root="/" + self.policy.root,
+            asset_root="/" + self.policy.asset_root,
             render_masthead=None,
             render_body=lambda context, parts: self._body(page, parts),
         )
@@ -1742,11 +2024,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if self.standard.mermaid and MERMAID_BLOCK in html_text:  # only a page with a diagram loads the renderer
             suffix = f"?v={components.esc(self.version)}"
             loader = (
-                f'<script src="{components.esc(self.policy.path(MERMAID_SCRIPT_PATH))}{suffix}" '
-                f'data-library="{components.esc(self.policy.path(MERMAID_LIBRARY_PATH))}"></script>\n'
+                f'<script src="{components.esc(self.policy.asset_path(MERMAID_SCRIPT_PATH))}{suffix}" '
+                f'data-library="{components.esc(self.policy.asset_path(MERMAID_LIBRARY_PATH))}"></script>\n'
             )
             html_text = html_text.replace("</body>", loader + "</body>", 1)
-        html_text = card_images.use_renditions(html_text, lambda: self._rendition_sources(page), self.policy.root)
+        html_text = card_images.use_renditions(html_text, lambda: self._rendition_sources(page), self.policy.asset_root)
         if self.hooks.page_finish is not None:
             html_text = self.hooks.page_finish(html_text, page)
         return html_text.encode("utf-8")
@@ -1768,8 +2050,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if islands is not None and 'data-island="' in body:
             suffix = f"?v={components.esc(self.version)}"
             body += (
-                f'\n<script src="{components.esc(self.policy.path(ISLANDS_RUNTIME_PATH))}{suffix}"></script>'
-                f'\n<script type="module" src="{components.esc(self.policy.path(islands.script))}{suffix}"></script>'
+                f'\n<script src="{components.esc(self.policy.asset_path(ISLANDS_RUNTIME_PATH))}{suffix}"></script>'
+                f'\n<script type="module" src="{components.esc(self.policy.asset_path(islands.script))}{suffix}"></script>'
             )
         return body
 

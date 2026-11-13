@@ -450,11 +450,11 @@ instead).
 ```
 
 `format` is optional and defaults to `CitationRendering.default_format`
-(`apa`). Renders:
+(`apa`). The source's URL is appended as its own link, after a space. When the source has a DOI, APA prints the DOI as its link and the URL follows it. A source with no URL ends with the formatted text. Renders:
 
 ```html
 <ol class="citationslist">
-  <li id="citation-1">Gundlach, H., Lynch, J., Mertens, M., &amp; Thompson, N. (2025). The Price of Progress… arXiv. https://doi.org/10.48550/arXiv.2511.23455<a href="https://arxiv.org/abs/2511.23455" target="_blank" rel="noopener noreferrer">https://arxiv.org/abs/2511.23455</a></li>
+  <li id="citation-1">Gundlach, H., Lynch, J., Mertens, M., &amp; Thompson, N. (2025). The Price of Progress… arXiv. https://doi.org/10.48550/arXiv.2511.23455 <a href="https://arxiv.org/abs/2511.23455" target="_blank" rel="noopener noreferrer">https://arxiv.org/abs/2511.23455</a></li>
 </ol>
 ```
 

@@ -427,3 +427,19 @@ def papyrus_record_editor_review(story: str, version: str, review: dict, model: 
     check = _check_result({"id": version, "lineageId": story}, stored) if stored is not None else None
     return record_review(client, story, version, review, model=model, context_hash=context_hash, check=check,
                          at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+
+
+def papyrus_localize_story(story: str, language: str, ceiling_usd: float = 0.0, source_version: int = 0) -> dict:
+    """Translate the published version of a Story into one language (papyrus.story.localize): translate the changed blocks, check every block
+    against the source (parity rules and the bilingual judge) and with the language's copy-edit policies, repair until the findings stop
+    shrinking, and save the result as an unpublished version of the Story's localization (lineage <story>--<language>), author AI. Never
+    publishes. Returns {story, language, version, hold, reason, outcome, published, rounds, revertedBlocks, costUsd, sourceCharacters, findings,
+    runKey}; hold is true when a faithfulness error remains (a flag review request says which). ceiling_usd > 0 caps this run's spend;
+    source_version names the source version the run was started for (0: the published one). A run with no translation request, or one
+    for an older source than the request names, stops before any model call."""
+
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.localize.run import localize_story
+
+    client, _ = create_authoring_client()
+    return localize_story(client, story=story, language=language, ceiling_usd=ceiling_usd or None, source_version=source_version or None)

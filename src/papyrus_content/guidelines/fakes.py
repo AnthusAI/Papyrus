@@ -18,6 +18,9 @@ class FakePolicies:
     def list_policies(self) -> list[dict]:
         return copy.deepcopy(self.rows)
 
+    def get_settings(self) -> dict | None:
+        return None   # no stored editorial settings: the defaults (an English site)
+
     def create_policy(self, record: dict) -> None:
         self.writes.append(("create", record["id"]))
         self.rows.append(copy.deepcopy(record))

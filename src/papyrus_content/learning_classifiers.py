@@ -151,8 +151,9 @@ def link_examples(relations: Sequence[Mapping[str, Any]], references: Mapping[st
 
 def load_link_examples(client: Any, corpus_id: str) -> list[LearningExample]:
     from .reference_links import REFERENCE_LINK_FEED_KEY
+    from .tenant_knowledge_keys import global_key
 
-    rows = client.list_by_index(FEED_INDEX, REFERENCE_LINK_FEED_KEY)
+    rows = client.list_by_index(FEED_INDEX, global_key(REFERENCE_LINK_FEED_KEY))
     references = {str(reference["lineageId"]): reference for reference in client.list_records("Reference")
                   if reference.get("corpusId") == corpus_id and reference.get("versionState") == "current"}
     concepts: dict[str, set[str]] = {}
@@ -228,12 +229,13 @@ def pack_examples(ideas: Sequence[tuple[Mapping[str, Any], Mapping[str, Any]]], 
 def load_pack_examples(client: Any, corpus_id: str | None = None) -> list[LearningExample]:
     from .ideas.items import generated_of
     from .reference_links import REFERENCE_LINK_FEED_KEY
+    from .tenant_knowledge_keys import global_key
     from .story_from_reference import _current_versions
 
     ideas = [(item, generated) for item in _current_versions(without_sub_tasks(client.list_records("Item"))) if (generated := generated_of(item)) is not None]
     edges = [{"subject": relation["subjectLineageId"], "object": relation["objectLineageId"],
               "humanDecided": human_actor(str(_metadata(relation).get("decidedBy") or ""))}
-             for relation in client.list_by_index(FEED_INDEX, REFERENCE_LINK_FEED_KEY)
+             for relation in client.list_by_index(FEED_INDEX, global_key(REFERENCE_LINK_FEED_KEY))
              if relation.get("objectKind") == "reference" and relation.get("relationState") == "current"]
     return pack_examples(ideas, edges)
 

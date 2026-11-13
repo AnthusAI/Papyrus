@@ -422,6 +422,9 @@ class StandardSettings:
     identity: SiteIdentity
     url_style: str = "html"
     base_path: str = ""     # urls.basePath without slashes: every generated key and URL lives under it ("" is the root)
+    #: Set only on a language edition (``editions.py``), never in projection.json: the language's URL prefix. Its pages live under
+    #: ``<basePath>/<prefix>/``; the site's assets stay under the base path, shared by every language.
+    language_prefix: str = ""
     sections: tuple[SectionConfig, ...] = ()
     collections: tuple[CollectionConfig, ...] = ()
     not_found: NotFoundSettings = field(default_factory=NotFoundSettings)

@@ -2517,6 +2517,18 @@ const schema = a.schema({
       /** Only the head row of a lineage carries this: its stage (tenant-prefixed on a tenant backend), so the head stage index holds one row per
        *  story; a superseded version has none (docs/plans/story-head-stage-index.md). */
       headStageKey: a.string(),
+      /** The language this version is written in: a BCP 47 tag in Humanus's spelling (en, es-419, zh-Hans). Every row has one; a new version copies it
+       *  (src/papyrus_content/item_language.py, docs/plans/multilingual-publishing.md). */
+      language: a.string(),
+      /** The language group: the primary Story's lineage id (tenant-prefixed on a tenant backend). A primary-language Story is its own group; a localization
+       *  (lineage `{primaryLineageId}--{language}`) names its primary's. */
+      languageGroupId: a.string(),
+      /** On a localization version: the exact primary version it was translated from. */
+      sourceLineageId: a.id(),
+      sourceVersionNumber: a.integer(),
+      sourceContentHash: a.string(),
+      /** On a localization version: current, updating, diverged or conflict against its source. */
+      syncState: a.string(),
       /** Scheduled publishing (docs/scheduled-publishing.md): the schedule lives on the row of the version it publishes. `scheduleState` is set only while a schedule exists
        *  (scheduled, publishing or blocked), so the index below holds scheduled versions and nothing else. `scheduledPublishAt` is a UTC instant. */
       scheduledPublishAt: a.datetime(),
@@ -2538,9 +2550,33 @@ const schema = a.schema({
       index("versionState").sortKeys(["updatedAt"]).queryField("listItemsByVersionStateAndUpdatedAt"),
       index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt"),
       index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt"),
+      index("languageGroupId").sortKeys(["language"]).queryField("listItemsByLanguageGroupAndLanguage"),
       index("parentLineageId").sortKeys(["sortTitle"]).queryField("listItemsByParentAndOrder"),
       index("scheduleState").sortKeys(["scheduledPublishAt"]).queryField("listItemsByScheduleStateAndScheduledPublishAt"),
     ])
+    .authorization((allow) => [
+      allow.groups(contentWriteGroups),
+    ]),
+
+  /** A translation someone wants: the newest published source version of one Story to translate into one language (docs/plans/multilingual-publishing.md,
+   *  "Once per change"; src/papyrus_content/localize/desired_state.py). One row per language group and language, id `{languageGroupId}#{language}`; a newer
+   *  request overwrites the older one, and the translation run records its outcome here. */
+  LocalizationRequest: a
+    .model({
+      id: a.id().required(),
+      tenantId: a.string(),
+      languageGroupId: a.string().required(),
+      language: a.string().required(),
+      sourceVersionId: a.id().required(),
+      sourceVersionNumber: a.integer().required(),
+      sourceContentHash: a.string().required(),
+      state: a.string().required(),
+      requestedBy: a.string(),
+      requestedAt: a.datetime(),
+      runKey: a.string(),
+      reason: a.string(),
+      updatedAt: a.datetime(),
+    })
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
     ]),
@@ -2735,6 +2771,11 @@ const schema = a.schema({
       pullQuotes: a.string().array(),
       layout: a.json(),
       editorial: a.json(),
+      /** The language of the published version (a copy of its Item's `language`) and its language group (the primary Story's lineage id). The projection serves
+       *  each language under its URL prefix and joins a group's published languages for hreflang (docs/multilingual-serving.md). No index: the projection reads
+       *  every published summary already. */
+      language: a.string(),
+      languageGroupId: a.string(),
     })
     .secondaryIndexes((index) => [
       index("slug").queryField("publishedItemBySlug"),

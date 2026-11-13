@@ -10,7 +10,7 @@ The reader is an educated person with no background in the subject, possibly in 
 
 - Draw once. The source uses color **roles**, never colors, so one `figure.svg` resolves to both themes and the two pictures always share one geometry and one aspect ratio.
 - `papyrus figures render` always writes both files, `<slug>.png` (light) and `<slug>.dark.png` (dark), and measures contrast, fit and legibility in each theme. A problem in either theme fails the figure.
-- Look at both pictures before asking for approval, not only the light one. A mark that reads in light can vanish in dark.
+- Look at both pictures before you save, not only the light one. A mark that reads in light can vanish in dark.
 - Save both into the Story. `stories save-version` warns when a figure is saved with only a light picture, and a site can refuse it.
 - A design system that gives a color token no dark value cannot be used to draw: fix the design system, don't draw light-only.
 
@@ -182,7 +182,8 @@ An illustration is for a place or a moment, not an explanation. It shares its la
 
 - `alt`: what it shows, then why it's there. Say what the reader would get from looking, including which element is focal and any stamp. Don't narrate geometry.
 - `caption`: one sentence.
-- `credit`: `Drafted by AI. Approved by {approved_by}.`, plus `Source: <name>.` for facts or `Illustrative; no data.` for a forecast. The approved name is filled in when a person confirms.
+- `credit`: none. A figure we drew carries no credit, and nothing in it says a machine drew it or a person approved it. Name a real source only for facts the figure shows (`Source: <name>.`) or `Illustrative; no data.` for a forecast. Third-party pictures are credited elsewhere, always.
+- `approved_by`: optional metadata, only for a site that records approvals. Never part of the picture or its credit line.
 - `<title>` and `<desc>` in the SVG source hold the short name and one sentence.
 
 ## 13. Output
@@ -201,4 +202,4 @@ An illustration is for a place or a moment, not an explanation. It shares its la
 4. View both pictures, light and dark, at 343px wide. Can you read every word in each? Do they make sense with color removed?
 5. One focal mark or none.
 6. Forecast, or invented and could pass for data? Stamped. Invented but framed by the story, with no data on it? Labelled `framed`, and the story's note and caption say so.
-7. Ask a person to confirm, then fill in `approved_by`.
+7. Save it. No person's approval is needed unless the site opted in to recording one.

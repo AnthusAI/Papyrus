@@ -2899,6 +2899,11 @@
             "minLength": 1,
             "description": "A section key. Leave it out for the publication's own guidelines."
           },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines."
+          },
           "version": {
             "type": "integer",
             "minimum": 1,
@@ -2918,6 +2923,10 @@
             "minLength": 1
           },
           "section": {
+            "type": "string",
+            "minLength": 1
+          },
+          "language": {
             "type": "string",
             "minLength": 1
           },
@@ -2970,7 +2979,7 @@
     {
       "name": "guidelines_resolve",
       "audience": "staff",
-      "description": "Show the effective guidelines for the publication or a section laid over it, with where every field came from.",
+      "description": "Show the effective guidelines for the publication or a section laid over it, and for one language, with where every field came from.",
       "agentAllowed": true,
       "effect": "read",
       "inputSchema": {
@@ -2985,6 +2994,11 @@
             "type": "string",
             "minLength": 1,
             "description": "A section key. Leave it out for the publication's own guidelines."
+          },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The language of the text the guidelines are for: its overlays (a variant's base language first) are laid over the shared guidelines. Leave it out for the guidelines every language shares."
           }
         },
         "required": [
@@ -3003,6 +3017,10 @@
             "type": "string",
             "minLength": 1
           },
+          "language": {
+            "type": "string",
+            "minLength": 1
+          },
           "found": {
             "type": "boolean",
             "description": "False when the publication has no guidelines of this kind yet."
@@ -3013,7 +3031,7 @@
           },
           "fieldSources": {
             "type": "object",
-            "description": "For every field, the layer it came from: publication, section, or locked by the publication."
+            "description": "For every field, the layers it came from: publication, section, language or section-language (with the language)."
           },
           "layers": {
             "type": "array",
@@ -3024,8 +3042,14 @@
                   "type": "string",
                   "enum": [
                     "publication",
-                    "section"
+                    "section",
+                    "language",
+                    "section-language"
                   ]
+                },
+                "language": {
+                  "type": "string",
+                  "minLength": 1
                 },
                 "itemId": {
                   "type": "string",
@@ -3101,6 +3125,11 @@
             "minLength": 1,
             "description": "A section key. Leave it out for the publication's own guidelines."
           },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines."
+          },
           "document": {
             "type": "object",
             "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
@@ -3116,6 +3145,14 @@
         "type": "object",
         "properties": {
           "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1
+          },
+          "language": {
             "type": "string",
             "minLength": 1
           },
@@ -3174,6 +3211,11 @@
             "minLength": 1,
             "description": "A section key. Leave it out for the publication's own guidelines."
           },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines."
+          },
           "document": {
             "type": "object",
             "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
@@ -3205,6 +3247,10 @@
             "minLength": 1
           },
           "section": {
+            "type": "string",
+            "minLength": 1
+          },
+          "language": {
             "type": "string",
             "minLength": 1
           },
@@ -3255,6 +3301,11 @@
             "type": "string",
             "minLength": 1,
             "description": "A section key. Leave it out for the publication's own guidelines."
+          },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines."
           }
         },
         "required": [
@@ -3270,6 +3321,10 @@
             "minLength": 1
           },
           "section": {
+            "type": "string",
+            "minLength": 1
+          },
+          "language": {
             "type": "string",
             "minLength": 1
           },

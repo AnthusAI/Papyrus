@@ -3,7 +3,7 @@
   "title": "Adversarial suite part 1: generate every cross-tenant case from the schema (report-only, no stack needed)",
   "description": "Outcome: A script reads amplify/data/schema.ts, the function and plugin schema files and the function list and writes the case table (model x operation, each index, each custom query and mutation) plus a Behave feature skeleton with the steps stubbed as pending. CI fails if a model or function has no generated case. No AWS calls in this part. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) tenant-isolation-cases, branch feature/<this issue id>-tenant-isolation-cases from origin/develop (spikes: branch spike/<this issue id>-tenant-isolation-cases, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): new scripts/generate-tenant-isolation-cases.ts, features_backend/tenant-isolation-adversarial.feature, features_backend/steps/tenant_isolation_steps.py (pending steps).\n\nAcceptance (Gherkin feature file: features_backend/tenant-isolation-adversarial.feature):\nScenario: A model without a case fails the build\n    Given a model is added to schema.ts\n    When the generator check runs in CI\n    Then it fails naming the model\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: npx tsx scripts/generate-tenant-isolation-cases.ts --check; npm run typecheck; npm run test:bdd:backend (pending steps reported, not failed).\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "sub-task",
-  "status": "open",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -13,10 +13,18 @@
     "multi-tenant"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "422f1b30-7bdc-43aa-81e3-6e0977ff5866",
+      "author": "home",
+      "text": "Merged to develop: AnthusAI/Papyrus#1392 (2026-11-10). Report-only: 832 cases, 312 known gaps. Not released.",
+      "created_at": "2026-11-13T17:08:52.587549Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T21:32:22.902263Z",
-  "updated_at": "2026-11-08T21:32:24.382340Z",
-  "closed_at": null,
+  "updated_at": "2026-11-13T17:08:52.726969Z",
+  "closed_at": "2026-11-13T17:08:52.726930Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

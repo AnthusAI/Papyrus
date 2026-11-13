@@ -88,7 +88,7 @@ Feature: A deployment's account is seeded once and then changed only from Git
   Scenario: The first build runs the two-pass bootstrap and can be resumed
     Given the first-build workflow runs on main as the github-deploy role
     Then it sets PAPYRUS_BOOTSTRAP_STAGE=1 keeping every other branch variable, starts pass 1 and waits
-    And on success it removes the variable, starts pass 2 and waits, then disables the watcher
+    And on success it removes the variable, starts pass 2 and waits, and does not touch the watcher (the watcher disabled itself when it dispatched the build)
     And a run that finds pass 1 succeeded starts only pass 2, a run that finds a running job waits for it, and a run that finds pass 2 succeeded does nothing
 
   Scenario: A failed first-build pass stops and waits for a person

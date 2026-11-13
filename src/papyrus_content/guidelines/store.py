@@ -1,6 +1,6 @@
 """Saving and reading guideline documents: a catalog row in DynamoDB, the document itself in S3.
 
-One lineage of the private ``doctrine`` Item per (kind, scope): a new version for every save that changes something. The Item row holds only catalog
+One lineage of the private ``doctrine`` Item per (kind, scope, language overlay): a new version for every save that changes something. The Item row holds only catalog
 fields (slug, version, who, when, why, contentHash); its ``bodyMarkus`` and ``metadata`` stay empty. The document is one JSON file attached to that
 Item version as a ModelAttachment with the role ``doctrine_document`` (``newsroom/payloads/item/<id>/doctrine-document/guidelines.json``, the path writer turning the role into a safe id), the same
 pattern Story bodies use. Nothing here knows what is *in* a document or which kinds exist; the kind registry in ``document.py`` is the only place
@@ -17,7 +17,7 @@ from typing import Any, Protocol
 from papyrus_content.editorial_context import _check_tenant
 from papyrus_content.record_helpers import to_aws_json
 
-from .document import GuidelineError, digest, kind_spec, slug_for, validate_document
+from .document import GuidelineError, digest, kind_spec, overlay_language, slug_for, validate_document
 
 ROLE = "doctrine_document"
 ASSET_ROLE = "doctrine_asset"   # binary files a document names (a design system's fonts): one ModelAttachment each, sortKey = the file's name in the document
@@ -59,19 +59,20 @@ class GuidelineStore:
 
     # --- reads --------------------------------------------------------------------------------------------------------------------------------------
 
-    def _rows(self, kind: str, section: str | None) -> list[dict]:
-        slug = slug_for(kind, section)
+    def _rows(self, kind: str, section: str | None, language: str | None = None) -> list[dict]:
+        slug = slug_for(kind, section, overlay_language(kind, language))
         rows = [row for row in self.client.list_by_index("itemBySlug", slug) if row.get("type") == "doctrine" and row.get("status") == "private"]
         for row in rows:
             _check_tenant(self.client, row)
         return sorted(rows, key=lambda row: int(row.get("versionNumber") or 0), reverse=True)
 
-    def versions(self, kind: str, section: str | None = None) -> list[dict]:
-        """Every stored catalog row of the lineage, newest first: one index query on the slug (a small partition, never a scan). A version still being saved is not stored yet."""
-        return [row for row in self._rows(kind, section) if row.get("versionState") != PENDING]
+    def versions(self, kind: str, section: str | None = None, *, language: str | None = None) -> list[dict]:
+        """Every stored catalog row of the lineage, newest first: one index query on the slug (a small partition, never a scan). A version still being saved is not stored yet.
+        ``language`` names a language overlay's lineage (publication or section)."""
+        return [row for row in self._rows(kind, section, language) if row.get("versionState") != PENDING]
 
-    def current_row(self, kind: str, section: str | None = None) -> dict | None:
-        current = [row for row in self.versions(kind, section) if row.get("versionState") == "current"]
+    def current_row(self, kind: str, section: str | None = None, *, language: str | None = None) -> dict | None:
+        current = [row for row in self.versions(kind, section, language=language) if row.get("versionState") == "current"]
         return current[0] if current else None
 
     def _document_of(self, row: dict) -> dict:
@@ -91,9 +92,9 @@ class GuidelineStore:
         """The document one catalog row names: one attachment index query and one download."""
         return self._document_of(row)
 
-    def read(self, kind: str, section: str | None = None, *, version: int | None = None) -> dict | None:
+    def read(self, kind: str, section: str | None = None, *, version: int | None = None, language: str | None = None) -> dict | None:
         """``{document, reference}`` of the current version (or the numbered one), or None when there is none."""
-        rows = self.versions(kind, section)
+        rows = self.versions(kind, section, language=language)
         row = next((r for r in rows if int(r.get("versionNumber") or 0) == version), None) if version is not None else \
             next((r for r in rows if r.get("versionState") == "current"), None)
         if row is None:
@@ -111,14 +112,15 @@ class GuidelineStore:
             raise GuidelineError("not_found", f"The file {attachment.get('sortKey')} could not be read.", {"attachmentId": attachment.get("id")})
         return body
 
-    def history(self, kind: str, section: str | None = None) -> list[dict]:
+    def history(self, kind: str, section: str | None = None, *, language: str | None = None) -> list[dict]:
         return [{"itemId": r["id"], "versionNumber": int(r.get("versionNumber") or 0), "versionState": r.get("versionState"), "by": r.get("versionCreatedBy"),
-                 "at": r.get("versionCreatedAt"), "reason": r.get("changeReason"), "contentHash": r.get("contentHash")} for r in self.versions(kind, section)]
+                 "at": r.get("versionCreatedAt"), "reason": r.get("changeReason"), "contentHash": r.get("contentHash")} for r in self.versions(kind, section, language=language)]
 
     # --- writes -------------------------------------------------------------------------------------------------------------------------------------
 
     def save(self, kind: str, document: Any, *, section: str | None = None, expected_current_version_id: str | None = None, actor: str, reason: str,
-             now: str | None = None, assets: dict[str, bytes] | None = None, saved_by: dict | None = None, even_if_unchanged: bool = False) -> dict:
+             now: str | None = None, assets: dict[str, bytes] | None = None, saved_by: dict | None = None, even_if_unchanged: bool = False,
+             language: str | None = None) -> dict:
         """Save a document as the lineage's next version. ``{changed, reference}``.
 
         ``assets`` are binary files the document names (file name -> bytes), stored beside it as ModelAttachments of the same version. The caller puts
@@ -131,14 +133,15 @@ class GuidelineStore:
         recognised and how history says whether a person or an agent saved a version. Nothing else goes in ``metadata``.
         """
         spec = kind_spec(kind)
-        scope = "section" if section else "publication"
+        language = overlay_language(kind, language)
+        scope = "section" if section or language else "publication"   # a language overlay follows a section's rules: no binding constraints, no publication-only fields
         problems = validate_document(kind, document, scope)
         if problems:
             raise GuidelineError("invalid_input", "The document has problems: " + "; ".join(f"{p.path or 'document'} {p.message}" for p in problems),
                                  {"problems": [{"path": p.path, "message": p.message, "code": p.code} for p in problems]})
         if not str(reason or "").strip():
             raise GuidelineError("invalid_input", "A reason is required.")
-        rows = self._rows(kind, section)
+        rows = self._rows(kind, section, language)
         versions = [row for row in rows if row.get("versionState") != PENDING]
         pending = next((row for row in rows if row.get("versionState") == PENDING), None)
         current = next((r for r in versions if r.get("versionState") == "current"), None)
@@ -151,7 +154,7 @@ class GuidelineStore:
             return {"changed": False, "reference": reference(current)}
         stamp = now or _now()
         record = next_record(spec.name, section, versions, content_hash, actor=actor, reason=reason, now=stamp,
-                             tenant_slug=getattr(self.client, "tenant_slug", None), saved_by=saved_by)
+                             tenant_slug=getattr(self.client, "tenant_slug", None), saved_by=saved_by, language=language)
         if pending is None:
             self.client.create_record("Item", {**record, "versionState": PENDING})
         else:
@@ -203,12 +206,12 @@ def saved_by_of(row: dict) -> dict:
 
 
 def next_record(kind: str, section: str | None, versions: list[dict], content_hash: str, *, actor: str, reason: str, now: str,
-                tenant_slug: str | None = None, saved_by: dict | None = None) -> dict:
+                tenant_slug: str | None = None, saved_by: dict | None = None, language: str | None = None) -> dict:
     """The catalog row for the next version. Catalog fields only: the text is the S3 document."""
-    slug = slug_for(kind, section)
+    slug = slug_for(kind, section, language)
     latest = versions[0] if versions else None
     number = int(latest.get("versionNumber") or 0) + 1 if latest else 1
-    title = f"{kind.title()} guidelines" + (f" ({section})" if section else "")
+    title = f"{kind.title()} guidelines" + (f" ({section})" if section else "") + (f" [{language}]" if language else "")
     record = {
         "id": f"item-{slug}-v{number}", "lineageId": f"item-{slug}", "versionNumber": number, "versionState": "current", "versionCreatedAt": now,
         "versionCreatedBy": actor, "changeReason": reason, "type": "doctrine", "status": "private", "typeStatus": "doctrine#private", "slug": slug,

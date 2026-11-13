@@ -12,9 +12,24 @@
     "size-S"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d519679c-1c24-4894-9938-314deb54770f",
+      "author": "home",
+      "text": "Source for the p.apyr.us page: PPY-d0132d shipped (PR #1486, merged to develop, not released). docs/editorial-checks.md section 'Every check is in one language' covers per-language policies, the site languages setting and Spanish variant (es-419), refusal of languages without a Humanus pack, starter packs per language, and writing-guideline language overlays.",
+      "created_at": "2026-11-13T18:17:02.854107Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "ba432c31-afdb-4e0e-8e86-555d8e1d9b48",
+      "author": "home",
+      "text": "Serving docs for p.apyr.us: docs/multilingual-serving.md in the engine repo is the source (settings languages.prefixes/public/slugs, editions, hreflang, interface strings in strings/<tag>.json, Unicode addresses and the gated CloudFront/S3 checks). The p.apyr.us page should explain: each language at its own address with English unchanged, a page lists only languages it is really published in, Chinese addresses in Chinese characters, and a language goes public only when its interface words are complete.",
+      "created_at": "2026-11-13T20:28:27.136230Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-13T14:31:23.112783Z",
-  "updated_at": "2026-11-13T14:31:23.112823Z",
+  "updated_at": "2026-11-13T20:28:27.136441Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

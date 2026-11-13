@@ -9,8 +9,9 @@ const MODEL_NAMES = [
   "Assignment", "KnowledgeRawPayload", "CurationDelegationRecord", "ModelAttachment", "MediaAsset", "PublishedMediaAsset", "NewsroomSection", "Automation", "ProcedureRun", "ReviewRequest", "ReviewReadMark", "ReviewRecipientRule",
 ];
 const REQUIRED_FIELDS: Record<string, string[]> = {
-  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "headStageKey", "scheduledPublishAt", "scheduledBy", "scheduledAt", "scheduleState", "scheduleName"],
-  PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
+  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "headStageKey", "scheduledPublishAt", "scheduledBy", "scheduledAt", "scheduleState", "scheduleName",
+    "language", "languageGroupId", "sourceLineageId", "sourceVersionNumber", "sourceContentHash", "syncState"],
+  PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "language", "languageGroupId"],
   Message: ["editedAt", "deletedAt", "deletedBySub"],
   MediaAsset: ["tenantId"],
   PublishedMediaAsset: ["tenantId"],
@@ -30,6 +31,8 @@ const REQUIRED_INDEXES = [
   'index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt")',
   // Scheduled publishing (docs/scheduled-publishing.md): the sparse index of scheduled versions; the Item's tenth, and the only one in its deploy.
   'index("scheduleState").sortKeys(["scheduledPublishAt"]).queryField("listItemsByScheduleStateAndScheduledPublishAt")',
+  // A Story's language group (features_backend/item-language.feature): the primary and its localizations, one language by sort key.
+  'index("languageGroupId").sortKeys(["language"]).queryField("listItemsByLanguageGroupAndLanguage")',
 ];
 
 function extractFieldNames(source: string, modelName: string): Set<string> {

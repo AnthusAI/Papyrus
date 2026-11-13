@@ -65,6 +65,8 @@ Ryan, 2026-10-05 (epic PPY-1f1489 comments):
 
 ## 1. The standard site
 
+A site that serves several languages is projected as one edition per public language: see [multilingual-serving.md](multilingual-serving.md).
+
 ### 1.1 Parts
 
 ```text
@@ -182,7 +184,7 @@ bundling is unaffected: it installs with `--python-version 3.12
 
 **Removing a local `tactus @ file:///...` checkout path (done in PR #100).**
 `tactus >=0.52,<1` from PyPI (0.52.0) replaces it; the wheel metadata has no
-`file:` or `git+` requirement. `humanus` is pinned to one minor release (`humanus >=0.33,<0.34`): Humanus is
+`file:` or `git+` requirement. `humanus` is pinned to one minor release (`humanus >=0.36,<0.37`): Humanus is
 below 1.0, so a minor release may change its contracts; move the pin deliberately.
 Local Tactus development uses a dev-only override
 (`[tool.uv.sources]` or a local `pip install -e`), never the published

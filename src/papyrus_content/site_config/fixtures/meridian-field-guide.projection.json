@@ -1,0 +1,100 @@
+{
+  "theme": null,
+  "site": {
+    "name": "Meridian Field Guide",
+    "tagline": "Notes on small-scale mapping.",
+    "description": "A reference for people who survey, sketch and share maps.",
+    "productionUrl": "https://meridian-guide.example",
+    "componentsCss": false
+  },
+  "urls": {
+    "style": "directory",
+    "basePath": "guide",
+    "sections": {
+      "basics": {
+        "label": "Basics",
+        "description": "Start here.",
+        "listEmpty": true
+      },
+      "instruments": {
+        "base": "kit",
+        "label": "Instruments",
+        "listEmpty": true
+      },
+      "glossary": {
+        "label": "Glossary",
+        "feed": false,
+        "listEmpty": true
+      }
+    }
+  },
+  "nav": {
+    "links": [
+      {
+        "label": "Home",
+        "href": "/"
+      },
+      {
+        "label": "Glossary",
+        "href": "/glossary/"
+      },
+      {
+        "label": "Ask",
+        "href": "/ask/"
+      }
+    ],
+    "brandHtml": "<span class=\"brand-word\">Meridian</span>"
+  },
+  "footer": {
+    "text": "Published by the Meridian volunteers.",
+    "columns": [
+      {
+        "title": "Help",
+        "links": [
+          {
+            "label": "Suggest an edit",
+            "href": "/ask/"
+          }
+        ]
+      }
+    ]
+  },
+  "redirects": {
+    "exact": {
+      "/old-glossary/": "/glossary/",
+      "/favicon.ico": "/assets/favicon.ico"
+    }
+  },
+  "forms": {
+    "suggest-edit": {
+      "title": "Suggest an edit",
+      "endpoint": "https://forms.example/suggest",
+      "submitLabel": "Send suggestion",
+      "fields": [
+        {
+          "name": "message",
+          "label": "What should change?",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    }
+  },
+  "wiki": {
+    "suggestForm": "suggest-edit"
+  },
+  "listings": {
+    "homeCount": 8
+  },
+  "feeds": {
+    "formats": [
+      "rss"
+    ],
+    "count": 20
+  },
+  "sitemap": {
+    "style": "single",
+    "lastmod": true
+  },
+  "hooks": "hooks.py"
+}

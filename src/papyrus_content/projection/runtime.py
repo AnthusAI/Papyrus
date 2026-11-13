@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .engine import ProjectionContext
+from ..tenancy import TENANT_ID_ENVIRONMENT_VARIABLE
 from .lease import lease_from_environment
 from .plugins import plugin_names_from_environment
 from .projector import MarkusSiteProjector, SiteProjector
@@ -206,7 +207,9 @@ def context_from_environment(
         ),
         invalidate=invalidator.invalidate if invalidator else None,
         redirect_store=KeyValueStoreRedirects(kvs_arn, kvs_client) if kvs_arn else None,
-        lease=lease_from_environment(environment, store_name(environment)),
+        lease=lease_from_environment(
+            environment, store_name(environment), tenant_id=(environment.get(TENANT_ID_ENVIRONMENT_VARIABLE) or "").strip() or None
+        ),
     )
 
 

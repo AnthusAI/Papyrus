@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlsplit
 
+from ..tenant_knowledge_keys import corpus_key_of
 from .excerpt import Fetcher, excerpt_for, fetch_html
 
 SCHEMA_VERSION = 1
@@ -27,7 +28,6 @@ STATUSES = (ACCEPTED, PENDING)
 RELEVANCE_PREDICATE = "relevance_decision_is"
 RELEVANCE_NODE_PREFIX = "semantic-node-relevance-"
 UNLABELLED = "unlabelled"
-CORPUS_PREFIX = "knowledge-corpus-"
 DEFAULT_WINDOW = "7d"
 DEFAULT_MAXIMUM_REFERENCES = 60
 
@@ -65,7 +65,7 @@ def parse_time(value: str | None) -> datetime | None:
 
 
 def corpus_key(corpus_id: str) -> str:
-    return corpus_id.removeprefix(CORPUS_PREFIX)
+    return corpus_key_of(corpus_id)
 
 
 def _metadata(relation: dict[str, Any]) -> dict[str, Any]:

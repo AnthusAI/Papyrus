@@ -1,6 +1,6 @@
 ---
 name: figures
-description: Draw a diagram, chart or editorial illustration for a Papyrus Story in the site's own design system, as one SVG source rendered to a light and a dark picture, checked by `papyrus figures render`, approved by a person and saved into the Story. Use when a Story would be clearer with a picture that explains something, when an editor asks for a diagram, chart or illustration, or when a copywriting or illustration step calls for a figure.
+description: Draw a diagram, chart or editorial illustration for a Papyrus Story in the site's own design system, as one SVG source rendered to a light and a dark picture, checked by `papyrus figures render` and saved into the Story, with no credit and no approval step by default. Use when a Story would be clearer with a picture that explains something, when an editor asks for a diagram, chart or illustration, or when a copywriting or illustration step calls for a figure.
 ---
 
 # Figures
@@ -11,7 +11,7 @@ This skill is the same for every Papyrus site and names no brand. Everything tha
 
 ## Two things that never bend
 
-1. **Light and dark are both mandatory.** Every figure ships in a light picture and a dark picture. You draw once, with color *roles* (`fill="{inset}"`, never a hex value), and `papyrus figures render` resolves the one source into both and writes `SLUG.png` and `SLUG.dark.png`. There is no light-only figure. Look at both pictures before you ask for approval, and save both into the Story.
+1. **Light and dark are both mandatory.** Every figure ships in a light picture and a dark picture. You draw once, with color *roles* (`fill="{inset}"`, never a hex value), and `papyrus figures render` resolves the one source into both and writes `SLUG.png` and `SLUG.dark.png`. There is no light-only figure. Look at both pictures yourself, and save both into the Story.
 2. **Never invent a brand.** Draw only in the design system of the site you are working on. If the site has none, say so in your note to the person, then either use the stated default (`--neutral-default`: unbranded grays and the machine's own sans-serif, nothing else) or ask them for the design system. Do not make up colors, fonts, logos or a "house style".
 
 ## 1. Find the site's design system
@@ -34,7 +34,7 @@ Choose the form for the relationship being explained, not the nearest template (
 
 Make a folder, for example `./figures/SLUG/`, with:
 
-- `figure.json`: the criteria above plus `slug`, `kind` (`diagram`, `chart` or `illustration`), `alt`, `caption` (one sentence), `credit` (`Drafted by AI. Approved by {approved_by}.` plus a source for facts), `labelled_as` (`none`, `framed`, `forecast`, `invented` or `invented-scene`), `approved_by` (leave `null` until a person approves) and `layout`.
+- `figure.json`: the criteria above plus `slug`, `kind` (`diagram`, `chart` or `illustration`), `alt`, `caption` (one sentence), `labelled_as` (`none`, `framed`, `forecast`, `invented` or `invented-scene`) and `layout`. Our own figures carry **no credit**: leave `credit` out. Add `credit` only to name a real source for facts the figure shows (`Source: <name>.`); a credit that only says a machine drew it, or that says `Approved by`, is wrong (the checker rejects the second and the renderer drops the first). `approved_by` is optional metadata and never part of the picture or its credit line.
 - `figure.svg`: `<title>`, `<desc>`, then the line `<!--primitives-->`; colors only as `{role}` names from the design system's `figure_roles`; type only as `t-<role>` classes; shapes and lines with the meanings in rules sections 3 and 4; one focal mark at most; geometry on a 4px grid; one `<text>` per line, placed by hand.
 
 Stay within the density limits (rules section 9). Try removing each shape, line and label; leave out what the figure survives without. A forecast or an invented example that could pass for data carries its stamp (rules section 10).
@@ -53,9 +53,9 @@ papyrus figures render ./figures/SLUG --out ./pictures
 
 The checker cannot tell whether a figure makes sense. Open **both** pictures and look at them at phone width (343px): can you read every word in each, does it still make sense with the color removed, do the rings and marks avoid the letters, is the point obvious in a few seconds? If not, redraw. Do not publish a figure you have not looked at in both themes.
 
-## 6. Get a person's approval
+## 6. No approval step, no credit
 
-Show the person both pictures and say what they are: the acceptance criteria, the alt text, the caption and the credit. A person confirms each figure before it is published. Set `approved_by` in `figure.json` to the name of the person who approved it (never your own name or an invented one), then render again. Approval is not needed to publish unless the site opted in with `illustrationRequireApprovalCredit`; it is metadata (never a visible credit on a generated figure) and is recorded in the Story's front matter `coverImage` record.
+Our own figures need no person's approval and carry no credit. Looking at both pictures (step 5) is your check; then save. A site that wants a recorded approval for its cover opts in with the design-system setting `illustrationRequireApprovalCredit` (off unless a site sets it): the Story's front matter `coverImage` record then needs `approvedBy` and `approvedAt`, and the cover's image line an `Approved by NAME` credit. That is the only approval path, and it is the site's choice, not yours: do not add an approval step, or ask for one, where the site did not set it. Third-party images are different: they are always credited. This skill never touches them.
 
 ## 7. Save it into the Story
 
@@ -63,12 +63,12 @@ Show the person both pictures and say what they are: the acceptance criteria, th
 papyrus figures directive ./figures/SLUG
 ```
 
-Put the printed `::image{}` line where the figure belongs in the draft. Put `SLUG.png`, `SLUG.dark.png` and `SLUG.figure.json` in the pictures folder and save with `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures --reason "..."`. `save-version` pairs the dark file automatically, and prints a `figure-light-only` warning if you forgot it (a site can set `requireDarkFigures` so that the save is refused instead): fix that rather than ignoring it. Show the editor the console link of the saved version, as the other steps do. A figure used as the cover (front matter `image`) closes the checklist's `illustration` step once it is a stored asset (no approval needed by default; a site that opted in also needs `coverImage: {srcPath: assets/SLUG.png, approvedBy: NAME, approvedAt: DATE}` and an `Approved by NAME` image line) and, where the site requires dark figures, its dark picture is saved too; you cannot mark that step done by hand, and only a person can record an exception with a reason. Never publish without the person's confirmation.
+Put the printed `::image{}` line where the figure belongs in the draft. Put `SLUG.png`, `SLUG.dark.png` and `SLUG.figure.json` in the pictures folder and save with `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures --reason "..."`. `save-version` pairs the dark file automatically, and prints a `figure-light-only` warning if you forgot it (a site can set `requireDarkFigures` so that the save is refused instead): fix that rather than ignoring it. Show the editor the console link of the saved version, as the other steps do. A figure used as the cover (front matter `image`) closes the checklist's `illustration` step once it is a stored asset (no approval needed by default; a site that opted in also needs `coverImage: {srcPath: assets/SLUG.png, approvedBy: NAME, approvedAt: DATE}` and an `Approved by NAME` image line, as in step 6) and, where the site requires dark figures, its dark picture is saved too; you cannot mark that step done by hand, and only a person can record an exception with a reason.
 
 ## What you must not do
 
 - Do not draw a light-only figure, or ship a figure whose dark picture you did not look at.
 - Do not use a raw color, a font attribute, a gradient, opacity, an outline or a shape for something its meaning does not cover.
 - Do not draw in a design system you made up, or pass another site's design system for this one.
-- Do not put a figure in a Story without alt text, a caption and the person's approval recorded.
+- Do not put a figure in a Story without alt text and a caption. Do not give our own figure a credit, and do not ask for an approval the site did not require.
 - Do not claim a figure is checked until `papyrus figures render` printed `ok` for the exact source you are saving.

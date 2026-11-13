@@ -12,6 +12,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from .tenant_knowledge_keys import corpus_key_of, own_corpora
 from .ids import knowledge_corpus_id
 
 CANONICAL_CORPUS_KIND = "canonical"
@@ -21,7 +22,7 @@ INIT_HINT = "papyrus publication init --key <key> --name <name>"
 
 
 def _canonical_corpora(client) -> list[dict[str, Any]]:
-    return [row for row in client.list_by_index("knowledgeCorporaByRoleAndName", CANONICAL_CORPUS_KIND) if row.get("role") == CANONICAL_CORPUS_KIND]
+    return [row for row in own_corpora(client.list_by_index("knowledgeCorporaByRoleAndName", CANONICAL_CORPUS_KIND)) if row.get("role") == CANONICAL_CORPUS_KIND]
 
 
 def ensure_publication(client, key: str, name: str | None = None) -> dict[str, Any]:
@@ -35,7 +36,7 @@ def ensure_publication(client, key: str, name: str | None = None) -> dict[str, A
         raise ValueError("The backend has more than one canonical corpus; resolve that before initializing a publication.")
     if canonical:
         if canonical[0].get("id") != corpus_id:
-            served = str(canonical[0].get("id") or "").removeprefix("knowledge-corpus-")
+            served = corpus_key_of(str(canonical[0].get("id") or ""))
             raise ValueError(f"This backend already serves publication {served}; refusing to also create {key}.")
         return {"created": False, "key": key, "corpusId": corpus_id, "name": canonical[0].get("name")}
     current = client.get_record("KnowledgeCorpus", corpus_id)
@@ -78,7 +79,7 @@ def publication_init_command(flags: list[str]) -> None:
 def normalize_corpus_key(value: Any) -> Any:
     """A corpus key as the commands use it. A record id (``knowledge-corpus-<key>``, as projection.json names it) means its key."""
     if isinstance(value, str):
-        return value.strip().removeprefix("knowledge-corpus-") or value
+        return corpus_key_of(value.strip()) or value
     return value
 
 

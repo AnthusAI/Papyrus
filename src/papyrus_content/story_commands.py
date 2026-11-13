@@ -201,6 +201,45 @@ def stories_versions(flags: list[str]) -> None:
         print("\t".join(["stories", "versions", str(version.get("versionNumber")), str(version.get("versionState")), str(version.get("versionCreatedAt") or version.get("updatedAt") or ""), str(version.get("versionCreatedBy") or ""), str(version.get("changeReason") or ""), str(version["id"])]))
 
 
+def stories_pull(flags: list[str]) -> None:
+    """papyrus stories pull --story <lineage> --body-file <file> --front-matter-file <file> [--version <N>] [--json]
+
+    Read only: writes the two local files and nothing to the Story. They hold the stored text of the current version (the one `stories show` calls
+    current), or with --version N of that exact immutable version, exactly as `stories save-version --body-file --front-matter-file` takes them back.
+    A picture path in the body or front matter is the stored path, which a save without --images keeps. Saving the pulled files unchanged still
+    makes a new version, whose text equals the one pulled: save-version never skips a save. A Story with no stored front matter gets an empty file.
+    An unknown story or version is an error and no file is written."""
+    options = parse_options(flags)
+    lineage_id = _required_option(options, "story")
+    body_file = _required_option(options, "body-file")
+    front_matter_file = _required_option(options, "front-matter-file")
+    client, _ = create_authoring_client()
+    wanted = normalize_string(options.get("version"))
+    if wanted:
+        if not wanted.isdigit() or int(wanted) < 1:
+            raise ValueError(f"--version must be a version number such as 2, not {wanted!r}.")
+        versions = story_versions(client, lineage_id)
+        if not versions:
+            raise ValueError(f"No story found for lineage {lineage_id}.")
+        record = next((row for row in versions if int(row.get("versionNumber") or 0) == int(wanted)), None)
+        if record is None:
+            have = ", ".join(str(row.get("versionNumber")) for row in versions)
+            raise ValueError(f"Story {lineage_id} has no version {wanted} (it has {have}). `papyrus stories versions --story {lineage_id}` lists them.")
+    else:
+        record = current_story_version(client, lineage_id)
+    metadata = record.get("metadata")
+    front_matter = (json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})).get("frontMatterYaml") or ""
+    body = record.get("bodyMarkus") or ""
+    for path, text in ((body_file, body), (front_matter_file, front_matter)):
+        with open(path, "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+    if options.get("json"):
+        print(json.dumps({"ok": True, "story": lineage_id, "version": record.get("versionNumber"), "id": record["id"], "state": record.get("versionState"),
+                          "bodyFile": body_file, "frontMatterFile": front_matter_file}, indent=2))
+        return
+    print(f"stories\tpull\t{lineage_id}\tversion {record.get('versionNumber')}\t{record['id']}\t{record.get('versionState')}\tbody {body_file}\tfront matter {front_matter_file}")
+
+
 def stories_repair_versions(flags: list[str]) -> None:
     """papyrus stories repair-versions --story <lineage> [--dry-run]
 
@@ -241,6 +280,27 @@ def stories_head_index(flags: list[str]) -> None:
     stages = tuple(parse_repeated_option(flags, "stage")) or None
     client, _ = create_authoring_client()
     run_head_index(client, apply=apply, stages=stages, rate=rate)
+
+
+def stories_languages(flags: list[str]) -> None:
+    """papyrus stories languages [--dry-run] [--rate <writes per second>]
+
+    Writes the language and the language group on every Item row written before those fields existed (src/papyrus_content/item_language.py,
+    docs/plans/multilingual-publishing.md): each such row is a primary-language row, so it gets the site's primary language (its editorial check
+    settings' languages.primary) and its own lineage as its language group. Reads the version-state index once, state by state (no table scan),
+    writes only rows that lack a field, each with its own updatedAt, at most --rate a second (default 5), and never changes a language a row has.
+
+    Writes by default; --dry-run prints one line per row it would write and a summary (rows read, rows to write, already right). A run that reports
+    0 rows to write is the health check; a second run writes nothing."""
+    from .item_language_backfill import DEFAULT_RATE, run_languages
+
+    options = parse_options(flags)
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    rate = float(options.get("rate") or DEFAULT_RATE)
+    if rate <= 0 or rate > 25:
+        raise ValueError("--rate must be more than 0 and at most 25 writes a second.")
+    client, _ = create_authoring_client()
+    run_languages(client, primary=client.primary_language(), dry_run=dry_run, rate=rate)
 
 
 def stories_backfill_published_dates(flags: list[str]) -> None:
@@ -1077,3 +1137,52 @@ def stories_fire_triggers(flags: list[str]) -> None:
 
     client, _ = create_authoring_client()
     deliver_from_environment(client, _required_option(options, "story"))
+
+
+def stories_localize(flags: list[str]) -> None:
+    """papyrus stories localize --story LINEAGE --language TAG [--automation ID] [--ceiling-usd N] [--dry-run] [--json]
+
+    Asks for a translation of a published Story into one language (the Story translation procedure, papyrus.story.localize): writes the
+    desired-state record for the Story and language (LocalizationRequest: the newest published source version), then starts the site's
+    translation automation (--automation, the automation that runs papyrus.story.localize) for it. The run translates only the blocks whose
+    source changed, checks every block against the English, polishes until the findings stop shrinking and saves the result as an unpublished
+    version of <story>--<language>; it never publishes. Run `papyrus automations runs --id ID` to follow it.
+
+    Writes by default; --dry-run prints the plan (blocks to translate, glossary terms the translator will be given, the predicted cost from this
+    language's measured runs) and writes nothing."""
+    from .localize.desired_state import want
+    from .localize.record import collect
+    from .story_reporting import published_story_version
+
+    options = parse_options(flags)
+    story = _required_option(options, "story")
+    language = _required_option(options, "language")
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    ceiling = float(options["ceiling-usd"]) if options.get("ceiling-usd") else None
+    client, _ = create_authoring_client()
+    request = collect(client, story=story, language=language, judge=None, procedure_version="plan", ceiling_usd=ceiling)
+    from .localize.blocks import blocks_of
+    from .localize.engine import plan_slots
+
+    slots = plan_slots(blocks_of(request.source.body, title=request.source.title, deck=request.source.deck), request.previous)
+    to_translate = [slot for slot in slots if slot.translate]
+    terms = [entry["term"] for entry in request.glossary.entries_in([slot.source.text for slot in to_translate], request.source.language)]
+    prediction = request.prediction.payload() if request.prediction else {}
+    plan = {"story": story, "language": request.language, "localization": request.localization_lineage, "sourceVersion": request.source.version_number,
+            "blocksToTranslate": len(to_translate), "blocksKept": len(slots) - len(to_translate), "glossaryTerms": terms, "prediction": prediction}
+    if dry_run:
+        print("\t".join(["stories", "localize", "plan", json.dumps(plan, ensure_ascii=False)]))
+        return
+    automation = _required_option(options, "automation")
+    source = published_story_version(client, story)
+    record = want(client, source=source, language=request.language, requested_by="cli")
+    from .automations_signed_in import RUN_MUTATION
+
+    answer = client.graphql(RUN_MUTATION, {"automationId": automation, "input": json.dumps({"story": story, "language": request.language,
+                                                                                               "ceilingUsd": ceiling or 0})})
+    started = answer.get("runAutomation")
+    started = json.loads(started) if isinstance(started, str) else (started or {})
+    if started.get("state") != "started":
+        raise ValueError(f"The translation is requested ({record['id']}), but the automation {automation} did not start: "
+                         f"{started.get('reason') or started.get('state') or 'no answer'}. Start it again with the same command.")
+    print("\t".join(["stories", "localize", "requested", record["id"], f"source v{record['sourceVersionNumber']}", "run", str(started.get("key"))]))

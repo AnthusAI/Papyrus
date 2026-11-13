@@ -37,7 +37,7 @@ from .sync import (
     working_version,
 )
 
-DEFAULT_WIKI_SECTION = "wiki"
+from ..projection.standard.wiki import DEFAULT_WIKI_SECTION  # noqa: E402 - one name for the wiki section, shared with the projection
 DEFAULT_TOPICS_SECTION = "topics"
 SYNC_ACTOR = "papyrus-wiki-sync"
 

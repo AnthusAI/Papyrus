@@ -77,6 +77,16 @@ Feature: Retire a story and redirect its address to another story
     And the command printed a line containing "would redirect"
     And no record changed
 
+  Scenario: A dry run names the public address each redirect comes from
+    When the command "stories retire --story item-old-article --redirect-to item-merged --dry-run" is run
+    Then the command printed the redirect from "/articles/old-article.html" to "/articles/merged.html"
+    And the command printed no redirect from "articles/old-article.md"
+    And no record changed
+
+  Scenario: A real run prints the same redirects as the dry run
+    When the command "stories retire --story item-old-article --redirect-to item-merged" is run
+    Then the command printed the redirect from "/articles/old-article.html" to "/articles/merged.html"
+
   Scenario: Undo brings the story back and removes its redirects
     Given the story "old-article" is retired into "merged"
     When the retirement of "old-article" is undone

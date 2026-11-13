@@ -8,6 +8,7 @@ import json
 import logging
 from typing import Any
 
+from .tenant_knowledge_keys import corpus_key_of, is_corpus_id, own_corpora
 from .env import graphql_endpoint, load_dotenv
 from .newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND
 from .section_ids import match_section
@@ -75,17 +76,17 @@ def build_context(publication: dict, scope: dict, entries: list[dict], *, mode: 
     return payload
 
 
-def hosted_publication(client, requested_key: str | None = None) -> dict:
+def hosted_publication(client, requested_key: str | None = None, tenant_id: str | None = None) -> dict:
     """The publication this backend serves: its one canonical KnowledgeCorpus (data, not repo configuration).
 
     A requested key is only an assertion about which publication the caller believes it is talking to.
     """
-    corpora = client.list_by_index('knowledgeCorporaByRoleAndName', 'canonical')
+    corpora = own_corpora(client.list_by_index('knowledgeCorporaByRoleAndName', 'canonical'), tenant_id)
     if (len(corpora) != 1 or corpora[0].get('role') != 'canonical' or not str(corpora[0].get('name') or '').strip()
-            or not str(corpora[0].get('id') or '').startswith('knowledge-corpus-')):
+            or not is_corpus_id(str(corpora[0].get('id') or ''))):
         raise ValueError('The hosted backend has no single canonical corpus; missing or ambiguous publication binding. '
                          'On a fresh backend create it with `papyrus publication init --key <key> --name <name>`.')
-    key = corpora[0]['id'].removeprefix('knowledge-corpus-')
+    key = corpus_key_of(corpora[0]['id'])
     if requested_key and requested_key != key:
         raise ValueError(f'Requested publication {requested_key} does not match the hosted canonical corpus {key}; publication binding mismatch.')
     return {'key': key, 'name': corpora[0]['name'], 'corpusId': corpora[0]['id'],

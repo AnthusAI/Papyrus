@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from .tenant_knowledge_keys import corpus_id_for_key
 from . import request_meter
 from .ideas.digest import relations_of, relevance_of
 from .reference_capture_state import attachments_for_state, capture_state, normalize_capture_state
@@ -36,7 +37,7 @@ def corpus_ids_for(client: Any, *, site: str | None, corpus_keys: str | None, al
     keys = [key.strip() for key in (corpus_keys or site or "").split(",") if key.strip()]
     if not keys:
         raise ValueError("references backfill-feed-keys needs --site KEY, --corpus-key KEY[,KEY...] or --all-corpora.")
-    return [f"knowledge-corpus-{key}" for key in dict.fromkeys(keys)]
+    return [corpus_id_for_key(key) for key in dict.fromkeys(keys)]
 
 
 def planned_fields(client: Any, reference: dict[str, Any], positive_label: str) -> dict[str, Any]:

@@ -16,7 +16,7 @@ MAX_PICTURE_BYTES = 10 * 1024 * 1024
 MAX_RATIO_DIFFERENCE = 0.005
 LABEL_TARGET_CHARACTERS = 25
 LABEL_LIMIT_CHARACTERS = 30
-REQUIRED_METADATA = ("slug", "kind", "audience", "shows", "complements", "surrounding_text", "alt", "caption", "credit", "labelled_as", "approved_by", "layout")
+REQUIRED_METADATA = ("slug", "kind", "audience", "shows", "complements", "surrounding_text", "alt", "caption", "labelled_as", "layout")
 KINDS = ("diagram", "chart", "illustration")
 LABELS = {"none": None, "framed": None, "forecast": "FORECAST, NOT DATA", "invented": "INVENTED EXAMPLE", "invented-scene": "INVENTED SCENE"}
 BANNED_ELEMENTS = ("filter", "linearGradient", "radialGradient", "image", "foreignObject", "script", "animate")
@@ -32,8 +32,10 @@ def canvas_width_for(kind: str | None, design_system: DesignSystem) -> int:
 def source_problems(figure_source: str, metadata: dict, design_system: DesignSystem) -> list[str]:
     problems = []
     for key in REQUIRED_METADATA:
-        if key not in metadata or (metadata[key] in ("", None) and key != "approved_by"):
+        if key not in metadata or metadata[key] in ("", None):
             problems.append(f"figure.json is missing {key}")
+    if re.search(r"approved by", str(metadata.get("credit") or ""), re.I):
+        problems.append("a figure carries no approval credit: remove `Approved by` from credit (our own figures have no credit; a person's approval is metadata, `approved_by`)")
     kind = metadata.get("kind")
     if kind not in KINDS:
         problems.append(f"kind must be one of {KINDS}")
@@ -204,8 +206,13 @@ def picture_problems(light_path: Path, dark_path: Path) -> list[str]:
 
 
 def image_directive(metadata: dict) -> str:
-    credit = metadata["credit"].replace("{approved_by}", metadata["approved_by"] or "<name>")
+    """The ``::image{}`` line for a Story. A figure we drew carries no credit, so ``credit`` is printed only when the figure names a real one
+    (``Source: <name>.`` for facts it shows); a credit that only says a machine made the picture is dropped, as the renderer drops it."""
+    from ..markus_renderer.content_markup import without_machine_credit
+
+    credit = without_machine_credit(str(metadata.get("credit") or "").strip() or None)
+    credit_line = f'  credit="{credit}"\n' if credit else ""
     return (
         f'::image{{\n  src="{metadata["slug"]}.png"\n  layout="{metadata["layout"]}"\n'
-        f'  alt="{metadata["alt"]}"\n  caption="{metadata["caption"]}"\n  credit="{credit}"\n}}'
+        f'  alt="{metadata["alt"]}"\n  caption="{metadata["caption"]}"\n{credit_line}}}'
     )

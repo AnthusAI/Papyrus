@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 
+from papyrus_content.appsync_event import NO_OPERATION_MESSAGE, amplify_function_event
 from papyrus_content.image_service import caller_from_identity, handle
 from papyrus_content.images.profile_fakes import FakeBackend, profile_copy
 
@@ -14,7 +15,7 @@ READER = {"claims": {"name": "Rae Reader"}, "groups": [], "username": "rae"}
 def call(backend, door, identity, **arguments):
     if "input" in arguments and not isinstance(arguments["input"], str):
         arguments["input"] = json.dumps(arguments["input"])
-    return handle({"info": {"fieldName": door}, "identity": identity, "arguments": arguments}, client_factory=lambda: backend, files_factory=lambda built: built.document_files)
+    return handle({"fieldName": door, "identity": identity, "arguments": arguments}, client_factory=lambda: backend, files_factory=lambda built: built.document_files)
 
 
 def test_only_staff_may_use_the_door():
@@ -92,7 +93,7 @@ def test_an_unexpected_failure_is_a_state_and_the_cause_is_not_returned():
     def broken():
         raise RuntimeError("secret detail")
 
-    answer = handle({"info": {"fieldName": "imageRead"}, "identity": EDITOR, "arguments": {"op": "image_profile_get"}}, client_factory=broken)
+    answer = handle({"fieldName": "imageRead", "identity": EDITOR, "arguments": {"op": "image_profile_get"}}, client_factory=broken)
     assert answer["error"]["code"] == "service_unavailable" and "secret" not in json.dumps(answer)
 
 
@@ -106,3 +107,12 @@ def test_the_function_imports_with_only_the_standard_library():
     result = subprocess.run([sys.executable, "-S", "-c", f"import sys; sys.path.insert(0, {source!r}); import papyrus_content.image_service"],
                             capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr[-400:]
+
+
+def test_the_door_is_the_field_amplify_names_and_a_request_naming_none_says_so():
+    backend = FakeBackend("ours", profile=profile_copy())
+    sent = amplify_function_event("Query", "imageRead", {"op": "image_profile_get"}, EDITOR)
+    assert handle(sent, client_factory=lambda: backend, files_factory=lambda built: built.document_files)["ok"] is True
+    del sent["fieldName"]
+    answer = handle(sent, client_factory=lambda: backend, files_factory=lambda built: built.document_files)
+    assert answer["error"]["code"] == "invalid_input" and answer["error"]["message"] == NO_OPERATION_MESSAGE

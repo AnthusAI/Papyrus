@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .tenant_knowledge_keys import REFERENCE_FEED_KEY, REFERENCE_REVIEWED_FEED_KEY, SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
 from .env import PAPYRUS_ROOT, storage_bucket_from_amplify_outputs
 from .graphql_authoring import create_authoring_client
 from .tenancy import tenant_id_from_options
@@ -1002,8 +1003,8 @@ def _newsroom_feed_patch_for(model_name: str, record: dict[str, Any]) -> dict[st
         return {
             "createdAt": created_at,
             "updatedAt": record.get("updatedAt") or record.get("curationStatusUpdatedAt") or record.get("importedAt") or created_at,
-            "newsroomFeedKey": "references",
-            "reviewedFeedKey": None if curation_status == "pending" else "references#reviewed",
+            "newsroomFeedKey": global_key(REFERENCE_FEED_KEY),
+            "reviewedFeedKey": None if curation_status == "pending" else global_key(REFERENCE_REVIEWED_FEED_KEY),
             **_reference_feed_patch(record, created_at),
         }
     if model_name == "SemanticNode":
@@ -1011,14 +1012,14 @@ def _newsroom_feed_patch_for(model_name: str, record: dict[str, Any]) -> dict[st
         return {
             "createdAt": created_at,
             "updatedAt": record.get("updatedAt") or created_at,
-            "newsroomFeedKey": "semanticNodes",
+            "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
         }
     if model_name == "SemanticRelation":
         created_at = record.get("createdAt") or record.get("importedAt") or record.get("updatedAt") or now
         return {
             "createdAt": created_at,
             "updatedAt": record.get("updatedAt") or record.get("importedAt") or created_at,
-            "newsroomFeedKey": "semanticRelations",
+            "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         }
     return {}
 

@@ -77,6 +77,7 @@ import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCate
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { isUnauthenticatedError, loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
 import { resolveReaderSettings } from "./reader-settings";
+import { REFERENCE_FEED_KEY, REFERENCE_REVIEWED_FEED_KEY, SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, globalKey } from "../lib/tenant-knowledge-keys";
 
 const USER_POOL_AUTH_MODE = "userPool";
 const USER_POOL_LIST_LIMIT = 500;
@@ -84,7 +85,6 @@ const USER_POOL_PAGE_LIMIT = 50;
 const TEST_EDITOR_STORAGE_KEY = "papyrus:test-editor";
 const TEST_EDITOR_NEWSROOM_MOCK_STORAGE_KEY = "papyrus:test-newsroom-mock";
 const NEWSROOM_PAGE_LIMIT = 50;
-const REFERENCE_REVIEWED_FEED_KEY = "references#reviewed";
 const REFERENCE_STATUS_KEYS = ["pending", "accepted", "rejected", "archived"] as const;
 
 const NEWSROOM_MESSAGE_FEED_QUERY = `
@@ -1791,7 +1791,7 @@ async function createCommentRelation(message: MessageRecord, anchor: Conversatio
       importedAt: now,
       createdAt: now,
       updatedAt: now,
-      newsroomFeedKey: "semanticRelations",
+      newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
       metadata: JSON.stringify({ kind: "conversation.comment", messageKind: "comment" }),
     },
   });
@@ -2309,7 +2309,7 @@ async function loadReferencePageByImportedFeed(options: NewsroomReferencePageOpt
   return loadNewsroomFeedPage<ReferenceRecord>({
     query: NEWSROOM_REFERENCE_IMPORTED_FEED_QUERY,
     field: "listReferencesByNewsroomFeedAndImportedAt",
-    newsroomFeedKey: "references",
+    newsroomFeedKey: globalKey(REFERENCE_FEED_KEY),
     limit: options.limit,
     nextToken: options.nextToken,
     matches: (reference) => referencePageMatchesFilters(reference, options, normalizedStatus),
@@ -2389,7 +2389,7 @@ export async function loadNewsroomSemanticRelationPage(options: NewsroomSemantic
   return loadNewsroomFeedPage<SemanticRelationRecord>({
     query: NEWSROOM_SEMANTIC_RELATION_FEED_QUERY,
     field: "listSemanticRelationsByNewsroomFeedAndCreatedAt",
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     limit: options.limit,
     nextToken: options.nextToken,
     matches: equalityMatcher({
@@ -2948,7 +2948,7 @@ export async function loadNewsroomSemanticNodePage(options: NewsroomSemanticNode
   return loadNewsroomFeedPage<SemanticNodeRecord>({
     query: NEWSROOM_SEMANTIC_NODE_FEED_QUERY,
     field: "listSemanticNodesByNewsroomFeedAndCreatedAt",
-    newsroomFeedKey: "semanticNodes",
+    newsroomFeedKey: globalKey(SEMANTIC_NODE_FEED_KEY),
     limit: options.limit,
     nextToken: options.nextToken,
     matches: equalityMatcher({
@@ -3280,7 +3280,7 @@ async function loadReferencePageByReviewedFeed({
     query: LIST_REFERENCES_BY_REVIEWED_FEED_AND_UPDATED_AT_QUERY,
     field: "listReferencesByReviewedFeedAndUpdatedAt",
     keyName: "reviewedFeedKey",
-    keyValue: REFERENCE_REVIEWED_FEED_KEY,
+    keyValue: globalKey(REFERENCE_REVIEWED_FEED_KEY),
     limit,
     nextToken,
     filter,
