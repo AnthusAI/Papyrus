@@ -546,7 +546,7 @@ def _capture_page(source_url: str, *, title: str = "", explorer: Explorer = expl
                 pdf_capture.signals["metaDescriptionWordCount"] = _words(description)
                 return pdf_capture
     if not text:
-        text = _fallback_text(html)
+        text = description   # a page with no body text of its own is what it declares itself to be: its description
     if not text:
         return Capture(False, "no_text", source_kind="html", content_type="text/html", destination_url=destination, page=page,
                        preview=preview, publication_date=page_publication_date, links=links, paper=detect_paper(source_url, destination, metas=metas),
@@ -555,9 +555,3 @@ def _capture_page(source_url: str, *, title: str = "", explorer: Explorer = expl
     return Capture(True, None, text, "html", "text/html", destination, via, pdf_bytes, signals,
                    detect_paper(source_url, destination, metas=metas, text=text), page, preview=preview,
                    publication_date=page_publication_date, links=links)
-
-
-def _fallback_text(html: str) -> str:
-    from papyrus_content.ideas.excerpt import excerpt_from_html
-
-    return excerpt_from_html(html, 10_000_000) or ""

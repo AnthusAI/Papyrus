@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from .content_item_lifecycle import RETIRED_STAGE
 from .story_from_reference import COPIED_RUN_WORDS
 
 POLICY_ID = "cross-story-boilerplate"
@@ -150,7 +151,8 @@ def cross_story_findings(body: str, own_lineage: str | None, index: ShingleIndex
 
 
 def latest_stories(rows: Iterable[dict[str, Any]]) -> list[Story]:
-    """One ``Story`` per lineage: its highest-numbered current or draft version."""
+    """One ``Story`` per lineage: its highest-numbered current or draft version. A retired Story (``papyrus stories retire``) is not compared:
+    its page is down, and its text is the very passage that moved into the Story it redirects to."""
     best: dict[str, dict[str, Any]] = {}
     for row in rows:
         if row.get("versionState") not in ("current", "draft"):
@@ -158,4 +160,8 @@ def latest_stories(rows: Iterable[dict[str, Any]]) -> list[Story]:
         lineage = row.get("lineageId") or row["id"]
         if lineage not in best or int(row.get("versionNumber") or 0) > int(best[lineage].get("versionNumber") or 0):
             best[lineage] = row
-    return [Story(lineage, row.get("slug") or lineage, row.get("bodyMarkus") or "") for lineage, row in best.items()]
+    return [
+        Story(lineage, row.get("slug") or lineage, row.get("bodyMarkus") or "")
+        for lineage, row in best.items()
+        if row.get("stage") != RETIRED_STAGE
+    ]

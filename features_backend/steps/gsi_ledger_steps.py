@@ -1,4 +1,5 @@
 """GSI ledger behaviour through the real check script and schema fixtures."""
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -42,14 +43,14 @@ def step_keys(context):
     _fixture(context, 'changed-keys.ts')
 
 
-@given('a change that takes a table to 16 indexes')
-def step_sixteen(context):
-    _generated(context, 'near', 16, 15)
+@given('a change that takes a table to 20 indexes')
+def step_twenty(context):
+    _generated(context, 'full', 20, 19)
 
 
-@given('a change that takes a table to 19 indexes')
-def step_nineteen(context):
-    _generated(context, 'over', 19, 18)
+@given('a change that takes a table to 21 indexes')
+def step_twentyone(context):
+    _generated(context, 'over', 21, 20)
 
 
 @when('CI runs the GSI ledger check')
@@ -75,7 +76,7 @@ def step_fails_item(context):
 @then('the GSI ledger check fails naming that table')
 def step_fails_table(context):
     assert context.result.returncode == 1, context.result.stdout
-    assert 'Big has 19 indexes' in context.result.stderr, context.result.stderr
+    assert 'Big has 21 indexes' in context.result.stderr, context.result.stderr
 
 
 @then('the GSI ledger check passes')
@@ -88,6 +89,23 @@ def step_order(context):
     assert 'release 1: Reference.referencesByTenant' in context.result.stdout, context.result.stdout
 
 
-@then('it warns that the table has 16 of the 20 indexes DynamoDB allows')
-def step_warns(context):
-    assert 'Big has 16 of the 20 indexes' in context.result.stderr, context.result.stderr
+@then('it reports that the table has 20 of 20 indexes with 0 left')
+def step_slots(context):
+    assert 'Big has 20 of 20 indexes: 0 left.' in context.result.stdout, context.result.stdout
+
+
+@when('CI runs the GSI ledger check in a checkout without release tags')
+def step_run_untagged(context):
+    directory = tempfile.TemporaryDirectory()
+    context.add_cleanup(directory.cleanup)
+    subprocess.run(['git', 'init', '-q', directory.name], check=True)
+    context.result = subprocess.run(
+        ['npx', 'tsx', str(REPO_ROOT / 'scripts' / 'check-gsi-ledger.ts'), '--current', str(FIXTURES / 'baseline.ts')],
+        capture_output=True, text=True, cwd=directory.name, timeout=120,
+        env={**os.environ, 'NODE_PATH': str(REPO_ROOT / 'node_modules'), 'PATH': str(REPO_ROOT / 'node_modules' / '.bin') + os.pathsep + os.environ['PATH']})
+
+
+@then('the GSI ledger check fails saying no release tag was found')
+def step_no_tag(context):
+    assert context.result.returncode != 0, context.result.stdout
+    assert 'no stable release tag' in context.result.stderr, context.result.stderr

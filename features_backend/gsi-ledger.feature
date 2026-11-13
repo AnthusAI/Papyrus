@@ -1,9 +1,9 @@
 Feature: The GSI ledger keeps every release to one new index per table
   DynamoDB creates or deletes one global secondary index per table in one update, and a table holds at most 20.
   A CI check compares the indexes of every data model with the last release tag. It fails when a table gains more
-  than one index, when an index changes its keys in place, or when a table has more than 18 indexes. It warns
-  when a table has 16 or more. It also prints the order in which the pending indexes have to ship, one per table
-  in each release. A renamed index counts as a removal plus an addition, which is what DynamoDB does.
+  than one index, when an index changes its keys in place, or when a table has more than 20 indexes, the limit
+  DynamoDB sets. For every table whose indexes changed it reports how many index slots are left. It also prints the
+  order in which the pending indexes have to ship, one per table in each release. A renamed index counts as a removal plus an addition, which is what DynamoDB does.
 
   Scenario: Two new indexes on one table fail the build
     Given a change that adds two indexes to Reference
@@ -21,13 +21,17 @@ Feature: The GSI ledger keeps every release to one new index per table
     When CI runs the GSI ledger check
     Then the GSI ledger check fails naming Item and the index
 
-  Scenario: A table near the DynamoDB limit warns
-    Given a change that takes a table to 16 indexes
+  Scenario: A changed table reports the index slots it has left
+    Given a change that takes a table to 20 indexes
     When CI runs the GSI ledger check
     Then the GSI ledger check passes
-    And it warns that the table has 16 of the 20 indexes DynamoDB allows
+    And it reports that the table has 20 of 20 indexes with 0 left
 
-  Scenario: A table past 18 indexes fails
-    Given a change that takes a table to 19 indexes
+  Scenario: A table past the DynamoDB limit fails
+    Given a change that takes a table to 21 indexes
     When CI runs the GSI ledger check
     Then the GSI ledger check fails naming that table
+
+  Scenario: A checkout without release tags fails loudly
+    When CI runs the GSI ledger check in a checkout without release tags
+    Then the GSI ledger check fails saying no release tag was found

@@ -51,3 +51,9 @@ Feature: An agent can use the Papyrus CLI without guessing
     When every route is asked for "--help"
     Then each prints usage that begins with "Usage"
     And each command says its lane and whether it writes
+
+  Scenario: The write-story guide explains that the dek and the blurb are different on purpose
+    When an agent runs "papyrus guide write-story"
+    Then the command succeeded
+    And the printed text contains "intentionally different"
+    And the printed text contains "must not report it as an inconsistency"

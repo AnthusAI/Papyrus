@@ -87,6 +87,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history and tags: the GSI ledger check reads schema.ts at the last release tag
       - uses: ./.github/actions/node-deps
       - run: npm run test:monitoring-receipt
       - run: node scripts/test-email-reference-handoff.cjs

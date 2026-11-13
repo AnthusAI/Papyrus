@@ -22,12 +22,11 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from .content_item_lifecycle import head_stage_fields
+from .content_item_lifecycle import RETIRED_STAGE, head_stage_fields
 from .record_helpers import to_aws_json
 
 MACHINE_WRITE_KEY = "machineWrite"
 UNDONE_KEY = "undone"
-RETIRED_STAGE = "retired"
 UNDO_ACTOR = "papyrus-run-undo"
 RUN_ID_ENVIRONMENT = "KNOWLEDGE_RUN_ID"
 

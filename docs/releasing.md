@@ -17,13 +17,13 @@ release number. Publishing uses npm and PyPI trusted publishing (OIDC); there is
 
 ## One new index per table per release
 
-DynamoDB creates or deletes one global secondary index per table in one update, and a table holds at most 20. The GSI ledger check (`scripts/check-gsi-ledger.ts`, run by the `ts-misc` job and by `npm run test:gsi-ledger`) compares the indexes in `amplify/data/schema.ts` with the last stable release tag and fails when:
+DynamoDB creates or deletes one global secondary index per table in one update, and a table holds at most 20. The GSI ledger check (`scripts/check-gsi-ledger.ts`, run by the `ts-misc` job and by `npm run test:gsi-ledger`) compares the indexes in `amplify/data/schema.ts` with the last stable release tag (the `ts-misc` job checks out the full history so tags exist; with no tag the check fails and says so) and fails when:
 
 - a table gains more than one index since that tag (it names the table and every new index);
 - an index keeps its name but changes its keys (add a new index and remove the old one in a later release);
-- a table has more than 18 indexes.
+- a table has more than 20 indexes, the DynamoDB limit per table.
 
-It warns when a table has 16 or more, and prints the release order the pending indexes need: release 1 takes the first new index of each table, release 2 the second, and so on. A renamed index counts as a removal plus an addition. Rules and examples: `features_backend/gsi-ledger.feature`.
+It reports how many index slots each changed table has left, and prints the release order the pending indexes need: release 1 takes the first new index of each table, release 2 the second, and so on. A renamed index counts as a removal plus an addition. Rules and examples: `features_backend/gsi-ledger.feature`.
 
 ## Shared AWS stacks: pipeline roles
 

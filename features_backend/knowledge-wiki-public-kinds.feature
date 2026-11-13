@@ -51,35 +51,32 @@ Feature: The public wiki publishes the subjects of a publication and nothing els
     And "AaronCohen" has no link
     And the snapshot has no entity "General comment"
 
-  Scenario: A kind that leaves the vocabulary has its live pages taken down
-    Given the wiki was synced and published with a vocabulary of the kinds "maker, tool, personAuthor"
-    When the wiki sync runs with a vocabulary of the kinds "maker, tool" and retiring
-    Then the page for "Aaron Cohen" is no longer live and is marked retired
-    And the pages for "Acme Loom" and "Beta Spool" are still live
-    And the sync reports one page to remove from the site
-
-  Scenario: A retired page is not published again by the next publish
-    Given the wiki was synced and published with a vocabulary of the kinds "maker, tool, personAuthor"
-    And the wiki sync ran with a vocabulary of the kinds "maker, tool" and retiring
-    When every draft is published
-    Then the page for "Aaron Cohen" is not live
-
-  Scenario: Without the retire flag a page nothing generates any more is only reported
+  Scenario: A kind that leaves the vocabulary keeps its live pages
+    A page that was ever public may be indexed by search engines, so the sync never takes one down.
+    Taking a page down is a deliberate, redirecting act, never a side effect of a daily run.
     Given the wiki was synced and published with a vocabulary of the kinds "maker, tool, personAuthor"
     When the wiki sync runs with a vocabulary of the kinds "maker, tool"
     Then the page for "Aaron Cohen" is still live
+    And the pages for "Acme Loom" and "Beta Spool" are still live
     And the sync warns that "Aaron Cohen" is no longer generated
+    And the sync reports no page to take down
 
-  Scenario: A dry run says what it would retire and changes nothing
+  Scenario: A publish after the kind left does not take the page down either
     Given the wiki was synced and published with a vocabulary of the kinds "maker, tool, personAuthor"
-    When the wiki sync dry run is made with a vocabulary of the kinds "maker, tool" and retiring
-    Then the dry run lists the page for "Aaron Cohen" as live and to be taken down
+    And the wiki sync ran with a vocabulary of the kinds "maker, tool"
+    When every draft is published
+    Then the page for "Aaron Cohen" is still live and not marked retired
+
+  Scenario: The sync no longer has a retire flag
+    Given the wiki was synced and published with a vocabulary of the kinds "maker, tool, personAuthor"
+    When the wiki sync dry run is made with a vocabulary of the kinds "maker, tool"
+    Then the dry run changes nothing and lists no page to retire
     And the page for "Aaron Cohen" is still live
 
-  Scenario: A page that comes back into the vocabulary is a draft again and can be published
+  Scenario: A page that an earlier version of the sync retired comes back as a draft when its kind returns
     Given the wiki was synced and published with a vocabulary of the kinds "maker, tool, personAuthor"
-    And the wiki sync ran with a vocabulary of the kinds "maker, tool" and retiring
-    When the wiki sync runs with a vocabulary of the kinds "maker, tool, personAuthor" and retiring
+    And the page for "Aaron Cohen" was taken down and marked retired by an earlier version of the sync
+    When the wiki sync runs with a vocabulary of the kinds "maker, tool, personAuthor"
     And every draft is published
     Then the page for "Aaron Cohen" is live and not marked retired
 

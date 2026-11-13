@@ -81,7 +81,7 @@ class Scheduler:
 
 
 class Site:
-    def __init__(self, handler, lock_table: LockTable, scheduler: Scheduler, function_name: str, window: int) -> None:
+    def __init__(self, handler, lock_table: LockTable, scheduler: Scheduler, function_name: str, window: int, thread_window: int | None = None) -> None:
         self.handler = handler
         self.lock_table = lock_table
         self.scheduler = scheduler
@@ -91,6 +91,8 @@ class Site:
             "PAPYRUS_HOME_PAGE_DEBOUNCE_SECONDS": str(window),
             "PAPYRUS_PROJECTION_LOCK_TABLE": "papyrus-projection-locks",
         }
+        if thread_window is not None:
+            self.environment["PAPYRUS_HOME_PAGE_THREAD_DEBOUNCE_SECONDS"] = str(thread_window)
 
     def receive(self, records: list[dict], seconds_after_start: float):
         previous = dict(os.environ)
@@ -106,6 +108,12 @@ class Site:
 def trigger_with_window(context, window: int) -> None:
     context.window = window
     context.site = Site(load_handler(), LockTable(), Scheduler(), "content-actions-a", window)
+
+
+@given("a trigger function with a {window:d} second debounce window and a {thread_window:d} second thread window")
+def trigger_with_thread_window(context, window: int, thread_window: int) -> None:
+    context.window = window
+    context.site = Site(load_handler(), LockTable(), Scheduler(), "content-actions-a", window, thread_window)
 
 
 @given("two sites whose trigger functions share one lock table")
@@ -136,6 +144,11 @@ def message_posted(context) -> None:
 
 @when("another Message is posted {later:d} seconds later")
 def message_posted_later(context, later: int) -> None:
+    context.site.receive([{"eventName": "INSERT", "dynamodb": {"NewImage": MESSAGE_COMMENT}}], later)
+
+
+@when("a Message is posted {later:d} seconds later")
+def message_posted_at(context, later: int) -> None:
     context.site.receive([{"eventName": "INSERT", "dynamodb": {"NewImage": MESSAGE_COMMENT}}], later)
 
 
@@ -274,6 +287,12 @@ def one_run_scheduled(context, seconds: int) -> None:
     assert len(calls) == 1, f"{len(calls)} schedules: {[call['Name'] for call in calls]}"
     assert calls[0]["Name"].endswith(f"-{START + seconds}"), calls[0]["Name"]
     context.schedule = calls[0]
+
+
+@then("a home-page snapshot run is scheduled for {seconds:d} seconds after the start")
+def a_run_scheduled_at(context, seconds: int) -> None:
+    names = [call["Name"] for call in context.site.scheduler.calls]
+    assert any(name.endswith(f"-{START + seconds}") for name in names), names
 
 
 @then("one home-page snapshot run is scheduled for {seconds:d} seconds after that")

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "a5504254-039f-4a83-adc7-a6e71a192928",
+  "issue_id": "PPY-f30ad5e5-e8ec-407e-b5ee-afbf6433ff14",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T17:15:59.230Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "One command scaffolds a new site and its newsroom data",
+    "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-dc9f71.\n\n`papyrus site init` creates a site folder that builds and passes its tests, with no AWS identifier in any file, and works inside a monorepo that already holds a deployment. A newsroom scaffold writes agent instructions, the Story procedure, image rules and starter policies as editable records, with profiles (news, satire). A scaffold diff shows where a site differs from current defaults and changes nothing. The scaffold defaults become the only editorial opinion in Papyrus code.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Fable 5.2",
+      "name": "Humorus Planning"
+    }
+  }
+}

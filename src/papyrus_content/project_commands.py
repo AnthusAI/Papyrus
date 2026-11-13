@@ -21,6 +21,7 @@ from .projection.engine import (
     reconcile,
 )
 from .projection.runtime import (
+    OUTPUT_PREFIX_ENV,
     SITE_BUCKET_ENV,
     SITE_STATIC_DIRECTORY_ENV,
     context_from_environment,
@@ -132,14 +133,14 @@ def _build_context(client, options: dict) -> ProjectionContext:
         return ProjectionContext(
             source=DirectoryContentSource(Path(from_directory)),
             projector=load_projector(environment, renditions=_local_renditions(environment, Path(from_directory), Path(output_directory))),
-            writer=LocalDirectoryWriter(Path(output_directory)),
+            writer=LocalDirectoryWriter(Path(output_directory), environment.get(OUTPUT_PREFIX_ENV) or ""),
             keep_state=False,
         )
     if output_directory:
         return ProjectionContext(
             source=PublishedContentSource(client),
             projector=load_projector(environment),
-            writer=LocalDirectoryWriter(Path(output_directory)),
+            writer=LocalDirectoryWriter(Path(output_directory), environment.get(OUTPUT_PREFIX_ENV) or ""),
             keep_state=False,
         )
     return context_from_environment(client, environment)

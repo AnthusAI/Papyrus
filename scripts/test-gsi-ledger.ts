@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -40,33 +39,14 @@ test("a renamed index is a removal plus an addition, which is one new index", ()
   assert.deepEqual(report.warnings, ["Item drops index itemsByStage."]);
 });
 
-test("a table near the DynamoDB limit warns, and one past 18 fails", () => {
+test("a table past the DynamoDB limit fails and a changed table reports its remaining slots", () => {
   const withIndexes = (count: number) => parseLedger(
     `  Big: modelWithoutSubscriptions({ id: a.id() })\n    .secondaryIndexes((index) => [\n` +
       Array.from({ length: count }, (_, i) => `      index("k${i}").queryField("q${i}"),\n`).join("") + `    ]),\n`);
-  assert.deepEqual(compareLedgers(withIndexes(15), withIndexes(15)).warnings, []);
-  const near = compareLedgers(withIndexes(15), withIndexes(16));
-  assert.deepEqual(near.failures, []);
-  assert.match(near.warnings[0], /Big has 16 of the 20/);
-  const over = compareLedgers(withIndexes(18), withIndexes(19));
-  assert.match(over.failures[0], /Big has 19 indexes/);
-  assert.deepEqual(compareLedgers(undefined, withIndexes(18)).failures, []);
-});
-
-test("the schema on this branch passes against the last release", (context) => {
-  const base = process.env.GSI_LEDGER_BASE;
-  let baseline: string | undefined;
-  try {
-    const ref = base ?? execFileSync("git", ["tag", "--list", "v[0-9]*.[0-9]*.[0-9]*", "--sort=-v:refname"], { encoding: "utf8" })
-      .split("\n").find((tag) => /^v\d+\.\d+\.\d+$/.test(tag));
-    if (ref) baseline = execFileSync("git", ["show", `${ref}:amplify/data/schema.ts`], { encoding: "utf8", maxBuffer: 1 << 26 });
-  } catch {
-    baseline = undefined;
-  }
-  const current = parseLedger(readFileSync(join(process.cwd(), "amplify/data/schema.ts"), "utf8"));
-  if (!baseline) context.diagnostic("no release tag is available locally; only the table-size limits were checked");
-  const report = compareLedgers(baseline ? parseLedger(baseline) : undefined, current);
-  for (const warning of report.warnings) context.diagnostic(`warning: ${warning}`);
-  for (const line of report.releaseOrder) context.diagnostic(line);
-  assert.deepEqual(report.failures, []);
+  const full = compareLedgers(withIndexes(19), withIndexes(20));
+  assert.deepEqual(full.failures, []);
+  assert.deepEqual(full.slots, ["Big has 20 of 20 indexes: 0 left."]);
+  assert.deepEqual(compareLedgers(withIndexes(5), withIndexes(5)).slots, []);
+  const over = compareLedgers(withIndexes(20), withIndexes(21));
+  assert.match(over.failures[0], /Big has 21 indexes; DynamoDB allows 20/);
 });

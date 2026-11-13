@@ -369,7 +369,7 @@ def test_a_read_that_runs_out_of_time_leaves_the_rest_unread_and_says_so():
 
 
 def test_monitor_stories_is_on_by_default_and_the_setting_is_validated():
-    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True}, "vectorIndexArn": None, "storageBucketName": None}   # single items, every context-pack signal that has data, suggestions; no index until the site's outputs supply one
+    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True}, "ideaRules": {"minimumReferences": 2, "requireJointSentence": True, "passingVerdicts": ["adds"], "checkRepeats": True, "checkProcessTalk": True, "mode": "evidence"}, "vectorIndexArn": None, "storageBucketName": None}   # single items, every context-pack signal that has data, suggestions; no index until the site's outputs supply one
     assert validate_monitor_stories("p", None) == {"enabled": True, "store": "items", **on}   # ideas are Items at the idea stage by default
     assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "items", **on}
     assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "items", **on}

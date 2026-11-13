@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "caee68d3-b701-4ae7-a32b-87047fdc4e9a",
+  "issue_id": "PPY-4108efc0-7a86-4947-9ee2-1d3a74998563",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-12T13:04:04.198Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Issue and roundup as a Caducus notification kind: scheduled approval, exactly-once send",
+        "to": "The roundup issue is a living Story: automatic fill, human steering, scheduled approval, exactly-once send"
+      }
+    }
+  }
+}

@@ -104,11 +104,6 @@ def _extraction_incomplete(extraction:dict[str,Any])->ExtractionIncomplete:
         reason=reason if isinstance(reason,dict) else {}
         return ExtractionIncomplete(str(reason.get('code') or 'unknown_failure'),str(reason.get('message') or (failures[0] or {}).get('error') or 'no message'),
                                     transient=reference_url_text.is_transient_failure_reason(reason))
-    fallbacks=extraction.get('filterFallbacks') or []
-    if fallbacks:
-        reason=(fallbacks[0] or {}).get('reason')
-        reason=reason if isinstance(reason,dict) else {}
-        return ExtractionIncomplete('article_filter_fallback',f"{reason.get('code') or 'article_filter_failed'}: {reason.get('message') or 'no message'}")
     return ExtractionIncomplete('no_extraction_plans','extraction produced no attachment plans')
 
 
@@ -133,7 +128,7 @@ class PapyrusPrimingCuration:
                  'reference_ids':{reference['id']},'force':True,'allow_discovery':True,'grobid_url':self.grobid_url}
         if self.model:options['model']=self.model
         extraction=reference_url_text.build_reference_url_text_attachment_plans(**options)
-        if extraction.get('failures') or extraction.get('filterFallbacks') or not extraction.get('plans'):raise _extraction_incomplete(extraction)
+        if extraction.get('failures') or not extraction.get('plans'):raise _extraction_incomplete(extraction)
         for record in extraction.get('referenceRecords',[]):
             if record['expected']['id']==reference['id']:reference={**reference,**record['expected']}
         selected=next((plan for plan in extraction['plans'] if plan['record']['expected'].get('role')=='extracted_text'),None)

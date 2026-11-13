@@ -311,6 +311,22 @@ def page_edge_lifetime(context, key: str, seconds: int) -> None:
     assert cache_control == f"public, max-age=0, s-maxage={seconds}, stale-while-revalidate=60", cache_control
 
 
+@given('the site names the live prefix "{prefix}"')
+def site_names_live_prefix(context, prefix: str) -> None:
+    context.live_environment = {"PAPYRUS_HTML_LIVE_PREFIXES": prefix}
+
+
+@given("the site sets the live lifetime to {seconds:d} seconds")
+def site_sets_live_lifetime(context, seconds: int) -> None:
+    context.live_environment["PAPYRUS_HTML_LIVE_S_MAXAGE_SECONDS"] = str(seconds)
+
+
+@then('the page "{key}" is cached at the edge for {seconds:d} seconds and is never served stale')
+def page_live_lifetime(context, key: str, seconds: int) -> None:
+    cache_control = context.s3.objects[key]["CacheControl"]
+    assert cache_control == f"public, max-age=0, s-maxage={seconds}", cache_control
+
+
 @then("the edge distribution was not invalidated")
 def edge_not_invalidated(context) -> None:
     assert context.cloudfront.invalidations == [], context.cloudfront.invalidations
@@ -377,9 +393,13 @@ def stray_bucket_page(context, key: str) -> None:
 
 @when('the projection writes the pages "{first}" and "{second}"')
 def projection_writes_pages(context, first: str, second: str) -> None:
+    from papyrus_content.projection.runtime import html_s_maxage_seconds, live_prefixes, live_s_maxage_seconds
     from papyrus_content.projection.writers import S3PageWriter
 
-    writer = S3PageWriter("site-bucket", context.s3)
+    environment = getattr(context, "live_environment", {})
+    writer = S3PageWriter(
+        "site-bucket", context.s3, html_s_maxage_seconds(environment), "", live_prefixes(environment), live_s_maxage_seconds(environment)
+    )
     for key in (first, second):
         writer.put(key, b"<p>page</p>")
 

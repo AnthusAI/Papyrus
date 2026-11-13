@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any
 
+from ..content_item_lifecycle import RETIRED_INTO_KEY, RETIRED_STAGE
+from ..story_head_index import head_of
 from ..markus_export import EXPORTED_TYPES, item_output_path
 from ..markus_renderer.build import slugify
 from ..markus_renderer.derive import compose_source
@@ -19,6 +22,15 @@ from .stored import PROJECTION_METADATA_KEY, projection_metadata
 
 class ProjectionSourceError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class Retirement:
+    """A Story that ``papyrus stories retire`` took down: its lineage, the lineage its address redirects to, and a summary of each version that was served."""
+
+    lineage_id: str
+    to_lineage: str
+    summaries: tuple[ItemSummary, ...]
 
 
 def _metadata_of(row: dict) -> dict:
@@ -130,6 +142,28 @@ class PublishedContentSource:
         if self.body_cache is not None:
             self.body_cache.put(item.summary.item_id, version_fingerprint(row), item.source_text)
         return item
+
+    def retirement(self, item_id: str) -> Retirement | None:
+        """Where a retired Story's address goes (``papyrus stories retire``), or None when the Story is not retired.
+
+        Reads the Story's head row: ``stage`` is ``retired`` and ``metadata.retiredInto`` names the lineage it redirects to. The summaries are
+        those of every version the command recorded as served (``versionIds``) and of the head row, so the addresses a Story
+        had before a rename or a change of type redirect too.
+        """
+        item = self._client.get_record("Item", item_id)
+        if item is None:
+            return None
+        lineage_id = item.get("lineageId") or item_id
+        rows = self._client.list_by_index("itemsByLineageAndVersion", lineage_id) or [item]
+        head = head_of(rows) or item
+        info = _metadata_of(head).get(RETIRED_INTO_KEY)
+        if head.get("stage") != RETIRED_STAGE or not isinstance(info, dict) or not info.get("toLineageId"):
+            return None
+        recorded = set(info.get("versionIds") or ())
+        served = [row for row in rows if row["id"] in recorded or row["id"] in (head["id"], item_id)]
+        distinct = {(row.get("type"), item_output_path(row), tuple(row.get("aliases") or ())): row for row in served}
+        summaries = tuple(summary_from_row(row, item_id=item_id) for row in distinct.values())
+        return Retirement(lineage_id=lineage_id, to_lineage=str(info["toLineageId"]), summaries=summaries)
 
     def item_summary(self, item_id: str) -> ItemSummary:
         item = self._client.get_record("Item", item_id)

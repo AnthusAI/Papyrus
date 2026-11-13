@@ -1,4 +1,4 @@
-caducus[notify]==0.2.0
+caducus[notify]==0.3.0
 PyYAML>=6.0.2,<7
 citeproc-py>=0.8.2,<1
 anthus-markus==0.7.0

@@ -14,7 +14,7 @@ READER = {"claims": {"name": "Rae Reader"}, "groups": [], "username": "rae"}
 def call(backend, door, identity, **arguments):
     if "input" in arguments and not isinstance(arguments["input"], str):
         arguments["input"] = json.dumps(arguments["input"])
-    return handle({"info": {"fieldName": door}, "identity": identity, "arguments": arguments}, client_factory=lambda: backend)
+    return handle({"info": {"fieldName": door}, "identity": identity, "arguments": arguments}, client_factory=lambda: backend, files_factory=lambda built: built.document_files)
 
 
 def test_only_staff_may_use_the_door():

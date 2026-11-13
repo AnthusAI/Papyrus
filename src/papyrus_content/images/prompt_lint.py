@@ -39,3 +39,22 @@ def _literals(tree: ast.AST) -> list[str]:
 def style_wording_in(source: str, allowed: set[str] = ALLOWED) -> list[str]:
     """Every string literal (not a docstring) in ``source`` that is not one of the skeleton's allowed words."""
     return [text for text in _literals(ast.parse(source)) if text not in allowed]
+
+
+SITE_NAMES = ("Anthus", "Anth.us", "Distinctive", "Shipped", "Pilobolus", "Pilobol.us", "Machines on Machines", "Threat Intelligence", "Data Parade", "Chatticus")
+
+
+def role_text_wording_in(source: str, names: tuple[str, ...] = SITE_NAMES) -> list[str]:
+    """The role texts (module-level constants whose name ends in ``_ROLE``) in a piece of Python source that name a particular publication.
+
+    A role text says who the agent is and how to read what follows, for any publication; what a site sounds like or is called comes from its guidelines. The build test
+    applies this to ``newsroom_context_pack.py`` (which must give none) and to a sample that names a site (which must give some).
+    """
+    found: list[str] = []
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            if any(isinstance(target, ast.Name) and target.id.endswith("_ROLE") for target in node.targets):
+                lowered = node.value.value.lower()
+                if any(name.lower() in lowered for name in names):
+                    found.append(next(target.id for target in node.targets if isinstance(target, ast.Name)))
+    return found

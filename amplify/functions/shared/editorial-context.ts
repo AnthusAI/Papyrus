@@ -17,6 +17,8 @@ export type EditorialOptions = {
    * section value that matches no NewsroomSection yields missingSectionConfiguration instead of an error.
    * Only the editorial check asks for this (its rule lane needs neither); more than one current record is still an error. */
   optionalPublicationDoctrine?: boolean | null;
+  /** Adds a pointer entry (writing-guidelines, visual-style) for each writing and image style guidelines document the site has, at the publication and at the section. */
+  includeGuidelines?: boolean | null;
   readAttachment: (attachment: EditorialRecord) => Promise<string>;
 };
 
@@ -98,6 +100,39 @@ function entry(scope: string, kind: string, text: string, record: EditorialRecor
     ...Object.fromEntries(["id", "lineageId", "versionNumber", "updatedAt", "contentHash"].map(key => [key, record[key] ?? null])),
     sha256: digest(text),
   } };
+}
+
+const GUIDELINE_ENTRIES = [
+  { slugWord: "writing", kind: "writing-guidelines", label: "writing guidelines", command: "writing" },
+  { slugWord: "visual-style", kind: "visual-style", label: "image style guidelines", command: "image" },
+];
+const safeDoctrineKey = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "topic";
+
+/** The pointer text of one guidelines version: the same words as guidelines/context_entry.py, built from the catalog row alone. */
+export function guidelinePointer(label: string, scope: "publication" | "section", command: string, row: EditorialRecord, section: string | null) {
+  const where = scope === "publication" ? `The publication's ${label}` : `This section's ${label} (laid over the publication's)`;
+  const flag = section ? ` --section ${section}` : "";
+  const readWith = command === "image" ? "papyrus images profile resolve" : `papyrus guidelines resolve --kind ${command}${flag}`;
+  return `${where} are stored as versioned data: version ${row.versionNumber}, ${row.contentHash}. ` +
+    `Read them resolved for this scope with \`${readWith}\`; an agent's context pack carries them in full.`;
+}
+
+async function guidelineEntries(client: EditorialClient, options: EditorialOptions, section: string | null, taken: string[]) {
+  const found: EditorialRecord[] = [];
+  for (const { slugWord, kind, label, command } of GUIDELINE_ENTRIES) {
+    for (const scope of ["publication", "section"] as const) {
+      if (scope === "section" && !section) continue;
+      if (scope === "publication" && taken.includes(kind)) continue;
+      const slug = scope === "publication" ? `editorial-doctrine-${slugWord}` : `desk-doctrine-${safeDoctrineKey(section!)}-${slugWord}`;
+      const rows = await pages(client, "Item", options.tenantId ? "itemByTenantSlug" : "itemBySlug",
+        options.tenantId ? { tenantSlug: tenantScopedValue(options.tenantId, slug) } : { slug });
+      const current = rows.filter(row => row.type === "doctrine" && row.status === "private" && row.versionState === "current");
+      if (!current.length) continue;
+      tenant(current[0], options.tenantId);
+      found.push(entry(scope, kind, guidelinePointer(label, scope, command, current[0], scope === "section" ? section : null), current[0]));
+    }
+  }
+  return found;
 }
 
 export function buildEditorialContext(publication: EditorialRecord, scope: EditorialRecord, entries: EditorialRecord[], warnings: string[], maxCharacters = 0, missingPublicationDoctrine: string[] = [], missingSectionConfiguration: string[] = []) {
@@ -198,6 +233,10 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
     }
     }
   }
+  if (options.includeGuidelines) {
+    const taken = entries.filter(value => value.scope === "publication").map(value => value.kind);
+    entries.push(...await guidelineEntries(client, options, sectionId ? localPart(sectionId) : null, taken));
+  }
   if (assignment) {
     if (options.tenantId && !storyLineageId && !sectionId) throw new Error("A tenant assignment needs a scoped story or section to establish its publication.");
     const attachments = await pages(client, "ModelAttachment", "listModelAttachmentsByOwnerRoleAndSortKey", { ownerId: assignment.id });
@@ -225,7 +264,7 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
 }
 
 export function assignmentDoctrine(pack: Awaited<ReturnType<typeof resolveEditorialContext>>) {
-  return pack.entries.filter(value => value.scope !== "assignment").map(value => ({
+  return pack.entries.filter(value => value.scope !== "assignment" && !GUIDELINE_ENTRIES.some(guidelines => guidelines.kind === value.kind)).map(value => ({
     scope: value.scope === "section" ? "desk" : "publication", kind: value.kind,
     label: `${value.scope === "section" ? "Section" : "Editorial"} ${value.kind}`,
     slug: value.scope === "section" ? `desk-section-${pack.scope.sectionId}-${value.kind.replaceAll(" ", "-")}` : `editorial-doctrine-${value.kind}`,

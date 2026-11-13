@@ -1,9 +1,7 @@
 {
   "amplify/auth/resource.ts": 2,
   "amplify/backend.ts": 1,
-  "amplify/functions/assignment-action/handler.ts": 1,
   "amplify/functions/console-chat-responder/src/main.rs": 5,
-  "amplify/functions/ses-inbound-receive/handler.ts": 2,
   "amplify/inbound-email/ses-intake.ts": 3,
   "amplify/seed/seed.ts": 2,
   "amplify/site-backend-config.ts": 1,

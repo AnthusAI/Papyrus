@@ -31,6 +31,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from types import SimpleNamespace
 
+from ...home_page.ordering import RANK_FIELD
 from ...markus_export import EXPORTED_TYPES
 from ...markus_renderer.convert import convert_text_in_process
 from ...markus_renderer.shell import BodyParts, PageContext, SiteChrome, render_page
@@ -55,7 +56,7 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 import inspect
 
-from . import alexa_pages, blocks, card_images, components, forum_pages, home_page_blocks, home_page_lists, includes, knowledge_blocks, newsletter_pages, page_twin
+from . import alexa_pages, blocks, card_images, components, forum_pages, home_page_blocks, home_page_lists, includes, knowledge_blocks, newsletter_pages, notifications_pages, page_twin
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
@@ -81,6 +82,7 @@ from .showcase import logo_wall, showcase_sites
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
 from .alexa_pages import ALEXA_PLUGIN
 from .newsletter_pages import NEWSLETTER_PLUGIN
+from .notifications_pages import NOTIFICATIONS_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
 
 
@@ -390,28 +392,40 @@ class StandardMarkusProjector(MarkusSiteProjector):
         used = [attributes for attributes in found if knowledge_blocks.is_knowledge_block(attributes)]
         return [self._knowledge.digest(knowledge_blocks.entity_keys(used))] if used else []
 
-    def _bucket_orders(self, found: list[dict]) -> list:
-        """For each references include with a ``bucket``, a digest of the order its rolling windows give today (``as_of``). The snapshot is the same bytes on
-        a day when a Reference crosses into an older window, so the page's digest needs the order itself; it changes only when the order does, so a day that
-        moves nothing rewrites nothing. A paged list's page shows its first ``count`` and the link to the first chunk, so only that much of the order counts
-        (the chunks digest their own records)."""
+    def _placed_references(self, found: list[dict], *, as_of: dt.date | None) -> list:
+        """What the ``references`` includes among ``found`` place, include by include in document order, as JSON-able data: the public record of each
+        Reference a page shows (without ``rank``, which no card prints and every insertion shifts) and, for a paged list, the key that starts its first
+        chunk (the "Load more" link names that chunk; the chunks digest their own records).
+
+        The selection is the render's own: ``select_references`` with one ledger for the page, and a paged list's first page claimed as ``render_paged``
+        claims it (from the same rolling day ``_paged_list`` uses). A page's digest therefore changes exactly when what it shows changes: a video's new
+        picture rewrites the lists that show that video, a Reference no list on a page places never makes that page stale, and a day on which a Reference
+        crosses into an older rolling window rewrites a page only when its order moved."""
         document = self._home_page.references()
         labels = {section.name: section.label for section in self.standard.sections}
-        orders = []
+        settings = self.standard.home_page
+        ledger = PageLedger()
+        placed: list = []
         for attributes in found:
-            if not (home_page_blocks.is_home_page_include(attributes) and attributes.get("bucket")):
+            if not home_page_blocks.is_home_page_include(attributes):
                 continue
-            keys = [record["key"] for record in home_page_blocks.candidates_of(document, attributes, labels, self._day())]
+            following = None
             if home_page_blocks.is_paged(attributes):
-                keys = keys[: home_page_blocks.count_of(attributes, self.standard.home_page) + 1]
-            orders.append(["bucketOrder", hashlib.sha256("\n".join(keys).encode("utf-8")).hexdigest()[:16]])
-        return orders
+                candidates = home_page_blocks.candidates_of(document, attributes, labels, self._day())
+                count = home_page_blocks.count_of(attributes, settings)
+                chosen = candidates[:count]
+                for record in chosen:
+                    ledger.claim(home_page_blocks.LEDGER_PREFIX + record["key"])
+                following = candidates[count]["key"] if len(candidates) > count else None
+            else:
+                chosen = home_page_blocks.select_references(document, attributes, ledger, home_page_blocks.count_of({}, settings), labels, as_of)
+            placed.append([[{name: value for name, value in record.items() if name != RANK_FIELD} for record in chosen], following])
+        return placed
 
     def _home_page_inputs(self, found: list[dict]) -> list:
         inputs = []
         if any(home_page_blocks.is_home_page_include(attributes) for attributes in found):
-            inputs.append(self._home_page.digest())
-            inputs.extend(self._bucket_orders(found))
+            inputs.append(["references", self._placed_references(found, as_of=self._as_of)])
         if any(home_page_blocks.is_threads_include(attributes) for attributes in found):
             inputs.append(["threads", self._home_page.threads_digest()])
             if self._forum() is not None:
@@ -467,6 +481,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 keys.add(self.policy.listing_key(custom.path))
         if self.standard.not_found.source and self._reads_home_page(self.standard.not_found.source, "notFound"):
             keys.add(NOT_FOUND_KEY)
+        for section in self.standard.sections:   # a section front that shows a Reference grid (index.references) or places one in its own page file
+            index = section.index
+            if index is not None and (index.references or (index.source and self._reads_home_page(index.source, f"{section.where}.index"))):
+                keys.add(self.policy.listing_key(section.base, 1))
         keys.update(self.reference_list_keys())   # the files of paged Reference lists change with the snapshot, and there are more or fewer of them
         if self._forum() is not None:
             self._home_page.reset()
@@ -1016,6 +1034,22 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     markdown=False,
                 )
 
+        # the notifications plugin's reader pages: real static pages with the full chrome, never listed anywhere (docs/notifications.md)
+        if NOTIFICATIONS_PLUGIN in self._settings.plugins:
+            identity = self.standard.identity
+            paths = {name: self.policy.path(notifications_pages.site_path(name)) for name in notifications_pages.PAGE_NAMES}
+            for name in notifications_pages.PAGE_NAMES:
+                body = notifications_pages.fragment(name, site=identity.name, home=self.policy.path("/"), paths=paths)
+                add(
+                    self.policy.key(notifications_pages.site_key(name)),
+                    f"notifications:{name}",
+                    [body],
+                    lambda name=name, body=body: self._page(
+                        "notifications_page", notifications_pages.head(name, paths[name], identity.description), site, entries=tuple(listed), fragment=body,
+                    ),
+                    markdown=False,
+                )
+
         # the alexa plugin's privacy and terms pages: real static pages with the full chrome, linked from the skill manifest
         if ALEXA_PLUGIN in self._settings.plugins:
             identity = self.standard.identity
@@ -1440,7 +1474,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             [(base, label) for base, label, name, _members in listing_groups if name],
         ]
         if index.references:
-            inputs.append(self._home_page.digest())
+            inputs.append(["references", self._placed_references([{**self._reference_attributes(section), "heading": "References"}], as_of=None)])
             inputs.append(self._home_page_stylesheet_token())
         if index.source:
             text, found = self._page_includes(index.source, f"{section.where}.index")
@@ -1676,6 +1710,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             scripts += (FORM_SCRIPT_PATH,)
         if page.kind == "newsletter_page":
             scripts += (newsletter_pages.PAGES_SCRIPT_PATH,)
+        if page.kind == "notifications_page":
+            scripts += (notifications_pages.PAGES_SCRIPT_PATH,) + ((notifications_pages.COMPONENT_SCRIPT_PATH,) if "<papyrus-notifications>" in page.fragment else ())
         if page.ledger.paged_lists_used:   # only a page with a paged Reference list loads the script that loads more
             scripts += (home_page_lists.SCRIPT_PATH,)
         if page.page_actions:  # only pages that render the actions load their script
@@ -1938,7 +1974,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             actions = page.page_actions
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
             return before + page.fragment + after
-        if page.kind in ("home", "custom", "newsletter_page", "plugin_page", "thread", "reference_list") and page.fragment:
+        if page.kind in ("home", "custom", "newsletter_page", "notifications_page", "plugin_page", "thread", "reference_list") and page.fragment:
             return page.fragment
         if page.kind == "listing" and page.section_index is not None:
             if page.section_index.section.index.source:

@@ -12,8 +12,7 @@ Configuration (``chain_names``), first match wins:
 
 1. a per-call override, such as a monitor's own ``searchProviders``;
 2. ``WEB_SEARCH_PROVIDERS``, an ordered comma list such as ``openai,tavily``;
-3. ``WEB_SEARCH_PROVIDER``, the single name that always worked;
-4. ``tavily,perplexity,openai`` (``DEFAULT_CHAIN``): cheapest first. Tavily while it has free credits, Perplexity Search
+3. ``tavily,perplexity,openai`` (``DEFAULT_CHAIN``): cheapest first. Tavily while it has free credits, Perplexity Search
    (about $5 per 1,000 requests) when Tavily's plan is used up, OpenAI web search ($10 per 1,000 plus tokens) last.
 
 Keys (``Provider.api_key``): ``<PROVIDER>_API_KEY`` (``TAVILY_API_KEY``, ``OPENAI_API_KEY``, ``PERPLEXITY_API_KEY``,
@@ -47,7 +46,7 @@ RESULTS_REQUESTED = 8
 RETRY_WAIT_SECONDS = 2.0          # the pause before the one retry of a 429 that names no Retry-After
 RETRY_WAIT_LIMIT_SECONDS = 10.0   # the longest idle inside one request; a longer Retry-After is left to the caller's own pacing
 CHAIN_ENV = "WEB_SEARCH_PROVIDERS"
-SINGLE_ENV = "WEB_SEARCH_PROVIDER"
+RETIRED_SINGLE_ENV = "WEB_SEARCH_PROVIDER"   # no longer read; setting it is an error that names CHAIN_ENV
 DEFAULT_CHAIN = ("tavily", "perplexity", "openai")   # cheapest first: Tavily (free credits), then Perplexity, then OpenAI; Gemini is opt-in by configuration
 
 
@@ -590,7 +589,9 @@ def parse_names(value, *, strict: bool = False) -> list[str]:
 
 def chain_names(override=None, environ: Mapping[str, str] | None = None) -> list[str]:
     env = os.environ if environ is None else environ
-    for value in (override, env.get(CHAIN_ENV), env.get(SINGLE_ENV)):
+    if env.get(RETIRED_SINGLE_ENV):
+        raise ValueError(f"{RETIRED_SINGLE_ENV} is no longer read. Name the providers in {CHAIN_ENV}, for example {CHAIN_ENV}={env[RETIRED_SINGLE_ENV]}.")
+    for value in (override, env.get(CHAIN_ENV)):
         names = parse_names(value) if value else []
         if names:
             return names
