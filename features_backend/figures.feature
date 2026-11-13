@@ -106,7 +106,35 @@ Feature: Figures are drawn once, rendered in light and dark, and checked the sam
     And the printed text starts with "::image{"
     And the printed text contains "plain.png"
     And the printed text contains "caption="
-    And the printed text contains "Approved by <name>."
+    And the printed text does not contain "credit="
+    And the printed text does not contain "Approved"
+
+  Scenario: A figure we drew carries no credit and needs no approval
+    Given a Chromium is available to render with
+    And a figure folder "plain" holding a clean one-tile figure
+    When an agent runs the figures command "papyrus figures render plain --check-only --neutral-default" in the working folder
+    Then the command succeeded
+    And the printed text does not contain "missing credit"
+    And the printed text does not contain "missing approved_by"
+
+  Scenario: A credit that only says a machine drew the figure is left off the directive
+    Given a figure folder "plain" holding a clean one-tile figure whose credit says "Drafted by AI."
+    When an agent runs the figures command "papyrus figures directive plain" in the working folder
+    Then the command succeeded
+    And the printed text does not contain "credit="
+
+  Scenario: A real source credit stays on the directive
+    Given a figure folder "plain" holding a clean one-tile figure whose credit says "Source: A Survey."
+    When an agent runs the figures command "papyrus figures directive plain" in the working folder
+    Then the command succeeded
+    And the printed text contains "Source: A Survey."
+
+  Scenario: An approval credit on a figure fails the check
+    Given a Chromium is available to render with
+    And a figure folder "plain" holding a clean one-tile figure whose credit says "Drafted by AI. Approved by Ada."
+    When an agent runs the figures command "papyrus figures render plain --check-only --neutral-default" in the working folder
+    Then the command failed
+    And the printed text contains "a figure carries no approval credit"
 
   Scenario: Saving a figure with only a light picture warns
     Given a pictures folder holding the figure "chart" with a light picture only
@@ -145,7 +173,7 @@ Feature: Figures are drawn once, rendered in light and dark, and checked the sam
 
   Scenario: The skill covers the whole job and points at the rules that bind it
     Given the figures skill in ".agents/skills/figures/SKILL.md"
-    Then the skill covers deciding whether to draw, choosing a form, acceptance criteria, drawing, checking, approval and saving into a Story
+    Then the skill covers deciding whether to draw, choosing a form, acceptance criteria, drawing, checking and saving into a Story, with no approval step
     And the skill says that light and dark are both mandatory
     And the skill says to read the site's design system and never to invent a brand
     And ".claude/skills" is the same folder as ".agents/skills"

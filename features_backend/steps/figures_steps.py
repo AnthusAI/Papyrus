@@ -33,7 +33,7 @@ SOURCE = (
 )
 METADATA = {
     "slug": "plain", "kind": "diagram", "audience": "A lay reader", "shows": "One tile", "complements": "Adds a picture", "surrounding_text": "There is one tile.",
-    "alt": "One tile", "caption": "A tile.", "credit": "Drafted by AI. Approved by {approved_by}.", "labelled_as": "none", "approved_by": None, "layout": "inline",
+    "alt": "One tile", "caption": "A tile.", "labelled_as": "none", "layout": "inline",
 }
 
 
@@ -115,6 +115,14 @@ def clean_figure(context, name):
     folder.mkdir()
     (folder / "figure.svg").write_text(SOURCE)
     (folder / "figure.json").write_text(json.dumps(METADATA))
+
+
+@given('a figure folder "{name}" holding a clean one-tile figure whose credit says "{credit}"')
+def credited_figure(context, name, credit):
+    folder = _work(context) / name
+    folder.mkdir()
+    (folder / "figure.svg").write_text(SOURCE)
+    (folder / "figure.json").write_text(json.dumps({**METADATA, "credit": credit}))
 
 
 @given('a figure folder "{name}" holding a figure that uses a raw color')
@@ -356,10 +364,10 @@ def the_skill(context, path):
     context.skill_text = (REPO_ROOT / path).read_text(encoding="utf-8")
 
 
-@then("the skill covers deciding whether to draw, choosing a form, acceptance criteria, drawing, checking, approval and saving into a Story")
+@then("the skill covers deciding whether to draw, choosing a form, acceptance criteria, drawing, checking and saving into a Story, with no approval step")
 def skill_covers(context):
     text = context.skill_text
-    for heading in ("## 2. Decide whether to draw", "## 3. Choose a form", "acceptance criteria", "## 4. Draw", "## 5. Check and look", "## 6. Get a person's approval", "## 7. Save it into the Story"):
+    for heading in ("## 2. Decide whether to draw", "## 3. Choose a form", "acceptance criteria", "## 4. Draw", "## 5. Check and look", "## 6. No approval step, no credit", "## 7. Save it into the Story"):
         assert heading in text, heading
 
 

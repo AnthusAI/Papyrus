@@ -458,7 +458,7 @@ papyrus stories backfill-published-dates --apply --rate 5
 ### Render a figure in light and dark
 **Lane:** both (it reads the signed-in site's design system and writes only local picture files). **Version:** the release after 5.101.0.
 
-A figure is a folder with `figure.svg` (colors as `{role}` names, type as `t-<role>` classes) and `figure.json` (the acceptance criteria, alt text and credit). The skill `.agents/skills/figures` says when to draw, how to choose a form, and how to get approval; the rules are `papyrus figures rules` (the signed-in site's own text when it saved figure rules, otherwise the general rules; it says which on stderr; `--packaged` prints the general ones) and the shape library `papyrus figures primitives`. Both light and dark are mandatory: `render` always writes both from the one source.
+A figure is a folder with `figure.svg` (colors as `{role}` names, type as `t-<role>` classes) and `figure.json` (the acceptance criteria, alt text and caption; no credit, since our own figures carry none). The skill `.agents/skills/figures` says when to draw and how to choose a form; no person's approval is needed unless the site opted in (`illustrationRequireApprovalCredit`); the rules are `papyrus figures rules` (the signed-in site's own text when it saved figure rules, otherwise the general rules; it says which on stderr; `--packaged` prints the general ones) and the shape library `papyrus figures primitives`. Both light and dark are mandatory: `render` always writes both from the one source.
 
 ```sh
 papyrus figures rules
@@ -474,7 +474,7 @@ papyrus figures directive ./search-nobody-sees
 - It prints `SLUG: PROBLEM: ...` and `SLUG: note: ...` lines and `SLUG: ok` or `SLUG: FAILED`, and exits 1 when any figure fails. A problem in either theme fails the figure. `--json` prints the same as data. `--check-only` writes nothing.
 - On success it writes `SLUG.png` (light), `SLUG.dark.png` (dark) and `SLUG.figure.json` (marks the pictures as a figure) next to the source, or into `--out` (one figure only). The pictures are twice the canvas size with the fonts in the pixels.
 - It needs `pip install playwright` and either `playwright install chromium` or Google Chrome. Without them the command says so and stops; nothing else in the CLI needs it.
-- `directive` prints the `::image{}` line for the Story from `figure.json`; put it in the body and save with `stories save-version --images ./pictures` (see "Save a version"). The checker cannot judge whether the figure makes sense: look at both pictures, and get a person's approval before setting `approved_by`.
+- `directive` prints the `::image{}` line for the Story from `figure.json`; put it in the body and save with `stories save-version --images ./pictures` (see "Save a version"). The checker cannot judge whether the figure makes sense: look at both pictures yourself. It prints no credit unless `figure.json` names a real `Source:`; `approved_by` is optional metadata.
 
 ### Read and publish the site's design system
 **Lane:** both. `show` and `pull` read (`pull` writes only the local folder); `push` writes a new design system version unless `--dry-run`. **Version:** the release after 5.101.0.
