@@ -4,7 +4,7 @@
     "models": 69,
     "globalModels": 3,
     "modelCases": 477,
-    "indexCases": 188,
+    "indexCases": 189,
     "subscriptionCases": 9,
     "operationCases": 133,
     "functionCases": 31,
@@ -4204,6 +4204,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listItemsByLanguageGroupAndLanguage",
+      "kind": "index",
+      "subject": "listItemsByLanguageGroupAndLanguage",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listItemsByLanguageGroupAndLanguage on Item with languageGroupId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listItemsByScheduleStateAndScheduledPublishAt",
       "kind": "index",
       "subject": "listItemsByScheduleStateAndScheduledPublishAt",
@@ -6983,6 +6991,11 @@
       "code": "index-not-tenant-prefixed",
       "subject": "listItemsByHeadStageAndUpdatedAt",
       "note": "partition key headStageKey on Item is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listItemsByLanguageGroupAndLanguage",
+      "note": "partition key languageGroupId on Item is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",

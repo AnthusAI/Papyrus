@@ -479,7 +479,7 @@ def step_classifier_skipped(context):
 
 def _saved_version(context, number, body, *, section="engineering", content_hash=None):
     item_id = f"story-v{number}"
-    context.store.items[item_id] = {"id": item_id, "lineageId": "story", "versionNumber": number, "section": section,
+    context.store.items[item_id] = {"id": item_id, "lineageId": "story", "versionNumber": number, "language": "en", "section": section,
                                     "bodyMarkus": body, "contentHash": content_hash or f"hash-of:{section}:{body}"}
     return item_id
 
@@ -543,7 +543,7 @@ def step_judgment_off(context):
 @given("another story's version {number:d} is saved with \"{body}\" and checked")
 def step_other_story_checked(context, number, body):
     item_id = f"other-v{number}"
-    context.store.items[item_id] = {"id": item_id, "lineageId": "other", "versionNumber": number, "section": "engineering",
+    context.store.items[item_id] = {"id": item_id, "lineageId": "other", "versionNumber": number, "language": "en", "section": "engineering",
                                     "bodyMarkus": body, "contentHash": f"hash-of:engineering:{body}"}
     _check_saved(context, item_id)
     context.other_run_before = dict(context.store.get_check_run(item_id))
@@ -825,6 +825,80 @@ def step_xstory_not_naming(context, other):
         for finding in run["findings"]:
             if finding["policyId"] == "cross-story-boilerplate":
                 assert other not in finding["message"], finding
+
+
+def _run_draft_check(context, body, story=None):
+    import contextlib
+    import io
+    import tempfile
+    from unittest import mock
+
+    from papyrus_content import editorial_commands
+
+    draft = tempfile.NamedTemporaryFile("w", suffix=".md", delete=False)
+    draft.write(body)
+    draft.close()
+    flags = ["--draft", draft.name] + (["--story", story] if story else [])
+    output = io.StringIO()
+    context.cli_error = None
+    with mock.patch.object(editorial_commands, "_store", return_value=context.store), contextlib.redirect_stdout(output):
+        try:
+            editorial_commands.editorial_check(flags)
+        except ValueError as error:
+            context.cli_error = str(error)
+            return
+    context.cli_result = json.loads(output.getvalue())
+
+
+@when("an operator runs papyrus editorial check on a draft that ends with the standard closing")
+def step_cli_draft_closing(context):
+    _run_draft_check(context, f"A different opening for the draft appears here.\n\n{CLOSING}.")
+
+
+@when('an operator runs papyrus editorial check on a draft that ends with the standard closing and revises "{slug}"')
+def step_cli_draft_closing_revises(context, slug):
+    _run_draft_check(context, f"A different opening for the draft appears here.\n\n{CLOSING}.", story=slug)
+
+
+@when('an operator runs papyrus editorial check on a draft that revises "{slug}"')
+def step_cli_draft_revises(context, slug):
+    _run_draft_check(context, f"A short draft.\n\n{CLOSING}.", story=slug)
+
+
+@then('the printed check result has a "cross-story-boilerplate" finding naming "{other}"')
+def step_cli_xstory_names(context, other):
+    found = [f for f in context.cli_result["findings"] if f["policyId"] == "cross-story-boilerplate"]
+    assert found and any(other in f["message"] for f in found), context.cli_result["findings"]
+
+
+@then('the printed check result has no "cross-story-boilerplate" finding')
+def step_cli_no_xstory(context):
+    assert not [f for f in context.cli_result["findings"] if f["policyId"] == "cross-story-boilerplate"], context.cli_result["findings"]
+
+
+@then('the printed check result has the same "cross-story-boilerplate" finding as the stored check of "{slug}"')
+def step_cli_same_xstory(context, slug):
+    def key(finding):
+        return (finding["policyId"], finding["severity"], finding["message"], finding["excerpt"])
+
+    printed = sorted(key(f) for f in context.cli_result["findings"] if f["policyId"] == "cross-story-boilerplate")
+    stored = sorted(key(f) for f in context.store.get_check_run(f"{slug}-v1")["findings"] if f["policyId"] == "cross-story-boilerplate")
+    assert printed and printed == stored, (printed, stored)
+
+
+@then('the printed check result lists "{check}" as not run because "{reason}"')
+def step_cli_not_run(context, check, reason):
+    assert context.cli_result["notRun"] == [{"check": check, "reason": reason}], context.cli_result.get("notRun")
+
+
+@then("the printed check result lists no checks as not run")
+def step_cli_none_not_run(context):
+    assert context.cli_result["notRun"] == [], context.cli_result.get("notRun")
+
+
+@then('the draft check is refused with "{text}"')
+def step_draft_check_refused(context, text):
+    assert context.cli_error and text in context.cli_error, context.cli_error
 
 
 # --- command-line findings and whole-story judgments ---------------------------------------------------------------------

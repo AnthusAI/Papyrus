@@ -601,6 +601,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listItemsBySectionStatusAndPublishedAt               | returns nothing of "beta"        |
       | listItemsByParentAndOrder                            | returns nothing of "beta"        |
       | listItemsByHeadStageAndUpdatedAt                     | returns nothing of "beta"        |
+      | listItemsByLanguageGroupAndLanguage                  | returns nothing of "beta"        |
       | listItemsByScheduleStateAndScheduledPublishAt        | returns nothing of "beta"        |
       | listItemTagsByItemAndTag                             | returns nothing of "beta"        |
       | listItemTagsByTagAndPublishedAt                      | returns nothing of "beta"        |

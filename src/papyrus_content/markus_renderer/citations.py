@@ -442,11 +442,14 @@ class CitationCollector:
             text = formatter(entry)
             url = str(entry.get("URL") or entry.get("url") or "").strip()
             if url:
-                # Parity with gatsby-citation-manager, byte for byte: the first
-                # occurrence of the URL is cut out of the formatted text (which
+                # Parity with gatsby-citation-manager: when the formatted text
+                # contains the URL, the first occurrence is cut out (which
                 # leaves any space before it) and the URL is appended as its
-                # own link with nothing in between.
-                text = text.replace(url, "", 1)
+                # own link. When the text does not contain it (APA prints the
+                # DOI, not the URL, for a source that has both), the text ends
+                # with its last field, so a space separates the link from it,
+                # as it does from the text before a cut URL.
+                text = text.replace(url, "", 1) if url in text else f"{text} "
             body = html.escape(text, quote=False)
             if url:
                 safe = html.escape(url, quote=True)

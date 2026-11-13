@@ -35,14 +35,14 @@ TENANT_FIELD_MODELS = frozenset({
     "EditorialCheckSettings", "EditorialFeedback", "EditorialCheckRun", "Proposal", "ReaderProfile", "ReaderHandle", "ReaderVote",
     "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction", "SignupEntry",
 })
-TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus", "headStageKey")
+TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus", "headStageKey", "languageGroupId")
 TENANT_SLUG_FIELD = "tenantSlug"
 TENANT_SLUG_MODELS = frozenset({"Item", "PublishedItem"})
 TENANT_SCOPED_RECORD_ID_MODELS = frozenset({"NewsroomSection"})
 STORED_RECORD_ID_FIELD = "storedId"
 TENANT_INDEX_REDIRECTS = {"itemBySlug": "itemByTenantSlug"}
 #: Indexes whose partition key is stored tenant-prefixed (a field in TENANT_SCOPED_INDEX_FIELDS): a query names the tenant's own partition.
-TENANT_PREFIXED_INDEXES = frozenset({"itemsByHeadStage"})
+TENANT_PREFIXED_INDEXES = frozenset({"itemsByHeadStage", "itemsByLanguageGroup"})
 
 
 def is_shared_stack() -> bool:
