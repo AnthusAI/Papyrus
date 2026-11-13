@@ -66,6 +66,9 @@ import { demoEditorialBackend } from "../lib/editorial-checks-demo";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
 import { StarRating } from "./star-rating";
+import { StorySchedulePanel } from "./story-schedule-panel";
+import { useScheduleZone } from "../lib/schedule-zone";
+import { scheduleFromEntries, scheduleFromResult, type StorySchedule } from "../lib/story-schedule";
 import { useStoryStars, type StoryStarsController } from "./use-story-stars";
 import { EditorialPreviewPopover, type PreviewPopoverTarget } from "./editorial-preview-popover";
 import { MarkusBodyEditor, type MarkusBodyEditorHandle } from "./markus-body-editor";
@@ -120,12 +123,14 @@ function failureMessage(error: unknown): string {
 
 const NO_DESK_VALUE = "__no-desk__";
 
-export function NewsroomArticleEditor({ articleId, demo, embedded = false, starsController }: {
+export function NewsroomArticleEditor({ articleId, demo, embedded = false, starsController, onScheduleChanged }: {
   articleId: string;
   demo: boolean;
   embedded?: boolean;
   /** The rating store of the surface this editor sits in (the board's), so the card, the drawer and this editor show one rating. Without it the editor keeps its own. */
   starsController?: StoryStarsController;
+  /** Called after the editor set, changed or cleared this Story's schedule, so a board can show it on the card. */
+  onScheduleChanged?: () => void;
 }) {
   const session = useOptionalNewsDeskClient();
   const blocked = !(demo || isLocalPreviewEnabled()) && articlesAccessBlocked(session?.shell.phase);
@@ -144,6 +149,11 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const [savedType, setSavedType] = useState<string | null>(null);
   const [publishedType, setPublishedType] = useState<string | null>(null);
   const [aliases, setAliases] = useState<string[]>([]);
+  /** What the backend's `schedule_list` says about this Story (not what the loaded row holds, which may be an older version). */
+  const [schedule, setSchedule] = useState<StorySchedule | undefined>(undefined);
+  /** False until `schedule_list` has answered for the loaded Story, so the drawer never shows "Not scheduled" and then changes its mind. */
+  const [scheduleKnown, setScheduleKnown] = useState(false);
+  const { zone: scheduleZone } = useScheduleZone();
   /** The rating the Story had when it was loaded; the store shows what was tapped since. */
   const [savedStars, setSavedStars] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -204,6 +214,17 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
       cancelled = true;
     };
   }, [activeArticleId, backend, blocked, isNew, reloadToken]);
+
+  useEffect(() => {
+    setScheduleKnown(false);
+    if (!scheduleZone || !lineageId) { setSchedule(undefined); return; }
+    let cancelled = false;
+    backend.actions
+      .scheduleList({ storyLineageId: lineageId })
+      .then((result) => { if (!cancelled) { setSchedule(scheduleFromEntries(result.schedules)); setScheduleKnown(true); } })
+      .catch((error: unknown) => { if (!cancelled) setNotice({ tone: "error", text: `The schedule could not be read. ${failureMessage(error)}` }); });
+    return () => { cancelled = true; };
+  }, [backend, lineageId, scheduleZone, reloadToken]);
 
   const savedItemId = editor?.id ?? null;
   useEffect(() => {
@@ -527,6 +548,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         current ? { ...current, id, status: "published", versionNumber: result.versionNumber } : current,
       );
       setEverPublished(true);
+      setSchedule(undefined);   // publishing now ends the schedule
       setSavedType(editor.type);
       setPublishedType(editor.type);
       const base = result.changed
@@ -589,6 +611,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         // so nothing moves when the article arrives. The heights live in newsroom-organizer.css (data-skeleton-*).
         <div aria-label="Loading article" aria-busy="true" className="space-y-4" data-newsroom-article-skeleton role="status">
           <div className="rounded-md bg-muted" data-skeleton-toolbar />
+          {!isNew && scheduleZone !== null ? <div className="rounded-md bg-muted" data-skeleton-schedule /> : null}
           {!isNew ? <div className="max-w-md rounded-md bg-muted" data-skeleton-stars /> : null}
           <div className="rounded-md bg-muted" data-skeleton-headline />
           <div className="grid gap-6">
@@ -733,6 +756,21 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
             <div data-newsroom-article-notice>
               <NewsroomOpsStatusBanner tone={notice.tone}>{notice.text}</NewsroomOpsStatusBanner>
             </div>
+          ) : null}
+
+          {scheduleZone !== null && editor.id !== null && lineageId && !(scheduleZone && scheduleKnown) ? <div className="rounded-md bg-muted" data-skeleton-schedule /> : null}
+          {scheduleZone && editor.id !== null && lineageId && scheduleKnown ? (
+            <StorySchedulePanel
+              zone={scheduleZone}
+              schedule={schedule}
+              blockedReason={editor.dirty ? "Save your changes first: a schedule publishes the saved version." : isOlderVersion ? "This is an older version of the Story." : null}
+              save={async (scheduledPublishAt) => {
+                const saved = scheduleFromResult(await backend.actions.scheduleStory({ itemId: editor.id!, lineageId, scheduledPublishAt }));
+                setSchedule(saved);
+                onScheduleChanged?.();
+                return saved;
+              }}
+            />
           ) : null}
 
           {editor.id !== null ? (

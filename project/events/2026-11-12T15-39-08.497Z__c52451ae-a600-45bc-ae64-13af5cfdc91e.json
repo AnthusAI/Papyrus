@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c52451ae-a600-45bc-ae64-13af5cfdc91e",
+  "issue_id": "PPY-ec591cca-167a-4432-9fe8-eb4f00d0078e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T15:39:08.497Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The home page sends visitors to their language, and their choice sticks",
+    "description": "As a visitor, I want the bare home page to open in my browser's preferred language unless I have chosen one, and my choice to stick, while search engines always see the primary home page.\n\nDesign: only '/' is ever redirected, never article pages. In the existing CloudFront viewer-request function: '?lang=xx' sets papyrus_lang and redirects to that language's clean home; then the cookie; then Accept-Language matched to public languages; no header or no match means no redirect. Redirects are 302, Cache-Control private, no-store, Vary Accept-Language, Cookie; page cache keys and page responses unchanged. No user-agent sniffing, no client-side redirect. Off by default for primary-at-root sites (opt-in setting); always on for prefixed sites. Plan: docs/plans/multilingual-publishing.md (PR #1450).\n\nFeature: Home-page language\n\nScenario: A Spanish-preferring visitor lands on the English root\n  Given Machines on Machines has the home redirect on and Spanish public\n  And a visitor whose browser prefers Spanish has made no choice\n  When they open the root\n  Then they are redirected to /es/ and the redirect is not cached\n\nScenario: A visitor's choice sticks\n  Given a visitor whose browser prefers Spanish\n  When they choose English in the language switcher\n  Then the root opens in English on every later visit\n\nScenario: A crawler is not redirected\n  Given a request for the root with no Accept-Language header\n  When it reaches the site\n  Then the English home page is served\n\nScenario: Article pages are never redirected\n  Given a visitor whose browser prefers Spanish\n  When they open an English article link\n  Then the English article is served with a link to its Spanish version if one exists",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-75649552-f242-4ed9-9b93-d27bbb29e4ce",
+    "labels": []
+  }
+}

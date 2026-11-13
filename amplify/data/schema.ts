@@ -2,6 +2,7 @@ import { type ClientSchema, a } from "@aws-amplify/backend";
 import { assignmentAction } from "../functions/assignment-action/resource";
 import { categoryAction } from "../functions/category-action/resource";
 import { editorialChecksSchemaDefinitions } from "../functions/editorial-checks/schema";
+import { announcementsSchemaDefinitions } from "../functions/announcements/schema";
 import { automationViewSchemaDefinitions } from "../functions/automation-view/schema";
 import { imageService } from "../functions/image-service/resource";
 import { imageServiceSchemaDefinitions } from "../functions/image-service/schema";
@@ -353,6 +354,8 @@ const definitions = {
     previousSectionId: a.id(),
     changed: a.boolean().required(),
     status: a.string().required(),
+    actorKind: a.string(),
+    skipped: a.string(),
   }),
 
   ReferenceStarsActionResult: a.customType({
@@ -544,6 +547,10 @@ const definitions = {
       referenceId: a.id().required(),
       sectionId: a.id(),
       agentLabel: a.string(),
+      // The automatic lane (docs/reference-auto-section.md): the site cyclotron's current section-selector decision this section comes from, and the
+      // calibration evidence. Recorded as actor kind `cyclotron`; refused quietly (changed false) when a person set or cleared the section.
+      decisionRelationId: a.id(),
+      machineReason: a.string(),
     })
     .returns(a.ref("ReferenceSectionActionResult"))
     .authorization((allow) => [
@@ -905,6 +912,13 @@ const definitions = {
     .handler(functionHandler("contentActions", contentActions)),
 
   unpublishItem: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
+  scheduleItem: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
@@ -1974,6 +1988,12 @@ const definitions = {
       curationSectionId: a.string(),
       curationSectionUpdatedAt: a.datetime(),   // when and by whom the section was last set on its own (`setReferenceSection`); the vote's own fields do not move
       curationSectionUpdatedBy: a.string(),
+      // Who set the section, in the vote's own vocabulary: `human` or `agent` (a person's or an operator's choice, kept even when they cleared it, so the
+      // machine never re-tags it) or `cyclotron` (the site cyclotron's section selector, docs/reference-auto-section.md). The machine's evidence (classifier,
+      // model version, confidence and the threshold learned from held-out editor choices) is the reason, and the decision it acted on is the relation id.
+      curationSectionActorKind: a.string(),
+      curationSectionReason: a.string(),
+      curationSectionDecisionRelationId: a.string(),
       curationShareable: a.boolean(),
       curationDelegation: a.json(),
       curationDecisionRelationId: a.string(),
@@ -2373,6 +2393,8 @@ const definitions = {
       byline: a.string(),
       dateline: a.string(),
       publishedAt: a.datetime(),
+      versionPublishedAt: a.datetime(),
+      versionPublishedBy: a.string(),
       editionDate: a.string(),
       sortTitle: a.string(),
       pullQuotes: a.string().array(),
@@ -2387,6 +2409,14 @@ const definitions = {
       /** Only the head row of a lineage carries this: its stage (tenant-prefixed on a tenant backend), so the head stage index holds one row per
        *  story; a superseded version has none (docs/plans/story-head-stage-index.md). */
       headStageKey: a.string(),
+      /** Scheduled publishing (docs/scheduled-publishing.md): the schedule lives on the row of the version it publishes. `scheduleState` is set only while a schedule exists
+       *  (scheduled, publishing or blocked), so the index below holds scheduled versions and nothing else. `scheduledPublishAt` is a UTC instant. */
+      scheduledPublishAt: a.datetime(),
+      scheduledBy: a.string(),
+      scheduledAt: a.datetime(),
+      scheduleState: a.string(),
+      /** The EventBridge Scheduler schedule that publishes this version. */
+      scheduleName: a.string(),
       tags: a.hasMany("ItemTag", "itemId"),
       mediaAssets: a.hasMany("MediaAsset", "itemId"),
       ...(includeEditions ? { editionItems: a.hasMany("EditionItem", "itemId") } : {}),
@@ -2401,6 +2431,7 @@ const definitions = {
       index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt"),
       index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt"),
       index("parentLineageId").sortKeys(["sortTitle"]).queryField("listItemsByParentAndOrder"),
+      index("scheduleState").sortKeys(["scheduledPublishAt"]).queryField("listItemsByScheduleStateAndScheduledPublishAt"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
@@ -2556,6 +2587,8 @@ const definitions = {
       byline: a.string(),
       dateline: a.string(),
       publishedAt: a.datetime(),
+      versionPublishedAt: a.datetime(),
+      versionPublishedBy: a.string(),
       editionDate: a.string(),
       sortTitle: a.string(),
       pullQuotes: a.string().array(),
@@ -2783,6 +2816,7 @@ const definitions = {
   ...editorialChecksSchemaDefinitions,
   ...monitoringViewSchemaDefinitions,
   ...automationViewSchemaDefinitions,
+  ...announcementsSchemaDefinitions,
   ...imageServiceSchemaDefinitions,
   ...proposalActionsSchemaDefinitions,
   ...messageActionsSchemaDefinitions,

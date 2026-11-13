@@ -6,7 +6,7 @@ asks this module before its ``--apply``: it plans the sync as a dry run, and ``d
 * **A site's first run is a preview.** With no earlier run to compare with, the plan (counts by page kind and entity kind, and a sample)
   waits for a person: a hard-gate review request in the Notification Center. Accepting it makes the plan part of the site's history.
 * **A later run proceeds unless its output differs sharply from the site's own history.** For every series (pages to create, update,
-  revise or retire, by kind, and the total) the count is compared with what the earlier runs predict: the earlier counts give the mean and,
+  or revise, by kind, and the total) the count is compared with what the earlier runs predict: the earlier counts give the mean and,
   once there are two, the spread (``predictive_tail``). A run is held when a series is more surprising than ``1 / ((n + 1) * k)``: the
   chance that the newest of ``n + 1`` runs happens to be the biggest of them, shared among the ``k`` series that wrote anything. Nothing
   here is a fixed cap: the more history a site has, the stricter the test, and the spread it learned decides what is normal for that site.
@@ -50,9 +50,6 @@ def series_of(plan: Mapping[str, Any]) -> dict[str, int]:
         if page.get("action") != UNCHANGED:
             key = f"{_label(page)}:{page['action']}"
             counts[key] = counts.get(key, 0) + 1
-    for page in plan.get("retired") or ():
-        key = f"{_label(page)}:retire"
-        counts[key] = counts.get(key, 0) + 1
     total = sum(counts.values())
     return {**dict(sorted(counts.items())), **({TOTAL: total} if total else {})}
 
@@ -61,7 +58,7 @@ def fingerprint_of(plan: Mapping[str, Any]) -> str:
     """The same plan has the same fingerprint: the pages and what would happen to each."""
     entries = sorted(
         [f"{page.get('section')}/{page.get('slug')}", page["action"]] for page in plan.get("pages") or () if page.get("action") != UNCHANGED
-    ) + sorted([f"{page.get('section')}/{page.get('slug')}", "retire"] for page in plan.get("retired") or ())
+    )
     return hashlib.sha256(json.dumps(entries, sort_keys=True).encode()).hexdigest()[:16]
 
 

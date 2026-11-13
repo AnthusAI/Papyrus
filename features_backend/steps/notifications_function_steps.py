@@ -14,14 +14,14 @@ from papyrus_content.notifications import handler as notifications_handler  # no
 from papyrus_content.notifications.notifications_test import Site  # noqa: E402
 
 
-@given('a site "{site_id}" with the notifications plugin and one operator')
+@given('a site "{site_id}" with the notifications plugin and one confirmed subscriber')
 def site_with_plugin(context, site_id: str) -> None:
     context.sites = getattr(context, "sites", {})
     context.sites[site_id] = Site(site_id)
     context.site = context.sites["alpha"]
 
 
-@given('a second site "{site_id}" with the notifications plugin and one operator')
+@given('a second site "{site_id}" with the notifications plugin and one confirmed subscriber')
 def second_site(context, site_id: str) -> None:
     context.sites[site_id] = Site(site_id)
 
@@ -66,11 +66,13 @@ def bad_event_id(context) -> None:
 
 @when('a reader\'s "{action}" request reaches the function')
 def reader_request(context, action: str) -> None:
-    context.answer = notifications_handler.route(context.site.runtime, {"action": action, "email": "reader@example.test", "lists": ["stories"]})
+    context.answer = notifications_handler.route(
+        context.site.runtime, {"action": action, "email": "reader@example.test", "lists": ["stories"], "token": "not-a-token"}
+    )
 
 
-@then("{count:d} email is sent to the operator")
-@then("{count:d} emails are sent to the operator")
+@then("{count:d} email is sent to the subscriber")
+@then("{count:d} emails are sent to the subscriber")
 def emails_sent(context, count: int) -> None:
     calls = context.site.mailer.calls
     assert len(calls) == count, calls
@@ -93,9 +95,9 @@ def accent(context) -> None:
     assert "#aa3300" in context.site.mailer.calls[0]["html"]
 
 
-@then("the email says why the operator received it")
+@then("the email says why the subscriber received it")
 def reason(context) -> None:
-    assert "You received this because you are on the notification list for Alpha News" in context.site.mailer.calls[0]["text"]
+    assert "You get this because you subscribed to new stories from Alpha News" in context.site.mailer.calls[0]["text"]
 
 
 @then("no email is queued")
@@ -118,11 +120,6 @@ def log_empty(context, site_id: str) -> None:
     assert context.sites[site_id].deliveries() == []
 
 
-@then('the function answers with status {status:d} and the word "{word}"')
-def answers_status(context, status: int, word: str) -> None:
-    assert context.answer == {"statusCode": status, "body": {"status": word}}, context.answer
-
-
-@then("nothing is stored for any reader")
-def nothing_stored(context) -> None:
-    assert context.site.store.items == {}
+@then("the function does not answer 503")
+def not_503(context) -> None:
+    assert context.answer["statusCode"] != 503, context.answer

@@ -42,6 +42,30 @@ export type UnpublishItemResult = { ok: true; changed: boolean };
 export type MoveStoryStageInput = { lineageId: string; stage: string; reason?: string | null };
 export type MoveStoryStageResult = { ok: true; changed: boolean; stage: string };
 
+/**
+ * Sets, changes or clears (`scheduledPublishAt: null`) the time a Story's version goes live: the `schedule` operation of the site's `scheduleItem` mutation
+ * (docs/scheduled-publishing.md). `itemId` is the version being scheduled (the newest); clearing names the Story, whose schedule may sit on an earlier version. The
+ * instant is UTC: the console turns the publication-zone time an editor picked into it (lib/story-schedule.ts), so the backend never has to read a wall-clock time.
+ */
+export type ScheduleStoryInput = { itemId: string; lineageId: string; scheduledPublishAt: string | null };
+export type ScheduleStoryResult = { ok: true; scheduledPublishAt: string | null; scheduledBy: string | null };
+
+/**
+ * One scheduled version in the `schedule_list` answer (`story_schedule.ScheduleService.entry`). `state` is the effective state (overdue when the time passed and it
+ * has not published); `storedState` is what the row holds (scheduled, publishing or blocked). A one-Story read also says what the newest version is.
+ */
+export type ScheduleEntry = {
+  itemId: string; lineageId: string; versionNumber: number | null; title: string;
+  state: "scheduled" | "publishing" | "blocked" | "overdue"; storedState: "scheduled" | "publishing" | "blocked";
+  scheduledPublishAt: string; scheduledBy: string | null; scheduledAt: string | null;
+  headItemId?: string; headVersionNumber?: number | null; newerVersionExists?: boolean;
+};
+/** The `schedule_list` operation of `scheduleItem`: the schedules of one Story (`storyLineageId`), soonest first. */
+export type ScheduleListResult = { ok: true; timeZone: string | null; schedules: ScheduleEntry[] };
+
+/** The `schedule_settings` operation of `scheduleItem`: whether scheduling is on and the publication's time zone, which the backend owns (docs/scheduled-publishing.md). */
+export type ScheduleZoneResult = { ok: true; enabled: boolean; timeZone: string | null };
+
 export type CreateStoryFromReferenceInput = {
   referenceId: string;
   /** A Story type of the site. Omitted, the site's default type (`storyTypes.default`, else `article`). */
@@ -106,6 +130,7 @@ export type ContentActionsTransport = {
     unpublishItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     moveStoryStage: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     setStoryStep: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
+    scheduleItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     createStoryFromReference: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     correctReferenceCapture: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
   };
@@ -146,6 +171,21 @@ export function createContentActionsClient(transport: ContentActionsTransport) {
     async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
       return parseActionResponse(await transport.mutations.moveStoryStage({ input: JSON.stringify(input) }, USER_POOL));
     },
+    async scheduleStory(input: ScheduleStoryInput): Promise<ScheduleStoryResult> {
+      const operation = input.scheduledPublishAt === null
+        ? { operation: "schedule", arguments: { storyLineageId: input.lineageId, clear: true } }
+        : { operation: "schedule", arguments: { itemId: input.itemId, at: input.scheduledPublishAt } };
+      const result = parseActionResponse<{ scheduledPublishAt?: string; scheduledBy?: string }>(await transport.mutations.scheduleItem({ input: JSON.stringify(operation) }, USER_POOL));
+      return { ok: true, scheduledPublishAt: result.scheduledPublishAt ?? null, scheduledBy: result.scheduledBy ?? null };
+    },
+    async scheduleList(input: { storyLineageId: string }): Promise<ScheduleListResult> {
+      const result = parseActionResponse<{ timeZone?: string | null; schedules?: ScheduleEntry[] }>(await transport.mutations.scheduleItem({ input: JSON.stringify({ operation: "schedule_list", arguments: { storyLineageId: input.storyLineageId } }) }, USER_POOL));
+      return { ok: true, timeZone: result.timeZone ?? null, schedules: result.schedules ?? [] };
+    },
+    async scheduleZone(): Promise<ScheduleZoneResult> {
+      const result = parseActionResponse<{ enabled: boolean; timeZone?: string | null }>(await transport.mutations.scheduleItem({ input: JSON.stringify({ operation: "schedule_settings", arguments: {} }) }, USER_POOL));
+      return { ok: true, enabled: result.enabled, timeZone: result.timeZone ?? null };
+    },
     async setStoryStep(input: SetStoryStepInput): Promise<SetStoryStepResult> {
       return parseActionResponse(await transport.mutations.setStoryStep({ input: JSON.stringify(input) }, USER_POOL));
     },
@@ -173,6 +213,9 @@ export const saveItemDraft = (input: SaveItemDraftInput) => contentActionsClient
 export const publishItem = (id: string) => contentActionsClient().publishItem(id);
 export const createStoryFromReference = (input: CreateStoryFromReferenceInput) => contentActionsClient().createStoryFromReference(input);
 export const moveStoryStage = (input: MoveStoryStageInput) => contentActionsClient().moveStoryStage(input);
+export const scheduleStory = (input: ScheduleStoryInput) => contentActionsClient().scheduleStory(input);
+export const scheduleList = (input: { storyLineageId: string }) => contentActionsClient().scheduleList(input);
+export const scheduleZone = () => contentActionsClient().scheduleZone();
 export const setStoryStep = (input: SetStoryStepInput) => contentActionsClient().setStoryStep(input);
 export const unpublishItem = (id: string) => contentActionsClient().unpublishItem(id);
 

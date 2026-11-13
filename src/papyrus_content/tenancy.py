@@ -167,3 +167,16 @@ def tenant_scoped_index(tenant_id: str | None, index_name: str, key_value: str) 
     if not tenant_id or index_name not in TENANT_INDEX_REDIRECTS:
         return index_name, key_value
     return TENANT_INDEX_REDIRECTS[index_name], tenant_scoped_value(tenant_id, key_value)
+
+
+def require_tenant_for_tenanted_rows(tenant_id: str | None, rows: Iterable[dict[str, Any]]) -> None:
+    """Refuse a command that has no tenant when the backend's Items carry one: what it wrote would have no tenant stamp,
+    and every tenant-scoped reader (the renders, the console) would never see it. Pass the Items the command already read."""
+    if tenant_id:
+        return
+    tenants = sorted({str(row["tenantId"]) for row in rows if row.get("tenantId")})
+    if tenants:
+        raise TenantError(
+            f"This backend's Items belong to tenant {', '.join(tenants)}, but this command has no tenant, so what it writes would be invisible to the publication. "
+            "Pass --tenant, or set PAPYRUS_TENANT_ID (the cloud knowledge run: the knowledgeRun `environment` of the site's infra/site.json)."
+        )

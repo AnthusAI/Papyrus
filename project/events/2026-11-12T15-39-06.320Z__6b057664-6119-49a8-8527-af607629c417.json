@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6b057664-6119-49a8-8527-af607629c417",
+  "issue_id": "PPY-dd27549a-62d3-4e0c-b798-83c1d7dedff8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T15:39:06.320Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Slice 1: one Spanish Machines on Machines Story in preview",
+    "description": "As the editor of Machines on Machines, I want one existing Story translated into Spanish, checked, reviewed by a person and shown at its Spanish address in preview, so we can judge the whole idea on a real page before anything is public.\n\nScope: one editor-chosen published MoM Story without text-bearing figures; Spanish only; derive-from-primary only; started by a command; preview tool only (tools/preview_production.py); no live publish, no edge redirect, no Spanish home or section pages. Plan: docs/plans/multilingual-publishing.md (PR #1450).\n\nFeature: Preview one Spanish Story\n\nScenario: An editor creates a Spanish localization\n  Given a published English Story on Machines on Machines\n  And Spanish is configured for the site in preview\n  When the editor runs papyrus stories localize for that Story in Spanish\n  Then a Spanish localization exists in the Story's language group\n  And it records the exact English version it was translated from\n  And its checklist lists translation, fidelity check, copy-edit, language review and approval\n\nScenario: The Spanish page appears only in preview\n  Given the Spanish localization has passed its checks and a Spanish reader approved it\n  When the editor opens the preview of the site\n  Then the Story is at /es/ followed by its section and Spanish slug\n  And the page declares lang es, links to the English page with hreflang, and is canonical to itself\n  And a line under the byline says it was translated by AI from the English original and links to it\n  And the live site is unchanged",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-82f150e8-9010-4a9f-949e-71168ffdbdc0",
+    "labels": []
+  }
+}

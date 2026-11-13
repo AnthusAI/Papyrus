@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9be6ae94-d87f-42b3-a757-70bbdb118357",
+  "title": "Knowledge cloud run writes untenanted wiki rows and retires existing wiki pages",
+  "description": "MoM 2026-11-11/12: the public wiki index went empty. The cloud knowledge run has no tenant (PAPYRUS_TENANT_ID is not in the task environment), so wiki sync/publish wrote Item and PublishedItem rows with no tenantId/tenantSlug/typeStatus/sectionStatus stamp, which tenant-scoped renders cannot see. Ops stamped 29 Item + 29 PublishedItem rows by hand. Separately the wiki-sync stage passed --retire every day, retiring existing wiki pages of kinds the vocabulary does not declare; crawlers may have indexed them. Fix: a command with no tenant refuses to write into a backend whose Items carry one; wiki sync never retires (flag and code path removed).",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T12:33:23.313752Z",
+  "updated_at": "2026-11-12T12:33:23.313797Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

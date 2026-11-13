@@ -133,8 +133,8 @@ export async function handleNotificationsSubscribe(request: NextRequest, options
     page: limited(payload.page, 500),
     consent: limited(payload.consent, 500),
     formId: limited(payload.formId, 100),
+    origin: site.origin,
     honeypot: limited(payload.website, 200),
-    renderedAt: typeof payload.renderedAt === "number" || typeof payload.renderedAt === "string" ? payload.renderedAt : null,
     ip: clientAddress(request.headers),
     userAgent: limited(request.headers.get("user-agent"), NEWSLETTER_USER_AGENT_CHARACTERS),
   };

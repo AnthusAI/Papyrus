@@ -6,11 +6,11 @@ class Client:
     def __init__(self):
         self.listed = []
         self.tables = {
-            "Reference": [{"id": "a-v1", "lineageId": "a", "versionState": "superseded", "corpusId": "c", "externalItemId": "item-a"},
-                          {"id": "a-v2", "lineageId": "a", "versionState": "current", "corpusId": "c", "externalItemId": "item-a"},
-                          {"id": "b", "lineageId": "b", "versionState": "current", "corpusId": "c", "externalItemId": "item-b"}],
+            "Reference": [{"id": "a-v1", "lineageId": "a", "versionState": "superseded", "corpusId": "knowledge-corpus-c", "externalItemId": "item-a"},
+                          {"id": "a-v2", "lineageId": "a", "versionState": "current", "corpusId": "knowledge-corpus-c", "externalItemId": "item-a"},
+                          {"id": "b", "lineageId": "b", "versionState": "current", "corpusId": "knowledge-corpus-c", "externalItemId": "item-b"}],
             "ReferenceAttachment": [{"id": "x", "referenceLineageId": "a"}, {"id": "y", "referenceLineageId": "b"}],
-            "SemanticRelation": [], "KnowledgeCorpus": [{"id": "c"}],
+            "SemanticRelation": [], "KnowledgeCorpus": [{"id": "knowledge-corpus-c", "role": "canonical", "name": "C"}],
         }
 
     def list_records(self, model):
@@ -18,6 +18,8 @@ class Client:
         return self.tables[model]
 
     def list_by_index(self, index_name, key_value, *, limit=100, sort_eq=None):
+        if index_name == "knowledgeCorporaByRoleAndName":
+            return [row for row in self.tables["KnowledgeCorpus"] if row.get("role") == key_value]
         return list_by_index_from_records(lambda m: self.tables[m], index_name, key_value, sort_eq)
 
     def get_record(self, model, record_id):

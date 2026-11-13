@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
+from papyrus_content.item_front_matter import front_matter as _front_matter, item_path
 from papyrus_content.publishing import ItemFields, save_item
 
 from .confirmation import markus_text
@@ -26,40 +27,6 @@ OTHER_SECTION = "More"
 def archive_section(archive_path: str) -> str:
     """The Item section (and the ``urls.sections`` key) of a list's archive: ``/roundup/`` is ``roundup``."""
     return archive_path.strip("/")
-
-
-def item_path(section: str | None, slug: str, url_style: str) -> str:
-    base = f"/{section}" if section else ""
-    if url_style == "directory":
-        return f"{base}/{slug}/"
-    if url_style == "clean":
-        return f"{base}/{slug}"
-    return f"{base}/{slug}.html"
-
-
-def _parse_object(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    if isinstance(value, str) and value.strip():
-        try:
-            parsed = json.loads(value)
-        except ValueError:
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
-    return {}
-
-
-def _front_matter(row: Mapping[str, Any]) -> dict[str, Any]:
-    text = _parse_object(row.get("metadata")).get("frontMatterYaml")
-    if not isinstance(text, str) or not text.strip():
-        return {}
-    import yaml
-
-    try:
-        loaded = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return {}
-    return loaded if isinstance(loaded, dict) else {}
 
 
 def _dek(front_matter: Mapping[str, Any]) -> str:
