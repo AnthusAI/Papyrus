@@ -3,8 +3,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-import tiktoken
-
 
 DEFAULT_TIKTOKEN_ENCODING = "o200k_base"
 
@@ -45,6 +43,10 @@ class TokenCounter:
         return encoding.decode(token_ids[:max_tokens]).rstrip()
 
     def _encoding(self):
+        # Imported where it is used, not at module load: the monitoring router bundles this package for its vector pass, which never counts tokens,
+        # and it carries no native wheels. Counting without tiktoken raises the ImportError.
+        import tiktoken
+
         if self.tokenizer_model:
             return tiktoken.encoding_for_model(self.tokenizer_model)
         return tiktoken.get_encoding(self.encoding_name)
