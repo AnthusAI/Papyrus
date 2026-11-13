@@ -450,6 +450,18 @@ papyrus stories head-index --apply --rate 5
 - Unlike most commands it is a **dry run unless `--apply`**. A dry run with `heads to set 0` and `keys to remove 0` is the health check. `--apply` writes only rows that differ, keeps each row's own `updatedAt`, never writes a superseded version, and writes at most `--rate` a second (default 5); a second run writes nothing.
 - On a site whose data API has no `headStageKey` yet the dry run counts every Story as needing it and `--apply` refuses: the site needs the backend deploy that adds the index first, and that deploy and the `--apply` run each need Ryan's approval.
 
+### Give every Item row its language (operators)
+**Lane:** both. **Version:** the release after 5.109.0. **Writes:** yes, unless `--dry-run`.
+
+```sh
+papyrus stories languages --dry-run
+papyrus stories languages
+```
+
+- Every Item version carries `language` (a BCP 47 tag: `en`, `es-419`, `zh-Hans`) and `languageGroupId` (the primary Story's lineage; a localization is the sibling lineage `{primary}--{language}`). Writers set them from the release that adds them; `stories languages` writes them on the rows written before: the site's primary language and the row's own lineage as its group.
+- It reads the version-state index once (no table scan), prints one line per row it would write and a summary (`rows read`, `rows to write`, `already right`), writes only missing fields with each row's own `updatedAt`, and never changes a language a row has. A run with `rows to write 0` is the health check.
+- Run it once after the backend deploy that adds the fields, before anything checks a Story: a saved Story version without a language is refused by the editorial checks, never read as the primary language.
+
 ### Backfill published dates (operators)
 **Lane:** both. **Version:** the release after 5.101.0. **Writes:** only with `--apply`; a dry run otherwise.
 

@@ -282,6 +282,27 @@ def stories_head_index(flags: list[str]) -> None:
     run_head_index(client, apply=apply, stages=stages, rate=rate)
 
 
+def stories_languages(flags: list[str]) -> None:
+    """papyrus stories languages [--dry-run] [--rate <writes per second>]
+
+    Writes the language and the language group on every Item row written before those fields existed (src/papyrus_content/item_language.py,
+    docs/plans/multilingual-publishing.md): each such row is a primary-language row, so it gets the site's primary language (its editorial check
+    settings' languages.primary) and its own lineage as its language group. Reads the version-state index once, state by state (no table scan),
+    writes only rows that lack a field, each with its own updatedAt, at most --rate a second (default 5), and never changes a language a row has.
+
+    Writes by default; --dry-run prints one line per row it would write and a summary (rows read, rows to write, already right). A run that reports
+    0 rows to write is the health check; a second run writes nothing."""
+    from .item_language_backfill import DEFAULT_RATE, run_languages
+
+    options = parse_options(flags)
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    rate = float(options.get("rate") or DEFAULT_RATE)
+    if rate <= 0 or rate > 25:
+        raise ValueError("--rate must be more than 0 and at most 25 writes a second.")
+    client, _ = create_authoring_client()
+    run_languages(client, primary=client.primary_language(), dry_run=dry_run, rate=rate)
+
+
 def stories_backfill_published_dates(flags: list[str]) -> None:
     """papyrus stories backfill-published-dates [--apply] [--rate <writes per second>]
 

@@ -29,6 +29,8 @@ INDEX_MODELS = {
     "itemsByHeadStage": "Item",
     "itemHeadFieldsByStage": "Item",
     "itemHeadFieldsWithKeyByStage": "Item",
+    "itemsByLanguageGroup": "Item",
+    "itemLanguageFieldsByVersionState": "Item",
     "publishedItemsByTypeStatus": "PublishedItem",
 }
 
@@ -118,11 +120,13 @@ class FakeAuthoringClient:
             for row in self._table("PublishedItem").values()
         ]
 
-    def list_by_index(self, index_name: str, key_value: str, **_kwargs: Any) -> list[dict[str, Any]]:
+    def list_by_index(self, index_name: str, key_value: str, *, sort_eq: str | None = None, **_kwargs: Any) -> list[dict[str, Any]]:
         self.calls.append(("list_by_index", index_name, key_value))
         partition_key = INDEX_DEFINITIONS[index_name]["partitionKey"]
+        sort_key = INDEX_DEFINITIONS[index_name].get("sortKey") if sort_eq is not None else None
         model_name = INDEX_MODELS[index_name]
-        return [copy.deepcopy(row) for row in self._table(model_name).values() if row.get(partition_key) == key_value]
+        return [copy.deepcopy(row) for row in self._table(model_name).values()
+                if row.get(partition_key) == key_value and (sort_key is None or row.get(sort_key) == sort_eq)]
 
     def get_records_by_id(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
         return {record_id: copy.deepcopy(row) for record_id in record_ids if (row := self._table(model_name).get(record_id)) is not None}

@@ -89,7 +89,7 @@ class CheckingStore(MemoryStore):
 
 
 def test_a_saved_version_is_checked_and_the_result_is_stored_with_it():
-    store = CheckingStore([{"id": "story-v2", "lineageId": "story", "versionNumber": 2, "section": "news", "contentHash": "h2",
+    store = CheckingStore([{"id": "story-v2", "lineageId": "story", "versionNumber": 2, "language": "en", "section": "news", "contentHash": "h2",
                             "bodyMarkus": "Great question! Let's delve into this game-changing landscape."}])
     editorial.ensure_default_policies(store)
     services = editorial.Services(store=store, decision_model=None, generator=None)
@@ -102,8 +102,8 @@ def test_a_saved_version_is_checked_and_the_result_is_stored_with_it():
 
 def test_identical_content_is_checked_once():
     body = "Great question! Let's delve into this game-changing landscape."
-    store = CheckingStore([{"id": "story-v1", "lineageId": "story", "versionNumber": 1, "section": "news", "contentHash": "h", "bodyMarkus": body},
-                           {"id": "story-v2", "lineageId": "story", "versionNumber": 2, "section": "news", "contentHash": "h", "bodyMarkus": body}])
+    store = CheckingStore([{"id": "story-v1", "lineageId": "story", "versionNumber": 1, "language": "en", "section": "news", "contentHash": "h", "bodyMarkus": body},
+                           {"id": "story-v2", "lineageId": "story", "versionNumber": 2, "language": "en", "section": "news", "contentHash": "h", "bodyMarkus": body}])
     editorial.ensure_default_policies(store)
     first = editorial.Services(store=store, decision_model=None, generator=None)
     editorial.check_item_version({"itemId": "story-v1"}, first)

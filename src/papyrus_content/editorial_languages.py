@@ -10,9 +10,9 @@ questions here and nowhere else:
   (``zh-CN`` is stored as ``zh-Hans``).
 * **Which language a request means**: :func:`site_language`. A request for a base language (``es``) means the variant the site enabled
   (``es-419``); a language the site does not write in is refused, naming it.
-* **Which language a Story is written in**: :func:`story_language`. Every Story Papyrus holds today was written in its site's primary language;
-  the multilingual plan's ``Item.language`` (docs/plans/multilingual-publishing.md, written for every Item by its backfill) is read here once it
-  exists, and in no other place.
+* **Which language a Story is written in**: :func:`story_language`: the saved version's ``Item.language`` (``item_language``), and for a Story
+  not yet saved the site's primary language, because only the localization procedure writes another language and it names it. A saved row
+  without a language is refused, naming ``papyrus stories languages``; nothing reads a missing language as the primary.
 
 A policy has a language too (``EditorialPolicy.language``): a tag, or ``*`` for a language-neutral policy (placeholder leaks, tool URL parameters)
 that applies to text in every language. :func:`languages_served` says which policy languages apply to text in one language: the neutral ones, the
@@ -85,9 +85,17 @@ def site_language(tag: str, settings: dict[str, Any]) -> str:
 
 
 def story_language(item: dict[str, Any] | None, settings: dict[str, Any]) -> str:
-    """The language a Story (any saved Item version, idea or draft) is written in. See the module docstring: today, the site's primary language."""
-    del item  # the Story's own language field arrives with the multilingual plan's Item.language; until then every Story is a primary-language Story
-    return primary_language(settings)
+    """The language a Story is written in: a saved version's own ``language`` (refused when it has none), or the site's primary language for a
+    new Story (``item`` None: an idea or a draft not saved yet). A saved language the site does not write in is refused, naming it."""
+    if item is None:
+        return primary_language(settings)
+    from .item_language import item_language
+
+    language = canonical(item_language(item))
+    if language not in site_languages(settings)["enabled"]:
+        raise LanguageNotEnabled(f"Story version {item.get('id')} is written in {language}, which this site does not write in "
+                                 f"(its languages: {', '.join(site_languages(settings)['enabled'])}).")
+    return language
 
 
 def languages_served(language: str) -> tuple[str, ...]:

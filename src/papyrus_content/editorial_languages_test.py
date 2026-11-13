@@ -40,8 +40,21 @@ def test_settings_without_languages_are_refused_rather_than_read_as_english():
         site_languages({})
 
 
-def test_every_story_today_is_written_in_the_primary_language():
-    assert story_language({"id": "story-v1"}, MOM) == "en"
+def test_a_saved_story_is_written_in_its_own_language_and_a_new_one_in_the_primary():
+    assert story_language({"id": "story-v1", "language": "en"}, MOM) == "en"
+    assert story_language(None, MOM) == "en"
+
+
+def test_a_saved_row_without_a_language_is_refused_never_read_as_the_primary():
+    from papyrus_content.item_language import ItemLanguageMissing
+
+    with pytest.raises(ItemLanguageMissing, match="papyrus stories languages"):
+        story_language({"id": "story-v1"}, MOM)
+
+
+def test_a_saved_language_the_site_does_not_write_in_is_refused():
+    with pytest.raises(LanguageNotEnabled, match="zh-Hans"):
+        story_language({"id": "story-v1--zh-Hans", "language": "zh-Hans"}, {"languages": {"primary": "en", "enabled": ["en"]}})
 
 
 def test_policy_languages_served_least_specific_first():
