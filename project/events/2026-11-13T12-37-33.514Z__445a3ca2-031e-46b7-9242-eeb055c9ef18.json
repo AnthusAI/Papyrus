@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "445a3ca2-031e-46b7-9242-eeb055c9ef18",
+  "issue_id": "PPY-c9ca4eb6-bbe2-4a2e-855d-ed763098d749",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T12:37:33.514Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Concepts can carry reviewed outside identifiers (for example Wikidata)",
+    "description": "Later, after the pilot (Ryan decision 3: yes, as a separate story). As an editor, I want to link a concept to a well-known outside identifier such as Wikidata, reviewed like any accepted fact, so that machines know \"this is that thing\".\n\n```gherkin\nFeature: Outside identifiers on concepts\n  Scenario: An accepted outside identifier is published\n    Given an accepted concept with a suggested Wikidata identifier\n    When an editor accepts the identifier\n    Then the concept page's structured data lists it as \"same as\"\n\n  Scenario: An unreviewed outside identifier is not published\n    Given a concept with a suggested Wikidata identifier nobody accepted\n    Then the structured data does not mention it\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-25fae4b5-5fe6-4ebd-b3fe-34f9a1764edf",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}

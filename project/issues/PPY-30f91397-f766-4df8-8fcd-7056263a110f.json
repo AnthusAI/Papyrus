@@ -1,0 +1,25 @@
+{
+  "id": "PPY-30f91397-f766-4df8-8fcd-7056263a110f",
+  "title": "Each language has a glossary kept with the writing guidelines",
+  "description": "As an editor, I want a glossary per site and language (approved translation, do-not-translate, note), layered publication then section like the other guideline documents, so names and house terms such as 'desk' are rendered the same way every time.\n\nDesign: a new guideline document kind 'glossary' (docs/plans/guidelines-as-data.md), text in S3. Translation jobs receive the entries that occur in the blocks being translated; the fidelity check verifies them. A person's change to a recurring term can be offered as a glossary entry for a person to accept; nothing is learned silently. Plan: docs/plans/multilingual-publishing.md (PR #1450).\n\nFeature: Glossary\n\nScenario: A do-not-translate term stays as written\n  Given the Spanish glossary marks a product name as do-not-translate\n  When a paragraph with that name is translated\n  Then the Spanish text keeps the name unchanged\n\nScenario: A glossary violation is caught\n  Given the Spanish glossary gives an approved translation for a term\n  When a translation uses another rendering of that term\n  Then the fidelity check reports the term and the approved translation",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5deff0af-3779-4815-8643-74ca3d94deb4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T15:39:07.532817Z",
+  "updated_at": "2026-11-12T15:39:07.631179Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

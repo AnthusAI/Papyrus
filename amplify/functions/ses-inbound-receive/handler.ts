@@ -35,8 +35,14 @@ import { getLambdaDataClient, LAMBDA_DATA_AUTH_MODE } from "../shared/lambda-dat
 import { putTextModelPayload } from "../shared/model-payloads";
 
 const PROCESSOR_FUNCTION_NAME = process.env.PAPYRUS_EMAIL_SUBMISSION_PROCESSOR_FUNCTION_NAME ?? "";
-const INBOUND_LOCAL_PARTS = parseLocalParts(process.env.PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS ?? "submissions,suggestions");
-const INBOUND_DOMAIN = (process.env.PAPYRUS_INBOUND_EMAIL_DOMAIN ?? "p.apyr.us").trim().toLowerCase();
+
+/** Inbound email settings come from the site's backend; a missing one stops the invocation and names itself. */
+function requiredSetting(name: string): string {
+  const value = (process.env[name] ?? "").trim();
+  if (value === "") throw new Error(`${name} is not set on the inbound email receive function.`);
+  return value;
+}
+
 const MEDIA_BUCKET_NAME = (process.env.PAPYRUS_MEDIA_BUCKET_NAME ?? "").trim();
 
 const s3Client = new S3Client({});
@@ -336,7 +342,7 @@ async function invokeEmailProcessor(
     InvocationType: "Event",
     Payload: Buffer.from(JSON.stringify({
       messageId,
-      corpusKey: process.env.PAPYRUS_INBOUND_EMAIL_CORPUS_KEY ?? "AI-ML-research",
+      corpusKey: requiredSetting("PAPYRUS_INBOUND_EMAIL_CORPUS_KEY"),
       ...(options.sendFeedbackOnly ? { sendFeedbackOnly: true } : {}),
     })),
   }));
@@ -484,7 +490,9 @@ function isConfiguredInboundAddress(address: string): boolean {
   const normalized = normalizeEmailAddress(address);
   if (!normalized.includes("@")) return false;
   const [localPart, domain] = normalized.split("@", 2);
-  return domain === INBOUND_DOMAIN && INBOUND_LOCAL_PARTS.includes(localPart);
+  const inboundDomain = requiredSetting("PAPYRUS_INBOUND_EMAIL_DOMAIN").toLowerCase();
+  const inboundLocalParts = parseLocalParts(requiredSetting("PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS"));
+  return domain === inboundDomain && inboundLocalParts.includes(localPart);
 }
 
 function parseLocalParts(value: string): string[] {

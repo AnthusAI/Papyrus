@@ -1,0 +1,37 @@
+{
+  "id": "PPY-cfcc83b8-2325-41f7-9e66-17cf517e2dee",
+  "title": "A body-only save keeps pictures the previous version mapped from local file names",
+  "description": "Bug-fix story. Evidence (Machines on Machines story-development session, Papyrus 5.108.0): on content-item-what-if-ai-wrote-just-the-bass-line-9acd2e3bba926bef a body-only save (v14) whose body names pictures by local file name (::image{src=\"earworm.png\" srcDark=\"earworm.dark.png\"}, front matter image: earworm.png, which is how the editing agents write drafts) saved with no warning. Publish then refused with image-missing earworm.png. Re-saving with --images pics worked (v15): every file came back image-unchanged and it published.\n\nCause: carry-forward (_carry_media_forward / referenced_media_paths() in src/papyrus_content/story_reporting.py, from PR #1456) matches only stored asset paths, not the local names the previous save mapped them from.\n\nTwo defects, both fixed properly (no workaround, no fallback):\n1. Carry-forward resolves local file names (body src and srcDark, and front matter image) through the previous version recorded name-to-stored-path mapping, and carries every resolved picture (light and dark) forward.\n2. A save whose body or front matter names a picture that is neither supplied with --images nor resolvable from the previous version is refused at save time with a message naming the file; no version is written. Publish is no longer where this is caught.\n\nRelated: PPY-732228 (carry-forward srcDark, closed), PPY-e9f8ac (save-version MediaAsset rows), PPY-5978b4, PPY-a96347.\n\nTesting: must be exercised on a Story whose previous version came from save-version --images (not only on stored-path bodies), since that is the case that failed.\n\nGherkin:\nFeature: Body-only saves keep pictures named by local file name\n  Scenario: Body-only save with local names carries every picture forward and the story publishes\n    Given a Story whose previous version was saved with --images and mapped earworm.png and earworm.dark.png to stored paths\n    When I save a new version with only a changed body that names earworm.png and earworm.dark.png\n    Then the save succeeds with no warning\n    And the new version carries both pictures\n    And publishing the Story succeeds\n  Scenario: Front matter image named by local file name is carried forward\n    Given a Story whose previous version was saved with --images and mapped earworm.png to a stored path\n    When I save a body-only version whose front matter says image: earworm.png\n    Then the new version carries the picture and publishing succeeds\n  Scenario: Light and dark names both resolve\n    Given the previous version mapped a light name and its dark name\n    When a body-only save names both in an image directive\n    Then both stored files are carried and neither is reported missing\n  Scenario: A save naming an unknown file is refused up front\n    Given a Story whose previous version has no mapping for missing.png\n    When I save a body that names missing.png and supply no --images\n    Then the save is refused with a message naming missing.png\n    And no new version is written\n  Scenario: Unknown dark name is refused up front\n    When a save names a known light file and an unmapped dark file\n    Then the save is refused naming the dark file and no version is written\n  Scenario: Unknown front matter image is refused up front\n    When a save sets front matter image to an unmapped file\n    Then the save is refused naming the file and no version is written",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-73222876-04e6-42e6-aa30-ff2528319f37",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-e9f8ac22-b570-44fe-9d1f-70250599f303",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-5978b415-7cf1-483d-9aa9-79c2bd311122",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-a9634767-729d-481c-a1ac-e5eba5eca35b",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-13T13:15:57.754321Z",
+  "updated_at": "2026-11-13T13:16:00.808949Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

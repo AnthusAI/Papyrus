@@ -55,6 +55,7 @@
     "cdk.out",
     ".amplify",
     "dist-packages",
-    "packages"
+    "packages",
+    "spikes/scheduling-calendar"
   ]
 }

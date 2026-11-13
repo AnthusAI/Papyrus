@@ -15,7 +15,7 @@ from .model_attachments import (
     upload_attachment_body,
 )
 from .options import normalize_non_negative_integer, parse_comma_list, parse_options
-from .records import apply_record_changes, build_record_change_from_current, is_missing_graphql_model_error
+from .records import apply_record_changes, build_record_change_from_current
 from .steering import load_steering_config, selected_corpus_configs
 
 REHYDRATION_MODELS: tuple[str, ...] = (
@@ -472,7 +472,7 @@ def collect_rehydration_audit(client: PapyrusGraphQLAuthoringClient, models: lis
         try:
             rows_by_model[model_name] = client.list_records(model_name)
         except RuntimeError as error:
-            if is_not_authorized_error(error) or is_missing_graphql_model_error(error, model_name):
+            if is_not_authorized_error(error):
                 skipped_models.append(model_name)
                 rows_by_model[model_name] = []
                 continue
