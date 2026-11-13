@@ -14,7 +14,7 @@ from typing import Any, Mapping
 
 from papyrus_content.content_item_lifecycle import RETIRED_INTO_KEY, RETIRED_STAGE, is_story_item_type
 from papyrus_content.item_stars import effective_rating
-from papyrus_content.newsletter.roundup import _front_matter, item_path
+from papyrus_content.item_front_matter import front_matter as _front_matter, item_path
 from papyrus_content.story_reporting import current_story_version, published_story_version
 
 from .rules import OFF
