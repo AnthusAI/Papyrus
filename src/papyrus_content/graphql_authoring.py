@@ -458,7 +458,7 @@ SCHEDULE_ROW_FIELDS = (
     "scheduledPublishAt scheduledBy scheduledAt scheduleState scheduleName"
 )
 HEAD_INDEX_ROW_FIELDS = "id tenantId lineageId versionNumber versionState versionCreatedAt stage type updatedAt"
-ITEM_LANGUAGE_ROW_FIELDS = "id tenantId lineageId versionNumber versionState updatedAt language languageGroupId"
+ITEM_LANGUAGE_ROW_FIELDS = "id tenantId lineageId versionNumber versionState type updatedAt language languageGroupId"
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "itemsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": STORY_SECTION_LINK_FIELDS},

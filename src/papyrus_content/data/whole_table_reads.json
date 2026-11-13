@@ -25,7 +25,6 @@
   "src/papyrus_content/ideas/signal_inputs.py": 1,
   "src/papyrus_content/ideas/signal_queue.py": 1,
   "src/papyrus_content/item_content_commands.py": 2,
-  "src/papyrus_content/item_language_backfill.py": 1,
   "src/papyrus_content/knowledge_cloud/stages.py": 4,
   "src/papyrus_content/knowledge_cloud/undo.py": 2,
   "src/papyrus_content/knowledge_snapshot/commands.py": 18,
