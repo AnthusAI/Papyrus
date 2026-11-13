@@ -287,3 +287,54 @@ def test_other_save_failures_keep_exit_code_one(capsys):
             content_publish(["--id", "item-missing", "--json"])
     assert raised.value.code == 1
     assert json.loads(capsys.readouterr().out)["code"] == "not-found"
+
+
+def _stages(projected: str, invalidated: str, verified: str, reason: str | None = None) -> dict:
+    return {
+        "saved": {"status": "ok"},
+        "projected": {"status": projected, "pages": []},
+        "invalidated": {"status": invalidated, "paths": [], **({"reason": reason} if reason else {})},
+        "verified": {"status": verified, **({"reason": "no public page address is known"} if verified == "not-checked" else {})},
+    }
+
+
+@pytest.mark.parametrize(
+    ("projected", "invalidated", "verified", "starts_with"),
+    [
+        ("failed", "not-applicable", "not-checked", "NOT LIVE"),
+        ("timed-out", "not-applicable", "not-checked", "NOT LIVE"),
+        ("still-running", "unknown", "not-checked", "STILL BUILDING"),
+        ("skipped", "not-applicable", "not-checked", "NOT PROJECTED"),
+        ("ok", "failed", "not-checked", "PROJECTED BUT NOT PURGED"),
+        ("ok", "capped", "stale", "PROJECTED BUT NOT PURGED"),
+        ("ok", "ok", "current", "LIVE"),
+        ("ok", "ok", "stale", "PURGED BUT THE EDGE IS STILL STALE"),
+        ("ok", "ok", "not-checked", "PURGED, NOT VERIFIED"),
+        ("ok", "skipped", "current", "LIVE"),
+        ("ok", "skipped", "stale", "NOT PURGED, THE PAGE IS STALE"),
+        ("ok", "skipped", "not-checked", "PROJECTED, NOT PURGED, NOT VERIFIED"),
+        ("scheduled", "unknown", "current", "LIVE"),
+        ("scheduled", "unknown", "stale", "NOT PURGED, THE PAGE IS STALE"),
+        ("scheduled", "unknown", "not-checked", "PROJECTED, NOT PURGED, NOT VERIFIED"),
+    ],
+)
+def test_the_verdict_follows_the_stages(projected, invalidated, verified, starts_with):
+    verdict = publish_stages.verdict_for(_stages(projected, invalidated, verified, reason="off"))
+    assert verdict.startswith(starts_with), verdict
+
+
+@pytest.mark.parametrize("invalidated", ["skipped", "unknown", "not-applicable"])
+@pytest.mark.parametrize("verified", ["current", "stale", "not-checked"])
+def test_a_purge_that_was_not_made_never_yields_a_purged_verdict(invalidated, verified):
+    verdict = publish_stages.verdict_for(_stages("ok", invalidated, verified, reason="off"))
+    assert not verdict.startswith("PURGED"), verdict
+
+
+def test_a_skipped_purge_is_reported_as_not_purged_in_the_published_result(capsys):
+    response = {**written(), "invalidation": {"status": "skipped", "reason": "off", "paths": []}}
+    code, out, _err = publish(saved(SlowOrFakeFunction(response)), ["--json"], version=None)
+    payload = json.loads(out)
+    assert code == 0
+    assert payload["stages"]["invalidated"]["status"] == "skipped"
+    assert payload["stages"]["verified"]["status"] == "stale"
+    assert payload["verdict"].startswith("NOT PURGED, THE PAGE IS STALE"), payload["verdict"]
