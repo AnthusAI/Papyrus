@@ -47,7 +47,7 @@ Short version: Papyrus has **no language dimension** anywhere except one site-wi
 | Notifications | Built, off on every site. One Papyrus kind (`story.published`); recipients are an SSM operator list; Caducus 0.2.0 has no subscriptions for admin or public classes and no locale support | `notifications/data/notification-kinds.json`, `docs/notifications.md`, Caducus `notify/routing.py:228-234` |
 | Roles | Cognito groups admin, editor, curator; editing a Story is all-or-nothing by group; `UserRoleAssignment` has no scope field | `amplify/auth/resource.ts:90`, `schema.ts:28,149-169`, `manage-user-role/handler.ts:14` |
 | Sign-in from a link | Google sign-in returns to the saved path and query | `components/reader-auth-control.tsx:34-48,93-103` |
-| Language fields | **Absent** on every model | `schema.ts` |
+| Language fields | `Item.language`, `languageGroupId`, `sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`, `syncState` and the index `listItemsByLanguageGroupAndLanguage` (PPY-843a7c, deploy 1); `papyrus stories languages` backfills them. `PublishedItem` and the listing keys still have none | `schema.ts`, `item_language.py` |
 | Language in URLs, hreflang, `og:locale` | **Absent** | `projection/standard/urls.py`, `head.py` |
 | Listings | Driven by `typeStatus` and `sectionStatus` index keys, which have no language part, so a translation would appear in English listings | `publishing.py:170`, `schema.ts:2394-2404` |
 | Item ids | `item_id_for(section, slug)` builds ids from section and slug, so a Chinese localization sharing the English slug would collide | `publishing.py:71-73` |

@@ -62,7 +62,14 @@ def run(source_path: Path, inputs: dict, usage: UsageCollector | None = None) ->
     return {"success": bool(result.get("success")), "output": json_safe(output),
             "error": None if result.get("success") else str(result.get("error") or "the procedure failed"),
             "toolsUsed": json_safe(result.get("tools_used") or []), "iterations": result.get("iterations"),
-            "usage": json_safe(usage.calls)}
+            "usage": json_safe(usage.calls + _tool_model_calls())}
+
+
+def _tool_model_calls() -> list[dict]:
+    """The model calls the procedure's Python tools made themselves (model_usage), so the run's cost counts them too."""
+    from papyrus_content import model_usage
+
+    return model_usage.drain()
 
 
 def main(argv: list[str]) -> int:
@@ -72,7 +79,7 @@ def main(argv: list[str]) -> int:
         outcome = run(source_path, json.loads(input_path.read_text(encoding="utf-8")), usage)
     except Exception as error:   # model calls made before the failure are still reported
         outcome = {"success": False, "error": f"{type(error).__name__}: {error}", "logTail": traceback.format_exc()[-4000:],
-                   "usage": json_safe(usage.calls)}
+                   "usage": json_safe(usage.calls + _tool_model_calls())}
     result_path.write_text(json.dumps(outcome), encoding="utf-8")
     return 0 if outcome["success"] else 1
 

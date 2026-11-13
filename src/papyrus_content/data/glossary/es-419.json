@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "bodyMarkus": "Neutral Latin American Spanish (es-419): the forms a Latin American newsroom uses where English and Spanish names differ. Starter entries from the 2026-11-13 translation experiment's name findings.",
+  "entries": [
+    {"term": "AI", "translations": ["IA"], "caseSensitive": true, "note": "inteligencia artificial; IA in running text, also in compounds (IA generativa)."},
+    {"term": "artificial intelligence", "translations": ["inteligencia artificial"]},
+    {"term": "Paris", "translations": ["París"], "caseSensitive": true},
+    {"term": "Congress", "translations": ["Congreso"], "caseSensitive": true, "note": "The United States Congress."},
+    {"term": "Justice Department", "translations": ["Departamento de Justicia"], "caseSensitive": true},
+    {"term": "Department of Justice", "translations": ["Departamento de Justicia"], "caseSensitive": true},
+    {"term": "North Carolina", "translations": ["Carolina del Norte"], "caseSensitive": true},
+    {"term": "White House", "translations": ["Casa Blanca"], "caseSensitive": true},
+    {"term": "computer", "translations": ["computadora"], "note": "Latin American form (not ordenador)."}
+  ]
+}

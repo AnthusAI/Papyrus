@@ -101,6 +101,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [automated-processes.md](automated-processes.md): the template every automated process states, an inventory of the real ones with their gaps, and the Reference identity gate.
 - [monitoring-cloud.md](monitoring-cloud.md): the Hacker News and TTAB collectors, the router, the shared Cyclotron routing to several sites, and the Monitoring page.
 - [procedure-runner.md](procedure-runner.md): the cloud Lambda that runs a site's registered Tactus procedure; `papyrus procedures register`.
+- [story-translation-procedure.md](story-translation-procedure.md): `papyrus.story.localize`, one published Story into one language per run; `papyrus stories localize`.
 - [monitoring-hn-pilot.md](monitoring-hn-pilot.md): the local Hacker News monitor worker.
 - [console-chat-runbook.md](console-chat-runbook.md): the editor-only console chat on `/newsroom`.
 - [slack-agent.md](slack-agent.md): the Slack channel for the console agent.

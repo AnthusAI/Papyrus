@@ -82,8 +82,11 @@ class PublishJobs:
 
     # ------------------------------------------------------------------ writing
 
-    def request(self, item_id: str, version: int | None, *, announce: Mapping[str, Any] | None = None) -> tuple[dict, bool]:
+    def request(self, item_id: str, version: int | None, *, announce: Mapping[str, Any] | None = None, queue: bool = True) -> tuple[dict, bool]:
         """``(job, joined)``: the job that will build this item's pages, and whether it was already there (nothing new to start).
+
+        ``queue=False`` is for a job that is not one story's build (a page re-render, keyed by its own request): it has a record to ask about
+        but is not added to the build queue the lease holder drains.
 
         ``announce`` (``{"publishedItemId": ...}``) marks a real publish: the job tells the newsletter once the page is live. A queued job that is
         joined takes the mark over, since it builds the newest version."""
@@ -111,7 +114,8 @@ class PublishJobs:
                 if _is_condition_failure(error):
                     continue   # someone else started or moved a job for this item meanwhile: look again (usually to join it)
                 raise
-            self.enqueue(item_id)
+            if queue:
+                self.enqueue(item_id)
             return job, False
         current = self.status(item_id)
         return (current or {"itemId": item_id, "state": QUEUED}), True

@@ -229,6 +229,13 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | LexicalSteeringRule      | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | LexicalSteeringRule      | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | LexicalSteeringRule      | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | LocalizationRequest      | get                             | denied, or returns nothing of "beta"                                  |
+      | LocalizationRequest      | list                            | no row of "beta" is returned and pages are not short                  |
+      | LocalizationRequest      | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | LocalizationRequest      | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | LocalizationRequest      | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | LocalizationRequest      | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | LocalizationRequest      | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | MediaAsset               | get                             | denied, or returns nothing of "beta"                                  |
       | MediaAsset               | list                            | no row of "beta" is returned and pages are not short                  |
       | MediaAsset               | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
@@ -587,6 +594,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listItemsBySectionStatusAndPublishedAt               | returns nothing of "beta"        |
       | listItemsByParentAndOrder                            | returns nothing of "beta"        |
       | listItemsByHeadStageAndUpdatedAt                     | returns nothing of "beta"        |
+      | listItemsByLanguageGroupAndLanguage                  | returns nothing of "beta"        |
       | listItemsByScheduleStateAndScheduledPublishAt        | returns nothing of "beta"        |
       | listItemTagsByItemAndTag                             | returns nothing of "beta"        |
       | listItemTagsByTagAndPublishedAt                      | returns nothing of "beta"        |
