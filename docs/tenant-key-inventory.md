@@ -17,10 +17,10 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 
 ## Counts
 
-- 68 models, 217 indexes.
-- Indexes by class: tenant-prefixed 40, corpus-prefixed 15, record-id 68, global 94.
-- Indexes that list a tenant once prefixed: 72; dense indexes: 100.
-- Models: 58 with an index that lists a tenant, 2 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
+- 70 models, 218 indexes.
+- Indexes by class: tenant-prefixed 40, corpus-prefixed 15, record-id 69, global 94.
+- Indexes that list a tenant once prefixed: 72; dense indexes: 101.
+- Models: 58 with an index that lists a tenant, 4 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
 
 ## Models
 
@@ -83,6 +83,8 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `SemanticRelation` | 10 | yes | `listSemanticRelationsByTenant` |
 | `SemanticRelationType` | 3 | yes | `listSemanticRelationTypesByDomainAndLabel`, `listSemanticRelationTypesByStatusAndLabel` |
 | `SignupEntry` | 2 | yes | `listSignupEntriesByTenant` |
+| `SiteDocument` | 0 | no index, needs a tenantId index |  |
+| `SiteDocumentVersion` | 1 | no, needs a tenantId index |  |
 | `SteeringDecision` | 3 | yes | `listSteeringDecisionsByTenant` |
 | `SteeringProposal` | 4 | yes | `listSteeringProposalsByCorpusAndKind`, `listSteeringProposalsByDomainAndStatus` |
 | `StoryVariation` | 2 | yes | `listStoryVariationsByTenant` |
@@ -98,7 +100,9 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 ## Models that need a tenantId index
 
 - `LocalizationRequest` (no index at all)
+- `SiteDocument` (no index at all)
 - `Item` (11 indexes, none lists a tenant)
+- `SiteDocumentVersion` (1 index, it does not list a tenant)
 
 ## Partition fields
 
@@ -123,6 +127,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `curationStatus` | global | closed | `Reference` |
 | `curationStatusKey` | corpus-prefixed | open | `Reference` |
 | `discoveredByMonitorId` | record-id | open | `Reference` |
+| `documentId` | record-id | open | `SiteDocumentVersion` |
 | `domain` | global | closed | `ReaderSubmission`, `SemanticRelationType` |
 | `editionId` | record-id | open | `EditionItem` |
 | `editionLineageId` | record-id | open | `PublishedEdition` |
@@ -403,6 +408,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `SemanticRelationType` | `listSemanticRelationTypesByStatusAndLabel` | `status` | `label` | global | closed | yes | yes |
 | `SignupEntry` | `listSignupEntriesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `SignupEntry` | `listSignupEntriesByFormAndSubmittedAt` | `form` | `submittedAt` | global | open | yes | no |
+| `SiteDocumentVersion` | `listSiteDocumentVersionsByDocument` | `documentId` | `version` | record-id | open | yes | no |
 | `SteeringDecision` | `listSteeringDecisionsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `SteeringDecision` | `listSteeringDecisionsByProposalAndCreatedAt` | `proposalId` | `createdAt` | record-id | open | yes | no |
 | `SteeringDecision` | `listSteeringDecisionsBySetAndCreatedAt` | `categorySetId` | `createdAt` | record-id | open | no | no |

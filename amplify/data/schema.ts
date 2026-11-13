@@ -52,7 +52,7 @@ export const OPTIONAL_MODEL_GROUPS = {
   editorial: ["EditorialCheckRun", "EditorialFeedback", "EditorialPolicy", "EditorialCheckSettings"],
   steering: ["SteeringProposal", "SteeringDecision", "LexicalSteeringRule"],
   variations: ["StoryVariation"],
-  tenancy: ["Tenant", "TenantMembership", "TenantDomain"],
+  tenancy: ["Tenant", "TenantMembership", "TenantDomain", "SiteDocument", "SiteDocumentVersion"],
   localization: ["LocalizationRequest"],
 } as const;
 
@@ -2874,6 +2874,43 @@ const definitions = {
     })
     .secondaryIndexes((index) => [
       index("tenantId").queryField("listTenantDomainsByTenant"),
+    ])
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
+    ]),
+
+  /** The catalogue row of one site document (kind: site | brand | nav); id = "<tenant>#<kind>". The body lives in S3 (PPY-c020ce). Group "tenancy". */
+  SiteDocument: modelWithoutSubscriptions({
+      id: a.id().required(),
+      tenantId: a.string().required(),
+      kind: a.string().required(),
+      currentVersion: a.integer().required(),
+      s3Key: a.string().required(),
+      sha256: a.string().required(),
+      schemaVersion: a.integer().required(),
+      updatedBy: a.string(),
+      updatedAt: a.datetime().required(),
+    })
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
+    ]),
+
+  /** One saved version of a site document; id = "<tenant>#<kind>#<version>". Body in S3 (PPY-c020ce). Group "tenancy". */
+  SiteDocumentVersion: modelWithoutSubscriptions({
+      id: a.id().required(),
+      tenantId: a.string().required(),
+      documentId: a.string().required(),
+      version: a.integer().required(),
+      s3Key: a.string().required(),
+      sha256: a.string().required(),
+      createdBy: a.string(),
+      createdAt: a.datetime().required(),
+      note: a.string(),
+    })
+    .secondaryIndexes((index) => [
+      index("documentId").sortKeys(["version"]).queryField("listSiteDocumentVersionsByDocument"),
     ])
     .authorization((allow) => [
       allow.group(adminGroup),
