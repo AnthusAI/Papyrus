@@ -5,7 +5,6 @@ from __future__ import annotations
 import contextlib
 import io
 import sys
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -21,13 +20,7 @@ from datetime import date  # noqa: E402
 
 from papyrus_content import story_commands, story_signals  # noqa: E402
 
-# Ranking buckets by rolling week from today, so the dates are days before the run, not calendar dates: "a" and "c" are in the last seven days, "b" the week
-# before and "d" long before. Fixed dates would drift out of their buckets as the days pass.
-AGES_IN_DAYS = {"a": 1, "b": 8, "c": 2, "d": 38}
-
-
-def _date(name):
-    return (datetime.now(timezone.utc) - timedelta(days=AGES_IN_DAYS[name])).strftime("%Y-%m-%dT10:00:00Z")
+DATES = {"a": "2026-11-07T10:00:00Z", "b": "2026-11-01T10:00:00Z", "c": "2026-11-06T10:00:00Z", "d": "2026-10-01T10:00:00Z"}
 
 
 def _run(context, function, flags):
@@ -44,7 +37,7 @@ def _run(context, function, flags):
 
 @given('the signed-in site has rated Stories "a" with 2 stars, "b" with 5 stars, "c" unrated and "d" with 4 stars')
 def _stories(context):
-    context.client = support.Client(*[support.story(name, stars, _date(name)) for name, stars in (("a", 2), ("b", 5), ("c", None), ("d", 4))])
+    context.client = support.Client(*[support.story(name, stars, DATES[name]) for name, stars in (("a", 2), ("b", 5), ("c", None), ("d", 4))])
 
 
 @when("an editor lists the Stories")
