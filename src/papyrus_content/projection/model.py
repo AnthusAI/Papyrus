@@ -25,6 +25,10 @@ class ItemSummary:
     published_at: str | None
     #: The Story's lineage, which its private star rating is keyed by (``item_stars.py``). Never printed and not part of any fingerprint.
     lineage_id: str | None = None
+    #: The language the published version is written in (BCP 47) and its language group (the primary Story's lineage id, without a tenant prefix).
+    #: A CMS source always sets both; a directory source sets neither (a site whose content is in Git has one language, ``site.language``).
+    language: str | None = None
+    language_group_id: str | None = None
 
 
 @dataclass(frozen=True)

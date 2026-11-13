@@ -16,8 +16,12 @@ export type EditorialSettings = {
    * The languages the site writes in (PPY-d0132d): `primary`, the language Stories are first written in, and `enabled`, every language the site
    * publishes, the primary included. Each tag names the exact variant (neutral Latin American Spanish is `es-419`). Enabling a language brings its
    * starter policies on the next deploy.
+   *
+   * How they are served (src/papyrus_content/language_serving.py, docs/multilingual-serving.md): `prefixes` (each non-primary language's URL prefix;
+   * default its base subtag, es-419 -> es), `public` (the languages the public site serves; default only the primary) and `slugs` (each language's
+   * slug policy: translated, characters, pinyin or primary; default characters for Chinese, translated otherwise). Saving keeps them as stored.
    */
-  languages: { primary: string; enabled: string[] };
+  languages: { primary: string; enabled: string[]; prefixes?: Record<string, string>; public?: string[]; slugs?: Record<string, string> };
 };
 
 export const DEFAULT_EDITORIAL_SETTINGS: EditorialSettings = {

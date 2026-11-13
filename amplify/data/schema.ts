@@ -2629,6 +2629,11 @@ const definitions = {
       pullQuotes: a.string().array(),
       layout: a.json(),
       editorial: a.json(),
+      /** The language of the published version (a copy of its Item's `language`) and its language group (the primary Story's lineage id). The projection serves
+       *  each language under its URL prefix and joins a group's published languages for hreflang (docs/multilingual-serving.md). No index: the projection reads
+       *  every published summary already. */
+      language: a.string(),
+      languageGroupId: a.string(),
     })
     .secondaryIndexes((index) => [
       index("slug").queryField("publishedItemBySlug"),

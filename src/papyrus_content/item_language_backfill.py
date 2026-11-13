@@ -10,6 +10,9 @@ its own lineage as its group.
 * It writes only rows that lack a field, carrying each row's own ``updatedAt`` (a backfill is not a change of the Story), so a second run writes
   nothing and its dry run is the health check.
 * It never changes a language a row already has.
+* It does the same for the published rows (``PublishedItem``), which carry a copy of their version's language and group for the projection
+  (docs/multilingual-serving.md). They are read with the one list of published summaries every projection reads; a published row's group is its
+  lineage, because every row written before the fields is a primary-language Story.
 
 Writes by default; ``--dry-run`` prints what it would write and writes nothing.
 """
@@ -34,6 +37,7 @@ class LanguagePlan:
     rows: int = 0
     already_right: int = 0
     writes: list[dict[str, Any]] = field(default_factory=list)   # {id, lineageId, language?, languageGroupId?, updatedAt}
+    published: "LanguagePlan | None" = None   # the plan for the published rows, beside the Item rows' plan
 
     def counts(self) -> dict[str, int]:
         return {"rows read": self.rows, "rows to write": len(self.writes), "already right": self.already_right}
@@ -56,6 +60,23 @@ def plan_languages(rows: Iterable[dict[str, Any]], primary: str) -> LanguagePlan
     return plan
 
 
+def plan_published_languages(rows: Iterable[dict[str, Any]], primary: str) -> LanguagePlan:
+    """The writes that give every published row a language and a group: the primary language and the row's own lineage, only where missing."""
+    rows = list(rows)
+    plan = LanguagePlan(rows=len(rows))
+    for row in sorted(rows, key=lambda r: str(r["id"])):
+        change: dict[str, Any] = {}
+        if not row.get(LANGUAGE_FIELD):
+            change[LANGUAGE_FIELD] = primary
+        if not row.get(LANGUAGE_GROUP_FIELD):
+            change[LANGUAGE_GROUP_FIELD] = str(row.get("itemLineageId") or row["id"])
+        if not change:
+            plan.already_right += 1
+            continue
+        plan.writes.append({"id": row["id"], "lineageId": str(row.get("itemLineageId") or row["id"]), **change})
+    return plan
+
+
 def read_rows(client: Any, states: Iterable[str] = VERSION_STATES) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for state in states:
@@ -63,9 +84,9 @@ def read_rows(client: Any, states: Iterable[str] = VERSION_STATES) -> list[dict[
     return rows_for_tenant("Item", getattr(client, "tenant_id", None), rows)
 
 
-def _line(change: dict[str, Any], state: str) -> str:
+def _line(change: dict[str, Any], state: str, model: str = "Item") -> str:
     fields = " ".join(f"{name}={change[name]}" for name in (LANGUAGE_FIELD, LANGUAGE_GROUP_FIELD) if name in change)
-    return "\t".join(["stories", "languages", change["lineageId"], change["id"], fields, state])
+    return "\t".join(["stories", "languages", model, change["lineageId"], change["id"], fields, state])
 
 
 def run_languages(client: Any, *, primary: str, dry_run: bool = False, rate: float = DEFAULT_RATE, sleep: Callable[[float], None] = time.sleep,
@@ -73,23 +94,28 @@ def run_languages(client: Any, *, primary: str, dry_run: bool = False, rate: flo
     """Plan, print and (unless ``dry_run``) write, no faster than ``rate`` writes a second."""
     from . import request_meter
 
-    with request_meter.sweep(SWEEP_NAME):   # the migration's one full read of Item rows, version state by version state
+    with request_meter.sweep(SWEEP_NAME):   # the migration's one full read of Item rows, version state by version state, and of the published summaries
         plan = plan_languages(read_rows(client), primary)
+        published = plan_published_languages(client.list_published_item_summaries(), primary)
     if dry_run:
-        for change in plan.writes:
-            echo(_line(change, "would write"))
+        for model, found in (("Item", plan), ("PublishedItem", published)):
+            for change in found.writes:
+                echo(_line(change, "would write", model))
     else:
         interval = 1.0 / rate if rate and rate > 0 else 0.0
         next_at = clock()
         with request_meter.sweep(SWEEP_NAME):
-            for change in plan.writes:
-                wait = next_at - clock()
-                if wait > 0:
-                    sleep(wait)
-                update = {key: value for key, value in change.items() if key != "lineageId" and value is not None}
-                client.update_record("Item", update)
-                next_at = max(next_at, clock()) + interval
-                echo(_line(change, "written"))
-    summary = "\t".join(f"{name} {value}" for name, value in plan.counts().items())
-    echo(f"stories\tlanguages\t{'dry run' if dry_run else 'write'}\t{summary}")
+            for model, found in (("Item", plan), ("PublishedItem", published)):
+                for change in found.writes:
+                    wait = next_at - clock()
+                    if wait > 0:
+                        sleep(wait)
+                    update = {key: value for key, value in change.items() if key != "lineageId" and value is not None}
+                    client.update_record(model, update)
+                    next_at = max(next_at, clock()) + interval
+                    echo(_line(change, "written", model))
+    for model, found in (("Item", plan), ("PublishedItem", published)):
+        summary = "\t".join(f"{name} {value}" for name, value in found.counts().items())
+        echo(f"stories\tlanguages\t{model}\t{'dry run' if dry_run else 'write'}\t{summary}")
+    plan.published = published
     return plan

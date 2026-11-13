@@ -65,6 +65,8 @@ Ryan, 2026-10-05 (epic PPY-1f1489 comments):
 
 ## 1. The standard site
 
+A site that serves several languages is projected as one edition per public language: see [multilingual-serving.md](multilingual-serving.md).
+
 ### 1.1 Parts
 
 ```text

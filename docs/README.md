@@ -75,6 +75,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [site-theme-packs.md](site-theme-packs.md): theme packs and ops chrome on `SiteBrand`.
 - [brand-pack.md](brand-pack.md): the shared-tier brand pack: roles, fonts from an allow-list, contrast and colour-safe checks, shared vectors.
 - [site-workspace.md](site-workspace.md): the local folder convention for a split reader and CMS.
+- [multilingual-serving.md](multilingual-serving.md): each published language of a Story at its own address (prefixes, public languages, slug policies), language editions with their own listings, feeds and sitemaps, `hreflang`, interface strings and Unicode addresses.
 - [standard-site.md](standard-site.md): the approved design for the standard Papyrus site (design record, 2026-10-05; the packages it calls a spike are now published).
 - [pluggable-publishers.md](pluggable-publishers.md): Pretext and Markus publication front ends.
 - [hosting/edge-under-the-cms-backend.md](hosting/edge-under-the-cms-backend.md): design notes (status: design only) for putting each site edge under its CMS backend.

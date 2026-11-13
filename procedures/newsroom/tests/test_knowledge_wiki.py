@@ -406,7 +406,7 @@ def test_a_published_page_without_a_valid_stamp_says_it_is_a_draft(client, made_
     client.tables["PublishedItem"][published_item_id_for(page["lineageId"])] = {
         "id": published_item_id_for(page["lineageId"]), "sourceItemId": page["id"], "itemLineageId": page["lineageId"], "versionNumber": 1, "type": "wiki_page",
         "status": "published", "slug": page["slug"], "section": "wiki", "title": "Acme Loom", "bodyMarkus": page["bodyMarkus"], "bodyIr": page["bodyIr"],
-        "aliases": [], "publishedAt": NOW, "metadata": page["metadata"],
+        "aliases": [], "publishedAt": NOW, "metadata": page["metadata"], "language": page["language"], "languageGroupId": page["languageGroupId"],
     }
     site = made_site().project()
     assert "Draft, not yet reviewed" in site.text(f"wiki/{ACME_SLUG}/index.html") and 'data-state="draft"' in site.text(f"wiki/{ACME_SLUG}/index.html")

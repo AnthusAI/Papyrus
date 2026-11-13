@@ -250,13 +250,48 @@ def step_translated_untouched(context):
 
 @then("the rows were read through the version-state index, with no table scan")
 def step_index_reads(context):
-    reads = [call for call in context.client.calls if call[0] not in ("update",)]
+    reads = [call for call in context.client.calls if call[0] not in ("update",) and call[1] != "PublishedItemSummary"]
     assert reads and all(call[0] == "list_by_index" and call[1] == "itemLanguageFieldsByVersionState" for call in reads), reads
 
 
 @then('the summary says "{text}"')
 def step_summary(context, text):
-    assert text in context.printed[-1], context.printed[-1]
+    line = next(line for line in context.printed if line.startswith("stories\tlanguages\tItem\t") and ("dry run" in line or "\twrite\t" in line))
+    assert text in line, line
+
+
+@then('the published summary says "{text}"')
+def step_published_summary(context, text):
+    line = next(line for line in context.printed if line.startswith("stories\tlanguages\tPublishedItem\t") and ("dry run" in line or "\twrite\t" in line))
+    assert text in line, line
+
+
+@given("two published rows written before the language fields existed")
+def step_old_published(context):
+    rows = context.client.tables.setdefault("PublishedItem", {})
+    for lineage in ("story-a", "story-b"):
+        rows[f"published-{lineage}"] = {"id": f"published-{lineage}", "itemLineageId": lineage, "sourceItemId": f"{lineage}-v1", "status": "published"}
+    context.old_published = ["published-story-a", "published-story-b"]
+
+
+@given('the published row of "{lineage}" already in "{language}" in the group "{group}"')
+def step_translated_published(context, lineage, language, group):
+    context.client.tables["PublishedItem"][f"published-{lineage}"] = {"id": f"published-{lineage}", "itemLineageId": lineage, "sourceItemId": f"{lineage}-v1",
+                                                                      "status": "published", "language": language, "languageGroupId": group}
+    context.translated_published = f"published-{lineage}"
+
+
+@then('the two older published rows have the language "en" and their own lineage as their group')
+def step_old_published_written(context):
+    for row_id in context.old_published:
+        row = context.client.tables["PublishedItem"][row_id]
+        assert row["language"] == "en" and row["languageGroupId"] == row["itemLineageId"], row
+
+
+@then("the translated published row is not written")
+def step_translated_published_untouched(context):
+    assert ("PublishedItem", context.translated_published) not in {(model, payload["id"]) for model, payload in context.client.updates}
+    assert context.client.tables["PublishedItem"][context.translated_published]["language"] == "zh-Hans"
 
 
 @then("the second backfill wrote no row")
@@ -266,4 +301,4 @@ def step_second_nothing(context):
 
 @then('it printed one "would write" line per older row')
 def step_would_write(context):
-    assert len([line for line in context.printed if line.endswith("would write")]) == len(context.old_ids), context.printed
+    assert len([line for line in context.printed if line.endswith("would write") and "\tItem\t" in line]) == len(context.old_ids), context.printed

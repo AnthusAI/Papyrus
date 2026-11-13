@@ -52,7 +52,7 @@ def test_the_comparison_projects_a_snapshot_into_the_work_directory_and_finds_a_
         return web
 
     rows = [{
-        "id": "published-item-one", "sourceItemId": "item-one", "itemLineageId": "item-one", "versionNumber": 1, "type": "article", "status": "published",
+        "id": "published-item-one", "sourceItemId": "item-one", "itemLineageId": "item-one", "versionNumber": 1, "type": "article", "status": "published", "language": "en", "languageGroupId": "item-one",
         "slug": "one", "section": "articles", "title": "One", "bodyMarkus": "Body.\n", "aliases": [], "publishedAt": "2026-03-01T00:00:00Z",
         "metadata": {"frontMatterYaml": "title: One\ndate: 2026-03-01\n"},
     }]

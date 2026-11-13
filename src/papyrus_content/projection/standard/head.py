@@ -47,6 +47,16 @@ class PageHead:
     social_title: str = ""         # og:title / twitter:title when it differs from the title (a share card's own headline)
     image_alt: str = ""            # og:image:alt / twitter:image:alt
     based_on: str = ""             # absolute URL of the original this page is based on (JSON-LD isBasedOn)
+    # Set on a site that serves several languages (editions.py): the page's BCP 47 tag, ``(tag, absolute URL)`` of the page in each public language it
+    # exists in (itself included; empty when it exists in one), and the ``x-default`` URL (the primary language's page).
+    language: str = ""
+    alternates: tuple[tuple[str, str], ...] = ()
+    x_default: str = ""
+
+
+def og_locale(tag: str) -> str:
+    """``og:locale`` of a BCP 47 tag: the tag with an underscore (``en``, ``es_419``, ``zh_Hans``)."""
+    return tag.replace("-", "_")
 
 
 class HeadBuilder:
@@ -88,7 +98,7 @@ class HeadBuilder:
         if icons.theme_color_dark:
             lines.append(f'<meta name="theme-color" content="{_q(icons.theme_color_dark)}" media="(prefers-color-scheme: dark)">')
         feeds = settings.feeds
-        root = "/" + (f"{settings.base_path}/" if settings.base_path else "")
+        root = "/" + (f"{settings.base_path}/" if settings.base_path else "") + (f"{settings.language_prefix}/" if settings.language_prefix else "")
         if "rss" in feeds.formats:
             lines.append(f'<link rel="alternate" type="application/rss+xml" title="{_q(feeds.title)}" href="{_q(root + feeds.rss_path)}">')
         if "atom" in feeds.formats:
@@ -96,7 +106,8 @@ class HeadBuilder:
         if page.markdown_path:
             lines.append(f'<link rel="alternate" type="text/markdown" href="{_q(page.markdown_path)}">')
         sitemap_path = "sitemap-index.xml" if settings.sitemap_style == "index" else "sitemap.xml"
-        lines.append(f'<link rel="sitemap" type="application/xml" href="{_q(root + sitemap_path)}">')
+        site_root = "/" + (f"{settings.base_path}/" if settings.base_path else "")   # one sitemap index for every language
+        lines.append(f'<link rel="sitemap" type="application/xml" href="{_q(site_root + sitemap_path)}">')
         if page.noindex or self.environment.guarded:
             lines.append(f'<meta name="robots" content="{NOINDEX_CONTENT}">')
 
@@ -110,8 +121,17 @@ class HeadBuilder:
             lines.append(f'<meta name="description" content="{_q(description)}">')
         if canonical:
             lines.append(f'<link rel="canonical" href="{_q(canonical)}">')
+        for tag, href in page.alternates:   # every published language of the page, itself included, then x-default (hreflang lives in the head only)
+            lines.append(f'<link rel="alternate" hreflang="{_q(tag)}" href="{_q(href)}">')
+        if page.alternates and page.x_default:
+            lines.append(f'<link rel="alternate" hreflang="x-default" href="{_q(page.x_default)}">')
         lines.append(f'<meta property="og:site_name" content="{_q(identity.short_name or identity.name)}">')
         lines.append(f'<meta property="og:type" content="{_q(page.og_type)}">')
+        if page.language:
+            lines.append(f'<meta property="og:locale" content="{_q(og_locale(page.language))}">')
+            for tag, _href in page.alternates:
+                if tag != page.language:
+                    lines.append(f'<meta property="og:locale:alternate" content="{_q(og_locale(tag))}">')
         social_title = page.social_title or title
         lines.append(f'<meta property="og:title" content="{_q(social_title)}">')
         if description:
@@ -178,6 +198,8 @@ class HeadBuilder:
             data["image"] = image
         if page.based_on:
             data["isBasedOn"] = page.based_on
+        if page.language:
+            data["inLanguage"] = page.language
         return data
 
     def _breadcrumb_json_ld(self, crumbs) -> dict:
