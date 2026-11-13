@@ -39,10 +39,17 @@
       "text": "PR https://github.com/AnthusAI/Papyrus/pull/1327 (branch feature/PPY-25e0d7-cost-accounting), not merged, not released. Usage reports as account \"owner\" (Prospectus #149). Verified locally: scripts/test-cost-tags.ts, test_cost_usage.py (14), cost-accounting-reports.feature (6), editorial/knowledge features (330), typecheck, lint, pilot guard. IAM (sqs:SendMessage on each site's own queue for editorial-checks and knowledge-query roles) awaits Ryan's approval; role ARNs sent to Prospectus for queue registration.",
       "created_at": "2026-11-09T04:42:17.197551Z",
       "comment_type": "default"
+    },
+    {
+      "id": "3e066532-4d19-40ad-84f3-086196f5c678",
+      "author": "home",
+      "text": "Merged to develop in https://github.com/AnthusAI/Papyrus/pull/1327 (merge commit 5d29aebc), not released; Ryan approved the PR and its IAM (relayed by the Prospectus session). Live once released and each site's app shell, then backend, deploys. Still open under this card: usage from the console chat responder (Rust), reader-steering moderation, knowledge-run and procedure-runner containers, and operator CLI calls; the shared tier's papyrus queue (kanbus-f45f7f); checking the ledger against Cost Explorer for a week.",
+      "created_at": "2026-11-09T06:07:05.126466Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T21:17:57.288541Z",
-  "updated_at": "2026-11-09T04:42:17.198149Z",
+  "updated_at": "2026-11-09T06:07:05.126775Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

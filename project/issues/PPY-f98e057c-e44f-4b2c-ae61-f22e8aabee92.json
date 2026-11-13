@@ -3,7 +3,7 @@
   "title": "Cost accounting part 1: tag every resource with anthus:app, anthus:account, anthus:deployment and fail CI on an untagged one",
   "description": "Outcome: The Prospectus package @anthus/cost-accounting (vendored tarball; applyCostTags and assertCostTags, merged in Prospectus kanbus-543ced) is applied in amplify/site-backend.ts and tags every taggable resource from the site config (account UUID and deployment id; 'shared' on a shared-mode stack); a synth test fails on a taggable resource without anthus:app and anthus:account. Token reporting is part 2, when the Prospectus sender library is ready. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) cost-tags, branch feature/<this issue id>-cost-tags from origin/develop (spikes: branch spike/<this issue id>-cost-tags, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): amplify/site-backend.ts, amplify/site-backend-config.ts (accountId, deploymentId), new scripts/test-cost-tags.ts.\n\nAcceptance (Gherkin feature file: features_backend/cost-accounting-reports.feature):\nScenario: An untagged resource fails CI\n    Given a stack with a table missing anthus:account\n    When the synth test runs\n    Then it fails naming the resource\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: npm run typecheck; npx tsx scripts/test-cost-tags.ts; npm test.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "sub-task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -20,11 +20,18 @@
       "text": "Tags and CI check in https://github.com/AnthusAI/Papyrus/pull/1327 (not merged).",
       "created_at": "2026-11-09T04:42:17.454143Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e599e9cb-4db9-4760-a050-26e49cb55bb3",
+      "author": "home",
+      "text": "Merged to develop in https://github.com/AnthusAI/Papyrus/pull/1327 (merge commit 5d29aebc, 2026-11-09). Not released. Every Papyrus stack is tagged (owner/papyrus/<site> per site, shared otherwise); scripts/test-cost-tags.ts fails CI on an untagged costed resource or IAM role. CI green (20 passed).",
+      "created_at": "2026-11-09T06:07:04.770160Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T21:32:23.266851Z",
-  "updated_at": "2026-11-09T04:42:17.454341Z",
-  "closed_at": null,
+  "updated_at": "2026-11-09T06:07:05.033511Z",
+  "closed_at": "2026-11-09T06:07:05.033193Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
