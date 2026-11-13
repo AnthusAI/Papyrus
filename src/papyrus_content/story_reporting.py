@@ -37,6 +37,7 @@ from .publishing import (
     utc_now_iso,
 )
 from .record_helpers import compact_dict, to_aws_json
+from .story_schedule import SCHEDULE_FIELDS
 from .story_types import require_story_type
 
 STORY_THREAD_KIND = "story_reporting"
@@ -202,7 +203,7 @@ def save_story_version(
     metadata["frontMatterYaml"] = fields.front_matter_yaml
     apply_stamp(metadata, machine_write, created=False, now=now)
     record = {
-        **_without_server_fields(latest),
+        **{name: value for name, value in _without_server_fields(latest).items() if name not in SCHEDULE_FIELDS},   # a schedule pins the version it was set on, never the next one
         **compact_dict(columns),
         "id": record_id,
         "lineageId": lineage_id,
@@ -230,7 +231,7 @@ def save_story_version(
     client.create_record("Item", compact_dict(record))
     for row in (media_rows(record_id) if media_rows else []):
         client.upsert("MediaAsset", row)
-    _carry_media_forward(client, record_id, envelope, versions)
+    _carry_media_forward(client, record_id, envelope, fields.front_matter_yaml, versions)
     for row in versions:
         if row.get("versionState") == "current" or row["id"] == latest["id"]:
             client.update_record("Item", superseding_update(row))
@@ -247,19 +248,33 @@ def superseding_update(row: dict[str, Any]) -> dict[str, Any]:
     return update
 
 
-def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], earlier_versions: list[dict[str, Any]]) -> None:
-    """Gives the new version the MediaAsset rows for the local images its body references.
+def referenced_media_paths(envelope: dict[str, Any], front_matter_yaml: str | None) -> list[str]:
+    """The stored pictures a version names, in order: each body image's ``src`` and ``srcDark`` and each picture the front matter names
+    (``image``, ``cover``, ``thumbnail``, ``ogImage`` and their Night ``...Dark`` twins). Remote addresses are not stored assets."""
+    from .projection.stored import FRONT_MATTER_IMAGE_KEYS, parse_front_matter
+    from .story_illustration import normalize_path
+
+    named = [value for image in (envelope.get("papyrus", {}).get("images") or {}).values() for value in (image.get("src"), image.get("srcDark"))]
+    front_matter = parse_front_matter(front_matter_yaml)
+    named += [front_matter.get(key) for key in FRONT_MATTER_IMAGE_KEYS]
+    paths: list[str] = []
+    for value in named:
+        path = normalize_path(value) if isinstance(value, str) else ""
+        if path and "://" not in path and path not in paths:
+            paths.append(path)
+    return paths
+
+
+def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], front_matter_yaml: str | None, earlier_versions: list[dict[str, Any]]) -> None:
+    """Gives the new version the MediaAsset rows for every stored picture it names (see ``referenced_media_paths``): both files of a Day and Night pair.
 
     Media is keyed by item version id, so a saved version starts with none and would fail the publish check
-    ``image-missing``. Each missing src is copied from the most recent earlier version that has a row for it.
+    ``image-missing``. Each missing path is copied from the most recent earlier version that has a row for it.
     """
     from .markus_import import media_id_for
+    from .story_illustration import normalize_path
 
-    wanted = []
-    for image in (envelope.get("papyrus", {}).get("images") or {}).values():
-        src = image.get("src") or ""
-        if src and not src.startswith(("http://", "https://")) and src not in wanted:
-            wanted.append(src)
+    wanted = referenced_media_paths(envelope, front_matter_yaml)
     if not wanted:
         return
 
@@ -270,7 +285,7 @@ def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], ear
                 metadata = json.loads(metadata)
             except ValueError:
                 return None
-        return (metadata or {}).get("srcPath")
+        return normalize_path((metadata or {}).get("srcPath")) or None
 
     have = {src_path_of(row) for row in client.list_by_index("mediaAssetsByItemAndSortKey", new_item_id)}
     pending = [src for src in wanted if src not in have]

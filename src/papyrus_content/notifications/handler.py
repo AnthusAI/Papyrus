@@ -3,7 +3,8 @@
 * ``router``     direct (asynchronous) invocations: ``story-published`` from a publish, reader actions from the CMS routes
 * ``email``      the site's email queue: one queued delivery per message
 * ``flush``      every minute: groups whose window ended
-* ``ses_events`` EventBridge, SES events of the site's configuration set
+* ``ses_events`` EventBridge, SES events of the site's configuration set for mail this site sent
+* ``pause``      EventBridge, the bounce and complaint alarms: turns sending off (only on a site without the newsletter)
 """
 
 from __future__ import annotations
@@ -13,7 +14,10 @@ from typing import Any, Mapping
 
 from . import public
 from .events import EVENT_ID, story_published_detail
+from .pause import handle_alarm
 from .runtime import Runtime
+from .sending import apply_ses_event
+from .settings import Settings
 
 PUBLISHED_ID_PREFIX = "published-"
 
@@ -75,7 +79,17 @@ def flush(event: Any = None, context: Any = None) -> dict[str, int]:
     return {"sent": runtime().router.tick()}
 
 
-def ses_events(event: Mapping[str, Any], context: Any = None) -> Mapping[str, Any]:
-    from caducus.notify.handlers.ses_events import handler
+def ses_events_with(rt: Runtime, event: Mapping[str, Any]) -> str:
+    return apply_ses_event(rt.store, rt.log, rt.settings, event)
 
-    return handler(event, context)
+
+def ses_events(event: Mapping[str, Any], context: Any = None) -> Mapping[str, Any]:
+    from .runtime import runtime
+
+    return {"result": ses_events_with(runtime(), event)}
+
+
+def pause(event: Mapping[str, Any], context: Any = None) -> Mapping[str, Any]:
+    import boto3
+
+    return {"result": handle_alarm(Settings.from_environment(), boto3.client("sesv2"), event)}

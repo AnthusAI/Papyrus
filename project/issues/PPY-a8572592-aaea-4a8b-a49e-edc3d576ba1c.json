@@ -30,10 +30,17 @@
       "text": "Decision (2026-11-12): the DMARC report mailbox does not exist yet. Filed PPY-6bcae9 (task, priority 1) to set it up and publish DMARC through the Git template; it blocks this story and PPY-f4b164. Ryan decides the mailbox. Questions 2 and 3 remain open.",
       "created_at": "2026-11-12T13:04:32.550312Z",
       "comment_type": "default"
+    },
+    {
+      "id": "4d79fd59-c333-4107-a207-710c5c0feafb",
+      "author": "home",
+      "text": "PPY-1081ad adds a required step to this story: a forced pause drill on a test configuration set with the SES mailbox simulator (turn sending off, send to the simulator's success mailbox, record the exact error code, see the delivery failed with the pause reason; turn sending on, see the next send go out). PR #1427's SiteMailer recognises only SendingPausedException; a different code makes the delivery retry into the dead letter queue (alarmed, nothing sent). No site turns its public send path On before this passes. Documented in docs/plans/public-audiences.md and Caducus docs/public-audiences.md.",
+      "created_at": "2026-11-12T23:26:45.204413Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T12:46:03.581608Z",
-  "updated_at": "2026-11-12T13:04:32.550549Z",
+  "updated_at": "2026-11-12T23:26:58.205603Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

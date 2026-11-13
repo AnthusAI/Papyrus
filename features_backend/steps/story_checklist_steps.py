@@ -543,6 +543,24 @@ def figure_cover_dark(context, name):
     add_cover(context, "figure", picked_by=name, dark=True)
 
 
+@when("an editor saves a new version that changes only the body")
+def save_body_only_version(context):
+    from papyrus_content.story_reporting import save_story_version
+
+    client = client_of(context)
+    current = client.get_record("Item", f"{LINEAGE}-v{context.world.version_number}")
+    saved = save_story_version(client, LINEAGE, front_matter_yaml=json.loads(current["metadata"])["frontMatterYaml"],
+                               body_markus=current["bodyMarkus"] + " Revised.", actor="editor", change_reason="body only", now=AT)
+    context.world.version_number = saved["versionNumber"]
+
+
+@then("the new version stores both the cover and its dark picture")
+def new_version_stores_both(context):
+    rows = client_of(context).list_by_index("mediaAssetsByItemAndSortKey", f"{LINEAGE}-v{context.world.version_number}")
+    stored = sorted(json.loads(row["metadata"])["srcPath"] for row in rows)
+    assert stored == sorted([COVER, COVER_DARK]), stored
+
+
 @given('the Story has a figure cover approved by "{name}" and an "Approved by" line on its image')
 def figure_cover_with_line(context, name):
     add_cover(context, "figure", picked_by=name, credit_line=True)
@@ -653,3 +671,35 @@ def ui_reads_the_stored_step(context, key, title, position, total):
     stored = ordered[keys.index(key)]
     assert stored["title"] == title and stored["status"] in checklist.STATES, stored
     assert keys.index(key) + 1 == position, keys
+
+
+# --- Rated (features_backend/story-rated.feature) ---------------------------------------------------------------------------------
+
+
+@given("the site requires a rating before publishing")
+def site_requires_rating(context):
+    from papyrus_content import story_rating
+
+    patcher = patch.object(story_rating, "read_required", lambda _client: True)
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+
+
+@given('the Story is rated {stars:d} stars by "{person}"')
+def story_rated(context, stars, person):
+    client_of(context).update_record("Item", {"id": f"{LINEAGE}-v{context.world.version_number}", "starRating": stars, "starRatedAt": AT, "starRatedBy": person})
+
+
+@given("the Story has a star rating that no person is recorded as giving")
+def story_rated_by_nobody(context):
+    client_of(context).update_record("Item", {"id": f"{LINEAGE}-v{context.world.version_number}", "starRating": 4, "starRatedAt": AT, "starRatedBy": None})
+
+
+@given("the Story's rating is cleared")
+def story_rating_cleared(context):
+    client_of(context).update_record("Item", {"id": f"{LINEAGE}-v{context.world.version_number}", "starRating": None, "starRatedAt": None, "starRatedBy": None})
+
+
+@given("every required step except Rated is closed")
+def required_closed_but_rated(context):
+    close_required(context, except_keys=("rated",))

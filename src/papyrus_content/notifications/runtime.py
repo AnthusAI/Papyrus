@@ -24,7 +24,10 @@ from caducus.notify.routing import Router
 from caducus.notify.store import DynamoStore, Store
 from caducus.notify.triage import TriageSettings
 
+from papyrus_content.newsletter.postal import PostalAddress
+
 from .renderer import ThemedRenderer
+from .sending import SiteEmailChannel, SiteMailer
 from .settings import Settings
 
 #: Where ``notification-kinds.json`` (the plugin's own kinds) ships inside the bundle.
@@ -38,6 +41,7 @@ class Runtime:
     router: Router
     catalog: Catalog
     email: EmailChannel
+    log: DeliveryLog
     read_item: Callable[[str], Mapping[str, Any] | None]
 
 
@@ -56,6 +60,7 @@ def assemble(
     clock: Callable[[], datetime] = utcnow,
     retention_days: int = 90,
     pacer: Pacer | None = None,
+    postal_address: Callable[[], str | None] = lambda: None,
 ) -> Runtime:
     kinds = load_registry(CONFIG_DIRECTORY)
     catalog = load_host_catalog(CONFIG_DIRECTORY)
@@ -71,8 +76,16 @@ def assemble(
         triage=TriageSettings(portal_url="", role_name="", accounts={}, sites={}),
         clock=clock,
     )
-    email = EmailChannel(store, log, directory, mailer, pacer=pacer, renderer=ThemedRenderer(settings))
-    return Runtime(settings=settings, store=store, router=router, catalog=catalog, email=email, read_item=read_item)
+    email = SiteEmailChannel(
+        store,
+        log,
+        directory,
+        SiteMailer(mailer, settings.site_id, settings.configuration_set),
+        postal_address=postal_address,
+        pacer=pacer,
+        renderer=ThemedRenderer(settings),
+    )
+    return Runtime(settings=settings, store=store, router=router, catalog=catalog, email=email, log=log, read_item=read_item)
 
 
 def published_item_reader() -> Callable[[str], Mapping[str, Any] | None]:
@@ -101,6 +114,7 @@ def build_runtime(environment: Mapping[str, str] = os.environ) -> Runtime:
         read_item=published_item_reader(),
         retention_days=int(environment.get("RETENTION_DAYS", "90")),
         pacer=Pacer(mailer.max_send_rate),
+        postal_address=PostalAddress(settings.site_id, ssm).resolve,
     )
 
 

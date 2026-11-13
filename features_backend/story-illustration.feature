@@ -27,7 +27,7 @@ Feature: Illustration is a checklist step and a publish gate
     And the Story's checklist exists
     Then the stored step "illustration" is a sub-task the newsroom lists as "Illustrate" in position 13 of 14
     And the Story summary lists "illustration" among the required steps still open
-    And every checklist item records template version 5
+    And every checklist item records template version 6
 
   Scenario: A stock cover that a person picked closes the step by itself
     Given a Story at the "copywriting" stage
@@ -201,6 +201,17 @@ Feature: Illustration is a checklist step and a publish gate
     And the site requires dark figures
     And the Story's checklist exists
     And the Story has a figure cover approved by "Sierra" with a dark picture
+    When the checklist is brought up to date after a change
+    Then the checklist item "illustration" is "done"
+    And the checklist item "illustration" has evidence naming "dark"
+
+  Scenario: A new version saved with only a body change keeps both pictures of a figure cover
+    Given a Story at the "copywriting" stage
+    And the site requires dark figures
+    And the Story's checklist exists
+    And the Story has a figure cover approved by "Sierra" with a dark picture
+    When an editor saves a new version that changes only the body
+    Then the new version stores both the cover and its dark picture
     When the checklist is brought up to date after a change
     Then the checklist item "illustration" is "done"
     And the checklist item "illustration" has evidence naming "dark"

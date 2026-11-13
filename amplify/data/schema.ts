@@ -911,6 +911,13 @@ const definitions = {
     .authorization((allow) => [allow.groups(contentWriteGroups)])
     .handler(functionHandler("contentActions", contentActions)),
 
+  scheduleItem: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
   requestStagingBuild: a
     .mutation()
     .arguments({ input: a.json().required() })
@@ -2389,6 +2396,14 @@ const definitions = {
       /** Only the head row of a lineage carries this: its stage (tenant-prefixed on a tenant backend), so the head stage index holds one row per
        *  story; a superseded version has none (docs/plans/story-head-stage-index.md). */
       headStageKey: a.string(),
+      /** Scheduled publishing (docs/scheduled-publishing.md): the schedule lives on the row of the version it publishes. `scheduleState` is set only while a schedule exists
+       *  (scheduled, publishing or blocked), so the index below holds scheduled versions and nothing else. `scheduledPublishAt` is a UTC instant. */
+      scheduledPublishAt: a.datetime(),
+      scheduledBy: a.string(),
+      scheduledAt: a.datetime(),
+      scheduleState: a.string(),
+      /** The EventBridge Scheduler schedule that publishes this version. */
+      scheduleName: a.string(),
       tags: a.hasMany("ItemTag", "itemId"),
       mediaAssets: a.hasMany("MediaAsset", "itemId"),
       ...(includeEditions ? { editionItems: a.hasMany("EditionItem", "itemId") } : {}),
@@ -2403,6 +2418,7 @@ const definitions = {
       index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt"),
       index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt"),
       index("parentLineageId").sortKeys(["sortTitle"]).queryField("listItemsByParentAndOrder"),
+      index("scheduleState").sortKeys(["scheduledPublishAt"]).queryField("listItemsByScheduleStateAndScheduledPublishAt"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),

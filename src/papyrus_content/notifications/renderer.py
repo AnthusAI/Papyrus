@@ -26,6 +26,8 @@ class ThemedRenderer(Renderer):
     def __init__(self, settings: Settings):
         self._settings = settings
         self._theme = theme_from_config(settings.theme, settings.from_name)
+        #: Set by the channel for public-class mail, which must carry the sender's postal address.
+        self.postal_address: str | None = None
 
     def render(self, items: Sequence[Mapping[str, Any]]) -> RenderedEmail:
         first = items[0]
@@ -39,5 +41,6 @@ class ThemedRenderer(Renderer):
             site_url=self._settings.site_origin.rstrip("/") + base + "/",
             preheader=first.get("reason") or "",
             reason=f"You received this because you are on the notification list for {self._settings.from_name}.",
+            postal_address=self.postal_address,
         )
         return RenderedEmail(subject=rendered.subject, text=rendered.text, html=rendered.html)

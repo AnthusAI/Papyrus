@@ -102,7 +102,8 @@ def stories_save_version(flags: list[str]) -> None:
     plan and writes nothing. Re-running is idempotent: a file whose content is already stored for the story keeps its exact
     srcPath, so the S3 key and the body reference do not change; a name that holds different content gets -2, -3 (never
     overwritten). MediaAsset rows are keyed by story VERSION (media-<version id>-<hash of srcPath>, as the editor and
-    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. The path is
+    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. A save without --images carries forward, from the earlier
+    versions, every stored picture the new body and front matter name: each image's src and srcDark and the front matter image keys (and their ...Dark twins). The path is
     media/assets/<slug>/<file> with the slug the story has when the file is first stored (a story without a slug has
     draft-unsectioned-<hash>, exactly what the editor uses). It does NOT move: publishing, set-slug and a later section
     change never rewrite media keys or body references (the body keeps the stored srcPath), so the path is stable after
@@ -523,6 +524,8 @@ def stories_agent_note(flags: list[str]) -> None:
 def stories_show(flags: list[str]) -> None:
     """papyrus stories show --story <lineage> [--bucket day|week|none] [--json]
 
+    A scheduled version adds a `schedule` line: its state (scheduled, publishing, blocked or overdue), version, the UTC time and who scheduled it
+    (`papyrus stories schedule-list --story` shows the publication's local time).
     --json prints only the story, its `related` stories (either end of a link: title, type, stage, published, note) and `unofficialRelations`
     (item-to-item relations whose name is not the official `see_also`, which the See also block never shows). After the headline line, a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt)."""
     options = parse_options(flags)
@@ -552,6 +555,14 @@ def stories_show(flags: list[str]) -> None:
                          f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
         if signal["source"] == "editor":
             print("\t".join(["stories", "show", "rating", f"ratedBy {signal['ratedBy']}", f"ratedAt {signal['ratedAt']}"]))
+        from datetime import datetime, timezone
+
+        from .story_schedule import BLOCKED_MESSAGE, BLOCKED, OVERDUE, effective_state, scheduled_versions
+
+        for row in scheduled_versions(client, lineage_id):
+            state = effective_state(row, datetime.now(timezone.utc))
+            note = BLOCKED_MESSAGE if state == BLOCKED else ("overdue: publish it now or schedule it again" if state == OVERDUE else "")
+            print("\t".join(["stories", "show", "schedule", state, f"version {row.get('versionNumber')}", f"publish at {row.get('scheduledPublishAt')} (UTC)", f"by {row.get('scheduledBy')}", note]))
     for move in metadata.get(STAGE_MOVES_KEY) or []:
         print("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
     for reference in story_references(client, lineage_id):

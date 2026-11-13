@@ -9,7 +9,7 @@ const MODEL_NAMES = [
   "Assignment", "KnowledgeRawPayload", "CurationDelegationRecord", "ModelAttachment", "MediaAsset", "PublishedMediaAsset", "NewsroomSection", "Automation", "ProcedureRun", "ReviewRequest", "ReviewReadMark", "ReviewRecipientRule",
 ];
 const REQUIRED_FIELDS: Record<string, string[]> = {
-  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "headStageKey"],
+  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "headStageKey", "scheduledPublishAt", "scheduledBy", "scheduledAt", "scheduleState", "scheduleName"],
   PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
   Message: ["editedAt", "deletedAt", "deletedBySub"],
   MediaAsset: ["tenantId"],
@@ -28,6 +28,8 @@ const REQUIRED_INDEXES = [
   'index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt")',
   // The old stage index stays until every reader has moved (docs/plans/story-head-stage-index.md, step 7).
   'index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt")',
+  // Scheduled publishing (docs/scheduled-publishing.md): the sparse index of scheduled versions; the Item's tenth, and the only one in its deploy.
+  'index("scheduleState").sortKeys(["scheduledPublishAt"]).queryField("listItemsByScheduleStateAndScheduledPublishAt")',
 ];
 
 function extractFieldNames(source: string, modelName: string): Set<string> {

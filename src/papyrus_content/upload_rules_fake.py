@@ -47,3 +47,21 @@ def assert_upload_accepted(attachment: dict) -> None:
     allowed = ({"application/octet-stream"} if role in rules["octet_roles"] else rules["picture_types"] if role in rules["picture_roles"] else rules["general"])
     if media_type not in allowed:
         raise RuntimeError(f"GraphQL request failed: Unsupported ModelAttachment mediaType {media_type} for role {role}.")
+
+
+def assert_owner_exists(attachment: dict, items: list[dict]) -> None:
+    """Raise what the upload function raises when the Item an attachment is for does not exist yet (the fakes hold only Item owners).
+
+    The function looks the owner up by id before it hands out an upload slot, so the row must be created first. The visual style profile's example pictures are owned by the
+    lineage, not by one version: their owner exists when the profile has any version."""
+    if attachment["ownerKind"] != "item":
+        return
+    rules = (FUNCTION / "rules.ts").read_text()
+    lineage_owner = re.search(r'VISUAL_STYLE_OWNER_ID = "([^"]+)"', rules).group(1)
+    lineage_slug = re.search(r'VISUAL_STYLE_SLUG = "([^"]+)"', rules).group(1)
+    if attachment["ownerId"] == lineage_owner:
+        if not any(row.get("slug") == lineage_slug for row in items):
+            raise RuntimeError("GraphQL request failed: Cannot attach an example picture before the publication has a visual style profile. Save a profile first.")
+        return
+    if not any(row["id"] == attachment["ownerId"] for row in items):
+        raise RuntimeError(f"GraphQL request failed: Cannot attach payload to missing Item {attachment['ownerId']}.")
