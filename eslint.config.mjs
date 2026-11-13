@@ -18,6 +18,7 @@ const eslintConfig = [
       "coverage/**",
       "corpora/**",
       "public/videoml/**",
+      "spikes/scheduling-calendar/**", // a standalone Next app with its own dependencies and rules
       "src/papyrus_content/projection/standard/assets/mermaid.min.js", // vendored third-party bundle
     ],
   },

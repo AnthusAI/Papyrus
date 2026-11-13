@@ -17,7 +17,9 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
         sys.path.insert(0, str(entry))
 
 import test_story_stars_cli as support  # noqa: E402
-from papyrus_content import story_commands  # noqa: E402
+from datetime import date  # noqa: E402
+
+from papyrus_content import story_commands, story_signals  # noqa: E402
 
 # Ranking buckets by rolling week from today, so the dates are days before the run, not calendar dates: "a" and "c" are in the last seven days, "b" the week
 # before and "d" long before. Fixed dates would drift out of their buckets as the days pass.
@@ -30,7 +32,9 @@ def _date(name):
 
 def _run(context, function, flags):
     context.failure, out = None, io.StringIO()
-    with mock.patch.object(story_commands, "create_authoring_client", return_value=(context.client, {})), contextlib.redirect_stdout(out):
+    # The Stories' dates are fixed, so the day the ranking counts from is fixed too; the real day would move them across week boundaries.
+    with mock.patch.object(story_commands, "create_authoring_client", return_value=(context.client, {})), \
+            mock.patch.object(story_signals, "utc_today", return_value=date(2026, 11, 8)), contextlib.redirect_stdout(out):
         try:
             function(flags)
         except ValueError as error:

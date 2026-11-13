@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "79cce67f-9594-4709-8b12-efa199cb93e9",
+  "issue_id": "PPY-2f290110-7f03-436e-a265-7e20c95b305b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T12:37:33.347Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document public linked data on p.apyr.us",
+    "description": "Standing rule: every Papyrus feature epic ends with a documentation task on p.apyr.us. Add a feature page for public identifiers, the published vocabulary and structured data, and a line in docs/agent-readable-sites.md. Do last, after the other children ship.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-25fae4b5-5fe6-4ebd-b3fe-34f9a1764edf",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}
