@@ -479,7 +479,7 @@ def step_classifier_skipped(context):
 
 def _saved_version(context, number, body, *, section="engineering", content_hash=None):
     item_id = f"story-v{number}"
-    context.store.items[item_id] = {"id": item_id, "lineageId": "story", "versionNumber": number, "section": section,
+    context.store.items[item_id] = {"id": item_id, "lineageId": "story", "versionNumber": number, "language": "en", "section": section,
                                     "bodyMarkus": body, "contentHash": content_hash or f"hash-of:{section}:{body}"}
     return item_id
 
@@ -543,7 +543,7 @@ def step_judgment_off(context):
 @given("another story's version {number:d} is saved with \"{body}\" and checked")
 def step_other_story_checked(context, number, body):
     item_id = f"other-v{number}"
-    context.store.items[item_id] = {"id": item_id, "lineageId": "other", "versionNumber": number, "section": "engineering",
+    context.store.items[item_id] = {"id": item_id, "lineageId": "other", "versionNumber": number, "language": "en", "section": "engineering",
                                     "bodyMarkus": body, "contentHash": f"hash-of:engineering:{body}"}
     _check_saved(context, item_id)
     context.other_run_before = dict(context.store.get_check_run(item_id))
