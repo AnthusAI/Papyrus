@@ -1,27 +1,6 @@
 import type { NewsroomSectionRecord } from "./category-repository";
 import { getNewsroomNavHref } from "./newsroom-nav";
 
-const SECTION_SHORT_TITLE_FALLBACKS: Record<string, string> = {
-  news: "News",
-  business: "Business",
-  technology: "Technology",
-  science: "Science",
-  methods: "Methods",
-  history: "History",
-  opinion: "Opinion",
-  world: "World",
-  arts: "Arts",
-  sports: "Sports",
-  education: "Education",
-  health: "Health",
-  security: "Security",
-  "law-policy": "Law & Policy",
-  labor: "Labor",
-  "field-notes": "Field Notes",
-  "strangler-control": "Host encirclement",
-  "mycelial-signals": "Network routing",
-};
-
 export function normalizeNewsroomSectionType(value: string | null | undefined): "canonical" | "floating" {
   return value === "floating" || value === "rotating" ? "floating" : "canonical";
 }
@@ -42,9 +21,7 @@ export function sortNewsroomSections(sections: NewsroomSectionRecord[]): Newsroo
 }
 
 export function displayNewsroomSectionShortTitle(section: NewsroomSectionRecord): string {
-  const explicit = section.shortTitle?.trim();
-  if (explicit) return explicit;
-  return SECTION_SHORT_TITLE_FALLBACKS[section.id] ?? section.id.replace(/-/g, " ");
+  return section.shortTitle?.trim() || section.title;
 }
 
 export function buildNewsroomSectionHref(sectionId: string, demo?: boolean): string {

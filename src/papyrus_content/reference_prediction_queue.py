@@ -222,7 +222,7 @@ def video_line(prefix: str, count: int) -> str | None:
         return None
     noun = "video needs" if count == 1 else "videos need"
     return (f"{prefix}\tvideos\t{count}\t{count} {noun} a local run: papyrus references capture-thumbnails --write "
-            f"and papyrus references capture-transcripts --write (the cloud cannot read a video platform's picture or transcript)")
+            f"and papyrus references capture-transcripts (the cloud cannot read a video platform's picture or transcript)")
 
 
 #: An unpredicted Reference sorts at exactly this score on the prediction index (reference_feed_keys), so reading highest first can stop below it.

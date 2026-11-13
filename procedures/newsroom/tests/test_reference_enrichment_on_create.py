@@ -151,6 +151,28 @@ def test_videos_are_counted_and_the_line_says_which_command_to_run():
     assert "1 video needs a local run" in queue.video_line("p", 1) and queue.video_line("p", 0) is None
 
 
+def local_run_commands(line):
+    """The ``papyrus references <command> [--flags]`` pieces the hint names, as (command, flags)."""
+    import re
+    return [(m.group(1), m.group(2).split()) for m in re.finditer(r"papyrus references ([a-z-]+)((?: --[a-z-]+)*)", line)]
+
+
+def parse_local_run_hint(line):
+    """Run each named command's own argument parser on exactly the flags the hint gives it; returns the parsed namespaces by command."""
+    from papyrus_content import references_thumbnails, references_transcripts
+    parsers = {"capture-thumbnails": references_thumbnails.build_parser(), "capture-transcripts": references_transcripts.build_parser()}
+    commands = local_run_commands(line)
+    assert sorted(name for name, _ in commands) == sorted(parsers), commands
+    return {name: parsers[name].parse_args(flags) for name, flags in commands}   # an unknown flag exits with status 2
+
+
+def test_the_local_run_hint_names_only_flags_the_two_commands_accept():
+    parsed = parse_local_run_hint(queue.video_line("references\tcreate-from-catalog", 2))
+    assert parsed["capture-thumbnails"].write is True            # it previews until --write, so the hint must say it
+    assert not hasattr(parsed["capture-transcripts"], "write")   # it writes by default and takes --dry-run, not --write
+    assert parsed["capture-transcripts"].dry_run is False
+
+
 # --- the router ------------------------------------------------------------------------------------------------------------------
 
 

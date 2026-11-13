@@ -43,7 +43,7 @@ from .editions_commands import (
     build_edition_purge_plan,
 )
 from .options import normalize_non_negative_integer, normalize_string, parse_options, resolve_mutation_apply
-from .records import build_record_change_from_current, is_missing_graphql_model_error
+from .records import build_record_change_from_current
 from .relations_commands import print_category_import_summary
 from .steering import default_corpus_key
 from .model_defaults import DEFAULT_LLM_MODEL
@@ -896,16 +896,7 @@ def newsroom_prune_attachments(flags: list[str]) -> None:
     bucket = normalize_string(options.get("bucket"))
     prefix = normalize_string(options.get("prefix")) or "newsroom/payloads/"
     client, _ = create_authoring_client()
-    try:
-        attachments = client.list_records("ModelAttachment")
-    except RuntimeError as error:
-        if is_missing_graphql_model_error(error, "ModelAttachment"):
-            if options.get("json"):
-                print(json.dumps({"ok": False, "command": "newsroom prune-attachments", "mode": "apply" if apply else "dry-run", "error": "missing_model"}, indent=2))
-            else:
-                print(f"attachment-prune\tmissing-model\tModelAttachment\t{error}")
-            return
-        raise
+    attachments = client.list_records("ModelAttachment")
     owner_ids_by_kind = _load_model_attachment_owner_ids(client, attachments)
     orphan_attachment_records = [
         attachment
@@ -1098,14 +1089,8 @@ def _load_model_attachment_owner_ids(client, attachments: list[dict[str, Any]]) 
         if not model_name:
             result[str(owner_kind)] = set()
             continue
-        try:
-            rows = client.list_records(model_name)
-            result[str(owner_kind)] = {row["id"] for row in rows if row.get("id")}
-        except RuntimeError as error:
-            if is_missing_graphql_model_error(error, model_name):
-                result[str(owner_kind)] = set()
-                continue
-            raise
+        rows = client.list_records(model_name)
+        result[str(owner_kind)] = {row["id"] for row in rows if row.get("id")}
     return result
 
 

@@ -299,6 +299,8 @@ async function reviewReferenceCuration(
       curationStatusUpdatedAt: now,
       curationStatusUpdatedBy: actor,
       curationStatusReason: note,
+      // An accept that names a section is that person's section choice, recorded like `setReferenceSection` records one (docs/reference-auto-section.md).
+      ...(sectionId ? { curationSectionUpdatedAt: now, curationSectionUpdatedBy: actor, ...personSectionProvenance(delegation ? "human" : curationActorKind(event.identity)) } : {}),
       ...referenceVoteFields({
         // A signed-in editor or admin session votes as that person, from the CLI or the Newsroom: an agent acting through the session acts for them.
         actorKind: delegation ? "human" : curationActorKind(event.identity),
@@ -619,21 +621,30 @@ async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
 }
 
 /**
- * Changes only a Reference's Section (`curationSectionId`) and records who and when (`curationSectionUpdatedBy`, `curationSectionUpdatedAt`).
- * It leaves the vote alone: the status, who voted and when, the note, the actor kind, the feedback and the star rating are not written, so the
- * Cyclotron's vote id is unchanged and nothing is re-handed-off. The home page's Reference stream already watches `curationSectionId`, so the
- * snapshot is re-triggered the way an accept does it (docs/home-page.md, Freshness). A Section can be set only on an accepted Reference and must be
- * an enabled `NewsroomSection`; an empty `sectionId` clears it. A signed-in session must be an editor or admin; an operator on AWS credentials
- * (the IAM lane, decided by IAM policy) is recorded by role session, never by a name it sends.
+ * Changes only a Reference's Section (`curationSectionId`) and records who and when (`curationSectionUpdatedBy`, `curationSectionUpdatedAt`) and what kind of
+ * actor it was (`curationSectionActorKind`). It leaves the vote alone: the status, who voted and when, the note, the vote's actor kind, the feedback and the
+ * star rating are not written, so the Cyclotron's vote id is unchanged and nothing is re-handed-off. The home page's Reference stream already watches
+ * `curationSectionId`, so the snapshot is re-triggered the way an accept does it (docs/home-page.md, Freshness). A Section can be set only on an accepted
+ * Reference and must be an enabled `NewsroomSection`; an empty `sectionId` clears it. A signed-in session must be an editor or admin; an operator on AWS
+ * credentials (the IAM lane, decided by IAM policy) is recorded by role session, never by a name it sends.
+ *
+ * Two lanes (docs/reference-auto-section.md):
+ * - A person (or an operator): actor kind `human` (a signed-in session) or `agent` (AWS credentials). A person's choice, including a clear, owns the section
+ *   from then on: the automatic lane never changes it. Setting the section the machine already chose makes it the person's.
+ * - The machine (`decisionRelationId` given): the site cyclotron's current section-selector decision for this Reference names the section. Recorded as
+ *   `auto:cyclotron`, actor kind `cyclotron`, with the calibration evidence as the reason and the decision as the relation id. It is refused quietly
+ *   (`changed: false`, `skipped` says why) when a person set or cleared the section, and refused loudly when the decision does not name that section.
  */
 async function setReferenceSection(event: Parameters<ReferenceSectionHandler>[0]) {
   if (getIdentitySub(event)) requireEditorGroups(event, "set a section");
   const client = await getDataClient();
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
   const requestedSectionId = normalizeOptionalString(event.arguments.sectionId);
+  const decisionRelationId = normalizeOptionalString((event.arguments as { decisionRelationId?: string | null }).decisionRelationId);
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
   const status = normalizeOptionalString(reference.curationStatus) ?? "pending";
   const previousSectionId = normalizeOptionalString(reference.curationSectionId);
+  const previousKind = normalizeOptionalString((reference as { curationSectionActorKind?: string | null }).curationSectionActorKind);
   if (requestedSectionId && status !== "accepted") {
     throw new Error(`A section can be set only on an accepted Reference; this one is ${status}.`);
   }
@@ -641,17 +652,71 @@ async function setReferenceSection(event: Parameters<ReferenceSectionHandler>[0]
     ? (await client.models.NewsroomSection.get({ id: requestedSectionId })).data ?? null
     : null;
   const sectionId = validatedCurationSectionId(requestedSectionId, "accept", sectionRecord);
-  if (sectionId === previousSectionId) return { ok: true, referenceId, sectionId, previousSectionId, changed: false, status };
+  const unchanged = { ok: true, referenceId, sectionId: previousSectionId, previousSectionId, changed: false, status, actorKind: previousKind };
   const now = new Date().toISOString();
+  if (decisionRelationId) {
+    // The automatic lane. A person who set or cleared the section owns it: never overwritten, never re-tagged.
+    if (personOwnsSection(reference)) return { ...unchanged, skipped: "a person set or cleared this section" };
+    if (!sectionId && previousKind !== "cyclotron") return { ...unchanged, skipped: "nothing to clear" };
+    await requireSectionDecision(client, decisionRelationId, reference, sectionId);
+    if (sectionId === previousSectionId && normalizeOptionalString((reference as { curationSectionDecisionRelationId?: string | null }).curationSectionDecisionRelationId) === decisionRelationId) {
+      return unchanged;
+    }
+    await requireDataResult(
+      client.models.Reference.update({
+        id: referenceId, curationSectionId: sectionId, curationSectionUpdatedAt: now, curationSectionUpdatedBy: AUTO_SECTION_ACTOR,
+        curationSectionActorKind: "cyclotron", curationSectionReason: normalizeOptionalString((event.arguments as { machineReason?: string | null }).machineReason)?.slice(0, 2000) ?? null,
+        curationSectionDecisionRelationId: decisionRelationId,
+      } as Parameters<typeof client.models.Reference.update>[0]),
+      "update Reference section",
+    );
+    return { ok: true, referenceId, sectionId, previousSectionId, changed: true, status, actorKind: "cyclotron" };
+  }
+  const actorKind = curationActorKind(event.identity);
+  if (sectionId === previousSectionId && previousKind !== "cyclotron" && (sectionId || previousKind)) return unchanged;
   const person = getIdentitySub(event)
     ? (getIdentityLabel(event) ?? getIdentitySub(event) ?? "Papyrus newsroom")
     : `Papyrus operator (${normalizeOptionalString(String((event.identity as { userArn?: unknown } | null | undefined)?.userArn ?? "").split("/").pop()) ?? "AWS credentials"})`;
   const actor = withViaNote(person, event, normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel));
   await requireDataResult(
-    client.models.Reference.update({ id: referenceId, curationSectionId: sectionId, curationSectionUpdatedAt: now, curationSectionUpdatedBy: actor }),
+    client.models.Reference.update({
+      id: referenceId, curationSectionId: sectionId, curationSectionUpdatedAt: now, curationSectionUpdatedBy: actor, ...personSectionProvenance(actorKind),
+    } as Parameters<typeof client.models.Reference.update>[0]),
     "update Reference section",
   );
-  return { ok: true, referenceId, sectionId, previousSectionId, changed: true, status };
+  return { ok: true, referenceId, sectionId, previousSectionId, changed: true, status, actorKind };
+}
+
+/** The signature of the automatic section lane, the same shape as the automatic accept's `auto:cyclotron`. */
+const AUTO_SECTION_ACTOR = "auto:cyclotron";
+
+/** The section provenance a person's (or operator's) choice leaves: their kind, and no machine reason or decision. */
+function personSectionProvenance(actorKind: string): Record<string, unknown> {
+  return { curationSectionActorKind: actorKind, curationSectionReason: null, curationSectionDecisionRelationId: null };
+}
+
+/**
+ * True when a person (or an operator) set or cleared the section: someone other than the machine wrote it. A section recorded with an accept before the
+ * actor kind existed has no kind and a section id, and is a person's too.
+ */
+function personOwnsSection(reference: Record<string, unknown>): boolean {
+  const kind = normalizeOptionalString(reference.curationSectionActorKind as string | null | undefined);
+  if (kind === "cyclotron") return false;
+  return Boolean(kind || normalizeOptionalString(reference.curationSectionId as string | null | undefined) || normalizeOptionalString(reference.curationSectionUpdatedBy as string | null | undefined));
+}
+
+/** The automatic lane acts only on the site cyclotron's current section-selector decision for this Reference, and only for the section it chose. */
+async function requireSectionDecision(client: DataClient, relationId: string, reference: Record<string, unknown>, sectionId: string | null) {
+  const relation = (await client.models.SemanticRelation.get({ id: relationId })).data as Record<string, unknown> | null;
+  const metadata = parseJsonObject(relation?.metadata);
+  const classifierId = normalizeOptionalString(relation?.classifierId as string | null | undefined) ?? "";
+  if (!relation || relation.predicate !== "site_decision_is" || relation.relationState !== "current"
+      || relation.subjectLineageId !== (reference.lineageId ?? reference.id) || !classifierId.split("/").pop()?.startsWith("section-selector-")) {
+    throw new Error(`Decision ${relationId} is not this Reference's current section-selector decision.`);
+  }
+  if (sectionId && metadata.label !== sectionId) {
+    throw new Error(`Decision ${relationId} chose ${String(metadata.label)}, not ${sectionId}.`);
+  }
 }
 
 function starsAcceptNote(stars: number): string {
@@ -1307,6 +1372,9 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       curationSectionId: normalizeOptionalString(current.curationSectionId),
       curationSectionUpdatedAt: normalizeOptionalString(current.curationSectionUpdatedAt),
       curationSectionUpdatedBy: normalizeOptionalString(current.curationSectionUpdatedBy),
+      curationSectionActorKind: normalizeOptionalString((current as { curationSectionActorKind?: string | null }).curationSectionActorKind),
+      curationSectionReason: normalizeOptionalString((current as { curationSectionReason?: string | null }).curationSectionReason),
+      curationSectionDecisionRelationId: normalizeOptionalString((current as { curationSectionDecisionRelationId?: string | null }).curationSectionDecisionRelationId),
       curationShareable: typeof current.curationShareable === "boolean" ? current.curationShareable : null,
       curationDelegation: current.curationDelegation ?? null,
       curationDecisionRelationId: normalizeOptionalString(current.curationDecisionRelationId),

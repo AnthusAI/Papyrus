@@ -186,39 +186,12 @@ def collect_mime_text_parts(raw_bytes: bytes) -> tuple[str, list[str], list[str]
     return subject, plain_parts, html_parts
 
 
-def _preprocess_raw_mime_for_link_scan(raw: str) -> str:
-    without_soft_breaks = re.sub(r"=\r?\n", "", raw)
-    return re.sub(
-        r"=([0-9A-F]{2})",
-        lambda match: chr(int(match.group(1), 16)),
-        without_soft_breaks,
-        flags=re.IGNORECASE,
-    )
-
-
-def _extract_href_urls_from_raw_mime(raw_bytes: bytes) -> list[str]:
-    raw = _preprocess_raw_mime_for_link_scan(raw_bytes.decode("utf-8", errors="replace"))
-    urls: list[str] = []
-    seen: set[str] = set()
-    for match in _HREF_PATTERN.finditer(raw):
-        candidate = _normalize_href_url(match.group(1) or match.group(2) or match.group(3) or "")
-        if not candidate or candidate in seen or is_skippable_newsletter_url(candidate):
-            continue
-        seen.add(candidate)
-        urls.append(candidate)
-    return urls
-
-
 def parse_inbound_mime_for_intake(raw_bytes: bytes) -> dict[str, Any]:
     subject, _plain_parts, html_parts = collect_mime_text_parts(raw_bytes)
     body_text = "\n\n".join(part.strip() for part in _plain_parts if part.strip())
     if not body_text and html_parts:
         body_text = _html_to_text("\n\n".join(html_parts))
     citations = extract_direct_citations_from_intake_text(body_text=body_text, html_parts=html_parts)
-    if not citations:
-        fallback_urls = _extract_href_urls_from_raw_mime(raw_bytes)
-        if fallback_urls:
-            citations = _citation_records_from_urls(fallback_urls)
     return {
         "subject": subject,
         "bodyText": body_text.strip(),
