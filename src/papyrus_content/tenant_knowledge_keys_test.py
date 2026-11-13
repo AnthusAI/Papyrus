@@ -6,16 +6,16 @@ import pytest
 from .reference_feed_keys import feed_keys, star_feed_key
 from .tenant_knowledge_keys import (REFERENCE_FEED_KEY, TenantKeyError, corpus_id_for_key, corpus_key_of, global_key, is_corpus_id, key_tenant,
                                     tenant_corpus_id)
-from .tenancy import TenantError
+from .tenancy import TENANCY_MODE_ENVIRONMENT_VARIABLE, TenantError
 
 TENANT_VECTORS = json.loads((Path(__file__).resolve().parents[2] / "scripts" / "fixtures" / "reference-feed-key-vectors.json").read_text())["tenant"]
 
 
 def _environment(monkeypatch, vector):
-    monkeypatch.delenv("PAPYRUS_TENANCY_MODE", raising=False)
+    monkeypatch.delenv(TENANCY_MODE_ENVIRONMENT_VARIABLE, raising=False)
     monkeypatch.delenv("PAPYRUS_TENANT_ID", raising=False)
     if vector["mode"] == "shared":
-        monkeypatch.setenv("PAPYRUS_TENANCY_MODE", "shared")
+        monkeypatch.setenv(TENANCY_MODE_ENVIRONMENT_VARIABLE, "shared")
     if vector["environmentTenantId"]:
         monkeypatch.setenv("PAPYRUS_TENANT_ID", vector["environmentTenantId"])
 
@@ -49,7 +49,7 @@ def test_the_tenant_vectors_the_typescript_twin_is_tested_against(monkeypatch):
 
 
 def test_a_shared_stack_with_no_tenant_names_what_to_pass(monkeypatch):
-    monkeypatch.setenv("PAPYRUS_TENANCY_MODE", "shared")
+    monkeypatch.setenv(TENANCY_MODE_ENVIRONMENT_VARIABLE, "shared")
     monkeypatch.delenv("PAPYRUS_TENANT_ID", raising=False)
     with pytest.raises(TenantKeyError, match="PAPYRUS_TENANT_ID"):
         global_key(REFERENCE_FEED_KEY)
@@ -58,7 +58,7 @@ def test_a_shared_stack_with_no_tenant_names_what_to_pass(monkeypatch):
 
 
 def test_a_dedicated_stack_never_reads_or_validates_a_tenant(monkeypatch):
-    monkeypatch.delenv("PAPYRUS_TENANCY_MODE", raising=False)
+    monkeypatch.delenv(TENANCY_MODE_ENVIRONMENT_VARIABLE, raising=False)
     monkeypatch.setenv("PAPYRUS_TENANT_ID", "alpha")
     assert key_tenant("not a tenant") is None
     assert global_key("references") == "references"
@@ -72,7 +72,7 @@ def test_a_corpus_id_in_either_form_is_recognised_and_reduced_to_its_key():
 
 
 def _shared(monkeypatch, tenant=None):
-    monkeypatch.setenv("PAPYRUS_TENANCY_MODE", "shared")
+    monkeypatch.setenv(TENANCY_MODE_ENVIRONMENT_VARIABLE, "shared")
     monkeypatch.delenv("PAPYRUS_TENANT_ID", raising=False)
     if tenant:
         monkeypatch.setenv("PAPYRUS_TENANT_ID", tenant)
@@ -81,7 +81,7 @@ def _shared(monkeypatch, tenant=None):
 def test_own_corpora_keeps_every_row_on_a_dedicated_stack_and_the_tenants_on_a_shared_one(monkeypatch):
     rows = [{"id": "alpha.knowledge-corpus-a"}, {"id": "beta.knowledge-corpus-b"}, {"id": "knowledge-corpus-old"}]
     from .tenant_knowledge_keys import own_corpora
-    monkeypatch.delenv("PAPYRUS_TENANCY_MODE", raising=False)
+    monkeypatch.delenv(TENANCY_MODE_ENVIRONMENT_VARIABLE, raising=False)
     assert own_corpora(rows, "alpha") == rows
     _shared(monkeypatch)
     assert own_corpora(rows, "alpha") == [{"id": "alpha.knowledge-corpus-a"}]
@@ -91,7 +91,7 @@ def test_own_corpora_keeps_every_row_on_a_dedicated_stack_and_the_tenants_on_a_s
 
 def test_a_concept_lineage_id_carries_the_tenant_on_a_shared_stack_only(monkeypatch):
     from .ids import semantic_node_lineage_id_for
-    monkeypatch.delenv("PAPYRUS_TENANCY_MODE", raising=False)
+    monkeypatch.delenv(TENANCY_MODE_ENVIRONMENT_VARIABLE, raising=False)
     assert semantic_node_lineage_id_for("concept:ai", "alpha") == "semantic-node-concept-ai"
     _shared(monkeypatch)
     assert semantic_node_lineage_id_for("concept:ai", "alpha") == "alpha.semantic-node-concept-ai"
@@ -100,7 +100,7 @@ def test_a_concept_lineage_id_carries_the_tenant_on_a_shared_stack_only(monkeypa
 
 def test_a_corpus_id_from_a_corpus_config_is_tenant_unique_on_a_shared_stack(monkeypatch):
     from .ids import knowledge_corpus_id
-    monkeypatch.delenv("PAPYRUS_TENANCY_MODE", raising=False)
+    monkeypatch.delenv(TENANCY_MODE_ENVIRONMENT_VARIABLE, raising=False)
     assert knowledge_corpus_id({"key": "Demo Site"}, "alpha") == "knowledge-corpus-demo-site"
     _shared(monkeypatch)
     assert knowledge_corpus_id({"key": "Demo Site"}, "alpha") == "alpha.knowledge-corpus-demo-site"
@@ -116,6 +116,6 @@ def test_the_catalog_writes_every_global_key_of_a_new_reference_through_the_buil
     row = reference_record(item, context)["expected"]
     assert (row["newsroomFeedKey"], row["reviewedFeedKey"]) == ("alpha#references", "alpha#references#reviewed")
     assert row["curationStatusKey"].startswith("alpha.knowledge-corpus-demo#")
-    monkeypatch.delenv("PAPYRUS_TENANCY_MODE")
+    monkeypatch.delenv(TENANCY_MODE_ENVIRONMENT_VARIABLE)
     plain = reference_record(item, {**context, "corpusId": "knowledge-corpus-demo"})["expected"]
     assert (plain["newsroomFeedKey"], plain["reviewedFeedKey"]) == ("references", "references#reviewed")

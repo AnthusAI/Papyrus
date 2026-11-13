@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { TENANCY_MODE_ENVIRONMENT_VARIABLE } from "../lib/tenant-keys";
 import { referenceFeedKeys, starFeedKeyFor, type ReferenceFeedKeyInput } from "../lib/reference-feed-keys";
 import { corpusIdForKey, corpusKeyOf, globalKey, isCorpusId, keyTenant, ownCorpora, tenantCorpusId, TenantKeyError } from "../lib/tenant-knowledge-keys";
 
@@ -18,7 +19,7 @@ const vectors = (JSON.parse(readFileSync(join(process.cwd(), "scripts/fixtures/r
 
 function run(vector: TenantVector): unknown {
   const environment: Record<string, string | undefined> = {};
-  if (vector.mode === "shared") environment.PAPYRUS_TENANCY_MODE = "shared";
+  if (vector.mode === "shared") environment[TENANCY_MODE_ENVIRONMENT_VARIABLE] = "shared";
   if (vector.environmentTenantId) environment.PAPYRUS_TENANT_ID = vector.environmentTenantId;
   switch (vector.call) {
     case "globalKey": return globalKey(vector.input as string, vector.tenantId, environment);
@@ -42,7 +43,7 @@ for (const vector of vectors) {
 }
 
 // A shared stack with no tenant names what to pass, as the error the twin raises.
-assert.throws(() => keyTenant(undefined, { PAPYRUS_TENANCY_MODE: "shared" }), (error: unknown) => error instanceof TenantKeyError && /PAPYRUS_TENANT_ID/.test(error.message));
+assert.throws(() => keyTenant(undefined, { [TENANCY_MODE_ENVIRONMENT_VARIABLE]: "shared" }), (error: unknown) => error instanceof TenantKeyError && /PAPYRUS_TENANT_ID/.test(error.message));
 // A dedicated stack never reads or validates a tenant, so a fixed tenant id changes nothing.
 assert.equal(keyTenant("not a tenant", { PAPYRUS_TENANT_ID: "alpha" }), undefined);
 assert.equal(globalKey("references", "alpha", { PAPYRUS_TENANT_ID: "alpha" }), "references");
@@ -50,7 +51,7 @@ console.log(`tenant knowledge key vectors: ${vectors.length} cases pass`);
 
 // A shared stack keeps only the tenant's own corpus rows when it looks for its canonical corpus; a dedicated stack keeps every row.
 const rows = [{ id: "alpha.knowledge-corpus-a" }, { id: "beta.knowledge-corpus-b" }];
-assert.deepEqual(ownCorpora(rows, "alpha", { PAPYRUS_TENANCY_MODE: "shared" }), [{ id: "alpha.knowledge-corpus-a" }]);
+assert.deepEqual(ownCorpora(rows, "alpha", { [TENANCY_MODE_ENVIRONMENT_VARIABLE]: "shared" }), [{ id: "alpha.knowledge-corpus-a" }]);
 assert.deepEqual(ownCorpora(rows, "alpha", {}), rows);
-assert.throws(() => ownCorpora(rows, undefined, { PAPYRUS_TENANCY_MODE: "shared" }), TenantKeyError);
+assert.throws(() => ownCorpora(rows, undefined, { [TENANCY_MODE_ENVIRONMENT_VARIABLE]: "shared" }), TenantKeyError);
 assert.equal(isCorpusId("alpha.knowledge-corpus-a") && isCorpusId("knowledge-corpus-a") && !isCorpusId("alpha.a"), true);

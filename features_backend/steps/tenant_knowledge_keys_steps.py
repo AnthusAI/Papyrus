@@ -13,7 +13,7 @@ from papyrus_content.reference_feed_keys import feed_keys, feed_state_key
 from papyrus_content.reference_intake import IntakeError, intake_references
 from papyrus_content.tenant_knowledge_keys import (REFERENCE_FEED_KEY, REFERENCE_LINK_FEED_KEY, REFERENCE_REVIEWED_FEED_KEY, SEMANTIC_NODE_FEED_KEY,
                                                    SEMANTIC_RELATION_FEED_KEY, corpus_id_for_key, corpus_key_of, global_key, tenant_corpus_id)
-from papyrus_content.tenancy import TenantError
+from papyrus_content.tenancy import TENANCY_MODE_ENVIRONMENT_VARIABLE, TenantError
 from procedures.newsroom.tests.test_reference_intake import ENDPOINT, ENV, IDENTITY, IntakeClient, payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -30,10 +30,10 @@ def _stack(context, mode, process_tenant=None):
     patcher = patch.dict(os.environ, {}, clear=False)
     patcher.start()
     context.add_cleanup(patcher.stop)
-    os.environ.pop("PAPYRUS_TENANCY_MODE", None)
+    os.environ.pop(TENANCY_MODE_ENVIRONMENT_VARIABLE, None)
     os.environ.pop("PAPYRUS_TENANT_ID", None)
     if mode == "shared":
-        os.environ["PAPYRUS_TENANCY_MODE"] = "shared"
+        os.environ[TENANCY_MODE_ENVIRONMENT_VARIABLE] = "shared"
     if process_tenant:
         os.environ["PAPYRUS_TENANT_ID"] = process_tenant
     context.mode = mode
@@ -237,10 +237,10 @@ def run_vectors(context):
     context.results = []
     for vector in TENANT_VECTORS:
         with patch.dict(os.environ, {}):
-            for name in ("PAPYRUS_TENANCY_MODE", "PAPYRUS_TENANT_ID"):
+            for name in (TENANCY_MODE_ENVIRONMENT_VARIABLE, "PAPYRUS_TENANT_ID"):
                 os.environ.pop(name, None)
             if vector["mode"] == "shared":
-                os.environ["PAPYRUS_TENANCY_MODE"] = "shared"
+                os.environ[TENANCY_MODE_ENVIRONMENT_VARIABLE] = "shared"
             if vector["environmentTenantId"]:
                 os.environ["PAPYRUS_TENANT_ID"] = vector["environmentTenantId"]
             try:

@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+from papyrus_content.tenancy import TENANCY_MODE_ENVIRONMENT_VARIABLE
 from papyrus_content.reference_intake import intake_references, intake_email_submission_references, IntakeError
 from procedures.newsroom.tests.test_story_reporting import client_with_one_story, LINEAGE
 from papyrus_content.story_reporting import link_reference_to_story, story_references
@@ -547,7 +548,7 @@ def test_real_handler_executes_upload_protocol_without_external_credentials():
     assert json.loads(requests[0].data)["actorSub"] == "editor-sub"
 
 
-SHARED_ENV = {"PAPYRUS_TENANCY_MODE": "shared", "PAPYRUS_TENANT_ID": ""}
+SHARED_ENV = {TENANCY_MODE_ENVIRONMENT_VARIABLE: "shared", "PAPYRUS_TENANT_ID": ""}
 
 
 def shared_identity(tenant="alpha"):
