@@ -3193,6 +3193,11 @@ async function listUserPoolModel<T>(modelName: string): Promise<T[]> {
   return items;
 }
 
+/** The site's Sections, read on their own (the shell dashboard is a summary that holds none). */
+export async function loadEditorNewsroomSections(): Promise<NewsroomSectionRecord[]> {
+  return listOptionalUserPoolModel<NewsroomSectionRecord>("NewsroomSection");
+}
+
 async function listOptionalUserPoolModel<T>(modelName: string): Promise<T[]> {
   const client = generateClient<Schema>();
   const model = (client.models as Record<string, ListableModel<T>>)[modelName];

@@ -21,6 +21,7 @@ import {
   type NativeBoardIssue,
 } from "../lib/newsroom-board";
 import type { AssignmentRecord, NewsroomSectionRecord } from "../lib/category-repository";
+import { useNewsroomDeskSections } from "./use-newsroom-desk-sections";
 import { displayNewsroomSectionShortTitle, newsroomDeskOptions } from "../lib/newsroom-sections";
 import { getContentItemName, getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
@@ -62,6 +63,7 @@ export type NewsroomBoardSubject = "contentItem" | "assignment" | "desk";
 /** Read-only board of one record kind over authenticated CMS records; existing workspaces own every mutation. */
 export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardSubject; deskId?: string }) {
   const session = useOptionalNewsDeskClient();
+  const { sections: deskSections } = useNewsroomDeskSections();
   const allowed = canReadNewsroomBoard(session?.shell.phase);
   const [lowMotion, setLowMotion] = useState(false);
   const [assignmentBoardIssues, setAssignmentBoardIssues] = useState<NativeBoardIssue[]>([]);
@@ -147,9 +149,9 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const loadMoreWhenColumnIsNearItsEnd = (columnKey: string) => {
     if (showsContentItems && columnKey.startsWith(contentItemColumnKeyPrefix)) pagedContentItems.loadMoreForStage(columnKey.slice(contentItemColumnKeyPrefix.length));
   };
-  const deskTitle = session?.shell.dashboard?.newsroomSections?.find(section => section.id === deskId)?.title ?? (deskId ? displayNewsroomSectionShortTitle({ id: deskId } as NewsroomSectionRecord) : "Desk");
+  const deskTitle = deskSections.find(section => section.id === deskId)?.title ?? (deskId ? displayNewsroomSectionShortTitle({ id: deskId } as NewsroomSectionRecord) : "Desk");
   const pageTitle = subject === "contentItem" ? getContentItemName().plural : subject === "desk" ? deskTitle : "Assignments";
-  const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
+  const deskOptions = useMemo(() => newsroomDeskOptions(deskSections), [deskSections]);
   const changeAssignmentDesk = async (record: AssignmentRecord, deskId: string | null) => {
     await saveNewsroomAssignmentDesk(record.id, deskId);
     const moved = { ...record, sectionId: deskId, sectionKey: deskId };

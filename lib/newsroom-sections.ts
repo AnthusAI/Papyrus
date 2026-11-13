@@ -62,3 +62,16 @@ export function newsroomDeskKind(section: NewsroomSectionRecord): NewsroomDeskKi
 export function newsroomDeskOptions(sections: NewsroomSectionRecord[]): NewsroomDeskOption[] {
   return sortNewsroomSections(sections).filter(isEnabledNewsroomSection).map(section => ({ value: section.id, label: section.title, kind: newsroomDeskKind(section) }));
 }
+
+/**
+ * The options of a Section picker: the site's enabled desks, plus the Story's own current value when the list does not hold it
+ * (a disabled or renamed section), so the picker always shows what the Story has and never reads as "No section" for a set value.
+ */
+export function newsroomDeskPickerOptions(sections: NewsroomSectionRecord[], current: string | null | undefined): NewsroomDeskOption[] {
+  const options = newsroomDeskOptions(sections);
+  const value = (current ?? "").trim();
+  if (!value || options.some(option => option.value === value)) return options;
+  const known = sections.find(section => section.id === value);
+  const label = known ? known.title : displayNewsroomSectionShortTitle({ id: value } as NewsroomSectionRecord);
+  return [...options, { value, label, kind: known ? newsroomDeskKind(known) : "core" }];
+}

@@ -109,6 +109,7 @@
     "test:board-head-index": "tsx --test scripts/test-board-head-index.ts && cucumber-js --profile boardHeadIndex",
     "test:story-open-reads": "tsx --test scripts/test-story-open-reads.ts && cucumber-js --profile storyOpenReads",
     "test:newsroom-board-story-types": "tsx scripts/test-newsroom-board-story-types.ts && cucumber-js --profile boardStoryTypes",
+    "test:story-section-picker": "tsx scripts/test-newsroom-section-picker.ts && cucumber-js --profile storySectionPicker",
     "test:story-types": "tsx scripts/test-story-types.ts && tsx scripts/test-story-type-editor.ts && cucumber-js --profile storyTypeEditor && poetry run pytest -q procedures/newsroom/tests/test_story_types.py && poetry run behave features_backend/story-types.feature",
     "test:newsroom-ux-review": "tsx scripts/test-newsroom-ux-review.ts && cucumber-js --profile newsroomUxReview",
     "test:needs-me-links": "tsx scripts/test-needs-me-links.ts && cucumber-js --profile needsMeLinks",
