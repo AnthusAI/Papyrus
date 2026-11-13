@@ -17,10 +17,17 @@
       "text": "Serving built on branch feature/PPY-82f150-language-serving (stacked on PR #1492): primary-at-root URLs with each public language under its prefix (languages.prefixes, default the base subtag), one standard projection edition per public language, per-language home/section listings, feeds and sitemaps (one per language in the sitemap index), hreflang for each published language plus x-default, self-canonical, og:locale, JSON-LD inLanguage, <html lang> per page, sibling re-render O(languages) on publish/unpublish/rename, page.alternates / page.link_map / page.link_in_language for site hooks, interface strings in strings/<tag>.json with a completeness check before a language is public (languages.public), per-language slug policies (translated, characters [Chinese default, Ryan 11-13], pinyin, primary) and Unicode addresses (NFC keys, percent-encoded URLs everywhere). Language-prefixed mode is not built. Docs: docs/multilingual-serving.md. Specs: features_backend/language-serving.feature, language-serving-settings.feature. Follow-ups: PPY-f33254 (CMS listing keys), PPY-f9572a (re-render linking pages), PPY-bb4001 (core component words).",
       "created_at": "2026-11-13T20:28:26.929636Z",
       "comment_type": "default"
+    },
+    {
+      "id": "a2f2267d-2f6b-4483-9af1-b60d3b3826e6",
+      "author": "home",
+      "text": "Merged to develop in PR #1504 (merge 834d9a953), all CI green. Not released. Since the first note: no chosen slug cap (Ryan): only the 255-byte UTF-8 directory-name limit; language editions serve Concepts under /<prefix>/concepts/ while English keeps /wiki/; edge invalidation encodes exactly once. Language-prefixed URL mode not built. Gated real-AWS checks listed in docs/multilingual-serving.md ('Unicode addresses').",
+      "created_at": "2026-11-13T21:59:49.856210Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T15:39:08.246029Z",
-  "updated_at": "2026-11-13T20:28:26.929917Z",
+  "updated_at": "2026-11-13T21:59:49.856836Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
