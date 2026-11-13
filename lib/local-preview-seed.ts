@@ -9,6 +9,7 @@ import { contentItemHeadStageKey, contentItemStageKeys, type ContentItemVersionR
 import { getContentItemStageDefinitions } from "./site-brand";
 import { noteProblem, stepChangeProblem, summarizeStoryChecklist, type StoryStepNote, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
+import type { ScheduleFields } from "./story-schedule";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
 const ONE_HOUR_IN_MILLISECONDS = 60 * 60 * 1000;
@@ -167,6 +168,56 @@ export function resetLocalPreviewStoryChecklists(): void {
   previewChecklistChanges.clear();
 }
 
+const HOUR = ONE_HOUR_IN_MILLISECONDS;
+const DAY = 24 * HOUR;
+
+/**
+ * Fake schedules for the sample Stories, placed relative to the start of today (UTC) so the board and the Schedule page always have something this week:
+ * scheduled, overdue (a scheduled time that has passed) and blocked (superseded by a newer version), and several Stories in one week. The sample people are fictional.
+ */
+function seededScheduleFields(now: Date = new Date()): Record<string, ScheduleFields> {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const at = (days: number, hours: number) => new Date(today + days * DAY + hours * HOUR).toISOString();
+  const by = "Preview editor";
+  return {
+    "preview-item-lineage-copywriting-0": { scheduledPublishAt: at(1, 14), scheduleState: "scheduled", scheduledBy: by, scheduledAt: at(0, 1) },
+    "preview-item-lineage-copywriting-1": { scheduledPublishAt: at(2, 18), scheduleState: "scheduled", scheduledBy: by, scheduledAt: at(0, 1) },
+    "preview-item-lineage-illustration-0": { scheduledPublishAt: at(0, -6), scheduleState: "scheduled", scheduledBy: by, scheduledAt: at(-2, 1) },
+    "preview-item-lineage-illustration-1": { scheduledPublishAt: at(3, 13), scheduleState: "blocked", scheduledBy: by, scheduledAt: at(-1, 1) },
+  };
+}
+
+/** What an editor changed in this session of the preview: a lineage maps to its new schedule, or to null when it was cleared. */
+const previewScheduleChanges = new Map<string, ScheduleFields | null>();
+/** When each changed lineage was last changed: a schedule change updates the row, so the board's refresh (rows updated since) picks the card up. */
+const previewScheduleTouchedAt = new Map<string, string>();
+
+export function localPreviewScheduleFields(lineageId: string): ScheduleFields {
+  return (previewScheduleChanges.has(lineageId) ? previewScheduleChanges.get(lineageId) : seededScheduleFields()[lineageId]) ?? {};
+}
+
+/** What the backend does for a schedule change, for the preview: refuses a time that has passed, as the backend does, and records the person. */
+export function setLocalPreviewSchedule(lineageId: string, scheduledPublishAt: string | null): ScheduleFields {
+  if (scheduledPublishAt !== null && Date.parse(scheduledPublishAt) <= Date.now()) throw new Error("That time has passed.");
+  const fields: ScheduleFields | null = scheduledPublishAt === null ? null : { scheduledPublishAt, scheduleState: "scheduled", scheduledBy: "Preview editor", scheduledAt: new Date().toISOString() };
+  previewScheduleChanges.set(lineageId, fields);
+  previewScheduleTouchedAt.set(lineageId, new Date().toISOString());
+  return fields ?? {};
+}
+
+export function resetLocalPreviewSchedules(): void {
+  previewScheduleChanges.clear();
+  previewScheduleTouchedAt.clear();
+}
+
+/** Every sample Story that has a schedule, for the Schedule page: the rows whose scheduled time falls in [from, to) and whose state is one of `states`. */
+export function createLocalPreviewScheduledVersions(from: string, to: string, states: readonly string[]): ContentItemVersionRecord[] {
+  return createLocalPreviewContentItemVersions().filter(version => {
+    const at = version.scheduledPublishAt;
+    return Boolean(at) && at! >= from && at! < to && states.includes(version.scheduleState ?? "");
+  });
+}
+
 export function createLocalPreviewContentItemVersions(): ContentItemVersionRecord[] {
   const stageKeys = contentItemStageKeys(getContentItemStageDefinitions());
   return stageKeys.flatMap((stageKey, stageIndex) => {
@@ -189,6 +240,8 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         updatedAt: isoTimestampHoursBeforeBase(stageIndex * 3 + headlineIndex),
         versionCreatedBy: stageKey === "idea" && headlineIndex === 0 ? "AI" : "Preview editor",
         starRating: PREVIEW_STORY_STARS[`${stageKey}-${headlineIndex}`] ?? null,
+        ...localPreviewScheduleFields(`preview-item-lineage-${stageKey}-${headlineIndex}`),
+        ...(previewScheduleTouchedAt.has(`preview-item-lineage-${stageKey}-${headlineIndex}`) ? { updatedAt: previewScheduleTouchedAt.get(`preview-item-lineage-${stageKey}-${headlineIndex}`) } : {}),
         metadata: { checklist: summarizeStoryChecklist(previewChecklistOf(`preview-item-lineage-${stageKey}-${headlineIndex}`), PREVIEW_CHECKLIST_TEMPLATE.filter(entry => entry.required).map(entry => entry.key), PREVIEW_CHECKLIST_TEMPLATE_VERSION) },
       };
     });
