@@ -1,6 +1,6 @@
 # Setting up X announcements for your publication
 
-Status: the feature is planned, not built (epic PPY-09ee86, plan `docs/plans/scheduled-publishing-and-announcements.md`). This page is written for the site owner, not for developers. Steps 1 to 4 happen on X's website and can be done now; step 5 waits for the feature.
+Status: the connection and the settings page are built (epic PPY-09ee86, stories PPY-2deb63 and PPY-ae9d06). Posting itself comes with the announcement backend (PPY-9f4d66); until then you can connect the account, set the rules and see the page, and nothing is posted. This page is written for the site owner, not for developers. Steps 1 to 4 happen on X's website; step 5 is in your newsroom.
 
 When announcements are on, Papyrus posts on your publication's X account each time a Story meets the bar you set (for example, rated 5 stars). Each post carries a short line about the Story and its link. You stay in control: you set the bar, a budget, and a pause switch.
 
@@ -10,7 +10,7 @@ When announcements are on, Papyrus posts on your publication's X account each ti
 - **A "developer app" is just a key ring.** On X's developer site you register an "app" that represents your publication's software. X gives it two keys (a client ID and a client secret). Papyrus uses them to ask your permission to post on the account, and X charges that app's credits for each post.
 - **Your publication needs its own X account**, the one posts come from. It is an ordinary X account; it does not need a paid subscription. You sign in to X as that account when you connect it in step 5.
 - **What it costs** (X's price list, 12 November 2026): a post that contains a link costs $0.20; deleting a post costs $0.01; reading a post costs $0.005. Announcements always contain a link, so budget $0.20 each. $10 covers about 50 announcements.
-- **Keys are secrets.** Enter them only in your newsroom's Administration page. Never paste them into chat, email, a document or a ticket. Papyrus stores them encrypted and never shows them again.
+- **Keys are secrets.** Enter them only in your newsroom's Administration page. Never paste them into chat, email, a document or a ticket. Papyrus stores the secret encrypted and never shows it again.
 
 ## Step 1: Make sure the publication's X account exists
 
@@ -43,7 +43,7 @@ You do not need the older "API key", "API secret", "Bearer token" or "Access tok
 2. Set a **spending limit** per billing cycle equal to the budget you will enter in Papyrus (for example $10). X stops requests at that limit, so this is a second guard beside Papyrus's own budget.
 3. Leave auto-recharge off unless you want X to top up the balance on its own.
 
-## Step 5: Connect it in the newsroom (when the feature ships)
+## Step 5: Connect it in the newsroom
 
 1. Open your newsroom, then **Administration > Announcements**.
 2. Under **X app**, paste the Client ID and the Client Secret, and save. The page then says "Secret saved"; it never shows the secret again.
@@ -59,17 +59,18 @@ You do not need the older "API key", "API secret", "Bearer token" or "Access tok
 - **Disconnect** removes Papyrus's permission at X and deletes the stored token.
 - **Replace secret** if you regenerate the secret at X.
 
-## Text shown in the newsroom (Administration > Announcements)
+## How it is kept safe (for operators)
 
-The product shows these steps in short form beside the settings:
+- **Where the keys live.** In AWS Systems Manager Parameter Store as SecureString, under `/papyrus/<site>/announcements/x/` (`<site>` is the site's brand id): `client-secret`, and for the connected account `<accountId>/refresh-token` and `<accountId>/access-token`. They are never in Git, logs, chat or any screen after entry. No operation of the announcements function returns them. Its role may touch only that path.
+- **Connecting** uses OAuth 2.0 Authorization Code with PKCE and your app's client secret (a confidential client). The scopes are `tweet.write`, `tweet.read`, `users.read` and `offline.access`; there is no media permission. The PKCE verifier is derived from the client secret and a random value in the `state`, so nothing is stored between leaving for X and coming back, and the verifier never reaches the browser. The page keeps the `state` in the browser's session storage and refuses a return that does not match it; the function refuses a `state` it did not issue.
+- **Tokens.** X's access token lasts two hours; the refresh token is single use and rotates. A refresh takes a lease on the connection's row (a DynamoDB conditional write), so two posts at once cause one refresh and both use its token. The new refresh token is saved before the access token is used. The access token is kept in the parameter store too (not only in memory) because the invocations that post cannot share memory.
+- **A refresh X refuses** marks the connection "Needs reconnecting" and pauses the site's announcements with the reason "disconnected". Nothing falls back to another account.
+- **Disconnect** calls X's `POST /2/oauth2/revoke` and then deletes the parameters, then pauses announcements. If X will not revoke, nothing is deleted and the page says why.
+- **Usage.** The page shows X's own post count (`GET /2/usage/tweets`) beside the connection. It is sent with the account's access token; X's documentation does not say whether this endpoint accepts a user token, so the first live check confirms it and the page shows X's message if X refuses.
 
-> **Announce new Stories on X.** Papyrus posts on your publication's X account when a Story meets the bar you set. You need an X developer app (a paid X subscription does not include this) with prepaid credits; each announcement costs about $0.20.
->
-> 1. On developer.x.com, create an app for this publication.
-> 2. In its User authentication settings choose OAuth 2.0, "Read and write", "Web App, Automated App or Bot", and paste this callback URL: `{callbackUrl}` [Copy].
-> 3. Buy credits and set a spending limit equal to your budget below.
-> 4. Paste the app's Client ID and Client Secret here. We store the secret encrypted and never show it again.
-> 5. Choose "Connect X account" and sign in as the publication's account.
-> 6. Start in "Dry run" to see posts without sending them; switch to "On" when they look right.
->
-> Full guide: [Setting up X announcements].
+## Where the settings are stored
+
+One JSON document in the `AnnouncementSettings` model (`id: settings`), the same mechanism as the editorial check settings, written only by the announcements function (`amplify/functions/announcements`), so every rule is enforced there: the mode is Off, Dry run or On (default Off; Dry run and On need a connected account; On also needs the Automated-label confirmation and a budget); the minimum rating is 3, 4 or 5 and never below the three-star quality floor; only Articles and Posts, never References; sections optional; the budget has no default; the price table carries the date it was copied from X's price list. The pause switch (reasons: budget, disconnected, manual) lives in the same document. The X connection (client ID, handle, scopes, refresh health, the lease) is the `XConnection` model's single row; it holds no secret.
+
+The tests are `features_backend/x-account-connection.feature`, `features_backend/announcement-settings.feature` (against a fake X, with no real call), `features/newsroom-announcements.feature` and `scripts/test-announcements.ts` (`npm run test:announcements`).
+

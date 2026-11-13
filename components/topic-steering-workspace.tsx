@@ -18,6 +18,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import amplifyOutputs from "papyrus-amplify-outputs";
+import { AnnouncementsPanel } from "./announcements-panel";
 import { EditorialChecksAdminPanel } from "./editorial-checks-admin-panel";
 import { AutomationPanel } from "./automation-panel";
 import { MonitoringPanel } from "./monitoring-panel";
@@ -275,7 +276,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "automations" | "delegations" | "signups" | "newsletter" | "moderation" | "proposals" | "editorial-checks" | "monitoring";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "automations" | "delegations" | "signups" | "newsletter" | "moderation" | "proposals" | "editorial-checks" | "monitoring" | "announcements";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -4334,6 +4335,15 @@ function AdministrationDeskView({
                 <span>Policies the article editor checks drafts against</span>
               </Link>
               <Link
+                href={administrationPanelHref("announcements", isDemo)}
+                data-news-desk-admin-nav="announcements"
+                data-active={administrationPanel === "announcements" || undefined}
+                onClick={() => onPanelChange("announcements")}
+              >
+                <strong>Announcements</strong>
+                <span>Post new Stories on the site&apos;s X account</span>
+              </Link>
+              <Link
                 href={administrationPanelHref("monitoring", isDemo)}
                 data-news-desk-admin-nav="monitoring"
                 data-active={administrationPanel === "monitoring" || undefined}
@@ -4391,6 +4401,7 @@ function AdministrationDeskView({
               {administrationPanel === "proposals" ? <ProposalsPanel /> : null}
               {administrationPanel === "moderation" ? <ModerationPanel /> : null}
               {administrationPanel === "editorial-checks" ? <EditorialChecksAdminPanel /> : null}
+              {administrationPanel === "announcements" ? <AnnouncementsPanel isAdmin={canManageUsers} isDemo={isDemo} sections={newsroomSections.filter((section) => section.enabled).map((section) => ({ id: section.id, title: section.title }))} /> : null}
               {administrationPanel === "automations" ? <AutomationPanel isDemo={isDemo} /> : null}
               {administrationPanel === "monitoring" ? <MonitoringPanel isAdmin={canManageUsers} isDemo={isDemo} /> : null}
               {administrationPanel === "delegations" ? <AdministrationDelegationsPanel disabled={disabled} /> : null}
@@ -11779,7 +11790,7 @@ function readerPluginEnabled(): boolean {
 }
 
 function normalizeAdministrationPanel(value: string | null | undefined, demo = false): AdministrationPanel {
-  if (value === "policies" || value === "sections" || value === "procedures" || value === "automations" || value === "delegations" || value === "editorial-checks" || value === "monitoring" || value === "proposals") return value;
+  if (value === "policies" || value === "sections" || value === "procedures" || value === "automations" || value === "delegations" || value === "editorial-checks" || value === "monitoring" || value === "proposals" || value === "announcements") return value;
   if (value === "signups" && signupPluginEnabled()) return value;
   if (value === "newsletter" && newsletterPluginEnabled(demo)) return value;
   if (value === "moderation" && readerPluginEnabled()) return value;
