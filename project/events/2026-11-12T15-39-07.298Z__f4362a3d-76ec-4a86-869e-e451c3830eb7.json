@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "f4362a3d-76ec-4a86-869e-e451c3830eb7",
+  "issue_id": "PPY-7aafcb49-d10a-4131-9f69-138ce8c263af",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T15:39:07.298Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Sites choose derive-from-primary or propagate-any-edit, with a Story override",
+    "description": "As a publication owner, I want to choose whether translations always follow the primary language or whether an edit in any language can update the others, so each site works the way its editors write.\n\nDesign: site setting with a per-Story override (no section override until a section needs one). Derive: edits in a localization are local and pin blocks. Propagate: saving a localization asks 'Only this language' or 'All languages' with no default, plus a reason; 'All languages' translates the changed blocks into the primary as a new primary version that goes through review, then derive updates the others. All propagation passes through the primary. Every version records who, when, why and its scope. Plan: docs/plans/multilingual-publishing.md (PR #1450).\n\nFeature: Sync policies\n\nScenario: Derive from primary keeps localization edits local\n  Given a site that derives translations from English\n  When an editor changes a Spanish paragraph\n  Then the English Story is unchanged\n  And the Spanish paragraph is pinned\n\nScenario: An edit marked for all languages updates the others through the primary\n  Given a site that propagates edits\n  When an editor saves a Spanish change for all languages with a reason\n  Then a new English version with the change awaits English review\n  And once it is accepted the Chinese localization is re-translated for that paragraph only\n\nScenario: An edit marked for this language only stays put\n  Given a site that propagates edits\n  When an editor saves a Spanish change for this language only\n  Then no other language changes and the Spanish paragraph is pinned",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5deff0af-3779-4815-8643-74ca3d94deb4",
+    "labels": []
+  }
+}

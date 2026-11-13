@@ -69,7 +69,7 @@ REFERENCE_FIELDS = (
     f"{VERSION_FIELDS} id corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 "
     "sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount "
     "importRunId importedAt createdAt curationStatus "
-    "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey "
+    "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationSectionUpdatedAt curationSectionUpdatedBy curationSectionActorKind curationSectionReason curationSectionDecisionRelationId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey "
     "discoveredByMonitorId discoveryDetails discoveryRule feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey starFeedKey captureState captureReason contentNeededKey medium evidenceLevel playlistUrl mediumFeedKey thumbnailPath publicFeedKey publicOrderKey cardImage cardSummary cardSiteName cardPageTitle updatedAt"
 )
 REFERENCE_ATTACHMENT_FIELDS = (
@@ -159,15 +159,15 @@ PUBLISHED_EDITION_ITEM_FIELDS = (
 )
 ITEM_FIELDS = (
     f"{VERSION_FIELDS} id tenantId tenantSlug type status typeStatus stage slug shortSlug section sectionStatus title headline deck body "
-    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy parentLineageId"
+    "byline dateline publishedAt versionPublishedAt versionPublishedBy editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy parentLineageId"
 )
 PUBLISHED_ITEM_FIELDS = (
     "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
-    "title headline deck body byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
+    "title headline deck body byline dateline publishedAt versionPublishedAt versionPublishedBy editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
 )
 SUMMARY_PAGE_SIZE = 1000
 PUBLISHED_ITEM_SUMMARY_FIELDS = (
-    "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
+    "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt versionPublishedAt versionPublishedBy metadata"
 )
 MEDIA_ASSET_FIELDS = (
     "id itemId tenantId type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
@@ -436,6 +436,11 @@ PUBLISHED_STORY_LIST_FIELDS = (
 )
 
 STORY_SECTION_LINK_FIELDS = "id tenantId lineageId versionState stage status type section sectionStatus"
+#: A version with its schedule (docs/scheduled-publishing.md). Kept out of ITEM_FIELDS: a site that has not had the deploy that adds the fields would refuse every Item read.
+SCHEDULE_ROW_FIELDS = (
+    "id tenantId lineageId versionNumber versionState status stage type slug title headline updatedAt "
+    "scheduledPublishAt scheduledBy scheduledAt scheduleState scheduleName"
+)
 HEAD_INDEX_ROW_FIELDS = "id tenantId lineageId versionNumber versionState versionCreatedAt stage type updatedAt"
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
@@ -463,6 +468,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "lineageId",
         "partitionType": "ID",
         "fields": ITEM_FIELDS,
+    },
+    "itemScheduleByLineage": {
+        "field": "listItemsByLineageAndVersion",
+        "partitionKey": "lineageId",
+        "partitionType": "ID",
+        "fields": SCHEDULE_ROW_FIELDS,
     },
     "assignmentsByItemLineageAndCreatedAt": {
         "field": "listAssignmentsByItemLineageAndCreatedAt",
@@ -765,6 +776,8 @@ _UNDEFINED_MEDIUM_INPUT = re.compile(r"field name '(?:" + "|".join(MEDIUM_REFERE
 # anyway is sent again without it (a validation error means it never ran).
 _UNDEFINED_HEAD_STAGE_KEY_INPUT = re.compile(r"field name '" + HEAD_STAGE_KEY_FIELD + r"'")
 _HEAD_STAGE_KEY_SUPPORT: dict[str, bool] = {}
+_SCHEDULE_FIELDS_SUPPORT: dict[str, bool] = {}
+_CONDITION_FAILED = re.compile(r"conditional request failed|ConditionalCheckFailed", re.IGNORECASE)
 TENANT_FIELD_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_FIELD"
 _HEAD_STAGE_KEY_NOTICE_SHOWN: set[str] = set()
 
@@ -1291,6 +1304,55 @@ class PapyrusGraphQLAuthoringClient:
         self._require_row_in_tenant(model_name, input_payload["id"])
         prepared = self._prepared_payload(model_name, input_payload)
         self.graphql(MUTATIONS[model_name]["update"], {"input": prepared})
+
+    def update_record_if(self, model_name: str, input_payload: dict[str, Any], condition: dict[str, Any]) -> bool:
+        """Update a row only when ``condition`` (an Amplify ``Model<Name>ConditionInput``) holds on the stored row, in one conditional write. False when the
+        condition failed, so another writer got there first; any other failure raises."""
+        if model_name not in MUTATIONS:
+            raise ValueError(f"Unsupported model for update: {model_name}")
+        self._require_row_in_tenant(model_name, input_payload["id"])
+        prepared = self._prepared_payload(model_name, input_payload)
+        mutation = (f"mutation Update{model_name}If($input: Update{model_name}Input!, $condition: Model{model_name}ConditionInput) "
+                    f"{{ update{model_name}(input: $input, condition: $condition) {{ id }} }}")
+        try:
+            self.graphql(mutation, {"input": prepared, "condition": condition})
+        except Exception as error:   # noqa: BLE001 - only a failed condition is an answer; anything else is the caller's to see
+            if _CONDITION_FAILED.search(str(error)):
+                return False
+            raise
+        return True
+
+    def list_schedule(self, state: str, start: str | None = None, end: str | None = None) -> list[dict[str, Any]]:
+        """The versions in one schedule state whose ``scheduledPublishAt`` is within ``start``..``end`` (either may be None), read from the sparse
+        ``scheduleState`` index: only scheduled versions are in it, so this never reads the table."""
+        if start and end:
+            condition, variables = "{between: $range}", {"range": [start, end]}
+        elif start:
+            condition, variables = "{ge: $at}", {"at": start}
+        elif end:
+            condition, variables = "{le: $at}", {"at": end}
+        else:
+            condition, variables = "", {}
+        declared = "".join(f", ${name}: {kind}" for name, kind in (("range", "[String]"), ("at", "String")) if name in variables)
+        sort = f", scheduledPublishAt: {condition}" if condition else ""
+        query = (f"query Schedule($state: String!{declared}, $limit: Int, $nextToken: String) {{ listItemsByScheduleStateAndScheduledPublishAt("
+                 f"scheduleState: $state{sort}, limit: $limit, nextToken: $nextToken) {{ items {{ {SCHEDULE_ROW_FIELDS} }} nextToken }} }}")
+        rows: list[dict[str, Any]] = []
+        next_token = None
+        while True:
+            result = self.graphql(query, {"state": state, **variables, "limit": 100, "nextToken": next_token})
+            connection = result.get("listItemsByScheduleStateAndScheduledPublishAt") or {}
+            rows.extend(entry for entry in connection.get("items") or [] if entry)
+            next_token = connection.get("nextToken")
+            if not next_token:
+                break
+        return rows_for_tenant("Item", self.tenant_id, rows)
+
+    def has_schedule_fields(self) -> bool:
+        """Whether this site's Item type has the schedule fields (the deploy that adds scheduled publishing). Asked once per endpoint per process."""
+        if self.endpoint not in _SCHEDULE_FIELDS_SUPPORT:
+            _SCHEDULE_FIELDS_SUPPORT[self.endpoint] = "scheduleState" in self.graphql_type_field_names("Item")
+        return _SCHEDULE_FIELDS_SUPPORT[self.endpoint]
 
     def create_model_attachment_upload(self, attachment: dict[str, Any]) -> dict[str, Any]:
         result = self.graphql(

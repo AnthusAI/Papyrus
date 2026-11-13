@@ -40,7 +40,7 @@ from .options import (
     parse_options,
     resolve_mutation_apply,
 )
-from .records import apply_record_changes, build_record_changes, build_record_changes_tolerating_optional_models
+from .records import apply_record_changes, build_record_changes
 from .reference_policy import normalize_reference_curation_status
 from .publication import publication_corpus_key
 
@@ -2648,7 +2648,7 @@ def review_reporting_packet(
         actor_sub=auth_claims.get("sub"),
         semantic_relations=relations,
     )
-    changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+    changes = build_record_changes(client, plan["records"])
     apply = resolve_mutation_apply(options, "assignments review-reporting-packet")
     if apply:
         apply_record_changes(client, changes)
@@ -2707,7 +2707,7 @@ def run_copywriting_assignment(
         actor_label=actor_label,
         actor_sub=auth_claims.get("sub"),
     )
-    changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+    changes = build_record_changes(client, plan["records"])
     apply = resolve_mutation_apply(options, "assignments run-copywriting")
     from .story_from_reference import check_body_against_references, current_reference
     from .story_reporting import BASED_ON, link_reference_to_story
