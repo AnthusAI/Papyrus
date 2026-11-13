@@ -136,6 +136,7 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
     sections = tuple(
         dataclasses.replace(
             section,
+            base=edition_base(standard, section),
             label=strings[f"section.{section.name}.label"] if section.listing and section.listing_page else section.label,
             description=localized(section.description, strings, f"section.{section.name}.description") if section.listing and section.listing_page else section.description,
             index=None,   # a section front page carries a Reference grid and authored words
@@ -143,7 +144,8 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
         for section in standard.sections
     )
     hrefs = edition_nav_hrefs(standard)
-    nav = tuple(NavLink(label=strings[f"nav.{link.href}.label"], href="/" + prefix + link.href.lstrip("/") if link.href != "/" else f"/{prefix}/", cta=link.cta)
+    moved = {f"/{section.base}/": f"/{edition_base(standard, section)}/" for section in standard.sections if section.base}
+    nav = tuple(NavLink(label=strings[f"nav.{link.href}.label"], href=f"/{prefix}" + moved.get(link.href, link.href), cta=link.cta)
                 for link in standard.nav if link.href in hrefs)
     return dataclasses.replace(
         standard,
@@ -167,6 +169,22 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
         page_actions=dataclasses.replace(standard.page_actions, enabled=False),
         agents=dataclasses.replace(standard.agents, llms_txt=False, llms_full=False),
     )
+
+
+#: Where a language edition serves its Concepts (the wiki pages): ``/<prefix>/concepts/`` (Ryan, 2026-11-13: the public term). The primary language keeps
+#: its address (``/wiki/`` on the sites that have one), because published URLs are never moved.
+CONCEPTS_BASE = "concepts"
+
+
+def is_concepts_group(standard: StandardSettings, section) -> bool:
+    """The URL group that holds the site's wiki pages: a type group of a wiki type, or the section the wiki sync files them under."""
+    from ...knowledge_wiki.commands import DEFAULT_WIKI_SECTION
+
+    return section.item_type in standard.wiki.types if section.is_type else section.name == DEFAULT_WIKI_SECTION
+
+
+def edition_base(standard: StandardSettings, section) -> str:
+    return CONCEPTS_BASE if is_concepts_group(standard, section) else section.base
 
 
 def edition_nav_hrefs(standard: StandardSettings) -> tuple[str, ...]:

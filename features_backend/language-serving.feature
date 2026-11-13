@@ -80,3 +80,8 @@ Feature: Each language of a Story is served at its own address, and each page na
     When its Spanish translation "el-sonido" is published
     Then from the Spanish page a link to "/articles/the-sound/" goes to "/es/articles/el-sonido/" and stays in Spanish
     And from the Spanish page a link to "/articles/the-other/" stays where it is and is marked as leaving Spanish
+
+  Scenario: A translated Concept page is served under /concepts/ in its language, and the English one keeps /wiki/
+    Given the English Concept page "abliteration" is published in the wiki
+    When its Spanish translation "abliteracion" of the Concept page is published
+    Then the English Concept page stays at "wiki/abliteration/index.html" and the Spanish one is at "es/concepts/abliteracion/index.html"

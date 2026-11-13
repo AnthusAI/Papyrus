@@ -41,9 +41,14 @@ Feature: How a site serves its languages, and the slug each translation is first
     When a slug is drafted from "ＧＰＴ６　发布" with the policy "characters"
     Then the slug is "gpt6-发布"
 
-  Scenario: A very long Chinese title is cut at a whole character to fit the edge's redirect store
-    When a slug is drafted from a Chinese title of 80 characters with the policy "characters"
-    Then the slug is at most 384 bytes once percent-encoded and ends on a whole character
+  Scenario: Only a title longer than a directory name can hold is cut, at a whole character
+    When a slug is drafted from a Chinese title of 100 characters with the policy "characters"
+    Then the slug is its first 85 characters, 255 bytes of UTF-8, the most a directory name holds
+    And the longest Chinese page address stays within an S3 key and a CloudFront request line once percent-encoded
+
+  Scenario: A Chinese title of ordinary length is kept whole
+    When a slug is drafted from a Chinese title of 40 characters with the policy "characters"
+    Then the slug is the whole title
 
   Scenario: A title that leaves nothing gets no invented address
     When a slug is drafted from "？！……" with the policy "characters"

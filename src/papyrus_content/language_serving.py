@@ -29,13 +29,13 @@ import humanus
 
 from .editorial_languages import canonical, site_languages
 from .markus_renderer.build import page_slug, slugify
-from .url_paths import encoded_path
 
 SLUG_POLICIES = ("translated", "characters", "pinyin", "primary")
-#: The longest slug, counted as the percent-encoded bytes a URL carries (a Chinese character is 9: ``%E8%83%BD``). A retired page's address becomes a
-#: key of the edge's redirect store, a CloudFront KeyValueStore, whose keys are at most 512 bytes; 384 leaves 128 for the language prefix, the section and
-#: the slashes. That is 42 Chinese characters or 384 ASCII ones.
-SLUG_MAX_ENCODED_BYTES = 384
+#: The longest slug, in bytes of UTF-8 (Ryan, 2026-11-13: no chosen cap, only the technical one). A slug is a directory name in a local build
+#: (``articles/<slug>/index.html``), and 255 bytes is the file-name limit of the file systems a site is built on (APFS, ext4): 85 Chinese characters.
+#: Its percent-encoded URL (9 bytes a Chinese character, 765 at most) stays inside S3's 1,024-byte keys and CloudFront's 8,192-byte request line;
+#: it can exceed the 512-byte keys of the edge's redirect store, which only a retired or renamed page needs (docs/multilingual-serving.md).
+SLUG_MAX_BYTES = 255
 _PREFIX = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
@@ -135,14 +135,10 @@ def normalized_slug(slug: str) -> str:
 
 
 def _within_bytes(slug: str, limit: int) -> str:
-    """``slug`` cut so its percent-encoded form is at most ``limit`` bytes, at the last hyphen that fits (else after a whole character)."""
-    if len(encoded_path(slug)) <= limit:
+    """``slug`` cut to at most ``limit`` bytes of UTF-8, at the last hyphen that fits (else after a whole character), never mid-character."""
+    if len(slug.encode("utf-8")) <= limit:
         return slug
-    cut = ""
-    for character in slug:
-        if len(encoded_path(cut + character)) > limit:
-            break
-        cut += character
+    cut = slug.encode("utf-8")[:limit].decode("utf-8", "ignore")
     word = cut.rsplit("-", 1)[0] if "-" in cut else cut
     return word.strip("-")
 
@@ -152,7 +148,7 @@ def script_slug(title: str) -> str:
 
     Full-width letters and digits become their ordinary forms and letters are lowercased (Unicode NFKC, then lowercase); every run of anything that
     is not a letter or a digit (punctuation, full-width punctuation such as ，。「」, symbols, spaces including the ideographic space) becomes one hyphen;
-    the result is NFC and at most :data:`SLUG_MAX_ENCODED_BYTES` bytes once percent-encoded. A title whose letters all fold to ASCII gets the ordinary
+    the result is NFC and at most :data:`SLUG_MAX_BYTES` bytes of UTF-8. A title whose letters all fold to ASCII gets the ordinary
     slug (:func:`papyrus_content.markus_renderer.build.page_slug`), so the stored slug is always the slug its page is served under.
     ``能泄露你住在哪里的声音`` stays as it is; ``AI，会说谎吗？`` is ``ai-会说谎吗``."""
     folded = unicodedata.normalize("NFKC", title).lower()
@@ -165,7 +161,7 @@ def script_slug(title: str) -> str:
             current = []
     if current:
         parts.append("".join(current))
-    return _within_bytes(page_slug("-".join(parts)), SLUG_MAX_ENCODED_BYTES)
+    return page_slug(_within_bytes(unicodedata.normalize("NFC", "-".join(parts)), SLUG_MAX_BYTES))
 
 
 def localized_slug(title: str, policy: str, *, primary_slug: str, romanize: Callable[[str], str] | None = None) -> str:
@@ -174,13 +170,13 @@ def localized_slug(title: str, policy: str, *, primary_slug: str, romanize: Call
     if policy == "primary":
         return normalized_slug(primary_slug)
     if policy == "translated":
-        slug = _within_bytes(slugify(title), SLUG_MAX_ENCODED_BYTES)
+        slug = _within_bytes(slugify(title), SLUG_MAX_BYTES)
     elif policy == "characters":
         slug = script_slug(title)
     elif policy == "pinyin":
         if romanize is None:
             raise ValueError("The pinyin slug policy needs a romanizer: the caller passes the function that writes the title in Latin letters.")
-        slug = _within_bytes(slugify(romanize(title)), SLUG_MAX_ENCODED_BYTES)
+        slug = _within_bytes(slugify(romanize(title)), SLUG_MAX_BYTES)
     else:
         raise ValueError(f"{policy!r} is not one of {', '.join(SLUG_POLICIES)}.")
     if not slug:
@@ -190,13 +186,13 @@ def localized_slug(title: str, policy: str, *, primary_slug: str, romanize: Call
 
 def unique_slug(slug: str, taken: Callable[[str], bool]) -> str:
     """``slug``, or ``slug-2``, ``slug-3``, ... : the first that no other Story of the same language has (``taken`` answers for one language). The suffix
-    keeps the slug within :data:`SLUG_MAX_ENCODED_BYTES`."""
+    keeps the slug within :data:`SLUG_MAX_BYTES`."""
     if not taken(slug):
         return slug
     number = 2
     while True:
         suffix = f"-{number}"
-        candidate = _within_bytes(slug, SLUG_MAX_ENCODED_BYTES - len(suffix)) + suffix
+        candidate = _within_bytes(slug, SLUG_MAX_BYTES - len(suffix)) + suffix
         if not taken(candidate):
             return candidate
         number += 1

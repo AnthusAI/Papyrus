@@ -48,6 +48,8 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", folded.lower()).strip("-")
 
 
+#: A page's directory name is at most 255 bytes of UTF-8 on the file systems a site is built on (language_serving.SLUG_MAX_BYTES).
+SCRIPT_SLUG_MAX_BYTES = 255
 _SCRIPT_SLUG = re.compile(r"^[^\W_]+(?:-[^\W_]+)*$")
 
 
@@ -63,6 +65,9 @@ def page_slug(name: str) -> str:
     fold (Chinese characters), is kept as it is, in Unicode NFC: ``能泄露你住在哪里的声音`` stays, where ASCII folding would leave nothing."""
     normalized = unicodedata.normalize("NFC", name)
     if not all(_folds_to_ascii(character) for character in normalized) and normalized == normalized.lower() and _SCRIPT_SLUG.match(normalized):
+        if len(normalized.encode("utf-8")) > SCRIPT_SLUG_MAX_BYTES:
+            raise ValueError(f"The slug {normalized!r} is {len(normalized.encode('utf-8'))} bytes of UTF-8; a page's directory name is at most "
+                             f"{SCRIPT_SLUG_MAX_BYTES} bytes (85 Chinese characters). Give it a shorter slug.")
         return normalized
     return slugify(name)
 

@@ -33,16 +33,16 @@ from projection_fixtures import RecordingWriter  # noqa: E402
 ORIGIN = "https://machines.example.test"
 PROJECTION = {
     "site": {"name": "Machines on Machines", "description": "Machines writing about machines.", "productionUrl": ORIGIN, "language": "en"},
-    "urls": {"style": "directory", "sections": {"articles": {"base": "articles", "label": "Articles"}}},
+    "urls": {"style": "directory", "sections": {"articles": {"base": "articles", "label": "Articles"}, "wiki": {"base": "wiki", "label": "Wiki"}}},
     "sitemap": {"style": "index"},
     "environment": {"guard": False},
 }
 STRINGS = {
     "en": {"language.name": "English", "switcher.label": "Language"},
     "es-419": {"language.name": "Español", "switcher.label": "Idioma", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
-               "site.description": "Máquinas que escriben sobre máquinas.", "section.articles.label": "Artículos"},
+               "site.description": "Máquinas que escriben sobre máquinas.", "section.articles.label": "Artículos", "section.wiki.label": "Conceptos"},
     "zh-Hans": {"language.name": "中文", "switcher.label": "语言", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
-                "site.description": "机器书写机器。", "section.articles.label": "文章"},
+                "site.description": "机器书写机器。", "section.articles.label": "文章", "section.wiki.label": "概念"},
 }
 LANGUAGES = {"primary": "en", "enabled": ["en", "es-419", "zh-Hans"], "prefixes": {"es-419": "es", "zh-Hans": "zh"}, "public": ["en", "es-419", "zh-Hans"]}
 NOW = "2026-11-13T00:00:00Z"
@@ -77,8 +77,9 @@ class LanguageSite:
         report = project_all(self.context)
         assert report.ok, report.errors
 
-    def publish(self, item_id: str, *, lineage: str, slug: str, title: str, language: str, group: str, date: str = "2026-11-01") -> None:
-        item = {"id": item_id, "lineageId": lineage, "type": "article", "slug": slug, "section": "articles", "title": title, "status": "published",
+    def publish(self, item_id: str, *, lineage: str, slug: str, title: str, language: str, group: str, date: str = "2026-11-01",
+                item_type: str = "article", section: str = "articles") -> None:
+        item = {"id": item_id, "lineageId": lineage, "type": item_type, "slug": slug, "section": section, "title": title, "status": "published",
                 "language": language, "languageGroupId": group, "contentHash": f"{slug}-{language}",
                 "metadata": {"frontMatterYaml": f"title: {json.dumps(title, ensure_ascii=False)}\ndate: '{date}'\ndescription: {json.dumps(title, ensure_ascii=False)}\n"},
                 "bodyMarkus": f"{title}.\n"}
@@ -433,3 +434,27 @@ def step_link_stays(context, path, target):
 @then('from the Spanish page a link to "{path}" stays where it is and is marked as leaving Spanish')
 def step_link_leaves(context, path):
     assert _spanish_page(context).link_in_language(path) == (path, True)
+
+
+@given('the English Concept page "{slug}" is published in the wiki')
+def step_wiki_english(context, slug):
+    _ensure_built(context)
+    site = _site(context)
+    site.publish(f"{slug}-v1", lineage=slug, slug=slug, title="Abliteration", language="en", group=slug, item_type="wiki_page", section="wiki")
+    site.project(f"{slug}-v1")
+    context.wiki_slug = slug
+
+
+@when('its Spanish translation "{slug}" of the Concept page is published')
+def step_wiki_spanish(context, slug):
+    site = _site(context)
+    lineage = localization_lineage_id(context.wiki_slug, "es-419")
+    site.publish(f"{lineage}-v1", lineage=lineage, slug=slug, title="Abliteración", language="es-419", group=context.wiki_slug, item_type="wiki_page", section="wiki")
+    site.project(f"{lineage}-v1")
+
+
+@then('the English Concept page stays at "{key}" and the Spanish one is at "{spanish}"')
+def step_wiki_keys(context, key, spanish):
+    site = _site(context)
+    assert site.exists(key) and site.exists(spanish), site.keys()
+    assert ("es-419", f"{ORIGIN}/" + spanish[: -len("index.html")]) in _hreflang(site.text(key))

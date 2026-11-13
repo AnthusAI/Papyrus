@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from papyrus_content.language_serving import SLUG_MAX_ENCODED_BYTES, EmptySlug, localized_slug, serving_languages, unique_slug  # noqa: E402
+from papyrus_content.language_serving import SLUG_MAX_BYTES, EmptySlug, localized_slug, serving_languages, unique_slug  # noqa: E402
 from papyrus_content.url_paths import encoded_path  # noqa: E402
 
 
@@ -60,9 +60,9 @@ def _draft(context, title, policy, **keywords):
         context.slug, context.slug_refusal = None, str(error)
 
 
-@when('a slug is drafted from a Chinese title of 80 characters with the policy "{policy}"')
-def step_draft_long(context, policy):
-    context.long_title = ("能泄露你住在哪里的声音" * 8)[:80]
+@when('a slug is drafted from a Chinese title of {count:d} characters with the policy "{policy}"')
+def step_draft_long(context, count, policy):
+    context.long_title = ("能泄露你住在哪里的声音" * 10)[:count]
     _draft(context, context.long_title, policy)
 
 
@@ -86,10 +86,23 @@ def step_slug(context, slug):
     assert context.slug == slug, context.slug
 
 
-@then("the slug is at most 384 bytes once percent-encoded and ends on a whole character")
+@then("the slug is its first 85 characters, 255 bytes of UTF-8, the most a directory name holds")
 def step_long(context):
-    assert len(encoded_path(context.slug)) <= SLUG_MAX_ENCODED_BYTES == 384
-    assert context.long_title.startswith(context.slug) and len(context.slug) == SLUG_MAX_ENCODED_BYTES // 9
+    assert context.slug == context.long_title[:85] and len(context.slug.encode("utf-8")) == SLUG_MAX_BYTES == 255
+
+
+@then("the longest Chinese page address stays within an S3 key and a CloudFront request line once percent-encoded")
+def step_limits(context):
+    key = f"zh/concepts/{context.slug}/index.html"
+    url = encoded_path("/" + key)
+    assert len(key.encode("utf-8")) <= 1024            # an S3 object key is at most 1,024 bytes of UTF-8
+    assert len(url) <= 8192                             # CloudFront's request line (URL and query) is at most 8,192 bytes
+    assert len(encoded_path(f"/zh/concepts/{context.slug}/")) > 512   # recorded, not hidden: above a KeyValueStore key (redirects only)
+
+
+@then("the slug is the whole title")
+def step_whole(context):
+    assert context.slug == context.long_title
 
 
 @then("the drafting is refused and asks for a slug to be given")

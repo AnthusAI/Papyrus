@@ -38,6 +38,8 @@ The standard front end projects a site that serves more than one language as one
 
 A language with nothing published has no page, feed or sitemap. A localization is served only while its original is published: its group facts (section, references, stars) are the original's.
 
+Concepts: a language edition serves the site's wiki pages under `/<prefix>/concepts/` (Ryan, 2026-11-13: "Concepts" is the public term). The primary language keeps its address (`/wiki/` on the sites that have one), because published URLs are never moved; the English `/wiki/` and the Spanish `/es/concepts/` pages of one Concept are each other's `hreflang` alternates. The Concepts group is the type group of a wiki type, or the section the wiki sync files pages under (`wiki`).
+
 So an English listing, feed or sitemap never lists a translation, and a Spanish one lists only Spanish Stories. The static projection needs no new index for this: it already reads every published summary once per run (`list_published_item_summaries`), and each summary carries `language` and `languageGroupId` (copied onto `PublishedItem` at publish; no index on them).
 
 The CMS's own listing keys (`typeStatus`, `sectionStatus`, `headStageKey`, read by the console, the reader app and the newsroom commands) do not carry the language yet; that is the plan's "listing keys carry the language" change, filed as PPY-f33254 (see [Not built yet](#not-built-yet)).
@@ -101,7 +103,7 @@ A slug's stored form is `page_slug` (`markus_renderer/build.py`): a name whose e
 Drafting a slug (`localized_slug`, used by the translation procedure at a localization's first publish):
 
 - `characters`: full-width letters and digits become ordinary ones and letters are lowercased (NFKC); every run of anything that is not a letter or digit (punctuation, full-width punctuation such as `，。「」`, symbols, spaces including the ideographic space) becomes one hyphen. `AI，会说谎吗？「真相」` becomes `ai-会说谎吗-真相`.
-- The longest slug is 384 bytes once percent-encoded (42 Chinese characters), cut at a hyphen or a whole character. A retired page's address becomes a key of the edge's redirect store, a CloudFront KeyValueStore whose keys are at most 512 bytes; 128 bytes are left for the prefix, the section and the slashes.
+- There is no chosen length limit (Ryan, 2026-11-13). The one technical limit is the directory name a page is written under: 255 bytes of UTF-8 on the file systems a site is built on (85 Chinese characters). Only a longer title is cut, at a hyphen or a whole character; a stored slug longer than that is refused when its page is projected. Its percent-encoded address (at most 765 bytes for the slug) stays inside an S3 key (1,024 bytes) and CloudFront's request line (8,192 bytes). It can exceed the 512-byte key of the edge's redirect store (a CloudFront KeyValueStore), which only a retired or renamed page needs: a Chinese slug above 56 characters cannot be redirected from until the redirect store takes longer keys (a decision for Ryan).
 - A title that leaves nothing (only punctuation) is refused: the localization waits for a person to give it a slug. No address is invented.
 - `unique_slug` adds `-2`, `-3` and so on until no other Story of the same language has the slug.
 - After the first publish the slug is fixed by the slug lock; a later change is a retire with redirect for that language only.
