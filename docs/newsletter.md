@@ -78,7 +78,7 @@ Status: Live for Shipped (PPY-874ad4).
 
 Each site that will send newsletters gets its own CloudFormation stack, `papyrus-newsletter-sending-<siteId>`, from `infra/newsletter/papyrus-newsletter-sending.yaml`. It creates the SES identity for the sending domain with Easy DKIM and a custom MAIL FROM domain, the DNS records for them and for DMARC, a configuration set `papyrus-<siteId>` without open or click tracking, and an SNS topic `papyrus-newsletter-events-<siteId>` that carries delivery events. The stack for Shipped sends from `shipped.anth.us`; its identity, DKIM and MAIL FROM checks all pass.
 
-The stack does not send mail and does not lift the SES sandbox. Parameters, the deploy command, verification checks and teardown are in `infra/newsletter/README.md`.
+The stack does not send mail and does not lift the SES sandbox. Parameters, the deploy command, verification checks and teardown are in `infra/newsletter/README.md`. The same identity and configuration set also carry the site's notifications (`docs/notifications.md`): messages are told apart by their tags, the newsletter ignores any event without a valid `sub` tag, and the bounce and complaint alarms and the pause stay with the newsletter plugin where it is enabled.
 
 ## The newsletter plugin: double opt-in
 

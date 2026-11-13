@@ -362,3 +362,77 @@ def step_every_source(context):
 def step_layers(context, first, second):
     layers = context.answer["layers"]
     assert [layer["slug"] for layer in layers] == [first, second] and all(layer["contentHash"].startswith("sha256:") for layer in layers)
+
+
+# --- the order of a save: row, then document -------------------------------------------------------------------------------------------------------
+
+import papyrus_content.guidelines.byline, papyrus_content.guidelines.figure_rules, papyrus_content.guidelines.procedure  # noqa: E402,F401  (register their kinds)
+
+
+class FailingOnce(FakeFiles):
+    """The S3 side whose next upload fails, as a dropped connection would."""
+
+    def __init__(self, backend):
+        super().__init__(backend)
+        self.fail_next = True
+
+    def put(self, attachment, body):
+        if self.fail_next:
+            self.fail_next = False
+            raise RuntimeError("Upload failed with status 503")
+        return super().put(attachment, body)
+
+
+@when('an admin saves a minimal "{kind}" document with the reason "{reason}"')
+def step_minimal(context, kind, reason):
+    context.saved = {"schemaVersion": 1}
+    save(context, context.saved, kind=kind, reason=reason)
+    assert context.error is None, context.error
+
+
+@then("the row was created before its document was attached")
+def step_row_first(context):
+    created = [i for i, w in enumerate(context.backend.writes) if w[0] == "create"]
+    assert created, context.backend.writes
+    # the fake refuses a file for a missing Item, so a document that is stored proves the order; and no version is left pending
+    assert context.backend.attachments and all(row["versionState"] != "pending" for row in context.backend.items)
+
+
+@then('the "{kind}" guidelines are at version {number:d} with their document attached')
+def step_kind_attached(context, kind, number):
+    read = context.store.read(kind)
+    assert read["reference"]["versionNumber"] == number and read["document"] == context.saved
+
+
+@when("the upload of a first writing document fails")
+def step_upload_fails(context):
+    context.backend = FakeBackend()
+    context.files = FailingOnce(context.backend)
+    context.store = GuidelineStore(context.backend, context.files)
+    context.upload_error = None
+    try:
+        save(context, SITE)
+    except RuntimeError as error:
+        context.upload_error = error
+    context.saved = SITE
+
+
+@then("the save is refused with the upload's message")
+def step_upload_message(context):
+    assert context.upload_error is not None and "503" in str(context.upload_error)
+
+
+@then("the interrupted version is not visible: there are no writing guidelines and no history")
+def step_not_visible(context):
+    assert context.store.read("writing") is None and context.store.history("writing") == []
+
+
+@when("the same save is made again")
+def step_again(context):
+    save(context, SITE)
+    assert context.error is None, context.error
+
+
+@then("exactly one catalog row and one file are stored")
+def step_one_and_one(context):
+    assert counts(context) == (1, 1), counts(context)

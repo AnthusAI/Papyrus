@@ -20,26 +20,39 @@ One definition of how a Story moves through the newsroom. The command line reads
 | review_social | copywriting | Editor or reviewing agent | the same, with `--step review_social` | live, by hand |
 | concepts | copywriting | Editor or reviewing agent | `papyrus stories link-concept --story LINEAGE --concept NAME --note WHY`, then `papyrus stories step --story LINEAGE --step concepts --state done --note FINDINGS` | live, by hand, required |
 | related_content | copywriting | Editor or reviewing agent | `papyrus stories suggest-links --story LINEAGE`, link the good ones with `stories link-story`, then `--step related_content --state done --note FINDINGS` | live, by hand, required |
-| illustration | illustration | Editor, or an agent following the [figures skill](../.agents/skills/figures/SKILL.md) | `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures` (an approved cover); or a person records an exception with `papyrus stories step --story LINEAGE --step illustration --state skipped --reason WHY` | live, by evidence, required for the Story types that need a cover |
+| illustration | illustration | Editor, or an agent following the [figures skill](../.agents/skills/figures/SKILL.md) | `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures` (a cover); or a person records an exception with `papyrus stories step --story LINEAGE --step illustration --state skipped --reason WHY` | live, by evidence, required for the Story types that need a cover |
+| rated | illustration | An editor | `papyrus stories set-stars --story LINEAGE --stars N` | live, by evidence, required only for a site that turns on `publishRequiresRating` |
 | typesetting | typesetting | Editor | none yet | not built, optional |
 | publish | published | A person | `papyrus ops content publish --id ITEM_ID` | live |
 
 The `concepts` and `related_content` steps come after the four review lenses and before publishing (template version 4). Both are required like the reviews: done with a findings note (the Concepts added and those left out; what was linked and what was left out and why), skipped with a reason, or not applicable with a reason. No Story command creates a Concept: make a missing one from a Reference (`references link --reference ID --concept NAME --create`) or in the newsroom.
 
-The `illustration` step comes after `related_content` and before publishing (template version 5). See [The Illustration step](#the-illustration-step). The illustration and typesetting stages are described in [story-illustration-typesetting.md](story-illustration-typesetting.md).
+The `illustration` step comes after `related_content` and before publishing (template version 5). See [The Illustration step](#the-illustration-step). The `rated` step follows it (template version 6). See [The Rated step](#the-rated-step). The illustration and typesetting stages are described in [story-illustration-typesetting.md](story-illustration-typesetting.md).
 
 ## The Illustration step
 
 Added in template version 5 after a Story was published with no cover while its checklist read 13/13. It is **live and required** for the Story types that need a cover, and it is a publish gate like the review steps.
 
 - **Which types.** The design-system setting `illustrationRequiredTypes` (a list of Story types; set it in the design system's `settings.json`, see [figures.md](figures.md)). Unset, it is `["article"]`, so articles need a cover and posts and other types do not. A Story with no type yet counts as required until a type is chosen. For a type the site does not list, the step reads `not_applicable` in `stories next`, has no checklist item, and does not block publishing.
-- **Done only by evidence, never by hand.** The step is done when the current version of the Story has a cover that is an approved stored asset: front matter `image` (or `cover`) names a picture that is a `MediaAsset` of that version (matched by `srcPath`; a remote address does not count), and a person approved it. The approval is an existing record, not a new one: the stock cover record `coverImage` (its `pickedBy` and `pickedAt`, written by the newsroom's Cover image) for that picture, or a figure's credit line `Approved by NAME` on the body's `::image{}` of that picture (a figure's `approved_by` from `papyrus figures render`; the `<name>` placeholder does not count). The checklist marks the step done by itself once that is true, as "Automatically, from the approved cover". `stories step --step illustration --state done` is accepted only when those records prove it, and otherwise refused with what is missing.
+- **Done only by evidence, never by hand.** The step is done when the current version of the Story has a cover that is a stored asset: front matter `image` (or `cover`) names a picture that is a `MediaAsset` of that version (matched by `srcPath`; a remote address does not count). **No approval is required by default, and none is required on any site unless it opts in** (below). A generated cover has no credit line at all and a third-party picture keeps its own credit. When a person does approve a cover, the approval is metadata in the front matter record `coverImage` for that picture (`srcPath`): `approvedBy` with `approvedAt`, or `pickedBy` with `pickedAt` for a stock picture picked in the newsroom's Cover image. It is never a visible credit, and the evidence names the approver when there is one. The checklist marks the step done by itself once the cover is stored, as "Automatically, from the cover". `stories step --step illustration --state done` is accepted only when those records prove it, and otherwise refused with what is missing.
+- **Optional approval (opt-in).** A site that wants approval enforced turns on the design-system setting `illustrationRequireApprovalCredit` (off unless a site sets it; MoM does not). The step then stays open until the `coverImage` record names an approver (`approvedBy`) and the cover's image line carries `Approved by NAME`. One setting covers both the record and the line.
 - **Light and dark.** Where the site requires dark figures (`requireDarkFigures`), a figure cover also needs a stored dark picture (`srcDark` on its image, or front matter `imageDark`/`coverDark`). A dark picture that is named must be a stored asset whether required or not. A stock photograph has no dark twin and is never asked for one. If the setting cannot be read, a light-only figure reads `unknown` and does not pass.
 - **The exception.** A person can instead skip the step, or mark it not applicable, with a reason: `papyrus stories step --story LINEAGE --step illustration --state skipped --reason "WHY"`. The reason is recorded with who and when, like any skip. An agent cannot record this exception (it asks an editor). An exception stands for the Story and is not tied to a version.
 - **Staleness.** The step is versioned: a `done` recorded against an earlier version reads `stale` in `stories next` once the cover is gone from the current version.
-- **The gate.** Publishing (a first publication or a revision of a published Story) refuses a Story whose step is unresolved: it checks the version being published, so a step recorded done before the cover was removed does not pass. The error names the step and says how to resolve it (add an approved cover with `papyrus stories save-version ... --images`, or record the exception with `stories step`).
+- **The gate.** Publishing (a first publication or a revision of a published Story) refuses a Story whose step is unresolved: it checks the version being published, so a step recorded done before the cover was removed does not pass. The error names the step and says how to resolve it (add a stored cover with `papyrus stories save-version ... --images`, or record the exception with `stories step`).
 - **Published history is left alone.** A Story that was published before this step existed gets no item for it, `stories next` does not list it as remaining, and `stories checklist-backfill` does not add it. A revision of that Story (or a republish) is held to the step like any draft: it publishes once the step is closed by a cover or by an exception.
 - **Existing drafts.** The next change to an unpublished Story adds the item (open, or done where the cover already proves it), exactly as for every earlier template step; `papyrus stories checklist-backfill` does the same for all of them at once and is safe to run again.
+
+## The Rated step
+
+Added in template version 6 so that nothing arrives unrated: an unrated Story ranks below every rated one and is invisible on the indexes until someone rates it. It is a publish gate like the other steps, and **it applies only to a site that turns it on**.
+
+- **The setting.** `publishRequiresRating`, a true or false setting in the site's design-system `settings.json` (see [figures.md](figures.md); push it with `papyrus design-system push`). It is off when unset, so no site is held to it unless it sets it. Machines on Machines sets `{"publishRequiresRating": true}`. While it is off the step reads `not_applicable` in `stories next`, has no checklist item and never blocks publishing. Turning it on gives every unpublished Story the step at its next change.
+- **Done only by evidence, never by hand.** The step is done when the current version of the Story has an editor's star rating of 1 to 5 recorded by a person: the private rating that `papyrus stories set-stars --story LINEAGE --stars N` sets (`starRating` with `starRatedBy`). A rating of 0 clears it, and a model's prediction is a different record that never counts. `stories step --step rated --state done` is accepted only when the rating proves it. The step has no exception: a person cannot skip it or mark it not applicable.
+- **The gate.** Publishing judges the rating on the version being published, not a stored answer, and refuses with `Rate the Story (rated)`, what is missing, and the command: `papyrus stories set-stars --story LINEAGE --stars N`.
+- **Republishing and existing Stories.** A new version of a Story keeps its rating, so a republish of a rated Story passes. A Story that is already published stays published whatever its rating; only a publish or a republish is gated, so an unrated published Story cannot be republished until it is rated. A published Story gets no `rated` item.
+- **The checklist catches up at the next change.** `set-stars` does not touch the checklist, so the item reads open (with a hint that the records show it done) until the next write to the Story; the publish gate does not wait for that.
+- The star ranking is unchanged.
 
 ## Share a review link
 
@@ -98,7 +111,8 @@ How each step reads its record:
 - draft is done when the current version number is above the outline's version number; with no outline, when the body is not empty and the Story is at copywriting or later.
 - copy_edit is done when the stored editorial check of the current version has finished and has no error-level violation.
 - editor_review is done when the stored review is for the current version and approves it.
-- illustration is done when the current version has an approved, stored cover (see [The Illustration step](#the-illustration-step)); not applicable for a Story type the site does not list.
+- illustration is done when the current version has a stored cover (see [The Illustration step](#the-illustration-step)); not applicable for a Story type the site does not list.
+- rated is done when the current version has an editor's star rating of 1 to 5 recorded by a person (see [The Rated step](#the-rated-step)); not applicable for a site that has not turned on `publishRequiresRating`.
 - publish is done when the Story is published.
 
 `papyrus stories next` also prints one `lens` line for each of the four review steps (people, AI reader agents, search, social previews) that is not done or is stale, with its audience. Those steps and their checks are defined in [four-lens-review.md](four-lens-review.md).
@@ -116,3 +130,28 @@ The draft moves a Story to copywriting if it was earlier, marks the References i
 A body with `[@key]` markers and no `::citations{}` line is flagged by the review check A5 (a warning, to be mentioned in the review step's note), naming the markers; the page appends the bibliography so no marker links to a missing anchor ([markus markup](markus-content-markup.md#the-bibliography)). A marker whose key is not among the Story's entries is flagged the same way and is refused when the Story is saved.
 
 Every pack also says where the Story is in this procedure, so an agent knows what came before it and what comes after, whatever started it.
+
+
+## A site's own procedure
+
+The list above is the default. A site saves its own with `papyrus guidelines save --kind procedure --file procedure.yml --reason "..." --expected-current-version-id none` (or `item-editorial-doctrine-procedure-v1` to replace a saved one). The document is `schemaVersion: 1` and `steps`, the whole ordered list, which must end with `publish`:
+
+```yaml
+schemaVersion: 1
+steps:
+  - key: choose
+  - key: draft
+    title: Write the piece
+  - key: label_check          # a step of the site's own: it needs a title and a stage
+    stage: copywriting
+    title: Check the satire label
+    role: Editor
+    note: Confirm the label is on the page.
+    optional: false
+  - key: publish
+```
+
+- A **built-in step** (a key from the table above) keeps its status, its stage and the checks that decide whether it is done. The entry may change only its words (`title`, `role`, `command`, `note`) and `optional`. A built-in step left out of the list is not part of the site's procedure, and has no checklist item.
+- A **step of the site's own** has a new key (lowercase letters, digits and underscores), a `title` and a `stage`, and may carry `role`, `command`, `note`, `optional` and `versioned`. No record proves it, so it is done by hand: marking it done needs a short findings note, exactly like a review step, and a versioned one goes stale when the Story changes.
+- The Story's checklist, the reminders after a write, `papyrus stories next`, the process layer of an agent's context and the publish rule (publishing refuses while a required step is open) all follow the site's list. If the site's document cannot be read, nothing guesses: publishing is refused and a reminder is not computed, each saying why. A role that cannot read the site's documents (the monitoring router that files ideas) files no checklist; the idea gets its checklist, from the site's procedure, at its next change by a role that can.
+- A site that has saved nothing gets the default list. The built-in steps' checks stay in code (they are facts about the records); only the list, the order and the words belong to the site. Code: `newsroom_process.procedure_of`, `Procedure`, `procedure_from_document`.
