@@ -15,10 +15,10 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 
 ## Counts
 
-- 69 models, 189 indexes.
+- 70 models, 189 indexes.
 - Indexes by class: tenant-prefixed 11, corpus-prefixed 15, record-id 69, global 94.
 - Indexes that list a tenant once prefixed: 36; dense indexes: 101.
-- Models: 27 with an index that lists a tenant, 34 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
+- Models: 27 with an index that lists a tenant, 35 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
 
 ## Models
 
@@ -47,6 +47,7 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 | `KnowledgeImportRun` | 3 | yes | `listKnowledgeImportRunsByKindAndImportedAt` |
 | `KnowledgeRawPayload` | 2 | no, needs a tenantId index |  |
 | `LexicalSteeringRule` | 4 | yes | `listLexicalSteeringRulesByScopeAndTerm`, `listLexicalSteeringRulesByStatusAndTerm` |
+| `LocalizationRequest` | 0 | no index, needs a tenantId index |  |
 | `MediaAsset` | 2 | yes | `listMediaAssetsByRoleAndItem` |
 | `Message` | 12 | yes | `listMessagesByKindAndCreatedAt`, `listMessagesByDomainAndCreatedAt`, `listMessagesByStatusAndCreatedAt` |
 | `MessageThread` | 5 | yes | `listMessageThreadsByKindAndUpdatedAt`, `listMessageThreadsByStatusAndUpdatedAt` |
@@ -99,6 +100,7 @@ Spread is how many partitions one tenant's rows fall into: `one` (a constant or 
 - `Automation` (no index at all)
 - `EditorialCheckSettings` (no index at all)
 - `EditorialPolicy` (no index at all)
+- `LocalizationRequest` (no index at all)
 - `ReaderFlag` (no index at all)
 - `ReaderHandle` (no index at all)
 - `ReaderVote` (no index at all)

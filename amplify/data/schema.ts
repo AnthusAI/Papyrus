@@ -2450,6 +2450,28 @@ const definitions = {
       allow.groups(contentWriteGroups),
     ]),
 
+  /** A translation someone wants: the newest published source version of one Story to translate into one language (docs/plans/multilingual-publishing.md,
+   *  "Once per change"; src/papyrus_content/localize/desired_state.py). One row per language group and language, id `{languageGroupId}#{language}`; a newer
+   *  request overwrites the older one, and the translation run records its outcome here. */
+  LocalizationRequest: modelWithoutSubscriptions({
+      id: a.id().required(),
+      tenantId: a.string(),
+      languageGroupId: a.string().required(),
+      language: a.string().required(),
+      sourceVersionId: a.id().required(),
+      sourceVersionNumber: a.integer().required(),
+      sourceContentHash: a.string().required(),
+      state: a.string().required(),
+      requestedBy: a.string(),
+      requestedAt: a.datetime(),
+      runKey: a.string(),
+      reason: a.string(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.groups(contentWriteGroups),
+    ]),
+
   Tag: modelWithoutSubscriptions({
       id: a.id().required(),
       tenantId: a.string(),

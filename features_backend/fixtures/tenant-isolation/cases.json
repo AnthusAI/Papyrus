@@ -1,9 +1,9 @@
 {
   "generatedBy": "scripts/generate-tenant-isolation-cases.ts",
   "summary": {
-    "models": 69,
+    "models": 70,
     "globalModels": 3,
-    "modelCases": 477,
+    "modelCases": 484,
     "indexCases": 189,
     "subscriptionCases": 9,
     "operationCases": 133,
@@ -1297,6 +1297,62 @@
       "subject": "LexicalSteeringRule",
       "operation": "delete-foreign-row",
       "probe": "alpha deletes \"beta\"'s LexicalSteeringRule",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:get",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s LocalizationRequest by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:list",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "list",
+      "probe": "alpha lists LocalizationRequest rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:LocalizationRequest:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists LocalizationRequest rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a LocalizationRequest with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own LocalizationRequest setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:update-foreign-row",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s LocalizationRequest",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:LocalizationRequest:delete-foreign-row",
+      "kind": "model",
+      "subject": "LocalizationRequest",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s LocalizationRequest",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -7809,6 +7865,11 @@
     },
     {
       "code": "no-tenant-claim-rule",
+      "subject": "LocalizationRequest",
+      "note": "access rests on group rules, none compares tenantId with a token claim"
+    },
+    {
+      "code": "no-tenant-claim-rule",
       "subject": "MediaAsset",
       "note": "access rests on group rules, none compares tenantId with a token claim"
     },
@@ -8170,6 +8231,11 @@
     {
       "code": "tenantId-can-be-changed",
       "subject": "LexicalSteeringRule",
+      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
+    },
+    {
+      "code": "tenantId-can-be-changed",
+      "subject": "LocalizationRequest",
       "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
     },
     {
