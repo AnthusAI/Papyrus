@@ -98,6 +98,72 @@ def test_the_show_command_passes_the_corpus_key_without_the_record_prefix():
     assert seen == [("ref-1", "ai-ml-research")]
 
 
+def _shown_reference_ids(flags):
+    seen = []
+    fake = mock.Mock()
+    fake.show_reference.side_effect = lambda ref, key: seen.append(ref) or reference_row()
+    config = OperatorConfig("cloud", None, None, None, None, None, None, None)
+    with mock.patch.object(reference_commands, "create_backend", return_value=fake), contextlib.redirect_stdout(io.StringIO()):
+        reference_commands.run_references_show(config, flags)
+    return seen
+
+
+@pytest.mark.parametrize("flags, expected", [
+    (["ref-1-v1"], "ref-1-v1"),
+    (["--reference", "ref-1-v1"], "ref-1-v1"),
+    (["--reference=ref-1"], "ref-1"),
+    (["ref-1", "--backend", "cloud"], "ref-1"),
+])
+def test_show_takes_the_id_positionally_or_after_reference(flags, expected):
+    assert _shown_reference_ids(flags) == [expected]
+
+
+@pytest.mark.parametrize("flags, message", [
+    ([], "requires a Reference id"),
+    (["--backend", "cloud"], "requires a Reference id"),
+    (["--reference"], "--reference requires a Reference id"),
+    (["--reference", "a", "b"], "takes one Reference id, got 2"),
+    (["ref-1", "--refrence", "ref-1"], "does not take --refrence"),
+])
+def test_show_fails_loudly_on_a_missing_id_two_ids_or_an_unknown_flag(flags, message):
+    with pytest.raises(OperatorError, match=message) as raised:
+        _shown_reference_ids(flags)
+    assert raised.value.exit_code == 2
+
+
+@pytest.mark.parametrize("flags, message", [
+    ([], "requires a Reference id"),
+    (["--reference", "ref-1", "--offest", "5"], "does not take --offest"),
+    (["ref-1", "--reference", "ref-2"], "takes one Reference id, got 2"),
+])
+def test_text_fails_loudly_on_a_missing_id_two_ids_or_an_unknown_flag(flags, message):
+    config = OperatorConfig("cloud", None, None, None, None, None, None, None)
+    with pytest.raises(OperatorError, match=message) as raised:
+        reference_commands.run_references_text(config, flags)
+    assert raised.value.exit_code == 2
+
+
+@pytest.mark.parametrize("flags", [["ref-1"], ["--reference", "ref-1"], ["ref-1-v1"]])
+def test_text_resolves_a_lineage_id_or_a_record_id_to_the_current_version(flags):
+    from papyrus_content import reference_text_read
+
+    client = Client({"Reference": [reference()]})
+    seen = []
+    config = OperatorConfig("cloud", None, None, None, None, None, None, None)
+    fake = mock.Mock(spec=["_ensure_auth"])
+
+    def read(client_, reference_id, **kwargs):
+        seen.append(story_reporting.current_reference(client_, reference_id)["id"])
+        return {"referenceId": "ref-1-v1", "url": "u", "source": "s", "sourceKind": None, "capturedAt": None, "totalCharacters": 1, "offset": 0,
+                "returnedCharacters": 1, "truncated": False, "flags": [], "nextOffset": None, "text": "x"}
+
+    with mock.patch.object(reference_commands, "create_backend", return_value=fake), \
+         mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, {})), \
+         mock.patch.object(reference_text_read, "read_reference_text", side_effect=read), contextlib.redirect_stdout(io.StringIO()):
+        assert reference_commands.run_references_text(config, flags) == 0
+    assert seen == ["ref-1-v1"]
+
+
 def reference_row():
     from papyrus.operator.output import OperatorRow
     return OperatorRow(kind="cloud-reference", status="", identifier="ref-1-v1", title="A", extra={})
