@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "caad8905-b1e7-4f95-84cc-abd2f9b3c5ad",
+  "issue_id": "PPY-2c412e16-f5d4-4c05-bed7-e691849d8320",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T23:19:29.244Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Every LLM call uses gpt-6-luna: priming gateway, console picker, guard test",
+    "description": "Ryan 2026-11-02: GPT 5.4 Mini spend seen today; all LLM calls use GPT 6 Luna. Moves the priming provider budget gateway (MODEL, Luna rates, reservation), removes non-Luna entries from the console model picker and the console chat responder allowlist, moves .kanbus.yml ai.model, adds a guard test that fails on any other OpenAI model identifier in product code (speech models allowed). Needs a Biblicus release with gpt-6-luna and a pin bump to take effect.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "Claude Code"
+    }
+  }
+}

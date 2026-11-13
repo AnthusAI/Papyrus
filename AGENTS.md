@@ -78,6 +78,7 @@ git worktree add -b docs/my-change ~/Projects/Papyrus-worktrees/my-change origin
 - **GA4 consent is the Anth.us standard**: Consent Mode v2 with the first-party banner. `analytics_only` exists but stays **off** on every site.
 - **Human review is never a story state.** Do not add a "review" stage to a content item; human review is a review request ([review requests](docs/review-requests.md)).
 - **Never create Cognito password users**; sign-in is Google only.
+- **Every LLM call uses `gpt-6-luna`** (Ryan, 2026-11-02). Name no other OpenAI model in product code, configuration or a console picker; `procedures/newsroom/tests/test_luna_only_models.py` fails CI on one. Speech models (`gpt-4o-mini-tts`) are not LLM calls and are allowed there. A deliberate vendor comparison is listed in that test with its reason.
 - **Reader steering stays closed in production** until Prospectus returns a site subject; do not add a flag to open it.
 - Subject areas, corpus names and categories never go into application logic; the pilot-identifier guard (`procedures/guards/check_pilot_identifiers.py`) fails CI on new ones.
 - Ask before changing shared infrastructure (see Ownership).

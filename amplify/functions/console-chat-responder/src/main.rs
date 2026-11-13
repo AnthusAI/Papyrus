@@ -26,14 +26,7 @@ use uuid::Uuid;
 
 const DEFAULT_RESPONSE_TARGET: &str = "cloud";
 const DEFAULT_MODEL: &str = "gpt-6-luna";
-const SUPPORTED_CONSOLE_MODELS: [&str; 6] = [
-    "gpt-6-luna",
-    "gpt-5.5",
-    "gpt-5.4",
-    "gpt-5.4-mini",
-    "gpt-5.4-nano",
-    "gpt-5-nano",
-];
+const SUPPORTED_CONSOLE_MODELS: [&str; 1] = ["gpt-6-luna"];
 const MESSAGE_KIND_CHAT_TURN: &str = "console_chat_turn";
 const MESSAGE_KIND_WEB_CONTEXT: &str = "console_web_context";
 const MESSAGE_KIND_TOOL_CALL: &str = "console_tool_call";
@@ -3037,6 +3030,26 @@ fn to_hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_selected_model_other_than_luna_is_answered_by_the_default() {
+        let mut message = ChatMessage {
+            id: "message-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            role: "USER".to_string(),
+            message_kind: MESSAGE_KIND_CHAT_TURN.to_string(),
+            message_type: "MESSAGE".to_string(),
+            content: "Hello".to_string(),
+            response_target: DEFAULT_RESPONSE_TARGET.to_string(),
+            response_status: "PENDING".to_string(),
+            sequence_number: 1,
+            created_at: now_iso(),
+            metadata: json!({ "model": "a-model-that-is-not-luna" }),
+        };
+        assert_eq!(resolve_message_model(DEFAULT_MODEL, &message), "gpt-6-luna");
+        message.metadata = json!({ "selectedModel": "gpt-6-luna" });
+        assert_eq!(resolve_message_model(DEFAULT_MODEL, &message), "gpt-6-luna");
+    }
 
     #[test]
     fn context_cache_validation_accepts_matching_previous_cursor() {

@@ -90,3 +90,42 @@ def default_models_are(context, model):
 def extraction_setup_model(context, model):
     from papyrus_content.reader_steering.extraction import ExtractionSetup
     assert ExtractionSetup.__dataclass_fields__['model_name'].default == model
+
+
+@when('the priming spending gateway is read')
+def priming_gateway_read(context):
+    from papyrus_content import priming_provider_budget
+    context.priming_gateway = priming_provider_budget
+
+
+@then('the only model it admits is "{model}"')
+def priming_gateway_model(context, model):
+    assert context.priming_gateway.MODEL == model
+
+
+@then('each request reserves its full maximum at $0.10 per million input tokens and $0.50 per million output tokens')
+def priming_gateway_reservation(context):
+    gateway = context.priming_gateway
+    microdollars = gateway.MAX_INPUT_TOKENS * 0.10 + gateway.MAX_OUTPUT_TOKENS * 0.50
+    assert gateway.RESERVATION_MICRODOLLARS == round(microdollars)
+
+
+@when('the product code of the repository is read for OpenAI model identifiers')
+def product_code_read(context):
+    from procedures.newsroom.tests import test_luna_only_models as guard
+    context.model_guard = guard
+    context.other_models = {
+        str(path.relative_to(guard.REPOSITORY_ROOT)): guard.other_models(path.read_text(encoding='utf-8', errors='ignore'))
+        for path in guard.product_files()
+    }
+
+
+@then('the only language model it names is "{model}"')
+def only_language_model(context, model):
+    assert model == context.model_guard.LUNA
+    assert not {path: models for path, models in context.other_models.items() if models}, context.other_models
+
+
+@then('speech synthesis models are the only other model identifiers allowed')
+def only_speech_allowed(context):
+    assert set(context.model_guard.ALLOWED_MODEL_IDENTIFIERS) == {context.model_guard.LUNA, 'gpt-4o-mini-tts'}

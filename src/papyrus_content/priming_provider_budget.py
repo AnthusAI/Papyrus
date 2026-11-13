@@ -15,15 +15,15 @@ import sqlite3
 import time
 from urllib.parse import urlsplit
 
-MODEL='gpt-5.4-mini-2026-03-17'
+MODEL='gpt-6-luna'
 TOKENIZER_ENCODING='o200k_base'
 MAX_REQUESTS=7
 MAX_INPUT_TOKENS=12000
 MAX_OUTPUT_TOKENS=2000
 MAX_MICRODOLLARS=500000
-# Pinned standard rates checked 2026-10-15: $0.75 input/$4.50 output per 1M.
+# Pinned standard rates (src/papyrus_content/data/model_prices.json, LiteLLM standard tier read 2026-10-11): $0.10 input/$0.50 output per 1M.
 # Reserve the full per-request maxima, even if the response uses fewer tokens.
-RESERVATION_MICRODOLLARS=18000
+RESERVATION_MICRODOLLARS=2200
 PROVIDER_URL='https://api.openai.com/v1/responses'
 _worker_environment=ContextVar('papyrus_priming_worker_environment',default=None)
 

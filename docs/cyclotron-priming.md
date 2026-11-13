@@ -341,7 +341,7 @@ each request's full cost before dispatch; duplicates, grant resets,
 cancellation, expiry and the eighth call fail closed.
 
 The proposed live web run ceiling is $0.50 total and at most 7 requests on the
-pinned `gpt-5.4-mini-2026-03-17`; the arXiv paper path costs $0 and makes no
+pinned `gpt-6-luna`; the arXiv paper path costs $0 and makes no
 model request. No paid request or live grant exists. Spend needs Ryan's explicit
 authorization.
 
