@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .tenant_knowledge_keys import corpus_id_for_key
 from .graphql_authoring import create_authoring_client
 from .options import parse_options, resolve_mutation_apply
 from .records import apply_record_changes, build_record_changes
@@ -85,7 +86,7 @@ def relations_migrate_concept_tags(flags: list[str], *, client: Any = None) -> N
     corpus_ids = None
     if site or corpus_keys:
         keys = [key.strip() for key in (corpus_keys or site or "").split(",") if key.strip()]
-        corpus_ids = {f"knowledge-corpus-{key}" for key in keys}
+        corpus_ids = {corpus_id_for_key(key) for key in keys}
     if client is None:
         client, _ = create_authoring_client()
     report = migrate_concept_tags(client, current_concept_nodes(client), apply=apply, limit=limit, corpus_ids=corpus_ids)

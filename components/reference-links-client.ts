@@ -10,6 +10,7 @@ import { conceptSlug, editorConceptItem, editorConceptLineageId } from "../lib/r
 import { createLinkResolver } from "../lib/reference-links-resolve";
 import { conceptKeysForHashtag } from "../lib/wiki";
 import type { ReferenceLinksStore, SuggestOutcome } from "./reference-links-context";
+import { REFERENCE_LINK_FEED_KEY, globalKey } from "../lib/tenant-knowledge-keys";
 import {
   LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY, LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY,
   loadNewsroomReferencePage, loadNewsroomSemanticNodePage, loadReferenceRecordByLineageId, loadSemanticNodeByLineageId, loadSemanticRelationsByState, runGraphql,
@@ -37,7 +38,6 @@ const SUGGESTED_LINKS_QUERY = `
   }
 `;
 /** The feed key every reference-link row is written under (amplify/functions/category-action/reference-links.ts). */
-const REFERENCE_LINK_FEED_KEY = "reference-links";
 /** How many open suggestions one page of the queue aims for. The filter runs after DynamoDB reads a page, so a page reads on until it has this many or the feed ends. */
 const SUGGESTION_PAGE_SIZE = 50;
 const SUGGESTION_READ_LIMIT = 200;
@@ -82,7 +82,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
       let next = cursor;
       do {
         const data = await runGraphql<{ listSemanticRelationsByNewsroomFeedAndCreatedAt?: { items?: Array<SuggestionRow | null>; nextToken?: string | null } }>(SUGGESTED_LINKS_QUERY, {
-          newsroomFeedKey: REFERENCE_LINK_FEED_KEY, sortDirection: "DESC", limit: SUGGESTION_READ_LIMIT, nextToken: next, filter: { relationState: { eq: "suggested" } },
+          newsroomFeedKey: globalKey(REFERENCE_LINK_FEED_KEY), sortDirection: "DESC", limit: SUGGESTION_READ_LIMIT, nextToken: next, filter: { relationState: { eq: "suggested" } },
         });
         const connection = data.listSemanticRelationsByNewsroomFeedAndCreatedAt;
         rows.push(...(connection?.items ?? []).filter((row): row is SuggestionRow => Boolean(row)));

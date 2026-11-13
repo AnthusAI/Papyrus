@@ -22,6 +22,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from ..tenant_knowledge_keys import SEMANTIC_NODE_FEED_KEY, global_key, tenant_unique_id
 from ..categories_commands import with_version_fields
 from ..categories_steering import semantic_relation_record
 from ..ids import safe_id
@@ -129,7 +130,7 @@ class NodeIndex:
 
 
 def node_lineage_id(node_key: str) -> str:
-    return f"semantic-node-{node_key}"
+    return tenant_unique_id(f"semantic-node-{node_key}")
 
 
 def new_node_row(kind: str, name: str, status: str, *, import_run_id: str, corpus_id: str | None, now: str, reason: str, page_answer: PageAnswer | None = None) -> dict:
@@ -148,7 +149,7 @@ def new_node_row(kind: str, name: str, status: str, *, import_run_id: str, corpu
             "status": status,
             "importRunId": import_run_id,
             "createdAt": now,
-            "newsroomFeedKey": "semanticNodes",
+            "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
             "updatedAt": now,
         },
         now=now,

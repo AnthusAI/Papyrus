@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { tenantScopedValue } from "../../../lib/tenant-keys";
+import { corpusIdForKey, corpusKeyOf, isCorpusId, ownCorpora } from "../../../lib/tenant-knowledge-keys";
 
 export type EditorialRecord = Record<string, any>;
 type Result = { data?: EditorialRecord | EditorialRecord[] | null; errors?: unknown; nextToken?: string | null };
@@ -154,14 +155,14 @@ export function buildEditorialContext(publication: EditorialRecord, scope: Edito
 /** Private source adapter for the same deterministic contract exposed by papyrus editorial context. */
 export async function resolveEditorialContext(client: EditorialClient, options: EditorialOptions) {
   if (!options.endpoint) throw new Error("Explicit publication endpoint is required for hosted editorial context.");
-  const corpora = await pages(client, "KnowledgeCorpus", "listKnowledgeCorporaByRoleAndName", { role: "canonical" });
+  const corpora = ownCorpora(await pages(client, "KnowledgeCorpus", "listKnowledgeCorporaByRoleAndName", { role: "canonical" }), options.tenantId);
   const requested = options.publicationKey;
   const normalized = requested?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 140);
-  if (corpora.length !== 1 || !corpora[0].id?.startsWith("knowledge-corpus-") || corpora[0].role !== "canonical" || !corpora[0].name?.trim() ||
-      (requested !== undefined && (!normalized || corpora[0].id !== `knowledge-corpus-${normalized}`))) {
+  if (corpora.length !== 1 || !isCorpusId(corpora[0].id ?? "") || corpora[0].role !== "canonical" || !corpora[0].name?.trim() ||
+      (requested !== undefined && (!normalized || corpora[0].id !== corpusIdForKey(normalized, options.tenantId)))) {
     throw new Error("Requested publication does not match the hosted canonical corpus; missing or ambiguous publication binding.");
   }
-  const publication = { key: corpora[0].id.slice("knowledge-corpus-".length), name: corpora[0].name,
+  const publication = { key: corpusKeyOf(corpora[0].id), name: corpora[0].name,
     corpusId: corpora[0].id, tenantId: options.tenantId ?? null, endpoint: options.endpoint };
   const entries: EditorialRecord[] = [];
   const warnings: string[] = [];

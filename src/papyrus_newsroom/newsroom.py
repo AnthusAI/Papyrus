@@ -24,6 +24,7 @@ from typing import Any
 from .semantic import PapyrusSemanticClient
 from .reference_policy import is_evidence_eligible_reference
 from . import reference_actions
+from papyrus_content.tenant_knowledge_keys import corpus_id_for_key
 from papyrus_content.biblicus_runner import BiblicusCommandError, BiblicusOutputError, BiblicusRunner, resolve_biblicus_workdir
 from papyrus_content.env import PAPYRUS_ROOT
 from papyrus_content.graphql_http import execute_graphql
@@ -1529,7 +1530,7 @@ def _build_research_assignment_resource_plan(payload: dict[str, Any], title: str
         "priority": priority,
         "title": title,
         "summary": summary,
-        "corpusId": f"knowledge-corpus-{_safe_id(corpus_key)}",
+        "corpusId": corpus_id_for_key(_safe_id(corpus_key)),
         "importRunId": import_run_id or None,
         "createdBy": actor_label,
         "createdAt": now,
@@ -3896,7 +3897,7 @@ def _reference_lineage_id(corpus_key: str, external_item_id: str) -> str:
 
 
 def _knowledge_corpus_id(corpus_key: str) -> str:
-    return f"knowledge-corpus-{_slugify(corpus_key)}"
+    return corpus_id_for_key(_slugify(corpus_key))
 
 
 def _semantic_state_key(kind: str, lineage_id: str) -> str:

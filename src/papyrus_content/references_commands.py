@@ -11,6 +11,7 @@ from typing import Any
 
 from papyrus_newsroom import reference_actions as newsroom_reference_actions
 
+from .tenant_knowledge_keys import REFERENCE_REVIEWED_FEED_KEY, corpus_id_for_key, global_key, is_corpus_id
 from .assignments import apply_assignment_action
 from .env import PAPYRUS_ROOT
 from .graphql_authoring import create_authoring_client
@@ -414,7 +415,7 @@ def references_auto_accept(flags: list[str]) -> None:
                 raise ValueError(f"--{flag} must be a number above 0 and below 1.") from error
     policy = validate_auto_accept(site, policy_input)
     corpus_key = normalize_string(options.get("corpus-key")) or site
-    publication = {"publicationId": site, "corpusId": f"knowledge-corpus-{corpus_key}",
+    publication = {"publicationId": site, "corpusId": corpus_id_for_key(corpus_key),
                    "positiveLabel": normalize_string(options.get("positive-label")) or "include"}
     client, _ = create_authoring_client()
     result = run_auto_accept(client, publication, policy, now=datetime.now(timezone.utc), dry_run=bool(options.get("dry-run")))
@@ -659,7 +660,7 @@ def references_retire_citation_stubs(flags: list[str]) -> None:
     key = normalize_string(options.get("corpus-key"))
     if not key or "," in key:
         raise ValueError("references retire-citation-stubs needs --corpus-key KEY (one corpus).")
-    corpus_id = key if key.startswith("knowledge-corpus-") else f"knowledge-corpus-{key}"
+    corpus_id = key if is_corpus_id(key) else corpus_id_for_key(key)
     client, _ = create_authoring_client()
     result = retire_citation_stubs(client, corpus_id=corpus_id, dry_run=not apply,
                                    progress=lambda line: print(f"references\tretire-citation-stubs\tprogress\t{line}") if int(line.split()[0]) % 100 == 0 else None)
@@ -699,7 +700,7 @@ def references_backfill_reviewed_feed_key(flags: list[str]) -> None:
     changes: list[dict[str, Any]] = []
     for reference in references:
         curation_status = str(reference.get("curationStatus") or "pending").strip().lower() or "pending"
-        expected_reviewed_feed_key = None if curation_status == "pending" else "references#reviewed"
+        expected_reviewed_feed_key = None if curation_status == "pending" else global_key(REFERENCE_REVIEWED_FEED_KEY)
         if (reference.get("reviewedFeedKey") or None) == expected_reviewed_feed_key:
             continue
         expected = {**reference, "reviewedFeedKey": expected_reviewed_feed_key}

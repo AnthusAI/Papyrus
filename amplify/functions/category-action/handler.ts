@@ -40,6 +40,7 @@ import { createConceptLink, createReferenceLink, decideReferenceLink, describeEd
 import { applyKnowledgeReview, type KnowledgeReviewStore } from "./knowledge-review";
 import { setStoryReferenceRole } from "./story-reference-role";
 import { editOriginOfIdentity } from "../shared/edit-origin";
+import { REFERENCE_FEED_KEY, REFERENCE_REVIEWED_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, globalKey } from "../../../lib/tenant-knowledge-keys";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -151,7 +152,6 @@ const DEFAULT_REFERENCE_CURATION_POLICY = {
   recomputeQuality: false,
   recomputeCorpus: false,
 };
-const REFERENCE_REVIEWED_FEED_KEY = "references#reviewed";
 
 let clientPromise: Promise<DataClient> | null = null;
 
@@ -310,7 +310,7 @@ async function reviewReferenceCuration(
         delegation,
         decisionRelationId,
       }),
-      newsroomFeedKey: reference.newsroomFeedKey ?? "references",
+      newsroomFeedKey: reference.newsroomFeedKey ?? globalKey(REFERENCE_FEED_KEY),
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
       // A vote moves the Reference between the unrated and rated feeds; its original prediction and arrival stay as they were.
       feedStateKey: referenceFeedStateKey({ ...reference, curationStatus: nextStatus }),
@@ -903,7 +903,7 @@ async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandl
       curationStatusUpdatedAt: now,
       curationStatusUpdatedBy: actor,
       curationStatusReason: note,
-      newsroomFeedKey: reference.newsroomFeedKey ?? "references",
+      newsroomFeedKey: reference.newsroomFeedKey ?? globalKey(REFERENCE_FEED_KEY),
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
       // A vote moves the Reference between the unrated and rated feeds; its original prediction and arrival stay as they were.
       feedStateKey: referenceFeedStateKey({ ...reference, curationStatus: nextStatus }),
@@ -1234,7 +1234,7 @@ async function createReferenceNote(event: Parameters<ReferenceNoteHandler>[0]) {
       importedAt: now,
       createdAt: now,
       updatedAt: now,
-      newsroomFeedKey: "semanticRelations",
+      newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
       metadata: JSON.stringify({
         kind: "reference.note",
         summary,
@@ -1378,7 +1378,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       curationShareable: typeof current.curationShareable === "boolean" ? current.curationShareable : null,
       curationDelegation: current.curationDelegation ?? null,
       curationDecisionRelationId: normalizeOptionalString(current.curationDecisionRelationId),
-      newsroomFeedKey: normalizeOptionalString(current.newsroomFeedKey) ?? "references",
+      newsroomFeedKey: normalizeOptionalString(current.newsroomFeedKey) ?? globalKey(REFERENCE_FEED_KEY),
       reviewedFeedKey: normalizeOptionalString(current.reviewedFeedKey) ?? reviewedFeedKeyForStatus(curationStatus),
       predictedAcceptProbability: typeof current.predictedAcceptProbability === "number" ? current.predictedAcceptProbability : null,
       predictionDecidedAt: normalizeOptionalString(current.predictionDecidedAt),
@@ -1529,7 +1529,7 @@ async function startReferenceCuration(event: Parameters<StartReferenceCurationHa
       importedAt: now,
       createdAt: now,
       updatedAt: now,
-      newsroomFeedKey: "semanticRelations",
+      newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
       metadata: JSON.stringify({
         kind: "reference.curation.assignment",
         runId,
@@ -2474,7 +2474,7 @@ function buildAuthoritativeLabelRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: JSON.stringify({
       kind: sourceMode === "accepted_prediction"
         ? "classification.authoritative_label.accepted_from_prediction"
@@ -2540,7 +2540,7 @@ function buildReferenceQualityRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: JSON.stringify({
       kind: "reference.quality-rating.manual",
       actor,
@@ -2623,7 +2623,7 @@ function normalizeReferenceCurationAction(value: unknown): "accept" | "reject" |
 }
 
 function reviewedFeedKeyForStatus(status: string): string | null {
-  return status === "pending" ? null : REFERENCE_REVIEWED_FEED_KEY;
+  return status === "pending" ? null : globalKey(REFERENCE_REVIEWED_FEED_KEY);
 }
 
 function referenceCurationStatusForAction(action: "accept" | "reject" | "reopen" | "archive"): "accepted" | "rejected" | "pending" | "archived" {
