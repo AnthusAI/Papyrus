@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "67c1b86b-0e10-48cf-80a3-b82b802b2e97",
+  "issue_id": "PPY-c874f6de-b8ef-4219-af5b-0786aab00f33",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T14:31:18.609Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Measure the decision model on Spanish and Chinese",
+    "description": "As the planner of multilingual publishing, I want to measure whether the decision model (Jev) can read Spanish and Chinese before the judgment lane depends on it, so we fix the model rather than assume.\n\nDesign: section 1.2 E and risk table, adjusted for Ryan 2026-11-13: no native-reader panel. Labelled sets come from public annotated corpora and from held-out sentences labelled by the bilingual model judges and the parity rules; agreement is measured per question and per language, Spanish and Chinese together. State plainly in the report that nobody in-house can verify Chinese labels, so agreement figures are proxies. If Jev is weak in a language the proper fix is in Jev (a multilingual decision model), not a general LLM in its place. Needs a working API key first (the key in the design session was expired).\n\n```gherkin\nFeature: We know whether the judgment lane can read each language\n  Scenario: The existing judgment questions are scored on labelled Chinese and Spanish\n    Given two hundred sentences per language labelled from public annotated sets and judge consensus\n    When the judgment lane answers the questions\n    Then the report gives agreement with the labels per question and per language\n    And states whether the lane is fit for each language or what must change in the model\n    And says plainly that nobody in-house can verify the Chinese labels, so the figures are proxies\n\n  Scenario: A language the lane cannot read is not used\n    Given the report shows weak agreement for a language\n    Then the judgment lane stays off for that language\n    And the localization procedure fails with that reason rather than publishing without the lane\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+    "labels": []
+  }
+}
