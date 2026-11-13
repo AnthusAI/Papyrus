@@ -2,6 +2,7 @@ import { type ClientSchema, a } from "@aws-amplify/backend";
 import { assignmentAction } from "../functions/assignment-action/resource";
 import { categoryAction } from "../functions/category-action/resource";
 import { editorialChecksSchemaDefinitions } from "../functions/editorial-checks/schema";
+import { announcementsSchemaDefinitions } from "../functions/announcements/schema";
 import { automationViewSchemaDefinitions } from "../functions/automation-view/schema";
 import { imageService } from "../functions/image-service/resource";
 import { imageServiceSchemaDefinitions } from "../functions/image-service/schema";
@@ -2815,6 +2816,7 @@ const definitions = {
   ...editorialChecksSchemaDefinitions,
   ...monitoringViewSchemaDefinitions,
   ...automationViewSchemaDefinitions,
+  ...announcementsSchemaDefinitions,
   ...imageServiceSchemaDefinitions,
   ...proposalActionsSchemaDefinitions,
   ...messageActionsSchemaDefinitions,
