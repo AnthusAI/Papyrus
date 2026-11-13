@@ -31,6 +31,8 @@
     "test:gsi-ledger": "tsx scripts/check-gsi-ledger.ts && node --import tsx --test scripts/test-gsi-ledger.ts && poetry run behave features_backend/gsi-ledger.feature",
     "test:announcements": "tsx scripts/test-announcements.ts && poetry run behave features_backend/x-account-connection.feature features_backend/announcement-settings.feature && cucumber-js --profile newsroomAnnouncements",
     "check:tenant-isolation-cases": "tsx scripts/generate-tenant-isolation-cases.ts --check",
+    "check:tenant-key-inventory": "tsx scripts/generate-tenant-key-inventory.ts --check",
+    "test:tenant-key-inventory": "tsx --test scripts/test-tenant-key-inventory.ts && poetry run behave features_backend/tenant-key-inventory.feature",
     "test:tenant-isolation-cases": "tsx --test scripts/test-tenant-isolation-cases.ts && poetry run behave features_backend/tenant-isolation-adversarial.feature",
     "test:reference-link-resolvers": "tsx --test scripts/test-reference-links.ts && cucumber-js --profile referenceLinkResolvers",
     "test:writing-guidelines-admin": "tsx --test scripts/test-writing-guidelines-admin-logic.ts && tsx scripts/test-writing-guidelines-admin.ts && cucumber-js --profile writingGuidelinesAdmin",

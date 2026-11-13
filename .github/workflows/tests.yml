@@ -63,6 +63,8 @@ jobs:
           app-shell: "true"
       - run: npm run typecheck
       - run: npm run lint
+      # The generated tenant key inventory (docs/tenant-key-inventory.md) is current and every index partition field is classified (PPY-cd5926).
+      - run: npm run check:tenant-key-inventory
       # The app-shell CDK app must type-check cleanly with no TS_NODE_TRANSPILE_ONLY escape hatch.
       - run: npm run build
         working-directory: infra/amplify-app-shell
