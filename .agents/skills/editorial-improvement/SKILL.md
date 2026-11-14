@@ -106,9 +106,11 @@ Before rewriting, write down two or three candidate theses with a line of
 evidence for each. Choose the one every example supports. If the evidence
 only supports one, choose that.
 
-Analysis is welcome, framed as the publication's reading ("Our reading of
-the evidence…") and backed by the sources. Do not moralize, and do not hedge
-everything until it says nothing.
+Analysis is welcome, stated as plain fact and backed by the sources. The
+site's voice is not defined here: read it with `papyrus guidelines show --kind
+writing` (add `--section SECTION` for the Story's section) before you write,
+and follow it. Do not moralize, and do not hedge everything until it says
+nothing.
 
 If the assigner named a specific problem, solve that first and most visibly.
 The named problem is what they will check. Direction from the assigner
@@ -153,7 +155,8 @@ Write plainly:
   happened, as the sources support it. Read every sentence you add, and ask
   whether a careful human editor would have written it.
 - **No self-reference.** Phrases like "in this story", "our report on…" and
-  "the sources used here" trip the policy check. Work references to other
+  "the sources used here" trip the policy check, and so do "we believe" and
+  "our reading is". The article never talks about itself: write "A is red". Work references to other
   pieces into the prose as links.
 - **No speed bragging.**
 
