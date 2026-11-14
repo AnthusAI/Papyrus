@@ -1,6 +1,6 @@
 # Serving a site in several languages
 
-Status: built in the engine (initiative PPY-82f150, epic PPY-756495); no site serves a second language yet. Plan: [docs/plans/multilingual-publishing.md](plans/multilingual-publishing.md). Specifications: `features_backend/language-serving.feature`, `features_backend/language-serving-settings.feature`, `features_backend/item-language.feature`.
+Status: built in the engine (initiative PPY-82f150, epic PPY-756495); no site serves a second language yet. How a translation is published, and what holds it back: [the translation procedure](story-translation-procedure.md#publishing-a-translation). Plan: [docs/plans/multilingual-publishing.md](plans/multilingual-publishing.md). Specifications: `features_backend/language-serving.feature`, `features_backend/language-serving-settings.feature`, `features_backend/item-language.feature`.
 
 A translation of a Story is a sibling Story (its lineage is `{primaryLineageId}--{language}`) joined to the original by its language group (`Item.language`, `Item.languageGroupId`, PPY-843a7c). This page covers what happens once such a localization is published: where it is served, what its page says about the other languages, and what each language's listings, sitemaps and links contain.
 
@@ -44,6 +44,8 @@ A language with nothing published has no page, feed or sitemap. A localization i
 
 Concepts: a language edition serves the site's wiki pages under `/<prefix>/concepts/` (Ryan, 2026-11-13: "Concepts" is the public term). The primary language keeps its address (`/wiki/` on the sites that have one), because published URLs are never moved; the English `/wiki/` and the Spanish `/es/concepts/` pages of one Concept are each other's `hreflang` alternates. The Concepts group is the type group of a wiki type, or the section the wiki sync files pages under (`wiki`).
 
+A translation is read from the CMS only while its original is published (`served` and `PublishedContentSource.published_row` in `projection/source.py`): a published row whose language group is another lineage than its own, with no published row for that group, is left out of the site index, so every page, listing, feed, sitemap entry and alternate that the projection derives leaves with the original. Publishing or taking down a Story projects its published translations again (`engine._project_translations`: one point read each), which writes or removes their pages; no record is changed.
+
 So an English listing, feed or sitemap never lists a translation, and a Spanish one lists only Spanish Stories. The static projection needs no new index for this: it already reads every published summary once per run (`list_published_item_summaries`), and each summary carries `language` and `languageGroupId` (copied onto `PublishedItem` at publish; no index on them).
 
 The CMS's own listing keys (`typeStatus`, `sectionStatus`, `headStageKey`, read by the console, the reader app and the newsroom commands) do not carry the language yet; that is the plan's "listing keys carry the language" change, filed as PPY-f33254 (see [Not built yet](#not-built-yet)).
@@ -56,6 +58,7 @@ On a site that serves more than one public language:
 - The head lists `<link rel="alternate" hreflang>` for each public language the page is published in, itself included, then `x-default` (the primary language's page). A page that exists in one language only lists none.
 - `og:locale` is the page's tag with an underscore (`es_419`), with an `og:locale:alternate` for each other language; the article JSON-LD has `inLanguage`.
 - Each page is canonical to itself.
+- A translation's page also says what it is: the JSON-LD has `translationOfWork` (`{@type, url, inLanguage}` of the original) beside `inLanguage`, its Markdown twin adds `Language`, `Translation: machine` and `Translated from` to its facts line, and the page carries the AI-translation line in its own language (below the byline, from the interface strings).
 - The sitemap index lists one sitemap per language (`sitemap-0.xml`, `es/sitemap-0.xml`); with the `single` style every language's URLs are in the one `sitemap.xml`.
 
 Alternates exist for Story pages (the published members of the language group), the home, and page 1 of each section listing (the editions whose listing at that address exists).
@@ -73,6 +76,7 @@ Every `StandardPage` (see `hooks.py`) carries:
 | `page.primary_language` | the site's primary language (on a site that serves several) |
 | `page.alternates` | `({tag, name, url}, ...)`: the page in every public language it exists in, itself included, primary first; `name` is the language's name in itself (`Español`, `中文`); empty when the page exists in one language |
 | `page.link_map` | `{page path: {tag: page path}}` for every Story page and listing that exists in more than one language |
+| `page.translation` | on the item page of a translation: `{tag, name, url}` of the original it was translated from; None on every other page. Core places the line under the byline (`components.translation_notice(page.strings, page.translation)`); a site whose hooks compose the body places the same line. It is the page's data, not the Story's text. |
 | `page.link_in_language(path)` | `(path, leaves_the_language)`: where a link to a page of this site goes from this page. A page that exists in this page's language is linked there; one that does not keeps its address and `leaves_the_language` is True, so the site marks the link. |
 
 A language switcher draws `page.alternates`; the head tags are core's. The translator never chooses link targets: the published language groups decide them.
@@ -89,7 +93,8 @@ A language is public only when its interface strings are complete (`projection/s
 - `site.description` and `site.tagline`, when set;
 - `section.<name>.label` and, when set, `section.<name>.description`, for each section with a listing page;
 - `nav.<href>.label`, for each navigation link an edition keeps (the home and section listings; other links leave the edition and are dropped);
-- `footer.text`, when set.
+- `footer.text`, when set;
+- `translation.label` and `translation.original`: the line every translated page carries. `translation.label` has `{original}` where the link to the original goes ("Traducido por IA del {original}"); `translation.original` is the link's words ("original en inglés").
 
 The strings are part of the shared fingerprint, so changing one renders the site again. The core components' own fixed words (`Skip to main content`, `Menu`, `Newer`, `Older`) are not interface strings yet, so a site whose hooks do not draw its own body and navigation would show them in English on an edition (PPY-bb4001).
 
@@ -129,4 +134,4 @@ What only a real CloudFront and S3 can prove (a gated check before any Chinese p
 - Re-rendering the pages that link to a Story when its first translation in their language is published, so their `link_in_language` targets update: PPY-f9572a. Until then such a page picks up the new target when it is next rendered.
 - Interface strings for the core components' fixed words: PPY-bb4001.
 - The bare Markus projector (a site without a `site` object in `projection.json`) has no language editions; every Papyrus site runs the standard front end.
-- Per-language search indexes, localized dates and numbers, the AI-translation label and quotation marks (the translation procedure, PPY-bc1a38).
+- Per-language search indexes, localized dates and numbers, and quotation marks (the translation procedure, PPY-bc1a38, PPY-c0aebc). The AI-translation line says "translated by AI" only: the "and reviewed by a person" form comes with the correction flow (PPY-ef71cd).

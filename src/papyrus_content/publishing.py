@@ -379,13 +379,18 @@ def publish_item(
     already_projected = existing is not None and existing_hash == item.get("contentHash")
     if already_projected and item.get("status") == "published":
         return PublishResult(False, item_id, published_id, existing.get("versionNumber"))
+    from .localization_publish import original_of, require_publishable
     from .publish_gate import ensure_publish_approval
     from .story_checklist import ChecklistError, require_checklist_closed
 
-    try:
-        require_checklist_closed(client, item)   # every required step done, or skipped / not applicable with a recorded reason
-    except ChecklistError as error:
-        raise PublishError("checklist-open", str(error), details={"openSteps": error.open_steps}) from error
+    original = original_of(client, item)
+    if original is not None:
+        require_publishable(client, item, original)   # a translation's checklist is its provenance; its gates are its original and any hold (localization_publish.py)
+    else:
+        try:
+            require_checklist_closed(client, item)   # every required step done, or skipped / not applicable with a recorded reason
+        except ChecklistError as error:
+            raise PublishError("checklist-open", str(error), details={"openSteps": error.open_steps}) from error
     ensure_publish_approval(client, item, approved_by=approved_by, actor=actor)
     if already_projected:
         version_number = existing.get("versionNumber") or 1
@@ -436,7 +441,7 @@ def publish_item(
             client.update_record("Item", superseding_update(sibling))
     from .content_item_lifecycle import is_story_item_type
 
-    if is_story_item_type(item.get("type")):
+    if is_story_item_type(item.get("type")) and original is None:
         from .story_checklist import mark_published
 
         mark_published(client, lineage_id, actor_label=actor)

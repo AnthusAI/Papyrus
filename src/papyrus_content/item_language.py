@@ -68,6 +68,14 @@ def bare_group_id(value: str | None, tenant_id: str | None) -> str | None:
     return value[len(prefix):] if prefix and value.startswith(prefix) else value
 
 
+def localization_original(row: dict[str, Any], tenant_id: str | None = None) -> str | None:
+    """The primary lineage a localization row (an ``Item`` version or a ``PublishedItem``) is a translation of, or None for a Story that is its own
+    language group. The one test for "is this a translation": its group is another lineage than its own."""
+    lineage = row.get("itemLineageId") or row.get("lineageId")
+    group = bare_group_id(row.get(LANGUAGE_GROUP_FIELD), tenant_id)
+    return group if group and lineage and group != lineage else None
+
+
 def with_item_language(payload: dict[str, Any], current: dict[str, Any] | None, primary: str) -> dict[str, Any]:
     """The payload of an Item create or full replace with its language and group: as written, else as the stored row has them, else the
     site's primary language and the row's own lineage. A payload naming another language must name its group: only the localization procedure

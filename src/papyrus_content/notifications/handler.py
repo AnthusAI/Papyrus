@@ -12,6 +12,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from papyrus_content.item_language import localization_original
+
 from . import public
 from .events import EVENT_ID, story_published_detail
 from .pause import handle_alarm
@@ -39,6 +41,8 @@ def story_published(rt: Runtime, event: Mapping[str, Any], now: datetime | None 
     row = rt.read_item(published_id)
     if row is None or row.get("status") not in (None, "published"):
         return _ignored("not_published")
+    if localization_original(row) is not None:
+        return _ignored("translation")   # a translation is no new Story: the subscribers were told when the original published
     occurred_at = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
     detail = story_published_detail(row, event_id=event_id, settings=rt.settings, occurred_at=occurred_at)
     if detail is None:

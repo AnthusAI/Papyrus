@@ -478,9 +478,33 @@ def project(context: ProjectionContext, item_id: str, *, unpublished: bool = Fal
     for key in adopted_keys:
         if key != item_state_key(item_id):
             context.writer.delete(key)
+    if (item is not None) != (previous_state is not None and previous_state.projected):
+        _project_translations(context, report, item_id, item.summary if item is not None else previous_state.summary)
     _finish(context, report)
     _log(item_id, report)
     return report
+
+
+def _project_translations(context: ProjectionContext, report: ProjectionReport, item_id: str, summary: ItemSummary) -> None:
+    """A Story was published or taken down: its published translations are served only while it is (``PublishedContentSource``), so each is projected
+    again, which writes or removes its pages. As many as the Story has languages; a translation has none."""
+    translations = getattr(context.source, "localizations_of", None)
+    if translations is None:
+        return
+    lineage_id = summary.lineage_id or context.source.lineage_id_of(item_id)   # a state read back from the store does not keep the lineage
+    if summary.language_group_id not in (None, lineage_id):
+        return
+    for translation in translations(lineage_id):
+        _absorb(report, project(context, translation))
+
+
+def _absorb(report: ProjectionReport, other: ProjectionReport) -> None:
+    for name in ("written", "deleted", "invalidated", "unpurged", "invalidation_capped", "errors", "skipped", "unchanged", "unrenderable"):
+        getattr(report, name).extend(getattr(other, name))
+    report.redirects_written += other.redirects_written
+    report.redirects_deleted += other.redirects_deleted
+    report.follow_up_item_pages = report.follow_up_item_pages or other.follow_up_item_pages
+    report.rounds = max(report.rounds, other.rounds)
 
 
 def _project_publication(

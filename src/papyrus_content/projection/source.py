@@ -19,7 +19,7 @@ from .model import ItemSummary, ProjectedItem, SiteIndex
 from .story_stars import known_stars, stars_of_lineage
 from .site_relations import SiteRelations, read_site_relations
 from .stored import PROJECTION_METADATA_KEY, projection_metadata
-from ..item_language import bare_group_id, item_language, item_language_group
+from ..item_language import bare_group_id, item_language, item_language_group, localization_original
 
 
 class ProjectionSourceError(Exception):
@@ -47,6 +47,15 @@ def _stored_projection(metadata: dict) -> dict:
     if isinstance(stored, dict):
         return stored
     return projection_metadata(metadata.get("frontMatterYaml"))
+
+
+def served(summaries) -> list[ItemSummary]:
+    """The summaries the site serves: every Story of its own, and each translation whose original is among them. A translation is served only while its
+    original is published (docs/story-translation-procedure.md, "Publishing a translation"); the original's record and the translation's are untouched."""
+    summaries = list(summaries)
+    lineages = {summary.lineage_id for summary in summaries}
+    return [summary for summary in summaries
+            if summary.language_group_id in (None, summary.lineage_id) or summary.language_group_id in lineages]
 
 
 def split_output_path(output_path: str, *, nested: bool = False) -> tuple[str | None, str]:
@@ -148,7 +157,22 @@ class PublishedContentSource:
         row = self._client.get_record("PublishedItem", published_item_id_for(lineage_id))
         if row is None or not is_projectable(row, self.extra_types):
             return None
+        original = localization_original(row, self._tenant_id)
+        if original is not None:
+            live = self._client.get_record("PublishedItem", published_item_id_for(original))
+            if live is None or not is_projectable(live, self.extra_types):
+                return None   # a translation is served only while its original is published
         return row
+
+    def localizations_of(self, lineage_id: str) -> list[str]:
+        """The source item ids of the published translations of the Story ``lineage_id``: the pages whose being served changes when this Story is published
+        or taken down. One query on the language group and a point read per translation."""
+        found = []
+        for lineage in sorted({row.get("lineageId") or row["id"] for row in self._client.list_by_index("itemsByLanguageGroup", lineage_id)} - {lineage_id}):
+            row = self._client.get_record("PublishedItem", published_item_id_for(lineage))
+            if row is not None:
+                found.append(row.get("sourceItemId") or row["id"])
+        return found
 
     def lineage_id_of(self, item_id: str) -> str:
         item = self._client.get_record("Item", item_id)
@@ -220,6 +244,7 @@ class PublishedContentSource:
             if is_projectable(row, self.extra_types):
                 summary = self._summary(row)
                 indexed[summary.item_id] = (summary, version_fingerprint(row))
+        indexed = {summary.item_id: indexed[summary.item_id] for summary in served(summary for summary, _fingerprint in indexed.values())}
         self._indexed = indexed
         ordered = tuple(sorted((summary for summary, _fingerprint in indexed.values()), key=lambda summary: summary.output_path))
         return SiteIndex(items=ordered, load_item=self.load_item, story_stars=self.story_stars(ordered), relations=self.site_relations(ordered))
@@ -248,6 +273,8 @@ class PublishedContentSource:
         for row in rows:
             self._loaded_rows[row.get("sourceItemId") or row["id"]] = row
         items = [self._projected(row) for row in rows]
+        kept = {summary.item_id for summary in served(item.summary for item in items)}
+        rows, items = [row for row, item in zip(rows, items) if item.summary.item_id in kept], [item for item in items if item.summary.item_id in kept]
         if self.body_cache is not None:
             for row, item in zip(rows, items):
                 self.body_cache.put(item.summary.item_id, version_fingerprint(row), item.source_text)

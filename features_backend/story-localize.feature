@@ -29,6 +29,19 @@ Feature: A published Story is translated, checked and polished by one procedure
     And its provenance names the models, the rule versions, the findings and the cost
     And the English Story's version is unchanged
 
+  Scenario: The translation has its own address, and the original's stored picture
+    Given the English Story has the stored picture "assets/waymo.png"
+    When the translation run for "es-419" runs
+    Then the saved translation's address is "bajan-los-choques-de-waymo" and not the English "waymo-crashes-fall"
+    And the saved translation has the stored picture "assets/waymo.png", so it can be published
+
+  Scenario: A later version of the translation keeps its address
+    Given the translation run for "es-419" has finished
+    When the English Story is republished as version 4 with one paragraph changed and the translation asked for again
+    And the translation run for "es-419" runs
+    Then the saved translation's address is "bajan-los-choques-de-waymo" and not the English "waymo-crashes-fall"
+    And the Spanish lineage has 2 versions
+
   Scenario: The translator never sees a link target or an image credit
     When the translation run for "es-419" runs
     Then no text sent to the translator contains "https://example.test/report" or "Jane Doe"

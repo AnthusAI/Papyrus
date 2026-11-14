@@ -1913,6 +1913,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
             x_default=(self.head.absolute(primary_url) or primary_url) if primary_url else "",
         )
         fields.update(primary_language=view.primary, alternates=tuple(alternate.as_dict() for alternate in alternates), link_map=view.links)
+        original = view.original_of(extra["entry"].summary) if kind == "item" and extra.get("entry") is not None else None
+        if original is not None:   # a translated Story page says so, and where the original is (the label is the page's data, never the Story's text)
+            head = dataclasses.replace(head, translation_of=(self.head.absolute(original.url) or original.url, original.tag))
+            fields["translation"] = {"tag": original.tag, "name": original.name, "url": original.url}
         return head, fields
 
     def _page(self, kind: str, head: PageHead, site: SiteIndex, *, entries=(), **extra) -> StandardPage:
@@ -1957,7 +1961,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _item_twin(self, entry: StandardEntry, text: str, canonical: str | None) -> str:
         notes = tuple(wiki.notes(entry.data, self.standard.identity.date_format, self.policy.path)) if wiki.is_wiki_entry(entry, self.standard) else ()
-        return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes, self.environment.origin, self._hook_byline(entry))
+        view = self._view
+        original = view.original_of(entry.summary) if view is not None and view.multilingual else None
+        translation = (self.standard.identity.language, self.head.absolute(original.url) or original.url) if original is not None else None
+        return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes, self.environment.origin, self._hook_byline(entry), translation)
 
     def _chrome(self, page: StandardPage) -> SiteChrome:
         base = self._settings.chrome
@@ -2247,6 +2254,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             extras = []
             if entry is not None and self.standard.item_byline:
                 extras.append(components.byline(entry, self.standard.identity.date_format, self._hook_byline(entry)))
+            if page.translation is not None:
+                extras.append(components.translation_notice(page.strings, page.translation))
             if entry is not None and entry.tags and self.standard.listings.tags:
                 extras.append(components.tag_list(entry.tags, lambda tag: self.policy.path(f"/{self.policy.tag_base(slugify_tag(tag))}/")))
             actions = self._page_actions(page)

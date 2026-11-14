@@ -73,6 +73,14 @@ class LanguageView:
                 found.append(Alternate(tag, self.names[tag], url))
         return tuple(found) if len(found) > 1 else ()
 
+    def original_of(self, summary: ItemSummary) -> Alternate | None:
+        """The primary-language page a served translation is a translation of; None for any page that is not one (a Story of its own, in any language)."""
+        if summary.language in (None, self.primary) or summary.language_group_id in (None, summary.lineage_id):
+            return None
+        original = self.member_of(summary).get(self.primary)
+        url = self.item_url(self.primary, original) if original is not None else None
+        return Alternate(self.primary, self.names[self.primary], url) if url else None
+
     def listing_alternates(self, base: str) -> tuple[Alternate, ...]:
         tags = self.listing_bases.get(base, ())
         if len(tags) < 2:
