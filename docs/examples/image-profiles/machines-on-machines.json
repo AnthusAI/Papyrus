@@ -5,7 +5,7 @@
     "2. Review. imageReview is after_the_fact, as asked. But rules.md section 1 says a person confirms every drawn figure before it is published. This setting only governs pictures an agent added without a person (generated, stock); it does not remove the figure approval (approvedBy in figure.json). Is that the intended split?",
     "3. Night pictures. Figures are exported as two files (<slug>.png and <slug>.dark.png). The design has no rule for a generated illustration's Night version, so the profile asks for one picture on the Day palette only. Does a generated illustration need a Night twin, and if so is it a second generation or a recolour?",
     "4. Smallest card width. 160px for cover types and 120px for the social card are placeholders; they should be read from the site's card layout (cards run at most three across at 1280px, so the real smallest width is probably larger on a phone, not smaller). 343px for inline types is the phone width in mapping.json.",
-    "5. Credit wording for generated illustrations is set to 'Drafted by AI. Approved by {approvedBy}.' to match the figure credit. Is that the subtle credit you want, or something shorter such as 'Illustration, drafted by AI.'?",
+    "5. Credit wording for generated illustrations is set to 'Drafted by AI.', which the renderer drops because a generated picture has no credit line. Who approved a picture is metadata and never appears in a credit. Is that enough, or should the wording differ?",
     "6. The profile has no setting for variation directives, so this draft sets none and the four takes of one type are left to the generator. Is that enough, or should different takes of the same type be asked for some other way?",
     "7. Diagram canvas sizes. cover-diagram is the 680px figure canvas cropped to 16:9 and exported at 2x (1360x765). inline-diagram has no fixed ratio (up to 1100px tall at 680 wide), so it has no sizes entry. Is a fixed cover ratio right, or should the cover crop be chosen per figure?",
     "8. social-card extends cover-illustration, which makes it inherit the illustration rules. rules.md does not mention social cards. Should a social card instead be made from the chosen cover, and be a figure-system or stock type when the cover is?"
@@ -193,8 +193,8 @@
       "social": ["social-card"]
     },
     "attribution": {
-      "generatedCredit": "Drafted by AI. Approved by {approvedBy}.",
-      "disclosure": "Generated illustrations are labelled in the credit."
+      "generatedCredit": "Drafted by AI.",
+      "disclosure": "Generated illustrations carry no credit line."
     },
     "generation": {
       "interactiveCount": 4

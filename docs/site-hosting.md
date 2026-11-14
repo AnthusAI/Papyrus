@@ -287,7 +287,7 @@ on its default `amplifyapp.com` URL first and given domains later (see
 
 Amplify stops a build job after 30 minutes unless the app has a `_BUILD_TIMEOUT` environment variable (whole minutes, 5 to 120; AWS Amplify Hosting user guide, "Troubleshooting build issues"). CloudFormation has no other property for it. Because the backend deploy runs in the build, a large schema release can need more than 30 minutes: Machines on Machines job 107 was stopped at 30 minutes with no error in the log while the backend CloudFormation update was still running (the update itself took 54 minutes).
 
-The app shell sets `_BUILD_TIMEOUT` on the Amplify app (`AWS::Amplify::App` `EnvironmentVariables`, so every branch gets it; no branch sets its own, which would override it) from the `cms.buildTimeoutMinutes` setting of `site.json`: a whole number from 5 to 120, default 120. Anything else fails validation and names the range. The pieces that depend on the limit read the same one: `papyrus-infra backend-deploy` leaves 10 minutes of the timeout for the rest of the build (`deployMinutes`; cost-tag waves start only if they fit in the rest), `.github/workflows/amplify-deploy.yml` waits 125 minutes by default (the 120 minute maximum plus 5 for the job to start) and its own job timeout is the wait plus 10, and the GSI ledger check limits how many index creations one release may hold (docs/releasing.md, "The release budget"). A site that lowers the setting must pass a `timeout-minutes` and use a budget to match.
+The app shell sets `_BUILD_TIMEOUT` on the Amplify app (`AWS::Amplify::App` `EnvironmentVariables`, so every branch gets it; no branch sets its own, which would override it) from the `cms.buildTimeoutMinutes` setting of `site.json`: a whole number from 5 to 120, default 120. Anything else fails validation and names the range. The pieces that depend on the limit read the same one: `papyrus-infra backend-deploy` leaves 10 minutes of the timeout for the rest of the build (`deployMinutes`; cost-tag waves start only if they fit in the rest), `.github/workflows/amplify-deploy.yml` has a job limit of 135 minutes by default (the 120 minute maximum plus 5 for the job to start plus 10 for the steps around the wait) and ends its wait 10 minutes before that limit (GitHub expressions have no arithmetic, so the one input is the job limit), and the GSI ledger check limits how many index creations one release may hold (docs/releasing.md, "The release budget"). A site that lowers the setting must pass a `timeout-minutes` and use a budget to match.
 
 Rolling it out: the value is applied by the pipeline-run app-shell deploy, nothing by hand. On an existing site the app-shell stack update is a CloudFormation Modify of the `AWS::Amplify::App` (its `EnvironmentVariables` gain `_BUILD_TIMEOUT`; the app has none today), not a replacement: the app id, domain, branches and compute role stay. The first build after it can run beyond 30 minutes. Amplify's documentation does not say which job phases the timeout covers; job 107 ended at exactly 30 minutes of wall time from the job start, so treat it as the whole job. Two old aws-amplify GitHub issues report builds that still timed out with the variable set to 120 or more; check the first long backend release on a site after the change.
 
@@ -881,12 +881,55 @@ GraphQL schema and clients are unchanged.
 (`features` in `papyrus.config.ts` wins over the `PAPYRUS_ENABLE_*` branch
 variable): `consoleResponder` (`PAPYRUS_ENABLE_CONSOLE_RESPONDER`), `inboundEmail`
 (`PAPYRUS_ENABLE_INBOUND_EMAIL`), `slack` (`PAPYRUS_ENABLE_SLACK`) and
-`storageBackups` (`PAPYRUS_ENABLE_STORAGE_BACKUPS`). The app-shell template passes
-whatever is in `cms.environment`, so set all four explicitly in `site.json` (see
-`examples/p-apyr-us.site.json`). A flag that is off creates none of that feature's
-resources. The console responder defaults to ON when nothing is set, so a new site
-must say `"false"`. It also needs a container image that this package does not
-build, so enabling it needs separate work.
+`storageBackups` (`PAPYRUS_ENABLE_STORAGE_BACKUPS`). **All four are off unless a site
+turns them on**, for every site (the original p.apyr.us pipeline included); a flag that
+is off creates none of that feature's resources. Set all four explicitly in `site.json`
+anyway (`papyrus site init` writes them), so a site's choice is readable (see
+`examples/p-apyr-us.site.json`).
+
+A feature that is on must carry what it needs, and the build and `papyrus-infra synth`
+both fail, naming the flag and each missing variable, when it does not (nothing is
+defaulted or skipped): the console responder needs `PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI`,
+a prebuilt ARM64 ECR image, because it runs a container image that this package does not
+build (building it locally is an explicit developer choice,
+`PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD=true`, and no pipeline sets it for you);
+inbound email needs `PAPYRUS_INBOUND_EMAIL_DOMAIN`, `PAPYRUS_INBOUND_EMAIL_CORPUS_KEY` and
+`PAPYRUS_PUBLIC_SITE_BASE_URL`, the site's own, plus its hosted zone
+(`PAPYRUS_ROUTE53_HOSTED_ZONE_ID`, `PAPYRUS_ROUTE53_HOSTED_ZONE_NAME`) when the stack verifies the domain. Slack and storage backups need nothing
+more at synth (Slack's secrets are Amplify secrets). A flag value in `cms.environment` must be
+exactly `"true"` or `"false"`. Code: `assertFeaturePrerequisites` in
+`amplify/site-backend-names.ts`, `assertOptionalFeatures` in
+`infra/amplify-app-shell/lib/site-config.ts`.
+
+**Before bumping to the release that flips these defaults, set the features your site uses in
+its `papyrus.config.ts`.** Until then a site that never wrote `features` got the console
+responder (always), and on the original Papyrus pipeline (the app named by `productionAppId`,
+branch `main`) also inbound email and storage backups. After the bump none of them is built
+unless the site says so, and a deploy that drops one removes its resources: the console
+responder function and its stream trigger, the inbound email receipt rule, functions and
+EventBridge rules, and the backup plan and selection. Nothing in a table or the storage bucket
+is deleted, and the backup vault itself is retained with every recovery point, but mail sent to
+a removed inbound address bounces and the bucket stops being backed up. To keep a feature, write
+it down before the bump:
+
+```ts
+backend: {
+  features: { consoleResponder: false, inboundEmail: false, slack: false, storageBackups: true },
+}
+```
+
+Write all four, `false` included: `features` wins over the branch variables, and an explicit
+`false` is a decision that a person can read.
+
+Papyrus's own legacy backend (`amplify/backend.ts`, the old p.apyr.us Amplify app in the legacy
+account) is the one backend that relies on the old defaults. It does not build on its own
+(auto-build is off for its branches), so nothing changes until someone starts a build of it by hand.
+Before anyone does, set `features: { consoleResponder: true, inboundEmail: true, slack: false,
+storageBackups: true }` in `amplify/backend.ts`, or that deploy removes the console responder, the
+inbound email receipt rule and the storage backups.
+
+A site that already sets all four in
+`papyrus.config.ts`, or in `cms.environment` of `infra/site.json`, changes nothing.
 
 Names that are account-global or region-global are derived in
 `amplify/site-backend-names.ts`. Only the app named by `productionAppId` (the

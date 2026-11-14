@@ -15,7 +15,7 @@ from typing import Any
 from .body_features import CITATIONS_OFF, IMAGES_OFF, BodyFeatures, current_body_features
 from .citations import CitationCollector, CitationError, CitationRendering
 from .equations import equation_problems
-from .content_markup import ContentMarkupError, VideoMarkupError, prepare_page, read_citation_entries
+from .content_markup import ContentMarkupError, VideoMarkupError, approval_credit_problems, prepare_page, read_citation_entries
 from .images import ImagePipeline, ImagePipelineError, assert_safe_asset_src
 from .security import assert_supported_markus_version
 from .video import PROVIDERS, VideoRendering
@@ -131,6 +131,9 @@ def derive_body(front_matter_yaml: str | None, body_markus: str, features: BodyF
             image_errors.append(BodyError("image-src", str(exc)))
     if image_errors:
         return _failure(*image_errors)
+    approval_problems = approval_credit_problems(source)
+    if approval_problems:
+        return _failure(BodyError("image-credit-approver", "An image credit never names who approved the picture; remove the `Approved by NAME` text from the credit and record the approval as metadata (front matter `coverImage` `approvedBy` and `approvedAt`; a figure's `approved_by`): " + "; ".join(approval_problems)))
 
     import markusmd
     from markusmd.errors import MarkusSyntaxError, MarkusValidationError

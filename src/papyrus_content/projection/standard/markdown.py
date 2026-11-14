@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 
-from ...markus_renderer.content_markup import drop_machine_credits
+from ...markus_renderer.content_markup import drop_hidden_credits
 from ...authors import absolute_author_url, normalize_authors
 
 FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n?", re.S)
@@ -77,7 +77,7 @@ def byline_markdown(authors, origin: str | None = None) -> str:
 def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None, byline: str | None = None,
                   translation: tuple[str, str] | None = None) -> str:
     """``translation`` is ``(language tag, URL of the original)`` of a translated page: the twin says so for agents. ``byline`` is a site hook's complete byline text; it replaces the "By <authors>" line. ``None`` means no hook (the authors are shown); an empty string means the hook says there is no byline."""
-    body = drop_machine_credits(body_of(source_text))
+    body = drop_hidden_credits(body_of(source_text))
     lines = []
     if not _opens_with_heading(body):
         lines += [f"# {entry.title}", ""]
@@ -110,7 +110,7 @@ def home_markdown(title: str, description: str, source_text: str) -> str:
 
     A home page written as page blocks opens with ``::band`` and carries its own H1, so a second title in front of it
     would not be in the source."""
-    body = drop_machine_credits(body_of(source_text))
+    body = drop_hidden_credits(body_of(source_text))
     lines = [] if _opens_with_heading(body) else [f"# {title}", ""]
     if description:
         lines += [f"> {description}", ""]

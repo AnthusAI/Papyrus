@@ -1,7 +1,7 @@
 Feature: A generated image has no credit line
   Agents write a credit on pictures they add to a Story, and when the picture is one a model made they have worded it many ways: "Illustration
   generated with AI", "Illustration drafted by AI.", "Drafted by AI." and others. Ryan's rule is that a generated image gets no credit at all, not
-  even "Generated": it is obvious that we generated it. Every credit that only says a machine made the picture is therefore dropped, on the page and in
+  even "Generated": it is obvious that we generated it. Who approved a picture is metadata and is never shown either: an "Approved by NAME" statement in a credit is cut out, alone or beside a real source credit. Every credit that only says a machine made the picture is therefore dropped, on the page and in
   the Markdown copy of the Story, whatever the agent wrote, and the caption (if any) stands alone. A real credit to a person, a photographer or a
   source is never touched, because it is the credit the rights holder asked for. The four-lens review treats a picture with such a credit as ours, so it
   needs no credit, a local picture with no credit and no third-party origin counts as ours and passes too, and a third-party picture (a web address, the stock cover record or a Reference's picture) with no credit is still blocked. Agents are told the rule in their context pack.
@@ -22,6 +22,47 @@ Feature: A generated image has no credit line
       | Art rendered with a model      |
       | generated                      |
       | Generated                      |
+
+  Scenario Outline: Who approved a picture is never shown on the page
+    Given a Story picture credited "<written>"
+    When the picture is rendered on the page
+    Then there is no credit under the picture
+
+    Examples:
+      | written                                     |
+      | Approved by Ryan Porter.                    |
+      | Drafted by AI. Approved by Ryan Porter.     |
+      | Drafted by AI, approved by Ryan P. Porter   |
+      | Approved by Dr. Ada Example.                |
+
+  Scenario: An approval inside a real source credit is cut and the source stays
+    Given a Story picture credited "Drafted by AI. Approved by Ryan Porter. Source: Wen and Li, arXiv:2610.05586."
+    When the picture is rendered on the page
+    Then the credit under the picture is "Drafted by AI. Source: Wen and Li, arXiv:2610.05586."
+    When the Markdown copy of the Story is made
+    Then the picture in the Markdown copy is credited "Drafted by AI. Source: Wen and Li, arXiv:2610.05586."
+
+  Scenario: The Markdown copy of the Story names no approver
+    Given a Story picture credited "Drafted by AI. Approved by Ryan Porter."
+    When the Markdown copy of the Story is made
+    Then the picture in the Markdown copy has no credit
+
+  Scenario: A picture with an approver in its credit still needs no credit for the third-party credit check
+    Given a Story with this body
+      """
+      ::image{src="assets/harbour.png" alt="A harbour at dusk" credit="Drafted by AI. Approved by Ryan Porter."}
+      """
+    When the lens checks run
+    Then the finding "P10" is a "pass"
+
+  Scenario: Saving or publishing a body whose picture credit names the approver is refused
+    Given a Story with this body
+      """
+      ::image{src="assets/harbour.png" alt="A harbour at dusk" caption="An imagined scene." credit="Approved by Ryan Porter"}
+      """
+    When the body is checked for saving and publishing
+    Then it is refused with the code "image-credit-approver"
+    And the refusal says to record the approval as metadata
 
   Scenario: A figure with a caption and a machine credit shows only the caption
     Given a Story picture with the caption "The harbour at dusk" credited "Illustration generated with AI"

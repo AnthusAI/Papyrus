@@ -1293,6 +1293,30 @@ class PapyrusGraphQLAuthoringClient:
         self._require_row_in_tenant(model_name, record_id)
         self.graphql(MUTATIONS[model_name]["delete"], {"input": {"id": self._stored_record_id(model_name, record_id)}})
 
+    def delete_lineage_row(self, model_name: str, record_id: str, lineage_id: str) -> bool:
+        """Delete one row that a lineage's own index partition listed, whether or not it carries this client's ``tenantId``. True when it deleted
+        the row, False when the row is already gone.
+
+        ``delete_record`` refuses a row it cannot read as the tenant's, and a row written before tenant stamping (or by a writer that did not stamp it)
+        has no ``tenantId``: the index lists it, the tenant-checked read cannot see it, and the delete failed with "does not exist in tenant". The row
+        is the lineage's all the same: its ``itemLineageId`` names the lineage whose publish is pruning it, and a lineage id belongs to one tenant. So
+        this reads the row unscoped and deletes it when it is unstamped or this tenant's and names this lineage; a row of another tenant, or of
+        another lineage, is refused. A row that is already gone (an index that lags a delete, or an overlapping publish of the same lineage) is the
+        state the caller wanted, so it is not an error."""
+        if model_name not in MUTATIONS:
+            raise ValueError(f"Unsupported model for delete: {model_name}")
+        stored_id = self._stored_record_id(model_name, record_id)
+        row = self.get_record_unscoped(model_name, stored_id)
+        if row is None:
+            return False
+        owner = row.get("tenantId")
+        if owner and owner != self.tenant_id:
+            raise TenantError(f"{model_name} {record_id} belongs to tenant {owner}, not {self.tenant_id}.")
+        if row.get("itemLineageId") != lineage_id:
+            raise TenantError(f"{model_name} {record_id} belongs to lineage {row.get('itemLineageId')}, not {lineage_id}.")
+        self.graphql(MUTATIONS[model_name]["delete"], {"input": {"id": stored_id}})
+        return True
+
     def safe_list_records(self, model_name: str) -> list[dict[str, Any]]:
         try:
             return self.list_records(model_name)
@@ -1343,11 +1367,19 @@ class PapyrusGraphQLAuthoringClient:
             self._primary_language = primary_language(settings_from(GraphQLEditorialStore(execute=self.graphql, tenant_id=self.tenant_id)))
         return self._primary_language
 
+    def _language_source(self, payload: dict[str, Any], current: dict[str, Any] | None) -> dict[str, Any] | None:
+        """The stored row an Item write takes its language from when the payload names none: the row it replaces, else the version it follows
+        (``previousVersionId``), so every version of a lineage is written in the language of the one before it (``item_language.with_item_language``).
+        Read only when the payload names no language, so a writer that carries the language forward costs no read."""
+        if payload.get("language") or (current or {}).get("language") or not payload.get("previousVersionId"):
+            return current
+        return self.get_record("Item", payload["previousVersionId"]) or current
+
     def create_record(self, model_name: str, input_payload: dict[str, Any]) -> None:
         if model_name not in MUTATIONS:
             raise ValueError(f"Unsupported model for create: {model_name}")
         if model_name == "Item":
-            input_payload = with_item_language(input_payload, None, self.primary_language())
+            input_payload = with_item_language(input_payload, self._language_source(input_payload, None), self.primary_language())
         prepared = self._prepared_payload(model_name, input_payload)
         self.graphql(MUTATIONS[model_name]["create"], {"input": prepared})
 
@@ -1355,7 +1387,7 @@ class PapyrusGraphQLAuthoringClient:
         prepared = self._prepared_payload(model_name, input_payload)
         current = self.get_record(model_name, prepared["id"])
         if model_name == "Item":
-            prepared = self._prepared_payload(model_name, with_item_language(input_payload, current, self.primary_language()))
+            prepared = self._prepared_payload(model_name, with_item_language(input_payload, self._language_source(input_payload, current), self.primary_language()))
         mutation = MUTATIONS[model_name]["update" if current else "create"]
         self.graphql(mutation, {"input": prepared})
         return "updated" if current else "created"

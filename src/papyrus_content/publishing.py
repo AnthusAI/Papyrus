@@ -348,6 +348,12 @@ def _load_item(client, item_id: str) -> dict:
     return item
 
 
+def _delete_published_media(client, lineage_id: str, rows: list[dict]) -> list[str]:
+    """Delete the published picture rows of a lineage that its projection no longer keeps; the ids it actually deleted. See ``delete_lineage_row``
+    for why a row with no tenant stamp is still the lineage's to delete and a row that is already gone is not a failure."""
+    return [row["id"] for row in rows if client.delete_lineage_row("PublishedMediaAsset", row["id"], lineage_id)]
+
+
 def publish_item(
     client, item_id: str, *, actor: str, now: str | None = None, approved_by: str | None = None
 ) -> PublishResult:
@@ -412,11 +418,9 @@ def publish_item(
     for row in published_media:
         client.upsert("PublishedMediaAsset", row)
     keep_ids = {row["id"] for row in published_media}
-    deleted = []
-    for row in client.list_by_index("publishedMediaAssetsByItemAndSortKey", published_id):
-        if row["id"] not in keep_ids:
-            client.delete_record("PublishedMediaAsset", row["id"])
-            deleted.append(row["id"])
+    deleted = _delete_published_media(
+        client, lineage_id, [row for row in client.list_by_index("publishedMediaAssetsByItemAndSortKey", published_id) if row["id"] not in keep_ids]
+    )
     client.upsert("PublishedItem", published)
     client.update_record(
         "Item",
@@ -458,10 +462,7 @@ def unpublish_item(client, item_id: str, *, actor: str, now: str | None = None) 
     if published is None and not media_rows and item.get("status") != "published":
         return PublishResult(False, item_id, published_id, (published or {}).get("versionNumber"))
 
-    deleted = []
-    for row in media_rows:
-        client.delete_record("PublishedMediaAsset", row["id"])
-        deleted.append(row["id"])
+    deleted = _delete_published_media(client, lineage_id, media_rows)
     if published is not None:
         client.delete_record("PublishedItem", published_id)
     client.update_record(
@@ -505,3 +506,7 @@ class DryRunClient:
 
     def delete_record(self, model_name: str, record_id: str) -> None:
         self.planned.append({"operation": "delete", "model": model_name, "id": record_id})
+
+    def delete_lineage_row(self, model_name: str, record_id: str, lineage_id: str) -> bool:
+        self.planned.append({"operation": "delete", "model": model_name, "id": record_id})
+        return True
