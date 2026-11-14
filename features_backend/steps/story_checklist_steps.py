@@ -213,6 +213,12 @@ def publishing_refused(context, text):
     assert context.publish_error.code in ("checklist-open", "sub-task-not-publishable")
 
 
+@then('publishing was refused with the code "{code}" saying "{text}"')
+def publishing_refused_with_code(context, code, text):
+    assert context.publish_error is not None and context.publish_error.code == code, repr(context.publish_error)
+    assert text in str(context.publish_error), repr(context.publish_error)
+
+
 @then("publishing succeeded")
 def publishing_succeeded(context):
     assert context.publish_error is None, repr(context.publish_error)

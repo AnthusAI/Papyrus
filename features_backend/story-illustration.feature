@@ -60,8 +60,8 @@ Feature: Illustration is a checklist step and a publish gate
     And the Story has a figure cover approved by "Sierra" and an "Approved by" line on its image
     And every required step is closed
     When the Story is published by an editor
-    Then publishing was refused saying "names who approved the picture"
-    And publishing was refused saying "coverImage"
+    Then publishing was refused with the code "image-credit-approver" saying "names who approved the picture"
+    And publishing was refused with the code "image-credit-approver" saying "coverImage"
 
   Scenario: A third-party picture keeps its credit and needs no approval line
     Given a Story at the "copywriting" stage
