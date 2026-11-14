@@ -35,6 +35,7 @@ const allowed = new Set([
   "src/papyrus_content/tenancy_test.py",
   "scripts/test-tenancy-mode.ts",
   "features_backend/steps/tenancy_mode_steps.py",
+  "features_backend/steps/shared_stack_steps.py",
   "features_backend/tenancy-mode.feature",
   "docs/multi-tenancy.md",
 ]);
