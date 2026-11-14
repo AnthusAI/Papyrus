@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+
+    <channel>
+        <title>METR</title>
+        <link>https://metr.org</link>
+        <atom:link href="https://metr.org/feed.xml" rel="self" type="application/rss+xml" />
+        <description>METR studies the most advanced AI agents to understand whether their developers are on track to lose control of them.</description>
+        <lastBuildDate>Mon, 09 Nov 2026 15:20:24 -0800</lastBuildDate>
+
+<item>
+              <title>Review of the &quot;Risks from automated R&amp;D&quot; section in Anthropic&#39;s Risk Report (August 2026)</title>
+              <link>https://metr.org/blog/2026-11-05-rd-section-anthropic-risk-report-august-2026-review/</link>
+                <content:encoded><![CDATA[<p>Redaction summary: As part of this assessment, Anthropic had rights to redact any non-public information in this post. Per our approach to transparency, we had the right to disclose if Anthropic exercised redaction rights, and whether or not any of our findings depended significantly on redacted inf</p>]]></content:encoded>
+              <pubDate>Thu, 05 Nov 2026 00:00:00 -0800</pubDate>
+              <guid>https://metr.org/blog/2026-11-05-rd-section-anthropic-risk-report-august-2026-review/</guid>
+            </item>
+<item>
+              <title>Implementing and Evaluating a Basic Per-Action Monitor for Safer Evals</title>
+              <link>https://metr.org/notes/2026-09-27-implementing-a-basic-blocking-action-monitor/</link>
+                <content:encoded><![CDATA[<p>In light of recent incidents (e.g. those from OpenAI, Anthropic, and UK AISI), we developed and deployed a basic live per-action monitor to reduce the likelihood of incidents involving harmful actions from agents during our own evaluations. The monitor is intended to reliably detect actions that cou</p>]]></content:encoded>
+              <pubDate>Sun, 27 Sep 2026 00:00:00 -0700</pubDate>
+              <guid>https://metr.org/notes/2026-09-27-implementing-a-basic-blocking-action-monitor/</guid>
+            </item>
+<item>
+              <title>GPT-5.1-Codex-Max Evaluation Results</title>
+              <link>https://metr.org/evaluations/gpt-5-1-codex-max-report/</link>
+                <content:encoded><![CDATA[<p>Note on independence: This evaluation was conducted under a standard NDA. Due to the sensitive information shared with METR as part of this evaluation, OpenAI’s comms and legal team required review and approval of this post.1 Summary METR previously found that further incremental development2 of mod</p>]]></content:encoded><pubDate>Wed, 19 Nov 2025 00:00:00 -0800</pubDate>
+              <guid>https://metr.org/blog/2025-11-19-gpt-5-1-codex-max-report/</guid>
+            </item>
+<item>
+              <title>HCAST: Human-Calibrated Autonomy Software Tasks</title>
+              <link>https://arxiv.org/abs/2503.17354</link>
+                <content:encoded><![CDATA[<p></p>]]></content:encoded><pubDate>Mon, 17 Mar 2025 02:00:00 -0700</pubDate>
+              <guid>https://metr.org/blog/2025-03-17-hcast/</guid>
+            </item>
+<item>
+              <title>Frontier AI Safety Policies</title>
+              <link>https://metr.org/fsp</link>
+                <content:encoded><![CDATA[<p></p>]]></content:encoded><pubDate>Sat, 08 Feb 2025 08:00:00 -0800</pubDate>
+              <guid>https://metr.org/blog/2025-02-08-frontier-ai-safety-commitments/</guid>
+            </item>
+    </channel>
+</rss>

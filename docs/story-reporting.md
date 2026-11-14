@@ -174,6 +174,39 @@ Content is not changed. The live record stays current if the story is published;
 A human editing in the story editor presses "Save draft" to correct the current draft in place, or "Save as new version"
 to keep the previous text.
 
+### Retiring a story and redirecting its address (`stories retire`)
+
+Merging two stories into one article leaves the retired story's public addresses with nothing to say. `stories set-slug --force` keeps only a
+story's *own* old slug as a redirect to itself, and `ops content unpublish` leaves a 404. To send a story's readers to another story:
+
+```bash
+papyrus stories retire --story <lineage|id> --redirect-to <lineage|id> --dry-run   # lists what would change
+papyrus stories retire --story <lineage|id> --redirect-to <lineage|id>             # writes (like the other mutating commands)
+papyrus stories retire --story <lineage|id> --undo [--dry-run]                     # brings it back
+```
+
+`--no-trigger` skips the projection (as in `stories set-slug`); run `papyrus ops content project --item <id>` later. The command refuses, and writes nothing, when the
+target is missing, is not published, is the story itself, or is retired (a redirect never points at another redirect; point at the story it was retired into), and when
+the story was never published (spike it instead). It does not need the same type: an article and a post can both redirect to an article.
+
+What it writes: the live version is unpublished (`unpublish_item`, the same operation as `ops content unpublish`), and the story's head version moves to the
+`retired` stage with `metadata.retiredInto` (`toLineageId`, `liveItemId`, `versionIds`, `previousStage`, `at`, `by`). No version is deleted. The projection then
+removes the story from the listings, the sitemap, the feeds and the public data, deletes its pages, and writes one permanent (301) redirect for every address the
+story was served at: its current address and Markdown twin, its aliases, the addresses of its earlier published versions and the former addresses the projection
+remembers (a rename, a change of type folder). The register of these addresses is `_papyrus/retired.json` in the site store; the redirects are computed from it
+against the site as it is now, so when the target changes address every redirect points at the new address (never through a chain), a `.md` twin goes to the
+target's `.md` twin, and a target that is later retired is followed to the story it was retired into. The cross-story boilerplate check ignores retired stories.
+
+Before it writes, the command prints one `redirect` row per request path the projection will redirect, from the public address readers use (for example `/articles/face-match/`, `/articles/face-match`, `/articles/face-match/index.md`) to the target's public address. These come from the site's own projector (the same computation the projection uses for the redirects it writes), not from the Markdown source path the story is stored under, so the command needs the site's settings: run it where `PAPYRUS_SITE_PROJECTOR` is set or pass `--static-dir DIR` (the folder with `projection.json`); it refuses, and writes nothing, when it cannot find them. `--undo` prints no redirect rows.
+
+The command prints the pages the projection wrote and deleted and the exact paths purged (`page` and `purged` rows; `NOT purged` for a path the site's cap held back):
+the projection purges only the pages it wrote or deleted, both URL forms, never a wildcard, and a call over the cap is the person's decision (`--force-paths` is not
+offered here).
+
+`--undo` clears `retiredInto` (kept as `metadata.unretired`), moves the story out of the retired stage and publishes the retired version again; the projection then
+rebuilds its page and removes its redirects. A site that requires approval to publish (`publish_gate`) refuses the undo from the CLI: restore from the console. When
+the story has a newer working version than the one that was live, nothing is republished and the redirects still go; publish the working version when it is ready.
+
 ## References: consulted versus cited
 
 Attach a reference as soon as you read it. One link exists per story and reference. Its `role` says what the reference
@@ -282,7 +315,7 @@ papyrus stories link-concept --story <lineage-or-slug> --concept <name|#hashtag|
 papyrus references link-concept --reference <id> --concept <name|#hashtag|nodeKey> [--concept ...] [--note TEXT] [--dry-run] [--json]
 ```
 
-**The pages update at once, without a purge.** After a real write that created a link, `link-story` and `link-concept` (stories) ask the site to re-render exactly the published stories whose page changed (both ends of a story link; the story of a Reference or concept link; a Reference has no public page) with `papyrus ops content rerender --story LINEAGE --no-invalidate` behind the scenes. Nothing is purged: the HTML lifetime is five minutes, so the link shows within about five minutes. Each story prints `rerender  LINEAGE  no purge  ok`, then `visible on the site within about five minutes; nothing was purged`. A dry run, a repeat that wrote nothing and unpublished stories re-render nothing; `--no-rerender` skips it. At most 20 stories are re-rendered per command; the rest are listed as exact commands. A failed or timed-out re-render is a warning on stderr naming the stories and the manual command (a timeout may still have completed on the server); the link stays and the command succeeds. The server has no batch path, so the stories are re-rendered one after another and one call can take about a minute; a progress line `rerendering LINEAGE (about a minute)...` is printed on stderr before each, and the wait follows `PAPYRUS_GRAPHQL_TIMEOUT_SECONDS` (30 seconds signed in, 120 on the operator lane, when it is unset), so raise it for a command with several targets or pass `--no-rerender` and re-render later. The agent tools `papyrus_link_stories` and `papyrus_link_concepts` do the same and return a `rerendered` list (and `rerenderWarnings` on a failure).
+**The pages update at once, without a purge.** After a real write that created a link, `link-story` and `link-concept` (stories) ask the site to re-render exactly the published stories whose page changed (both ends of a story link; the story of a Reference or concept link; a Reference has no public page) with `papyrus ops content rerender --story LINEAGE --no-invalidate` behind the scenes. Nothing is purged: the HTML lifetime is five minutes, so the link shows within about five minutes. Each story prints `rerender  LINEAGE  no purge  ok`, then `visible on the site within about five minutes; nothing was purged`. A dry run, a repeat that wrote nothing and unpublished stories re-render nothing; `--no-rerender` skips it. At most 20 stories are re-rendered per command; the rest are listed as exact commands. Each re-render is a job on the server that the command follows (see "A re-render is a job you can ask about" in site-hosting.md): a failed re-render is a warning on stderr naming the stories and the manual command; one still running after `PAPYRUS_PROJECTION_TIMEOUT_SECONDS` (120 seconds when unset), or whose start got no answer, is a warning that says the outcome "has not been confirmed ... not a failure" and names the `rerender --story LINEAGE --no-invalidate --status` command to check it. The link stays and the command succeeds. The stories are followed one after another, and a progress line `rerendering LINEAGE (about a minute)...` is printed on stderr before each; pass `--no-rerender` and re-render later to skip the wait. The agent tools `papyrus_link_stories` and `papyrus_link_concepts` do the same and return a `rerendered` list (and `rerenderWarnings` on a failure).
 
 These are rigid on purpose, because an outside agent uses them. No option or field chooses a predicate, a state or a new concept (`--predicate`, `--relation`,
 `--state` and `--create` are refused). A concept is never created: it must already be an accepted SemanticNode, found by exact node key, exact hashtag (the part after

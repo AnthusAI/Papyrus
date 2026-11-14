@@ -1,0 +1,25 @@
+{
+  "id": "PPY-fe246cdf-9c64-495c-ba15-e7655667b9e0",
+  "title": "Caducus: subscriptions scoped by site and language for admin-class kinds",
+  "description": "Caducus 0.2.0 delivers admin-class kinds to nobody (routing.py:228-234) and only operator-class kinds to the SSM operator list. Add subscriptions with a scope (for example language:es) from Caducus's preferences milestone (docs/notifications-plan.md M3), so Papyrus can deliver translation.published to the people subscribed to that site and language. Coordinate in the Caducus repository; Papyrus pins the released version. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T16:22:28.405691Z",
+  "updated_at": "2026-11-12T16:22:28.545262Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -586,6 +586,24 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt ScheduleDeadLetterQueue.Arn
 
+  FeedMetrCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-feed-metr-collect
+      Description: Run the collector for the METR feed; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"feed-metr"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
   WebCollectSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
@@ -795,6 +813,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
 
   SuggestEventSourceMapping:
@@ -985,6 +1004,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
           EDITORIAL_JUDGMENT_KEY_PARAMETER: !If [HasEditorialJudgmentKey, !Ref EditorialJudgmentKeyParameter, !Ref AWS::NoValue]
@@ -1168,6 +1188,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
           SUGGEST_QUEUE_URL: !Ref SuggestQueue
           STORY_QUEUE_URL: !Ref StoryQueue
@@ -1719,6 +1740,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
           PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
@@ -2618,6 +2640,24 @@ Resources:
         Arn: !GetAtt RouterFunction.Arn
         RoleArn: !GetAtt RouterScheduleRole.Arn
         Input: '{"monitorId":"papers-huggingface"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  FeedMetrRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-feed-metr-route
+      Description: Run the router for the METR feed hourly at minute 14; it routes in the mode stored in the table.
+      ScheduleExpression: cron(14 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"feed-metr"}'
         RetryPolicy:
           MaximumEventAgeInSeconds: 600
           MaximumRetryAttempts: 1

@@ -46,6 +46,7 @@ from .item_state import (
 from .model import ItemSummary, ProjectionReport, SiteIndex, site_signature
 from .plugins import PLUGIN_PAGE_PREFIXES, is_plugin_runtime_key
 from .projector import SiteProjector, normalized_redirect_source
+from .retired import Registry, entry_for, read_registry, registry_redirects, write_registry
 from .source import ProjectionSourceError, PublishedContentSource, replace_item
 from ..page_refresh.marker import with_source_version
 from .writers import STATE_PREFIX, PageWriter, RedirectStore, StoredObject, body_etag, request_paths_for_key
@@ -153,6 +154,10 @@ class ProjectionContext:
         attach = getattr(self.projector, "attach_store", None)
         if attach is not None:
             attach(self.writer)
+        languages = getattr(self.source, "serving_languages", None)
+        use_languages = getattr(self.projector, "use_languages", None)
+        if languages is not None and use_languages is not None:
+            use_languages(languages)   # read when the projector first needs them: the site's languages from the editorial check settings
 
 
 def _leased(function):
@@ -298,9 +303,17 @@ def _moved_redirects(projector, state: ItemState | None, live_keys: set[str]) ->
     return moved
 
 
-def _redirects_for(context: ProjectionContext, site: SiteIndex, state: ItemState | None) -> dict[str, str]:
+def _read_retired(context: ProjectionContext) -> Registry:
+    """The register of retired Stories (``retired.py``); empty on a projection that keeps no state."""
+    return read_registry(context.writer) if context.keep_state else {}
+
+
+def _redirects_for(
+    context: ProjectionContext, site: SiteIndex, state: ItemState | None, registry: Registry | None = None
+) -> dict[str, str]:
     live_keys = _item_keys(context, site)
-    return {**context.projector.redirects(site), **_moved_redirects(context.projector, state, live_keys)}
+    retired = registry_redirects(context.projector, site, _read_retired(context) if registry is None else registry)
+    return {**retired, **context.projector.redirects(site), **_moved_redirects(context.projector, state, live_keys)}
 
 
 REDIRECT_LOOKUP_LIMIT = 10
@@ -483,8 +496,14 @@ def _project_publication(
     listing_pages = projector.listing_pages(site, dirty) if dirty else {}
     page_keys = tuple(sorted(item_pages))
     state = _updated_state(previous_state, current, page_keys)
-    old_redirects = _redirects_for(context, site_before, previous_state)
-    new_redirects = _redirects_for(context, site, state)
+    registry_before = _read_retired(context)
+    registry = registry_before
+    if registry_before and previous_state is not None and not previous_state.projected:
+        registry = _without_lineage(registry_before, current.lineage_id or context.source.lineage_id_of(current.item_id))
+    old_redirects = _redirects_for(context, site_before, previous_state, registry_before)
+    new_redirects = _redirects_for(context, site, state, registry)
+    if registry != registry_before and context.keep_state:
+        write_registry(context.writer, registry)   # a restored Story's addresses are pages again, not redirects
 
     _write_item_pages(context, report, item_pages, {key: current.version_number for key in item_pages})
     report.item_paths = list(page_keys)
@@ -498,36 +517,76 @@ def _project_publication(
     )
     if report.follow_up_item_pages and not context.defer_follow_up:
         _run_follow_up(context, report, current.item_id)
+    _render_dependents(context, report, site_before, site, current.item_id)
     if context.keep_state:
         write_item_state(context.writer, state)
     _converge(context, report, site, current.item_id, state)
+
+
+def _render_dependents(context: ProjectionContext, report: ProjectionReport, before: SiteIndex, after: SiteIndex, item_id: str) -> None:
+    """Render again the pages of the other items this change shows on: the other languages of a Story's language group, whose switcher and ``hreflang``
+    list the languages that are published (``dependent_item_ids``). As many as the group has languages; nothing when every item page is rendered anyway."""
+    dependents = getattr(context.projector, "dependent_item_ids", None)
+    if dependents is None or (report.follow_up_item_pages and not context.defer_follow_up):
+        return
+    by_id = {summary.item_id: summary for summary in after.items}
+    for dependent in dependents(before, after, item_id):
+        summary = by_id.get(dependent)
+        if summary is None:
+            continue
+        pages = context.projector.item_pages(after.load_item(dependent), after)
+        _write_item_pages(context, report, pages, {key: summary.version_number for key in pages})
+
+
+def _without_lineage(registry: Registry, lineage_id: str | None) -> Registry:
+    return {key: entry for key, entry in registry.items() if key != lineage_id}
+
+
+def _retired_entry(context: ProjectionContext, item_id: str, retirement, state: ItemState | None):
+    """The register entry for a retired Story: every address the projection remembers for it and every version that was served."""
+    remembered = [*(state.page_keys if state else ()), *(state.former_page_keys if state else ())]
+    return entry_for(context.projector, item_id, retirement.lineage_id, retirement.to_lineage, retirement.summaries, remembered)
 
 
 def _project_removal(
     context: ProjectionContext, report: ProjectionReport, item_id: str, previous_state: ItemState | None, site: SiteIndex
 ) -> None:
     projector = context.projector
+    retire = getattr(context.source, "retirement", None)
+    retirement = retire(item_id) if retire is not None and context.keep_state else None
+    registry_before = _read_retired(context)
+    if retirement is not None:
+        registry = {**registry_before, retirement.lineage_id: _retired_entry(context, item_id, retirement, previous_state)}
+    elif registry_before and context.keep_state:
+        registry = _without_lineage(registry_before, context.source.lineage_id_of(item_id))   # a retirement that was undone (`stories retire --undo`)
+    else:
+        registry = registry_before
     if previous_state is not None and previous_state.projected:
         previous = previous_state.summary
         page_keys = previous_state.page_keys
     elif previous_state is not None:
-        return
+        if registry == registry_before:
+            return
+        previous, page_keys = previous_state.summary, ()   # unpublished earlier and retired now: only the redirects are new
     else:
         try:
             previous = context.source.item_summary(item_id)
         except ProjectionSourceError:
             return
         page_keys = projector.item_page_paths(previous)
-    site_before = replace_item(site, item_id, previous)
+    site_before = replace_item(site, item_id, previous) if page_keys else site
     dirty, removed, inputs = _listing_difference(projector, site_before, site)
     report.follow_up_item_pages = projector.shared_inputs(site_before) != projector.shared_inputs(site)
     listing_pages = projector.listing_pages(site, dirty) if dirty else {}
-    old_redirects = _redirects_for(context, site_before, previous_state)
-    new_redirects = _redirects_for(context, site, None)
+    old_redirects = _redirects_for(context, site_before, previous_state, registry_before)
+    new_redirects = _redirects_for(context, site, None, registry)
+    if registry != registry_before:
+        write_registry(context.writer, registry)   # before the redirect store, so a failed projection is redone from the same register
 
     _write_listing_pages(context, report, listing_pages, inputs)
     if report.follow_up_item_pages and not context.defer_follow_up:
         _run_follow_up(context, report, item_id)
+    _render_dependents(context, report, site_before, site, item_id)
     _delete_pages(context, report, set(page_keys) - set(inputs))
     report.item_paths = list(page_keys)
     _delete_pages(context, report, removed - _item_keys(context, site))
@@ -721,7 +780,7 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     known = {found["itemId"] for found in report.unrenderable}
     report.unrenderable.extend(found for found in skipped_by_listings if found["itemId"] not in known)
     live_keys = _item_keys(context, site)
-    redirects = dict(projector.redirects(site))
+    redirects = {**registry_redirects(projector, site, _read_retired(context)), **projector.redirects(site)}
     for state in states:
         redirects.update(_moved_redirects(context.projector, state, live_keys))
     planned = leftovers - live_keys - set(inputs)
@@ -991,8 +1050,14 @@ def _remove_items(context: ProjectionContext, item_ids: list[str], site: SiteInd
     cleanup = ProjectionReport()
     keep = _item_keys(context, site) | set(context.projector.listing_inputs(site))
     stale_redirects: set[str] = set()
+    registry_before = _read_retired(context)
+    registry = dict(registry_before)
+    retire = getattr(context.source, "retirement", None)
     for item_id in item_ids:
         state = read_item_state(context.writer, item_id)
+        retirement = retire(item_id) if retire is not None and context.keep_state else None
+        if retirement is not None:
+            registry[retirement.lineage_id] = _retired_entry(context, item_id, retirement, state)
         if state is None or not state.projected:
             continue
         _delete_pages(context, cleanup, set(state.page_keys) - keep)
@@ -1007,9 +1072,17 @@ def _remove_items(context: ProjectionContext, item_ids: list[str], site: SiteInd
                     former_page_keys=tuple(dict.fromkeys([*state.former_page_keys, *state.page_keys])),
                 ),
             )
+    if registry != registry_before:
+        write_registry(context.writer, registry)
+    retired_redirects = registry_redirects(context.projector, site, registry)
+    if context.redirect_store is not None and retired_redirects:
+        current = context.redirect_store.list_all()
+        changed = {source: target for source, target in retired_redirects.items() if current.get(source) != target}
+        if changed:
+            context.redirect_store.put_all(changed)
     if context.redirect_store is not None and stale_redirects:
         present = set(context.redirect_store.list_all())
-        gone = sorted(stale_redirects & present)
+        gone = sorted((stale_redirects & present) - set(retired_redirects))
         if gone:
             context.redirect_store.delete_all(gone)
     cleanup.written.extend(project_item_pages(context, finish=False).written)
@@ -1020,7 +1093,7 @@ def _reconcile_redirects(context: ProjectionContext, report: ReconcileReport, si
     store = context.redirect_store
     if store is None:
         return
-    expected = dict(context.projector.redirects(site))
+    expected = {**registry_redirects(context.projector, site, _read_retired(context)), **context.projector.redirects(site)}
     live_keys = _item_keys(context, site)
     for summary in site.items:
         state = read_item_state(context.writer, summary.item_id) if context.keep_state else None

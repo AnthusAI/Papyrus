@@ -306,6 +306,31 @@ def test_a_posted_message_schedules_one_snapshot_for_the_end_of_the_window(monke
     assert len(scheduler.calls) == 1 and scheduler.calls[0]["Name"].endswith(f"-{NOW + 300}")
 
 
+THREAD_WINDOW = 3
+
+
+def test_a_posted_message_takes_the_thread_window_when_the_site_has_one(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_HOME_PAGE_THREAD_DEBOUNCE_SECONDS", str(THREAD_WINDOW))
+    first, dynamo, scheduler = run([message_record("INSERT", None, COMMENT)], monkeypatch=monkeypatch)
+    second, _, _ = run([message_record("INSERT", None, COMMENT)], dynamo, scheduler, NOW + 2, monkeypatch)
+    assert first["scheduled"] is True and second["scheduled"] is False
+    assert [call["Name"].rsplit("-", 1)[-1] for call in scheduler.calls] == [str(NOW + THREAD_WINDOW)]
+
+
+def test_an_open_reference_window_does_not_hold_a_message_back(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_HOME_PAGE_THREAD_DEBOUNCE_SECONDS", str(THREAD_WINDOW))
+    _, dynamo, scheduler = run([record(old=PENDING, new=ACCEPTED)], monkeypatch=monkeypatch)
+    later, _, _ = run([message_record("INSERT", None, COMMENT)], dynamo, scheduler, NOW + 10, monkeypatch)
+    assert later["scheduled"] is True
+    assert sorted(call["Name"].rsplit("-", 1)[-1] for call in scheduler.calls) == [str(NOW + 10 + THREAD_WINDOW), str(NOW + 300)]
+
+
+def test_a_reference_change_keeps_the_long_window_when_the_site_has_a_thread_window(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_HOME_PAGE_THREAD_DEBOUNCE_SECONDS", str(THREAD_WINDOW))
+    _, _, scheduler = run([record(old=PENDING, new=ACCEPTED)], monkeypatch=monkeypatch)
+    assert scheduler.calls[0]["Name"].endswith(f"-{NOW + 300}")
+
+
 def test_writing_the_public_blocks_attributes_alone_changes_no_page():
     """The five attributes of the public index (PPY-7f1e54) are copies of facts this function already watches, or of the preview. The backfill writes them to every
     public row, so a write of them alone must not schedule a snapshot (it would be one run per backfill, for nothing)."""

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "53be9b87-a872-411d-a7c2-4e6ac7f8bd00",
+  "issue_id": "PPY-568b6d0a-7176-4775-b318-6b6218195ee4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T20:37:05.241Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Fold import, inline templates and config into stack_deploy.py",
+    "description": "Optional config only; the default stacks.json behaves as before. PR in progress.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+    "labels": []
+  }
+}

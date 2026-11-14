@@ -3,6 +3,9 @@
 Humanus is stateless and receives a policy pack with every call (docs/editorial-checks.md). Only its deterministic
 rules lane runs here, with no model: the built-in ``ai-writing-tells`` pack plus a small spam pack kept in this module.
 Signals are advice for the moderation queue. They never hide anything by themselves.
+
+Both packs are English, so reader text is read as English (``SIGNALS_LANGUAGE``), stated in every request: Humanus 0.35 never
+assumes a language. Text in another language simply matches few of these rules.
 """
 
 from __future__ import annotations
@@ -54,6 +57,8 @@ SPAM_PACK: dict[str, Any] = {
     ],
 }
 
+SIGNALS_LANGUAGE = "en"   # the language of both packs, so the language these signals read reader text in
+
 CheckFunction = Callable[[dict[str, Any]], dict[str, Any]]
 
 
@@ -79,7 +84,7 @@ def humanus_signals(text: str, *, check: CheckFunction | None = None, packs: Ite
         result = run(
             {
                 "schemaVersion": 1,
-                "content": {"format": "text", "text": text},
+                "content": {"format": "text", "text": text, "language": SIGNALS_LANGUAGE},
                 "pack": pack,
                 "options": {"lanes": {"rules": True, "classifier": False}},
             }

@@ -408,3 +408,12 @@ def test_the_smaller_footer_uses_plain_mono_lines():
     band = band_of(issue(theme=SMALL, footer=archive_footer()).html)
     assert "text-transform:uppercase" not in band
     assert "font-size:11px;font-weight:normal" in band
+
+
+def test_transactional_footer_can_carry_the_postal_address():
+    mail = render_transactional(
+        subject="x", markus="Hi", theme=THEME, site_name="S", site_url=SITE, postal_address="1 Example Way\n Example City <EX> "
+    )
+    assert "1 Example Way<br />Example City &lt;EX&gt;" in mail.html
+    assert mail.text.rstrip().endswith("1 Example Way\nExample City <EX>")
+    assert "Example Way" not in render_transactional(subject="x", markus="Hi", theme=THEME, site_name="S", site_url=SITE).html

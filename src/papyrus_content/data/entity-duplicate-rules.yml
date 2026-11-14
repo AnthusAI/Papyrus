@@ -1,0 +1,45 @@
+# The rules the duplicate check applies before a second entity is made or accepted (knowledge_snapshot/entity_duplicates.py).
+#
+# A candidate (a kind and a name) is compared with every accepted entity. A rule fires when the candidate and the entity are of the SAME
+# kind (the same name in two kinds is two things: a model and the lab that made it) and the check named by `check` holds for any name of the
+# entity, its display name or one of its aliases. The first rule in this list that fires decides.
+#
+# action: resolve  the candidate is the entity under another spelling: the mention is linked to the entity and the name is added to it as an alias
+#         propose  the candidate looks like the entity but only a person can say so: no entity is made or accepted, and a proposal is filed
+#
+# kinds: the kinds the rule applies to (the vocabulary's keys); leave it out for every kind.
+# A change here changes what the check catches; entity_duplicates_test.py holds the pairs each rule must and must not catch.
+
+# Words that begin a name without being part of it ("The NTSB", "And the UK AI Security Institute": the extractor keeps the word before the name).
+leading_words: [the, a, an, and]
+
+# Words left out when the initials of a long name are read ("Center for Democracy and Technology" is CDT).
+connectors: [of, for, and, the, in, on, to, at, de]
+
+rules:
+  - id: same_name
+    check: same_name
+    action: resolve
+    description: The names are the same once case, punctuation and spacing are ignored (registry.alias_identity).
+
+  - id: leading_word
+    check: leading_word
+    action: resolve
+    description: The names are the same once a leading article or conjunction (leading_words) is taken off.
+
+  - id: acronym
+    check: acronym
+    action: propose
+    description: One name is a single upper case token that is the initials of the other (NTSB, National Transportation Safety Board).
+
+  - id: surname
+    check: surname
+    kinds: [person]
+    action: propose
+    description: One name is a single word that is the last word of exactly one full-name person of the kind (Musk, Elon Musk).
+
+  - id: containment
+    check: containment
+    kinds: [organization]
+    action: propose
+    description: One name is a whole-word start or end of the other (Redwood, Redwood Research).

@@ -11,6 +11,15 @@ Feature: A signed-in person reads a site's References, Stories and Assignments w
     When a signed-in person shows the Reference "ref-1"
     Then the shown Reference has the record id "ref-1-v1" and the lineage id "ref-1"
 
+  Scenario: references show and references text take the lineage id after --reference, and fail loudly without an id
+    Given the signed-in site has the Reference "ref-1" in the corpus "ai-ml-research"
+    When a signed-in person runs references show with "--reference ref-1"
+    Then the command prints the Reference with the record id "ref-1-v1"
+    When a signed-in person runs references show with no arguments
+    Then the command fails with exit code 2 saying "requires a Reference id"
+    When a signed-in person runs references text with "--reference ref-1 --offest 5"
+    Then the command fails with exit code 2 saying "does not take --offest"
+
   Scenario: A Reference is found by the record id that references list prints
     Given the signed-in site has the Reference "ref-1" in the corpus "ai-ml-research"
     When a signed-in person shows the Reference "ref-1-v1"

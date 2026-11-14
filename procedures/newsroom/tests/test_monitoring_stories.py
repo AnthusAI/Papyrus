@@ -323,9 +323,9 @@ def test_the_router_zip_can_run_the_drafting_and_the_editorial_gate_with_nothing
               "from papyrus_content import link_exploration; from papyrus_content import monitoring_vectors, reference_suggestions, suggestion_calibration; from papyrus_knowledge_query import vector_index, services; import humanus.check, typesafe_sdk, humanus; "
               "from papyrus_content.markus_renderer.derive import derive_body; derive_body('title: T\\n', '# T\\n\\nA link https://example.org/x.\\n'); "
               "assert all(sys.argv[1] in module.__file__ for module in (humanus, typesafe_sdk, gate)); "
-              "pack = {'schemaVersion': 1, 'packId': 'test', 'version': '1', 'policies': [{'id': 'no-synergy', 'version': 1, 'title': 'No synergy', "
+              "pack = {'schemaVersion': 1, 'packId': 'test', 'version': '1', 'language': 'en', 'policies': [{'id': 'no-synergy', 'version': 1, 'title': 'No synergy', "
               "'guidance': 'Avoid it.', 'severity': 'warn', 'detectors': [{'id': 'synergy', 'lane': 'rules', 'kind': 'phrase', 'phrases': ['synergy']}]}]}; "
-              "result = humanus.check({'schemaVersion': 1, 'content': {'format': 'markus', 'text': 'Pure synergy.'}, 'pack': pack, "
+              "result = humanus.check({'schemaVersion': 1, 'content': {'format': 'markus', 'text': 'Pure synergy.', 'language': 'en'}, 'pack': pack, "
               "'options': {'lanes': {'rules': True, 'classifier': False}}}); "
               "print('imported', len(result['findings']))")
     done = subprocess.run([sys.executable, "-I", "-S", "-c", script, str(unpacked)], capture_output=True, text=True, cwd=tmp_path,
@@ -369,7 +369,7 @@ def test_a_read_that_runs_out_of_time_leaves_the_rest_unread_and_says_so():
 
 
 def test_monitor_stories_is_on_by_default_and_the_setting_is_validated():
-    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True}, "vectorIndexArn": None, "storageBucketName": None}   # single items, every context-pack signal that has data, suggestions; no index until the site's outputs supply one
+    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True}, "ideaRules": {"minimumReferences": 2, "requireJointSentence": True, "passingVerdicts": ["adds"], "checkRepeats": True, "checkProcessTalk": True, "mode": "evidence"}, "vectorIndexArn": None, "storageBucketName": None}   # single items, every context-pack signal that has data, suggestions; no index until the site's outputs supply one
     assert validate_monitor_stories("p", None) == {"enabled": True, "store": "items", **on}   # ideas are Items at the idea stage by default
     assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "items", **on}
     assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "items", **on}

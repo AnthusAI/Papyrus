@@ -10,7 +10,8 @@ from ..content_item_lifecycle import is_story_item_type
 from ..newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND
 from ..section_ids import is_type_shaped
 from ..tenancy import rows_for_tenant
-from .digest import CORPUS_PREFIX, corpus_key, parse_time
+from ..tenant_knowledge_keys import is_corpus_id
+from .digest import corpus_key, parse_time
 
 IN_FLIGHT_STATUSES = {"draft", "review", "in_review", "scheduled"}
 STORY_FIELDS = "id lineageId versionState type status stage section title deck headline publishedAt updatedAt tenantId"
@@ -25,7 +26,7 @@ query ListStories($limit: Int, $nextToken: String) {{
 
 
 def hosted_corpora(client: Any) -> list[dict[str, Any]]:
-    return [row for row in client.list_records("KnowledgeCorpus") if str(row.get("id") or "").startswith(CORPUS_PREFIX)]
+    return [row for row in client.list_records("KnowledgeCorpus") if is_corpus_id(str(row.get("id") or ""))]
 
 
 def corpus_ids_for(corpora: list[dict[str, Any]], publication: str) -> list[str]:

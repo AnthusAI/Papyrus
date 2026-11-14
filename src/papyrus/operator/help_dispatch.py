@@ -20,7 +20,7 @@ Tree = dict[str, "Tree"]
 CONTENT_GROUPS = ("stories", "editions", "batch", "messages", "reader", "proposals", "ideas", "cyclotron", "items", "home-page",
                   "automations", "reviews", "videos")
 LEAF_GROUPS = ("doctor", "links", "login", "logout", "whoami", "auth", "help", "guide")
-REFERENCE_EXTRAS = ("list", "show", "register", "search", "capture-transcripts", "repair-titles", "capture-thumbnails",
+REFERENCE_EXTRAS = ("list", "show", "text", "register", "search", "capture-transcripts", "repair-titles", "capture-thumbnails",
                     "curate-recent", "summaries", "summarize", "summarize-batch", "summary-cleanup-legacy", "quality", "title-subtitle")
 ASSIGNMENT_EXTRAS = ("list", "run-story-cycle", "story-cycle-output", "build-assignment-agent-context")
 KNOWLEDGE_EXTRAS = ("query", "vector-index", "signals", "publish-run", "snapshot", "archive", "topic-config", "extract-entities",
@@ -34,6 +34,10 @@ def _leaves(names) -> Tree:
 
 def route_tree() -> Tree:
     from papyrus.operator.group_commands import PROCEDURES_COMMANDS, REPORTING_COMMANDS, RESEARCH_COMMANDS, SECTIONS_COMMANDS
+    from papyrus_content.figures.cli import route_tree as figures_route_tree
+    from papyrus_content.guidelines.cli import route_tree as guidelines_route_tree
+    from papyrus_content.announcements.cli import route_tree as announcements_route_tree
+    from papyrus_content.figures.design_system_cli import route_tree as design_system_route_tree
     from papyrus_content.images.cli import route_tree as images_route_tree
 
     knowledge_names = ported_commands("knowledge")
@@ -66,6 +70,10 @@ def route_tree() -> Tree:
         "editorial": _leaves({*ported_commands("editorial"), "context"}),
         "monitors": {},
         "images": images_route_tree(),
+        "guidelines": guidelines_route_tree(),
+        "announcements": announcements_route_tree(),
+        "figures": figures_route_tree(),
+        "design-system": design_system_route_tree(),
     }
     for group in CONTENT_GROUPS:
         tree[group] = _leaves(ported_commands(group))

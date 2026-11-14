@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "05085123-eaa9-49ec-9e92-57eb12eb40aa",
+  "issue_id": "PPY-94458e1f-d73c-40ab-adcb-1501c8e4e525",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T17:15:59.765Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A site adds news sources without an engine release",
+    "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-5ca2e3.\n\n`monitoring_feed.FEED_HOSTS` and `monitoring.SOURCE_TYPES` are lists in code. Feed hosts and source kinds become data an administrator can add.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Fable 5.2",
+      "name": "Humorus Planning"
+    }
+  }
+}

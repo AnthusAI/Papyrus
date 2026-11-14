@@ -10,9 +10,9 @@ from behave import given, then, when
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ("import sys; sys.path.insert(0, sys.argv[1]); from papyrus_content.ideas import gate, items; import humanus, humanus.check, typesafe_sdk; "
           "assert all(sys.argv[1] in module.__file__ for module in (humanus, typesafe_sdk, gate)); "
-          "pack = {'schemaVersion': 1, 'packId': 'test', 'version': '1', 'policies': [{'id': 'no-synergy', 'version': 1, 'title': 'No synergy', "
+          "pack = {'schemaVersion': 1, 'packId': 'test', 'version': '1', 'language': 'en', 'policies': [{'id': 'no-synergy', 'version': 1, 'title': 'No synergy', "
           "'guidance': 'Avoid it.', 'severity': 'warn', 'detectors': [{'id': 'synergy', 'lane': 'rules', 'kind': 'phrase', 'phrases': ['synergy']}]}]}; "
-          "result = humanus.check({'schemaVersion': 1, 'content': {'format': 'markus', 'text': 'Pure synergy.'}, 'pack': pack, "
+          "result = humanus.check({'schemaVersion': 1, 'content': {'format': 'markus', 'text': 'Pure synergy.', 'language': 'en'}, 'pack': pack, "
           "'options': {'lanes': {'rules': True, 'classifier': False}}}); print('findings', len(result['findings']))")
 
 

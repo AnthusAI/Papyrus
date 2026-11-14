@@ -62,6 +62,48 @@ def src_path_for(slug: str, filename: str, taken: set[str] | None = None) -> str
     return candidate
 
 
+FIGURE_SIDECAR_SUFFIX = ".figure.json"  # written next to a figure's pictures by `papyrus figures render`
+REQUIRE_DARK_FIGURES_VARIABLE = "PAPYRUS_REQUIRE_DARK_FIGURES"
+
+
+def is_figure_picture(path: Path) -> bool:
+    """True for a picture `papyrus figures render` made: it wrote ``<slug>.figure.json`` beside ``<slug>.png``."""
+    return path.with_name(path.stem + FIGURE_SIDECAR_SUFFIX).is_file()
+
+
+def light_only_figure_lines(plan: "StoryImagePlan") -> list[str]:
+    return [
+        f"stories\tsave-version\tfigure-light-only\t{reference}\t"
+        "WARNING: this figure has no dark picture, so a reader in dark mode gets the light one. Run `papyrus figures render` (it always writes both) "
+        "and keep SLUG.dark.png next to SLUG.png, or pass srcDark."
+        for reference in plan.light_only_figures
+    ]
+
+
+_TRUE, _FALSE = {"1", "true", "yes", "on"}, {"0", "false", "no", "off"}
+
+
+def dark_figures_required(flag: bool, environment: str | None, site_setting: Callable[[], bool]) -> tuple[bool, str]:
+    """Whether a figure with no dark picture is refused, and why. The flag and the environment variable are overrides: the flag refuses, the variable refuses
+    (``1``) or allows (``0``), and only when neither says anything is the site's ``requireDarkFigures`` setting read (``site_setting`` is called then, once)."""
+    value = (environment or "").strip().lower()
+    if flag:
+        return True, "--require-dark-figures"
+    if value in _TRUE:
+        return True, REQUIRE_DARK_FIGURES_VARIABLE
+    if value in _FALSE:
+        return False, REQUIRE_DARK_FIGURES_VARIABLE
+    return (True, "this site's requireDarkFigures setting") if site_setting() else (False, "")
+
+
+def light_only_figure_error(plan: "StoryImagePlan", why: str = "--require-dark-figures or PAPYRUS_REQUIRE_DARK_FIGURES") -> str:
+    names = ", ".join(plan.light_only_figures)
+    return (
+        f"Refusing to save: {names} {'is a figure' if len(plan.light_only_figures) == 1 else 'are figures'} with no dark picture, and dark pictures are required "
+        f"({why}). Run `papyrus figures render` and put SLUG.dark.png next to SLUG.png in the --images folder."
+    )
+
+
 def existing_assets(rows: Iterable[dict[str, Any]]) -> dict[str, str]:
     """``srcPath -> sha256`` of the ``MediaAsset`` rows a story's versions already hold (rows without both are ignored)."""
     found: dict[str, str] = {}
@@ -128,6 +170,7 @@ class StoryImagePlan:
     images: list[PlannedStoryImage] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)  # local-looking references not found under the directory
     notes: list[str] = field(default_factory=list)
+    light_only_figures: list[str] = field(default_factory=list)  # references to figures (rendered by `papyrus figures render`) that have no dark picture
     front_matter: str | None = None  # the front matter with its card pictures moved to the stored paths (None: not given or nothing to move)
     front_matter_edits: list[tuple[str, str, str]] = field(default_factory=list)  # (key, was, now) of each card picture moved
 
@@ -333,6 +376,8 @@ def plan_story_images(
                 dark = add(dark_reference, dark_local, "dark", paired_with=reference)
         if light is not None and dark is not None:
             _check_aspect(light, dark, problems)
+        if light is not None and dark is None and is_figure_picture(light.local_path) and reference not in plan.light_only_figures:
+            plan.light_only_figures.append(reference)
         return light, dark
 
     pieces: list[str] = []
@@ -551,4 +596,5 @@ def plan_lines(plan: StoryImagePlan, item_id: str) -> list[str]:
     lines += [f"stories\tsave-version\tfront-matter\t{key}\t{was}\t{now}" for key, was, now in plan.front_matter_edits]
     lines += [f"stories\tsave-version\timage-unresolved\t{ref}\tnot found under --images; left unchanged" for ref in plan.unresolved]
     lines += [f"stories\tsave-version\timage-note\t{note}" for note in plan.notes]
+    lines += light_only_figure_lines(plan)
     return lines

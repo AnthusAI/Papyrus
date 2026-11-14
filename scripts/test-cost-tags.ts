@@ -20,6 +20,7 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { parse } from "yaml";
 import { assertCostTags, checkCostTags } from "../amplify/vendor/anthus-cost-accounting/tags";
 import { siteCostAttribution, usageQueueUrlFor } from "../amplify/cost-attribution";
+import { checkoutBundleInputsHash, packageRoot } from "../amplify/functions/shared/python-bundle";
 import { costTagWave, planCostTagWaves, STACK_OPERATION_RESOURCE_LIMIT, WAVE_RESOURCE_BUDGET } from "../amplify/cost-tag-waves";
 import { parseSiteConfig } from "../infra/amplify-app-shell/lib/site-config";
 import { KnowledgeRunStack } from "../infra/scheduled-jobs/lib/knowledge-pipeline";
@@ -89,6 +90,21 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
   const big = planCostTagWaves([{ id: "root", parentId: null, resources: 10 }, { id: "root/huge", parentId: "root", resources: 2000 }, { id: "root/small", parentId: "root", resources: 5 }]);
   assert.deepEqual(big.waves, [["root"], ["root/huge"], ["root/small"]]);
   assert.throws(() => planCostTagWaves([{ id: "root", parentId: null, resources: STACK_OPERATION_RESOURCE_LIMIT + 1 }]), /over CloudFormation's 2500/);
+}
+
+// Scenario: a synthesized template does not move because some other file in the checkout did (tests run side by side and write there).
+{
+  const options = { functionDir: "reference-word-index", modules: ["papyrus_knowledge_query"] };
+  const before = checkoutBundleInputsHash(options);
+  const stray = path.join(packageRoot, ".amplify", `stray-${process.pid}.ts`);
+  fs.mkdirSync(path.dirname(stray), { recursive: true });
+  fs.writeFileSync(stray, "// written by another test while this one synthesizes\n");
+  try {
+    assert.equal(checkoutBundleInputsHash(options), before, "an unrelated file in the checkout changed a Python bundle's hash");
+  } finally {
+    fs.rmSync(stray, { force: true });
+  }
+  assert.notEqual(checkoutBundleInputsHash({ ...options, functionDir: "knowledge-query" }), before, "the hash names the function's own handler");
 }
 
 const synthBackend = (out: string, extra: Record<string, string>) => {
@@ -223,8 +239,11 @@ const offTemplates = synthBackend(path.join(scratch, "off"), {});
   // The pipeline's deploy roles (its only resources, nothing costed) change only through their own reviewed approval
   // flow and never send usage, so their templates are not checked.
   const PIPELINE = "infra/pipeline/";
+  // infra/account/ is the account baseline and account stacks for ANY deployment account (PPY-9bd776): roles, a zone, a budget, a certificate.
+  // A deployment in another organisation has no Prospectus and sends no usage, so Anthus cost tags do not apply to these templates.
+  const ACCOUNT = "infra/account/";
   const files = spawnSync("git", ["ls-files", "infra/*.yaml", "infra/**/*.yaml"], { cwd: repo, encoding: "utf8" }).stdout
-    .split("\n").filter((file) => file && !file.includes("/node_modules/") && !NOT_PAPYRUS.has(file) && !file.startsWith(PIPELINE));
+    .split("\n").filter((file) => file && !file.includes("/node_modules/") && !NOT_PAPYRUS.has(file) && !file.startsWith(PIPELINE) && !file.startsWith(ACCOUNT));
   let templates = 0;
   for (const file of [...new Set(files)]) {
     const document = parse(fs.readFileSync(path.join(repo, file), "utf8"), { logLevel: "silent" });

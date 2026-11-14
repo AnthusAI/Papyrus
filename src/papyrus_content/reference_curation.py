@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
+from .tenant_knowledge_keys import corpus_id_for_key, is_corpus_id
 from .ids import hash_short
 from .knowledge_snapshot.parallel import DEFAULT_WORKERS, map_with_clients, worker_count
 from .link_exploration import explore
@@ -565,7 +566,7 @@ def references_curate(flags: list[str]) -> None:
     corpus = normalize_string(options.get("corpus"))
     if not corpus:
         raise ValueError("papyrus references curate needs --corpus <corpus id>.")
-    corpus_id = corpus if corpus.startswith("knowledge-corpus-") else f"knowledge-corpus-{corpus}"
+    corpus_id = corpus if is_corpus_id(corpus) else corpus_id_for_key(corpus)
     status = normalize_string(options.get("status")) or "pending"
     if status not in {"pending", "accepted", "rejected", "archived", "all"}:
         raise ValueError("--status must be pending, accepted, rejected, archived or all.")
@@ -667,7 +668,7 @@ def references_backfill_publication_dates(flags: list[str]) -> None:
     corpus = normalize_string(options.get("corpus-id")) or normalize_string(options.get("corpus"))
     if not corpus:
         raise ValueError("papyrus references backfill-publication-dates needs --corpus-id <corpus id>.")
-    corpus_id = corpus if corpus.startswith("knowledge-corpus-") else f"knowledge-corpus-{corpus}"
+    corpus_id = corpus if is_corpus_id(corpus) else corpus_id_for_key(corpus)
     apply = resolve_mutation_apply(options, "references backfill-publication-dates")
     workers = worker_count(options.get("parallel"))
     client, _ = create_authoring_client()

@@ -3,16 +3,20 @@ import pytest
 from moto import mock_aws
 
 from papyrus_content.projection import lease as lease_module
+from papyrus_content.tenancy import TENANCY_MODE_ENVIRONMENT_VARIABLE
 from papyrus_content.projection.lease import (
     ProjectionLease,
     ProjectionLeaseHeld,
     ProjectionLeaseLost,
+    ProjectionTenantRequired,
     backoff_seconds,
+    lease_key,
     lease_from_environment,
 )
 
 TABLE = "papyrus-projection-locks"
 KEY = "site-bucket"
+TENANCY_MODE = TENANCY_MODE_ENVIRONMENT_VARIABLE
 
 
 class Clock:
@@ -191,3 +195,45 @@ def test_ssm_parameter_names_the_table_and_access_denied_is_loud(table):
     lease_module._table_name_cache.clear()
     with pytest.raises(Exception, match="denied"):
         lease_from_environment({}, KEY, ssm_client=Denied())
+
+
+def test_a_dedicated_stack_keeps_the_bucket_key_with_or_without_a_tenant(monkeypatch):
+    monkeypatch.delenv(TENANCY_MODE, raising=False)
+    assert lease_key(KEY) == KEY
+    assert lease_key(KEY, "alpha") == KEY
+
+
+def test_a_shared_stack_keys_the_lease_per_tenant(monkeypatch):
+    monkeypatch.setenv(TENANCY_MODE, "shared")
+    assert lease_key(KEY, "alpha") == f"{KEY}#alpha"
+    assert lease_key(KEY, "beta") == f"{KEY}#beta"
+
+
+def test_a_shared_stack_refuses_a_projection_without_a_tenant_before_taking_a_lease(monkeypatch, table):
+    monkeypatch.setenv(TENANCY_MODE, "shared")
+    with pytest.raises(ProjectionTenantRequired, match="needs a tenant"):
+        lease_from_environment({"PAPYRUS_PROJECTION_LOCK_TABLE": TABLE}, KEY)
+    assert table.scan()["Items"] == []
+
+
+def test_the_lease_from_the_environment_is_keyed_by_the_tenancy_mode(monkeypatch, table):
+    environment = {"PAPYRUS_PROJECTION_LOCK_TABLE": TABLE}
+    monkeypatch.delenv(TENANCY_MODE, raising=False)
+    assert lease_from_environment(environment, KEY, tenant_id="alpha").key == KEY
+    assert lease_from_environment(environment, KEY).key == KEY
+    monkeypatch.setenv(TENANCY_MODE, "shared")
+    assert lease_from_environment(environment, KEY, tenant_id="alpha").key == f"{KEY}#alpha"
+
+
+def test_two_tenants_on_one_bucket_hold_their_leases_at_once(monkeypatch, table):
+    monkeypatch.setenv(TENANCY_MODE, "shared")
+    clock = Clock()
+    alpha = ProjectionLease(table, lease_key(KEY, "alpha"), table_name=TABLE, owner="alpha", clock=clock, sleep=clock.sleep, jitter=lambda: 1.0)
+    beta = ProjectionLease(table, lease_key(KEY, "beta"), table_name=TABLE, owner="beta", clock=clock, sleep=clock.sleep, jitter=lambda: 1.0, wait_seconds=0)
+    alpha.acquire()
+    beta.acquire()
+    assert clock.sleeps == []
+    assert {item["publication"] for item in table.scan()["Items"]} == {f"{KEY}#alpha", f"{KEY}#beta"}
+    same_tenant = ProjectionLease(table, lease_key(KEY, "alpha"), table_name=TABLE, owner="other", clock=clock, sleep=clock.sleep, jitter=lambda: 1.0, wait_seconds=0)
+    with pytest.raises(ProjectionLeaseHeld):
+        same_tenant.acquire()

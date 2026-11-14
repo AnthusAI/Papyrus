@@ -14,7 +14,7 @@ from papyrus_content import automations as au  # noqa: E402
 def overview_for(context, groups, endpoint=None):
     context.refused = False
     result = automation_view.handle(
-        {"identity": {"groups": groups}, "arguments": {}},
+        {"fieldName": "automationOverview", "identity": {"groups": groups}, "arguments": {}},
         env={"PAPYRUS_GRAPHQL_ENDPOINT": endpoint or fx.SITE_ENDPOINT},
         reader_factory=lambda: context.reader, client_factory=lambda: context.client, now=1_792_756_800.0)
     if result.get("error") == "forbidden":

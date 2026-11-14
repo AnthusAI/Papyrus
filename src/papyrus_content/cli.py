@@ -323,6 +323,7 @@ PORTED_COMMANDS = frozenset(
         "references:curate",
         "references:backfill-publication-dates",
         "references:decide-site-sections",
+        "references:auto-section",
         "references:export-relevance-recording",
         "references:freeze-priming-held-out",
         "references:prove-priming",
@@ -363,6 +364,7 @@ PORTED_COMMANDS = frozenset(
         "items:link-references",
         "stories:save-version",
         "stories:versions",
+        "stories:pull",
         "stories:link-reference",
         "stories:link-story",
         "stories:suggest-links",
@@ -384,8 +386,15 @@ PORTED_COMMANDS = frozenset(
         "stories:fire-triggers",
         "stories:assign-research",
         "stories:repair-versions",
+        "stories:head-index",
+        "stories:languages",
+        "stories:localize",
+        "stories:backfill-published-dates",
         "stories:repair-image-paths",
         "stories:set-slug",
+        "stories:retire",
+        "stories:schedule",
+        "stories:schedule-list",
         "stories:set-type",
         "stories:set-stars",
         "assignments:backfill-content-items",
@@ -765,6 +774,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:decide-site-sections":
         from .site_sweep import references_decide_site_sections
         references_decide_site_sections(flags)
+    elif route == "references:auto-section":
+        from .site_auto_section import references_auto_section
+        references_auto_section(flags)
     elif route == "references:export-relevance-recording":
         from .relevance_recording import references_export_relevance_recording
         references_export_relevance_recording(flags)
@@ -867,6 +879,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         stories_save_version(flags)
     elif route == "stories:versions":
         stories_versions(flags)
+    elif route == "stories:pull":
+        from .story_commands import stories_pull
+
+        stories_pull(flags)
     elif route == "stories:link-reference":
         stories_link_reference(flags)
     elif route in ("stories:link-concept", "stories:check-links", "references:link-concept", "references:check-links"):
@@ -918,6 +934,14 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_set_stars
 
         stories_set_stars(flags)
+    elif route == "stories:retire":
+        from .story_retire import stories_retire
+
+        stories_retire(flags)
+    elif route in ("stories:schedule", "stories:schedule-list"):
+        from . import story_schedule_commands
+
+        {"stories:schedule": story_schedule_commands.stories_schedule, "stories:schedule-list": story_schedule_commands.stories_schedule_list}[route](flags)
     elif route == "stories:set-slug":
         from .story_commands import stories_set_slug
 
@@ -930,6 +954,22 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_repair_versions
 
         stories_repair_versions(flags)
+    elif route == "stories:head-index":
+        from .story_commands import stories_head_index
+
+        stories_head_index(flags)
+    elif route == "stories:localize":
+        from .story_commands import stories_localize
+
+        stories_localize(flags)
+    elif route == "stories:languages":
+        from .story_commands import stories_languages
+
+        stories_languages(flags)
+    elif route == "stories:backfill-published-dates":
+        from .story_commands import stories_backfill_published_dates
+
+        stories_backfill_published_dates(flags)
     elif route == "stories:move":
         from .story_commands import stories_move
 
@@ -1792,7 +1832,6 @@ def fetch_reference_url_text_after_registration(
         f"references\tprocess-fetch-url-text\tplanned-attachments\t{extraction.get('plannedAttachmentCount', 0)}",
         f"references\tprocess-fetch-url-text\tplanned-reference-metadata\t{extraction.get('plannedReferenceMetadataCount', 0)}",
         f"references\tprocess-fetch-url-text\tfiltered\t{extraction.get('filteredCount', 0)}",
-        f"references\tprocess-fetch-url-text\tfallback-raw\t{extraction.get('fallbackRawCount', 0)}",
         f"references\tprocess-fetch-url-text\tchanges\t{extraction['changeCount']}",
         f"references\tprocess-fetch-url-text\treference-metadata-changes\t{extraction.get('referenceMetadataChangeCount', 0)}",
         f"references\tprocess-fetch-url-text\tattachment-changes\t{extraction.get('attachmentChangeCount', 0)}",
@@ -1805,12 +1844,6 @@ def fetch_reference_url_text_after_registration(
         lines.append(
             f"reference-url-text\tfailed\t{failure.get('referenceId') or '-'}\t"
             f"{failure.get('sourceUri') or '-'}\t{failure.get('error') or 'unknown error'}"
-        )
-    for fallback in (extraction.get("filterFallbacks") or [])[:10]:
-        lines.append(
-            f"reference-url-text\tfilter-fallback\t{fallback.get('referenceId') or '-'}\t"
-            f"{fallback.get('sourceUri') or '-'}\t"
-            f"{json.dumps(fallback.get('reason') or {}, sort_keys=True)}"
         )
     if len(extraction["failures"]) > 10:
         lines.append(f"references\tprocess-fetch-url-text\tomitted-failures\t{len(extraction['failures']) - 10}")

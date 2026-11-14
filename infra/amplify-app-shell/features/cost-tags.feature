@@ -42,6 +42,12 @@ Feature: Every Papyrus stack tags its resources for Prospectus cost accounting
     And the first wave's real template change, compared with the untagged backend, is under 2,500 resources and no more than the plan counted
     And the usage senders' stacks are in the first wave, because wiring the senders changes them anyway
 
+  Scenario: A synthesized template does not change because an unrelated file in the checkout did
+    Given the site backend synthesized with no wave
+    When another test, running side by side, writes a file elsewhere in the checkout
+    Then the Python Lambda bundles' asset hashes are the same, because they cover only the handler and the modules they copy
+    And the first wave still changes only the stacks the plan counted
+
   Scenario: The release is deployed alone, then the cost tags in waves
     Given a site whose backend has no cost tags yet and whose plan has 3 waves
     When its Amplify build runs papyrus-infra backend-deploy with time for every pass

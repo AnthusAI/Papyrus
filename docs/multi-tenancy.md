@@ -6,9 +6,55 @@ A signed-in editor does not set the tenant by hand: the site publishes its own t
 
 The key helpers live in `papyrus_content.tenancy`; `PapyrusGraphQLAuthoringClient(tenant_id=...)` applies them at the client boundary so callers never build tenant keys themselves.
 
+## Tenancy mode
+
+A backend is either `dedicated` (one stack per site, the default and what every site is today) or `shared` (one stack serving several tenants). Set it in the site backend config: `tenancy: { mode: "shared" }`. A site with no `tenancy` setting synthesises exactly the template it always did: `dedicated` adds nothing to any function, and an unset `PAPYRUS_TENANCY_MODE` means dedicated.
+
+On `shared`, `amplify/site-backend.ts` sets `PAPYRUS_TENANCY_MODE=shared` on every function. Code never reads the variable itself; it asks `papyrus_content.tenancy.is_shared_stack()` in Python or `isSharedStack()` in `lib/tenant-keys.ts`. `scripts/test-tenancy-mode.ts` fails if any other file names the variable. `rulesForTenancyMode` in `amplify/data/schema.ts` is the helper the shared stack will use to vary access rules by mode; nothing uses it yet. Tests: `npm run test:tenancy-mode`.
+
+## Tenant context in functions
+
+A function builds the tenant it acts for once, with `build_tenant_context(identity, explicit_tenant=None)` in `papyrus_content.tenant_context` or `buildTenantContext(identity, { explicitTenant })` in `amplify/functions/shared/tenant-context.ts`, from the AppSync event's `identity`. It returns `{tenantId, roles, mode, operator}`. A signed-in caller's roles are the ones whose claim (`papyrus_tenant_admin`, `_editor`, `_curator`, `_member`) holds the tenant; claims naming two tenants are refused. An IAM caller (`operator` true) names its tenant explicitly. On a shared stack a call that cannot name exactly one tenant is refused before anything is read; on a dedicated stack the tenant is the fixed `PAPYRUS_TENANT_ID` (none when unset, as today) and a claim or explicit tenant that differs is refused. Every refusal is one typed error (`TenantContextRefusal`) with a `reason` code. The tenant never comes from the request body. Both builders read `features_backend/fixtures/tenant-context/vectors.json`. No handler uses it yet. Tests: `npm run test:tenant-context`.
+
+## The projection lease on a shared stack
+
+A projection takes one lease at a time per site bucket ([site hosting](site-hosting.md#projection-lease-one-projection-at-a-time)). The key follows the tenancy mode, not merely whether a tenant id is set: a dedicated stack keeps the bucket name (live sites that already run with a tenant id keep their key), and a shared stack uses `<bucket>#<tenant>`, so two tenants project at once. A shared-stack projection that names no tenant is refused with `ProjectionTenantRequired`; no key is guessed. The lock table schema is unchanged. Spec: `features_backend/tenant-fair-projection.feature`.
+
 ## What the tenant models carry
 
 Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows get a `tenantId`. The index values that would be global (`typeStatus`, `sectionStatus`, slug lookups) are prefixed with `<tenant>#`, media rows are listed, read, updated and deleted by their own tenant only (see [story pictures](#story-pictures-and-the-one-key-rule) for the key), and a tenant client lists, reads, updates and deletes only its own rows.
+
+The generated [tenant key inventory](tenant-key-inventory.md) lists every model's indexes, whether each partition value is tenant-prefixed, corpus-prefixed, a record id or global, and which tables have no index that can list one tenant's rows; CI fails when it is stale or a new index is unclassified.
+
+## Listing one tenant's rows
+
+Export, deletion and usage need every row one tenant owns without reading a whole table (PPY-1ce06f). Every table that carries `tenantId` has a way to do it:
+
+- An index whose partition is a status, a kind or a constant lists a tenant once that value carries the tenant prefix (the key-prefix step of the plan).
+- References, and the other rows with a required `corpusId`, are listed corpus by corpus: a tenant's corpora are its own KnowledgeCorpus rows, and corpus ids are unique to a tenant. Reference gets no index of its own for this.
+- The 30 tables where no index reaches every row have one sparse index partitioned on `tenantId` and sorted by `id`, named `list<Models>ByTenant` (for example `listReaderVotesByTenant`). Item and PublishedItem are among them: their tenant-prefixed indexes sort on `publishedAt` and so leave unpublished rows out, and `headStageKey` is on head rows only.
+
+`PapyrusGraphQLAuthoringClient.list_tenant_rows(model, fields)` reads a tenant's rows of one of those tables through its `tenantId` index: one Query, followed page by page, never a Scan. The index query fields are declared once in `papyrus_content.tenancy.TENANT_LISTING_QUERIES`, and a test checks that map against the schemas. A sparse index holds only rows that carry a `tenantId`, so a tenant's list is complete only after the tenantId backfill (PPY-8f9462) has stamped every row.
+
+The 30 indexes ship in one release, one per table (the GSI ledger, `features_backend/gsi-ledger.feature`, refuses a second new index on a table, and reads every plugin's and function's schema as well as the core one). A dedicated site creates them on its existing tables when it takes that release. Spec: `features_backend/tenant-listing-index.feature`.
+
+## Tenant, membership and domain records
+
+Five models hold the tenants themselves: three for the tenants (PPY-31c45c) and two for each tenant's site documents (PPY-c020ce). They are new tables, each created with all its indexes in one deploy, and they sit in the optional model group `tenancy` (`OPTIONAL_MODEL_GROUPS`), so a dedicated site can leave them out of a first deploy with `excludeModelGroups: ["tenancy"]`. Nothing reads or writes them yet.
+
+| Model | Id | Fields | Indexes |
+| --- | --- | --- | --- |
+| `Tenant` | the site id (`validate_tenant_id`) | `accountId` (the Prospectus Account), `displayName`, `state` (`active`, `past_due`, `suspended`, `deleted_pending`, `deleted`), `stateKey` (`state#<state>`), `plan`, `entitlements`, `createdAt`, `stateChangedAt` | `accountId`, `stateKey` |
+| `TenantMembership` | `<tenant>#<userSub>` | `tenantId`, `userSub`, `userProfileId` (the stable person key; one person can have two subs), `role` (`admin`, `editor`, `curator`, `member`), `status`, `grantedBy`, `grantedAt` | `userSub` (the token Lambda), `tenantId` |
+| `TenantDomain` | the lowercase hostname | `tenantId`, `kind` (`subdomain`, `custom`), `status` (`pending_dns`, `pending_certificate`, `active`, `failed`, `removed`), `verification`, `certificateRef` | `tenantId` |
+| `SiteDocument` | `<tenant>#<kind>` (`kind`: `site`, `brand`, `nav`) | `tenantId`, `kind`, `currentVersion`, `s3Key`, `sha256`, `schemaVersion`, `updatedBy`, `updatedAt` | none |
+| `SiteDocumentVersion` | `<tenant>#<kind>#<version>` | `tenantId`, `documentId`, `version`, `s3Key`, `sha256`, `createdBy`, `createdAt`, `note` | `documentId` sorted by `version` |
+
+Site documents (PPY-c020ce): these rows are the catalogue only; the document itself is a JSON object in S3 at `tenants/<tenant>/site/<kind>/<version>.json`, never text in DynamoDB. `papyrus_content.site_store` holds the key shapes and the save: it writes the version object first, then the `SiteDocumentVersion` row, then moves `SiteDocument.currentVersion` with a conditional update on the version the save started from, so a save that stops half way is never live (an object or version row left behind is harmless, and the next save numbers after the highest version row). Restoring version N is a new save that carries N's content; history is not rewritten. Nothing calls the store yet (the site store and the projection will), and no storage rule covers `tenants/<tenant>/site/` yet.
+
+Because a domain's id is its hostname, a hostname can belong to one tenant only: a second create fails on the key. `papyrus_content.tenant_records` holds the key shapes and the two lookups callers must share (`list_memberships_for_user` is one query on the `userSub` index, never a scan; `claim_domain` refuses a hostname already held).
+
+Access: the `admin` group (the platform operator) has full access; a tenant's admin may read its own rows through the `papyrus_tenant_admin` claim (`ownerDefinedIn("id")` on Tenant, `ownerDefinedIn("tenantId")` on the others, including the two site document models; `SiteDocumentVersion` carries `tenantId` for this reason). The claim is not issued yet (PPY-0bb0fd), so today only the operator group has any access. The claim rule is read-only, so it needs no field lock on `tenantId`. Tenant-admin writes to site documents wait for the claim to be issued; until then the operator group (and later the IAM functions that save them, whose tasks add the grants) writes them. The tenant-claims and provisioning functions use IAM grants, which their own tasks add. The `userSub` index partition is a person, not a tenant: only the token Lambda (IAM) queries it.
 
 ## NewsroomSection ids
 
@@ -83,4 +129,16 @@ A backend copied from a tenant site keeps the tenant on its sections and stories
 
 ### Single-publication backends and Reference intake
 
-Reference intake (`papyrus references create-from-catalog --status pending`, the email-candidate import) refuses a backend that carries a tenant, because knowledge data (References, corpora) has no tenant isolation. A backend copied from a tenant site that holds one publication only does not share that data, so it declares so: add `"PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"` to `cms.environment` in the site's `infra/site.json`. `amplify/site-backend.ts` passes it to the content-actions Lambda only when `PAPYRUS_TENANT_ID` is also set and the value is exactly `true`. A token that carries a tenant is refused regardless. **If a second publication is ever added to that backend, remove the declaration first** (in the same change), or the second publication's editors could write into the first one's corpus. Details: [user-session intake](reference-intake/user-session-intake.md#publication-and-actor-boundary).
+The wiki commands (`knowledge wiki sync`, `knowledge wiki publish`) and the cloud knowledge run write under the publication's tenant like every other command. The cloud run takes it from `PAPYRUS_TENANT_ID` in the site's `knowledgeRun` `environment` (`infra/site.json`). A command with no tenant refuses to write when the backend's Items already belong to a tenant (rows written without the stamp are invisible to the tenant's renders), and names the tenant to pass.
+
+On a **dedicated** stack, Reference intake (`papyrus references create-from-catalog --status pending`, the email-candidate import) refuses a backend that carries a tenant, because that backend's knowledge keys carry no tenant. A backend copied from a tenant site that holds one publication only does not share that data, so it declares so: add `"PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"` to `cms.environment` in the site's `infra/site.json`. `amplify/site-backend.ts` passes it to the content-actions Lambda only when `PAPYRUS_TENANT_ID` is also set and the value is exactly `true`. A token that carries a tenant is refused regardless. **If a second publication is ever added to that backend, remove the declaration first** (in the same change), or the second publication's editors could write into the first one's corpus. Details: [user-session intake](reference-intake/user-session-intake.md#publication-and-actor-boundary).
+
+
+## Knowledge keys and the tenancy mode
+
+The knowledge models (References, corpora, categories, concepts and relations) build their tenant-dependent keys in one place per language, `src/papyrus_content/tenant_knowledge_keys.py` and `lib/tenant-knowledge-keys.ts`. Writers and readers both call it; no caller builds one of these keys by hand. The vectors both implementations pass are in `scripts/fixtures/reference-feed-key-vectors.json` (`tenant` cases); spec `features_backend/tenant-knowledge-keys.feature`.
+
+- **Dedicated stack** (the default): every key stays exactly as it is, even when the stack has a fixed `PAPYRUS_TENANT_ID` (several live sites do).
+- **Shared stack** (`PAPYRUS_TENANCY_MODE=shared`): a global feed key gets the tenant in front (`alpha#references`, `alpha#references#reviewed`, `alpha#semanticNodes`, `alpha#semanticRelations`, `alpha#reference-links`), a corpus id is `<tenant>.<corpus id>` (`alpha.knowledge-corpus-demo`), and a concept's lineage id is `<tenant>.semantic-node-<key>`. Every key that starts with a corpus id (`feedStateKey`, `starFeedKey`, `mediumFeedKey`, `contentNeededKey`, `publicFeedKey`, `curationStatusKey`, the corpus indexes) belongs to one tenant from there with no change. A key built with no tenant raises an error; there is no default tenant and no fallback to the unprefixed key. The tenant is the call's tenant context, else `PAPYRUS_TENANT_ID` or the signed-in site's tenant (the CLI).
+- There is no dual read and no backfill: the shared stack has no rows yet and dedicated stacks do not change.
+- Not prefixed: values that are also read as an enum or shown as a name (`status`, `versionState`, `curationStatus`, `role`, `scope`, the relation and steering domains, `nodeKey`, `normalizedKeyword`, `relationTypeKey`). Prefixing the stored value would break every comparison with it; a shared stack lists those partitions through the tenant listing index (PPY-1ce06f) or needs a separate key attribute, which is a separate decision.

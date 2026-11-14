@@ -1,0 +1,106 @@
+# Reusable workflow: watch for the two person-only steps and start the first build by itself, once, then turn itself off.
+# Part of epic PPY-9bd776. Public repositories only. See docs/account-pipeline.md, "The first build starts by itself".
+#
+# Ready means: the app-shell stack has CmsAppId, the Amplify app has a repository connected, and SSM holds the Google client parameters.
+# Each check is read-only (describe-stacks, get-app, describe-parameters by name; no parameter value is ever read).
+#
+# Caller: a thin scheduled workflow ON THE DEFAULT BRANCH of the deployment repository (GitHub runs schedules only from there; the watch
+# role trusts exactly that branch), e.g. .github/workflows/first-build-watch.yml:
+#   name: first-build-watch
+#   on:
+#     schedule: [{ cron: "*/15 * * * *" }]
+#     workflow_dispatch: {}
+#   jobs:
+#     watch:
+#       permissions: { contents: read, id-token: write, actions: write }
+#       uses: AnthusAI/Papyrus/.github/workflows/first-build-watch.yml@<papyrus tag>
+#       with:
+#         prefix: myco
+#         papyrus-ref: <the same tag>
+#         aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
+#         stack-name: <the app-shell stack name>
+#         watcher-workflow-file: first-build-watch.yml    # this caller's own file name
+#         dispatch-workflow: first-build.yml              # the caller of first-build.yml, which has a workflow_dispatch trigger
+# and a second caller first-build.yml (see first-build.yml's header) that runs the build on main.
+#
+# When ready it dispatches the build workflow on main and disables the calling watcher workflow, so it never runs again.
+# Role: <prefix>-github-watch (trusts the default branch only; read-only). No stored keys: GitHub OIDC only.
+name: first-build-watch
+
+on:
+  workflow_call:
+    inputs:
+      prefix:
+        description: The deployment prefix the account baseline was seeded with (the role is <prefix>-github-watch)
+        required: true
+        type: string
+      aws-account-id:
+        description: 12-digit AWS account id; pass vars.AWS_ACCOUNT_ID
+        required: true
+        type: string
+      papyrus-ref:
+        description: Papyrus tag or branch that holds amplify_first_build.py (pin the same tag as the uses line)
+        required: false
+        type: string
+        default: main
+      stack-name:
+        description: The app-shell stack whose output CmsAppId is the Amplify app
+        required: true
+        type: string
+      region:
+        required: false
+        type: string
+        default: us-east-1
+      dispatch-workflow:
+        description: File name of the calling repository's workflow that runs first-build.yml (it must accept workflow_dispatch)
+        required: false
+        type: string
+        default: first-build.yml
+      watcher-workflow-file:
+        description: File name of the calling watcher workflow itself; it is disabled once the build was dispatched
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      actions: write
+    concurrency:
+      group: first-build-watch-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: AnthusAI/Papyrus
+          ref: ${{ inputs.papyrus-ref }}
+          path: .papyrus-tool
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.prefix }}-github-watch
+          aws-region: ${{ inputs.region }}
+          role-session-name: first-build-watch-${{ github.run_id }}
+      - name: Is the app ready (read-only)
+        id: check
+        env:
+          STACK: ${{ inputs.stack-name }}
+          REGION: ${{ inputs.region }}
+        run: python3 .papyrus-tool/infra/pipeline/amplify_first_build.py check --stack-name "$STACK" --region "$REGION"
+      - name: Start the first build, then turn this watcher off
+        if: steps.check.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DISPATCH: ${{ inputs.dispatch-workflow }}
+          WATCHER: ${{ inputs.watcher-workflow-file }}
+        run: |
+          set -euo pipefail
+          gh workflow run "$DISPATCH" --ref main
+          gh workflow disable "$WATCHER"

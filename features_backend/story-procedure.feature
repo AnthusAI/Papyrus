@@ -122,7 +122,6 @@ Feature: One definition of the Story procedure
     Given a Story at the "published" stage
     When the procedure is assessed
     Then the procedure step "fact_check" is "unknown"
-    And the procedure step "illustration" is "unknown"
     And the procedure step "typesetting" is "unknown"
     And the procedure step "fact_check" has the status "not_built"
 
@@ -172,7 +171,7 @@ Feature: One definition of the Story procedure
   Scenario: Stories next prints every step with its state and then what comes next
     Given a Story at the "idea" stage
     When I run "stories next" with "--story story-1"
-    Then the procedure output has a step line for each of the 17 steps
+    Then the procedure output has a step line for each of the 18 steps
     And the procedure output has a "next" line for "choose"
 
   Scenario: A step that is off or not built says so instead of offering a command

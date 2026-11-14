@@ -53,6 +53,7 @@ WRITES_TEXT = {
   "dry-run": "yes, by default. Pass --dry-run to preview without writing.",
   "local": "nothing on a site; it writes only the local file named in its usage.",
   "writes": "yes, immediately. This command has NO --dry-run: do not run it to see what it does.",
+  "apply": "only with --apply; without it, a dry run that writes nothing.",
   "unknown": "not stated for this command. If the usage shows no --dry-run, assume it writes immediately.",
 }
 
@@ -67,7 +68,9 @@ _ENTRIES = dict([
   # ---- references: find -------------------------------------------------------------------------------------------
   _e("references list", "List References, newest first (no stars filter: use `references search` or `stories list --min-stars`).",
      "[--status pending|accepted|rejected] [--order newest] [--limit N] [--corpus-key KEY] [--backend local|cloud]", "both", "reads", "find"),
-  _e("references show", "Show one Reference by record id (`...-v1`) or lineage id.", "REFERENCE_ID [--backend local|cloud]", "both", "reads", "find"),
+  _e("references show", "Show one Reference by record id (`...-v1`) or lineage id.", "REFERENCE_ID | --reference REFERENCE_ID [--corpus-key KEY] [--backend local|cloud]", "both", "reads", "find"),
+  _e("references text", "Read the captured text of a Reference (what the newsroom stored), a slice at a time, with its total length and whether the capture was cut.",
+     "REFERENCE_ID | --reference REFERENCE_ID [--offset N] [--limit N] [--json]  (default --limit 20000 characters; --limit 0 reads to the end; exits 1 when nothing was captured)", "both", "reads", "find"),
   _e("references search", "Find References by words and meaning, rated or not, accepted or not.",
      "\"plain words\" [--show unrated|rated|all] [--limit N] [--cursor CURSOR] [--site HOST] [--json]", "editor", "reads", "find"),
   _e("references register", "Register a Reference in the local pod only (a developer's Kanbus pod; it does not touch a site).",
@@ -94,6 +97,8 @@ _ENTRIES = dict([
      "--reference ID --stars 1-5|clear [--agent YOUR_NAME] [--dry-run]", "editor", _DRY, "tag-and-link"),
   _e("references set-section", "Set or clear the newsroom section of a Reference.",
      "--reference LINEAGE (--section NAME|SLUG|PUBLICATION#SLUG | --clear) [--agent YOUR_NAME] [--dry-run] [--json]", "both", _DRY, ""),
+  _e("references auto-section", "Give each accepted Reference with no section (and no person's clear) the section the site cyclotron is sure of, by the threshold learned from the approved Section proof.",
+     "[--config STEERING.yml] [--doctrine DOCTRINE.yml] [--all] [--worker NAME] [--dry-run] [--json]  (--doctrine is required unless --dry-run)", "both", _DRY, ""),
   _e("references approve", "Accept a pending Reference as the signed-in person.",
      "--reference ID [--agent YOUR_NAME] [--note TEXT] [--reason-code CODE] [--section SECTION_ID] [--dry-run]", "editor", _DRY, ""),
   _e("references reject", "Reject a Reference as the signed-in person; a rejection needs --note or --reason-code.",
@@ -112,17 +117,27 @@ _ENTRIES = dict([
   _e("stories show", "Show one Story: headline, signals, stage moves, its References and notes.",
      "--story LINEAGE [--bucket day|week|none] [--json]", "both", "reads", "find"),
   _e("stories versions", "List a Story's saved versions (`LINEAGE-vN`); `ops content publish --id` takes one of these.", "--story LINEAGE", "both", "reads", "write-story"),
-  _e("stories create", "Create a Story. It always makes a new one (list first). There is no --type: set post or article in the newsroom editor.",
-     "--title TEXT [--section ID|SLUG|NAME] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--reference REFERENCE_ID ...] [--with-assignment] [--actor-label NAME] [--dry-run]",
+  _e("stories pull", "Write a Story's stored body and front matter to two files, exactly what `stories save-version` takes back. Read only.",
+     "--story LINEAGE --body-file FILE --front-matter-file FILE [--version N] [--json]", "both", "reads", "write-story"),
+  _e("stories create", "Create a Story. It always makes a new one (list first). --type sets the Story type (post, article); without it the site's default applies.",
+     "--title TEXT [--type TYPE] [--section ID|SLUG|NAME] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--reference REFERENCE_ID ...] [--with-assignment] [--actor-label NAME] [--dry-run]",
      "both", _DRY, "write-story"),
   _e("stories save-version", "Save the body and front matter as a new version (never publishes).",
      "--story LINEAGE --body-file FILE --reason TEXT [--front-matter-file FILE] [--author-label NAME] [--stage STAGE | --advance] [--outline] [--no-check] "
-     "[--images DIR [--bucket B] [--identity-pool-id ID]] [--dry-run]  (signed in the author is the person; --author-label is required on the operator lane)",
+     "[--images DIR [--bucket B] [--identity-pool-id ID] [--require-dark-figures]] [--dry-run]  (signed in the author is the person; --author-label is required on the operator lane; a figure with no dark picture prints a figure-light-only warning, and the site's requireDarkFigures setting (design-system), --require-dark-figures or PAPYRUS_REQUIRE_DARK_FIGURES=1 refuses it; PAPYRUS_REQUIRE_DARK_FIGURES=0 overrides the setting)",
      "both", _DRY, "write-story"),
   _e("stories move", "Move a Story to a board stage. --stage published changes only the board stage and publishes no page.",
      "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]", "both", _DRY, "write-story"),
   _e("stories set-slug", "Give a Story a real address (a placeholder draft-<section>-<hash> slug cannot be published).",
      "--story LINEAGE|ID --slug lowercase-words [--force] [--no-trigger] [--dry-run]", "both", _DRY, "write-story"),
+  _e("stories retire", "Take a Story down and redirect every address it was served at (301) to another published Story; --undo restores it.",
+     "--story LINEAGE|ID (--redirect-to LINEAGE|ID | --undo) [--static-dir DIR] [--no-trigger] [--dry-run]  (prints each redirect as the public address readers use, from the site's projection.json in --static-dir; refuses an unpublished, missing, same or retired target; nothing is deleted)",
+     "both", _DRY, "publish"),
+  _e("stories schedule", "Publish a Story's newest version at a chosen time (once, by the normal publish path), or remove its schedule.",
+     "--story LINEAGE (--at TIME | --clear) [--item VERSION_ID] [--json] [--dry-run]  (TIME: 2026-11-13 09:00 is read in the publication's time zone, 2026-11-13T09:00:00-05:00 or ...Z is exact; "
+     "a time that does not exist there is refused and one that happens twice asks for the offset; needs publication.timeZone in the site's backend settings)", "editor", _DRY, "publish"),
+  _e("stories schedule-list", "List the scheduled, overdue and blocked versions soonest first, of one Story or of the site between two times.",
+     "[--story LINEAGE] [--from TIME] [--to TIME] [--state scheduled|publishing|blocked|overdue ...] [--json]", "editor", "reads", "publish"),
   _e("stories set-stars", "Rate a Story as the signed-in person.", "--story LINEAGE --stars 0-5 [--agent YOUR_NAME] [--dry-run]  (0 clears the rating)", "editor", _DRY, "tag-and-link"),
   _e("stories link-concept", "Tag a Story with existing accepted concepts (edge tagged_with); never creates a concept.",
      "--story LINEAGE|SLUG --concept NAME|#HASHTAG|NODEKEY [--concept ...] [--note TEXT] [--author-label NAME] [--dry-run] [--json]", "both", _DRY, "tag-and-link"),
@@ -153,6 +168,14 @@ _ENTRIES = dict([
   _e("stories fire-triggers", "Deliver the stage-entry triggers for the Story's current stage and version.", "--story LINEAGE", "operator", "writes", ""),
   _e("stories checklist-backfill", "Add the procedure checklist to Stories that lack one.", "[--dry-run] [--stage STAGE ...] [--page-size N]", "operator", _DRY, ""),
   _e("stories repair-versions", "Repair a Story's version records.", "--story LINEAGE [--dry-run]", "operator", _DRY, ""),
+  _e("stories head-index", "Fill in and check the head stage key (one row per Story in the head stage index). A dry run unless --apply.",
+     "[--apply] [--dry-run] [--stage STAGE ...] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
+  _e("stories localize", "Ask for a translation of a published Story into one language: writes the translation request and starts the site's translation automation. Never publishes.",
+     "--story LINEAGE --language TAG [--automation ID] [--ceiling-usd N] [--dry-run]  (--automation is required unless --dry-run)", "both", _DRY, ""),
+  _e("stories languages", "Write the language and the language group on every Item row written before those fields existed (the site's primary language).",
+     "[--dry-run] [--rate N]  (--rate is writes a second, default 5)", "both", _DRY, ""),
+  _e("stories backfill-published-dates", "Give published Stories their first publication time and the served version's publish time, from what their versions recorded. A dry run unless --apply.",
+     "[--apply] [--dry-run] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
   _e("stories repair-image-paths", "Repair image paths in a Story's versions. Read only unless you pass --write.", "--story LINEAGE [--write] [--bucket B] [--identity-pool-id ID]", "operator", "reads", ""),
   # ---- knowledge --------------------------------------------------------------------------------------------------
   _e("knowledge concepts search", "Find accepted concepts by meaning (name matches first, duplicates flagged). Free text needs OPENAI_API_KEY in this shell.",
@@ -173,6 +196,12 @@ _ENTRIES = dict([
   _e("knowledge entities accept-description", "A person accepts the description a concept already has.", "--key KEY --actor human [--actor-name N] [--dry-run]", "operator", _DRY, ""),
   _e("knowledge entities page", "Decide whether a concept has a public page.", "--key KEY --set yes|no|machine --actor ai|human [--actor-name N] [--dry-run]", "operator", _DRY, ""),
   _e("knowledge entities retype", "Change a concept's kind.", "--key KEY --kind KIND --actor ai|human [--actor-name N] [--dry-run]", "operator", _DRY, ""),
+  _e("knowledge entities add", "Create an accepted concept (or find it), add its aliases, and tag Disambiguation when a name is ambiguous across kinds. Refuses a duplicate of an accepted concept.",
+     "--kind KIND --name NAME [--alias A ...] --actor ai|human [--actor-name N] [--corpus-key K | --corpus-id ID] [--dry-run]  (repeat --alias for each other name)", "operator", _DRY, "tag-and-link"),
+  _e("knowledge entities merge", "Merge a duplicate concept into the one that stays: its names become aliases, its mentions and relations move, it is superseded.",
+     "--from KEY --into KEY --actor ai|human [--actor-name N] [--dry-run]  (afterwards: entities registry, snapshot, wiki sync)", "operator", _DRY, "tag-and-link"),
+  _e("knowledge entities duplicates", "List the pairs of accepted concepts in which one duplicates the other, with the rule and the merge command. Read only.",
+     "[--kind KIND] [--json]", "operator", "reads", "tag-and-link"),
   _e("knowledge entities registry", "Write the entity registry JSON for `knowledge extract-entities --registry`.", "--out FILE [--vocabulary FILE]", "operator", "reads", ""),
   _e("knowledge clusters list", "List topic clusters.", "[--status proposed|accepted|rejected|all] [--limit N] --actor ai|human", "operator", "reads", ""),
   _e("knowledge relations list", "List typed relations between concepts.", "[--state proposed|accepted|rejected|all] [--limit N] --actor ai|human", "operator", "reads", ""),
@@ -188,7 +217,7 @@ _ENTRIES = dict([
   _e("ops content update-live", "Re-project one Story, purge exactly its pages and the index pages that list it, check the live page.",
      "--story LINEAGE [--run] [--force-paths N] [--verify-seconds N] [--dry-run] [--json]  (without --run a wide purge stays a dry run)", "both", _DRY, "publish"),
   _e("ops content rerender", "Rebuild pages from the deployed hooks, then purge what was written (--no-invalidate: do not purge).",
-     "(--story LINEAGE | --indexes | --all) [--no-invalidate] [--dry-run] [--json]", "both", _DRY, "publish"),
+     "(--story LINEAGE | --indexes | --all) [--no-invalidate] [--status] [--dry-run] [--json]  (the job is followed to the end: exit 0 done, 1 failed, 5 still running or outcome not known, neither a failure; --status asks once where the job stands)", "both", _DRY, "publish"),
   _e("ops content refresh", "Purge exact pages at the edge now (both URL forms and the Markdown twin); never the whole site.",
      "(--path PATH [--path PATH ...] | --story LINEAGE | --indexes) [--run] [--force-paths N] [--dry-run] [--json]  (over 5 paths is a dry run until --run; over 25 refused without --force-paths N)",
      "both", _DRY, "publish"),
@@ -210,9 +239,9 @@ _ENTRIES = dict([
   _e("items link-references", "Operator backfill: link each Story to the References it used.", "--site KEY [--role consulted|cited|based_on] [--json] [--dry-run]", "operator", _DRY, ""),
   # ---- editorial --------------------------------------------------------------------------------------------------
   _e("editorial check-version", "Run the editorial rules on a saved version and store the result with it.", "--item LINEAGE-vN [--json]", "both", "writes", "checks"),
-  _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--section KEY] [--pack FILE] [--output FILE]", "both", "reads", ""),
+  _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--story LINEAGE] [--section KEY] [--language TAG] [--pack FILE] [--output FILE]", "both", "reads", ""),
   _e("editorial check-drafts", "Check every unpublished draft version not yet checked.", "[--limit N] [--dry-run]", "operator", _DRY, ""),
-  _e("editorial suggest", "Rewrite options for one finding or a passage; never edits the draft.", "--draft FILE [--finding-id ID] [--select N] [--note TEXT]", "both", "reads", ""),
+  _e("editorial suggest", "Rewrite options for one finding or a passage; never edits the draft.", "--draft FILE [--finding-id ID] [--select N] [--note TEXT] [--story LINEAGE] [--section KEY] [--language TAG]", "both", "reads", ""),
   # ---- sign-in ----------------------------------------------------------------------------------------------------
   _e("login", "Sign in with Google in a browser; prints nothing secret.", "SITE_HOST", "editor", "writes", "orientation"),
   _e("logout", "Remove the local session and attempt provider revocation.", "[SITE_HOST]", "editor", "writes", "orientation"),
@@ -222,6 +251,50 @@ _ENTRIES = dict([
   _e("links", "Print the console link of a Story (one version, or the drawer), Reference, Concept, Assignment or review item. Hand the editor these links.",
      "[--story LINEAGE|SLUG [--version N|VERSION_ID]] [--reference REFERENCE_ID|LINEAGE] [--concept NAME|NODEKEY] [--assignment ID] [--review ID] [--console-url URL] [--json]", "both", "reads", "write-story"),
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
+  # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
+  _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
+     "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines resolve", "Print the effective guidelines for the site, or a section laid over it, and for one language (its overlays laid on top), with where every field came from.",
+     "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines diff", "Show what saving a document would change, field by field and for binding rules; saves nothing.",
+     "--kind KIND [--section KEY] [--language TAG] --file PATH [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines save", "Save a document as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
+     "--kind KIND [--section KEY] [--language TAG] --file PATH --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
+     "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
+  _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
+     "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
+  # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------
+  _e("announcements list", "List the account's announcements, newest first, with plain labels (Dry run: not sent, Posted, Blocked: budget reached, ...).",
+     "[--state posting|posted|failed|blocked|dry_run|withdrawn] [--limit N] [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements show", "Show one Story's announcement: row, history, cost and the stored post text and checks.", "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements dry-run", "Build the exact post a Story would get (text, UTM link, weight, every check) without sending or recording anything. One model call.",
+     "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements pause", "Pause announcements: nothing posts, eligible Stories wait as Blocked: paused.", "[--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements resume", "Resume announcements and announce the Stories that waited.", "[--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements settings show", "Show mode, bar, Story types, sections, account, budget, prices and the pause.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements settings set", "Change announcement settings (a person only; admins save). Every rule is checked and every problem listed.",
+     "[--mode off|dry_run|on] [--min-stars N] [--story-types TEXT ...] [--sections TEXT ...] [--budget TEXT] "
+     "[--billing-cycle-day N] [--label-confirmed | --no-label-confirmed] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements account status", "Show mode, pause, the cycle's spend against the budget and the connected account.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  # ---- figures (render reads the site's design system and writes local files only) -------------------------------------
+  _e("figures render", "Check a figure and render its light and dark pictures (always both) with the site's design system. Needs Playwright and Chromium or Chrome.",
+     "FOLDER... [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json]  "
+     "(FOLDER holds figure.svg and figure.json; with neither flag it reads the design system the signed-in site stores, `design-system show`, and stops when there is none; "
+     "--design-system DIR overrides it with a folder; --neutral-default is the unbranded default for a site with no design system: say so; "
+     "writes SLUG.png, SLUG.dark.png and SLUG.figure.json next to the figure, or into --out for one figure; --check-only writes nothing; exits 1 when any figure has a problem)",
+     "both", "local", "figures"),
+  _e("figures directive", "Print the ::image{} line for a figure's Story, from its figure.json.", "FOLDER", "both", "reads", "figures"),
+  _e("figures rules", "Print the figure rules of the signed-in site (its own text when it saved figure rules with papyrus guidelines save --kind figure-rules, otherwise the general rules, where light and dark are both mandatory); --packaged prints the general rules only.", "[--packaged]", "both", "reads", "figures"),
+  _e("figures primitives", "Print the shape library (glyphs, arrowhead, patterns) every figure can use.", "", "both", "reads", "figures"),
+  # ---- design-system (the site's tokens, fonts, mapping and worked examples, kept in the backend) ----------------------
+  _e("design-system show", "Show the design system the signed-in site stores: its version, roles, fonts, worked examples and figure settings (or that it has none).",
+     "[--version N] [--json]", "both", "reads", "figures"),
+  _e("design-system pull", "Write the stored design system into a folder, exactly as it was pushed (text verbatim, fonts as files, settings.json when set).",
+     "DIR [--version N] [--force]  (DIR must be new or empty unless --force; the folder works as `figures render --design-system DIR`)", "both", "local", "figures"),
+  _e("design-system push", "Publish a design system folder as the site's next design system version (a site repository does this at deploy). Checks it first; an unchanged folder makes no version.",
+     "DIR --reason TEXT [--author-label NAME] [--dry-run]  (DIR holds mapping.json, its tokens file, the fonts it names, examples/NAME/figure.svg + figure.json, and an optional "
+     "settings.json such as {\"requireDarkFigures\": true}; a folder with no settings.json keeps the site's settings; signed in the author is the person; "
+     "--author-label is required on the operator lane)", "both", _DRY, "figures"),
 ])
 
 _ENTRIES.update(dict([
@@ -283,8 +356,8 @@ def _drafted(path: str) -> Usage | None:
 
 
 GROUP_ORDER = {
-  "references": ["search", "list", "show", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
-  "stories": ["list", "show", "create", "save-version", "move", "set-slug", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
+  "references": ["search", "list", "show", "text", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
+  "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "next", "step", "versions", "note", "agent-note"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
@@ -312,6 +385,10 @@ GROUP_SUMMARIES = {
   "ops site": "Site copy (operator).",
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
+GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history."
+GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
+GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
+GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 
 
 def _legacy(path: list[str]) -> Usage | None:

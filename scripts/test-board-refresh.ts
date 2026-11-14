@@ -157,7 +157,7 @@ test("a quiet refresh changes nothing and keeps the same object, so the board do
 test("the board has one timer, no separate published scan, and asks each stage only for changes", () => {
   const view = readFileSync("components/newsroom-board-view.tsx", "utf8");
   const hook = readFileSync("components/use-paged-content-item-versions.ts", "utf8");
-  const client = readFileSync("components/news-desk-taxonomy-client.ts", "utf8");
+  const client = readFileSync("components/news-desk-taxonomy-client.ts", "utf8") + readFileSync("lib/story-stage-query.ts", "utf8");
   assert.doesNotMatch(hook, /setInterval|visibilitychange/, "the paged hook owns no timer");
   assert.doesNotMatch(view, /setInterval|30_000/, "the board view sets no timer of its own");
   assert.equal((view.match(/startBoardRefresh\(/g) ?? []).length, 1, "one scheduler for the board");

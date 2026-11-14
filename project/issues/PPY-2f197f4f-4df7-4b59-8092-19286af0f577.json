@@ -1,0 +1,20 @@
+{
+  "id": "PPY-2f197f4f-4df7-4b59-8092-19286af0f577",
+  "title": "Revision notes: the public note record and its CLI, MCP and newsroom tools",
+  "description": "Part of the publication transparency epic. Design: docs/plans/revision-history-and-published-dates.md (story 3).\n\nDepends on: nothing (parallel with 1).\n\n```gherkin\nFeature: Editors add public notes to a Story's revision history\n  Scenario: An editor adds a public note\n    Given a published Story\n    When an editor adds the revision note \"Moved to Security, where readers look for it\"\n    Then the note is saved with the editor's name and the time\n    And its text is stored as a file, not in the database row\n    And only that Story's page is rebuilt\n\n  Scenario: Internal notes stay internal\n    Given a Story with an internal note and a revision note\n    When the revision history is built\n    Then it contains the revision note and not the internal note\n\n  Scenario: The same operation from every tool\n    When an editor adds a revision note from the command line, from the MCP tool and from the newsroom\n    Then all three are saved the same way by the same operation\n\n  Scenario: A wrong note is withdrawn, not edited\n    Given a revision note with a mistake\n    When an admin withdraws it\n    Then it no longer appears in the revision history\n    And the withdrawal is recorded internally\n\n  Scenario: Publishing with a note for readers\n    When an editor publishes a version with \"What changed, for readers\" filled in\n    Then that text appears beside the version in the revision history\n```\n\nOpen question: none.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-156614d5-c0b6-4f4e-a1c5-70873a94b1b3",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T17:36:11.609379Z",
+  "updated_at": "2026-11-12T17:36:11.609428Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

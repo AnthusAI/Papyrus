@@ -209,6 +209,55 @@ Feature: Operator CLI
     And stderr should contain "not found"
     And stderr should not contain a Python traceback
 
+  @references @cloud-backend
+  Scenario: references show takes the Reference id after --reference as well as positionally
+    Given operator CLI config selects backend "cloud"
+    And the cloud references fixture is loaded
+    When I run `papyrus references show --reference ref-cloud-001`
+    Then the exit code should be 0
+    And stdout should be a single reference detail block
+    And stdout should report id "ref-cloud-001"
+
+  @references @cloud-backend
+  Scenario: references show takes a record id with its version suffix after --reference
+    Given operator CLI config selects backend "cloud"
+    And the cloud references fixture is loaded
+    When I run `papyrus references show --reference ref-cloud-001-v1`
+    Then the exit code should be 0
+    And stdout should report id "ref-cloud-001"
+
+  @references @cloud-backend
+  Scenario: references show with no Reference id says so and exits 2
+    Given operator CLI config selects backend "cloud"
+    And the cloud references fixture is loaded
+    When I run `papyrus references show --backend cloud`
+    Then the exit code should be 2
+    And stderr should contain "requires a Reference id"
+    And stderr should not contain a Python traceback
+
+  @references @cloud-backend
+  Scenario: references show names a flag it does not take and exits 2
+    Given operator CLI config selects backend "cloud"
+    And the cloud references fixture is loaded
+    When I run `papyrus references show ref-cloud-001 --refrence ref-cloud-001`
+    Then the exit code should be 2
+    And stderr should contain "does not take --refrence"
+    And stderr should not contain a Python traceback
+
+  @references
+  Scenario: references text with no Reference id says so and exits 2
+    Given operator CLI config selects backend "cloud"
+    When I run `papyrus references text`
+    Then the exit code should be 2
+    And stderr should contain "requires a Reference id"
+
+  @references
+  Scenario: references text names a flag it does not take and exits 2
+    Given operator CLI config selects backend "cloud"
+    When I run `papyrus references text --reference ref-cloud-001 --offest 5`
+    Then the exit code should be 2
+    And stderr should contain "does not take --offest"
+
   # ---------------------------------------------------------------------------
   # assignments list — distinguish newsroom work from pod stories
   # ---------------------------------------------------------------------------

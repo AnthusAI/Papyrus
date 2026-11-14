@@ -8,6 +8,7 @@ import {
 } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { applyChangedVersions, newestUpdatedAt } from "../lib/board-refresh";
+import { storyStageIndexMode } from "../lib/story-stage-mode";
 import { loadNewsroomContentItemStagePage, loadNewsroomContentItemsChangedSince } from "./news-desk-taxonomy-client";
 
 const FAILED_PAGE_RETRY_DELAY_MILLISECONDS = 5_000;
@@ -96,7 +97,7 @@ export function usePagedContentItemVersions(options: {
         return [stageKey, rows] as const;
       }));
       if (generationRef.current !== request) return;
-      storeBuckets(previous => applyChangedVersions(previous, Object.fromEntries(changed)));
+      storeBuckets(previous => applyChangedVersions(previous, Object.fromEntries(changed), { oneRowPerLineage: storyStageIndexMode() === "head" }));
     } catch {
       // A failed background refresh keeps what is shown; the next refresh tries again.
     }

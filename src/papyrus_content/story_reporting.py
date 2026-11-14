@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
-from .content_item_lifecycle import CONTENT_ITEM_STAGES, require_content_item_stage
+from .content_item_lifecycle import CONTENT_ITEM_STAGES, head_stage_fields, require_content_item_stage
 from .machine_writes import apply_stamp
 from .ids import hash_short, safe_id
 from .item_stars import carry_item_stars
@@ -37,6 +37,7 @@ from .publishing import (
     utc_now_iso,
 )
 from .record_helpers import compact_dict, to_aws_json
+from .story_schedule import SCHEDULE_FIELDS
 from .story_types import require_story_type
 
 STORY_THREAD_KIND = "story_reporting"
@@ -114,8 +115,15 @@ def plan_version_repair(client, lineage_id: str) -> list[dict[str, Any]]:
             "previousVersionId": ordered[index - 1]["id"] if index else None,
         }
         changes = {key: value for key, value in wanted.items() if row.get(key) != value}
-        if changes:
-            updates.append({"id": row["id"], **changes})
+        # The head stage key follows the version state: the one current row carries its stage, every other row none. The row that stays
+        # current is written too when its key is missing or wrong, so a repaired story is in the head stage index exactly once.
+        key = head_stage_fields({**row, **changes})["headStageKey"]
+        stored = str(row.get("headStageKey") or "").rsplit("#", 1)[-1] or None
+        if changes or key != stored:
+            update = {"id": row["id"], **changes, "headStageKey": key}
+            if row.get("updatedAt"):
+                update["updatedAt"] = row["updatedAt"]   # a repair is not a change of the story: no card jumps to the top
+            updates.append(update)
     return updates
 
 
@@ -195,7 +203,7 @@ def save_story_version(
     metadata["frontMatterYaml"] = fields.front_matter_yaml
     apply_stamp(metadata, machine_write, created=False, now=now)
     record = {
-        **_without_server_fields(latest),
+        **{name: value for name, value in _without_server_fields(latest).items() if name not in SCHEDULE_FIELDS},   # a schedule pins the version it was set on, never the next one
         **compact_dict(columns),
         "id": record_id,
         "lineageId": lineage_id,
@@ -211,35 +219,62 @@ def save_story_version(
         "bodyIr": to_aws_json(envelope),
         "metadata": to_aws_json(metadata),
         "contentHash": _source_content_hash(fields),
-        "publishedAt": None,
+        "publishedAt": latest.get("publishedAt"),   # the Story's first publication, carried to every version
+        "versionPublishedAt": None,                 # this version has not gone live yet
+        "versionPublishedBy": None,
         "type": fields.type,
     }
     if stage:
         record["stage"] = require_content_item_stage(stage)
+    record.update(head_stage_fields(record))   # the new version is the head; the rows superseded below leave the head stage index
     carry_item_stars(latest, record)   # the editors' rating of the Story belongs to the Story, not to one version
     client.create_record("Item", compact_dict(record))
     for row in (media_rows(record_id) if media_rows else []):
         client.upsert("MediaAsset", row)
-    _carry_media_forward(client, record_id, envelope, versions)
+    _carry_media_forward(client, record_id, envelope, fields.front_matter_yaml, versions)
     for row in versions:
         if row.get("versionState") == "current" or row["id"] == latest["id"]:
-            client.update_record("Item", {"id": row["id"], "versionState": "superseded"})
+            client.update_record("Item", superseding_update(row))
     return record
 
 
-def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], earlier_versions: list[dict[str, Any]]) -> None:
-    """Gives the new version the MediaAsset rows for the local images its body references.
+def superseding_update(row: dict[str, Any]) -> dict[str, Any]:
+    """The one update that supersedes a version: its state, its head stage key cleared (it leaves the head stage index), and its own ``updatedAt``
+    passed back so the update does not stamp it as freshly changed (AppSync sets ``updatedAt`` to now when the input has none, and the old stage
+    index sorts by it)."""
+    update = {"id": row["id"], "versionState": "superseded", **head_stage_fields(row, head=False)}
+    if row.get("updatedAt"):
+        update["updatedAt"] = row["updatedAt"]
+    return update
+
+
+def referenced_media_paths(envelope: dict[str, Any], front_matter_yaml: str | None) -> list[str]:
+    """The stored pictures a version names, in order: each body image's ``src`` and ``srcDark`` and each picture the front matter names
+    (``image``, ``cover``, ``thumbnail``, ``ogImage`` and their Night ``...Dark`` twins). Remote addresses are not stored assets."""
+    from .projection.stored import FRONT_MATTER_IMAGE_KEYS, parse_front_matter
+    from .story_illustration import normalize_path
+
+    named = [value for image in (envelope.get("papyrus", {}).get("images") or {}).values() for value in (image.get("src"), image.get("srcDark"))]
+    front_matter = parse_front_matter(front_matter_yaml)
+    named += [front_matter.get(key) for key in FRONT_MATTER_IMAGE_KEYS]
+    paths: list[str] = []
+    for value in named:
+        path = normalize_path(value) if isinstance(value, str) else ""
+        if path and "://" not in path and path not in paths:
+            paths.append(path)
+    return paths
+
+
+def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], front_matter_yaml: str | None, earlier_versions: list[dict[str, Any]]) -> None:
+    """Gives the new version the MediaAsset rows for every stored picture it names (see ``referenced_media_paths``): both files of a Day and Night pair.
 
     Media is keyed by item version id, so a saved version starts with none and would fail the publish check
-    ``image-missing``. Each missing src is copied from the most recent earlier version that has a row for it.
+    ``image-missing``. Each missing path is copied from the most recent earlier version that has a row for it.
     """
     from .markus_import import media_id_for
+    from .story_illustration import normalize_path
 
-    wanted = []
-    for image in (envelope.get("papyrus", {}).get("images") or {}).values():
-        src = image.get("src") or ""
-        if src and not src.startswith(("http://", "https://")) and src not in wanted:
-            wanted.append(src)
+    wanted = referenced_media_paths(envelope, front_matter_yaml)
     if not wanted:
         return
 
@@ -250,7 +285,7 @@ def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], ear
                 metadata = json.loads(metadata)
             except ValueError:
                 return None
-        return (metadata or {}).get("srcPath")
+        return normalize_path((metadata or {}).get("srcPath")) or None
 
     have = {src_path_of(row) for row in client.list_by_index("mediaAssetsByItemAndSortKey", new_item_id)}
     pending = [src for src in wanted if src not in have]
@@ -324,7 +359,7 @@ def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason:
     moves = [move for move in metadata.get(STAGE_MOVES_KEY) or [] if isinstance(move, dict)]
     moves.append({"at": now, "from": previous, "to": stage, "by": actor, "reason": reason})
     metadata[STAGE_MOVES_KEY] = moves[-MAX_STAGE_MOVES:]
-    client.update_record("Item", {"id": latest["id"], "stage": stage, "updatedAt": now, "metadata": to_aws_json(metadata)})
+    client.update_record("Item", {"id": latest["id"], "stage": stage, **head_stage_fields({**latest, "stage": stage}), "updatedAt": now, "metadata": to_aws_json(metadata)})
     from .story_checklist import sync_quietly
 
     sync_quietly(client, lineage_id)   # a change: the checklist catches up with the template and the evidence
