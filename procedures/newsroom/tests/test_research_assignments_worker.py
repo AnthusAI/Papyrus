@@ -333,6 +333,8 @@ def recorded_fields_of_a_full_run(monkeypatch, tenant_id=None):
             return {field: {"id": "x"}}
         served = {"listAssignmentsByTypeStatusAndCreatedAt": [row], "listItemsByLineageAndVersion": [story], "itemBySlug": [doctrine], "itemByTenantSlug": [doctrine],
                   "listKnowledgeCorporaByRoleAndName": [corpus]}
+        if field in ("itemBySlug", "itemByTenantSlug") and (variables.get("slug") or variables.get("tenantSlug", "")).endswith("editorial-doctrine-agent-instructions"):
+            return {field: {"items": [], "nextToken": None}}   # this site wrote no role text of its own: the document is not there, so the default roles apply
         if field in served:
             return {field: {"items": served[field], "nextToken": None}}
         if field in partition_models:
