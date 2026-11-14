@@ -75,7 +75,7 @@ export function resolveSiteBackendFeatureFlags(
   _identity: SiteBackendIdentity,
 ): SiteBackendFeatureFlags {
   // Every optional feature is off unless the site turns it on (`features` in papyrus.config.ts, or the PAPYRUS_ENABLE_* branch variable). No site, the
-  // original p.apyr.us pipeline included, gets one by default: a feature that is on must say so, and `assertFeaturePrerequisites` checks what it needs.
+  // original production pipeline included, gets one by default: a feature that is on must say so, and `assertFeaturePrerequisites` checks what it needs.
   return {
     consoleResponder: features?.consoleResponder ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_CONSOLE_RESPONDER", false),
     inboundEmail: features?.inboundEmail ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_INBOUND_EMAIL", false),
