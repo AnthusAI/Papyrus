@@ -97,6 +97,14 @@ _MACHINE_CREDIT_RE = re.compile(
 )
 
 
+# "Approved by NAME": the name runs to the end of the sentence. A full stop inside it belongs to the name after an initial or a title ("Ryan P. Porter", "Dr. Ada").
+_NAME_TITLES = ("Dr", "Mr", "Mrs", "Ms", "Mx", "Prof", "Jr", "Sr", "St")
+_APPROVAL_CREDIT_RE = re.compile(
+    r"[,;]?\s*\bApproved\s+by\b(?:[^.;\n]|(?<=\b[A-Z])\." + "".join(rf"|(?<=\b{title})\." for title in _NAME_TITLES) + r")*[.;]?",
+    re.I,
+)
+
+
 def is_machine_credit(text: str | None) -> bool:
     """True when a credit only says a machine made the picture ("Illustration generated with AI", "Generated").
 
@@ -104,25 +112,73 @@ def is_machine_credit(text: str | None) -> bool:
     return bool(text and _MACHINE_CREDIT_RE.match(text))
 
 
-def without_machine_credit(text: str | None) -> str | None:
-    """The credit to show: ``None`` for a machine-made statement, otherwise the credit unchanged."""
-    return None if is_machine_credit(text) else text
+def without_approval_credit(text: str | None) -> str | None:
+    """The credit with every "Approved by NAME" statement cut out. Who approved a picture is metadata (``approvedBy``), never part of what a reader sees."""
+    if not text or not _APPROVAL_CREDIT_RE.search(text):
+        return text
+    return re.sub(r"\s{2,}", " ", _APPROVAL_CREDIT_RE.sub("", text)).strip(" ,;") or None
 
 
-def drop_machine_credits(markus: str) -> str:
-    """The Markus source with the ``credit`` attribute removed from every ``::image{...}`` whose credit only says a machine made it.
+def visible_credit(text: str | None) -> str | None:
+    """The credit to show: ``None`` when it is empty, only says a machine made the picture, or only says who approved it; otherwise the credit with any
+    "Approved by NAME" statement removed and the rest unchanged."""
+    if not text:
+        return text
+    cut = without_approval_credit(text)
+    return None if not cut or is_machine_credit(cut) else cut
 
-    Only the attribute is cut (with the space that separated it), so the rest of the directive, including a multi-line one, stays valid."""
+
+_FRONT_MATTER_CREDIT_KEYS = ("imageCredit", "coverCredit", "credit")
+
+
+def approval_credit_problems(source: str) -> list[str]:
+    """Every place a page source names who approved a picture in a credit: each ``::image{...}`` credit, and the front matter's ``imageCredit``,
+    ``coverCredit``, ``credit`` and ``coverImage.credit``. Used where a body is saved or published, which refuses it: approval is metadata
+    (``coverImage`` ``approvedBy``), never part of what a reader sees. Rendering does not refuse; it drops the statement (``visible_credit``)."""
+    import yaml
+
+    front_matter, body = split_front_matter(source)
+    problems: list[str] = []
+    masked, _ = _mask_code(body)
+    for match in _IMAGE_DIRECTIVE_RE.finditer(masked):
+        credit = parse_attrs(match.group("attrs")).get("credit")
+        if credit and _APPROVAL_CREDIT_RE.search(credit):
+            line = masked.count("\n", 0, match.start()) + 1
+            problems.append(f'line {line}: the credit {credit!r} names who approved the picture')
+    try:
+        loaded = yaml.safe_load(front_matter) or {} if front_matter else {}
+    except yaml.YAMLError:
+        loaded = {}
+    if isinstance(loaded, dict):
+        cover = loaded.get("coverImage")
+        values = [(key, loaded.get(key)) for key in _FRONT_MATTER_CREDIT_KEYS] + [("coverImage.credit", cover.get("credit") if isinstance(cover, dict) else None)]
+        problems += [f"front matter {key}: {value!r} names who approved the picture" for key, value in values if isinstance(value, str) and _APPROVAL_CREDIT_RE.search(value)]
+    return problems
+
+
+def drop_hidden_credits(markus: str) -> str:
+    """The Markus source with every ``::image{...}`` credit made visible: a credit that only says a machine made the picture or who approved it is cut out as an
+    attribute, and an "Approved by NAME" statement inside a real credit is cut out of its text.
+
+    Only the credit is touched (with the space that separated it), so the rest of the directive, including a multi-line one, stays valid."""
 
     def directive(match: re.Match) -> str:
         attrs = match.group("attrs")
         out, pos = [], 0
         for attr in _ATTR_RE.finditer(attrs):
-            value = attr.group("dq") if attr.group("dq") is not None else attr.group("sq") if attr.group("sq") is not None else attr.group("bare")
-            if attr.group("key") != "credit" or not is_machine_credit(value):
+            if attr.group("key") != "credit":
+                continue
+            quote_group = next((name for name in ("dq", "sq", "bare") if attr.group(name) is not None), "bare")
+            value = attr.group(quote_group)
+            shown = visible_credit(value)
+            if shown == value:
                 continue
             start, end = attr.start(), attr.end()
             before = attrs[pos:start]
+            if shown is not None:   # a real credit with the approval cut out: keep the attribute and its quotes
+                out.append(before + attrs[start:attr.start(quote_group)] + shown + attrs[attr.end(quote_group):end])
+                pos = end
+                continue
             stripped = before.rstrip()
             if stripped:   # there is an attribute before it: cut the space that separated them
                 out.append(stripped)
@@ -309,7 +365,7 @@ def prepare_page(
                 alt=attrs.get("alt", ""),
                 layout=attrs.get("layout"),
                 caption=attrs.get("caption"),
-                credit=without_machine_credit(attrs.get("credit")),
+                credit=visible_credit(attrs.get("credit")),
                 sizes=attrs.get("sizes"),
                 loading=attrs.get("loading"),
                 src_dark=attrs.get("srcDark"),

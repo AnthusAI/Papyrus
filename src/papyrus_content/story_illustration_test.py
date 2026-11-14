@@ -46,17 +46,6 @@ def test_an_approval_in_metadata_is_named_in_the_evidence_and_the_credit_line_is
     assert cover_evidence(inputs({"image": "/assets/a/cover.png"}, FIGURE_BODY))[0] == DONE
 
 
-def test_the_opt_in_requires_a_recorded_approval_and_the_line():
-    optin = {"requireApprovalCredit": True}
-    state, text = cover_evidence(inputs({"image": "/assets/a/cover.png"}, FIGURE_BODY, **optin))
-    assert state == NOT_DONE and "approvedBy" in text
-    state, text = cover_evidence(inputs(GENERATED, BARE_BODY, **optin))
-    assert state == NOT_DONE and "Approved by Sierra" in text
-    assert cover_evidence(inputs(GENERATED, FIGURE_BODY, **optin))[0] == DONE
-    nameless = {**GENERATED, "coverImage": {"srcPath": "assets/a/cover.png", "approvedBy": " "}}
-    assert cover_evidence(inputs(nameless, FIGURE_BODY, **optin))[0] == NOT_DONE
-
-
 def test_a_third_party_cover_keeps_its_credit_and_needs_no_approval_line():
     body = '::image{src="assets/a/cover.png" credit="Image: A. Photographer, CC BY 4.0"}'
     assert cover_evidence(inputs(STOCK, body))[0] == DONE

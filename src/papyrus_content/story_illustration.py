@@ -11,8 +11,7 @@ A cover is proved by records, never by hand:
   or the directive's ``srcDark``). A stock photograph has no dark twin and is never asked for one.
 
 Which Story types need a cover is the design-system setting ``illustrationRequiredTypes`` (a list of Item types), ``["article"]`` when unset.
-A site can opt in to requiring approval with the design-system setting ``illustrationRequireApprovalCredit`` (off when unset): the ``coverImage`` record must then
-name an approver and the cover's image line must say ``Approved by NAME``. No other site is held to either.
+Who approved a cover is never shown to a reader: it is metadata, and any "Approved by NAME" in an image credit is dropped when the page is rendered.
 """
 
 from __future__ import annotations
@@ -22,14 +21,12 @@ import re
 from typing import Any
 
 SETTING_REQUIRED_TYPES = "illustrationRequiredTypes"
-SETTING_APPROVAL_CREDIT = "illustrationRequireApprovalCredit"
 DEFAULT_REQUIRED_TYPES = ("article",)
 
 # The states mirror newsroom_process (not imported here: it imports this module lazily).
 DONE, NOT_DONE, UNKNOWN, NOT_APPLICABLE = "done", "not_done", "unknown", "not_applicable"
 
 _DIRECTIVE = re.compile(r"::image\{(.*?)\}", re.S)
-_APPROVED_BY = re.compile(r"Approved by ([^.;\n]+)", re.I)
 
 
 def normalize_path(value: Any) -> str:
@@ -39,7 +36,7 @@ def normalize_path(value: Any) -> str:
 
 
 def default_policy() -> dict[str, Any]:
-    return {"requiredTypes": list(DEFAULT_REQUIRED_TYPES), "requireDark": False, "requireApprovalCredit": False, "unreadable": False}
+    return {"requiredTypes": list(DEFAULT_REQUIRED_TYPES), "requireDark": False, "unreadable": False}
 
 
 def read_policy(client) -> dict[str, Any]:
@@ -52,12 +49,11 @@ def read_policy(client) -> dict[str, Any]:
 
         settings = DesignSystemRecords(client).settings()
     except Exception:  # noqa: BLE001 - say so in the evidence instead of guessing at the dark rule
-        return {"requiredTypes": list(DEFAULT_REQUIRED_TYPES), "requireDark": False, "requireApprovalCredit": False, "unreadable": True}
+        return {"requiredTypes": list(DEFAULT_REQUIRED_TYPES), "requireDark": False, "unreadable": True}
     types = settings.get(SETTING_REQUIRED_TYPES)
     return {
         "requiredTypes": [str(item) for item in types] if isinstance(types, list) else list(DEFAULT_REQUIRED_TYPES),
         "requireDark": bool(settings.get("requireDarkFigures")),
-        "requireApprovalCredit": bool(settings.get(SETTING_APPROVAL_CREDIT)),
         "unreadable": False,
     }
 
@@ -130,11 +126,6 @@ def cover_evidence(inputs: dict[str, Any] | None) -> tuple[str, str]:
     approved_at = record.get("pickedAt") if picked_by else record.get("approvedAt")
     directive = _directive_for(inputs["body"], cover)
     policy = inputs["policy"]
-    if policy.get("requireApprovalCredit"):   # opt-in only: a recorded approval and a visible line
-        if not approver:
-            return NOT_DONE, f"this site requires an approved cover (illustrationRequireApprovalCredit): the front matter `coverImage` record for {cover} needs `approvedBy` and `approvedAt`"
-        if not _APPROVED_BY.search((directive or {}).get("credit", "")):
-            return NOT_DONE, f"this site shows who approved a cover (illustrationRequireApprovalCredit): the image line of {cover} needs a credit saying `Approved by {approver}`"
     dark = normalize_path((directive or {}).get("srcDark") or front_matter.get("imageDark") or front_matter.get("coverDark"))
     if dark and dark not in stored:
         return NOT_DONE, f"the dark picture {dark} is not a stored asset of this version"

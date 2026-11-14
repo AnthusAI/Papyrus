@@ -344,6 +344,19 @@ test("the body gets the credited figure first; an earlier stock cover or seeded 
   assert.equal(coverDirective("a.jpg", 'say "hi" {x}', 'a "b" {c}'), '::image{src="a.jpg" alt="say hi x" credit="a b c"}');
 });
 
+test("changing the cover names the person only in the coverImage record, never in the body or any credit", () => {
+  const candidate = demoCandidate(1);
+  const record = coverRecord(candidate, "assets/my-story/harbour.jpg", "2026-11-14T21:00:00Z", "Ryan Porter");
+  const directive = coverDirective("assets/my-story/harbour.jpg", "A harbour", creditLine(candidate));
+  const body = bodyWithCover("Text.\n", directive, []);
+  const front = frontMatterWithCover("title: x\n", record);
+  assert.doesNotMatch(body, /approved by|Ryan Porter/i);
+  assert.doesNotMatch(creditLine(candidate), /approved by|Ryan Porter/i);
+  assert.match(front, /pickedBy: Ryan Porter/);
+  assert.equal(front.match(/Ryan Porter/g)?.length, 1);
+  assert.doesNotMatch(front, /approved by/i);
+});
+
 // ---- the picker's states --------------------------------------------------------------------------------------------------------------
 
 const noop = () => undefined;

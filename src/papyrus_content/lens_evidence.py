@@ -21,7 +21,7 @@ from typing import Any, Mapping
 
 from . import audience_lenses as lenses
 from .audience_lenses import CONCERN, ERROR, NOT_APPLICABLE, NOT_ASSESSABLE, PASS, PROBLEM
-from .markus_renderer.content_markup import _IMAGE_DIRECTIVE_RE, _VIDEO_DIRECTIVE_RE, is_machine_credit, parse_attrs
+from .markus_renderer.content_markup import _IMAGE_DIRECTIVE_RE, _VIDEO_DIRECTIVE_RE, parse_attrs, visible_credit
 from .markus_renderer.derive import compose_source
 from .markus_renderer.video import REGISTRY, parse_address, provider_of
 from .projection.public_data import SUMMARY_FIELD_NAMES
@@ -152,9 +152,11 @@ def images_of(masked_body: str) -> list[Image]:
     found: list[Image] = []
     for match in _IMAGE_DIRECTIVE_RE.finditer(masked_body):
         attributes = parse_attrs(match.group("attrs"))
-        machine = is_machine_credit(attributes.get("credit", ""))
+        written = attributes.get("credit", "")
+        credit = visible_credit(written) or ""
+        machine = bool(written.strip()) and not credit   # the credit only said a machine made it or who approved it: the picture counts as ours
         found.append(Image(masked_body.count("\n", 0, match.start()) + 1, attributes.get("src", ""), attributes.get("alt"), attributes.get("caption", ""),
-                           "" if machine else attributes.get("credit", ""), True, machine))
+                           credit, True, machine))
     for match in MARKDOWN_IMAGE.finditer(masked_body):
         alt = match.group("alt").strip()
         found.append(Image(masked_body.count("\n", 0, match.start()) + 1, match.group("src"), alt or None, match.group("title") or "", "", False))

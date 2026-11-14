@@ -208,9 +208,9 @@ def picture_problems(light_path: Path, dark_path: Path) -> list[str]:
 def image_directive(metadata: dict) -> str:
     """The ``::image{}`` line for a Story. A figure we drew carries no credit, so ``credit`` is printed only when the figure names a real one
     (``Source: <name>.`` for facts it shows); a credit that only says a machine made the picture is dropped, as the renderer drops it."""
-    from ..markus_renderer.content_markup import without_machine_credit
+    from ..markus_renderer.content_markup import visible_credit
 
-    credit = without_machine_credit(str(metadata.get("credit") or "").strip() or None)
+    credit = visible_credit(str(metadata.get("credit") or "").strip() or None)
     credit_line = f'  credit="{credit}"\n' if credit else ""
     return (
         f'::image{{\n  src="{metadata["slug"]}.png"\n  layout="{metadata["layout"]}"\n'

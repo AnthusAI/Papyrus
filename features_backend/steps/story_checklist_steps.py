@@ -213,6 +213,12 @@ def publishing_refused(context, text):
     assert context.publish_error.code in ("checklist-open", "sub-task-not-publishable")
 
 
+@then('publishing was refused with the code "{code}" saying "{text}"')
+def publishing_refused_with_code(context, code, text):
+    assert context.publish_error is not None and context.publish_error.code == code, repr(context.publish_error)
+    assert text in str(context.publish_error), repr(context.publish_error)
+
+
 @then("publishing succeeded")
 def publishing_succeeded(context):
     assert context.publish_error is None, repr(context.publish_error)
@@ -491,7 +497,7 @@ def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False
     """Gives the current version of the Story a cover the way the newsroom and the figures workflow do: front matter ``image``, the picture first in the body,
     and a ``MediaAsset`` row per stored picture. ``kind`` is ``stock`` (a picked stock picture: the ``coverImage`` record, with its third-party credit) or
     ``figure`` (a generated picture: the ``coverImage`` record names who approved it, the image line has no credit; an optional dark picture).
-    ``credit_line`` adds an ``Approved by`` line to the image, for a site that opted in."""
+    ``credit_line`` adds a stray ``Approved by`` credit to the image, as an older agent wrote it."""
     import yaml
 
     client = client_of(context)
@@ -564,16 +570,6 @@ def new_version_stores_both(context):
 @given('the Story has a figure cover approved by "{name}" and an "Approved by" line on its image')
 def figure_cover_with_line(context, name):
     add_cover(context, "figure", picked_by=name, credit_line=True)
-
-
-@given('the Story has a figure cover with an "Approved by {name}" line on its image but no approval in metadata')
-def figure_cover_line_only(context, name):
-    add_cover(context, "figure", picked_by=name, approved=False, credit_line=True)
-
-
-@given("the site requires an approved cover")
-def site_requires_approval(context):
-    use_policy(context, requireApprovalCredit=True)
 
 
 @then('the cover shows no credit line and no approval text')

@@ -1,6 +1,6 @@
 import pytest
 
-from papyrus_content.markus_renderer.content_markup import drop_machine_credits, is_machine_credit, without_machine_credit
+from papyrus_content.markus_renderer.content_markup import drop_hidden_credits, is_machine_credit, visible_credit
 
 
 @pytest.mark.parametrize("written", [
@@ -9,7 +9,7 @@ from papyrus_content.markus_renderer.content_markup import drop_machine_credits,
 ])
 def test_a_credit_that_only_says_a_machine_made_it_is_machine_made(written):
     assert is_machine_credit(written)
-    assert without_machine_credit(written) is None
+    assert visible_credit(written) is None
 
 
 @pytest.mark.parametrize("written", [
@@ -17,12 +17,12 @@ def test_a_credit_that_only_says_a_machine_made_it_is_machine_made(written):
 ])
 def test_any_other_credit_is_real_and_unchanged(written):
     assert not is_machine_credit(written)
-    assert without_machine_credit(written) == written
+    assert visible_credit(written) == written
 
 
 def test_only_image_directive_credits_in_a_source_are_dropped():
     source = '::image{src="a.png" credit="Drafted by AI."}\n\nText credit="Drafted by AI."\n::image{src="b.png" credit=\'Real Person\'}\n'
-    assert drop_machine_credits(source) == '::image{src="a.png"}\n\nText credit="Drafted by AI."\n::image{src="b.png" credit=\'Real Person\'}\n'
+    assert drop_hidden_credits(source) == '::image{src="a.png"}\n\nText credit="Drafted by AI."\n::image{src="b.png" credit=\'Real Person\'}\n'
 
 
 @pytest.mark.parametrize("source, expected", [
@@ -35,4 +35,35 @@ def test_only_image_directive_credits_in_a_source_are_dropped():
     ('::image{src="a.png" credit="Image: Ana Example"}', '::image{src="a.png" credit="Image: Ana Example"}'),
 ])
 def test_the_credit_attribute_is_cut_cleanly(source, expected):
-    assert drop_machine_credits(source) == expected
+    assert drop_hidden_credits(source) == expected
+
+
+@pytest.mark.parametrize("written, shown", [
+    ("Approved by Ryan Porter.", None),
+    ("Drafted by AI. Approved by Ryan Porter.", None),
+    ("Drafted by AI, approved by Ryan P. Porter", None),
+    ("approved by Dr. Ada Example.", None),
+    ("Drafted by AI. Approved by Ryan. Source: Wen and Li, arXiv:2610.05586.", "Drafted by AI. Source: Wen and Li, arXiv:2610.05586."),
+    ("Image: Ana Example. Approved by Ryan.", "Image: Ana Example."),
+    ("Image: Ana Example", "Image: Ana Example"),
+])
+def test_who_approved_a_picture_is_never_shown(written, shown):
+    assert visible_credit(written) == shown
+
+
+def test_an_approval_inside_a_real_credit_is_cut_from_the_attribute_and_an_approval_alone_cuts_the_attribute():
+    source = ('::image{src="a.png" credit="Drafted by AI. Approved by Ryan. Source: Wen."}\n'
+              '::image{\\n  src="b.png"\\n  credit="Approved by Ryan Porter."\\n  alt="x"\\n}').replace("\\n", "\n")
+    assert drop_hidden_credits(source) == ('::image{src="a.png" credit="Drafted by AI. Source: Wen."}\n'
+                                           '::image{\n  src="b.png"\n  alt="x"\n}')
+
+
+def test_saving_and_publishing_refuse_a_credit_that_names_the_approver():
+    from papyrus_content.markus_renderer.derive import derive_body
+
+    refused = derive_body("title: T", '::image{src="assets/a.png" alt="x" caption="An imagined scene." credit="Approved by Ryan Porter"}\n\nText.\n')
+    assert not refused.ok and refused.errors[0].code == "image-credit-approver" and "line 1" in refused.errors[0].message
+    refused = derive_body("title: T\ncoverImage:\n  srcPath: assets/a.png\n  credit: Drafted by AI. Approved by Ryan.", "Text.\n")
+    assert not refused.ok and refused.errors[0].code == "image-credit-approver" and "coverImage.credit" in refused.errors[0].message
+    clean = derive_body("title: T\ncoverImage:\n  srcPath: assets/a.png\n  approvedBy: Ryan Porter", '::image{src="assets/a.png" alt="x" caption="An imagined scene."}\n\nText.\n')
+    assert clean.ok or clean.errors[0].code != "image-credit-approver"
