@@ -85,7 +85,7 @@ def registry(root, name, versions, shape):
     return path.as_uri()
 
 
-@given('a site pinned to Papyrus {pin}')
+@given('a site repository pinned to Papyrus {pin}')
 def step_site(context, pin):
     root = Path(tempfile.mkdtemp())
     context.add_cleanup(lambda: subprocess.run(['rm', '-rf', str(root)]))
