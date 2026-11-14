@@ -37,7 +37,8 @@ def step_no_tenancy(context):
 
 @given('tenancy mode "{mode}"')
 def step_mode(context, mode):
-    context.backend = {'tenancy': {'mode': mode}}
+    # A shared stack is one of two tiers (docs/shared-stack.md); a mistyped mode still has none to name.
+    context.backend = {'tenancy': {'mode': mode, **({'tier': 'staging'} if mode == 'shared' else {})}}
 
 
 @when('the backend is synthesised')

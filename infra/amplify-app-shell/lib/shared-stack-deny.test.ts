@@ -10,7 +10,11 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { App } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
-import { sharedStackDenyPolicyDocument as backendDeny, SHARED_DENY_POLICY_NAME } from "../../../amplify/shared-stack/names";
+// The backend's copy lives outside this package's rootDir, so it is read at run time.
+const { sharedStackDenyPolicyDocument: backendDeny, SHARED_DENY_POLICY_NAME } = require("../../../amplify/shared-stack/names") as {
+  sharedStackDenyPolicyDocument: () => unknown;
+  SHARED_DENY_POLICY_NAME: string;
+};
 import { AmplifyAppShellStack } from "./amplify-app-shell";
 import { sharedStackDenyPolicyDocument as shellDeny } from "./shared-stack-deny";
 import { parseSiteConfig } from "./site-config";
