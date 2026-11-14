@@ -476,6 +476,19 @@ papyrus stories localize --story LINEAGE --language es-419 --automation SITE.sto
 - `--dry-run` prints the plan: blocks to translate and kept, the glossary terms the translator will be given, the predicted cost from the language's measured runs. It writes nothing.
 - A held translation (a faithfulness error remains) raises a flag review request saying why. `--ceiling-usd` caps one run's model spend.
 
+### Publish a translation (editors)
+**Lane:** both. **Version:** the release after 5.110.0. **Writes:** yes, unless `--dry-run`.
+
+```sh
+papyrus stories versions --story LINEAGE--es-419
+papyrus ops content publish --id LINEAGE--es-419-v1 --dry-run
+papyrus ops content publish --id LINEAGE--es-419-v1
+```
+
+- A translation is a Story of its own (`LINEAGE--TAG`) and a person publishes it with the ordinary publish command and the version id; nothing publishes it by itself (docs/story-translation-procedure.md, "Publishing a translation").
+- It has no English checklist and no rating of its own. It is refused with `original-unpublished` unless its original is published, and with `translation-held` when the run held it (a faithfulness error remained) until a person answers the run's flag review request (`localize-...`, named in the refusal) with `approve` or `acknowledge`: an editor in the newsroom's Notification Center, or an operator with `papyrus reviews answer --id ID --decision approve` (docs/review-requests.md). A held translation never holds the English Story.
+- Its page is at `/<prefix>/<its own address>/`, says in its own language that an AI translated it (with a link to the original) and lists the other languages as `hreflang`. `unpublish` takes it off; unpublishing the original takes every translation off the site until the original is published again.
+
 ### Give every Item row its language (operators)
 **Lane:** both. **Version:** the release after 5.109.0. **Writes:** yes, unless `--dry-run`.
 
