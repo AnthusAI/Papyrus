@@ -39,9 +39,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6d6836a2-3a17-4d5e-a8c6-3d091c4f6df6",
+      "author": "home",
+      "text": "2026-11-14: PPY-057e02 was retitled to the site-switch authorize (PR #948 closed). Document that behaviour, not the per-operation flag.",
+      "created_at": "2026-11-14T16:19:49.899395Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T12:42:39.165910Z",
-  "updated_at": "2026-10-31T12:43:10.413855Z",
+  "updated_at": "2026-11-14T16:19:49.899623Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
