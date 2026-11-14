@@ -34,10 +34,17 @@
       "text": "Board sync 2026-11-13: closed PPY-46635e, PPY-94d609, PPY-31c45c, PPY-65e5a9, PPY-16d75b (merged earlier but left open) and PPY-8f2c4f, PPY-ee1e02, PPY-cd5926, PPY-cc8a4c (merged today: #1388, #1390, #1481, #1482). Spike findings #1372 merged; both auth spikes and the CDN spike still need a sandbox run (D9). Nothing released or deployed.",
       "created_at": "2026-11-13T17:08:55.409380Z",
       "comment_type": "default"
+    },
+    {
+      "id": "7b3c8bce-8b1a-4e4e-b11a-2d0357674a7a",
+      "author": "home",
+      "text": "Decisions recorded 2026-11-13 (Ryan):\n- D2: yes, one editor sign-in address, newsroom.p.apyr.us; the person then picks the site.\n- D7: yes, Prospectus is the only creator of site (deployment) records; Papyrus reacts to its event and sweeps for missed ones.\n- D8: yes, Prospectus verifies custom-domain ownership; Papyrus handles the certificate, the edge and serving.\n- D9: NO sandbox account of any kind (final; we are at the AWS account limit). The live halves of the auth and CDN spikes become gated tasks PPY-d4fe2a and PPY-2784d2: they run, if at all, only on the pipeline-created shared staging stack (PPY-daf673), each after Ryan's go. Nothing runs in AWS from planning; nothing is created by hand.\n- D10: no new AWS account. The shared tier lives, as its own pipeline-made stacks, in the Papyrus production account (Ryan confirmed 2026-11-13). Prospectus also runs in that account (verified in the Prospectus repository: README, AGENTS.md, deploy role in .github/workflows/ci.yml), so an account-level failure reaches the dedicated sites, the shared tier and Prospectus. Isolation layers: separate stacks by prefix, one KMS key per stack, permissions boundaries and denies, reserved concurrency both ways, per-stack alarms and tag budgets.\n- D12: yes, register p.apyr.us on the Public Suffix List early (task PPY-4b2981).\n- D19: yes, at the weekly AI budget model work stops; reading, editing and serving continue; paid overage later as an opt-in.\n- Breaking steps (group rules removed PPY-bdc4ee, tenantId required PPY-b99fc0, sign-in switched to the role claims) approved in principle as gated steps only: each after the isolation suite has passed on staging and gate 1 (PPY-3ff465) has passed, and each needs Ryan's go.\nDesign note: docs/plans/multi-tenant-architecture.md (PR #1305).",
+      "created_at": "2026-11-13T19:21:58.384039Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T18:46:17.993849Z",
-  "updated_at": "2026-11-13T17:08:55.409779Z",
+  "updated_at": "2026-11-13T19:21:58.384348Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

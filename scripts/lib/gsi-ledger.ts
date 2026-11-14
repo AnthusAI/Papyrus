@@ -1,4 +1,5 @@
-// The GSI ledger: compares the secondary indexes of every data model in two copies of amplify/data/schema.ts.
+// The GSI ledger: compares the secondary indexes of every data model in two copies of the schema sources: amplify/data/schema.ts and every
+// plugin's and function's schema.ts (SCHEMA_SOURCE), which together are the deployed tables.
 // DynamoDB lets one update create or delete one global secondary index on a table.
 // Rules (features_backend/gsi-ledger.feature):
 //   - a table that gains more than one index since the baseline fails;
@@ -23,7 +24,11 @@ export interface Report {
   releaseOrder: string[];
 }
 
-const MODEL_START = /^  (\w+): (?:modelWithoutSubscriptions|realtimeModel|a\.model)\(/gm;
+/** The files that declare data models: the core schema and each plugin's and function's own schema. */
+export const SCHEMA_SOURCE = /^amplify\/(?:data|plugins\/[^/]+|functions\/[^/]+)\/schema\.ts$/;
+
+// A model starts at `Name: modelWithoutSubscriptions(`, `Name: realtimeModel(` or `Name: a.model(` (the plugin files break the line before `.model`).
+const MODEL_START = /^( +)(\w+): (?:modelWithoutSubscriptions|realtimeModel|a\s*\.model)\(/gm;
 const INDEX_CALL = /index\("(\w+)"\)((?:\.\w+\((?:[^()]|\([^()]*\))*\))*)/g;
 
 export function parseLedger(source: string): Ledger {
@@ -31,8 +36,8 @@ export function parseLedger(source: string): Ledger {
   const ledger: Ledger = new Map();
   starts.forEach((start, position) => {
     const end = position + 1 < starts.length ? starts[position + 1].index! : source.length;
-    // A model ends at the next top-level entry of the schema, which may be a custom type or query.
-    const block = source.slice(start.index!, end).split(/^  (?:\w+): a\.(?!model)/m)[0];
+    // A model ends at the next entry of the schema at its own indentation, which may be a custom type, query or mutation.
+    const block = source.slice(start.index!, end).split(new RegExp(`^${start[1]}\\w+: a\\s*\\.(?!model)`, "m"))[0];
     const entries: IndexEntry[] = [];
     for (const call of block.matchAll(INDEX_CALL)) {
       const [, partitionKey, chain] = call;
@@ -41,8 +46,22 @@ export function parseLedger(source: string): Ledger {
       const queryField = /\.queryField\("(\w+)"\)/.exec(chain)?.[1];
       entries.push({ id: name ?? queryField ?? `${partitionKey}:${sortKeys}`, keys: `${partitionKey}|${sortKeys}` });
     }
-    ledger.set(start[1], entries);
+    ledger.set(start[2], entries);
   });
+  return ledger;
+}
+
+/** One ledger of several schema files; a model declared in two files fails, since each model is one table. */
+export function parseLedgers(sources: { path: string; source: string }[]): Ledger {
+  const ledger: Ledger = new Map();
+  const declaredIn = new Map<string, string>();
+  for (const { path, source } of sources) {
+    for (const [table, entries] of parseLedger(source)) {
+      if (declaredIn.has(table)) throw new Error(`GSI ledger: ${table} is declared in both ${declaredIn.get(table)} and ${path}.`);
+      declaredIn.set(table, path);
+      ledger.set(table, entries);
+    }
+  }
   return ledger;
 }
 

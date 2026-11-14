@@ -164,4 +164,24 @@ def need_index(context):
     section = text.split('## Models that need a tenantId index', 1)[1].split('\n## ', 1)[0]
     listed = set(re.findall(r'- `([A-Za-z]+)`', section))
     expected = {row[0] for row in context.models if row[2].endswith('needs a tenantId index')}
-    assert listed == expected and listed, (listed, expected)
+    assert listed == expected, (listed, expected)
+    assert listed or section.strip() == 'None.', section
+
+
+@then('Reference and KnowledgeArtifact list a tenant through their corpusId index, because KnowledgeCorpus lists a tenant')
+def listed_through_corpora(context):
+    listed_by = {row[0]: (row[2], row[3]) for row in context.models}
+    assert listed_by['KnowledgeCorpus'][0] == 'yes', listed_by['KnowledgeCorpus']
+    for model, index in [('Reference', 'listReferencesByCorpusAndExternalItem'), ('KnowledgeArtifact', 'listKnowledgeArtifactsByCorpusAndKind')]:
+        assert listed_by[model][0] == 'yes' and index in listed_by[model][1], (model, listed_by[model])
+    corpus = next(row for row in context.indexes if row[1] == 'listReferencesByCorpusAndExternalItem')
+    assert corpus[4:8] == ['corpus-prefixed', 'parent', 'yes', 'yes'], corpus
+
+
+@then('every index partitioned on tenantId with required sort fields lists a tenant without being dense')
+def tenant_indexes_list(context):
+    tenant_indexes = [row for row in context.indexes if row[2] == 'tenantId' and row[0] not in ('TenantDomain', 'TenantMembership')]
+    assert tenant_indexes, 'no index is partitioned on tenantId'
+    for row in tenant_indexes:
+        assert row[6] == 'no' and row[7] == 'yes', row
+    assert any(row[0] == 'ReaderVote' and row[1] == 'listReaderVotesByTenant' for row in tenant_indexes)

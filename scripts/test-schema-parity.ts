@@ -42,8 +42,9 @@ function extractFieldNames(source: string, modelName: string): Set<string> {
     throw new Error(`model ${modelName} not found`);
   }
   const rest = source.slice(startMatch.index);
-  const endIndex = rest.indexOf(".secondaryIndexes");
-  const block = endIndex === -1 ? rest : rest.slice(0, endIndex);
+  // The fields end where the model's indexes or, for a model without indexes, its authorization rules begin.
+  const ends = [rest.indexOf(".secondaryIndexes"), rest.indexOf(".authorization")].filter((index) => index !== -1);
+  const block = ends.length === 0 ? rest : rest.slice(0, Math.min(...ends));
   const names = new Set<string>();
   for (const match of block.matchAll(/^\s{6}(?:\.\.\.\(\w+ \? \{ )?(\w+): a\./gm)) {
     names.add(match[1]);
@@ -165,6 +166,14 @@ const TENANCY_MODELS: Record<string, { fields: string[]; indexes: string[] }> = 
   TenantDomain: {
     fields: ["id", "tenantId", "kind", "status", "verification", "certificateRef"],
     indexes: ['index("tenantId").queryField("listTenantDomainsByTenant")'],
+  },
+  SiteDocument: {
+    fields: ["id", "tenantId", "kind", "currentVersion", "s3Key", "sha256", "schemaVersion", "updatedBy", "updatedAt"],
+    indexes: [],
+  },
+  SiteDocumentVersion: {
+    fields: ["id", "tenantId", "documentId", "version", "s3Key", "sha256", "createdBy", "createdAt", "note"],
+    indexes: ['index("documentId").sortKeys(["version"]).queryField("listSiteDocumentVersionsByDocument")'],
   },
 };
 for (const [modelName, expected] of Object.entries(TENANCY_MODELS)) {

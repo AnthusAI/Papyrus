@@ -25,7 +25,7 @@ export type IndexRow = {
   classification: FieldClass;
   /** The partition field and every sort field are required in the schema, so every row of the model is in the index. */
   dense: boolean;
-  /** Dense, and its class and spread let one or a few queries list a whole tenant once the value carries the tenant prefix. */
+  /** Its keys cover every row of a tenant, and its class and spread let one or a few queries list a whole tenant once the value carries the tenant prefix. */
   listsTenant: boolean;
 };
 
@@ -48,24 +48,62 @@ export function staleClassProblems(schema: SchemaInfo, classes: Classes): string
   return Object.keys(classes).filter((field) => !used.has(field)).map((field) => `scripts/lib/tenant-key-classes.ts classifies ${field}, which no index partitions on any more`);
 }
 
-const isDense = (model: ModelInfo, index: ModelInfo["indexes"][number]) =>
-  [index.partitionKey, ...index.sortKeys].every((field) => model.fields[field]?.required === true);
+const isRequired = (model: ModelInfo, field: string) => model.fields[field]?.required === true;
+
+const isDense = (model: ModelInfo, index: ModelInfo["indexes"][number]) => [index.partitionKey, ...index.sortKeys].every((field) => isRequired(model, field));
+
+/** The tenant field: optional in the schema until the shared stack requires it, yet carried by every row of a tenant once the backfill has run. */
+export const TENANT_FIELD = "tenantId";
+
+/** Every partition field whose spread is `parent` must name a model of the schema as its parent, and only those may name one. */
+export function parentProblems(schema: SchemaInfo, classes: Classes): string[] {
+  const names = new Set(schema.models.map((model) => model.name));
+  const used = new Set(schema.models.flatMap((model) => model.indexes.map((index) => index.partitionKey)));
+  return Object.entries(classes).filter(([field]) => used.has(field)).flatMap(([field, value]) => {
+    if (value.spread === "parent") return value.parent && names.has(value.parent) ? [] : [`scripts/lib/tenant-key-classes.ts gives ${field} the spread parent but no model of the schema as its parent`];
+    return value.parent ? [`scripts/lib/tenant-key-classes.ts names a parent for ${field}, whose spread is not parent`] : [];
+  });
+}
+
+/**
+ * Whether an index can list every row of one tenant (once its value is prefixed, for a global value):
+ * - its sort fields are required, and so is its partition field, except `tenantId`: a row without it belongs to no tenant yet, so an index on
+ *   `tenantId` holds every row of every tenant once the tenantId backfill (PPY-8f9462) has stamped them;
+ * - and its class is tenant-prefixed or global with spread one or closed, or its spread is `parent` and the parent model itself lists a tenant.
+ */
+function covers(model: ModelInfo, index: ModelInfo["indexes"][number]): boolean {
+  return index.sortKeys.every((field) => isRequired(model, field)) && (index.partitionKey === TENANT_FIELD || isRequired(model, index.partitionKey));
+}
 
 export function buildInventory(schema: SchemaInfo, classes: Classes = PARTITION_FIELD_CLASSES): Inventory {
-  const problems = unclassifiedProblems(schema, classes);
+  const problems = [...unclassifiedProblems(schema, classes), ...parentProblems(schema, classes)];
   if (problems.length > 0) throw new Error(problems.join("\n"));
+  const rowsByModel = new Map<string, IndexRow[]>(schema.models.map((model) => [model.name, model.indexes.map((index): IndexRow => {
+    const classification = classes[index.partitionKey];
+    const listable = (classification.class === "tenant-prefixed" || classification.class === "global") && (classification.spread === "one" || classification.spread === "closed");
+    return {
+      model: model.name, queryField: index.queryField, partitionKey: index.partitionKey, sortKeys: index.sortKeys, classification,
+      dense: isDense(model, index), listsTenant: listable && covers(model, index),
+    };
+  })]));
+  // A `parent` index lists a tenant once its parent model does; repeat until nothing changes, so a chain of parents resolves in any order.
+  const listing = () => new Set([...rowsByModel].filter(([, rows]) => rows.some((row) => row.listsTenant)).map(([name]) => name));
+  for (let changed = true; changed;) {
+    changed = false;
+    const listed = listing();
+    for (const model of schema.models) {
+      for (const [position, row] of rowsByModel.get(model.name)!.entries()) {
+        if (row.listsTenant || row.classification.spread !== "parent" || !listed.has(row.classification.parent!)) continue;
+        if (!covers(model, model.indexes[position])) continue;
+        row.listsTenant = true;
+        changed = true;
+      }
+    }
+  }
   const indexes: IndexRow[] = [];
   const models: ModelRow[] = [];
   for (const model of schema.models) {
-    const rows = model.indexes.map((index): IndexRow => {
-      const classification = classes[index.partitionKey];
-      const dense = isDense(model, index);
-      const listable = classification.class === "tenant-prefixed" || classification.class === "global";
-      return {
-        model: model.name, queryField: index.queryField, partitionKey: index.partitionKey, sortKeys: index.sortKeys, classification, dense,
-        listsTenant: dense && listable && classification.spread !== "open",
-      };
-    });
+    const rows = rowsByModel.get(model.name)!;
     indexes.push(...rows);
     const listedBy = rows.filter((row) => row.listsTenant).map((row) => row.queryField);
     const status: ModelStatus = model.global ? "global"
@@ -108,11 +146,13 @@ export function render(inventory: Inventory, classes: Classes = PARTITION_FIELD_
     "## Classes",
     "",
     "- `tenant-prefixed`: the stored value already starts with `<tenant>#` (or is the tenant id). Only Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection are written this way, plus `tenantId` on the tenancy records.",
-    "- `corpus-prefixed`: the value is a corpus id or starts with `<corpusId>#`. Tenant-safe once corpus ids are unique across tenants, but a partition holds one corpus, so it cannot list a tenant.",
+    "- `corpus-prefixed`: the value is a corpus id or starts with `<corpusId>#`. Tenant-safe once corpus ids are unique across tenants. A partition holds one corpus, so an index on a composite of the corpus id cannot list a tenant; an index on `corpusId` itself can, through the tenant's corpora (spread `parent`).",
     "- `record-id`: the value is, or is built from, another record's id. Tenant-safe because ids are unique, but a partition holds the rows of one record, so it cannot list a tenant.",
     "- `global`: any value shared across tenants (a constant, an enum, a slug, a person, a free-form key). Prefixing it with the tenant is what makes it tenant-safe.",
     "",
-    "Spread is how many partitions one tenant's rows fall into: `one` (a constant or the tenant id), `closed` (a fixed set the caller can name, such as a status) or `open` (a value per record, slug, person or key). An index is dense when its partition field and every sort field are required in the schema, so every row of the model is in it (DynamoDB leaves a row out of an index when a key attribute is absent). An index lists a tenant when it is dense, its class is `tenant-prefixed` or `global`, and its spread is `one` or `closed`: with the tenant prefix on the value, one query (or one per value of the closed set) returns every row of that tenant.",
+    "Spread is how many partitions one tenant's rows fall into: `one` (a constant or the tenant id), `closed` (a fixed set the caller can name, such as a status), `parent` (one partition per record of a parent model the tenant owns: `corpusId` has one per KnowledgeCorpus) or `open` (a value per record, slug, person or key). An index is dense when its partition field and every sort field are required in the schema, so every row of the model is in it (DynamoDB leaves a row out of an index when a key attribute is absent). The density rule reads the schema only: a field the schema leaves optional counts as absent even where the writers usually set it.",
+    "",
+    "An index lists a tenant when its keys cover every row of the tenant and one or a few queries return them all. Its keys cover the tenant when it is dense, or when its partition is `tenantId` and its sort fields are required: `tenantId` stays optional in the schema until the shared stack requires it, but every row of a tenant carries it once the tenantId backfill (PPY-8f9462) has run, so a `tenantId` index is complete for a tenant only after that backfill. Its queries suffice when its class is `tenant-prefixed` or `global` and its spread is `one` or `closed` (with the tenant prefix on the value, one query, or one per value of the closed set), or when its spread is `parent` and the parent model lists a tenant (list the tenant's parents, then one query per parent: a tenant's References are its corpora's References).",
     "",
     "## Counts",
     "",
@@ -137,7 +177,8 @@ export function render(inventory: Inventory, classes: Classes = PARTITION_FIELD_
     "| --- | --- | --- | --- |",
     ...Object.keys(classes).sort().map((field) => {
       const users = [...new Set(inventory.indexes.filter((row) => row.partitionKey === field).map((row) => row.model))];
-      return `| \`${field}\` | ${classes[field].class} | ${classes[field].spread} | ${users.map((name) => `\`${name}\``).join(", ")} |`;
+      const spread = classes[field].parent ? `${classes[field].spread} (\`${classes[field].parent}\`)` : classes[field].spread;
+      return `| \`${field}\` | ${classes[field].class} | ${spread} | ${users.map((name) => `\`${name}\``).join(", ")} |`;
     }),
     "",
     "## Indexes",
@@ -177,7 +218,7 @@ export function check(options: CheckOptions = {}): string[] {
   const docPath = options.docPath ?? path.join(REPO_ROOT, DOC_PATH);
   const schema = options.schema ?? readSchema();
   const classes = options.classes ?? PARTITION_FIELD_CLASSES;
-  const problems = [...unclassifiedProblems(schema, classes), ...staleClassProblems(schema, classes)];
+  const problems = [...unclassifiedProblems(schema, classes), ...staleClassProblems(schema, classes), ...parentProblems(schema, classes)];
   if (problems.length > 0) return problems;
   const inventory = buildInventory(schema, classes);
   const expected = render(inventory, classes);

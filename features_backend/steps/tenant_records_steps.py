@@ -15,6 +15,8 @@ from papyrus_content import tenant_records as records  # noqa: E402
 from papyrus_content.tenant_records_test import FakeTable  # noqa: E402
 
 TENANCY_MODELS = ["Tenant", "TenantMembership", "TenantDomain"]
+# The group also holds the two site document models (features_backend/site-documents.feature).
+TENANCY_GROUP_SIZE = len(TENANCY_MODELS) + 2
 
 
 @given('{count:d} tenants with {members:d} members each')
@@ -82,7 +84,7 @@ def not_in_schema(context):
 @then("every other model is")
 def others_stay(context):
     names = context.model_names
-    assert len(names["all"]) - len(names["without"]) == len(TENANCY_MODELS)
+    assert len(names["all"]) - len(names["without"]) == TENANCY_GROUP_SIZE
 
 
 @then("Tenant, TenantMembership and TenantDomain have the same fields and indexes in both files")

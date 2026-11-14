@@ -11,10 +11,17 @@ its own lineage as its group.
   nothing and its dry run is the health check.
 * It never changes a language a row already has.
 * It does the same for the published rows (``PublishedItem``), which carry a copy of their version's language and group for the projection
-  (docs/multilingual-serving.md). They are read with the one list of published summaries every projection reads; a published row's group is its
-  lineage, because every row written before the fields is a primary-language Story.
+  (docs/multilingual-serving.md). A published row's id is derived from its lineage, so each lineage the Item read found (checklist steps aside: they
+  are never published) is one point read, no table scan; a published row's group is its lineage, because every row written before the fields is a
+  primary-language Story.
 
 Writes by default; ``--dry-run`` prints what it would write and writes nothing.
+
+**At deploy** (:func:`ensure_item_languages`) the same code runs inside the post-deploy render, before anything reads a language: the projection
+refuses a published row without one and the editorial checks a Story without one, so a backend deploy that brings those readers writes the missing
+fields first, then renders. It runs once per site: a clean run leaves a marker in the site store's state, and a later deploy reads the marker and
+nothing else. A run that fails part-way raises, which fails the deploy before the render; the rows it wrote are complete rows, the marker is not
+written, and the next deploy finishes the rest. ``papyrus stories languages`` is the same code run by hand.
 """
 from __future__ import annotations
 
@@ -24,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .item_language import LANGUAGE_FIELD, LANGUAGE_GROUP_FIELD
+from .publishing import published_item_id_for
 from .story_head_index import DEFAULT_RATE
 from .tenancy import rows_for_tenant
 
@@ -77,6 +85,14 @@ def plan_published_languages(rows: Iterable[dict[str, Any]], primary: str) -> La
     return plan
 
 
+def read_published_rows(client: Any, item_rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The published row of each lineage among ``item_rows`` that has one: one point read per lineage (its id is derived from the lineage). A checklist
+    step (``sub-task``) is never published and is not read."""
+    lineages = sorted({str(row.get("lineageId") or row["id"]) for row in item_rows if row.get("type") != "sub-task"})
+    found = (client.get_record("PublishedItem", published_item_id_for(lineage)) for lineage in lineages)
+    return [row for row in found if row is not None]
+
+
 def read_rows(client: Any, states: Iterable[str] = VERSION_STATES) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for state in states:
@@ -95,8 +111,9 @@ def run_languages(client: Any, *, primary: str, dry_run: bool = False, rate: flo
     from . import request_meter
 
     with request_meter.sweep(SWEEP_NAME):   # the migration's one full read of Item rows, version state by version state, and of the published summaries
-        plan = plan_languages(read_rows(client), primary)
-        published = plan_published_languages(client.list_published_item_summaries(), primary)
+        item_rows = read_rows(client)
+        plan = plan_languages(item_rows, primary)
+        published = plan_published_languages(read_published_rows(client, item_rows), primary)
     if dry_run:
         for model, found in (("Item", plan), ("PublishedItem", published)):
             for change in found.writes:
@@ -119,3 +136,27 @@ def run_languages(client: Any, *, primary: str, dry_run: bool = False, rate: flo
         echo(f"stories\tlanguages\t{model}\t{'dry run' if dry_run else 'write'}\t{summary}")
     plan.published = published
     return plan
+
+
+#: Where the deploy records that every row of the site has its language (the site store's state, beside the projection's own).
+DEPLOY_MARKER_KEY = "_papyrus/migrations/item-languages.json"
+
+
+def ensure_item_languages(client: Any, store: Any, *, now: Callable[[], str], echo: Callable[[str], None] = print) -> dict[str, Any]:
+    """The deploy's step: write the language and group on every Item and published row that lacks them, once per site, before any reader runs.
+
+    ``store`` is the site store (``PageWriter``); its marker says the site is done, so every later deploy reads one object and writes nothing. The
+    site's primary language comes from its editorial check settings (``en`` when the site never set one). Writes are not paced: a deploy is short, and
+    a run cut off by a timeout raises like any failure and is finished by the next deploy."""
+    import json
+
+    from .editorial_checks import settings_from_row
+    from .editorial_languages import primary_language
+
+    if store.get(DEPLOY_MARKER_KEY) is not None:
+        return {"itemLanguages": "already written"}
+    primary = primary_language(settings_from_row(client.get_record("EditorialCheckSettings", "settings")))
+    plan = run_languages(client, primary=primary, rate=0, echo=echo)
+    result = {"itemLanguages": "written", "primary": primary, "items": len(plan.writes), "publishedItems": len(plan.published.writes)}
+    store.put(DEPLOY_MARKER_KEY, json.dumps({**result, "at": now()}).encode("utf-8"))
+    return result

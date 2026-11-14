@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { buildInventory, check, render, staleClassProblems, unclassifiedProblems, type Classes } from "./generate-tenant-key-inventory";
+import { buildInventory, check, parentProblems, render, staleClassProblems, unclassifiedProblems, type Classes } from "./generate-tenant-key-inventory";
 import { REPO_ROOT, readSchema, type SchemaInfo } from "./lib/schema-reader";
 import { KEY_CLASSES, PARTITION_FIELD_CLASSES } from "./lib/tenant-key-classes";
 
@@ -74,6 +74,41 @@ test("an index lists a tenant only when it is dense, tenant-safe to prefix and s
   assert.equal(buildInventory(fake([], required)).models[0].status, "no-index");
   assert.equal(buildInventory(fake([], required, { global: true })).models[0].status, "global");
   assert.equal(buildInventory(fake([], required, { hasTenantId: false })).models[0].status, "no-tenantId");
+});
+
+test("an index on tenantId lists a tenant though tenantId is optional, as long as its sort fields are required", () => {
+  const fields = { tenantId: { required: false }, id: { required: true }, mood: { required: false } };
+  const inventory = buildInventory(fake([
+    { queryField: "byTenant", partitionKey: "tenantId", sortKeys: ["id"] },
+    { queryField: "byTenantAndMood", partitionKey: "tenantId", sortKeys: ["mood"] },
+  ], fields));
+  const rows = Object.fromEntries(inventory.indexes.map((row) => [row.queryField, [row.dense, row.listsTenant]]));
+  assert.deepEqual(rows, { byTenant: [false, true], byTenantAndMood: [false, false] });
+  assert.equal(inventory.models[0].status, "lists-tenant");
+});
+
+test("an index spread over a parent model lists a tenant only when the parent model does", () => {
+  const classes: Classes = { ...PARTITION_FIELD_CLASSES, shelfId: { class: "record-id", spread: "parent", parent: "Shelf" } };
+  const shelf = (indexes: SchemaInfo["models"][number]["indexes"]) => ({
+    name: "Shelf", hasTenantId: true, global: false, fields: { status: { required: true } }, operations: [], subscriptions: [], indexes, rules: [], tenantIdFieldRules: [],
+  });
+  const book = { name: "Book", hasTenantId: true, global: false, fields: { shelfId: { required: true }, title: { required: false } }, operations: [], subscriptions: [],
+    indexes: [{ queryField: "byShelf", partitionKey: "shelfId", sortKeys: [] }, { queryField: "byShelfAndTitle", partitionKey: "shelfId", sortKeys: ["title"] }], rules: [], tenantIdFieldRules: [] };
+  const listable = buildInventory({ operations: [], models: [book, shelf([{ queryField: "byStatus", partitionKey: "status", sortKeys: [] }])] }, classes);
+  assert.deepEqual(listable.models.find((row) => row.model === "Book")?.listedBy, ["byShelf"]);
+  const unlistable = buildInventory({ operations: [], models: [book, shelf([])] }, classes);
+  assert.equal(unlistable.models.find((row) => row.model === "Book")?.status, "cannot-list-tenant");
+  const orphan: Classes = { ...PARTITION_FIELD_CLASSES, shelfId: { class: "record-id", spread: "parent", parent: "Cupboard" } };
+  assert.match(parentProblems({ operations: [], models: [book, shelf([])] }, orphan).join("\n"), /shelfId/);
+  assert.deepEqual(parentProblems(schema, PARTITION_FIELD_CLASSES), []);
+});
+
+test("References are listed by tenant through their corpora, never through a new index", () => {
+  const inventory = buildInventory(schema);
+  assert.equal(PARTITION_FIELD_CLASSES.corpusId.parent, "KnowledgeCorpus");
+  assert.equal(inventory.models.find((row) => row.model === "KnowledgeCorpus")?.status, "lists-tenant");
+  assert.deepEqual(inventory.models.find((row) => row.model === "Reference")?.listedBy, ["listReferencesByCorpusAndExternalItem"]);
+  assert.ok(!schema.models.find((model) => model.name === "Reference")!.indexes.some((index) => index.partitionKey === "tenantId"));
 });
 
 test("the five tenant models and the global models are classified as the tenancy code writes them", () => {

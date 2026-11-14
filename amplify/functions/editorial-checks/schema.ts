@@ -30,6 +30,7 @@ export const editorialChecksSchemaDefinitions = {
         source: a.string().required(),
       })
       .disableOperations(["subscriptions"])
+      .secondaryIndexes((index) => [index("tenantId").sortKeys(["id"]).queryField("listEditorialPoliciesByTenant")])
       .authorization((allow) => [allow.group("editor").to(["read"]), allow.group("admin")]),
     EditorialCheckSettings: a
       .model({
@@ -38,6 +39,7 @@ export const editorialChecksSchemaDefinitions = {
         settings: a.json().required(),
       })
       .disableOperations(["subscriptions"])
+      .secondaryIndexes((index) => [index("tenantId").sortKeys(["id"]).queryField("listEditorialCheckSettingsByTenant")])
       .authorization((allow) => [allow.group("editor").to(["read"]), allow.group("admin")]),
     EditorialFeedback: a
       .model({
@@ -54,7 +56,10 @@ export const editorialChecksSchemaDefinitions = {
         text: a.string(),
       })
       .disableOperations(["subscriptions"])
-      .secondaryIndexes((index) => [index("itemId").queryField("listEditorialFeedbackByItem")])
+      .secondaryIndexes((index) => [
+        index("itemId").queryField("listEditorialFeedbackByItem"),
+        index("tenantId").sortKeys(["id"]).queryField("listEditorialFeedbackByTenant"),
+      ])
       .authorization((allow) => [allow.group("editor").to(["create", "read"]), allow.group("admin")]),
     EditorialCheckRun: a
       .model({
@@ -73,7 +78,10 @@ export const editorialChecksSchemaDefinitions = {
         checkedAt: a.datetime().required(),
       })
       .disableOperations(["subscriptions"])
-      .secondaryIndexes((index) => [index("lineageId").sortKeys(["versionNumber"]).queryField("listEditorialCheckRunsByLineage")])
+      .secondaryIndexes((index) => [
+        index("lineageId").sortKeys(["versionNumber"]).queryField("listEditorialCheckRunsByLineage"),
+        index("tenantId").sortKeys(["id"]).queryField("listEditorialCheckRunsByTenant"),
+      ])
       .authorization((allow) => [allow.group("editor").to(["read"]), allow.group("admin")]),
     listEditorialStarterPacks: a
       .query()

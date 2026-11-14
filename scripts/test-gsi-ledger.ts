@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { compareLedgers, parseLedger } from "./lib/gsi-ledger";
+import { compareLedgers, parseLedger, parseLedgers, SCHEMA_SOURCE } from "./lib/gsi-ledger";
+import { readSchema } from "./lib/schema-reader";
 
 const FIXTURES = join(process.cwd(), "features_backend/fixtures/gsi-ledger");
 const fixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8");
@@ -49,4 +51,46 @@ test("a table past the DynamoDB limit fails and a changed table reports its rema
   assert.deepEqual(compareLedgers(withIndexes(5), withIndexes(5)).slots, []);
   const over = compareLedgers(withIndexes(20), withIndexes(21));
   assert.match(over.failures[0], /Big has 21 indexes; DynamoDB allows 20/);
+});
+
+const PLUGIN_STYLE = `export function pluginSchemaDefinitions() {
+  return {
+    Vote: a
+      .model({
+        id: a.id().required(),
+        tenantId: a.string(),
+      })
+      .disableOperations(["subscriptions"])
+      .secondaryIndexes((index) => [index("tenantId").sortKeys(["id"]).name("votesByTenant").queryField("listVotesByTenant")])
+      .authorization(staffOnly),
+    Flag: a
+      .model({
+        id: a.id().required(),
+      })
+      .authorization(staffOnly),
+    castVote: a
+      .mutation()
+      .arguments({ id: a.string().required() }),
+  };
+}
+`;
+
+test("a plugin's schema, whose models break the line before .model, is read like the core schema", () => {
+  const ledger = parseLedger(PLUGIN_STYLE);
+  assert.deepEqual([...ledger.keys()], ["Vote", "Flag"]);
+  assert.deepEqual(ledger.get("Vote"), [{ id: "votesByTenant", keys: "tenantId|id" }]);
+  assert.deepEqual(ledger.get("Flag"), []);
+});
+
+test("one model declared in two schema files fails", () => {
+  assert.throws(() => parseLedgers([{ path: "a.ts", source: PLUGIN_STYLE }, { path: "b.ts", source: PLUGIN_STYLE }]), /Vote is declared in both a.ts and b.ts/);
+});
+
+test("the schema sources hold every deployed model and every index of it", () => {
+  const paths = execFileSync("git", ["ls-files", "--", "amplify"], { encoding: "utf8" }).split("\n").filter((path) => SCHEMA_SOURCE.test(path));
+  const ledger = parseLedgers(paths.map((path) => ({ path, source: readFileSync(path, "utf8") })));
+  for (const model of readSchema().models) {
+    assert.ok(ledger.has(model.name), `${model.name} is in no schema source the ledger reads`);
+    assert.equal(ledger.get(model.name)!.length, model.indexes.length, `${model.name} index count`);
+  }
 });

@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7a2ef889-abaf-4f95-8a93-6a1807d0a893",
+      "author": "home",
+      "text": "FYI from the multi-tenant work (PR #1501, merged to develop 2026-11-13): LocalizationRequest is now in a new optional model group, `localization`, in OPTIONAL_MODEL_GROUPS (amplify/data/schema.ts). The listing indexes plus LocalizationRequest had taken a brand-new site's bootstrap-stage synth to 2,001 resources, over the 2,000 budget that scripts/test-bootstrap-stage.ts enforces (CloudFormation fails at 2,500 per operation); LocalizationRequest qualifies because nothing relates to it and no custom operation returns it. What it means: existing sites are unaffected (the group is only left out when a site sets PAPYRUS_BOOTSTRAP_STAGE=1 or lists it in excludeModelGroups). A brand-new site's FIRST deploy (bootstrap stage) has no LocalizationRequest table or API, so translation requests cannot be recorded until its second, normal deploy adds the model; nothing should rely on that model during the bootstrap deploy. If a future change makes another model relate to LocalizationRequest or a custom operation return it, it must leave the optional group (the group rule in schema.ts). Headroom is now 1,970 of 2,000. Also: Item's tenantId listing index moved to PPY-e958b5 because this release already gives Item listItemsByLanguageGroupAndLanguage (one new index per table per release).",
+      "created_at": "2026-11-13T22:25:18.178344Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T16:22:16.124772Z",
-  "updated_at": "2026-11-12T16:22:38.798925Z",
+  "updated_at": "2026-11-13T22:25:18.178558Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
