@@ -675,7 +675,7 @@ function parseCi(raw: unknown, autoDeploy: boolean): CiGateConfig | undefined {
  */
 const OPTIONAL_FEATURES: ReadonlyArray<{ flag: string; needs: readonly string[]; why: string }> = [
   { flag: "PAPYRUS_ENABLE_CONSOLE_RESPONDER", needs: ["PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI"], why: "the console responder runs a container image that this package does not build: publish an ARM64 image to ECR and name it" },
-  { flag: "PAPYRUS_ENABLE_INBOUND_EMAIL", needs: ["PAPYRUS_INBOUND_EMAIL_DOMAIN", "PAPYRUS_ROUTE53_HOSTED_ZONE_ID", "PAPYRUS_ROUTE53_HOSTED_ZONE_NAME"], why: "inbound email receives mail for a domain of the site's own and publishes its DNS records in the site's own hosted zone" },
+  { flag: "PAPYRUS_ENABLE_INBOUND_EMAIL", needs: ["PAPYRUS_INBOUND_EMAIL_DOMAIN", "PAPYRUS_INBOUND_EMAIL_CORPUS_KEY", "PAPYRUS_PUBLIC_SITE_BASE_URL"], why: "inbound email receives mail for a domain of the site's own, files it into a corpus and links reply emails to the site's public origin (a hosted zone is also needed when the stack verifies the domain: amplify/inbound-email/settings.ts)" },
   { flag: "PAPYRUS_ENABLE_SLACK", needs: [], why: "" },
   { flag: "PAPYRUS_ENABLE_STORAGE_BACKUPS", needs: [], why: "" },
 ];

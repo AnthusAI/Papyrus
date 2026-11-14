@@ -22,6 +22,7 @@ from papyrus_content.backend_copy import (  # noqa: E402
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient  # noqa: E402
 from papyrus_content.publishing import ItemFields, publish_item, save_item  # noqa: E402
 from papyrus_content.tenancy import (  # noqa: E402
+    TENANT_LISTING_QUERIES,
     TenantError,
     tenant_media_path,
     tenant_scoped_index,
@@ -35,9 +36,13 @@ ENDPOINT = "https://example.invalid/graphql"
 
 
 class InMemoryGraphQLBackend:
+    """AppSync over DynamoDB, in memory. ``rows_read`` counts the rows each read touches the way DynamoDB bills them: a whole-table list
+    (``listPublishedItems``, a Scan) reads every row of the table, an index query only the rows of its partition. A read it does not know fails."""
+
     def __init__(self) -> None:
         self.tables: dict[str, dict[str, dict]] = {}
         self.queries: list[tuple[str, dict]] = []
+        self.rows_read = 0
 
     def __call__(self, query: str, variables: dict | None = None) -> dict:
         variables = variables or {}
@@ -63,6 +68,15 @@ class InMemoryGraphQLBackend:
     def _read(self, field: str, variables: dict):
         if field.startswith("get"):
             return copy.deepcopy(self.tables.get(field[3:], {}).get(variables["id"]))
+        tenant_listing = {query: model for model, query in TENANT_LISTING_QUERIES.items()}
+        if field in tenant_listing:   # the tenantId index: the tenant's partition, sorted by id, one page per request
+            partition = sorted((row for row in self.tables.get(tenant_listing[field], {}).values() if row.get("tenantId") == variables["tenantId"]),
+                               key=lambda row: row["id"])
+            start = int(variables.get("nextToken") or 0)
+            page = partition[start:start + variables["limit"]]
+            self.rows_read += len(page)
+            more = start + len(page) < len(partition)
+            return {"items": copy.deepcopy(page), "nextToken": str(start + len(page)) if more else None}
         if field == "itemByTenantSlug":
             rows = [row for row in self.tables.get("Item", {}).values() if row.get("tenantSlug") == variables["tenantSlug"]]
         elif field == "listPublishedItemsByTypeStatusAndPublishedAt":
@@ -83,6 +97,7 @@ class InMemoryGraphQLBackend:
             rows = list(self.tables.get("PublishedItem", {}).values())
         else:
             raise AssertionError(f"unexpected field {field}")
+        self.rows_read += len(rows)
         return {"items": copy.deepcopy(rows), "nextToken": None}
 
 
@@ -228,6 +243,48 @@ def field(name: str, type_name: str = "String") -> FieldSpec:
 ITEM_SOURCE_FIELDS = {name: field(name) for name in ("id", "slug", "type", "typeStatus", "sectionStatus")}
 MEDIA_SOURCE_FIELDS = {name: field(name) for name in ("id", "itemId", "storagePath")}
 TENANT_FIELDS = {name: field(name) for name in ("tenantId", "tenantSlug")}
+
+
+SCHEMA_SOURCES = [REPO_ROOT / "amplify" / "data" / "schema.ts", *sorted((REPO_ROOT / "amplify").glob("plugins/*/schema.ts")),
+                  *sorted((REPO_ROOT / "amplify").glob("functions/*/schema.ts"))]
+TENANT_INDEX = re.compile(r'index\("tenantId"\)(?:\.\w+\([^()]*\))*?\.queryField\("(\w+)"\)')
+
+
+def seed_reader_votes(backend: InMemoryGraphQLBackend, tenant_id: str, count: int) -> None:
+    table = backend.tables.setdefault("ReaderVote", {})
+    for number in range(count):
+        vote_id = f"item:{tenant_id}-story-{number}#reader-{number}#quality"
+        table[vote_id] = {"id": vote_id, "tenantId": tenant_id, "subjectKey": f"item:{tenant_id}-story-{number}", "readerId": f"reader-{number}",
+                          "dimension": "quality", "value": 1, "voterRole": "reader"}
+
+
+class TenantListingTests(unittest.TestCase):
+    """``list_tenant_rows`` reads one tenant's rows through the model's tenantId index (PPY-1ce06f)."""
+
+    def test_it_queries_the_tenant_index_page_by_page_and_never_scans(self):
+        backend = InMemoryGraphQLBackend()
+        for tenant, count in (("alpha", 7), ("beta", 5), ("gamma", 3)):
+            seed_reader_votes(backend, tenant, count)
+        rows = tenant_client(backend, "alpha").list_tenant_rows("ReaderVote", "id tenantId subjectKey", page_size=3)
+        self.assertEqual(len(rows), 7)
+        self.assertEqual({row["tenantId"] for row in rows}, {"alpha"})
+        fields = [re.search(r"\{\s*(\w+)\(", query).group(1) for query, _ in backend.queries]
+        self.assertEqual(fields, ["listReaderVotesByTenant"] * 3)   # 7 rows in pages of 3: three requests of one Query
+        self.assertNotIn("listReaderVotes", fields)
+        self.assertEqual({variables["tenantId"] for _, variables in backend.queries}, {"alpha"})
+        self.assertEqual(backend.rows_read, 7)
+
+    def test_it_needs_a_tenant_and_a_model_with_a_tenant_index(self):
+        backend = InMemoryGraphQLBackend()
+        with self.assertRaises(TenantError):
+            tenant_client(backend, None).list_tenant_rows("ReaderVote", "id")
+        with self.assertRaises(TenantError):
+            tenant_client(backend, "alpha").list_tenant_rows("Reference", "id")
+        self.assertEqual(backend.queries, [])
+
+    def test_the_listing_map_names_every_tenant_index_of_the_schema(self):
+        declared = {match for path in SCHEMA_SOURCES for match in TENANT_INDEX.findall(path.read_text())}
+        self.assertEqual(set(TENANT_LISTING_QUERIES.values()), declared)
 
 
 class InMemoryRowBackend:

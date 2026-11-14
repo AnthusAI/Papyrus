@@ -209,9 +209,9 @@ def render_ts() -> str:
         out.append(f"  {item.name}: {{ effect: {json.dumps(item.effect)}, agentAllowed: {json.dumps(item.agent_allowed)}, group: {json.dumps(item.group)}, "
                    f"command: {json.dumps(item.command)} }},")
     out += ["} as const;", "",
-            "/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite. */",
+            "/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements have no door yet (the console reads and writes their models directly). */",
             "export type ImageTransport = (request: {", "  op: ImageOperationName;", "  input: unknown;", "  effect: \"read\" | \"write\" | \"spend\";",
-            "  group: \"images\" | \"guidelines\";", "}) => Promise<unknown>;", "",
+            "  group: \"images\" | \"guidelines\" | \"announcements\";", "}) => Promise<unknown>;", "",
             "export async function callImageOperation<Name extends ImageOperationName>(",
             "  name: Name,", "  input: ImageOperations[Name][\"input\"],", "  send: ImageTransport,",
             "): Promise<ImageEnvelope<ImageOperations[Name][\"result\"]>> {",

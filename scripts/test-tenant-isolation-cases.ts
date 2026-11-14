@@ -5,8 +5,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  buildCaseTable, check, findFindings, generatedBlock, missingCases, readFunctions, readSchema, type CaseTable, type SchemaInfo,
+  buildCaseTable, check, findFindings, generatedBlock, missingCases, readFunctions, type CaseTable,
 } from "./generate-tenant-isolation-cases";
+import { readSchema, type SchemaInfo } from "./lib/schema-reader";
 
 const schema = readSchema();
 const functions = readFunctions();
@@ -59,7 +60,7 @@ test("findings name a changeable tenantId and an unprefixed index from the spike
   const fake: SchemaInfo = {
     operations: [],
     models: [{
-      name: "Thing", hasTenantId: true, global: false, operations: ["get"], subscriptions: [],
+      name: "Thing", hasTenantId: true, fields: {}, global: false, operations: ["get"], subscriptions: [],
       indexes: [{ queryField: "thingsByStatus", partitionKey: "status", sortKeys: [] }, { queryField: "thingsByTenant", partitionKey: "tenantKey", sortKeys: [] }],
       rules: [{ allow: "groups", groups: ["editor"] }], tenantIdFieldRules: [],
     }],

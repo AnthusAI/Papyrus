@@ -26,6 +26,11 @@ def step_one(context, name, value):
     context.outcome = probe({"environment": {name: value}})
 
 
+@when('the backend resolves its features with the config setting "{name}" to true and nothing else set')
+def step_config(context, name):
+    context.outcome = probe({"environment": {}, "features": {name: True}})
+
+
 @when('the infrastructure reads a site whose environment sets "{name}" to "{value}"')
 def step_site(context, name, value):
     context.outcome = probe({"site": "pilobol-us.site.json", "environment": {name: value}})

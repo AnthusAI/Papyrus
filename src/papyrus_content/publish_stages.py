@@ -137,8 +137,10 @@ def verdict_for(stages: dict[str, dict[str, Any]]) -> str:
     """One sentence, from the same words ``update-live`` uses (``page_refresh.service.verdict_of``)."""
     projected, invalidated, verified = stages["projected"], stages["invalidated"], stages["verified"]
     rendered = {"ok": projected.get("status") not in ("failed", "timed-out", "still-running")}
-    invalidation = {"ok": invalidated.get("status") not in ("failed", "capped"), "error": invalidated.get("reason") or "the invalidation failed"}
+    invalidation = {"ok": invalidated.get("status") not in ("failed", "capped"), "status": invalidated.get("status"), "error": invalidated.get("reason") or "the invalidation failed", "reason": invalidated.get("reason")}
     verification = {"checked": verified.get("status") in ("current", "stale"), "current": True if verified.get("status") == "current" else (False if verified.get("status") == "stale" else None), "reason": verified.get("reason")}
     if projected.get("status") == "still-running":
         return "STILL BUILDING: the data is published and the server is still writing the page; check again with --verify."
+    if projected.get("status") in ("skipped", "not-applicable"):
+        return "NOT PROJECTED: the data is published; no page was built by this command."
     return verdict_of(rendered, invalidation, verification)

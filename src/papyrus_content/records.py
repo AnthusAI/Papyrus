@@ -21,49 +21,6 @@ APPEND_ONLY_EXISTING_NOOP_MODELS = frozenset(
     {"Assignment", "AssignmentEvent", "Message", "SteeringDecision"}
 )
 
-OPTIONAL_SCHEMA_MODELS = frozenset({"CategoryKeyword", "LexicalSteeringRule", "ModelAttachment"})
-
-
-def is_missing_graphql_model_error(error: Exception, model_name: str) -> bool:
-    message = str(error)
-    list_field = f"list{model_name}s"
-    get_field = f"get{model_name}"
-    return "FieldUndefined" in message and (list_field in message or get_field in message or model_name in message)
-
-
-def build_record_changes_tolerating_optional_models(
-    client: PapyrusGraphQLAuthoringClient,
-    records: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    pending = list(records)
-    skipped_models: set[str] = set()
-    while True:
-        try:
-            filtered = [record for record in pending if record["modelName"] not in skipped_models]
-            return build_record_changes(client, filtered)
-        except (RuntimeError, KeyError, ValueError) as error:
-            if isinstance(error, KeyError):
-                missing_model = str(error).strip("'\"")
-                if missing_model in OPTIONAL_SCHEMA_MODELS and missing_model not in skipped_models:
-                    skipped_models.add(missing_model)
-                    pending = [record for record in pending if record["modelName"] != missing_model]
-                    print(f"skip\t{missing_model}\tmodel is not deployed in AppSync yet; skipped optional records.")
-                    continue
-            missing_model = next(
-                (
-                    model_name
-                    for model_name in OPTIONAL_SCHEMA_MODELS
-                    if model_name not in skipped_models and is_missing_graphql_model_error(error, model_name)
-                ),
-                None,
-            )
-            if missing_model is None:
-                raise
-            skipped_models.add(missing_model)
-            pending = [record for record in pending if record["modelName"] != missing_model]
-            print(f"skip\t{missing_model}\tmodel is not deployed in AppSync yet; skipped optional records.")
-
-
 def build_steering_config_record_changes(
     client: PapyrusGraphQLAuthoringClient,
     records: list[dict[str, Any]],

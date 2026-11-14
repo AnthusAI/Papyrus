@@ -7,6 +7,7 @@ from typing import Any
 
 import yaml
 
+from .tenant_knowledge_keys import SEMANTIC_RELATION_FEED_KEY, global_key
 from .categories_steering import semantic_state_key
 from .biblicus_runner import resolve_biblicus_workdir
 from .env import resolve_corpora_file
@@ -921,7 +922,7 @@ def _semantic_relation_record(input_value: dict[str, Any]) -> dict[str, Any]:
         "importedAt": input_value.get("importedAt"),
         "createdAt": input_value.get("createdAt") or input_value.get("importedAt"),
         "updatedAt": input_value.get("updatedAt") or input_value.get("importedAt"),
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": json.dumps(input_value.get("metadata") or {}),
     }
 

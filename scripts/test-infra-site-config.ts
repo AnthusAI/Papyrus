@@ -42,7 +42,7 @@ assertRejects(withEnvironment({ PAPYRUS_ENABLE_CONSOLE_RESPONDER: "true" }), "PA
 parseCmsSite(withEnvironment({ PAPYRUS_ENABLE_CONSOLE_RESPONDER: "true", PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI: "123456789012.dkr.ecr.us-east-1.amazonaws.com/responder:1" }));
 parseCmsSite(withEnvironment({ PAPYRUS_ENABLE_CONSOLE_RESPONDER: "false" }));
 assertRejects(withEnvironment({ PAPYRUS_ENABLE_INBOUND_EMAIL: "true" }), "PAPYRUS_INBOUND_EMAIL_DOMAIN");
-assertRejects(withEnvironment({ PAPYRUS_ENABLE_INBOUND_EMAIL: "true", PAPYRUS_INBOUND_EMAIL_DOMAIN: "mail.example.com" }), "PAPYRUS_ROUTE53_HOSTED_ZONE_ID");
+assertRejects(withEnvironment({ PAPYRUS_ENABLE_INBOUND_EMAIL: "true", PAPYRUS_INBOUND_EMAIL_DOMAIN: "mail.example.com" }), "PAPYRUS_INBOUND_EMAIL_CORPUS_KEY");
 assertRejects(withEnvironment({ PAPYRUS_ENABLE_SLACK: "yes" }), "must be the string");
 
 const awsConfig = parseCmsSite(mutated("pilobol-us.site.json", (c) => (c.aws = { profile: "papyrus-production", accountId: "123456789012", region: "us-east-1" })));

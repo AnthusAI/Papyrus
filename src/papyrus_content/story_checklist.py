@@ -32,11 +32,13 @@ from .newsroom_process import (
     DONE,
     LIVE,
     NOT_APPLICABLE as EVIDENCE_NOT_APPLICABLE,
-    STEPS,
+    DEFAULT_PROCEDURE,
+    Procedure,
     STEP_BY_KEY,
     TEMPLATE_VERSION,
     ADDED_AFTER_PUBLISH_KEYS,
     assess,
+    procedure_of,
     story_facts,
 )
 from .record_helpers import to_aws_json
@@ -61,7 +63,7 @@ TEMPLATE_ACTOR = {"kind": ACTOR_SYSTEM, "label": "Automatically, from the templa
 #: What proves each step, in the words an editor reads after "Automatically, from ".
 EVIDENCE_SOURCES = {
     "choose": "the Story's stage", "direction": "the research direction", "research": "the research packet", "outline": "the outline",
-    "draft": "the draft version", "copy_edit": "the copy-edit check", "illustration": "the approved cover", "publish": "publishing",
+    "draft": "the draft version", "copy_edit": "the copy-edit check", "illustration": "the cover", "rated": "the editor's star rating", "publish": "publishing",
 }
 
 
@@ -82,18 +84,18 @@ class ChecklistError(ValueError):
         self.open_steps = list(open_steps or [])
 
 
-def template_steps() -> list:
-    """The steps a Story's checklist has: every live step of the procedure, in order. A step that is off or not built cannot be done, so it has no item."""
-    return [step for step in STEPS if step.status == LIVE]
+def template_steps(procedure: Procedure = DEFAULT_PROCEDURE) -> list:
+    """The steps a Story's checklist has: every live step of the procedure (the site's own, or the default), in order. A step that is off or not built cannot be done, so it has no item."""
+    return [step for step in procedure.steps if step.status == LIVE]
 
 
-def step_order(key: str) -> int:
-    return [step.key for step in STEPS].index(key)
+def step_order(key: str, procedure: Procedure = DEFAULT_PROCEDURE) -> int:
+    return [step.key for step in procedure.steps].index(key)
 
 
-def required_keys() -> list[str]:
+def required_keys(procedure: Procedure = DEFAULT_PROCEDURE) -> list[str]:
     """The steps that must be closed before a Story publishes: required (not optional) and live, except publishing itself."""
-    return [step.key for step in template_steps() if not step.optional and step.key != PUBLISH_KEY]
+    return [step.key for step in template_steps(procedure) if not step.optional and step.key != PUBLISH_KEY]
 
 
 def step_id(lineage: str, key: str) -> str:
@@ -148,9 +150,9 @@ def _history_of(ordered: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return history
 
 
-def summary_of(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def summary_of(rows: list[dict[str, Any]], procedure: Procedure = DEFAULT_PROCEDURE) -> dict[str, Any]:
     counts = {state: sum(1 for row in rows if row.get("state") == state) for state in STATES}
-    required = set(required_keys())
+    required = set(required_keys(procedure))
     return {
         "templateVersion": TEMPLATE_VERSION,
         "total": len(rows),
@@ -178,11 +180,11 @@ def _metadata_of(row: dict[str, Any]) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
 
-def refresh_summary(client, lineage: str, rows: list[dict[str, Any]], *, now: str | None = None) -> dict[str, Any]:
+def refresh_summary(client, lineage: str, rows: list[dict[str, Any]], *, now: str | None = None, procedure: Procedure | None = None) -> dict[str, Any]:
     """Keeps the counts on the Story's latest version so a board card shows progress with no extra query. Written only when they changed."""
     from .story_reporting import latest_story_version
 
-    summary = summary_of(rows)
+    summary = summary_of(rows, procedure or procedure_of(client))
     latest = latest_story_version(client, lineage)
     metadata = _metadata_of(latest)
     if metadata.get(SUMMARY_KEY) != summary:
@@ -199,10 +201,10 @@ def _entry(state: str, actor: dict[str, Any], now: str, *, reason=None, note=Non
     }.items() if value not in (None, "")}
 
 
-def _new_row(lineage: str, key: str) -> dict[str, Any]:
-    step = STEP_BY_KEY[key]
+def _new_row(lineage: str, key: str, procedure: Procedure = DEFAULT_PROCEDURE) -> dict[str, Any]:
+    step = procedure.by_key[key]
     return {
-        "id": step_id(lineage, key), "storyLineageId": lineage, "stepKey": key, "stepOrder": step_order(key),
+        "id": step_id(lineage, key), "storyLineageId": lineage, "stepKey": key, "stepOrder": step_order(key, procedure),
         "templateVersion": TEMPLATE_VERSION, "title": step.title, "command": step.command.replace("{story}", lineage), "history": [], "notes": [],
         "versionNumber": 0,
     }
@@ -262,6 +264,10 @@ def evidence_text(key: str, facts: dict[str, Any]) -> str:
         from .story_illustration import cover_evidence
 
         return cover_evidence(facts.get("illustration"))[1]
+    if key == RATED_KEY:
+        from .story_rating import rating_evidence
+
+        return rating_evidence(facts.get("rating"))[1]
     if key == PUBLISH_KEY:
         return "Story is published"
     return f"Item {facts['versionId']}"
@@ -281,13 +287,14 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
     again by evidence, and an item already skipped, not applicable or done is left as it is."""
     now = now or utc_now()
     facts = facts or story_facts(client, lineage)
+    procedure = Procedure.from_spec(facts.get("procedureSpec"))
     assessment = assessment or assess(facts)
     states = {row["key"]: row.get("evidence", row["state"]) for row in assessment["steps"]}   # what the records prove, never the stored answer
     version = int(facts["versionNumber"])
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     kept_as_record = facts["stage"] == "published" and bool(rows)   # a published Story that has a checklist gets no new template steps
     created, completed = [], []
-    for step in template_steps():
+    for step in template_steps(procedure):
         existing = rows.get(step.key)
         if existing is None:
             if kept_as_record:
@@ -296,7 +303,7 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
                 continue   # a Story type the step is not required for has no item for it (it joins the checklist if the type changes)
             if facts["stage"] == "published" and step.key in ADDED_AFTER_PUBLISH_KEYS and states.get(step.key) != DONE:
                 continue   # published before the step existed: the record gets no failing item; a revision closes it (see require_checklist_closed)
-            row = _new_row(lineage, step.key)
+            row = _new_row(lineage, step.key, procedure)
             if states.get(step.key) == DONE:
                 row = _apply(row, STEP_DONE, evidence_actor(step.key), now, evidence=evidence_text(step.key, facts), story_version=version)
                 completed.append(step.key)
@@ -319,7 +326,7 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
             completed.append(step.key)
     ordered = sorted(rows.values(), key=lambda row: (int(row.get("stepOrder") or 0), row["stepKey"]))
     # The research worker's role may create Items but not update them: it leaves the card summary (and the old version's mark) for the next change by an editor.
-    summary = refresh_summary(client, lineage, ordered, now=now) if write_summary else summary_of(ordered)
+    summary = refresh_summary(client, lineage, ordered, now=now, procedure=procedure) if write_summary else summary_of(ordered, procedure)
     return {"created": created, "completed": completed, "summary": summary}
 
 
@@ -333,7 +340,7 @@ def sync_quietly(client, lineage: str, *, facts=None, assessment=None, write_sum
 
 
 def ensure_for_new_story(client, lineage: str) -> dict[str, Any] | None:
-    """Called by every path that creates a Story, once, right after the Story exists."""
+    """Called by every path that creates a Story, once, right after the Story exists, under a role that can read the site's documents (the checklist follows the site's procedure)."""
     return sync_quietly(client, lineage)
 
 
@@ -353,7 +360,7 @@ ILLUSTRATION_KEY = "illustration"
 def illustration_resolution(lineage: str) -> str:
     """How to resolve an unresolved Illustration, in the words every refusal uses."""
     return (
-        "Give the Story an approved cover: a stock picture picked in the newsroom's Cover image, or a figure a person approved (`papyrus figures render`, then "
+        "Give the Story a stored cover: a stock picture picked in the newsroom's Cover image, or a figure (`papyrus figures render`, then "
         f"`papyrus stories save-version --story {lineage} --body-file draft.md --images ./pictures`, with the cover as front matter `image`); the step then closes by itself. "
         f"Or a person records an exception: `papyrus stories step --story {lineage} --step illustration --state skipped --reason <why>`."
     )
@@ -379,15 +386,41 @@ def _illustration_rules(client, lineage: str, key: str, state: str, actor: dict[
     return evidence
 
 
+RATED_KEY = "rated"
+
+
+def rated_resolution(lineage: str) -> str:
+    """How to resolve an unrated Story, in the words every refusal uses."""
+    return f"An editor rates the Story: `papyrus stories set-stars --story {lineage} --stars N` (N from 1 to 5); the step then closes by itself."
+
+
+def _rated_rules(client, lineage: str, key: str, state: str, evidence: str | None) -> str | None:
+    """The one rule only Rated has: it is closed only by the rating itself. It is done only when the records prove it, and it has no exception: a Story
+    a site requires rated is rated, never skipped. Returns the evidence reference to record when it is done."""
+    if key != RATED_KEY:
+        return evidence
+    if state == STEP_DONE:
+        from .story_rating import DONE as RATED_DONE, rating_evidence
+
+        found, text = rating_evidence(story_facts(client, lineage).get("rating"))
+        if found != RATED_DONE:
+            raise ChecklistError(f"Rated cannot be marked done by hand: {text}. {rated_resolution(lineage)}")
+        return text
+    if state in NEEDS_REASON:
+        raise ChecklistError(f"Rated cannot be {state.replace('_', ' ')}: a site that requires a rating publishes only rated Stories. {rated_resolution(lineage)}")
+    return evidence
+
+
 def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any], reason: str | None = None, note: str | None = None,
              evidence: str | None = None, now: str | None = None) -> dict[str, Any]:
     """Marks one step done, skipped, not applicable, or open again, and records who did it and when.
 
     ``actor`` is ``{"kind": "person" | "agent", "label": ..., "sub": ...}``. A skip or a not-applicable answer needs a reason; a manual step
     (a review lens) needs a findings note to be done; only a person reopens a step."""
-    step = STEP_BY_KEY.get(key)
+    procedure = procedure_of(client)
+    step = procedure.by_key.get(key)
     if step is None:
-        raise ChecklistError(f"Unknown step {key!r}. The steps are: {', '.join(item.key for item in template_steps())}.")
+        raise ChecklistError(f"Unknown step {key!r}. The steps are: {', '.join(item.key for item in template_steps(procedure))}.")
     if state not in STATES:
         raise ChecklistError(f"The state must be one of {', '.join(STATES)}.")
     if actor.get("kind") not in (ACTOR_PERSON, ACTOR_AGENT) or not str(actor.get("label") or actor.get("sub") or "").strip():
@@ -401,6 +434,7 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
     if state == OPEN and actor["kind"] != ACTOR_PERSON:
         raise ChecklistError("Only a person reopens a step.")
     evidence = _illustration_rules(client, lineage, key, state, actor, evidence)
+    evidence = _rated_rules(client, lineage, key, state, evidence)
     now = now or utc_now()
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     if not rows:
@@ -409,7 +443,7 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
     existing = rows.get(key)
     if existing is None and step.status != LIVE:
         raise ChecklistError(f"Step '{key}' is not live in the procedure yet, so it has no checklist item.")
-    row = _apply(existing or _new_row(lineage, key), state, actor, now, reason=reason, note=note, evidence=evidence, story_version=_current_version_number(client, lineage))
+    row = _apply(existing or _new_row(lineage, key, procedure), state, actor, now, reason=reason, note=note, evidence=evidence, story_version=_current_version_number(client, lineage))
     _write(client, row)
     rows[key] = row
     refresh_summary(client, lineage, sorted(rows.values(), key=lambda item: (int(item.get("stepOrder") or 0), item["stepKey"])), now=now)
@@ -420,8 +454,9 @@ def add_note(client, lineage: str, key: str, text: str, *, actor: dict[str, Any]
     """Adds a note to a step, whatever its state, for context later. Notes only accumulate: each is who (a person or an agent, by name), when and its
     text, newest last; there is no way to edit or delete one, and a correction is a new note. The step's state, reason and findings do not change.
     A note is one more version of the step's sub-task Item (created, never updated), so versions still record who and when."""
-    if STEP_BY_KEY.get(key) is None:
-        raise ChecklistError(f"Unknown step {key!r}. The steps are: {', '.join(item.key for item in template_steps())}.")
+    procedure = procedure_of(client)
+    if procedure.by_key.get(key) is None:
+        raise ChecklistError(f"Unknown step {key!r}. The steps are: {', '.join(item.key for item in template_steps(procedure))}.")
     if actor.get("kind") not in (ACTOR_PERSON, ACTOR_AGENT) or not str(actor.get("label") or actor.get("sub") or "").strip():
         raise ChecklistError("A note needs an author: a person or an agent, with a name.")
     text = (text or "").strip()
@@ -463,8 +498,9 @@ def mark_imported(client, lineage: str, source: str, *, now: str | None = None) 
         return False
     actor = {"kind": ACTOR_SYSTEM, "label": "Automatically, from the import"}
     rows = []
-    for step in template_steps():
-        row = _new_row(lineage, step.key)
+    procedure = procedure_of(client)
+    for step in template_steps(procedure):
+        row = _new_row(lineage, step.key, procedure)
         row = _apply(row, OPEN if step.key == PUBLISH_KEY else NOT_APPLICABLE, actor if step.key != PUBLISH_KEY else TEMPLATE_ACTOR, now,
                      reason=None if step.key == PUBLISH_KEY else f"imported from {source}", story_version=_current_version_number(client, lineage))
         _write(client, row)
@@ -481,8 +517,8 @@ def mark_imported_quietly(client, lineage: str, source: str) -> None:
         print(f"checklist\tnot updated\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
 
 
-def open_required(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    required = set(required_keys())
+def open_required(rows: list[dict[str, Any]], procedure: Procedure = DEFAULT_PROCEDURE) -> list[dict[str, Any]]:
+    required = set(required_keys(procedure))
     return [row for row in rows if row["stepKey"] in required and row.get("state") == OPEN]
 
 
@@ -496,22 +532,29 @@ def require_checklist_closed(client, item: dict[str, Any]) -> None:
     if not is_story_item_type(item.get("type")):
         return
     lineage = item.get("lineageId") or item["id"]
+    procedure = procedure_of(client)   # a procedure that cannot be read stops the publish: nothing guesses which one the site has
     rows = read_steps(client, lineage)
-    if not rows or any(step.key not in {row["stepKey"] for row in rows} for step in template_steps() if step.key != PUBLISH_KEY):
+    if not rows or any(step.key not in {row["stepKey"] for row in rows} for step in template_steps(procedure) if step.key != PUBLISH_KEY):
         sync_checklist(client, lineage)
         rows = read_steps(client, lineage)
-    blocking = [row for row in open_required(rows) if row["stepKey"] != ILLUSTRATION_KEY]
-    lines = [f"{STEP_BY_KEY[row['stepKey']].title} ({row['stepKey']})" for row in blocking]
-    open_steps = [{"key": row["stepKey"], "label": STEP_BY_KEY[row["stepKey"]].title} for row in blocking]
-    problem = illustration_problem(client, item, rows)
+    titles = {key: step.title for key, step in {**STEP_BY_KEY, **procedure.by_key}.items()}
+    blocking = [row for row in open_required(rows, procedure) if row["stepKey"] not in (ILLUSTRATION_KEY, RATED_KEY)]
+    lines = [f"{titles[row['stepKey']]} ({row['stepKey']})" for row in blocking]
+    open_steps = [{"key": row["stepKey"], "label": titles[row["stepKey"]]} for row in blocking]
+    problem = illustration_problem(client, item, rows) if ILLUSTRATION_KEY in procedure.by_key else None
     if problem:
-        lines.append(f"{STEP_BY_KEY[ILLUSTRATION_KEY].title} ({ILLUSTRATION_KEY}): {problem}")
-        open_steps.append({"key": ILLUSTRATION_KEY, "label": STEP_BY_KEY[ILLUSTRATION_KEY].title})
+        lines.append(f"{titles[ILLUSTRATION_KEY]} ({ILLUSTRATION_KEY}): {problem}")
+        open_steps.append({"key": ILLUSTRATION_KEY, "label": titles[ILLUSTRATION_KEY]})
+    unrated = rated_problem(client, item) if RATED_KEY in procedure.by_key else None
+    if unrated:
+        lines.append(f"{titles[RATED_KEY]} ({RATED_KEY}): {unrated}")
+        open_steps.append({"key": RATED_KEY, "label": titles[RATED_KEY]})
     if lines:
         raise ChecklistError(
             "Publishing is blocked: these required steps are open: " + "; ".join(lines) + ". Mark each done, skipped with a reason or "
             f"not applicable with a reason: papyrus stories step --story {lineage} --step <step> --state <state> --reason <why>."
-            + (f" For Illustration: {illustration_resolution(lineage)}" if problem else ""),
+            + (f" For Illustration: {illustration_resolution(lineage)}" if problem else "")
+            + (f" For Rated: {rated_resolution(lineage)}" if unrated else ""),
             open_steps,
         )
 
@@ -531,6 +574,16 @@ def illustration_problem(client, item: dict[str, Any], rows: list[dict[str, Any]
     return text
 
 
+def rated_problem(client, item: dict[str, Any]) -> str | None:
+    """Why the version being published is not rated where the site requires it, or None. Read from the rating on that very version, never from a stored
+    answer: a rating is carried onto every new version of a Story, so a republish of a rated Story passes, and clearing the rating makes the next publish
+    refuse. There is no exception to record. A Story already published stays published whatever its rating; only a publish or republish is gated."""
+    from .story_rating import DONE as RATED_DONE, NOT_APPLICABLE as RATED_NOT_REQUIRED, inputs_for_item, rating_evidence
+
+    found, text = rating_evidence(inputs_for_item(client, item))
+    return None if found in (RATED_DONE, RATED_NOT_REQUIRED) else text
+
+
 def mark_published(client, lineage: str, *, actor_label: str) -> None:
     """After a publish succeeds, the publish step is done. Best effort: the page is live whatever happens here."""
     try:
@@ -542,11 +595,11 @@ def mark_published(client, lineage: str, *, actor_label: str) -> None:
         print(f"checklist\tnot updated\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
 
 
-def steps_for_display(rows: list[dict[str, Any]], lineage: str) -> list[dict[str, Any]]:
+def steps_for_display(rows: list[dict[str, Any]], lineage: str, procedure: Procedure = DEFAULT_PROCEDURE) -> list[dict[str, Any]]:
     """Each stored step with its title and the command that moves it on, for ``stories next`` and for a panel."""
     shown = []
     for row in rows:
-        step = STEP_BY_KEY.get(row["stepKey"])
+        step = procedure.by_key.get(row["stepKey"])
         if step is None:
             continue
         shown.append({**row, "title": step.title, "role": step.role, "command": step.command.replace("{story}", lineage)})
@@ -588,11 +641,12 @@ def backfill(client, *, apply: bool, stages: tuple[str, ...] | None = None, page
 def _backfill_one(client, lineage: str, *, apply: bool) -> dict[str, Any] | None:
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     facts = story_facts(client, lineage)
+    procedure = Procedure.from_spec(facts.get("procedureSpec"))
     assessment = assess(facts)
     states = {row["key"]: row["state"] for row in assessment["steps"]}
     # A published Story's checklist is a record: it gets its whole checklist once, never a later template step (see sync_checklist).
     missing = [] if (rows and facts["stage"] == "published") else [
-        step.key for step in template_steps() if step.key not in rows and states.get(step.key) != EVIDENCE_NOT_APPLICABLE
+        step.key for step in template_steps(procedure) if step.key not in rows and states.get(step.key) != EVIDENCE_NOT_APPLICABLE
         and not (facts["stage"] == "published" and step.key in ADDED_AFTER_PUBLISH_KEYS and states.get(step.key) != DONE)
     ]
     completable = [key for key, row in rows.items() if row["state"] == OPEN and states.get(key) == DONE and not _reopened_by_person(row)]

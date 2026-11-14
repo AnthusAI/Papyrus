@@ -87,19 +87,16 @@ export function resolveSiteBackendFeatureFlags(
   };
 }
 
-/** What each optional feature needs in the environment before it can be built, by the flag that turns it on. */
+/**
+ * What each optional feature needs in the environment before it can be built, by the flag that turns it on. Inbound email is not listed: the build
+ * resolves its settings once, in `resolveInboundEmailSettings` (amplify/inbound-email/settings.ts), and stops there naming the missing variable.
+ */
 export const FEATURE_PREREQUISITES: ReadonlyArray<{ flag: string; feature: keyof SiteBackendFeatureFlags; needs: readonly string[]; why: string }> = [
   {
     flag: "PAPYRUS_ENABLE_CONSOLE_RESPONDER",
     feature: "consoleResponder",
     needs: ["PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI"],
     why: "the console responder runs a container image that this package does not build: publish an ARM64 image to ECR and name it (repo:tag or repo@digest)",
-  },
-  {
-    flag: "PAPYRUS_ENABLE_INBOUND_EMAIL",
-    feature: "inboundEmail",
-    needs: ["PAPYRUS_INBOUND_EMAIL_DOMAIN", "PAPYRUS_ROUTE53_HOSTED_ZONE_ID", "PAPYRUS_ROUTE53_HOSTED_ZONE_NAME"],
-    why: "inbound email receives mail for a domain of the site's own and publishes its DNS records in the site's own hosted zone",
   },
 ];
 

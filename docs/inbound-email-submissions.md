@@ -13,15 +13,15 @@ publication domain. Messages are stored as `Message` records with
 
 ## Addresses
 
-Default deployment configuration:
+A site that turns inbound email on (`features.inboundEmail` or `PAPYRUS_ENABLE_INBOUND_EMAIL=true`) supplies each of these
+branch variables. None has a default; the synth fails naming the one that is missing:
 
-- `submissions@p.apyr.us` — canonical intake address
-- `suggestions@p.apyr.us` — alias used for early testing
+- `PAPYRUS_INBOUND_EMAIL_DOMAIN` — the domain that receives mail
+- `PAPYRUS_INBOUND_EMAIL_CORPUS_KEY` — the corpus received mail is filed into
+- `PAPYRUS_PUBLIC_SITE_BASE_URL` — the site's public https origin, linked from reply emails
+- `PAPYRUS_ROUTE53_HOSTED_ZONE_ID` and `PAPYRUS_ROUTE53_HOSTED_ZONE_NAME` — only when the stack verifies the SES domain identity
 
-Override with:
-
-- `PAPYRUS_INBOUND_EMAIL_DOMAIN`
-- `PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS` (comma-separated)
+`PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS` (comma-separated) defaults to `submissions,suggestions`.
 
 ## Authorization
 
@@ -63,9 +63,9 @@ Inbound email is off for every site unless the site turns it on, the legacy prod
 pipeline (the `productionAppId` of Papyrus's own config) included.
 A site turns it on with `features.inboundEmail` in `papyrus.config.ts` or
 `PAPYRUS_ENABLE_INBOUND_EMAIL=true`; the config wins over the environment. It then must also
-set `PAPYRUS_INBOUND_EMAIL_DOMAIN`, `PAPYRUS_ROUTE53_HOSTED_ZONE_ID` and
-`PAPYRUS_ROUTE53_HOSTED_ZONE_NAME`, or the build and the infrastructure synth fail naming what is
-missing. Sandboxes never create SES receipt resources. How a second site coexists with the live rule
+set `PAPYRUS_INBOUND_EMAIL_DOMAIN`, `PAPYRUS_INBOUND_EMAIL_CORPUS_KEY` and
+`PAPYRUS_PUBLIC_SITE_BASE_URL` (and the hosted zone, when the stack verifies the domain), or the
+build and the infrastructure synth fail naming what is missing. Sandboxes never create SES receipt resources. How a second site coexists with the live rule
 set is in [Backend features and account-global names](site-hosting.md#backend-features-and-account-global-names).
 
 ## DNS and SES setup
@@ -114,7 +114,7 @@ publicSite:
 
 Lambda deployments set `PAPYRUS_PUBLIC_SITE_BASE_URL` on the inbound processor
 (which overrides the config file when the repo checkout is not present). If
-neither is set, the default base URL is `https://p.apyr.us`.
+neither is set, processing stops and names `PAPYRUS_PUBLIC_SITE_BASE_URL`.
 
 Feedback is idempotent: `metadata.feedbackEmailSentAt` prevents duplicate sends.
 Disable with `PAPYRUS_INBOUND_FEEDBACK_EMAIL_ENABLED=false`. Override the From
@@ -242,8 +242,7 @@ plus a **PDF-only** first message and a **newsletter forward** with several link
 From a registered user mailbox, send email to `suggestions@p.apyr.us` with a
 subject and body that include at least one URL or DOI. Confirm a
 `email_submission` message appears in GraphQL and new pending `Reference` rows
-are created for the configured corpus (`PAPYRUS_INBOUND_EMAIL_CORPUS_KEY`,
-default `AI-ML-research`). You should receive a feedback email at the sender
+are created for the configured corpus (`PAPYRUS_INBOUND_EMAIL_CORPUS_KEY`). You should receive a feedback email at the sender
 address when processing completes.
 
 ## Replay an archived submission (local, pre-deploy)

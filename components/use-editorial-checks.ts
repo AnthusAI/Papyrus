@@ -11,7 +11,7 @@ import {
   type Span,
 } from "../lib/editorial-checks";
 import type { EditorialChecksBackend } from "../lib/editorial-checks-backend";
-import { DEFAULT_EDITORIAL_SETTINGS, type EditorialSettings } from "../lib/editorial-checks-settings";
+import { DEFAULT_EDITORIAL_SETTINGS, storyLanguage, type EditorialSettings } from "../lib/editorial-checks-settings";
 import type { CheckStatus } from "./editorial-findings-panel";
 
 const CHECK_PAUSE_MS = 2000;
@@ -50,6 +50,7 @@ export function useEditorialChecks({
   const [settings, setSettings] = useState<EditorialSettings>(DEFAULT_EDITORIAL_SETTINGS);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const enabled = available && settings.enabled;
+  const language = storyLanguage(settings);
   const [result, setResult] = useState<EditorialCheckResult | null>(null);
   const [checkedBody, setCheckedBody] = useState<string | null>(null);
   const [checkedKey, setCheckedKey] = useState<string | null>(null);
@@ -86,7 +87,7 @@ export function useEditorialChecks({
     const run = ++sequence.current;
     setStatus({ state: "checking" });
     try {
-      const checked = await backend.check(text, sectionAtStart || null);
+      const checked = await backend.check(text, sectionAtStart || null, language);
       if (run !== sequence.current) return;
       if (latestBody.current !== text || latestSection.current !== sectionAtStart) {
         setStatus({ state: "idle" });
@@ -103,7 +104,7 @@ export function useEditorialChecks({
         setStatus({ state: "error", message: error instanceof Error ? error.message : "The check failed." });
       }
     }
-  }, [backend, enabled]);
+  }, [backend, enabled, language]);
 
   const auto = enabled && settingsLoaded && runsAutomatically(settings);
   const pending = key !== null && key !== checkedKey && key !== failedKey && body !== null && body.trim() !== "";
@@ -150,9 +151,9 @@ export function useEditorialChecks({
   const suggest = useCallback(
     (target: { finding: EditorialFinding } | { selection: Span }, note: string | null): Promise<RewriteResult> =>
       backend
-        ? backend.suggest(latestBody.current ?? "", section.trim() || null, target, note)
+        ? backend.suggest(latestBody.current ?? "", section.trim() || null, language, target, note)
         : Promise.reject(new Error("Editorial checks are off.")),
-    [backend, section],
+    [backend, section, language],
   );
 
   const current = enabled && result && checkedKey === key;

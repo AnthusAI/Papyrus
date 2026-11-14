@@ -37,6 +37,8 @@ export type PluginWiringContext = {
   contentActionsLambda: LambdaFunction;
   /** True when the site publishes through the S3 projection (the projection lease and the projection tasks exist). */
   projectionEnabled: boolean;
+  /** The names of every enabled plugin, so one plugin can tell whether another owns a shared resource (the pause alarms). */
+  enabledPlugins: string[];
 };
 
 export type PapyrusPlugin<Config, Functions = unknown> = {

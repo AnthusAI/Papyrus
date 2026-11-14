@@ -363,6 +363,15 @@ def test_reject_and_rendering_failure_mark_the_ledger_failed(aws: Harness) -> No
     assert counts(aws)["failed"] == 1
 
 
+def test_notification_mail_events_on_the_shared_configuration_set_are_ignored(aws: Harness) -> None:
+    """The notifications plugin sends through the same set; its events carry delivery, kind and site tags and no sub tag."""
+    subscribed(aws)
+    before = aws.items()
+    event = {"eventType": "Bounce", "bounce": {"bounceType": "Permanent"}, "mail": {"messageId": "msg-9", "tags": {"site": ["example"], "delivery": ["d" * 32], "kind": ["story.published"]}}}
+    assert aws.service.dispatch(sns(event))["body"]["results"] == ["ignored"]
+    assert [item for item in aws.items() if item["pk"]["S"] != "EVENTS"] == [item for item in before if item["pk"]["S"] != "EVENTS"]
+
+
 def test_untagged_foreign_and_unknown_events_are_ignored(aws: Harness) -> None:
     subscribed(aws)
     hid = aws.hid()

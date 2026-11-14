@@ -3,7 +3,7 @@
   "title": "Shared bucket part 1: the projection writes under an output prefix separate from urls.basePath",
   "description": "Outcome: Add an output prefix to the projection's writers (empty by default, so dedicated sites write exactly where they do today); every key the writers produce (pages, listings, _data, twins, sitemap, robots, 404) goes under it; a writer refuses a key outside its prefix when a prefix is set. Renditions are part 2. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) projection-output-prefix, branch feature/<this issue id>-projection-output-prefix from origin/develop (spikes: branch spike/<this issue id>-projection-output-prefix, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/projection/writers.py, runtime.py, deploy_render.py, projector.py, and their tests.\n\nAcceptance (Gherkin feature file: features_backend/tenant-output-prefix.feature):\nScenario: A dedicated site's keys do not change\n    Given a site with no output prefix\n    When it is projected\n    Then the key listing is byte-identical to before\n\nScenario: A prefixed projection writes only under its prefix\n    Given output prefix \"sites/alpha/\"\n    When the site is projected\n    Then every key starts with \"sites/alpha/\"\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: poetry run pytest src/papyrus_content/projection; npm run test:bdd:backend -- features_backend/tenant-output-prefix.feature (via poetry run behave).\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "sub-task",
-  "status": "open",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -13,10 +13,18 @@
     "multi-tenant"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "95764aa9-92ad-428f-9af0-da74c909dfb2",
+      "author": "home",
+      "text": "Merged to develop: AnthusAI/Papyrus#1391 (2026-11-10). Not released.",
+      "created_at": "2026-11-13T17:08:52.893446Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T21:32:23.024222Z",
-  "updated_at": "2026-11-08T21:32:24.469177Z",
-  "closed_at": null,
+  "updated_at": "2026-11-13T17:08:53.090279Z",
+  "closed_at": "2026-11-13T17:08:53.090232Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

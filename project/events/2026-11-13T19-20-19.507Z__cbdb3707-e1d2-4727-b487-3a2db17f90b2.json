@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "cbdb3707-e1d2-4727-b487-3a2db17f90b2",
+  "issue_id": "PPY-2784d2a6-e76e-4fc1-9667-7221cfb3cadd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T19:20:19.507Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "CDN spike live half: shared distribution host routing and per-tenant purge on the shared staging stack (gated)",
+    "description": "Gated task. D9 (Ryan, 2026-11-13, final): no sandbox account of any kind. The runtime half of the CDN spike (PPY-3b3cc3; offline part PPY-7cd7a2) can run, if at all, only on the shared STAGING stack's distribution, created by the release pipeline inside the existing Papyrus production account (PPY-daf673). No distribution, function or KeyValueStore is created by hand or by an ad hoc CLI call.\n\nRuns only when both hold: (1) the shared staging stack exists, created by the pipeline (PPY-daf673); (2) Ryan has said go for this run.\n\nQuestions to answer at runtime, with evidence: the CloudFront Function maps a host to its tenant through the KeyValueStore and rewrites into the tenant prefix; an unknown host gets a 404; a purge for tenant alpha's page leaves beta's cached; whether an invalidation path matches the requested or the rewritten path; whether CloudFront's own multi-tenant distributions fit better (features, quotas, prices). Purges stay within the 25-path rule and go through the capped tooling, never a raw invalidation.\n\nUntil it runs, unproven: host routing and per-tenant purges on a real distribution. The choice between our host-routing function and CloudFront multi-tenant distributions stays provisional, and M4 shared serving (PPY-3bbbf9) must not ship to production before this has run.\n\nDesign note: docs/plans/multi-tenant-architecture.md (PR #1305), section What stays unproven until the staging stack exists.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-3b3cc320-6ca0-4fd7-adc4-3be1a2b5f201",
+    "labels": [
+      "multi-tenant",
+      "standard-frontend-plan"
+    ]
+  }
+}

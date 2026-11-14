@@ -16,6 +16,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
+from .tenant_knowledge_keys import global_key
 from .auto_accept import DEFAULT_PRECISION, learn_threshold
 from .reference_links import REFERENCE_LINK_FEED_KEY
 
@@ -107,4 +108,4 @@ def calibrate(rows: Sequence[Mapping[str, Any]], precision: float = DEFAULT_PREC
 
 def load_calibration(client: Any, precision: float = DEFAULT_PRECISION) -> SuggestionCalibration:
     """One paginated read of the site's link rows, then the cuts learned from the suggestions people decided."""
-    return calibrate(client.list_by_index(FEED_INDEX, REFERENCE_LINK_FEED_KEY), precision)
+    return calibrate(client.list_by_index(FEED_INDEX, global_key(REFERENCE_LINK_FEED_KEY)), precision)

@@ -20,7 +20,7 @@ Feature: The editorial checklist of a Story
     And the checklist item "review_search" is "open"
     And the checklist item "review_social" is "open"
     And the checklist item "publish" is "open"
-    And every checklist item records template version 5
+    And every checklist item records template version 6
 
   Scenario: Steps that are off or not built have no item
     Given an empty newsroom

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f3325426-89d7-4091-a487-8cd88d13fffb",
+  "title": "The CMS listing keys carry the language, so the console, reader app and board list one language at a time",
+  "description": "As an editor, I want the console, the reader app and the newsroom commands to list one language at a time, so a Spanish translation never appears in an English list. The static projection already filters by language (docs/multilingual-serving.md: it reads every published summary once per run and each summary carries its language). This story is the plan's 'listing keys carry the language': typeStatus, sectionStatus and headStageKey on Item and PublishedItem become {tenant}#{language}#... for every row, written by one bounded, resumable backfill before any reader uses them; every reader of those keys names a language. No new index (same keys). Readers to change: lib/newsroom-articles.ts, lib/graphql-content-repository.ts, src/papyrus_content/{story_commands,newsroom_commands,story_checklist,publishing,content_item_lifecycle,section_migration}.py and the rest found by grep for typeStatus, sectionStatus and headStageKey.\n\nFeature: Listings in one language\n  Scenario: The console's published articles list shows only the primary language\n    Given an English article with a published Spanish translation\n    When the console lists published articles in English\n    Then only the English article is listed\n  Scenario: The backfill writes the language into every listing key once\n    Given rows written before listing keys carried the language\n    When the backfill runs twice\n    Then every key carries its row's language and the second run writes nothing",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-75649552-f242-4ed9-9b93-d27bbb29e4ce",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-13T20:27:53.028535Z",
+  "updated_at": "2026-11-13T20:27:53.028598Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

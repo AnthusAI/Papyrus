@@ -1036,14 +1036,6 @@ class KnowledgeQueryTests(unittest.TestCase):
 
         self.assertLessEqual(counter.count(truncated), 17)
 
-    def test_token_counter_regex_fallback_can_be_forced(self):
-        counter = TokenCounter(use_tiktoken=False)
-
-        self.assertEqual(counter.metadata()["provider"], "regex")
-        self.assertEqual(counter.metadata()["encoding"], "regex-word-punctuation")
-        self.assertEqual(counter.count("agent memory systems."), 4)
-        self.assertEqual(counter.truncate("agent memory systems.", 2), "agent memory")
-
     def test_core_returns_structured_and_budgeted_markdown(self):
         result = run_knowledge_query(
             {

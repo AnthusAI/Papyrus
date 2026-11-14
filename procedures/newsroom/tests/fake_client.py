@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any
 
 from papyrus_content.graphql_authoring import INDEX_DEFINITIONS
+from papyrus_content.item_language import with_item_language
 
 INDEX_MODELS = {
+    "referencesByCorpusAndExternalItem": "Reference",
+    "knowledgeCorporaByRoleAndName": "KnowledgeCorpus",
     "itemBySlug": "Item",
     "itemsByLineageAndVersion": "Item",
+    "itemScheduleByLineage": "Item",
     "mediaAssetsByItemAndSortKey": "MediaAsset",
     "publishedMediaAssetsByItemAndSortKey": "PublishedMediaAsset",
     "modelAttachmentsByOwnerRoleAndSortKey": "ModelAttachment",
@@ -25,6 +30,8 @@ INDEX_MODELS = {
     "itemsByHeadStage": "Item",
     "itemHeadFieldsByStage": "Item",
     "itemHeadFieldsWithKeyByStage": "Item",
+    "itemsByLanguageGroup": "Item",
+    "itemLanguageFieldsByVersionState": "Item",
     "publishedItemsByTypeStatus": "PublishedItem",
 }
 
@@ -61,6 +68,16 @@ def head_stage_key_violations(client: "FakeAuthoringClient") -> list[str]:
 
 
 class FakeAuthoringClient:
+    tenant_id: str | None = None   # the real client always has one; None is a backend with no tenant
+    primary_language: str = "en"   # the fake site writes English; an Item written without a language gets it, as the real client does (item_language)
+
+    def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        """The only query a fake answers is the schema question of the deploy render: a backend that serves every field the tools select."""
+        from papyrus_content.live_schema import selected_fields
+        selected = selected_fields()
+        asked = re.findall(r'(t\d+): __type\(name: "(\w+)"\)', query)
+        return {alias: {"fields": [{"name": field} for field in sorted(selected[name])]} for alias, name in asked}
+
     def __init__(
         self,
         records: dict[str, list[dict[str, Any]]] | None = None,
@@ -72,8 +89,8 @@ class FakeAuthoringClient:
         self.calls: list[tuple[str, str, Any]] = []
         self.fail_after: tuple[str, str] | None = None
         for model, rows in (records or {}).items():
-            for row in rows:
-                self.tables.setdefault(model, {})[row["id"]] = copy.deepcopy(row)
+            for row in rows:   # a seeded backend is one after `papyrus stories languages`: every Item row has its language
+                self.tables.setdefault(model, {})[row["id"]] = copy.deepcopy(with_item_language(row, None, self.primary_language) if model == "Item" else row)
         for owner_id, rows in (attachments or {}).items():
             for row in rows:
                 self.tables.setdefault("ModelAttachment", {})[row["id"]] = {**copy.deepcopy(row), "ownerId": owner_id}
@@ -98,18 +115,20 @@ class FakeAuthoringClient:
     def list_published_item_summaries(self) -> list[dict[str, Any]]:
         self.calls.append(("list", "PublishedItemSummary", None))
         summary_fields = (
-            "id sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
+            "id sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt versionPublishedAt versionPublishedBy metadata language languageGroupId"
         ).split()
         return [
             {name: copy.deepcopy(row.get(name)) for name in summary_fields}
             for row in self._table("PublishedItem").values()
         ]
 
-    def list_by_index(self, index_name: str, key_value: str, **_kwargs: Any) -> list[dict[str, Any]]:
+    def list_by_index(self, index_name: str, key_value: str, *, sort_eq: str | None = None, **_kwargs: Any) -> list[dict[str, Any]]:
         self.calls.append(("list_by_index", index_name, key_value))
         partition_key = INDEX_DEFINITIONS[index_name]["partitionKey"]
+        sort_key = INDEX_DEFINITIONS[index_name].get("sortKey") if sort_eq is not None else None
         model_name = INDEX_MODELS[index_name]
-        return [copy.deepcopy(row) for row in self._table(model_name).values() if row.get(partition_key) == key_value]
+        return [copy.deepcopy(row) for row in self._table(model_name).values()
+                if row.get(partition_key) == key_value and (sort_key is None or row.get(sort_key) == sort_eq)]
 
     def get_records_by_id(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
         return {record_id: copy.deepcopy(row) for record_id in record_ids if (row := self._table(model_name).get(record_id)) is not None}
@@ -136,12 +155,16 @@ class FakeAuthoringClient:
     def upsert(self, model_name: str, payload: dict[str, Any]) -> str:
         self.calls.append(("upsert", model_name, payload["id"]))
         existed = payload["id"] in self._table(model_name)
+        if model_name == "Item":
+            payload = with_item_language(payload, self._table(model_name).get(payload["id"]), self.primary_language)
         self._table(model_name)[payload["id"]] = copy.deepcopy(payload)
         self._maybe_fail("upsert", model_name)
         return "updated" if existed else "created"
 
     def create_record(self, model_name: str, payload: dict[str, Any]) -> None:
         self.calls.append(("create", model_name, payload["id"]))
+        if model_name == "Item":
+            payload = with_item_language(payload, None, self.primary_language)
         if payload["id"] in self._table(model_name):
             raise ValueError(f"{model_name} {payload['id']} already exists")
         self._table(model_name)[payload["id"]] = copy.deepcopy(payload)
@@ -152,6 +175,43 @@ class FakeAuthoringClient:
         row = self._table(model_name).setdefault(payload["id"], {})
         row.update(copy.deepcopy(payload))
         self._maybe_fail("update", model_name)
+
+    def has_schedule_fields(self) -> bool:
+        return True
+
+    def update_record_if(self, model_name: str, payload: dict[str, Any], condition: dict[str, Any]) -> bool:
+        """A conditional update as AppSync does it: the whole write or nothing, decided on the stored row (``eq``, ``ne``, ``attributeExists``, ``or``)."""
+        row = self._table(model_name).get(payload["id"], {})
+
+        def holds(rule: dict[str, Any]) -> bool:
+            for name, test in rule.items():
+                if name == "or":
+                    if not any(holds(option) for option in test):
+                        return False
+                elif name == "and":
+                    if not all(holds(option) for option in test):
+                        return False
+                else:
+                    value = row.get(name)
+                    for operator, expected in test.items():
+                        if operator == "eq" and value != expected:
+                            return False
+                        if operator == "ne" and value == expected:
+                            return False
+                        if operator == "attributeExists" and (value is not None) != expected:
+                            return False
+            return True
+
+        self.calls.append(("conditional-update", model_name, payload["id"]))
+        if not holds(condition):
+            return False
+        self.update_record(model_name, payload)
+        return True
+
+    def list_schedule(self, state: str, start: str | None = None, end: str | None = None) -> list[dict[str, Any]]:
+        self.calls.append(("list_schedule", state, (start, end)))
+        return [copy.deepcopy(row) for row in self._table("Item").values()
+                if row.get("scheduleState") == state and (start is None or row["scheduledPublishAt"] >= start) and (end is None or row["scheduledPublishAt"] <= end)]
 
     def delete_record(self, model_name: str, record_id: str) -> None:
         self.calls.append(("delete", model_name, record_id))

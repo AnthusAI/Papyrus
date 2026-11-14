@@ -4,9 +4,11 @@ import contextlib
 import copy
 import io
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 from behave import given, then, when
 
@@ -154,7 +156,8 @@ def command_run(context, command: str) -> None:
     graphql_authoring.create_authoring_client = lambda *args, **kwargs: (context.site.client, {"sub": "tester"})
     output = io.StringIO()
     try:
-        with contextlib.redirect_stdout(output):
+        with contextlib.redirect_stdout(output), mock.patch.dict(os.environ, {"PAPYRUS_SITE_PROJECTOR": "site.projector"}), \
+                mock.patch("papyrus_content.projection.runtime.load_projector", lambda *args, **kwargs: context.site.projector):
             stories_retire(command.split()[2:])
     finally:
         graphql_authoring.create_authoring_client = original
@@ -164,6 +167,18 @@ def command_run(context, command: str) -> None:
 @then('the command printed a line containing "{text}"')
 def printed_line(context, text: str) -> None:
     assert any(text in line for line in context.printed), context.printed
+
+
+@then('the command printed the redirect from "{source}" to "{destination}"')
+def printed_redirect(context, source: str, destination: str) -> None:
+    rows = [line.split("\t") for line in context.printed]
+    shown = {columns[3]: columns[4].removeprefix("-> ") for columns in rows if len(columns) > 4 and columns[2] in ("redirect", "would redirect")}
+    assert shown.get(source) == destination, shown
+
+
+@then('the command printed no redirect from "{source}"')
+def printed_no_redirect(context, source: str) -> None:
+    assert not any(f"redirect\t{source}\t" in line for line in context.printed), context.printed
 
 
 @when('the retirement of "{slug}" is undone')

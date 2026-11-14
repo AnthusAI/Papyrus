@@ -160,7 +160,7 @@ assert.equal(resolveSiteBackendFeatureFlags(undefined, { PAPYRUS_ENABLE_CONSOLE_
 const on = (extra: Partial<Record<string, boolean>>) => ({ ...defaultsNewSite, ...extra });
 assert.throws(() => assertFeaturePrerequisites(on({ consoleResponder: true }), {}), /PAPYRUS_ENABLE_CONSOLE_RESPONDER is on but PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI is not set/);
 assert.doesNotThrow(() => assertFeaturePrerequisites(on({ consoleResponder: true }), { PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI: "r/x:1" }));
-assert.throws(() => assertFeaturePrerequisites(on({ inboundEmail: true }), { PAPYRUS_INBOUND_EMAIL_DOMAIN: "mail.example.com" }), /PAPYRUS_ENABLE_INBOUND_EMAIL is on but PAPYRUS_ROUTE53_HOSTED_ZONE_ID, PAPYRUS_ROUTE53_HOSTED_ZONE_NAME are not set/);
+assert.doesNotThrow(() => assertFeaturePrerequisites(on({ inboundEmail: true }), {}), "inbound email is checked once, by resolveInboundEmailSettings");
 assert.doesNotThrow(() => assertFeaturePrerequisites(defaultsNewSite, {}), "a feature that is off needs nothing");
 assert.doesNotThrow(() => assertFeaturePrerequisites(on({ slack: true, storageBackups: true }), {}));
 assert.throws(() => assertFeaturePrerequisites(resolveSiteBackendFeatureFlags({ consoleResponder: true }, {}, newSiteMain), {}), /PAPYRUS_ENABLE_CONSOLE_RESPONDER/, "a features entry in papyrus.config.ts is held to the same rule");

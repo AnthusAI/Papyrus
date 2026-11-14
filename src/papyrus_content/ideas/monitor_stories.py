@@ -52,7 +52,8 @@ from ..reference_vote import HUMAN
 from . import connections as connection_rules, dedupe, duplicate_cut, point_check, rated_outcomes, retry_memory as retry_rules, synthesis, trends
 from .rules import DEFAULT as DEFAULT_RULES, IdeaRules
 from .editor_signals import interest_key, order_key
-from .digest import CORPUS_PREFIX, collect_references, iso, parse_time, parse_window, relations_of, relevance_of
+from ..tenant_knowledge_keys import corpus_id_for_key
+from .digest import collect_references, iso, parse_time, parse_window, relations_of, relevance_of
 from .excluded_hosts import is_excluded, normalize_hosts
 from . import source_text
 from .source_text import SourceFetcher, fetch_source
@@ -248,9 +249,9 @@ def collect_monitored_items(
     with no ``sourceUri`` is counted as ``noSourceUri`` and a pending one as ``pendingNotCandidate`` (it cannot be evidence)."""
     statuses = list(dict.fromkeys(statuses))
     window = now - parse_window(since) if since else None
-    rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], statuses, window)
+    rows = collect_references(client, [corpus_id_for_key(site)], statuses, window)
     # Listing every pending Reference only to count them costs a page per thousand: a run that must hurry (``count_pending=False``) leaves the count to later.
-    not_accepted = 0 if ("pending" in statuses or not count_pending) else len(collect_references(client, [f"{CORPUS_PREFIX}{site}"], ["pending"], window))
+    not_accepted = 0 if ("pending" in statuses or not count_pending) else len(collect_references(client, [corpus_id_for_key(site)], ["pending"], window))
     counts = {"inWindow": len(rows), "notAccepted": not_accepted, "notMonitored": 0, "pendingNotCandidate": 0, "noSourceUri": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0, "hasStory": 0}
     automated = set(automated_monitors)
     handled = {str(identifier) for identifier in automation_handled}
@@ -1029,7 +1030,7 @@ def draft_monitor_stories(
     run["usage"] = _usage(model, run["modelCalls"])
     timings["afterCollectSeconds"] = round(time.monotonic() - started - timings["collectSeconds"], 1)
     if not count_pending and prepared is None and "pending" not in list(statuses) and (out_of_time is None or not out_of_time()):
-        counts["notAccepted"] = len(collect_references(client, [f"{CORPUS_PREFIX}{corpus_key or site}"], ["pending"], None))   # counted last, and only if the time allows
+        counts["notAccepted"] = len(collect_references(client, [corpus_id_for_key(corpus_key or site)], ["pending"], None))   # counted last, and only if the time allows
     run["timings"] = timings
     if memory_errors:
         run["retryMemoryErrors"] = dict(memory_errors)

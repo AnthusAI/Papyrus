@@ -92,8 +92,17 @@ class CostSite:
         shutil.rmtree(self.work, ignore_errors=True)
 
 
+#: The one read of the site's settings a projection makes: its languages (docs/multilingual-serving.md). Counted on its own, never per Story.
+SETTINGS_READ = "get:EditorialCheckSettings"
+
+
 def point_reads(counted: collections.Counter) -> int:
-    return sum(count for key, count in counted.items() if key.startswith("get:"))
+    """Records read one by one, the site's settings aside (:func:`settings_reads`)."""
+    return sum(count for key, count in counted.items() if key.startswith("get:") and key != SETTINGS_READ)
+
+
+def settings_reads(counted: collections.Counter) -> int:
+    return counted.get(SETTINGS_READ, 0)
 
 
 def summary_passes(counted: collections.Counter) -> int:

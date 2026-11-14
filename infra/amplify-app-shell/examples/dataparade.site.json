@@ -18,6 +18,10 @@
     "cognitoDomainPrefix": "papyrus-dataparade-cms",
     "applyCognitoDomainPrefix": true,
     "environment": {
+      "PAPYRUS_ENABLE_CONSOLE_RESPONDER": "false",
+      "PAPYRUS_ENABLE_SLACK": "false",
+      "PAPYRUS_ENABLE_INBOUND_EMAIL": "false",
+      "PAPYRUS_ENABLE_STORAGE_BACKUPS": "false",
       "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/,https://dataparade.anth.us/"
     }
   },

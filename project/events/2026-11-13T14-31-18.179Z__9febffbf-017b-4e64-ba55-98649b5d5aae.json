@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9febffbf-017b-4e64-ba55-98649b5d5aae",
+  "issue_id": "PPY-2bc7e532-eadf-4227-925d-a481f770f071",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T14:31:18.179Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Translation spend learned from runs",
+    "description": "As a publication operator, I want translation spend predicted, shown and never silent, so a language never costs more than I can see coming.\n\nDesign: section 3.7. Three learned controls, no fixed caps: a site translations budget per rolling week (decision 11 of the plan), a per-run cost prediction learned from measured cost per source token per language, and a polish loop that ends on convergence rather than a count. Spanish and Chinese distributions are kept separately.\n\n```gherkin\nFeature: Translation spend is predicted, shown and never silent\n  Scenario: A run far above its prediction is held, not cut off\n    Given past Chinese runs cost a steady amount per thousand source words\n    When a run costs several times its prediction\n    Then it finishes its round and holds with the reason\n    And the run appears in the automations history marked as an outlier\n\n  Scenario: The weekly budget pauses new runs in the open\n    Given the site's translations budget for the week is reached\n    When an English Story is published\n    Then the Chinese run waits\n    And the console shows the backlog and the amount\n\n  Scenario: Spend is learned per language\n    Given Spanish and Chinese runs have different costs per source word\n    When the next run of each language is predicted\n    Then each prediction uses only that language's measured runs\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-25115792-da24-43d7-993a-ffec69adff32",
+    "labels": []
+  }
+}

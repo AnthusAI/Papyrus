@@ -132,7 +132,7 @@ class Operation:
     file_field: str | None = None          # the property the CLI fills from --file (a JSON or YAML document)
     picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
-    group: Literal["images", "guidelines"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
+    group: Literal["images", "guidelines", "announcements"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
 
     @property
     def mcp_name(self) -> str:
@@ -176,6 +176,7 @@ ERRORS = (
     ErrorCode("stale_version", "The Story has a newer version than the one you named. Read it again."),
     ErrorCode("candidate_not_ready", "The picture is still being made."),
     ErrorCode("candidate_closed", "The picture was already discarded, expired or applied."),
+    ErrorCode("settings_refused", "The announcement settings break a rule, so nothing was saved.", details="code names the rule"),
     ErrorCode("unknown_kind", "There is no such kind of guidelines.", details="kinds lists the kinds this site knows"),
     ErrorCode("resolver_not_available", "This kind of guidelines is resolved by its own command, not this one.", details="use names the command"),
     ErrorCode("document_hash_mismatch", "The stored guideline document does not match its recorded hash, so it was not used.", details="itemId"),
@@ -493,6 +494,10 @@ OPERATIONS: tuple[Operation, ...] = (
 # --- guidelines (PPY-8d41d7; design: docs/plans/guidelines-as-data.md) -----------------------------------------------------------------------------
 KIND = text("The kind of guidelines: writing, image or video, or any kind the site has registered. An unknown kind is refused with the list of known ones.")
 SECTION = text("A section key. Leave it out for the publication's own guidelines.")
+LANGUAGE = text("A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. "
+                "Leave it out for the shared guidelines.")
+RESOLVE_LANGUAGE = text("The language of the text the guidelines are for: its overlays (a variant's base language first) are laid over the shared guidelines. "
+                        "Leave it out for the guidelines every language shares.")
 GUIDELINE_DOCUMENT = {"type": "object", "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."}
 GUIDELINE_GUARD = text("The current version id of that guideline lineage when you read it (guidelines_get returns it as expectedCurrentVersionId), "
                        "or none for the first save.")
@@ -503,8 +508,8 @@ _GUIDELINE_DOCUMENT = {"schemaVersion": 1, "audience": "General readers", "tone"
 GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "guidelines_get", ("show",), "Read a kind of guidelines for the publication or one section, the current version or an older one.", "read",
-        obj({"kind": KIND, "section": SECTION, "version": whole("A version number; the current version when left out.")}, ("kind",)),
-        record({"kind": text(), "section": text(), "document": GUIDELINE_DOCUMENT, "itemId": text(), "versionNumber": whole(), "contentHash": text(), "updatedAt": text(),
+        obj({"kind": KIND, "section": SECTION, "language": LANGUAGE, "version": whole("A version number; the current version when left out.")}, ("kind",)),
+        record({"kind": text(), "section": text(), "language": text(), "document": GUIDELINE_DOCUMENT, "itemId": text(), "versionNumber": whole(), "contentHash": text(), "updatedAt": text(),
                 "updatedBy": text(), "changeReason": {"type": "string"}, "isCurrent": flag(),
                 "expectedCurrentVersionId": text("What to pass to guidelines_save to replace this lineage's current version.")},
                ("kind", "document", "itemId", "versionNumber", "contentHash", "expectedCurrentVersionId")),
@@ -515,11 +520,12 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
         notes="Nothing stored yet gives not_found with expectedCurrentVersionId none in details: pass that to the first save.",
     ),
     Operation(
-        "guidelines_resolve", ("resolve",), "Show the effective guidelines for the publication or a section laid over it, with where every field came from.", "read",
-        obj({"kind": KIND, "section": SECTION}, ("kind",)),
-        record({"kind": text(), "section": text(), "found": flag("False when the publication has no guidelines of this kind yet."), "document": GUIDELINE_DOCUMENT,
-                "fieldSources": {"type": "object", "description": "For every field, the layer it came from: publication, section, or locked by the publication."},
-                "layers": many(record({"scope": choice("publication", "section"), "itemId": text(), "slug": text(), "versionNumber": whole(), "contentHash": text()},
+        "guidelines_resolve", ("resolve",), "Show the effective guidelines for the publication or a section laid over it, and for one language, with where every field came from.", "read",
+        obj({"kind": KIND, "section": SECTION, "language": RESOLVE_LANGUAGE}, ("kind",)),
+        record({"kind": text(), "section": text(), "language": text(), "found": flag("False when the publication has no guidelines of this kind yet."), "document": GUIDELINE_DOCUMENT,
+                "fieldSources": {"type": "object", "description": "For every field, the layers it came from: publication, section, language or section-language (with the language)."},
+                "layers": many(record({"scope": choice("publication", "section", "language", "section-language"), "language": text(), "itemId": text(), "slug": text(),
+                                       "versionNumber": whole(), "contentHash": text()},
                                       ("scope", "itemId", "versionNumber"))),
                 "warnings": many(record({"code": text(), "message": text()}, ("code", "message")))},
                ("kind", "found", "document", "fieldSources", "layers", "warnings")),
@@ -533,8 +539,8 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "guidelines_diff", ("diff",), "Show what saving a guideline document would change, without saving it.", "read",
-        obj({"kind": KIND, "section": SECTION, "document": GUIDELINE_DOCUMENT}, ("kind", "document")),
-        record({"kind": text(), "changes": GUIDELINE_CHANGES, "constraintChanges": many({"type": "object"}), "wouldCreateVersion": whole(minimum=0)},
+        obj({"kind": KIND, "section": SECTION, "language": LANGUAGE, "document": GUIDELINE_DOCUMENT}, ("kind", "document")),
+        record({"kind": text(), "section": text(), "language": text(), "changes": GUIDELINE_CHANGES, "constraintChanges": many({"type": "object"}), "wouldCreateVersion": whole(minimum=0)},
                ("kind", "changes", "constraintChanges", "wouldCreateVersion")),
         ("unknown_kind",),
         (Example({"kind": "writing", "document": _GUIDELINE_DOCUMENT}, {"kind": "writing", "changes": [{"path": "audience", "from": "Engineers", "to": "General readers"}],
@@ -545,9 +551,9 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "guidelines_save", ("save",), "Save a guideline document as the next version of its kind and scope.", "write",
-        obj({"kind": KIND, "section": SECTION, "document": GUIDELINE_DOCUMENT, "reason": REASON, "expectedCurrentVersionId": GUIDELINE_GUARD},
+        obj({"kind": KIND, "section": SECTION, "language": LANGUAGE, "document": GUIDELINE_DOCUMENT, "reason": REASON, "expectedCurrentVersionId": GUIDELINE_GUARD},
             ("kind", "document", "reason", "expectedCurrentVersionId")),
-        record({"kind": text(), "section": text(), "itemId": text(), "versionNumber": whole(), "contentHash": text(),
+        record({"kind": text(), "section": text(), "language": text(), "itemId": text(), "versionNumber": whole(), "contentHash": text(),
                 "unchanged": flag("True when the document equals the current version, so no version was made."),
                 "repeated": flag("True when this is the first answer to the same request id, returned again.")}, ("kind", "itemId", "versionNumber", "contentHash")),
         ("human_required", "stale_version", "unknown_kind"),
@@ -560,8 +566,8 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "guidelines_history", ("history",), "List the versions of a kind of guidelines, newest first, with who changed it and why.", "read",
-        obj({"kind": KIND, "section": SECTION}, ("kind",)),
-        record({"kind": text(), "section": text(),
+        obj({"kind": KIND, "section": SECTION, "language": LANGUAGE}, ("kind",)),
+        record({"kind": text(), "section": text(), "language": text(),
                 "versions": many(record({"itemId": text(), "versionNumber": whole(), "isCurrent": flag(), "at": text(), "by": text(), "byKind": choice("human", "agent"),
                                          "reason": {"type": "string"}, "contentHash": text()}, ("itemId", "versionNumber", "contentHash")))},
                ("kind", "versions")),
@@ -574,6 +580,95 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
 )
 
 OPERATIONS = OPERATIONS + GUIDELINE_OPERATIONS
+
+# --- announcements (PPY-09ee86): the same table serves `papyrus announcements ...`, the MCP tools and the console ----------------------------------------
+STATE = choice("posting", "posted", "failed", "blocked", "dry_run", "withdrawn", description="One state of an announcement.")
+STORY_LINEAGE = text("The lineage id of the Story.")
+ANNOUNCEMENT = record({
+    "id": text(), "accountId": text(), "storyLineageId": text(), "storyVersionNumber": whole(), "state": STATE, "label": text("The state in plain words, such as Dry run: not sent."),
+    "blockedReason": text(), "mode": text(), "link": text(), "weight": whole(minimum=0), "draftedBy": text(), "checks": many(record({"name": text(), "passed": flag()}, ("name", "passed"))),
+    "postId": text(), "postedAt": text(), "cost": {"type": "string", "description": "Dollars Caducus charged on this announcement so far, as a decimal string."},
+    "attempts": whole(minimum=0), "error": {"type": "string"}, "history": many(record({"at": text(), "by": text(), "state": text(), "note": text()}, ("at", "by", "state", "note"))),
+    "withdrawnBy": text(), "createdAt": text(), "updatedAt": text(),
+}, ("id", "state", "label"))
+SETTINGS = record({
+    "mode": choice("off", "dry_run", "on"), "rules": {"type": "object", "description": "minStars, storyTypes and sections: what is announced."},
+    "budget": {"type": ["number", "null"], "description": "Dollars for each X billing cycle. No default."}, "billingCycleDay": {"type": ["integer", "null"]},
+    "prices": {"type": "object", "description": "X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied."},
+    "labelConfirmed": flag(), "pause": {"type": "object", "description": "paused, reason (budget, disconnected or manual), detail, by and at."},
+}, ("mode",))
+_EX_ROW = {"id": "mom#story-1", "accountId": "mom", "storyLineageId": "story-1", "state": "dry_run", "label": "Dry run: not sent", "mode": "dry_run", "weight": 120, "cost": "0",
+           "attempts": 0, "history": [{"at": "2026-11-13T09:00:00Z", "by": "system:announcements", "state": "dry_run", "note": "Dry run: not sent"}],
+           "createdAt": "2026-11-13T09:00:00Z", "updatedAt": "2026-11-13T09:00:00Z"}
+_EX_SETTINGS = {"mode": "dry_run", "rules": {"minStars": 5, "storyTypes": ["article"], "sections": []}, "budget": 10, "billingCycleDay": 1,
+                "prices": {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}, "labelConfirmed": True,
+                "pause": {"paused": False, "reason": None, "detail": None, "by": None, "at": None}}
+
+ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "announcements_list", ("list",), "List the account's announcements, newest first, optionally one state.", "read",
+        obj({"state": STATE, "limit": whole("How many to return; 50 when left out.")}),
+        record({"announcements": many(ANNOUNCEMENT)}, ("announcements",)), (),
+        (Example({"state": "dry_run"}, {"announcements": [_EX_ROW]}),), group="announcements",
+        notes="Read from the account's own index, newest first; nothing scans a table. A site with no account yet gets an empty list.",
+    ),
+    Operation(
+        "announcements_show", ("show",), "Show one Story's announcement: its row, its history, and the post text and checks kept in S3.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)),
+        record({"announcement": ANNOUNCEMENT, "document": {"type": "object", "description": "The stored post: text, post, link, weight, model and every check's problems."}}, ("announcement",)),
+        ("not_found",), (Example({"story": "story-1"}, {"announcement": _EX_ROW, "document": {"text": "A look at secrets.", "weight": 120}}),), positional=("story",), group="announcements",
+        notes="A posting announcement is first brought up to date from Caducus's delivery log.",
+    ),
+    Operation(
+        "announcements_dry_run", ("dry-run",), "Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)),
+        record({"lineageId": text(), "eligible": flag(), "reason": text(), "text": text(), "post": text(), "link": text(), "weight": whole(minimum=0),
+                "checks": many({"type": "object"}), "passed": flag(), "failures": many(text()), "sent": flag()}, ("lineageId", "post", "weight", "passed", "sent")),
+        ("not_found",), (Example({"story": "story-1"}, {"lineageId": "story-1", "eligible": True, "reason": "eligible", "text": "A look at secrets.", "post": "A look at secrets.\n\nhttps://example.org/s?utm_source=x",
+                                                          "link": "https://example.org/s?utm_source=x", "weight": 45, "checks": [], "passed": True, "failures": [], "sent": False}),),
+        positional=("story",), group="announcements",
+        notes="Makes one model call to draft the text. Works for any Story, announced or not, in any mode; `eligible` and `reason` say whether the site's rules would announce it.",
+    ),
+    Operation(
+        "announcements_pause", ("pause",), "Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused.", "write",
+        obj({}),
+        record({"paused": flag(), "pausedBy": text(), "pausedAt": text(), "pauseReason": text()}, ("paused",)), (),
+        (Example({}, {"paused": True, "pausedBy": "Ada Admin", "pausedAt": "2026-11-13T10:02:00Z", "pauseReason": "Paused by hand."}),), group="announcements",
+        notes="The site's announcements function lets only an admin change the pause. Announcements also pause by themselves, for the budget or a broken X connection, and say why.",
+    ),
+    Operation(
+        "announcements_resume", ("resume",), "Resume announcements and announce the Stories that waited.", "write",
+        obj({}), record({"released": many({"type": "object"}), "paused": flag()}, ("released", "paused")), (),
+        (Example({}, {"released": [], "paused": False}),), group="announcements",
+    ),
+    Operation(
+        "announcements_settings_show", ("settings", "show"), "Show the site's announcement settings: mode, bar, Story types, sections, account, budget, prices and the pause.", "read",
+        obj({}), record({"settings": SETTINGS, "connection": {"type": "object", "description": "The X connection's status: connection, handle, accountId and refresh health. Never a secret."}}, ("settings", "connection")), (),
+        (Example({}, {"settings": _EX_SETTINGS, "connection": {"connection": "connected", "handle": "@mom_test", "accountId": "mom"}}),), group="announcements",
+    ),
+    Operation(
+        "announcements_settings_set", ("settings", "set"), "Change announcement settings. Every rule is checked and every problem listed; nothing is saved when any fails.", "write",
+        obj({"mode": choice("off", "dry_run", "on", description="Off (default), Dry run (builds the post, sends nothing) or On."),
+             "minStars": whole("The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars)."),
+             "storyTypes": many(text(), "Story types that are announced: article, post. References are never announced."), "sections": many(text(), "Limit to these sections."),
+             "budget": text("Dollars for each X billing cycle, such as 10.00. No default."), "billingCycleDay": whole("The day of the month your X billing cycle starts."),
+             "prices": {"type": "object", "description": "X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it)."},
+             "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account.")}),
+        record({"settings": SETTINGS, "released": many({"type": "object"})}, ("settings", "released")), ("settings_refused", "human_required"),
+        (Example({"minStars": 5}, {"settings": _EX_SETTINGS, "released": []}),), group="announcements", agent_allowed=False,
+        notes="A person only: it sets what the publication says in public and how much it may spend. There is no approval setting: a draft that passes the automatic checks is posted. "
+              "prices is given with --input-file. The X account is connected in the browser, never here. Raising the budget, or any change while Stories wait on a guard, announces the Stories that waited.",
+    ),
+    Operation(
+        "announcements_account_status", ("account", "status"), "Show mode, pause, the cycle's spend against the budget, and the connected account.", "read",
+        obj({}), record({"mode": text(), "paused": flag(), "accountId": text(), "accountHandle": text(), "standing": text("For example $0.60 spent of $10.00 this cycle."),
+                         "pauseReason": text(), "pricesAsOf": text()}, ("mode", "paused")), (),
+        (Example({}, {"mode": "dry_run", "paused": False, "accountId": "mom", "standing": "$0.00 spent of $10.00 this cycle"}),), group="announcements",
+        notes="Connecting an X account needs the browser (OAuth): the newsroom's Administration > Announcements page. The CLI never accepts a secret.",
+    ),
+)
+
+OPERATIONS = OPERATIONS + ANNOUNCEMENT_OPERATIONS
 
 BY_NAME = {operation.name: operation for operation in OPERATIONS}
 BY_CLI = {(operation.group, operation.cli): operation for operation in OPERATIONS}

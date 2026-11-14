@@ -20,7 +20,7 @@ when set, a second search over that longer window asks only for precedential dec
 Board can designate a decision precedential months after it issues). A TTAB item also lists the decision's other
 addresses (the TTABVUE PDF, the Reading Room's double-slash path), and intake reuses a Reference stored under
 any of them rather than creating a second one for the same decision. Each source type only
-accepts a `sourceUrl` on its own host (a `feed` on any host in `FEED_HOSTS`: `rss.arxiv.org`, `export.arxiv.org`, `metr.org`). `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
+accepts a `sourceUrl` on its own host (a `feed` on a host in `FEED_HOSTS`: `rss.arxiv.org`, `export.arxiv.org`, `metr.org`, or on any public host the config names with `sourceName`). `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
 Cyclotron per publication) or `direct` (deliver every collected item to every configured publication,
 recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTAB monitor with
 `seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400` and
@@ -125,8 +125,7 @@ shared-Cyclotron monitors), optional `startDate` (`YYYY-MM-DD`, for a query's ve
 router's is: `TAVILY_API_KEY`, or the SSM SecureString named in `PAPYRUS_TAVILY_KEY_PARAMETER`.
 **Search providers and the fallback chain.** Tavily, then Perplexity, then OpenAI is the default chain, cheapest first (Tavily is free while it has credits; Perplexity is about $5 per 1,000 requests, OpenAI $10 plus tokens; Gemini's grounded search, $14, is opt-in), and the monitor reads its results through `papyrus_content.web_search`,
 one interface over `tavily`, `openai` (Responses API `web_search`), `perplexity` (Search API), `gemini` (Google Search grounding) and
-`bedrock` (Web Search on Amazon Bedrock). The chain is `WEB_SEARCH_PROVIDERS`, an ordered comma list such as `openai,tavily` (the older
-`WEB_SEARCH_PROVIDER` names a chain of one; with neither set the chain is `tavily,perplexity,openai`; a deployment that has only a Tavily key must set `WebSearchProviders` to `tavily`). A monitor overrides it with `searchProviders` in its
+`bedrock` (Web Search on Amazon Bedrock). The chain is `WEB_SEARCH_PROVIDERS`, an ordered comma list such as `openai,tavily` (the retired single name `WEB_SEARCH_PROVIDER` is an error that names `WEB_SEARCH_PROVIDERS`; with it unset the chain is `tavily,perplexity,openai`; a deployment that has only a Tavily key must set `WebSearchProviders` to `tavily`). A monitor overrides it with `searchProviders` in its
 own `CONFIG` (a list or a comma string); an unknown name is rejected when the config is stored. A provider's key is `<PROVIDER>_API_KEY`
 (`TAVILY_API_KEY`, `OPENAI_API_KEY`, `PERPLEXITY_API_KEY`, `GEMINI_API_KEY`) or the SSM SecureString named by
 `PAPYRUS_<PROVIDER>_KEY_PARAMETER`; the standard parameter names are `/papyrus/search/<provider>-api-key` (the Tavily parameter keeps its
@@ -380,9 +379,13 @@ intake, one Reference. The source id is the same function of the id for both (`2
 `sourceType: feed` reads an RSS 2.0 or Atom document from the `sourceUrl` in the monitor's config, so a new feed is a new monitor
 config and no code. Safety is that of the Hacker News reader, with one larger limit:
 
-- **https only**, no credentials in the address, and the host must be in `FEED_HOSTS` in `src/papyrus_content/monitoring_feed.py`
-  (today `rss.arxiv.org`, `export.arxiv.org` and `metr.org`). Adding a host is one line there, and the deploy ships it; a `sourceUrl` on any other
-  host is refused when the config loads. A feed address may carry a query (the arXiv API's Atom feeds do), unlike the other types.
+- **https only**, no credentials, no fragment, port 443 only, and a host that is either built in (`FEED_HOSTS` in `src/papyrus_content/monitoring_feed.py`:
+  `rss.arxiv.org`, `export.arxiv.org` and `metr.org`, each with its display name) or **named in the monitor's config** (PPY-94458e): add
+  `"sourceName": "Satire Journal"` (a short plain name, up to 80 characters) and any **public** host is accepted, with no engine release. The name is the source's
+  display name wherever it is shown. A name never makes an unsafe address acceptable: an IP address, `localhost`, a single-label or internal name (`.local`, `.internal`
+  and similar), an address with credentials, a fragment or another port, or plain http is refused when the config loads and again before any request. A feed
+  address may carry a query (the arXiv API's Atom feeds do), unlike the other types. Only a feed needs no code: a kind of source that needs its own reader
+  (a JSON API, say) still needs one in `SOURCE_TYPES`.
 - **Size.** 8 MB, not the 2 MB of the Hacker News feed: arXiv's combined daily feed for `cs.AI+cs.LG+cs.CL+cs.MA+stat.ML` was
   3.59 MB (1,661 entries) on 2026-11-03.
 - **A document that declares a DOCTYPE or an ENTITY is refused**, whatever its size, and so is anything that is not an RSS 2.0

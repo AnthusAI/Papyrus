@@ -168,7 +168,7 @@ class AnalysisEntityGraphBridgeTests(unittest.TestCase):
                 patch("papyrus_content.analysis_commands.create_authoring_client", return_value=(object(), {})),
                 patch("papyrus_content.analysis_commands.hydrate_graph_reference_map_sync", return_value={}),
                 patch(
-                    "papyrus_content.analysis_commands.build_record_changes_tolerating_optional_models",
+                    "papyrus_content.analysis_commands.build_record_changes",
                     side_effect=capture_changes,
                 ),
             ):

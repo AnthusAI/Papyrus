@@ -1,0 +1,218 @@
+[
+  {
+    "typeName": "Query",
+    "fieldName": "announcementsSettings",
+    "arguments": {
+      "input": "{}"
+    },
+    "source": null,
+    "request": {
+      "headers": {},
+      "domainName": null
+    },
+    "prev": null,
+    "identity": {
+      "sub": "sub-ryan",
+      "username": "ryan",
+      "claims": {
+        "email": "ryan@example.test"
+      },
+      "groups": [
+        "admin"
+      ],
+      "defaultAuthStrategy": "ALLOW"
+    }
+  },
+  {
+    "typeName": "Query",
+    "fieldName": "announcementsXStatus",
+    "arguments": {
+      "input": "{}"
+    },
+    "source": null,
+    "request": {
+      "headers": {},
+      "domainName": null
+    },
+    "prev": null,
+    "identity": {
+      "sub": "sub-ryan",
+      "username": "ryan",
+      "claims": {
+        "email": "ryan@example.test"
+      },
+      "groups": [
+        "admin"
+      ],
+      "defaultAuthStrategy": "ALLOW"
+    }
+  },
+  {
+    "typeName": "Query",
+    "fieldName": "announcementsXUsage",
+    "arguments": {
+      "input": "{}"
+    },
+    "source": null,
+    "request": {
+      "headers": {},
+      "domainName": null
+    },
+    "prev": null,
+    "identity": {
+      "sub": "sub-ryan",
+      "username": "ryan",
+      "claims": {
+        "email": "ryan@example.test"
+      },
+      "groups": [
+        "admin"
+      ],
+      "defaultAuthStrategy": "ALLOW"
+    }
+  },
+  {
+    "typeName": "Mutation",
+    "fieldName": "announcementsSaveSettings",
+    "arguments": {
+      "input": "{\"settings\":{\"mode\":\"off\"}}"
+    },
+    "source": null,
+    "request": {
+      "headers": {},
+      "domainName": null
+    },
+    "prev": null,
+    "identity": {
+      "sub": "sub-ryan",
+      "username": "ryan",
+      "claims": {
+        "email": "ryan@example.test"
+      },
+      "groups": [
+        "admin"
+      ],
+      "defaultAuthStrategy": "ALLOW"
+    }
+  },
+  {
+    "typeName": "Mutation",
+    "fieldName": "announcementsPause",
+    "arguments": {
+      "input": "{\"paused\":true}"
+    },
+    "source": null,
+    "request": {
+      "headers": {},
+      "domainName": null
+    },
+    "prev": null,
+    "identity": {
+      "sub": "sub-ryan",
+      "username": "ryan",
+      "claims": {
+        "email": "ryan@example.test"
+      },
+      "groups": [
+        "admin"
+      ],
+      "defaultAuthStrategy": "ALLOW"
+    }
+  },
+  {
+    "typeName": "Mutation",
+    "fieldName": "announcementsXSaveApp",
+    "arguments": {
+      "input": "{\"clientId\":\"client-123\",\"clientSecret\":\"s3cret-value\"}"
+    },
+    "source": null,
+    "request": {
+      "headers": {},
+      "domainName": null
+    },
+    "prev": null,
+    "identity": {
+      "sub": "sub-ryan",
+      "username": "ryan",
+      "claims": {
+        "email": "ryan@example.test"
+      },
+      "groups": [
+        "admin"
+      ],
+      "defaultAuthStrategy": "ALLOW"
+    }
+  },
+  {
+    "typeName": "Mutation",
+    "fieldName": "announcementsXBegin",
+    "arguments": {
+      "input": "{\"redirectUri\":\"https://mom.example/cb\"}"
+    },
+    "source": null,
+    "request": {
+      "headers": {},
+      "domainName": null
+    },
+    "prev": null,
+    "identity": {
+      "sub": "sub-ryan",
+      "username": "ryan",
+      "claims": {
+        "email": "ryan@example.test"
+      },
+      "groups": [
+        "admin"
+      ],
+      "defaultAuthStrategy": "ALLOW"
+    }
+  },
+  {
+    "typeName": "Mutation",
+    "fieldName": "announcementsXComplete",
+    "arguments": {
+      "input": "{\"code\":\"c\",\"state\":\"s\",\"redirectUri\":\"https://mom.example/cb\"}"
+    },
+    "source": null,
+    "request": {
+      "headers": {},
+      "domainName": null
+    },
+    "prev": null,
+    "identity": {
+      "sub": "sub-ryan",
+      "username": "ryan",
+      "claims": {
+        "email": "ryan@example.test"
+      },
+      "groups": [
+        "admin"
+      ],
+      "defaultAuthStrategy": "ALLOW"
+    }
+  },
+  {
+    "typeName": "Mutation",
+    "fieldName": "announcementsXDisconnect",
+    "arguments": {
+      "input": "{}"
+    },
+    "source": null,
+    "request": {
+      "headers": {},
+      "domainName": null
+    },
+    "prev": null,
+    "identity": {
+      "sub": "sub-ryan",
+      "username": "ryan",
+      "claims": {
+        "email": "ryan@example.test"
+      },
+      "groups": [
+        "admin"
+      ],
+      "defaultAuthStrategy": "ALLOW"
+    }
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "6621f4d5-3a57-4b46-a70c-0128f39aec72",
+  "issue_id": "PPY-25fae4b5-5fe6-4ebd-b3fe-34f9a1764edf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T12:37:17.540Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Public identifiers, a published vocabulary and richer structured data",
+    "description": "## Why\nSearch engines and answer engines read schema.org JSON-LD in the page; ours is thin (no identifiers, no \"about\", no concept data). Vault-LD (assessed 2026-11-13, report at ~/Projects/papyrus-vault-ld-assessment.md) needs exactly what our pages lack: stable identifiers and a shared vocabulary. Ryan approved on 2026-11-13: watch Vault-LD itself, skip it as an authoring/memory/Kanbus format, and pilot the underlying parts. These are the permanent base; any later output (site graph file, Vault-LD copy, SKOS import) reuses them unchanged.\n\n## Scope (pilot, Shipped first)\n- A permanent identifier for every public Concept and published Story, built from lineage ids: an id address that never changes and forwards to the current page.\n- One Papyrus vocabulary for all sites, published on p.apyr.us, generated from the relation-types file.\n- Richer schema.org JSON-LD on pages we already serve: concept pages as defined terms; Story pages naming their concepts by identifier.\n- A fixed-field-allowlist privacy test over every linked-data output.\n\n## Decisions (Ryan, 2026-11-13)\n1. The words an editor writes on a link stay private.\n2. Permanent address = the id address built from the lineage id, forwarding to the page.\n3. Linking concepts to outside identifiers (e.g. Wikidata): yes, as a separate story after the pilot.\nDefaults accepted: one vocabulary for all sites on p.apyr.us; Shipped is the first site.\n\n## Not in scope\nReferences, a whole-site graph file, any Vault-LD download or output (all left for later).\n\n## Definition of Done\nAll child stories closed, privacy allowlist test green, and the p.apyr.us documentation task done (every Papyrus feature epic ends with a documentation task on p.apyr.us).\n\n## Priority\nBelow the in-flight scheduled-publishing/announcements and multilingual epics; board scale P2.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}

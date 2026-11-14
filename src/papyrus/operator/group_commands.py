@@ -121,6 +121,10 @@ def group_subcommands(group: str) -> list[str] | None:
     from papyrus_content.guidelines.cli import route_tree as guidelines_route_tree
 
     return list(guidelines_route_tree())
+  if group == "announcements":
+    from papyrus_content.announcements.cli import route_tree as announcements_route_tree
+
+    return list(announcements_route_tree())
   if group == "design-system":
     from papyrus_content.figures.design_system_cli import COMMANDS as DESIGN_SYSTEM_COMMANDS
 
