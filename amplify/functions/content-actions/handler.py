@@ -44,6 +44,7 @@ from papyrus_content.story_schedule import TASK_NAME as PUBLISH_SCHEDULED_TASK, 
 from papyrus_content.live_schema import wait_for_live_schema
 from papyrus_content.publication import ensure_publication_from_environment
 from papyrus_content.editorial_checks import GraphQLEditorialStore, ensure_default_policies
+from papyrus_content.item_deck_backfill import ensure_item_decks
 from papyrus_content.item_language_backfill import ensure_item_languages
 from papyrus_content.reference_intake import IntakeError, intake_email_submission_references, intake_references
 from papyrus_content.publish_alerts import PUBLISHED_TASK_KEY, announce_published
@@ -392,6 +393,8 @@ def run_deploy_render_task(client) -> dict:
     context = projection_context(client)
     # Before anything reads a language (the render, the editorial policies' checks): rows written before the fields get them, once per site.
     print(json.dumps(ensure_item_languages(client, context.writer, now=utc_now_iso, echo=lambda line: None)))
+    # Decks next: a row's deck column is the dek its front matter holds, which older writers did not keep (item_deck_backfill.py).
+    print(json.dumps(ensure_item_decks(client, context.writer, now=utc_now_iso, echo=lambda line: None)))
     ensure_default_editorial_policies(client)
     if targeted_invalidation(os.environ):
         context.invalidate = None  # the default, "targeted": a deploy never purges; pages age out with the HTML lifetime (PPY-2745c1)

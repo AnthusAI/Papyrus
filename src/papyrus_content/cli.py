@@ -390,6 +390,7 @@ PORTED_COMMANDS = frozenset(
         "stories:repair-versions",
         "stories:head-index",
         "stories:languages",
+        "stories:decks",
         "stories:localize",
         "stories:backfill-published-dates",
         "stories:repair-image-paths",
@@ -968,6 +969,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_languages
 
         stories_languages(flags)
+    elif route == "stories:decks":
+        from .story_commands import stories_decks
+
+        stories_decks(flags)
     elif route == "stories:backfill-published-dates":
         from .story_commands import stories_backfill_published_dates
 

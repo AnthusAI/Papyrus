@@ -303,6 +303,26 @@ def stories_languages(flags: list[str]) -> None:
     run_languages(client, primary=client.primary_language(), dry_run=dry_run, rate=rate)
 
 
+def stories_decks(flags: list[str]) -> None:
+    """papyrus stories decks [--dry-run] [--rate <writes per second>]
+
+    Brings the `deck` column of every Item and published row to the dek its own front matter holds (`dek`, else `deck`, `standfirst`, `description`:
+    src/papyrus_content/item_front_matter.py). Rows saved before the column was derived from `dek` can serve an older dek. Reads the version-state index
+    once (no table scan) and each published row by its id, writes only the derived `deck` of rows that differ (never front matter), each with its own
+    updatedAt, at most --rate a second (default 5). A row with no front matter is left alone.
+
+    Writes by default; --dry-run prints one line per row it would write and a summary (rows read, rows to write, already right). A second run writes nothing."""
+    from .item_deck_backfill import DEFAULT_RATE, run_decks
+
+    options = parse_options(flags)
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    rate = float(options.get("rate") or DEFAULT_RATE)
+    if rate <= 0 or rate > 25:
+        raise ValueError("--rate must be more than 0 and at most 25 writes a second.")
+    client, _ = create_authoring_client()
+    run_decks(client, dry_run=dry_run, rate=rate)
+
+
 def stories_backfill_published_dates(flags: list[str]) -> None:
     """papyrus stories backfill-published-dates [--apply] [--rate <writes per second>]
 

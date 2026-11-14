@@ -174,6 +174,8 @@ _ENTRIES = dict([
      "--story LINEAGE --language TAG [--automation ID] [--ceiling-usd N] [--dry-run]  (--automation is required unless --dry-run)", "both", _DRY, ""),
   _e("stories languages", "Write the language and the language group on every Item row written before those fields existed (the site's primary language).",
      "[--dry-run] [--rate N]  (--rate is writes a second, default 5)", "both", _DRY, ""),
+  _e("stories decks", "Bring every Item's and published row's deck column to the dek its front matter holds. Writes only the derived column.",
+     "[--dry-run] [--rate N]  (--rate is writes a second, default 5)", "both", _DRY, ""),
   _e("stories backfill-published-dates", "Give published Stories their first publication time and the served version's publish time, from what their versions recorded. A dry run unless --apply.",
      "[--apply] [--dry-run] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
   _e("stories repair-image-paths", "Repair image paths in a Story's versions. Read only unless you pass --write.", "--story LINEAGE [--write] [--bucket B] [--identity-pool-id ID]", "operator", "reads", ""),

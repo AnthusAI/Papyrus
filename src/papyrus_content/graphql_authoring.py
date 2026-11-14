@@ -459,6 +459,7 @@ SCHEDULE_ROW_FIELDS = (
     "scheduledPublishAt scheduledBy scheduledAt scheduleState scheduleName"
 )
 HEAD_INDEX_ROW_FIELDS = "id tenantId lineageId versionNumber versionState versionCreatedAt stage type updatedAt"
+ITEM_DECK_ROW_FIELDS = "id tenantId lineageId versionNumber versionState type updatedAt deck metadata"
 ITEM_LANGUAGE_ROW_FIELDS = "id tenantId lineageId versionNumber versionState type updatedAt language languageGroupId"
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
@@ -472,6 +473,8 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "itemsByLanguageGroup": {"field": "listItemsByLanguageGroupAndLanguage", "partitionKey": "languageGroupId", "sortKey": "language", "fields": ITEM_FIELDS},
     # The rows of one version-state partition with what `stories languages` needs (every Item row has a version state).
     "itemLanguageFieldsByVersionState": {"field": "listItemsByVersionStateAndUpdatedAt", "partitionKey": "versionState", "fields": ITEM_LANGUAGE_ROW_FIELDS},
+    # The rows of one version-state partition with what `stories decks` needs: the stored deck and the front matter it derives from.
+    "itemDeckFieldsByVersionState": {"field": "listItemsByVersionStateAndUpdatedAt", "partitionKey": "versionState", "fields": ITEM_DECK_ROW_FIELDS},
     "itemsBySectionStatus": {"field": "listItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": STORY_SECTION_LINK_FIELDS},
     "messageThreadsByAnchor": {"field": "listMessageThreadsByAnchorAndUpdatedAt", "partitionKey": "primaryAnchorKey", "fields": MESSAGE_THREAD_FIELDS},
     "publishedItemsBySectionStatus": {"field": "listPublishedItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": PUBLISHED_STORY_LIST_FIELDS},

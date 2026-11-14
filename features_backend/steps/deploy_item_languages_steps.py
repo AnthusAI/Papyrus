@@ -125,6 +125,7 @@ def _deploy(context):
         mock.patch.object(handler, "targeted_invalidation", lambda environ: False),
         mock.patch.object(handler, "publish_jobs_from_environment", lambda: None),
         mock.patch.object(handler, "ensure_item_languages", languages),
+        mock.patch.object(handler, "ensure_item_decks", lambda *args, **kwargs: {}),   # its own feature: deploy-item-decks.feature
         mock.patch.object(handler, "deploy_render", render),
     ]
     for patch in patches:
