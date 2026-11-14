@@ -175,7 +175,7 @@ class Backend:
             return self.module.handler(event, None)
 
     def action(self, field: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return self.run({"fieldName": field, "arguments": {"input": json.dumps(payload)}, "identity": {"username": "editor"}})
+        return self.run({"fieldName": field, "arguments": {"input": json.dumps(payload)}, "identity": {"username": "editor", "claims": {}}})
 
     def save(self, body: str = "Hello.\n") -> dict[str, Any]:
         return self.action(
