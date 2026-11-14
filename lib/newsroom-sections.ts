@@ -49,6 +49,7 @@ export function newsroomDeskPickerOptions(sections: NewsroomSectionRecord[], cur
   const value = (current ?? "").trim();
   if (!value || options.some(option => option.value === value)) return options;
   const known = sections.find(section => section.id === value);
-  const label = known ? known.title : displayNewsroomSectionShortTitle({ id: value } as NewsroomSectionRecord);
+  // A value the site no longer lists has no title to show, so the picker shows the stored id itself.
+  const label = known ? known.title : value;
   return [...options, { value, label, kind: known ? newsroomDeskKind(known) : "core" }];
 }

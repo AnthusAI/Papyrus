@@ -17,7 +17,7 @@ const runs: Record<string, () => void> = {
     assert.equal(options.length, 2, "nothing is added when the list already holds the value");
   },
   keeps_unlisted_current() {
-    assert.deepEqual(newsroomDeskPickerOptions([], "security").map(option => [option.value, option.label]), [["security", "Security"]], "with no list loaded the picker still shows the Story's own section, not 'No section'");
+    assert.deepEqual(newsroomDeskPickerOptions([], "security").map(option => [option.value, option.label]), [["security", "security"]], "with no list loaded the picker still shows the Story's own section by its stored id, not 'No section'");
     assert.ok(newsroomDeskPickerOptions(sections, "retired").some(option => option.value === "retired" && option.label === "Retired"), "a disabled section the Story still has stays visible");
   },
 };
