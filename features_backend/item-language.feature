@@ -9,7 +9,11 @@ Feature: Every Story version knows its language, and translations are sibling St
   than the site's primary language, and it always names the language and the group; every other writer writes the primary language, and the
   authoring client fills that in, with the Story's own lineage as its group, on any Item written without them.
 
-  Rows written before the fields existed get them from `papyrus stories languages`. Nothing reads a missing language as the primary: the
+  Every writer goes through that one rule: `papyrus stories save-version`, the console's saves, the agent and ops procedures, `stories create`,
+  the checklist's step rows and imports. A version written without a language takes the language of the version it follows, so a Story never
+  changes language by being saved again; a Story with no earlier version starts in the primary language.
+
+  Rows written before the fields existed, or by a Papyrus older than the release that added them, get them from `papyrus stories languages`. Nothing reads a missing language as the primary: the
   editorial checks refuse a saved Story version that has none and name the command.
 
   Background:
@@ -27,6 +31,31 @@ Feature: Every Story version knows its language, and translations are sibling St
     When a writer saves the Story "story-rivers--zh-Hans" again without naming a language
     Then the Item written has the language "zh-Hans"
     And its language group is "mom#story-rivers"
+
+  Scenario: A version saved with the command line is written in the primary language and can be published
+    Given an authoring client for the tenant "mom"
+    And the Story "story-rivers" has a saved version with no language, written by a Papyrus older than the language fields
+    When an editor saves a new version of the Story "story-rivers" with `papyrus stories save-version`
+    Then the new version "story-rivers-v2" is written with the language "en" and the language group "mom#story-rivers"
+    And the version can be published because its language is known
+
+  Scenario: A version saved with the command line keeps the language of the Story it follows
+    Given an authoring client for the tenant "mom"
+    And the Story "story-rivers--zh-Hans" is stored in "zh-Hans" in the language group "mom#story-rivers"
+    When an editor saves a new version of the Story "story-rivers--zh-Hans" with `papyrus stories save-version`
+    Then the new version "story-rivers--zh-Hans-v2" is written with the language "zh-Hans" and the language group "mom#story-rivers"
+
+  Scenario: A version written without a language takes the language of the version it follows
+    Given an authoring client for the tenant "mom"
+    And the Story "story-rivers--zh-Hans" is stored in "zh-Hans" in the language group "mom#story-rivers"
+    When a writer creates the version "story-rivers--zh-Hans-v2" of the Story "story-rivers--zh-Hans" following "story-rivers--zh-Hans-v1" without naming a language
+    Then the Item written has the language "zh-Hans"
+    And its language group is "mom#story-rivers"
+
+  Scenario: A checklist step version is written with a language too
+    Given an authoring client for the tenant "mom"
+    When the checklist writes the second version of the step "step-story-rivers-illustration" of the Story "story-rivers"
+    Then the step version "step-story-rivers-illustration-v2" is written with the language "en"
 
   Scenario: A translation must name its language group
     Given an authoring client for the tenant "mom"

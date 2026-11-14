@@ -1343,11 +1343,19 @@ class PapyrusGraphQLAuthoringClient:
             self._primary_language = primary_language(settings_from(GraphQLEditorialStore(execute=self.graphql, tenant_id=self.tenant_id)))
         return self._primary_language
 
+    def _language_source(self, payload: dict[str, Any], current: dict[str, Any] | None) -> dict[str, Any] | None:
+        """The stored row an Item write takes its language from when the payload names none: the row it replaces, else the version it follows
+        (``previousVersionId``), so every version of a lineage is written in the language of the one before it (``item_language.with_item_language``).
+        Read only when the payload names no language, so a writer that carries the language forward costs no read."""
+        if payload.get("language") or (current or {}).get("language") or not payload.get("previousVersionId"):
+            return current
+        return self.get_record("Item", payload["previousVersionId"]) or current
+
     def create_record(self, model_name: str, input_payload: dict[str, Any]) -> None:
         if model_name not in MUTATIONS:
             raise ValueError(f"Unsupported model for create: {model_name}")
         if model_name == "Item":
-            input_payload = with_item_language(input_payload, None, self.primary_language())
+            input_payload = with_item_language(input_payload, self._language_source(input_payload, None), self.primary_language())
         prepared = self._prepared_payload(model_name, input_payload)
         self.graphql(MUTATIONS[model_name]["create"], {"input": prepared})
 
@@ -1355,7 +1363,7 @@ class PapyrusGraphQLAuthoringClient:
         prepared = self._prepared_payload(model_name, input_payload)
         current = self.get_record(model_name, prepared["id"])
         if model_name == "Item":
-            prepared = self._prepared_payload(model_name, with_item_language(input_payload, current, self.primary_language()))
+            prepared = self._prepared_payload(model_name, with_item_language(input_payload, self._language_source(input_payload, current), self.primary_language()))
         mutation = MUTATIONS[model_name]["update" if current else "create"]
         self.graphql(mutation, {"input": prepared})
         return "updated" if current else "created"
