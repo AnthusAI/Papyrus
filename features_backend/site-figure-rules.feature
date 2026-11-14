@@ -32,3 +32,7 @@ Feature: A site owns the whole text of its figure rules
     Given a site that saved the figure rules "No generated image shows a real person."
     When the figure rules command is run with the packaged flag
     Then it prints the packaged general rules and does not look at the site
+
+  Scenario: A site that cannot be read never gets the general rules in place of its own
+    When the figure rules command is run and the site cannot be reached
+    Then it fails saying the site's figure rules could not be read

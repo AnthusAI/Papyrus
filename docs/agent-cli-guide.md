@@ -29,7 +29,7 @@ export PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300
 - Set `PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300` before any write. The default is 30 seconds, and a write that times out has an unknown outcome (see the safe re-run rule below).
 
 ### The two lanes
-| | Editor lane (signed in with `papyrus login`) | Operator lane (AWS credentials, `PAPYRUS_GRAPHQL_AUTH=iam`) |
+| | Editor lane (signed in with `papyrus login`; the default) | Operator lane (AWS credentials, named with `papyrus --auth iam` or `PAPYRUS_GRAPHQL_AUTH=iam`) |
 | --- | --- | --- |
 | Who | A person or an agent working inside a person's session | Operators and scheduled jobs |
 | Needs | `papyrus login SITE` | `AWS_PROFILE`, an `amplify_outputs.json` or `PAPYRUS_GRAPHQL_ENDPOINT` |
@@ -37,7 +37,7 @@ export PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300
 | Cannot | Write models directly (concepts and links go through the site's routes); `references prepare-catalog`; `references suggest-links` (no vector index ARN); relation updates | Nothing by design, so use `--dry-run` first |
 | Attribution | Records the person who signed in, with `via cli` | Needs `--author-label NAME` on several commands |
 
-A failed user session never falls back to the operator lane. If a command says it needs AWS credentials, it is operator-only.
+The editor lane is the default. The operator lane is used only when named: `papyrus --auth iam <group> <command>` (leading, like `--site`), or `PAPYRUS_GRAPHQL_AUTH=iam` for a worker or a CI step. With no session and no lane named, a command stops before it reads or writes anything: `Not signed in: run papyrus login <site>. ...` (exit status 2); sign in, do not reach for AWS credentials. A missing or failed user session never falls back to the operator lane, and a CLI newer than the site's backend never switches lanes to get round what the backend lacks. If a command says it needs AWS credentials, it is operator-only.
 
 ### Write by default, and which commands cannot dry-run
 Mutation commands **write unless you pass `--dry-run`**. `--apply` is rejected ("no longer accepts --apply"). `--help` never writes: it is answered before anything runs.
@@ -649,6 +649,7 @@ Both group by section and Cyclotron label, not by concept cluster or Reference l
 | `N paths is over the cap of 25 paths per call` | Purge too wide | Narrow it; never force more than you need |
 | `Sign-in needs local port 3001 ... already in use` | Another program on the login port | Stop it, log in again |
 | `Missing amplify_outputs.json` / endpoint errors on the operator lane | Not signed in and no outputs file | Sign in, or run from a site checkout with the outputs file |
+| `Not signed in: run papyrus login <site>` | No session and no lane named (the signed-in lane is the default) | `papyrus login SITE`; a job that runs as its own AWS role adds `papyrus --auth iam` (or `PAPYRUS_GRAPHQL_AUTH=iam`) |
 
 ## Not authorized, not built yet
 <!-- guide:not-built -->

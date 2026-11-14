@@ -10,9 +10,17 @@
   "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c27f24dd-f392-4098-b9f4-b1d61af852bd",
+      "author": "home",
+      "text": "PR #1517 (branch feature/PPY-5f119a-auth-default, prepared 2026-11-14) supersedes closed PR #1057. Audit result: no site repo needs a patch. Papyrus-owned callers declare the operator lane through amplify/site-api-access.ts (connectToSiteApi / siteApiEnvironment add PAPYRUS_GRAPHQL_AUTH=iam with the endpoint), the CMS staging build spec and break-glass scripts name it, and Machines on Machines already declares it. Consequence for people and agents: any ad hoc role-based command must now name the lane with --auth iam (or PAPYRUS_GRAPHQL_AUTH=iam); with no session and no lane named the CLI refuses and says to run papyrus login.",
+      "created_at": "2026-11-14T17:34:01.313677Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-02T16:43:32.932693Z",
-  "updated_at": "2026-11-02T16:43:32.932756Z",
+  "updated_at": "2026-11-14T17:34:01.314214Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -32,3 +32,16 @@ def real_checklist_gate(_checklist_gate_off, monkeypatch):
     from papyrus_content import story_checklist
 
     monkeypatch.setattr(story_checklist, "require_checklist_closed", _checklist_gate_off)
+
+
+# Variables that choose a GraphQL lane or a signed-in site. A developer's machine often has a real `papyrus login` session in
+# ~/.config/papyrus and a lane in the shell; CI has neither. Every test starts like CI: signed out, in an empty sign-in directory,
+# with no lane named (the signed-in lane is the default). A test that wants a lane or a session sets it (PPY-5f119a).
+SIGN_IN_ENVIRONMENT = ("PAPYRUS_GRAPHQL_AUTH", "PAPYRUS_CLI_AUTH_CONFIG", "PAPYRUS_SITE")
+
+
+@pytest.fixture(autouse=True)
+def _signed_out_by_default(monkeypatch, tmp_path_factory):
+    for name in SIGN_IN_ENVIRONMENT:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("PAPYRUS_CLI_STATE_DIR", str(tmp_path_factory.mktemp("papyrus-state")))

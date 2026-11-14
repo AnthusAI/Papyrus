@@ -268,7 +268,7 @@ def plan_publication(client: Any, publication: dict[str, Any], *, store: Any, mo
     planner = story_plan.QueuePlanner(store, monitor_id, publication_id, plan_id, sqs=sqs, queue_url=queue_url, now=now.timestamp(), suggestions_waiting=suggestions_waiting)
     run = monitor_stories.draft_monitor_stories(
         client=client, site=publication_id, corpus_key=publication["corpusKey"], context=context, json_store=None,
-        idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=gate, checklist=False), review_client=client, transport=transport or (lambda *args, **kwargs: None), limit=None, dry_run=False, now=now,
+        idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=gate), review_client=client, transport=transport or (lambda *args, **kwargs: None), limit=None, dry_run=False, now=now,
         fetch=fetch or monitor_stories.fetch_source, explorer=None, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd, read_workers=READ_WORKERS,
         automation_handled=handled_references, signal_run=signal_run, count_pending=False, run_id=plan_id, plan_sink=planner, rules=idea_rules.rules_of(policy["ideaRules"]),
         priority_lineages=signal_lineages(client) | {vote.lineage_id for vote in (signal_run.inputs.votes if signal_run else ())})
@@ -340,7 +340,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
 
     run = monitor_stories.draft_monitor_stories(
         client=client, site=publication["publicationId"], corpus_key=publication["corpusKey"],
-        context=context, json_store=None, idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=gate, checklist=False), review_client=client,
+        context=context, json_store=None, idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=gate), review_client=client,
         transport=transport, limit=None, dry_run=False, now=now, fetch=fetch or monitor_stories.fetch_source,
         explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer, out_of_time=out_of_time,
         maximum_cost_usd=max(maximum_cost_usd - vectors["costUsd"], 0.0), read_workers=READ_WORKERS, automation_handled=handled_references, signal_run=signal_run,

@@ -9,8 +9,8 @@ installs it, so a Lambda never reaches the sign-in registry. The order of choice
 4. an `amplify_outputs.json` with an endpoint (nothing here; it is used as it always was);
 5. the only signed-in site.
 
-Steps 3 and 5 look at the registry only on the signed-in lane (`PAPYRUS_GRAPHQL_AUTH` unset with a session, or `user`), so an
-operator who chose IAM is never sent to a signed-in site. Several signed-in sites and no choice is an error that lists them.
+Steps 3 and 5 look at the registry only on the signed-in lane (the default; `PAPYRUS_GRAPHQL_AUTH` unset or `user`), so an
+operator who named IAM (`papyrus --auth iam`) is never sent to a signed-in site. Several signed-in sites and no choice is an error that lists them.
 A token still goes only to the registered site that owns the endpoint (`cli_user_auth.config_for_endpoint`).
 """
 from __future__ import annotations

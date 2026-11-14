@@ -443,3 +443,9 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     And the site's agent instructions document cannot be read
     When the copywriter's context pack is built for the Story, which fails
     Then no pack is made and the failure says the document could not be read
+
+  Scenario: A byline policy that cannot be read stops the pack rather than telling the writer the default
+    Given the site's byline policy is pen names "Chip Hardcastle" and "Dolores Finch"
+    And the site's byline policy document cannot be read
+    When the copywriter's context pack build is attempted
+    Then the attempt fails saying the document could not be read

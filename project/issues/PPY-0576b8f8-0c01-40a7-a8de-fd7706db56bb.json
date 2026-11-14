@@ -1,0 +1,20 @@
+{
+  "id": "PPY-0576b8f8-0c01-40a7-a8de-fd7706db56bb",
+  "title": "The CLI never silently drops fields a backend lacks",
+  "description": "graphql_authoring quietly drops newer fields when the backend schema lacks them: _schema_lacks_newer_reference_fields (star, capture, public-feed and card fields), _schema_lacks_medium_fields (medium, evidenceLevel, playlistUrl, mediumFeedKey, captureReason, contentNeededKey, thumbnailPath), and headStageKey on Item writes (has_head_stage_key / _without_head_stage_key). That is a CLI-newer-than-backend workaround and goes against the AGENTS.md rule: schema drift is fixed by deploying, never by reduced-field fallbacks. Ryan's rule: a CLI newer than a site backend must fail loudly. The CLI refuses and names the version it needs: 'this CLI needs a backend at 5.X or later'. Remove the fallbacks, the per-process flags and their tests; no retry without the fields. Gherkin required (narrative, complete).\n\nFeature: The CLI never silently drops fields a backend lacks\n  Scenario: A newer reference field the backend lacks\n    Given a site backend whose Reference type has no starRating\n    When I run a command that writes starRating\n    Then the command fails and the message says this CLI needs a backend at 5.X or later\n    And no write is sent without the field\n  Scenario: A newer reference field on a read\n    Given a backend whose schema lacks captureState\n    When a command selects captureState\n    Then it fails with the same backend-version message and does not retry with a reduced selection\n  Scenario: The medium field family\n    Given a backend whose input type has no medium, evidenceLevel, playlistUrl, mediumFeedKey, captureReason, contentNeededKey or thumbnailPath\n    When I save a Reference that names any of them\n    Then the save is refused with the backend-version message\n    And the fields are never stripped and the save is never repeated without them\n  Scenario: The head stage key\n    Given a backend whose Item type has no headStageKey\n    When I write an Item that carries headStageKey\n    Then the write is refused with the backend-version message\n    And the key is never silently omitted\n  Scenario: A current backend\n    Given a backend that has every field\n    When I run the same commands\n    Then they behave as before\n  Scenario: The message names the version\n    When any of these refusals is shown\n    Then it reads 'this CLI needs a backend at 5.X or later' with the real version, and exits non-zero",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-14T17:34:01.765575Z",
+  "updated_at": "2026-11-14T17:34:01.765616Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

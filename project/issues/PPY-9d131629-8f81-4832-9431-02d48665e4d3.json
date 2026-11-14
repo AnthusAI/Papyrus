@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9d131629-8f81-4832-9431-02d48665e4d3",
+  "title": "Member removal revokes the membership row and the person's Cognito refresh tokens",
+  "description": "Outcome: When Prospectus says a person was removed from the Account that owns a site, Papyrus marks their TenantMembership for that site revoked, deletes their TenantSelection row if it names that site, and calls Cognito AdminUserGlobalSignOut so their refresh tokens stop working (docs/multi-tenancy.md, Session claims, Removal). No removal path exists in code today, so PPY-0bb0fd documents this and implements nothing. Depends on the Prospectus membership events (kanbus-6efecd, task PPY-a1e75a). Acceptance: Gherkin in features_backend: a removed member's next token refresh carries no claim for the site, and the sign-out call is made once per removal. Testing: stubbed Cognito client; no sandbox (D9). Rollout: dark. Releasable on its own: yes. DynamoDB index: none. AppSync authorisation: none.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0bb0fdef-dcfd-4110-a77c-328834d4977c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-13T23:12:20.692723Z",
+  "updated_at": "2026-11-13T23:12:20.692760Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

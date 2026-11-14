@@ -54,21 +54,46 @@ def _operator_groups_with_help() -> set[str]:
     return {"references", "assignments", "knowledge"}
 
 
-def _consume_site_flag(args: list[str]) -> list[str]:
-    """A leading `--site <host>` (or `--site=<host>`) chooses the signed-in site for the whole command by setting PAPYRUS_SITE.
+def _leading_flag(args: list[str], name: str) -> tuple[str, list[str]] | None:
+    """`--name value` or `--name=value` at the front of `args`: (value, the rest), or None."""
+    if not args or not (args[0] == name or args[0].startswith(name+"=")):
+        return None
+    if args[0] == name:
+        return (args[1] if len(args) > 1 else ""), args[2:]
+    return args[0].partition("=")[2], args[1:]
 
-    Only the leading position is read, so it can never collide with the `--site` that several commands take after their own
-    name (a host, a publication key, a bucket's site), and those keep their meaning."""
-    if not args or not (args[0] == "--site" or args[0].startswith("--site=")):
+
+def _consume_leading_flags(args: list[str]) -> list[str]:
+    """Leading `--site <host>` and `--auth <lane>`, in either order, apply to the whole command.
+
+    `--site` chooses the signed-in site (PAPYRUS_SITE). `--auth` names the GraphQL lane (PAPYRUS_GRAPHQL_AUTH): the signed-in
+    lane is the default, and `--auth iam` is how a job that runs as its own AWS role declares the operator lane. Only the leading
+    position is read, so neither collides with the `--site` or `--auth` that several commands take after their own name."""
+    while True:
+        site = _leading_flag(args, "--site")
+        if site is not None:
+            value, args = site
+            if not value.strip() or value.startswith("-"):
+                raise OperatorError("--site requires a signed-in site such as shipped.anth.us, before the command: papyrus --site <site> <group> <command>.")
+            os.environ[SITE_ENVIRONMENT_VARIABLE] = value.strip()
+            continue
+        auth = _leading_flag(args, "--auth")
+        if auth is not None:
+            value, args = auth
+            _set_lane(value.strip().lower())
+            continue
         return args
-    if args[0] == "--site":
-        value, rest = (args[1] if len(args) > 1 else ""), args[2:]
-    else:
-        value, rest = args[0].partition("=")[2], args[1:]
-    if not value.strip() or value.startswith("-"):
-        raise OperatorError("--site requires a signed-in site such as shipped.anth.us, before the command: papyrus --site <site> <group> <command>.")
-    os.environ[SITE_ENVIRONMENT_VARIABLE] = value.strip()
-    return rest
+
+
+def _set_lane(lane: str) -> None:
+    from papyrus_content.user_auth_mode import LANE_VARIABLE, LANES
+
+    if lane not in LANES:
+        raise OperatorError("--auth requires a lane before the command: papyrus --auth iam <group> <command> (iam, user or guest).")
+    already = os.environ.get(LANE_VARIABLE, "").strip().lower()
+    if already and already != lane:
+        raise OperatorError(f"--auth {lane} and {LANE_VARIABLE}={already} name different lanes. Unset {LANE_VARIABLE}, or drop --auth, so only one of them speaks.")
+    os.environ[LANE_VARIABLE] = lane
 
 
 def _consume_global_flags(args: list[str]) -> tuple[list[str], list[str]]:
@@ -323,7 +348,7 @@ def _run_printing_usage_on_error(argv: list[str] | None) -> int:
 def _run_with_arguments(argv: list[str] | None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     allow_cross_root, args = _consume_cross_root_override(args)
-    args = _consume_site_flag(args)
+    args = _consume_leading_flags(args)
     args, global_flags = _consume_global_flags(args)
 
     if not args or args == ["--help"] or (len(args) == 1 and args[0] in {"--help", "-h"}):

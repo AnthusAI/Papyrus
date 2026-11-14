@@ -1773,3 +1773,22 @@ def step_pack_fails(context):
 @then("no pack is made and the failure says the document could not be read")
 def step_pack_failed(context):
     assert context.pack_error and "could not be read" in context.pack_error, context.pack_error
+
+
+@given("the site's byline policy document cannot be read")
+def step_unreadable_byline(context):
+    context.guideline_files.get = lambda _attachment: None
+
+
+@when("the copywriter's context pack build is attempted")
+def step_pack_attempt(context):
+    context.attempt_error = None
+    try:
+        context.pack = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1")
+    except GuidelineError as error:
+        context.attempt_error = str(error)
+
+
+@then("the attempt fails saying the document could not be read")
+def step_attempt_failed(context):
+    assert context.attempt_error and "could not be read" in context.attempt_error, context.attempt_error

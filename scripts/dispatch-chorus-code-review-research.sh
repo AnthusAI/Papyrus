@@ -25,6 +25,7 @@ fi
 
 ensure_authoring_env() {
   export PAPYRUS_GRAPHQL_ENDPOINT="${PAPYRUS_GRAPHQL_ENDPOINT:-https://64hviw44q5cq5nwjcigmasowlq.appsync-api.us-east-1.amazonaws.com/graphql}"
+  export PAPYRUS_GRAPHQL_AUTH=iam   # break-glass: the operator lane, named on purpose (PPY-5f119a)
   if ! "${PAPYRUS_CMD[@]}" ops content inspect >/dev/null 2>&1; then
     echo "Missing production authoring credentials." >&2
     echo "Set AWS_PROFILE to a profile that assumes the papyrus-authoring role, or run with an OIDC role." >&2

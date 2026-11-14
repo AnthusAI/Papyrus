@@ -16,6 +16,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - **Register a procedure or an automation**: [procedure-runner.md](procedure-runner.md), [automations.md](automations.md).
 - **Run the weekly knowledge run**: [knowledge-workstation-run.md](knowledge-workstation-run.md), [knowledge-cloud-run.md](knowledge-cloud-run.md).
 - **Review requests and the Notification Center**: [notification-center.md](notification-center.md), [review-requests.md](review-requests.md). The console home is ignore-safe (only a hard gate waits for a person), steering is fed back to the step that raised the request, and marks accompany every colour.
+- **Implement shared newsroom chat**: [chatticus-chat-integration-plan.md](chatticus-chat-integration-plan.md), [Mac handoff](architecture/chatticus-chat/handoff.md). Planning only; includes five checked Archify illustrations, package boundaries and phased acceptance gates.
 
 - **Private newsroom chat on a site** (per-site `chat` config, data stack, enablement order): [private-newsroom-chat-per-site.md](private-newsroom-chat-per-site.md).
 - **Shared chat UI implementation**: [shared-chat-ui.md](shared-chat-ui.md), the first Chatticus presentation dependency increment; backend migration remains planned.
@@ -48,6 +49,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [how-a-publish-flows.md](how-a-publish-flows.md): what happens when an editor saves or publishes, and what to do when it looks wrong.
 - [multi-tenancy.md](multi-tenancy.md): several publications on one backend, with `--tenant`.
 - [plans/multi-tenant-architecture.md](plans/multi-tenant-architecture.md): design for many sites on one shared Papyrus (additive groundwork merged, isolation not built yet), with real tenant isolation (PPY-25ffa3).
+- [shared-stack.md](shared-stack.md): the shared production and staging stacks inside the Papyrus production account (key, boundary, deny, concurrency, alarms, budget), what the pipeline creates and what to say go to first (PPY-daf673).
 - [content-item-lifecycle.md](content-item-lifecycle.md): one content item and one lifecycle, with a configurable name (default Story).
 - [verification.md](verification.md): what to run before calling a change done, plus the reader browser smoke test.
 - [local-preview.md](local-preview.md): `npm run dev:preview` seeded newsroom Board with no AWS, plus headless screenshots for reviews.

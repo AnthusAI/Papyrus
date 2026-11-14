@@ -323,7 +323,7 @@ def test_public_login_metadata_does_not_authorize_server_roles(fixture,monkeypat
     c,clock,store,p,seen,s=fixture;s.login();save_selection(c)
     monkeypatch.setattr('papyrus_content.cli_user_auth.session_for',lambda config:s)
     with patch.object(graphql_http,'_aws_credentials',side_effect=AssertionError('AWS credential probe')):
-        assert graphql_http.authoring_credentials_available()
+        graphql_http.require_lane_ready()
         assert set(graphql_http.graphql_request_headers(endpoint=c.graphql_endpoint,body=b'{}'))=={'content-type','Authorization'}
 
 
