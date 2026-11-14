@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5990f16e-1f2a-4c94-9c34-5fc1b022423d",
+  "title": "An explicit operator lane is never silently overridden",
+  "description": "Five signed-in-only commands set PAPYRUS_GRAPHQL_AUTH=user in code (references_search_cli.py references search, references_titles.py repair-titles, references_transcripts.py capture-transcripts, references_thumbnails.py capture-thumbnails, monitoring_view_cli.py monitors), so an operator's explicit --auth iam (or env iam) is quietly overridden. They must refuse with a message when the explicit lane is iam and the command needs the signed-in lane, and otherwise run signed in. Depends on PR #1517 (PPY-5f119a). Gherkin required.\n\nFeature: An explicit operator lane is never silently overridden\n  Scenario Outline: A signed-in-only command given the operator lane\n    When I run <command> with --auth iam\n    Then it refuses before reading or writing anything\n    And the message says this command needs the signed-in lane and to run papyrus login <site> or drop --auth iam\n    And it exits non-zero\n    Examples: references search, references repair-titles, references capture-transcripts, references capture-thumbnails, monitors\n  Scenario: The env var names the operator lane\n    Given PAPYRUS_GRAPHQL_AUTH=iam\n    When I run any of the five commands\n    Then it refuses with the same message\n  Scenario: No lane named\n    Given a signed-in session and no lane named\n    When I run any of the five commands\n    Then it runs as the signed-in user and the process environment is not rewritten\n  Scenario: Explicit user lane\n    When I run one of them with --auth user\n    Then it runs signed in",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-14T17:34:01.941155Z",
+  "updated_at": "2026-11-14T17:34:01.941197Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

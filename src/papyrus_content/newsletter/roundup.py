@@ -12,6 +12,7 @@ from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
 from papyrus_content.item_front_matter import front_matter as _front_matter, item_path
+from papyrus_content.item_language import localization_original
 from papyrus_content.publishing import ItemFields, save_item
 
 from .confirmation import markus_text
@@ -66,8 +67,8 @@ def items_in_window(service: IssueService, since: float, until: float) -> list[d
         published = _epoch(row.get("publishedAt"))
         if published is None or not since < published <= until:
             continue
-        if row.get("status") not in (None, "published") or row.get("type") in excluded:
-            continue
+        if row.get("status") not in (None, "published") or row.get("type") in excluded or localization_original(row) is not None:
+            continue   # a translation is not a Story of its own: the roundup names the original
         chosen.append((published, row))
     chosen.sort(key=lambda pair: (pair[0], str(pair[1].get("slug"))))
     return [row for _published, row in chosen]

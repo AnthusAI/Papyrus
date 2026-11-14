@@ -76,7 +76,7 @@ def add_knowledge_query_parser(subparsers: argparse._SubParsersAction[argparse.A
         "--execution",
         default="remote",
         choices=["auto", "remote", "local"],
-        help="Run through AppSync/Lambda by default, or force local shared-engine execution for development",
+        help="Run through the site API by default; `local` runs the shared engine in this process and must be asked for by name",
     )
 
 
@@ -149,7 +149,7 @@ def _load_input(path: str) -> dict[str, Any]:
 
 
 def _signed_in() -> bool:
-    """True when a `papyrus login` session applies (PAPYRUS_GRAPHQL_AUTH=iam turns it off for scheduled jobs and roles)."""
+    """True on the signed-in lane, the default (`--auth iam` or PAPYRUS_GRAPHQL_AUTH=iam names the operator lane for scheduled jobs and roles)."""
     from papyrus_content.user_auth_mode import user_auth_requested
     return user_auth_requested()
 
@@ -157,22 +157,21 @@ def _signed_in() -> bool:
 def _should_run_remote(args: argparse.Namespace) -> bool:
     execution = getattr(args, "execution", "auto")
     if execution == "local":
-        return False
+        return False   # the local engine only when asked for by name
     endpoint = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").strip()
     if _signed_in():
-        # The signed-in lane needs no AWS credentials. The endpoint may come from the environment or the signed-in site.
-        if execution == "remote" or endpoint or getattr(args, "site", ""):
-            return True
-        try:   # auto: remote when exactly one signed-in site resolves, otherwise the local engine as before
+        # The signed-in lane needs no AWS credentials. The endpoint may come from the environment or the signed-in site; with no
+        # site that resolves, the site's own refusal (log in, or name one) stands: auto never turns into the local engine.
+        if execution == "auto" and not (endpoint or getattr(args, "site", "")):
             from papyrus_content import signed_in_lane
+            from papyrus_content.graphql_http import require_lane_ready
+            require_lane_ready()
             signed_in_lane.endpoint(None)
-            return True
-        except Exception:
-            return False
+        return True
     if execution == "remote":
         if not endpoint or not aws_credentials_available():
             raise OperatorError(
-                "remote knowledge-query execution requires PAPYRUS_GRAPHQL_ENDPOINT and either `papyrus login` or AWS credentials (set AWS_PROFILE)"
+                "remote knowledge-query execution on the operator lane (--auth iam) requires PAPYRUS_GRAPHQL_ENDPOINT and AWS credentials (set AWS_PROFILE)"
             )
         return True
     return bool(endpoint and aws_credentials_available())

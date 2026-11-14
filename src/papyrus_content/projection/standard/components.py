@@ -47,6 +47,18 @@ def byline(entry: StandardEntry, date_format: str = "", text: str | None = None)
     return f'<p class="markus-byline">{" · ".join(parts)}</p>' if parts else ""
 
 
+def translation_notice(strings, original: dict) -> str:
+    """The line under the byline of a translated page, in the page's language from its interface strings: who translated it and a link to the original.
+    ``original`` is ``{tag, url}`` of the page it was translated from. The line is data the page is given, never part of the Story's text."""
+    from .interface_strings import ORIGINAL_PLACEHOLDER, TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY
+
+    before, found, after = strings[TRANSLATION_LABEL_KEY].partition(ORIGINAL_PLACEHOLDER)
+    if not found:
+        raise ValueError(f"{TRANSLATION_LABEL_KEY} must contain {ORIGINAL_PLACEHOLDER}, where the link to the original goes.")
+    link = f'<a href="{esc(original["url"])}" hreflang="{esc(original["tag"])}">{esc(strings[TRANSLATION_ORIGINAL_KEY])}</a>'
+    return f'<p class="markus-translation">{esc(before)}{link}{esc(after)}</p>'
+
+
 def _same_route(href: str, current: str) -> bool:
     return href.rstrip("/") == current.rstrip("/") or (href in ("/", "") and current in ("/", ""))
 

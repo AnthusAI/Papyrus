@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping
 
+from papyrus_content.item_language import localization_original
 from papyrus_content.publishing import PUBLISHED_ID_PREFIX
 
 from .compose import IssueSource, content_hash, one_line, render
@@ -180,6 +181,8 @@ def raise_alerts(service: IssueService, event: Mapping[str, Any]) -> dict[str, A
         return {"status": "ignored", "reason": "not_published"}
     if row.get("type") in issue_types(service.settings):
         return {"status": "ignored", "reason": "issue_type"}
+    if localization_original(row) is not None:
+        return {"status": "ignored", "reason": "translation"}   # a translation is no new Story: the subscribers were told when the original published
     summary = PublishedItemSummary(row, service.settings)
     created: list[dict[str, Any]] = []
     failure: Exception | None = None

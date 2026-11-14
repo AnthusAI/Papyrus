@@ -119,6 +119,9 @@ class StandardPage:
     primary_language: str = ""
     alternates: tuple[Mapping[str, str], ...] = ()
     link_map: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
+    #: Item pages of a translation: the original it was translated from (``{tag, name, url}``), else None. Core places the AI-translation line from it
+    #: (``components.translation_notice``); a site that composes its own body places the same line.
+    translation: Mapping[str, str] | None = None
     components = components
 
     def ranked(self, entries, bucket: str | None = None) -> list[StandardEntry]:

@@ -104,6 +104,11 @@ def step_no_fixtures(context):
     context.fixture_root_active = False
 
 
+@given("the operator lane is named on purpose with PAPYRUS_GRAPHQL_AUTH=iam")
+def step_operator_lane_named(context):
+    os.environ["PAPYRUS_GRAPHQL_AUTH"] = "iam"   # restored after the scenario (features_backend/environment.py)
+
+
 @given("no AWS credentials are available")
 def step_no_aws_credentials(context):
     context.no_aws_credentials = True

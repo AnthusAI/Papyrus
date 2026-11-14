@@ -52,6 +52,7 @@ class PageHead:
     language: str = ""
     alternates: tuple[tuple[str, str], ...] = ()
     x_default: str = ""
+    translation_of: tuple[str, str] | None = None   # a translation: ``(absolute URL, tag)`` of the original it was translated from (JSON-LD translationOfWork)
 
 
 def og_locale(tag: str) -> str:
@@ -200,6 +201,8 @@ class HeadBuilder:
             data["isBasedOn"] = page.based_on
         if page.language:
             data["inLanguage"] = page.language
+        if page.translation_of:
+            data["translationOfWork"] = {"@type": page.json_ld_type, "url": page.translation_of[0], "inLanguage": page.translation_of[1]}
         return data
 
     def _breadcrumb_json_ld(self, crumbs) -> dict:

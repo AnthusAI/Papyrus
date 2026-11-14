@@ -17,6 +17,7 @@ import json
 from typing import Any
 
 from ..item_language import localization_lineage_id
+from ..localization_publish import hold_request_id
 from ..publishing import utc_now_iso
 from ..record_helpers import compact_dict, to_aws_json
 from .engine import AlignedBlock, LocalizeRequest, SourceVersion, stage_key
@@ -27,6 +28,7 @@ STAGE_ROLE = "localize_stage"
 PROVENANCE_ROLE = "localization_provenance"
 ADVICE_KEY = "translationAdvice"
 RAISED_BY = "papyrus.story.localize"
+
 
 
 class NothingToDo(Exception):
@@ -134,6 +136,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     from ..editorial_model_context import editing_pack_and_context
     from ..guidelines import GuidelineStore
     from ..guidelines.layering import resolve_guidelines
+    from ..language_serving import serving_languages
     from ..story_reporting import published_story_version
     from ..translation_glossary import resolve_glossary
     from .budget import predict
@@ -170,6 +173,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     characters = sum(len(block.text) for block in blocks_of(source.body, title=source.title, deck=source.deck) if block.translated)
     return LocalizeRequest(
         source=source, language=target, localization_lineage=lineage, run_key=key, glossary=glossary, checker=checker,
+        slug_policy=serving_languages(settings).slugs[target],
         register_notes=register_notes(resolve_guidelines(guidelines, "writing", source.section, target)),
         previous=previous, previous_source_hash=_metadata(current).get("localization", {}).get("sourceContentHash") if current else None,
         prediction=predict(target, characters, spend_history(client, PROCEDURE_KEY)), ceiling_usd=ceiling_usd,
@@ -193,12 +197,24 @@ def _front_matter(primary: dict[str, Any], title: str, deck: str) -> str | None:
     return yaml.safe_dump(loaded, allow_unicode=True, sort_keys=False)
 
 
+def _first_slug(client, request: LocalizeRequest, primary: dict[str, Any], title: str) -> str:
+    """The localization's own address, drafted once at its first version by the language's slug policy, unique among the Stories of its language in the
+    section. Every later version keeps it (the slug lock); ``papyrus stories set-slug`` changes it before the first publish."""
+    from ..language_serving import localized_slug, unique_slug
+
+    def taken(slug: str) -> bool:
+        return any((row.get("lineageId") or row["id"]) != request.localization_lineage and row.get("language") == request.language
+                   and row.get("section") == primary.get("section") for row in client.list_by_index("itemBySlug", slug))
+
+    return unique_slug(localized_slug(title, request.slug_policy, primary_slug=primary["slug"]), taken)
+
+
 def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str | None = None) -> dict[str, Any]:
     """Records the translation as the next version of the localization lineage (version 1 the first time) and its provenance. Unpublished,
     no board stage, author AI. Refuses when a newer source was translated meanwhile (an older run never replaces newer work)."""
     from ..model_attachments import build_json_model_payload_attachment, upload_attachment_body
     from ..publishing import ItemFields, _derive_or_raise, _source_content_hash, _status_keys, _without_server_fields
-    from ..story_reporting import next_version_record_id, story_versions, superseding_update
+    from ..story_reporting import _carry_media_forward, next_version_record_id, story_versions, superseding_update
 
     now = now or utc_now_iso()
     primary = client.get_record("Item", request.source.version_id)
@@ -209,7 +225,8 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
                          f"this run translated version {request.source.version_number} and saves nothing.")
     translation = outcome["translation"]
     front_matter = _front_matter(primary, translation["title"], translation["deck"])
-    fields = ItemFields(type=primary["type"], slug=primary["slug"], section=primary.get("section"), front_matter_yaml=front_matter,
+    slug = latest["slug"] if latest is not None else _first_slug(client, request, primary, translation["title"])
+    fields = ItemFields(type=primary["type"], slug=slug, section=primary.get("section"), front_matter_yaml=front_matter,
                         body_markus=translation["body"], aliases=[])
     envelope = _derive_or_raise(front_matter, translation["body"])
     number = (max(int(row.get("versionNumber") or 0) for row in versions) + 1) if versions else 1
@@ -223,7 +240,7 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
                             "scheduleState", "scheduleName", "tenantSlug", "shortSlug")}
     record = {
         **base,
-        "id": record_id, "lineageId": request.localization_lineage, "versionNumber": number,
+        "id": record_id, "lineageId": request.localization_lineage, "versionNumber": number, "slug": slug, "aliases": [],
         "previousVersionId": latest["id"] if latest else None, "versionState": "current", "versionCreatedAt": now, "versionCreatedBy": ACTOR,
         "changeReason": f"translation of version {request.source.version_number} into {request.language}",
         "stage": None, "headStageKey": None, "status": "draft", **_status_keys(fields.type, fields.section, "draft"),
@@ -235,6 +252,7 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
         "sourceVersionNumber": request.source.version_number, "sourceContentHash": request.source.content_hash, "syncState": "current",
     }
     client.create_record("Item", compact_dict(record))
+    _carry_media_forward(client, record_id, envelope, front_matter, [primary])   # the pictures are the original's: a translation is published with them (publish checks each)
     alignment = [{**entry, "text": text} for entry, text in zip(outcome["provenance"]["alignment"], outcome["translation"]["blocks"])]
     provenance = {**outcome["provenance"], "alignment": alignment, "target": {**outcome["provenance"]["target"], "versionId": record_id}}
     entry = build_json_model_payload_attachment({"ownerKind": "item", "ownerId": record_id, "ownerLineageId": request.localization_lineage,
@@ -264,7 +282,7 @@ def hold(client, request: LocalizeRequest, reason: str) -> dict[str, Any]:
 
     return raise_review(client, subject={"type": "story", "id": request.localization_lineage}, mode="flag",
                         reason=f"The {request.language} translation is held: {reason}"[:1900], raised_by=RAISED_BY,
-                        request_id=f"localize-{request.run_key[:24]}")
+                        request_id=hold_request_id(request.run_key))
 
 
 def stage_store_for(client, request: LocalizeRequest) -> AttachmentStageStore:

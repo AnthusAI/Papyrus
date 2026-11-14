@@ -336,6 +336,7 @@ for (const name of [
 assert.equal(variables.KEY_PARAMETER, "/papyrus/example/newsletter-key");
 assert.equal(variables.CONFIGURATION_SET, "papyrus-example");
 assert.equal(variables.PAPYRUS_GRAPHQL_ENDPOINT, "https://x.test/graphql");
+assert.equal(variables.PAPYRUS_GRAPHQL_AUTH, "iam", "the function calls the site API as itself, so it names the operator lane with the endpoint");
 assert.match(JSON.stringify(variables.FUNCTION_ARN), /:function:papyrus-newsletter-example/, "the schedules target the function by its fixed name");
 
 // Only the CMS compute role may invoke it directly; SNS (the SES event topic and the alarm topic) may invoke it from those topics only.

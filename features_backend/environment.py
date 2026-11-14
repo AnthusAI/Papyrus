@@ -4,6 +4,7 @@ import importlib.util
 import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 REQUIRES_CYCLOTRON_TAG = "requires-cyclotron"
@@ -46,7 +47,29 @@ def _check_head_stage_keys(scenario) -> None:
         raise AssertionError("head stage key invariant broken in '" + scenario.name + "':\n  " + "\n  ".join(problems))
 
 
+# Variables that choose a GraphQL lane or a signed-in site. A developer's machine often has a real `papyrus login` session in
+# ~/.config/papyrus and a lane in the shell; CI has neither. Every scenario starts like CI: signed out, in an empty sign-in
+# directory, with no lane named (the signed-in lane is the default). A scenario that wants a lane or a session sets it (PPY-5f119a).
+SIGN_IN_ENVIRONMENT = ("PAPYRUS_GRAPHQL_AUTH", "PAPYRUS_CLI_AUTH_CONFIG", "PAPYRUS_SITE", "PAPYRUS_CLI_STATE_DIR")
+
+
+def _start_signed_out(context):
+    context.sign_in_saved = {name: os.environ.pop(name, None) for name in SIGN_IN_ENVIRONMENT}
+    context.sign_in_state_dir = tempfile.mkdtemp(prefix="papyrus-behave-state-")
+    os.environ["PAPYRUS_CLI_STATE_DIR"] = context.sign_in_state_dir
+
+
+def _restore_sign_in(context):
+    shutil.rmtree(getattr(context, "sign_in_state_dir", ""), ignore_errors=True)
+    for name, value in getattr(context, "sign_in_saved", {}).items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
 def before_scenario(context, scenario):
+    _start_signed_out(context)
     for module in _fake_client_modules():
         module.INSTANCES.clear()
     from papyrus_content import cli_user_auth
@@ -108,3 +131,4 @@ def _after_scenario_cleanup(context, scenario, mock):
             context.graphql_stub_endpoint = None
         os.environ.clear()
         os.environ.update(context.env)
+    _restore_sign_in(context)

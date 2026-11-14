@@ -2,6 +2,7 @@ import { secret } from "@aws-amplify/backend";
 import { Stack } from "aws-cdk-lib";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
+import { connectToSiteApi } from "../../site-api-access";
 
 /** The model operations the function performs with its own role. The two context reads are its least-privilege access to private policy. */
 export const EDITORIAL_CHECKS_FUNCTION_FIELDS = [
@@ -45,7 +46,7 @@ export function editorialChecksSecretParameters(region: string, account: string,
 export function wireEditorialChecks(backend: any): void {
   const lambda = backend.editorialChecks.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
-  lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
+  connectToSiteApi(lambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
   for (const name of EDITORIAL_CHECKS_SECRETS) backend.editorialChecks.addEnvironment(name, secret(name));
   lambda.addToRolePolicy(
     new PolicyStatement({

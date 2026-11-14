@@ -74,8 +74,9 @@ def byline_markdown(authors, origin: str | None = None) -> str:
     return ", ".join(names)
 
 
-def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None, byline: str | None = None) -> str:
-    """``byline`` is a site hook's complete byline text; it replaces the "By <authors>" line. ``None`` means no hook (the authors are shown); an empty string means the hook says there is no byline."""
+def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None, byline: str | None = None,
+                  translation: tuple[str, str] | None = None) -> str:
+    """``translation`` is ``(language tag, URL of the original)`` of a translated page: the twin says so for agents. ``byline`` is a site hook's complete byline text; it replaces the "By <authors>" line. ``None`` means no hook (the authors are shown); an empty string means the hook says there is no byline."""
     body = drop_machine_credits(body_of(source_text))
     lines = []
     if not _opens_with_heading(body):
@@ -90,6 +91,8 @@ def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[s
         facts.append(f"Published {entry.date}")
     if entry.updated and entry.updated != entry.date:
         facts.append(f"Updated {entry.updated}")
+    if translation is not None:
+        facts += [f"Language: {translation[0]}", "Translation: machine", f"Translated from: {translation[1]}"]
     if entry.summary_text:
         lines += [f"> {entry.summary_text}", ""]
     if facts:

@@ -13,7 +13,9 @@ always has its translation:
 * ``listing.pageSuffix``: what follows the title of page 2 and later of a listing, with ``{page}`` (`` — página {page}``);
 * ``section.<name>.label`` and, when set, ``section.<name>.description``, for every section with a listing page;
 * ``nav.<href>.label`` for every navigation link the edition keeps (home and section listings);
-* ``footer.text`` when the site sets ``footer.text``.
+* ``footer.text`` when the site sets ``footer.text``;
+* ``translation.label`` and ``translation.original``: the line every translated page carries ("Traducido por IA del {original}", with ``{original}`` the
+  link to the original, whose words are ``translation.original``: "original en inglés").
 
 :func:`missing_keys` is the check: a public language whose file lacks a key the rule requires is refused by the projection, naming the language and the
 keys, so English words never appear on a Spanish page because a translation was forgotten.
@@ -27,6 +29,10 @@ from pathlib import Path
 
 STRINGS_DIRECTORY = "strings"
 LANGUAGE_NAME_KEY = "language.name"
+TRANSLATION_LABEL_KEY = "translation.label"
+TRANSLATION_ORIGINAL_KEY = "translation.original"
+#: Where ``translation.label`` places the link to the original.
+ORIGINAL_PLACEHOLDER = "{original}"
 
 
 class InterfaceStringsIncomplete(ValueError):
@@ -49,7 +55,7 @@ def read_interface_strings(static_directory: Path | None) -> dict[str, dict[str,
 
 def required_keys(standard, primary_strings: Mapping[str, str], edition_nav_hrefs: tuple[str, ...]) -> tuple[str, ...]:
     """Every key a language edition needs: the standard front end's own (from the settings) and every key of the primary language's file."""
-    keys = [LANGUAGE_NAME_KEY, "home.label", "listing.pageSuffix"]
+    keys = [LANGUAGE_NAME_KEY, "home.label", "listing.pageSuffix", TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY]
     if standard.identity.description:
         keys.append("site.description")
     if standard.identity.tagline:
@@ -67,4 +73,9 @@ def required_keys(standard, primary_strings: Mapping[str, str], edition_nav_href
 
 
 def missing_keys(strings: Mapping[str, str], required: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(key for key in required if not (strings.get(key) or "").strip())
+    """The required keys a language's strings lack or leave empty, and a ``translation.label`` with no place for the link to the original."""
+    missing = [key for key in required if not (strings.get(key) or "").strip()]
+    label = strings.get(TRANSLATION_LABEL_KEY) or ""
+    if TRANSLATION_LABEL_KEY in required and label.strip() and ORIGINAL_PLACEHOLDER not in label:
+        missing.append(f"{TRANSLATION_LABEL_KEY} (it must contain {ORIGINAL_PLACEHOLDER})")
+    return tuple(missing)

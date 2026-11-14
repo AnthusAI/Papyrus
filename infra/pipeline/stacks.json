@@ -36,6 +36,30 @@
         { "parameter": "OperatorCodeKey", "script": "infra/monitoring/build.py", "args": ["--operator"] }
       ],
       "keepPrevious": true
+    },
+    {
+      "name": "papyrus-shared-staging-foundation",
+      "group": "shared",
+      "hold": "PPY-daf673: the first create of a shared stack waits for Ryan's go (docs/shared-stack.md lists what to say go to). Taking this line out is the go.",
+      "template": "infra/shared-stack/papyrus-shared-foundation.yaml",
+      "paths": ["infra/shared-stack/", "infra/pipeline/stacks.json", "infra/pipeline/allowed-changes.json", "infra/pipeline/papyrus-stack-pipeline.yaml"],
+      "capabilities": ["CAPABILITY_NAMED_IAM"],
+      "serviceRoleName": "papyrus-shared-deploy-cloudformation",
+      "tags": { "anthus:account": "shared", "anthus:app": "papyrus", "anthus:deployment": "shared-staging", "anthus:cost-key": "shared/papyrus/shared-staging" },
+      "parameters": { "Tier": "staging", "MonthlyBudgetUsd": "100" },
+      "keepPrevious": false
+    },
+    {
+      "name": "papyrus-shared-prod-foundation",
+      "group": "shared",
+      "hold": "PPY-daf673: the first create of a shared stack waits for Ryan's go (docs/shared-stack.md lists what to say go to). Taking this line out is the go.",
+      "template": "infra/shared-stack/papyrus-shared-foundation.yaml",
+      "paths": ["infra/shared-stack/", "infra/pipeline/stacks.json", "infra/pipeline/allowed-changes.json", "infra/pipeline/papyrus-stack-pipeline.yaml"],
+      "capabilities": ["CAPABILITY_NAMED_IAM"],
+      "serviceRoleName": "papyrus-shared-deploy-cloudformation",
+      "tags": { "anthus:account": "shared", "anthus:app": "papyrus", "anthus:deployment": "shared-prod", "anthus:cost-key": "shared/papyrus/shared-prod" },
+      "parameters": { "Tier": "production", "MonthlyBudgetUsd": "500" },
+      "keepPrevious": false
     }
   ]
 }

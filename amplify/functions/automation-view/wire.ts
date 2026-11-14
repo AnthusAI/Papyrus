@@ -7,6 +7,7 @@ import {
   monitoringViewParameterArn,
   monitoringViewTableArns,
 } from "../monitoring-view/wire";
+import { connectToSiteApi } from "../../site-api-access";
 
 /** The reads the function makes of its own site's API with its own role. It writes nothing there. */
 export const AUTOMATION_VIEW_FUNCTION_FIELDS = [
@@ -33,7 +34,7 @@ export const AUTOMATION_RUN_NOW_LEADING_KEYS = ["MONITOR#*"];
 export function wireAutomationView(backend: any): void {
   const lambda = backend.automationView.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
-  lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
+  connectToSiteApi(lambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
   lambda.addEnvironment("PAPYRUS_MONITORING_TABLE_PARAMETER", MONITORING_TABLE_PARAMETER);
   lambda.addEnvironment("PROCEDURE_RUNNER_FUNCTION", PROCEDURE_RUNNER_FUNCTION_NAME);
   const apiId = backend.data.resources.graphqlApi.apiId as string;

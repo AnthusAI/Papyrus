@@ -10,9 +10,25 @@
   "parent": "PPY-de11ec53-e594-4e18-a016-95c436aacfcb",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f075ae31-9b1d-4ee6-a898-8c62aad7f554",
+      "author": "home",
+      "text": "User reviewed the architectural plan, briefly approved implementation, then requested that implementation stop and planning be filed/pushed for a Mac agent. No production code changed. Full plan: docs/chatticus-chat-integration-plan.md; five checked Archify illustrations: docs/architecture/chatticus-chat/. Resume instructions: docs/architecture/chatticus-chat/handoff.md.\n\nClarification: current Chatticus uses TypeScript Pi Durable 1.0.2; no Python package was identified. UI/client extraction does not depend on a Python migration. Later shared-server extraction should reuse the existing TypeScript implementation, with an explicit Papyrus backend-hosting/policy decision. Earlier PyAgents/PyDurable wording should not cause a new Python chat engine to be built.\n\nChatticus planning branch: docs/chatticus-080b0e-papyrus-chat-handoff (chatticus-abde29 / chatticus-080b0e). Papyrus branch: docs/PPY-eeb023-chatticus-chat-plan. Keep all implementation records open. No package publication, merge, deployment or security-access change is authorized by this handoff. Coordinate with the other task owning loading states, Notification Center focus/removal of Go to, and mobile navigation alignment; the chat slice owns shared packages and the console adapter.",
+      "created_at": "2026-10-23T18:37:52.516474Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Papyrus chat planning handoff",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ],
   "created_at": "2026-10-21T12:14:25.387319Z",
-  "updated_at": "2026-10-21T12:14:25.387347Z",
+  "updated_at": "2026-10-23T18:37:52.516497Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
