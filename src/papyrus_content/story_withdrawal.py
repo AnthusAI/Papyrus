@@ -20,6 +20,7 @@ from .edge_invalidation import invalidation_cost_note
 from .page_refresh.budget import DRY_RUN_ABOVE
 from .publishing import PublishError, publish_item, unpublish_item, utc_now_iso
 from .record_helpers import to_aws_json
+from .content_item_lifecycle import head_stage_fields
 from .story_reporting import MAX_STAGE_MOVES, STAGE_MOVES_KEY, current_story_version, published_story_version, story_versions
 
 WITHDRAWAL_KEY = "withdrawal"
@@ -103,7 +104,8 @@ def _write_stage(client, row: dict, stage: str, *, previous: str, actor: str, re
     moves = [move for move in metadata.get(STAGE_MOVES_KEY) or [] if isinstance(move, dict)]
     moves.append({"at": now, "from": previous, "to": stage, "by": actor, "reason": reason})
     metadata[STAGE_MOVES_KEY] = moves[-MAX_STAGE_MOVES:]
-    client.update_record("Item", {"id": row["id"], "stage": stage, "updatedAt": now, "metadata": to_aws_json(metadata)})
+    # headStageKey follows the stage on the head row only (docs/plans/story-head-stage-index.md); a superseded row stays out of the index.
+    client.update_record("Item", {"id": row["id"], "stage": stage, **head_stage_fields({**stored, "stage": stage}), "updatedAt": now, "metadata": to_aws_json(metadata)})
 
 
 def _sync_checklist(client, lineage_id: str) -> None:
