@@ -1698,6 +1698,23 @@ const schema = a.schema({
       allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
     ]),
 
+  /**
+   * The site a person's session acts for; id = the person's Cognito sub. The Google sign-in flow cannot tell the token trigger
+   * which site was chosen, so the choice is stored here and the trigger reads it (PPY-0bb0fd). A person writes only their
+   * own row (the owner is the id itself, so nobody can write another person's), and a selection without an active
+   * TenantMembership grants nothing. Group "tenancy".
+   */
+  TenantSelection: a
+    .model({
+      id: a.id().required(),
+      selectedTenantId: a.string().required(),
+      selectedAt: a.datetime().required(),
+    })
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("id").identityClaim("sub").to(["create", "read", "update"]),
+    ]),
+
   /** A hostname served for a tenant; id = the lowercase hostname, so it can belong to one tenant only (PPY-31c45c). Group "tenancy". */
   TenantDomain: a
     .model({
