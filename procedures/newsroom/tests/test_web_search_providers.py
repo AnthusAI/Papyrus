@@ -12,11 +12,11 @@ class WebSearchProvidersTests(unittest.TestCase):
             self.assertEqual(web_search_providers.normalize_web_search_provider(None), "tavily")
 
     def test_normalize_respects_env_override(self):
-        with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDER": "openai"}, clear=False):
+        with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDERS": "openai"}, clear=False):
             self.assertEqual(web_search_providers.normalize_web_search_provider(None), "openai")
 
     def test_normalize_explicit_provider_wins(self):
-        with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDER": "openai"}, clear=False):
+        with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDERS": "openai"}, clear=False):
             self.assertEqual(web_search_providers.normalize_web_search_provider("tavily"), "tavily")
 
     @mock.patch("urllib.request.urlopen")
@@ -35,7 +35,7 @@ class WebSearchProvidersTests(unittest.TestCase):
             "response_time": 1.2,
         }).encode("utf-8")
         urlopen.return_value.__enter__.return_value.read.return_value = response_body
-        with mock.patch.dict(os.environ, {"TAVILY_API_KEY": "tvly-test", "WEB_SEARCH_PROVIDER": "tavily"}, clear=False):
+        with mock.patch.dict(os.environ, {"TAVILY_API_KEY": "tvly-test", "WEB_SEARCH_PROVIDERS": "tavily"}, clear=False):
             payload = web_search_providers.reference_web_search(query="ancient language ai decipherment", max_results=5)
 
         self.assertEqual(payload["query"], "ancient language ai decipherment")
@@ -72,7 +72,7 @@ class WebSearchProvidersTests(unittest.TestCase):
         urlopen.return_value.__enter__.return_value.read.return_value = response_body
         with mock.patch.dict(
             os.environ,
-            {"OPENAI_API_KEY": "sk-test", "WEB_SEARCH_PROVIDER": "openai"},
+            {"OPENAI_API_KEY": "sk-test", "WEB_SEARCH_PROVIDERS": "openai"},
             clear=False,
         ):
             payload = web_search_providers.reference_web_search(
@@ -87,7 +87,7 @@ class WebSearchProvidersTests(unittest.TestCase):
         self.assertEqual(request.get_full_url(), "https://api.openai.com/v1/responses")
 
     def test_normalize_reads_the_first_name_of_the_chain(self):
-        with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDERS": "perplexity,tavily", "WEB_SEARCH_PROVIDER": "openai"}, clear=True):
+        with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDERS": "perplexity,tavily"}, clear=True):
             self.assertEqual(web_search_providers.normalize_web_search_provider(None), "perplexity")
             self.assertEqual(web_search_providers.web_search_chain_names(None), ["perplexity", "tavily"])
             self.assertEqual(web_search_providers.web_search_chain_names("gemini"), ["gemini"])
@@ -109,7 +109,7 @@ class WebSearchProvidersTests(unittest.TestCase):
         self.assertEqual([s["message"] for s in payload["metadata"]["web_search_skipped"]], ["tavily: plan exhausted (432)"])
 
     def test_tavily_requires_api_key(self):
-        with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDER": "tavily"}, clear=True):
+        with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDERS": "tavily"}, clear=True):
             os.environ.pop("TAVILY_API_KEY", None)
             with self.assertRaisesRegex(RuntimeError, "TAVILY_API_KEY"):
                 web_search_providers.reference_web_search(query="test query")
@@ -131,7 +131,7 @@ class WebSearchProvidersTests(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get("TAVILY_LIVE_TEST") == "1", "set TAVILY_LIVE_TEST=1 to hit api.tavily.com")
     def test_tavily_live_search(self):
-        with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDER": "tavily"}, clear=False):
+        with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDERS": "tavily"}, clear=False):
             payload = web_search_providers.reference_web_search(
                 query="mechatronics artificial intelligence robotics",
                 max_results=3,

@@ -4,6 +4,8 @@
  * a publication overrides them with SiteBrand.contentItemStages.
  * See docs/content-item-lifecycle.md.
  */
+import type { ScheduleFields } from "./story-schedule";
+
 export type ContentItemStageDefinition = {
   key: string;
   label: string;
@@ -96,7 +98,7 @@ export function contentItemStageLabel(
   return stageDefinitions.find(definition => definition.key === stage)?.label ?? stage;
 }
 
-export type ContentItemVersionRecord = {
+export type ContentItemVersionRecord = ScheduleFields & {
   id: string;
   lineageId: string;
   versionNumber: number;

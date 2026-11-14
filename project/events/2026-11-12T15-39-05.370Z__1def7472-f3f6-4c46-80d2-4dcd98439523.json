@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1def7472-f3f6-4c46-80d2-4dcd98439523",
+  "issue_id": "PPY-1e2f29be-cbd1-421b-9acf-37105ceaaa84",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T15:39:05.370Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Spike: block alignment and human-edit pinning without Markus block IDs",
+    "description": "Pure Python on fixtures, no deploy. Split a Markus body into blocks, align source blocks to target blocks by hash and position, pin blocks a person edited, then re-derive after source edits: paragraph added, removed, reordered, rewritten, split, merged. Report where alignment fails and whether stable Markus block identifiers are needed after all. Include Spanish, Chinese and Arabic fixtures. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+    "labels": []
+  }
+}

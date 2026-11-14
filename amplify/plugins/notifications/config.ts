@@ -45,6 +45,10 @@ export type NotificationsConfig = {
   fromName: string;
   theme: NotificationsTheme;
   lists: NotificationsList[];
+  /** The sentence the subscribe form shows. A signup must carry exactly this wording; Caducus stores its hash as consent evidence. */
+  consent: string;
+  /** How long a stranger's address is held unconfirmed and the confirmation link works, in hours (default 72, the newsletter's promise). */
+  confirmWindowHours: number;
   itemUrlStyle: ItemUrlStyle;
   /** `papyrus-<siteId>` unless overridden: the sending stack's configuration set, shared with the newsletter. */
   configurationSet: string;
@@ -52,7 +56,7 @@ export type NotificationsConfig = {
 
 const KNOWN_KEYS = [
   "name", "siteId", "siteOrigin", "basePath", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "theme", "lists",
-  "itemUrlStyle", "configurationSet",
+  "itemUrlStyle", "configurationSet", "consent", "confirmWindowHours",
 ];
 const LIST_KEYS = ["id", "name", "description", "rule", "approval"];
 
@@ -84,6 +88,13 @@ function resolveList(raw: unknown, index: number): NotificationsList {
   };
 }
 
+/** A whole, positive number of hours. 72 by default: how long the newsletter has always told readers a link works. */
+function confirmWindowHours(raw: unknown): number {
+  if (raw === undefined) return 72;
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 1) fail("confirmWindowHours must be a whole number of hours, at least 1");
+  return raw;
+}
+
 export function resolveNotificationsConfig(request: PluginRequest): NotificationsConfig {
   return inThisPlugin(() => {
     const raw = record(typeof request === "string" ? { name: request } : request, "settings", KNOWN_KEYS);
@@ -112,6 +123,8 @@ export function resolveNotificationsConfig(request: PluginRequest): Notification
       fromName: text(raw.fromName, "fromName", 80),
       theme: resolveTheme(raw.theme),
       lists,
+      consent: text(raw.consent, "consent", 500),
+      confirmWindowHours: confirmWindowHours(raw.confirmWindowHours),
       itemUrlStyle: itemUrlStyle(raw.itemUrlStyle),
       configurationSet: matching(raw.configurationSet, "configurationSet", SES_NAME, "an SES configuration set name", `papyrus-${siteId}`),
     };

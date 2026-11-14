@@ -1,0 +1,348 @@
+{
+  "description": "Shared by src/papyrus_content/tenant_context_test.py and scripts/test-tenant-context.ts. tenantEnv is the fixed site tenant of a dedicated stack.",
+  "cases": [
+    {
+      "name": "member claims give one tenant and its roles",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_member": "alpha"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "tenantId": "alpha",
+        "roles": [
+          "member"
+        ],
+        "mode": "shared",
+        "operator": false
+      }
+    },
+    {
+      "name": "admin and editor claims for one tenant list both roles in fixed order",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_editor": "alpha",
+          "papyrus_tenant_admin": "alpha"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "tenantId": "alpha",
+        "roles": [
+          "admin",
+          "editor"
+        ],
+        "mode": "shared",
+        "operator": false
+      }
+    },
+    {
+      "name": "claims naming two tenants are refused",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_admin": "alpha",
+          "papyrus_tenant_member": "beta"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "multiple_tenants"
+      }
+    },
+    {
+      "name": "user without a tenant claim is refused on shared",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "claims": {
+          "sub": "u1"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "no_tenant_claim"
+      }
+    },
+    {
+      "name": "empty claim counts as absent",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_member": ""
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "no_tenant_claim"
+      }
+    },
+    {
+      "name": "invalid tenant claim is refused",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_member": "Not Valid"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "invalid_tenant"
+      }
+    },
+    {
+      "name": "non-string claim is refused",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_member": [
+            "alpha"
+          ]
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "invalid_tenant"
+      }
+    },
+    {
+      "name": "IAM without a tenant is refused on shared",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "accountId": "000000000000",
+        "userArn": "arn:aws:iam::000000000000:role/op"
+      },
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "iam_without_tenant"
+      }
+    },
+    {
+      "name": "IAM with a tenant gets that tenant as operator on shared",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "accountId": "000000000000",
+        "userArn": "arn:aws:iam::000000000000:role/op"
+      },
+      "explicitTenant": "alpha",
+      "expect": {
+        "tenantId": "alpha",
+        "roles": [],
+        "mode": "shared",
+        "operator": true
+      }
+    },
+    {
+      "name": "IAM with an invalid tenant is refused",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "accountId": "000000000000",
+        "userArn": "arn:aws:iam::000000000000:role/op"
+      },
+      "explicitTenant": "Bad Tenant",
+      "expect": {
+        "refusal": "invalid_tenant"
+      }
+    },
+    {
+      "name": "user with an explicit tenant argument is refused",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_member": "alpha"
+        }
+      },
+      "explicitTenant": "alpha",
+      "expect": {
+        "refusal": "explicit_tenant_for_user"
+      }
+    },
+    {
+      "name": "no identity is refused",
+      "mode": "shared",
+      "tenantEnv": null,
+      "identity": null,
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "unsupported_identity"
+      }
+    },
+    {
+      "name": "identity of neither kind is refused",
+      "mode": "dedicated",
+      "tenantEnv": null,
+      "identity": {
+        "sub": "x"
+      },
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "unsupported_identity"
+      }
+    },
+    {
+      "name": "dedicated stack returns the fixed tenant for matching claims",
+      "mode": "dedicated",
+      "tenantEnv": "alpha",
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_editor": "alpha"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "tenantId": "alpha",
+        "roles": [
+          "editor"
+        ],
+        "mode": "dedicated",
+        "operator": false
+      }
+    },
+    {
+      "name": "dedicated stack refuses a foreign claim",
+      "mode": "dedicated",
+      "tenantEnv": "alpha",
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_editor": "beta"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "foreign_tenant"
+      }
+    },
+    {
+      "name": "dedicated stack returns the fixed tenant for a user with no claims",
+      "mode": "dedicated",
+      "tenantEnv": "alpha",
+      "identity": {
+        "claims": {
+          "sub": "u1"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "tenantId": "alpha",
+        "roles": [],
+        "mode": "dedicated",
+        "operator": false
+      }
+    },
+    {
+      "name": "dedicated stack refuses claims naming two tenants",
+      "mode": "dedicated",
+      "tenantEnv": "alpha",
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_admin": "alpha",
+          "papyrus_tenant_member": "beta"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "multiple_tenants"
+      }
+    },
+    {
+      "name": "dedicated IAM without a tenant gets the fixed tenant",
+      "mode": "dedicated",
+      "tenantEnv": "alpha",
+      "identity": {
+        "accountId": "000000000000",
+        "userArn": "arn:aws:iam::000000000000:role/op"
+      },
+      "explicitTenant": null,
+      "expect": {
+        "tenantId": "alpha",
+        "roles": [],
+        "mode": "dedicated",
+        "operator": true
+      }
+    },
+    {
+      "name": "dedicated IAM naming a foreign tenant is refused",
+      "mode": "dedicated",
+      "tenantEnv": "alpha",
+      "identity": {
+        "accountId": "000000000000",
+        "userArn": "arn:aws:iam::000000000000:role/op"
+      },
+      "explicitTenant": "beta",
+      "expect": {
+        "refusal": "foreign_tenant"
+      }
+    },
+    {
+      "name": "dedicated stack with no tenant behaves as today for a user",
+      "mode": "dedicated",
+      "tenantEnv": null,
+      "identity": {
+        "claims": {
+          "sub": "u1"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "tenantId": null,
+        "roles": [],
+        "mode": "dedicated",
+        "operator": false
+      }
+    },
+    {
+      "name": "dedicated stack with no tenant behaves as today for IAM",
+      "mode": "dedicated",
+      "tenantEnv": null,
+      "identity": {
+        "accountId": "000000000000",
+        "userArn": "arn:aws:iam::000000000000:role/op"
+      },
+      "explicitTenant": null,
+      "expect": {
+        "tenantId": null,
+        "roles": [],
+        "mode": "dedicated",
+        "operator": true
+      }
+    },
+    {
+      "name": "dedicated stack with no tenant refuses a claimed tenant",
+      "mode": "dedicated",
+      "tenantEnv": null,
+      "identity": {
+        "claims": {
+          "sub": "u1",
+          "papyrus_tenant_member": "alpha"
+        }
+      },
+      "explicitTenant": null,
+      "expect": {
+        "refusal": "foreign_tenant"
+      }
+    }
+  ]
+}

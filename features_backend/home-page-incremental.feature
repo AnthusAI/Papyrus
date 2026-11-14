@@ -23,6 +23,14 @@ Feature: One changed Reference costs a fixed number of requests, not the size of
       | 200  |
       | 5000 |
 
+  Scenario: A Reference tagged with a stored section id publishes the section's title, through the full read and the incremental update
+    A Reference stores its section as "publication#slug"; the section list the run reads hands the section back with its publication prefix removed,
+    with the stored form beside it. The title is found by the stored form, and an id that names no section publishes no section.
+    Given a corpus of 30 References whose snapshot was built by a full read
+    Then the full read published the title "Articles" for the Reference tagged with the stored section id "publication#slug"
+    When an editor tags one Reference with that stored section id and another with an id that names no section, and the run reads them again
+    Then the tagged Reference publishes the title "Articles" and the other publishes no section
+
   Scenario: Ten changes cost ten times what one costs
     Given a corpus of 1000 References whose snapshot was built by a full read
     When an editor accepts 10 References and the run reads them again

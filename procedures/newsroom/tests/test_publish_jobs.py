@@ -180,6 +180,9 @@ class AsynchronousPublishTest(LockTableCase):
     def publish(self, item_id: str = "story-1") -> dict:
         return handler.handler({"fieldName": "publishItem", "arguments": {"input": json.dumps({"id": item_id, "async": True})}, "identity": {"username": "editor"}})
 
+    def unpublish(self, item_id: str = "story-1", **arguments) -> dict:
+        return handler.handler({"fieldName": "unpublishItem", "arguments": {"input": json.dumps({"id": item_id, **arguments})}, "identity": {"username": "editor"}})
+
     def status(self, item_id: str = "story-1") -> dict:
         return handler.handler({"fieldName": "publishItem", "arguments": {"input": json.dumps({"id": item_id, "jobStatus": True})}, "identity": {"username": "editor"}})
 
@@ -193,6 +196,25 @@ class AsynchronousPublishTest(LockTableCase):
         self.assertEqual(self.projected, [])
         self.assertEqual([task["task"] for task in self.scheduled], ["item"])
         self.assertEqual(self.scheduled[0]["jobId"], answer["projection"]["jobId"])
+
+    def test_an_async_unpublish_answers_with_a_job_and_the_job_takes_the_page_down(self) -> None:
+        answer = self.unpublish(**{"async": True})
+        self.assertTrue(answer["ok"] and answer["changed"])
+        self.assertEqual(answer["projection"]["state"], QUEUED)
+        self.assertEqual(self.projected, [])   # AppSync's 30 seconds never wait for the page work (PPY-f171b4)
+        self.assertEqual([(task["task"], task["unpublished"]) for task in self.scheduled], [("item", True)])
+        self.assertEqual(self.client.get_record("PublishedItem", "published-story-1"), None)
+        self.assertEqual(self.status()["projection"]["state"], QUEUED)
+        self.assertTrue(handler.run_projection_task(self.scheduled[0])["ok"])
+        status = self.status()["projection"]
+        self.assertEqual((status["state"], status["jobId"]), (DONE, answer["projection"]["jobId"]))
+        self.assertEqual(status["paths"], ["story-1/index.html"])
+
+    def test_an_unpublish_without_async_still_builds_while_the_call_waits(self) -> None:
+        answer = self.unpublish()
+        self.assertTrue(answer["projected"])
+        self.assertEqual(self.projected, ["story-1"])
+        self.assertEqual(self.scheduled, [])
 
     def test_publishing_the_same_story_again_joins_the_build_instead_of_starting_another(self) -> None:
         first = self.publish()
@@ -265,7 +287,8 @@ class ScriptedClient:
 
     def graphql(self, query: str, variables: dict) -> dict:
         self.inputs.append(json.loads(variables["input"]))
-        return {"publishItem": json.dumps(self.answers.pop(0) if len(self.answers) > 1 else self.answers[0])}
+        answer = json.dumps(self.answers.pop(0) if len(self.answers) > 1 else self.answers[0])
+        return {"publishItem": answer, "unpublishItem": answer}
 
 
 class FakeTime:
@@ -282,12 +305,12 @@ class FakeTime:
 class CliWaitsForTheJobTest(unittest.TestCase):
     """The signed-in CLI asks for a background build and then asks about it, in short calls, so AppSync's 30 seconds never cut it off."""
 
-    def trigger(self, answers: list[dict], timeout: str = "60"):
+    def trigger(self, answers: list[dict], timeout: str = "60", *, unpublished: bool = False):
         from papyrus_content.projection_trigger import item_task, trigger_projection_as_user
 
         client, clock = ScriptedClient(answers), FakeTime()
         with mock.patch.dict("os.environ", {"PAPYRUS_PROJECTION_TIMEOUT_SECONDS": timeout}):
-            outcome = trigger_projection_as_user(client, item_task("story-1", unpublished=False), sleep=clock.sleep, clock=clock.clock)
+            outcome = trigger_projection_as_user(client, item_task("story-1", unpublished=unpublished), sleep=clock.sleep, clock=clock.clock)
         return outcome, client
 
     def test_a_build_that_ends_is_reported_as_projected_with_its_pages(self) -> None:
@@ -302,6 +325,23 @@ class CliWaitsForTheJobTest(unittest.TestCase):
         self.assertEqual(outcome["status"], "projected")
         self.assertEqual(outcome["paths"], ["story-1/index.html", "index.html"])
         self.assertEqual(outcome["url"], "https://example.org/story-1/")
+
+    def test_an_unpublish_is_asked_for_in_the_background_and_followed_by_its_job(self) -> None:
+        outcome, client = self.trigger([
+            {"ok": True, "changed": True, "scheduled": True, "itemPaths": [], "projection": {"jobId": "job-1", "state": "queued", "joined": False}},
+            {"ok": True, "projection": {"jobId": "job-1", "state": "running"}},
+            {"ok": True, "projection": {"jobId": "job-1", "state": "done", "paths": ["story-1/index.html", "_papyrus/retired.json"]}},
+        ], unpublished=True)
+        self.assertEqual(client.inputs[0], {"id": "story-1", "async": True})
+        self.assertEqual(client.inputs[1], {"id": "story-1", "jobStatus": True})
+        self.assertTrue(outcome["ok"])
+        self.assertEqual(outcome["paths"], ["story-1/index.html", "_papyrus/retired.json"])
+
+    def test_an_unpublish_still_going_when_the_wait_ends_is_still_running_not_failed(self) -> None:
+        outcome, _client = self.trigger([{"ok": True, "projection": {"jobId": "job-1", "state": "running"}}], timeout="10", unpublished=True)
+        self.assertIsNone(outcome["ok"])
+        self.assertEqual(outcome["status"], "still-running")
+        self.assertIn("papyrus ops content unpublish --id story-1", outcome["retry"])
 
     def test_a_build_still_going_when_the_wait_ends_is_still_running_not_failed(self) -> None:
         from papyrus_content.publish_stages import projected_stage
@@ -324,8 +364,10 @@ class CliWaitsForTheJobTest(unittest.TestCase):
         self.assertFalse(outcome["ok"])
         self.assertEqual(outcome["error"], "the page cannot be rendered")
 
-    def test_a_function_that_predates_jobs_is_answered_as_before(self) -> None:
-        outcome, client = self.trigger([{"ok": True, "projected": True, "paths": ["story-1/index.html"], "itemPaths": ["story-1/index.html"], "url": "https://example.org/story-1/"}])
-        self.assertEqual(len(client.inputs), 1)
-        self.assertTrue(outcome["ok"])
-        self.assertEqual(outcome["status"], "projected")
+    def test_a_backend_that_predates_background_builds_is_refused_with_what_to_deploy(self) -> None:
+        for unpublished in (False, True):
+            outcome, client = self.trigger([{"ok": True, "projected": True, "paths": ["story-1/index.html"], "itemPaths": ["story-1/index.html"]}], unpublished=unpublished)
+            self.assertEqual(len(client.inputs), 1)   # no waiting inside the call, no second try
+            self.assertFalse(outcome["ok"])
+            self.assertEqual(outcome["status"], "failed")
+            self.assertIn("Deploy a backend that includes PPY-f171b4", outcome["error"])

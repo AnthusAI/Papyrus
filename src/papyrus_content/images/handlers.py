@@ -143,3 +143,9 @@ HANDLERS.update(signed_in_handlers())
 from .generation_binding import signed_in_generation_handlers  # noqa: E402
 
 HANDLERS.update(signed_in_generation_handlers())
+
+
+# The announcement operations (PPY-09ee86) run on the same lane: the person's own authoring client.
+from papyrus_content.announcements.handlers import signed_in_handlers as _announcement_handlers  # noqa: E402
+
+HANDLERS.update(_announcement_handlers())

@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 import yaml
 
+from .tenant_knowledge_keys import SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
 from .env import resolve_corpora_file
 from .ids import (
     category_lineage_id_for,
@@ -970,7 +971,7 @@ def semantic_records_from_proposal(proposal: dict[str, Any], context: dict[str, 
                     "status": "accepted",
                     "importRunId": context["importRunId"],
                     "createdAt": context["now"],
-                    "newsroomFeedKey": "semanticNodes",
+                    "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
                     "updatedAt": context["now"],
                 },
                 now=context["now"],
@@ -1116,7 +1117,7 @@ def seeded_semantic_concept_node_records(context: dict[str, Any]) -> list[dict[s
                         "status": "accepted",
                         "importRunId": context["importRunId"],
                         "createdAt": context["now"],
-                        "newsroomFeedKey": "semanticNodes",
+                        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
                         "updatedAt": context["now"],
                     },
                     now=context["now"],
@@ -1228,7 +1229,7 @@ def semantic_relation_record(input_value: dict[str, Any]) -> dict[str, Any]:
         "importedAt": input_value.get("importedAt"),
         "createdAt": input_value.get("createdAt") or input_value.get("importedAt"),
         "updatedAt": input_value.get("updatedAt") or input_value.get("importedAt"),
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": json.dumps(input_value.get("metadata") or {}),
     }
     score = number_or_null(input_value.get("score"))

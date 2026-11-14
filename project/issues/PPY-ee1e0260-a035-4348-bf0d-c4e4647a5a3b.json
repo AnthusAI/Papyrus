@@ -3,7 +3,7 @@
   "title": "SiteConfig part 1: JSON schema of the shared-tier settings and the projection.json converter (Python)",
   "description": "Outcome: Write the v1 SiteConfig JSON schema (the allowed and refused settings listed in the parent task) and one converter from a site's projection.json; prove with TI's and MoM's projection.json copied as fixtures that conversion validates and renders the same pages through the existing projector. TypeScript twin is part 2. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) site-config-schema, branch feature/<this issue id>-site-config-schema from origin/develop (spikes: branch spike/<this issue id>-site-config-schema, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): new src/papyrus_content/site_config/ (schema.json, convert.py, tests), fixtures copied from the TI and MoM repositories (read-only).\n\nAcceptance (Gherkin feature file: features_backend/site-config-schema.feature):\nScenario: TI's settings convert and render the same\n    Given TI's projection.json\n    When it is converted to a SiteConfig and back\n    Then validation passes and the rendered home page is unchanged\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: poetry run pytest src/papyrus_content/site_config; poetry run behave features_backend/site-config-schema.feature.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "sub-task",
-  "status": "open",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -13,10 +13,18 @@
     "multi-tenant"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6707a462-fdb8-4ef0-b75e-4e0db83d629d",
+      "author": "home",
+      "text": "Merged to develop: AnthusAI/Papyrus#1390 (57c7b2a91, 2026-11-13). Validation uses jsonschema (now a direct dependency) instead of a hand-written validator; fixtures are fictional (harbor-ledger, meridian-field-guide); the four real sites' projection files round-tripped locally once and were not committed (they remain in the branch's earlier commits). Not released.",
+      "created_at": "2026-11-13T17:08:53.619674Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T21:32:23.144967Z",
-  "updated_at": "2026-11-08T21:32:24.558878Z",
-  "closed_at": null,
+  "updated_at": "2026-11-13T17:08:53.779911Z",
+  "closed_at": "2026-11-13T17:08:53.779864Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

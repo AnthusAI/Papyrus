@@ -23,7 +23,7 @@ from papyrus_content.images.profile_handlers import diff_profile, get_profile, i
 from papyrus_content.images.visual_style import constraint_changes, diff_documents
 
 from .derived_policies import apply_derived_plan, changed_steps, describe_plan, plan_derived_policies
-from .document import CONSTRAINTS, GuidelineError, kind_spec, validate_document
+from .document import CONSTRAINTS, GuidelineError, kind_spec, overlay_language, validate_document
 from .layering import resolve_guidelines, resolve_image_guidelines
 from .store import DocumentFiles, GuidelineStore, reference, saved_by_of
 
@@ -51,8 +51,16 @@ def _scope(arguments: dict) -> tuple[str, str | None]:
     return kind, section
 
 
-def _described(kind: str, section: str | None, **fields: Any) -> dict:
-    return {"kind": kind, **({"section": section} if section else {}), **fields}
+def _language(kind: str, arguments: dict) -> str | None:
+    """The language overlay an operation names (in Humanus's spelling), or None for the guidelines every language shares."""
+    try:
+        return overlay_language(kind, arguments.get("language"))
+    except GuidelineError as error:
+        raise _refused(error) from error
+
+
+def _described(kind: str, section: str | None, language: str | None = None, **fields: Any) -> dict:
+    return {"kind": kind, **({"section": section} if section else {}), **({"language": language} if language else {}), **fields}
 
 
 def _image_alias(function: Callable, client, arguments: dict, caller: Caller, files: DocumentFiles | None) -> Outcome:
@@ -70,21 +78,23 @@ def _image_alias(function: Callable, client, arguments: dict, caller: Caller, fi
 def get_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
-    if kind == IMAGE_KIND and not section:
+    if kind == IMAGE_KIND and not section and not arguments.get("language"):
         return _image_alias(get_profile, client, arguments, caller, files)
+    language = _language(kind, arguments)
     store = GuidelineStore(client, files)
     try:
-        found = store.read(kind, section, version=arguments.get("version"))
-        current = store.current_row(kind, section)
+        found = store.read(kind, section, version=arguments.get("version"), language=language)
+        current = store.current_row(kind, section, language=language)
     except GuidelineError as error:
         raise _refused(error) from error
     if found is None:
         asked = f" version {arguments['version']}" if arguments.get("version") else ""
-        raise ImageOperationError("not_found", f"This publication has no {kind} guidelines{asked}" + (f" for the section {section}." if section else "."),
+        overlay = f" ({language} overlay)" if language else ""
+        raise ImageOperationError("not_found", f"This publication has no {kind} guidelines{overlay}{asked}" + (f" for the section {section}." if section else "."),
                                   details={"expectedCurrentVersionId": "none" if current is None else current["id"]})
     row = found["row"]
     return Outcome(_described(
-        kind, section, document=found["document"], itemId=row["id"], versionNumber=int(row.get("versionNumber") or 1), contentHash=row.get("contentHash") or "",
+        kind, section, language, document=found["document"], itemId=row["id"], versionNumber=int(row.get("versionNumber") or 1), contentHash=row.get("contentHash") or "",
         updatedAt=row.get("versionCreatedAt") or row.get("updatedAt") or "", updatedBy=str(row.get("versionCreatedBy") or ""), changeReason=row.get("changeReason") or "",
         isCurrent=row.get("versionState") == "current", expectedCurrentVersionId=current["id"] if current else "none"), publication)
 
@@ -99,7 +109,14 @@ def resolve_guidelines_for(client, arguments: dict, caller: Caller, files: Docum
             raise _refused(error) from error
         return Outcome({key: value for key, value in answer.items() if not (key == "section" and value is None)}, publication, tuple(answer["warnings"]))
     try:
-        answer = resolve_guidelines(GuidelineStore(client, files), kind, section)
+        language = arguments.get("language")
+        if language:
+            from papyrus_content.editorial_languages import canonical
+
+            language = canonical(language)
+        answer = resolve_guidelines(GuidelineStore(client, files), kind, section, language)
+    except LookupError as error:
+        raise ImageOperationError("invalid_input", str(error)) from error
     except GuidelineError as error:
         if error.code == "resolver_not_available" and kind == IMAGE_KIND:
             raise ImageOperationError("resolver_not_available", "Image guidelines are resolved for a Story and a use: run papyrus images profile resolve.",
@@ -161,12 +178,13 @@ def _policy_store(client, policies):
 def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None, policies=None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
-    if kind == IMAGE_KIND and not section:
+    if kind == IMAGE_KIND and not section and not arguments.get("language"):
         return _image_alias(diff_profile, client, arguments, caller, files)
-    document = _checked(kind, arguments["document"], section)
+    language = _language(kind, arguments)
+    document = _checked(kind, arguments["document"], section or language)
     store = GuidelineStore(client, files)
     try:
-        current = store.read(kind, section)
+        current = store.read(kind, section, language=language)
     except GuidelineError as error:
         raise _refused(error) from error
     old = current["document"] if current else None
@@ -182,27 +200,28 @@ def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
     store_of_policies = _policy_store(client, policies) if kind == "writing" else None
     if store_of_policies is not None:
         try:
-            extra["policyPlan"] = describe_plan(plan_derived_policies(store_of_policies, document, section, would_create))
+            extra["policyPlan"] = describe_plan(plan_derived_policies(store_of_policies, document, section, would_create, language))
         except ModuleNotFoundError:
             extra["policyPlanNotAvailable"] = "The Humanus policy reader is not installed where this diff ran."
-    return Outcome(_described(kind, section, changes=changes, constraintChanges=_constraint_changes(kind, old, document), wouldCreateVersion=would_create, **extra),
+    return Outcome(_described(kind, section, language, changes=changes, constraintChanges=_constraint_changes(kind, old, document), wouldCreateVersion=would_create, **extra),
                    publication)
 
 
 def guidelines_history(client, arguments: dict, caller: Caller, files: DocumentFiles | None = None) -> Outcome:
     publication = _publication(client)
     kind, section = _scope(arguments)
-    if kind == IMAGE_KIND and not section:
+    if kind == IMAGE_KIND and not section and not arguments.get("language"):
         return _image_alias(profile_history, client, arguments, caller, files)
+    language = _language(kind, arguments)
     try:
-        rows = GuidelineStore(client, files).versions(kind, section)
+        rows = GuidelineStore(client, files).versions(kind, section, language=language)
     except GuidelineError as error:
         raise _refused(error) from error
     versions = [{"itemId": row["id"], "versionNumber": int(row.get("versionNumber") or 1), "isCurrent": row.get("versionState") == "current",
                  "at": row.get("versionCreatedAt") or "", "by": str(row.get("versionCreatedBy") or ""),
                  "byKind": "agent" if saved_by_of(row).get("kind") == "agent" else "human", "reason": row.get("changeReason") or "",
                  "contentHash": row.get("contentHash") or ""} for row in rows]
-    return Outcome(_described(kind, section, versions=versions), publication)
+    return Outcome(_described(kind, section, language, versions=versions), publication)
 
 
 # --- the write ----------------------------------------------------------------------------------------------------------------------------------------
@@ -228,19 +247,20 @@ def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
         raise ImageOperationError("not_authorized", "Only an admin may save guidelines. Nothing was saved.")
     if not caller.subject:
         raise ImageOperationError("not_authorized", "The caller is not identified, so the version cannot record who saved it.")
-    if kind == IMAGE_KIND and not section:
+    if kind == IMAGE_KIND and not section and not arguments.get("language"):
         return _image_alias(save_profile, client, arguments, caller, files)
+    language = _language(kind, arguments)
     store = GuidelineStore(client, files)
     try:
-        versions = store.versions(kind, section)
+        versions = store.versions(kind, section, language=language)
         earlier = _earlier_answer(versions, caller)
         if earlier is not None:
             ref = reference(earlier)
-            return Outcome(_described(kind, section, itemId=ref["itemId"], versionNumber=ref["versionNumber"], contentHash=ref["contentHash"] or "", repeated=True),
+            return Outcome(_described(kind, section, language, itemId=ref["itemId"], versionNumber=ref["versionNumber"], contentHash=ref["contentHash"] or "", repeated=True),
                            publication)
-        document = _checked(kind, arguments["document"], section)
+        document = _checked(kind, arguments["document"], section or language)
         current = next((row for row in versions if row.get("versionState") == "current"), None)
-        old = store.read(kind, section)["document"] if current is not None else None
+        old = store.read(kind, section, language=language)["document"] if current is not None else None
         if kind == IMAGE_KIND:
             _image_section_checked(store, document, section, old)
         changes = _constraint_changes(kind, old, document)
@@ -249,7 +269,7 @@ def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
         saved_by = {"sub": caller.subject, "kind": caller.kind, **({"delegatedBy": caller.delegated_by} if caller.delegated_by else {}),
                     **({"requestId": caller.request_id} if caller.request_id else {})}
         saved = store.save(kind, document, section=section, expected_current_version_id=arguments["expectedCurrentVersionId"], actor=caller.subject,
-                           reason=arguments["reason"], saved_by=saved_by)
+                           reason=arguments["reason"], saved_by=saved_by, language=language)
     except GuidelineError as error:
         raise _refused(error) from error
     ref = saved["reference"]
@@ -257,13 +277,13 @@ def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
     store_of_policies = _policy_store(client, policies) if kind == "writing" else None
     if store_of_policies is not None:
         try:
-            steps = plan_derived_policies(store_of_policies, document, section, ref["versionNumber"])
+            steps = plan_derived_policies(store_of_policies, document, section, ref["versionNumber"], language)
         except ModuleNotFoundError:
             extra["policiesNotSynced"] = "The Humanus policy reader is not installed where this save ran; save again from the signed-in command line to sync the checks."
         else:
             apply_derived_plan(store_of_policies, steps)
             extra["policies"] = describe_plan(changed_steps(steps))
-    return Outcome(_described(kind, section, itemId=ref["itemId"], versionNumber=ref["versionNumber"], contentHash=ref["contentHash"] or "",
+    return Outcome(_described(kind, section, language, itemId=ref["itemId"], versionNumber=ref["versionNumber"], contentHash=ref["contentHash"] or "",
                               **({} if saved["changed"] else {"unchanged": True}), **extra), publication)
 
 

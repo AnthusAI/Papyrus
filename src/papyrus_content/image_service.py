@@ -21,6 +21,7 @@ import logging
 import os
 from typing import Any, Callable
 
+from .appsync_event import NoOperation, operation_name
 from .images.handlers import Caller, error_envelope, execute
 from .images.operations import operation
 from .images.profile_handlers import SECTION_STYLE_FIELD, with_client
@@ -64,9 +65,12 @@ def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | 
     identity = event.get("identity") or {}
     claims = identity.get("claims") or {}
     groups = identity.get("groups") if identity.get("groups") is not None else claims.get("cognito:groups")
-    door = str((event.get("info") or {}).get("fieldName") or "")
     arguments = event.get("arguments") or {}
     name = arguments.get("op")
+    try:
+        door = operation_name(event)
+    except NoOperation as error:
+        return error_envelope(str(name), "invalid_input", str(error))
     if door not in DOORS or not isinstance(name, str):
         return error_envelope(str(name), "invalid_input", "Give an op, through imageRead, imageWrite, guidelinesRead or guidelinesWrite.", details={"path": "op"})
     if not has_editor_rights(groups):

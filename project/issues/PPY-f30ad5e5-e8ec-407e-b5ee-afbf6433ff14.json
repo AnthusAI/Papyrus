@@ -10,9 +10,17 @@
   "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2d56a792-ee0d-4907-8641-35e9f847cf34",
+      "author": "home",
+      "text": "From Humorus, 2026-11-13 (first real site brought up through the account pipeline). Scaffold must account for: (1) The Amplify console 'Connect repository' wizard replaces the branch: it wiped every branch environment variable (tenant id, Cognito prefix, redirect URLs, ...), turned auto-build ON and started a build (job 1) that ran with no variables. CloudFormation cannot see this drift, so re-running the stack changes nothing; it had to be re-applied by changing a stack input. The scaffold's connect-the-repository instructions must say: the wizard resets the branch, expect the variables to be re-applied by a stack update, and auto-build must go back to false (deploys start from GitHub Actions). Better: the app-shell stack should own and re-assert branch settings. (2) A new site's infra/site.json must write the four PAPYRUS_ENABLE_* flags (console responder defaults ON and needs a container image; that failed the first auto-build). (3) The email block is now mandatory in 5.104+. (4) The first build needs the two-pass bootstrap; the pipeline's first-build workflow does it.",
+      "created_at": "2026-11-13T21:33:20.901216Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-11T17:15:59.230297Z",
-  "updated_at": "2026-11-11T17:15:59.230329Z",
+  "updated_at": "2026-11-13T21:33:20.901998Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

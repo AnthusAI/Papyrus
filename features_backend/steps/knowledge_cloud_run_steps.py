@@ -502,3 +502,16 @@ def step_no_monitor_ledger(context, text):
     found = [call for call in context.shell.calls if text in " ".join(call)]
     assert found, text
     assert not [call for call in found if "--monitor-ledger" in call], found
+
+
+@given('the site sets the tenant "{tenant}"')
+def step_tenant(context, tenant):
+    context.extra = {"PAPYRUS_TENANT_ID": tenant}
+    start(context, context.execution, context.extra)
+
+
+@then('every papyrus command ran with the tenant "{tenant}"')
+def step_every_command_tenant(context, tenant):
+    papyrus = [env for call, env in zip(context.shell.calls, context.shell.envs) if call[0] == "papyrus"]
+    assert papyrus, context.shell.calls
+    assert all(env.get("PAPYRUS_TENANT_ID") == tenant for env in papyrus), [env.get("PAPYRUS_TENANT_ID") for env in papyrus]

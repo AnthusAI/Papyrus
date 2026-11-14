@@ -282,6 +282,8 @@ const schema = a.schema({
     previousSectionId: a.id(),
     changed: a.boolean().required(),
     status: a.string().required(),
+    actorKind: a.string(),
+    skipped: a.string(),
   }),
 
   ReferenceStarsActionResult: a.customType({
@@ -511,6 +513,10 @@ const schema = a.schema({
       referenceId: a.id().required(),
       sectionId: a.id(),
       agentLabel: a.string(),
+      // The automatic lane (docs/reference-auto-section.md): the site cyclotron's current section-selector decision this section comes from, and the
+      // calibration evidence. Recorded as actor kind `cyclotron`; refused quietly (changed false) when a person set or cleared the section.
+      decisionRelationId: a.id(),
+      machineReason: a.string(),
     })
     .returns(a.ref("ReferenceSectionActionResult"))
     .authorization((allow) => [
@@ -927,6 +933,13 @@ const schema = a.schema({
     .handler(functionHandler("contentActions", contentActions)),
 
   unpublishItem: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
+  scheduleItem: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
@@ -1555,6 +1568,9 @@ const schema = a.schema({
       updatedBy: a.string(),
       updatedAt: a.datetime().required(),
     })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listAutomationsByTenant"),
+    ])
     .authorization((allow) => [
       allow.group("editor").to(["read", "create", "update"]),
       allow.group(adminGroup).to(authoringOperations),
@@ -1579,6 +1595,9 @@ const schema = a.schema({
       appliedIn: a.json(),
       updatedAt: a.datetime().required(),
     })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listReviewRequestsByTenant"),
+    ])
     .authorization((allow) => [
       allow.group("editor").to(["read", "create", "update"]),
       allow.group(adminGroup).to(authoringOperations),
@@ -1593,6 +1612,9 @@ const schema = a.schema({
       userKey: a.string().required(),
       readAt: a.datetime().required(),
     })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listReviewReadMarksByTenant"),
+    ])
     .authorization((allow) => [
       allow.groups(["editor", adminGroup]).to(["read", "create", "update"]),
     ]),
@@ -1627,6 +1649,7 @@ const schema = a.schema({
     })
     .secondaryIndexes((index) => [
       index("storyLineageId").sortKeys(["variationNumber"]).queryField("listStoryVariationsByStoryAndNumber"),
+      index("tenantId").sortKeys(["id"]).queryField("listStoryVariationsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups).to(["read", "create", "update"]),
@@ -1693,6 +1716,45 @@ const schema = a.schema({
       allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
     ]),
 
+  /** The catalogue row of one site document (kind: site | brand | nav); id = "<tenant>#<kind>". The body lives in S3 (PPY-c020ce). Group "tenancy". */
+  SiteDocument: a
+    .model({
+      id: a.id().required(),
+      tenantId: a.string().required(),
+      kind: a.string().required(),
+      currentVersion: a.integer().required(),
+      s3Key: a.string().required(),
+      sha256: a.string().required(),
+      schemaVersion: a.integer().required(),
+      updatedBy: a.string(),
+      updatedAt: a.datetime().required(),
+    })
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
+    ]),
+
+  /** One saved version of a site document; id = "<tenant>#<kind>#<version>". Body in S3 (PPY-c020ce). Group "tenancy". */
+  SiteDocumentVersion: a
+    .model({
+      id: a.id().required(),
+      tenantId: a.string().required(),
+      documentId: a.string().required(),
+      version: a.integer().required(),
+      s3Key: a.string().required(),
+      sha256: a.string().required(),
+      createdBy: a.string(),
+      createdAt: a.datetime().required(),
+      note: a.string(),
+    })
+    .secondaryIndexes((index) => [
+      index("documentId").sortKeys(["version"]).queryField("listSiteDocumentVersionsByDocument"),
+    ])
+    .authorization((allow) => [
+      allow.group(adminGroup),
+      allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
+    ]),
+
 
   /** Who is told about review requests: scope default, mode or automation. Changed by data, not code. */
   ReviewRecipientRule: a
@@ -1706,6 +1768,9 @@ const schema = a.schema({
       updatedBy: a.string(),
       updatedAt: a.datetime().required(),
     })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listReviewRecipientRulesByTenant"),
+    ])
     .authorization((allow) => [
       allow.group("editor").to(["read"]),
       allow.group(adminGroup).to(authoringOperations),
@@ -1805,6 +1870,7 @@ const schema = a.schema({
     .secondaryIndexes((index) => [
       index("ownerId").sortKeys(["payloadKind"]).queryField("listKnowledgeRawPayloadsByOwnerAndKind"),
       index("importRunId").sortKeys(["ownerType"]).queryField("listKnowledgeRawPayloadsByImportRunAndOwner"),
+      index("tenantId").sortKeys(["id"]).queryField("listKnowledgeRawPayloadsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
@@ -1824,6 +1890,7 @@ const schema = a.schema({
     })
     .secondaryIndexes((index) => [
       index("grantorSub").sortKeys(["createdAt"]).queryField("listCurationDelegationRecordsByGrantor"),
+      index("tenantId").sortKeys(["id"]).queryField("listCurationDelegationRecordsByTenant"),
     ])
     .authorization((allow) => [allow.groups([adminGroup]).to(["read"])]),
 
@@ -1947,6 +2014,7 @@ const schema = a.schema({
       index("categoryKey").sortKeys(["rank"]).queryField("listCategoryKeywordsByCategoryKeyAndRank"),
       index("normalizedKeyword").sortKeys(["categorySetId"]).queryField("listCategoryKeywordsByNormalizedKeywordAndSet"),
       index("importRunId").sortKeys(["rank"]).queryField("listCategoryKeywordsByImportRunAndRank"),
+      index("tenantId").sortKeys(["id"]).queryField("listCategoryKeywordsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
@@ -2037,6 +2105,7 @@ const schema = a.schema({
     .secondaryIndexes((index) => [
       index("proposalId").sortKeys(["createdAt"]).queryField("listSteeringDecisionsByProposalAndCreatedAt"),
       index("categorySetId").sortKeys(["createdAt"]).queryField("listSteeringDecisionsBySetAndCreatedAt"),
+      index("tenantId").sortKeys(["id"]).queryField("listSteeringDecisionsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
@@ -2081,6 +2150,12 @@ const schema = a.schema({
       curationSectionId: a.string(),
       curationSectionUpdatedAt: a.datetime(),   // when and by whom the section was last set on its own (`setReferenceSection`); the vote's own fields do not move
       curationSectionUpdatedBy: a.string(),
+      // Who set the section, in the vote's own vocabulary: `human` or `agent` (a person's or an operator's choice, kept even when they cleared it, so the
+      // machine never re-tags it) or `cyclotron` (the site cyclotron's section selector, docs/reference-auto-section.md). The machine's evidence (classifier,
+      // model version, confidence and the threshold learned from held-out editor choices) is the reason, and the decision it acted on is the relation id.
+      curationSectionActorKind: a.string(),
+      curationSectionReason: a.string(),
+      curationSectionDecisionRelationId: a.string(),
       curationShareable: a.boolean(),
       curationDelegation: a.json(),
       curationDecisionRelationId: a.string(),
@@ -2185,6 +2260,7 @@ const schema = a.schema({
       index("referenceLineageId").sortKeys(["sortKey"]).queryField("listReferenceAttachmentsByReferenceLineageAndSortKey"),
       index("storagePath").queryField("referenceAttachmentByStoragePath"),
       index("importRunId").sortKeys(["sortKey"]).queryField("listReferenceAttachmentsByImportRunAndSortKey"),
+      index("tenantId").sortKeys(["id"]).queryField("listReferenceAttachmentsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
@@ -2231,6 +2307,7 @@ const schema = a.schema({
       index("corpusId").sortKeys(["nodeKey"]).queryField("listSemanticNodesByCorpusAndNodeKey"),
       index("importRunId").sortKeys(["nodeKey"]).queryField("listSemanticNodesByImportRunAndNodeKey"),
       index("versionState").sortKeys(["updatedAt"]).queryField("listSemanticNodesByVersionStateAndUpdatedAt"),
+      index("tenantId").sortKeys(["id"]).queryField("listSemanticNodesByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
@@ -2445,6 +2522,7 @@ const schema = a.schema({
       index("importRunId").sortKeys(["importedAt"]).queryField("listSemanticRelationsByImportRunAndImportedAt"),
       index("relationTypeKey").sortKeys(["importedAt"]).queryField("listSemanticRelationsByTypeAndImportedAt"),
       index("relationDomain").sortKeys(["importedAt"]).queryField("listSemanticRelationsByDomainAndImportedAt"),
+      index("tenantId").sortKeys(["id"]).queryField("listSemanticRelationsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
@@ -2482,6 +2560,8 @@ const schema = a.schema({
       byline: a.string(),
       dateline: a.string(),
       publishedAt: a.datetime(),
+      versionPublishedAt: a.datetime(),
+      versionPublishedBy: a.string(),
       editionDate: a.string(),
       sortTitle: a.string(),
       pullQuotes: a.string().array(),
@@ -2496,6 +2576,26 @@ const schema = a.schema({
       /** Only the head row of a lineage carries this: its stage (tenant-prefixed on a tenant backend), so the head stage index holds one row per
        *  story; a superseded version has none (docs/plans/story-head-stage-index.md). */
       headStageKey: a.string(),
+      /** The language this version is written in: a BCP 47 tag in Humanus's spelling (en, es-419, zh-Hans). Every row has one; a new version copies it
+       *  (src/papyrus_content/item_language.py, docs/plans/multilingual-publishing.md). */
+      language: a.string(),
+      /** The language group: the primary Story's lineage id (tenant-prefixed on a tenant backend). A primary-language Story is its own group; a localization
+       *  (lineage `{primaryLineageId}--{language}`) names its primary's. */
+      languageGroupId: a.string(),
+      /** On a localization version: the exact primary version it was translated from. */
+      sourceLineageId: a.id(),
+      sourceVersionNumber: a.integer(),
+      sourceContentHash: a.string(),
+      /** On a localization version: current, updating, diverged or conflict against its source. */
+      syncState: a.string(),
+      /** Scheduled publishing (docs/scheduled-publishing.md): the schedule lives on the row of the version it publishes. `scheduleState` is set only while a schedule exists
+       *  (scheduled, publishing or blocked), so the index below holds scheduled versions and nothing else. `scheduledPublishAt` is a UTC instant. */
+      scheduledPublishAt: a.datetime(),
+      scheduledBy: a.string(),
+      scheduledAt: a.datetime(),
+      scheduleState: a.string(),
+      /** The EventBridge Scheduler schedule that publishes this version. */
+      scheduleName: a.string(),
       tags: a.hasMany("ItemTag", "itemId"),
       mediaAssets: a.hasMany("MediaAsset", "itemId"),
       editionItems: a.hasMany("EditionItem", "itemId"),
@@ -2509,8 +2609,33 @@ const schema = a.schema({
       index("versionState").sortKeys(["updatedAt"]).queryField("listItemsByVersionStateAndUpdatedAt"),
       index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt"),
       index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt"),
+      index("languageGroupId").sortKeys(["language"]).queryField("listItemsByLanguageGroupAndLanguage"),
       index("parentLineageId").sortKeys(["sortTitle"]).queryField("listItemsByParentAndOrder"),
+      index("scheduleState").sortKeys(["scheduledPublishAt"]).queryField("listItemsByScheduleStateAndScheduledPublishAt"),
     ])
+    .authorization((allow) => [
+      allow.groups(contentWriteGroups),
+    ]),
+
+  /** A translation someone wants: the newest published source version of one Story to translate into one language (docs/plans/multilingual-publishing.md,
+   *  "Once per change"; src/papyrus_content/localize/desired_state.py). One row per language group and language, id `{languageGroupId}#{language}`; a newer
+   *  request overwrites the older one, and the translation run records its outcome here. */
+  LocalizationRequest: a
+    .model({
+      id: a.id().required(),
+      tenantId: a.string(),
+      languageGroupId: a.string().required(),
+      language: a.string().required(),
+      sourceVersionId: a.id().required(),
+      sourceVersionNumber: a.integer().required(),
+      sourceContentHash: a.string().required(),
+      state: a.string().required(),
+      requestedBy: a.string(),
+      requestedAt: a.datetime(),
+      runKey: a.string(),
+      reason: a.string(),
+      updatedAt: a.datetime(),
+    })
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
     ]),
@@ -2528,6 +2653,7 @@ const schema = a.schema({
     .secondaryIndexes((index) => [
       index("slug").queryField("tagBySlug"),
       index("type").sortKeys(["label"]).queryField("listTagsByTypeAndLabel"),
+      index("tenantId").sortKeys(["id"]).queryField("listTagsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
@@ -2549,6 +2675,7 @@ const schema = a.schema({
     .secondaryIndexes((index) => [
       index("itemId").sortKeys(["tagSlug"]).queryField("listItemTagsByItemAndTag"),
       index("tagId").sortKeys(["publishedAt"]).queryField("listItemTagsByTagAndPublishedAt"),
+      index("tenantId").sortKeys(["id"]).queryField("listItemTagsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
@@ -2667,6 +2794,7 @@ const schema = a.schema({
     .secondaryIndexes((index) => [
       index("editionId").sortKeys(["sortKey"]).queryField("listEditionItemsByEditionAndSortKey"),
       index("itemId").sortKeys(["editionId"]).queryField("listEditionItemsByItemAndEdition"),
+      index("tenantId").sortKeys(["id"]).queryField("listEditionItemsByTenant"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
@@ -2698,11 +2826,18 @@ const schema = a.schema({
       byline: a.string(),
       dateline: a.string(),
       publishedAt: a.datetime(),
+      versionPublishedAt: a.datetime(),
+      versionPublishedBy: a.string(),
       editionDate: a.string(),
       sortTitle: a.string(),
       pullQuotes: a.string().array(),
       layout: a.json(),
       editorial: a.json(),
+      /** The language of the published version (a copy of its Item's `language`) and its language group (the primary Story's lineage id). The projection serves
+       *  each language under its URL prefix and joins a group's published languages for hreflang (docs/multilingual-serving.md). No index: the projection reads
+       *  every published summary already. */
+      language: a.string(),
+      languageGroupId: a.string(),
     })
     .secondaryIndexes((index) => [
       index("slug").queryField("publishedItemBySlug"),
@@ -2710,6 +2845,7 @@ const schema = a.schema({
       index("typeStatus").sortKeys(["publishedAt"]).queryField("listPublishedItemsByTypeStatusAndPublishedAt"),
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listPublishedItemsBySectionStatusAndPublishedAt"),
       index("itemLineageId").sortKeys(["versionNumber"]).queryField("listPublishedItemsByLineageAndVersion"),
+      index("tenantId").sortKeys(["id"]).queryField("listPublishedItemsByTenant"),
     ])
     .authorization((allow) => [
       allow.guest().to(["read"]),
@@ -2800,6 +2936,7 @@ const schema = a.schema({
     .secondaryIndexes((index) => [
       index("publishedEditionId").sortKeys(["sortKey"]).queryField("listPublishedEditionItemsByEditionAndSortKey"),
       index("publishedItemId").sortKeys(["publishedEditionId"]).queryField("listPublishedEditionItemsByItemAndEdition"),
+      index("tenantId").sortKeys(["id"]).queryField("listPublishedEditionItemsByTenant"),
     ])
     .authorization((allow) => [
       allow.guest().to(["read"]),
@@ -2864,6 +3001,7 @@ const schema = a.schema({
       index("parentCategoryId").sortKeys(["rank"]).queryField("listPublishedCategoriesByParentAndRank"),
       index("parentCategoryKey").sortKeys(["rank"]).queryField("listPublishedCategoriesByParentKeyAndRank"),
       index("categoryKey").sortKeys(["publishedCategorySetId"]).queryField("listPublishedCategoriesByKeyAndSet"),
+      index("tenantId").sortKeys(["id"]).queryField("listPublishedCategoriesByTenant"),
     ])
     .authorization((allow) => [
       allow.guest().to(["read"]),

@@ -16,6 +16,7 @@ from typing import Any
 
 from papyrus_content.knowledge_snapshot.keys import concept_hashtag, kind_label
 from papyrus_content.knowledge_wiki.pages import entity_body
+from papyrus_content.tenant_knowledge_keys import REFERENCE_LINK_FEED_KEY, global_key
 
 from .concept_kinds import is_concept
 from .engine import _chunk_text, _clean_text, object_title
@@ -27,7 +28,7 @@ CONCEPT_CARD_KEY_PREFIX = "concept_card-"
 
 LINK_EXPLANATION_KEY_PREFIX = "link_explanation-"
 LINK_EXPLANATION_VECTOR_KIND = "link_explanation"
-LINK_EXPLANATION_FEED_KEY = "reference-links"   # papyrus_content.reference_links.REFERENCE_LINK_FEED_KEY, the feed every Reference link and concept tag row carries
+LINK_EXPLANATION_FEED_KEY = REFERENCE_LINK_FEED_KEY   # the feed every Reference link and concept tag row carries
 LINK_EXPLANATION_EDGE_KINDS = ("reference.link", "reference.concept", "concept.link")   # concept.link: an editor's link between two concepts (amplify/functions/category-action/reference-links.ts)
 LINK_EXPLANATION_AUDIENCE = "editor"
 LINK_EXPLANATION_WITHDRAWN = "withdrawn"
@@ -1724,7 +1725,7 @@ def _list_link_relations(graph: Any) -> list[dict[str, Any]]:
     relations: list[dict[str, Any]] = []
     next_token = None
     while True:
-        payload = graph.graphql(LIST_LINK_RELATIONS_QUERY, {"newsroomFeedKey": LINK_EXPLANATION_FEED_KEY, "limit": 100, "nextToken": next_token})
+        payload = graph.graphql(LIST_LINK_RELATIONS_QUERY, {"newsroomFeedKey": global_key(LINK_EXPLANATION_FEED_KEY), "limit": 100, "nextToken": next_token})
         connection = payload.get("listSemanticRelationsByNewsroomFeedAndCreatedAt") or {}
         relations.extend(item for item in connection.get("items") or [] if item)
         next_token = connection.get("nextToken")

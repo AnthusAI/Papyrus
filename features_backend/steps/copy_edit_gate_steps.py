@@ -84,7 +84,7 @@ def _phrase_policy(key, phrase, severity, replacement=None):
     if replacement:
         detector["replacement"] = replacement
     policy = {"id": key, "version": 1, "title": key, "guidance": f"Avoid {phrase}.", "severity": severity, "enabled": True, "detectors": [detector]}
-    return editorial.record_from_policy(policy, scope="publication", source="test")
+    return editorial.record_from_policy(policy, scope="publication", language="en", source="test")
 
 
 def _put(context, record):
@@ -126,7 +126,7 @@ def step_policies(context):
 def step_contractions(context, key):
     policy = {"id": key, "version": 1, "title": key, "guidance": "Use contractions.", "severity": "warn", "enabled": True,
               "detectors": [{"id": f"{key}-check", "lane": "rules", "kind": "builtin", "check": "uncontracted_forms"}]}
-    _put(context, editorial.record_from_policy(policy, scope="publication", source="test"))
+    _put(context, editorial.record_from_policy(policy, scope="publication", language="en", source="test"))
 
 
 @given("rewrite options cannot be produced because no provider key is configured")

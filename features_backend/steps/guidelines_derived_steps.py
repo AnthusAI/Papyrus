@@ -21,8 +21,10 @@ def document(*avoid, ban=()):
     return {"schemaVersion": 1, "lexicon": {"avoid": list(avoid)}, **({"rules": {"bannedPhrases": list(ban)}} if ban else {})}
 
 
-def check(context, record_id):
-    return next((row for row in context.backend.policies.rows if row["id"] == record_id), None)
+def check(context, scoped_key, language="en"):
+    """The site's check with this scope and key (``publication#avoid-lexicon``) written for ``language``; a record's id is opaque."""
+    scope, key = scoped_key.rsplit("#", 1)
+    return next((row for row in context.backend.policies.rows if (row["scope"], row["policyKey"], row.get("language")) == (scope, key, language)), None)
 
 
 def words_of(row):
@@ -56,7 +58,7 @@ def step_saved(context, word):
 def step_hand_written(context):
     context.backend, context.files = world(saved=False)
     for key, source in (("avoid-lexicon", "starter:ai-writing"), ("banned-phrases", "custom")):
-        context.backend.policies.rows.append({"id": f"publication#{key}", "policyKey": key, "scope": "publication", "version": 3, "title": "Theirs", "guidance": "Theirs.",
+        context.backend.policies.rows.append({"id": f"publication#{key}", "policyKey": key, "scope": "publication", "language": "en", "version": 3, "title": "Theirs", "guidance": "Theirs.",
                                               "severity": "block", "enabled": True, "detectors": [], "examples": None, "rewriteGuidance": None, "source": source})
 
 
@@ -125,7 +127,7 @@ def step_only(context, word):
 
 @then('exactly one check was updated and it is "{key}"')
 def step_one_update(context, key):
-    assert context.backend.policies.writes[context.writes_before:] == [("update", f"publication#{key}")], context.backend.policies.writes
+    assert context.backend.policies.writes[context.writes_before:] == [("update", check(context, f"publication#{key}")["id"])], context.backend.policies.writes
 
 
 @then("its source names version {number:d}")

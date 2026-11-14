@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "039c035a-d761-415e-b895-a0a21659bedf",
+  "issue_id": "PPY-1081ad85-f547-4cbb-bbb9-bcc5bc539eb9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T12:46:02.378Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Public audiences in Caducus; subscribe and manage pages working end to end",
+    "description": "**Goal.** A reader can subscribe, confirm, manage and unsubscribe on the site's own pages, end to end. Today the `/api/notifications/*` routes answer `503 unavailable` and store nothing because Caducus 0.2.0 has no public audiences (docs/notifications.md). Fix the dependency at its cause, in Caducus, and delete the 503 path; no stub store in the plugin, no fallback to the newsletter plugin.\n\n**Design.** Caducus gains a public audience class beside `operator`: a reader directory per site table (address hashed for lookup, encrypted at rest), double opt-in with consent evidence (time, form, wording shown, confirmation), per-kind preferences, manage tokens that never expire, suppression and erasure. It stays generic (no Papyrus words) so every product reuses it. The Papyrus plugin only maps routes to Caducus calls. PPY-f361ee (reader pages) then ships against the real routes.\n\n**Specification.**\n```gherkin\nFeature: Public audiences\n  Scenario: Double opt-in\n    Given a site with notifications on and a public kind\n    When a reader submits their address on the site's notifications page\n    Then a confirmation email is sent and nothing else is sent until they confirm\n    And after they follow the link the page says they are subscribed, in the site's design\n\n  Scenario: Consent evidence\n    When a reader confirms\n    Then the record holds the time, the form, the wording they saw and the confirmation time\n\n  Scenario: Preferences\n    Given a confirmed subscriber follows the manage link\n    When they turn a kind off\n    Then they receive no more of that kind and still receive the others\n\n  Scenario: Unsubscribe\n    When a reader uses the one-click unsubscribe header or the page\n    Then they are unsubscribed within the same request and the address stays suppressed\n\n  Scenario: Erasure\n    When an admin erases a reader\n    Then the record, the consent evidence and the preferences are gone and the address cannot be re-imported silently\n\n  Scenario: Bad link\n    When someone opens a manage link that is no good\n    Then they land on the site's expired page, not an /api address\n\n  Scenario: Abuse\n    When one address or one network submits far above what readers do\n    Then further submissions are refused and no extra email is sent (adaptive limit learned from the site's own signups, not a fixed number)\n```\n\n**Depends on:** Caducus release with public audiences (file on the Caducus board and link); PPY-44721a. Blocks PPY-f361ee, the Analytics story and the ownership story.\n**Related:** PPY-f361ee, PPY-d7443d, PPY-99738c (no dual-shape paths).\n\n**Open questions for Ryan:** (1) Should a reader be able to subscribe by signing in, or by address only, for launch?",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
+    "labels": []
+  }
+}

@@ -1,4 +1,4 @@
-# Reusable workflow: run the FIRST BUILD of a site's Amplify app (the two-pass bootstrap), then turn the watcher off.
+# Reusable workflow: run the FIRST BUILD of a site's Amplify app (the two-pass bootstrap). The watcher turns itself off (first-build-watch.yml).
 # Part of epic PPY-9bd776. Public repositories only. See docs/account-pipeline.md, "The first build starts by itself".
 #
 # The two-pass bootstrap (docs/site-hosting.md, "Start a new Papyrus site: the two-deploy first backend"): pass 1 with the Amplify branch
@@ -12,17 +12,16 @@
 #     push: { branches: [main] }          # optional: a push to main also resumes an interrupted first build
 #   jobs:
 #     first-build:
-#       permissions: { contents: read, id-token: write, actions: write }
+#       permissions: { contents: read, id-token: write }
 #       uses: AnthusAI/Papyrus/.github/workflows/first-build.yml@<papyrus tag>
 #       with:
 #         prefix: myco
 #         papyrus-ref: <the same tag>
 #         aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
 #         stack-name: <the app-shell stack name>
-#         watcher-workflow: first-build-watch.yml     # the caller's file that is disabled when the build is done
 #
-# The job runs only for a push or manual dispatch on main, as <prefix>-github-deploy (trusts main only). When the build is done it runs
-# `gh workflow disable` on the watcher with the job's own token (actions: write), so the watcher never runs again.
+# The job runs only for a push or manual dispatch on main, as <prefix>-github-deploy (trusts main only). The watcher turns itself off when it dispatches this workflow (first-build-watch.yml
+# owns that, once); this workflow never touches the watcher.
 # A failed pass stops the run with exit 1 and a message; a person reads the Amplify job log, fixes the cause and dispatches this
 # workflow with retry-failed true. No stored keys: GitHub OIDC only.
 name: first-build
@@ -56,11 +55,6 @@ on:
         required: false
         type: string
         default: main
-      watcher-workflow:
-        description: File name of the watcher workflow in the calling repository; disabled when the build is done
-        required: false
-        type: string
-        default: first-build-watch.yml
       retry-failed:
         description: Start again although an earlier first-build job failed (only after a person fixed the cause)
         required: false
@@ -78,7 +72,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      actions: write
     concurrency:
       group: first-build-${{ github.repository }}
       cancel-in-progress: false
@@ -107,10 +100,3 @@ jobs:
           if [ "$RETRY" = "true" ]; then extra+=(--retry-failed); fi
           python3 .papyrus-tool/infra/pipeline/amplify_first_build.py run \
             --stack-name "$STACK" --branch "$BRANCH" --region "$REGION" --commit-id "$GITHUB_SHA" "${extra[@]}"
-      - name: Turn the watcher off
-        if: steps.build.outputs.done == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          WATCHER: ${{ inputs.watcher-workflow }}
-        run: gh workflow disable "$WATCHER"

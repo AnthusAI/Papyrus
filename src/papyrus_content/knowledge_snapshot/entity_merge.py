@@ -4,7 +4,7 @@
 of both nodes derive from their names:
 
 * the duplicate is superseded (``versionState`` and ``status`` ``superseded``): no longer current, never resolved by a later import, left out of the
-  snapshot (its entity file goes at the next snapshot, and ``wiki sync --retire`` takes its page down);
+  snapshot (its entity file goes at the next snapshot, and its wiki page is left as it is: ``wiki sync`` never takes a page down);
 * its name and every alias it had become aliases of the surviving entity (``aliasedBy`` and ``mergedBy`` record the actor and the day), so the registry
   resolves the old spelling to the surviving node from then on; a description the survivor lacks is taken from the duplicate;
 * every current relation that touches the duplicate (item mentions and relations between entities) is superseded and re-created on the surviving

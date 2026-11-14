@@ -357,9 +357,9 @@ def step_no_links(context, name):
     assert not [row for row in current(context.client) if lineage in (row["objectLineageId"], row["subjectLineageId"])]
 
 
-@then('the merge output says the page is taken down by "{command:Text}"')
-def step_next(context, command):
-    assert command in context.output, context.output
+@then("the merge output says the duplicate's page is left as it is because the sync never takes a page down")
+def step_next(context):
+    assert "is left as it is, since the sync never takes a page down" in context.output, context.output
 
 
 # ----------------------------------------------------------------------------------------------------- duplicates

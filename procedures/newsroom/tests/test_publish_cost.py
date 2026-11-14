@@ -6,7 +6,7 @@ from __future__ import annotations
 import unittest
 
 from papyrus_content.projection.body_cache import BODY_CACHE_KEY
-from procedures.newsroom.tests.publish_cost_support import CostSite, point_reads, summary_passes, whole_table_reads
+from procedures.newsroom.tests.publish_cost_support import CostSite, point_reads, settings_reads, summary_passes, whole_table_reads
 
 # The projection of one publish: the story's Item and PublishedItem, and its Item again for its lineage (sibling versions).
 MAX_POINT_READS = 3
@@ -33,6 +33,7 @@ class OnePublishCostsTheSameAtAnySizeTest(unittest.TestCase):
             self.assertLessEqual(point_reads(counted), MAX_POINT_READS, counted)
             self.assertEqual(summary_passes(counted), SUMMARY_PASSES, counted)
             self.assertEqual(whole_table_reads(counted), 0, counted)
+            self.assertLessEqual(settings_reads(counted), 1, counted)   # the site's languages, once per projection
         self.assertEqual(point_reads(small), point_reads(large))
         self.assertEqual(summary_passes(small), summary_passes(large))
 
@@ -40,6 +41,7 @@ class OnePublishCostsTheSameAtAnySizeTest(unittest.TestCase):
         report, counted = self.large.follow_up()
         self.assertTrue(report.ok)
         self.assertEqual(point_reads(counted), 0, counted)
+        self.assertLessEqual(settings_reads(counted), 1, counted)
         self.assertEqual(whole_table_reads(counted), 0, counted)
         self.assertEqual(summary_passes(counted), 1, counted)
 

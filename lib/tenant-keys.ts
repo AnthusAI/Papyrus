@@ -16,7 +16,7 @@ export function validateTenantId(tenantId: string): string {
   return tenantId;
 }
 
-export function tenantIdFromEnvironment(environment: NodeJS.ProcessEnv = process.env): string | undefined {
+export function tenantIdFromEnvironment(environment: Record<string, string | undefined> = process.env): string | undefined {
   const configured = environment[TENANT_ID_ENVIRONMENT_VARIABLE]?.trim();
   return configured ? validateTenantId(configured) : undefined;
 }

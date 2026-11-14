@@ -24,6 +24,7 @@ const MAX_GRAPH_EXPORT_ATTACHMENT_BYTES = 512 * 1024 * 1024;
 const UPLOAD_EXPIRES_SECONDS = 10 * 60;
 const DOWNLOAD_EXPIRES_SECONDS = 10 * 60;
 const ALLOWED_OWNER_KINDS = new Set([
+  "announcement",
   "assignment",
   "assignmentEvent",
   "item",
@@ -40,6 +41,8 @@ const ALLOWED_ROLES = new Set([
   "assignment_brief",
   "assignment_instructions",
   "item_body",
+  "localization_provenance",   // a translation version's provenance record (src/papyrus_content/localize/record.py)
+  "localize_stage",            // a translation run's stored stage results, on the source version (src/papyrus_content/localize/record.py)
   "item_excerpt",
   "message_body",
   "metadata",
@@ -57,6 +60,9 @@ const ALLOWED_ROLES = new Set([
   "visual_negative",
   "image_record",
   "image_candidate_file",
+  "announcement_document",
+  "doctrine_document",
+  "doctrine_asset",
 ]);
 const ALLOWED_MEDIA_TYPES = new Set([
   "application/json",
@@ -284,6 +290,7 @@ function uploadIdFor(input: ReturnType<typeof normalizeAttachmentInput>): string
 }
 
 function ownerModelName(ownerKind: string): string {
+  if (ownerKind === "announcement") return "Announcement";
   if (ownerKind === "assignment") return "Assignment";
   if (ownerKind === "assignmentEvent") return "AssignmentEvent";
   if (ownerKind === "item") return "Item";

@@ -108,7 +108,7 @@ def test_push_stores_one_catalog_row_and_the_content_in_s3(tmp_path):
     assert sorted(a["sortKey"] for a in backend.attachments if a["role"] == "doctrine_asset") == ["fonts/Display.ttf", "fonts/Text.ttf"]
     # no text of the design system is in the database rows
     assert "figure.svg" not in json.dumps(backend.items) and "Test Display" not in json.dumps(backend.items)
-    assert [w[:2] for w in backend.writes] == [("create", "Item")]
+    assert [w[:2] for w in backend.writes] == [("create", "Item"), ("update", "Item")]   # the row first (pending), then the files, then the row is made current
 
 
 def test_nothing_is_stored_for_a_design_system_that_cannot_draw(tmp_path):

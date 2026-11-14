@@ -1,0 +1,29 @@
+{
+  "id": "PPY-6cdef042-2da2-4769-80d2-449378b8e8b1",
+  "title": "Revision history setting per publication, and the Machines on Machines rollout after a preview on real data",
+  "description": "Part of the publication transparency epic. Design: docs/plans/revision-history-and-published-dates.md (story 6).\n\nDepends on: 2, 5. Includes the preview on MoM with real data before release.\n\n```gherkin\nFeature: A publication chooses to show revision history\n  Scenario: Off unless turned on\n    Given a publication that has not turned on revision history\n    Then its pages show dates but no revision history\n\n  Scenario: Machines on Machines shows it\n    Given Machines on Machines with revision history turned on\n    When a reader opens a revised article, post or wiki page\n    Then it has the closed revision history\n```\n\nOpen question: none.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-156614d5-c0b6-4f4e-a1c5-70873a94b1b3",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-de3f8f9b-aff3-475f-81c1-aac8ef4288e9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-befbd8c5-d51e-43dd-83f9-f391e0e3eb28",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T17:36:12.066921Z",
+  "updated_at": "2026-11-12T17:36:32.967072Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

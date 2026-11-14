@@ -329,10 +329,11 @@ def test_workflows_are_reusable_pin_every_action_and_hold_no_secrets(path):
     text = path.read_text()
     assert "secrets." not in text and "secrets:" not in text and "AWS_SECRET_ACCESS_KEY" not in text
     assert not re.search(r"\b\d{12}\b", text)
-    assert doc["jobs"][next(iter(doc["jobs"]))]["permissions"] == {"contents": "read", "id-token": "write", "actions": "write"}
+    expected = {"contents": "read", "id-token": "write", **({"actions": "write"} if path == WATCH else {})}  # only the watcher dispatches and disables
+    assert doc["jobs"][next(iter(doc["jobs"]))]["permissions"] == expected
 
 
-def test_build_workflow_runs_on_main_only_with_the_deploy_role_and_disables_the_watcher():
+def test_build_workflow_runs_on_main_only_with_the_deploy_role_and_never_touches_the_watcher():
     doc = load(BUILD)
     assert set(doc["jobs"]) == {"run"}
     run_job = doc["jobs"]["run"]
@@ -340,12 +341,11 @@ def test_build_workflow_runs_on_main_only_with_the_deploy_role_and_disables_the_
     assert "refs/heads/main" in cond and "push" in cond and "workflow_dispatch" in cond and "pull_request" not in cond
     assert run_job["concurrency"]["cancel-in-progress"] is False
     inputs = triggers(doc)["workflow_call"]["inputs"]
-    assert {"prefix", "aws-account-id", "papyrus-ref", "stack-name", "region", "branch", "watcher-workflow"} <= set(inputs)
-    assert inputs["watcher-workflow"]["default"] == "first-build-watch.yml" and inputs["branch"]["default"] == "main"
+    assert {"prefix", "aws-account-id", "papyrus-ref", "stack-name", "region", "branch"} <= set(inputs) and "watcher-workflow" not in inputs
+    assert inputs["branch"]["default"] == "main"
     text = BUILD.read_text()
     assert "${{ inputs.prefix }}-github-deploy" in text and "amplify_first_build.py run" in text and "--commit-id \"$GITHUB_SHA\"" in text
-    disable = next(s for s in run_job["steps"] if "gh workflow disable" in s.get("run", ""))
-    assert disable["if"] == "steps.build.outputs.done == 'true'" and disable["env"]["GH_TOKEN"] == "${{ github.token }}"
+    assert not any("gh workflow disable" in s.get("run", "") for s in run_job["steps"])  # one owner: the watcher disables itself once
     assert any(s.get("id") == "build" for s in run_job["steps"])
 
 

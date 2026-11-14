@@ -2,7 +2,8 @@
 
 This is the one definition behind ``papyrus references set-section`` and the MCP tool ``reference_set_section``: both call
 ``set_reference_section`` and print or return the same result. It changes only ``curationSectionId`` (an enabled ``NewsroomSection`` id) and the
-two fields that say who changed it and when (``curationSectionUpdatedBy``, ``curationSectionUpdatedAt``). The vote (status, note, actor kind, who and when),
+fields that say who changed it and when (``curationSectionUpdatedBy``, ``curationSectionUpdatedAt``, ``curationSectionActorKind``). A person's set or
+clear owns the Section from then on: the automatic Section (docs/reference-auto-section.md) never changes it. The vote (status, note, actor kind, who and when),
 the feedback and the star rating are never written, so the Cyclotron sees no new vote.
 
 A section can be named by its id, by the qualified form ``<publication>#<slug>`` (the id itself, or a publication prefix and the slug), by its
