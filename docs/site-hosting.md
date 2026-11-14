@@ -429,6 +429,30 @@ Per site:
 
 Anth.us is the live site: do its steps in the order above, with variables set and verified on the branch before the pull request that removes literals, and without a second deploy. A literal that is part of a URL (an `https://main.<appId>.amplifyapp.com/` entry in `PAPYRUS_OAUTH_REDIRECT_URLS`, or `PAPYRUS_SITE_PUBLIC_URL` built from `$AWS_APP_ID`) is not read by this feature: build it from `$AWS_APP_ID` in the build command, or leave it for the separate clean-up.
 
+## Automated Papyrus bumps
+
+A public Papyrus site gets "chore: bump Papyrus to X" pull requests from one reusable workflow, `.github/workflows/bump-consumer.yml`, run by [`infra/pipeline/bump_consumer.py`](../infra/pipeline/bump_consumer.py). The site calls it from a short scheduled workflow:
+
+```yaml
+name: Bump Papyrus
+on:
+  schedule: [{ cron: "17 6 * * *" }]
+  workflow_dispatch:
+permissions: { contents: write, pull-requests: write, actions: write }
+jobs:
+  bump:
+    uses: AnthusAI/Papyrus/.github/workflows/bump-consumer.yml@main
+    with:
+      base: develop          # the site's integration branch (`main` for a site with no develop)
+      ci-workflow: deploy.yml # the site's CI workflow, which must list `workflow_dispatch:` under `on:`
+```
+
+* **Target.** The newest version published on both PyPI and npm. Nothing is opened when the site is current or a bump pull request for that version is already open; older open bump pull requests are closed as superseded.
+* **Pins.** The current pin is `papyrusVersion` in `infra/site.json`. Every tracked line that names Papyrus and that exact version is rewritten (package files, requirements, README, docs, tests); other versions on such lines are history and stay. Both lockfiles are refreshed with `npm install --package-lock-only`.
+* **Staged bumps.** A deploy can add only one DynamoDB index to a table. The script compares the model indexes in `amplify/` at the two release tags; when any existing table would gain or lose more than one, the pull request is a draft whose body names the tables. Bump release by release in that case.
+* **Checks.** Pull requests and pushes made with `GITHUB_TOKEN` start no workflows, so the job dispatches the site's `ci-workflow` on the bump branch; the checks attach to the pull request head. No secret is involved. The repository setting "Allow GitHub Actions to create and approve pull requests" must be on.
+* **Never merges.** Merging into a production branch is a deploy and stays a person's decision. The schedule only runs from the repository's default branch.
+
 ## Deploy on merge to main
 
 (Anchor kept for old links; the deploy is the **release**.) Merging a pull request into a site's `develop` builds nothing in Amplify; develop and verify on the local dev server. A release, which is `develop` merged into `main`, always deploys, with no manual step. Release once or twice a day; an extra release needs Ryan's say-so. How depends on whether the site's
