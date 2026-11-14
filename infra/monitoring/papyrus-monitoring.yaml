@@ -1564,6 +1564,8 @@ Resources:
                 Resource:
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getAssignment"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getAssignmentEvent"
+                  # Saving any Item (the checklist's sub-tasks, now made strictly) reads the site's primary language from the editorial settings.
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckSettings"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getKnowledgeCorpus"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getKnowledgeImportRun"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getKnowledgeRawPayload"

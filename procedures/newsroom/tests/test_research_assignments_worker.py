@@ -333,6 +333,8 @@ def recorded_fields_of_a_full_run(monkeypatch, tenant_id=None):
             return {field: {"id": "x"}}
         served = {"listAssignmentsByTypeStatusAndCreatedAt": [row], "listItemsByLineageAndVersion": [story], "itemBySlug": [doctrine], "itemByTenantSlug": [doctrine],
                   "listKnowledgeCorporaByRoleAndName": [corpus]}
+        if field in ("itemBySlug", "itemByTenantSlug") and str(variables.get("slug") or variables.get("tenantSlug")).endswith("editorial-doctrine-procedure"):
+            return {field: {"items": [], "nextToken": None}}   # this site saved no Story procedure: the default applies (the doctrine row above is not a procedure document)
         if field in served:
             return {field: {"items": served[field], "nextToken": None}}
         if field in partition_models:
