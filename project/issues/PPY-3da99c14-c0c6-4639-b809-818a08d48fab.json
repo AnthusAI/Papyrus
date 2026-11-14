@@ -1,0 +1,70 @@
+{
+  "id": "PPY-3da99c14-c0c6-4639-b809-818a08d48fab",
+  "title": "Document public conversations (forum, posting, handles, moderation) on p.apyr.us",
+  "description": "Repo: **Papyrus-web** (p.apyr.us content; merges freely per Ryan 2026-10-25) plus `docs/` in Papyrus. Closing task of PPY-452419: every feature epic ends with a p.apyr.us docs task.\n\n## Deliverables\n1. p.apyr.us feature page \"Public conversations\" (the forum): what visitors see (thread pages, forum index), who can post (signed-in readers through Google, staff from the console), handles (one per person per site), moderation (AI by default, human queue, \"Message removed\"), what is never public (emails, ids, subs), and the per-site settings block from the epic. Positioning per memory: control over the algorithm, a steerable publication; never \"long memory\"; no \"Draft\", say \"Proposed Story\"; \"Account\" not \"Organization\".\n2. How-To items: `howto-turn-on-public-conversations` (settings + plugins + first thread), `howto-moderate-public-posts` (console queue, AI mode, bursts held for review), `howto-pick-a-public-handle` (staff and readers).\n3. Papyrus `docs/home-page.md` sections written by each task are checked for consistency; `docs/reader-steering.md` cross-links.\n4. Shipped: a short note on shipped.anth.us's own docs/`AGENTS.md` only if the Shipped tasks landed.\n\n## Acceptance\nPages published through the CMS publish path (`papyrus ops content publish`), live URLs recorded here; Lucide icons in any screenshots; no emails or ids. Blocked by every other task of the epic.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-8f05cc63-a0de-4b41-840c-65311d80c1f7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-90e3a40f-cf9c-46a0-a970-09ce83517666",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-abed3e1b-2c9a-4a58-bfd2-b26ce6c10856",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-75d87d94-2fb7-4098-a975-61222d3d2208",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-f7a5f7ef-1316-44db-9b82-789028719380",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-70af1a6c-c84c-4dbf-a09c-fe2129e9bd76",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-300ab038-a242-4240-be46-12435f97eff1",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-d8b61618-49d5-4bef-b506-ea9e22a6f658",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3afa21bf-bf36-422c-a9d3-ab2c779f34db",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-55014b23-bf9a-4f8d-b57c-680eec9f3ca3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-cd265a3c-8c1f-4dfd-b581-6e31d002f1e4",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T12:37:55.720694Z",
+  "updated_at": "2026-10-31T12:38:35.838214Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

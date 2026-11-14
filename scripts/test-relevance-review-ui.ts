@@ -50,7 +50,13 @@ assert.deepEqual(curationForRelevanceReview(decision, { label: "exclude", reason
   { action: "reject", reasonCode: "out_of_scope", note: null, decisionRelationId: decision.decisionRelationId, shareable: false });
 assert.deepEqual(curationForRelevanceReview(decision, { label: null, reasonCode: "duplicate", explanation: "Already have it.", shareable: false }),
   { action: "reject", reasonCode: "duplicate", note: "Already have it.", decisionRelationId: decision.decisionRelationId, shareable: false });
+// A rejection must say why, and either way of saying it will do: the written reason stands on its own,
+// because the curation Lambda reads it for the code it names. Only a rejection with neither is refused.
+assert.deepEqual(curationForRelevanceReview(decision, { label: "exclude", reasonCode: null, explanation: " Out of scope for us. ", shareable: false }),
+  { action: "reject", reasonCode: null, note: "Out of scope for us.", decisionRelationId: decision.decisionRelationId, shareable: false });
 assert.throws(() => curationForRelevanceReview(decision, { label: "exclude", reasonCode: null, explanation: null, shareable: false }), /reason code/);
+assert.throws(() => curationForRelevanceReview(decision, { label: "exclude", reasonCode: null, explanation: "   ", shareable: false }), /reason code/,
+  "blank words are no reason");
 
 console.log("relevance review ui: ok");
 }

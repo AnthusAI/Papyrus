@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f73249f1-0962-45d3-aebc-445a5f9a9fa0",
+  "title": "Document the one search on p.apyr.us: exact-word hits, Title match and Related labels, status options, who sees pending and rejected",
+  "description": "Every Papyrus feature epic ends with a p.apyr.us docs task (document-features-on-marketing-site). Cover: searching from the top bar goes straight to results; Title match results rank above Related ones and each says which kind it is in words; pending, accepted and rejected shown in words with status buttons; editors and admins see pending and rejected, public pages stay accepted-only; the word index and its one-time backfill (docs/reference-search.md#word-index).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5beaabfe-3d39-41a3-a4e3-d3c92181a392",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T23:06:30.289804Z",
+  "updated_at": "2026-11-05T23:06:30.289871Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

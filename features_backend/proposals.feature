@@ -89,3 +89,20 @@ Feature: Proposals to change the map
     When the snapshot publishes proposals under the base path "posts"
     Then the file "posts/_data/proposals/index.json" exists
     And "posts/_data/proposals/index.json" is a plugin runtime file
+
+  # On a deployed site the data API invokes the function with the field name at the top level of the event and no info key;
+  # the specs deliver every staff mutation in that shape, and the unit tests also cover the older info shape.
+  Scenario: An editor files a proposal on a deployed site
+    When the editor files a "story_draft" proposal titled "Agents are eating the board"
+    Then the editor is told it is filed
+    And 1 proposal is stored as a draft
+
+  Scenario: A story draft keeps a chart spec in its evidence so the editor approves the figure with the copy
+    When the editor files a "story_draft" proposal with a chart spec in its evidence
+    Then the editor is told it is filed
+    And the stored evidence holds the chart spec as filed
+
+  Scenario: A chart spec that does not line up is refused and nothing is stored
+    When the editor files a "story_draft" proposal whose chart has a value for only one of its two weeks
+    Then the editor is told "invalid_evidence"
+    And no proposal is stored

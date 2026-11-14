@@ -1,0 +1,56 @@
+{
+  "jobSummaries": [
+    {
+      "jobId": "43",
+      "status": "SUCCEED",
+      "commitMessage": "docs: later"
+    },
+    {
+      "jobId": "42",
+      "status": "FAILED",
+      "commitMessage": "fix: type-check"
+    }
+  ],
+  "job": {
+    "summary": {
+      "jobId": "42",
+      "status": "FAILED",
+      "commitMessage": "fix: type-check",
+      "startTime": "2026-10-31T10:00:00+00:00",
+      "endTime": "2026-10-31T10:12:00+00:00"
+    },
+    "steps": [
+      {
+        "stepName": "PROVISION",
+        "status": "SUCCEED",
+        "logUrl": null
+      },
+      {
+        "stepName": "BUILD",
+        "status": "FAILED",
+        "logUrl": "{{LOG_URL}}"
+      },
+      {
+        "stepName": "DEPLOY",
+        "status": "CANCELLED",
+        "logUrl": null
+      }
+    ]
+  },
+  "stacks": [
+    {
+      "StackName": "amplify-other-main-branch-zzz"
+    },
+    {
+      "StackName": "amplify-dexample0001-main-branch-abc123"
+    },
+    {
+      "StackName": "amplify-dexample0001-main-branch-abc123-data0-XYZ",
+      "ParentId": "arn:parent"
+    }
+  ],
+  "stackEvents": {
+    "amplify-dexample0001-main-branch-abc123": []
+  },
+  "log": "2026-10-31T10:00:00 build step 0 ok\n2026-10-31T10:01:00 build step 1 ok\n2026-10-31T10:02:00 build step 2 ok\n2026-10-31T10:03:00 build step 3 ok\n2026-10-31T10:04:00 build step 4 ok\nLinting and checking validity of types ...\n<--- Last few GCs --->\nFATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory\n----- Native stack trace -----\n"
+}

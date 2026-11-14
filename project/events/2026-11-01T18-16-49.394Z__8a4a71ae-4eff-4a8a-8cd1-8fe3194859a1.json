@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "8a4a71ae-4eff-4a8a-8cd1-8fe3194859a1",
+  "issue_id": "PPY-41fbf196-7c5f-444b-8e87-d7cce2945912",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:49.394Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "One shared Accept/Reject-with-reason component",
+    "description": "Ryan 11-01: collect explanations on every accept/reject, the same as References, with one standardised UI.\nExtract the Reference vote control (curationStatusReason / curationReasonCode) into one component, e.g. components/decision-control.tsx: Accept (Check) and Reject (X) buttons, optional \"Why?\" textarea (reject opens it; accept offers it), the same reason codes where they apply. Use it for References (unchanged behaviour), link/concept suggestions (S2.9) and generated ideas on the Stories board (forward/spike reason stored on the idea's ReviewRequest or front matter so S4.2 can train on it).\nTests: component tests; existing Reference vote tests still pass.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".\nUI rules: Lucide icons; buttons + textarea, no dropdowns or popovers; one Accept/Reject vocabulary; a text label beside every mark (never colour alone); no AppSync subscriptions; screenshot review by Ryan on a local dev server before merging.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

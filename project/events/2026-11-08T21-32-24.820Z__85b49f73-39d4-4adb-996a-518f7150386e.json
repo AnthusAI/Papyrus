@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "85b49f73-39d4-4adb-996a-518f7150386e",
+  "issue_id": "PPY-cc8a4c84-34e6-44bf-80f8-142ad2f8439f",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:32:24.820Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Shared modules that build {tenantId, role, mode} from an AppSync event's identity (claim names from the auth spike), refuse an IAM call without an explicit tenant on a shared stack, and return the fixed tenant on a dedicated stack. Handlers adopt it in parts 2 to 4 (content-actions; the TypeScript functions; plugin functions and cli-login). Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) tenant-context, branch feature/<this issue id>-tenant-context from origin/develop (spikes: branch spike/<this issue id>-tenant-context, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): new src/papyrus_content/tenant_context.py, new amplify/functions/shared/tenant-context.ts, tests.\n\nAcceptance (Gherkin feature file: features_backend/function-tenant-context.feature):\nScenario: An IAM call without a tenant is refused on a shared stack\n    Given tenancy mode shared and an IAM event with no tenant\n    When the context is built\n    Then it raises a refusal before any read\n\nDependencies: blocked by PPY-867f76, PPY-46635e. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: poetry run pytest src/papyrus_content/tenant_context_test.py; npx tsx --test scripts/test-tenant-context.ts; npm run typecheck.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+# Example
+
+## Articles
+
+- [Hello](https://example.com/hello/index.md): A first article. (2026-10-01)
+
+## Optional
+
+- [RSS feed](https://example.com/feed.xml)
+- [Atom feed](https://example.com/atom.xml)
+- [Sitemap](https://example.com/sitemap.xml)
+- [Full content of this site in one file](https://example.com/llms-full.txt)

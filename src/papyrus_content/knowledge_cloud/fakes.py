@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import datetime as dt
+import io
+import itertools
 import json
+import zipfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -18,6 +21,10 @@ from .state import StateStore
 STATE_BUCKET = "knowledge-state"
 LEDGER_TABLE = "knowledge-ledger"
 SITE_BUCKET = "site-bucket"
+SETTINGS_BUCKET = "cdk-assets"
+SETTINGS_KEY = "run-settings.zip"
+#: What a publication whose operator committed its settings holds; a new site commits none.
+COMMITTED_SETTINGS = {"vocabulary.yml": "entity_kinds:\n  - {key: maker, label: company or developer}\n", "stop-words.txt": "card\n"}
 ENVIRONMENT = {
     "KNOWLEDGE_PUBLICATION": "shipped",
     "KNOWLEDGE_STATE_BUCKET": STATE_BUCKET,
@@ -34,7 +41,19 @@ ENVIRONMENT = {
     "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION": "content-actions-fn",
     "KNOWLEDGE_AMPLIFY_APP_ID": "dapp123",
 }
+
+
+def settings_archive(files: Mapping[str, str]) -> bytes:
+    """The zip the job stack builds from a site's committed settings directory."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, text in files.items():
+            archive.writestr(name, text)
+    return buffer.getvalue()
 DEPLOYED_COMMIT = "d" * 40
+STAGE_SECONDS = 90
+APPSYNC_ENDPOINT = "https://vuagbw3fmvalta762m4zsacxce.appsync-api.us-east-1.amazonaws.com/graphql"  # the host AppSync reports; unrelated to the API id
+TASK = {"vCpu": 4.0, "memoryGiB": 16.0, "ephemeralStorageGiB": 40, "startedAt": None}  # what the ECS task metadata says in the cloud
 
 
 class FakeSite:
@@ -43,10 +62,29 @@ class FakeSite:
     def __init__(self, plugins: str = "reader-steering,newsletter") -> None:
         self.variables = {"PAPYRUS_PLUGINS": plugins}
         self.objects: dict[str, bytes] = {}
+        self.assets: dict[str, bytes] = {}  # the deploy-time asset bucket: the zip of the committed settings
+        self.key_parameter: str | None = None  # the SSM parameter the last key was read from
+        self.client: Any = None  # the site's data API: review requests are raised and read here
+
+    def api_key(self, parameter: str) -> str:
+        self.key_parameter = parameter
+        return "jev-test-key"
+
+    def record_client(self, options: Mapping[str, Any]) -> Any:
+        if self.client is None:
+            from procedures.newsroom.tests.fake_client import FakeAuthoringClient  # noqa: PLC0415 - a test double, only needed by the stages that read the API
+
+            self.client = FakeAuthoringClient()
+        return self.client
 
     def read_object(self, bucket: str, key: str) -> bytes | None:
+        if bucket == SETTINGS_BUCKET:
+            return self.assets.get(key)
         assert bucket == SITE_BUCKET
         return self.objects.get(key)
+
+    def appsync_endpoint(self, api_id: str) -> str:
+        return APPSYNC_ENDPOINT
 
     def deployed_commit(self, app_id: str, branch: str) -> str:
         assert (app_id, branch) == ("dapp123", "main")
@@ -69,6 +107,12 @@ class FakeShell:
         self.tip = DEPLOYED_COMMIT
         self.current = "cur" + "0" * 61
         self.trends = "trd" + "0" * 61
+        self.items = 1  # published items the fake corpus export writes (0: a new site)
+        self.pin_file = True  # the site repo has a requirements-publication.txt
+        self.site_json: str | None = None  # the text of the site repo's infra/site.json, when it has one
+        self.records = 0  # monitor records the fake export writes when the site has monitor sources
+        self.entity_usage: list[dict] = []  # the Jev calls the fake entity extraction reports (written to --usage-out)
+        self.wiki_plan: dict = {"counts": {}, "pages": []}  # what the fake wiki sync dry run (--json) prints
 
     def __call__(self, args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Path | None = None) -> None:
         self.calls.append(list(args))
@@ -81,7 +125,11 @@ class FakeShell:
             site = Path(args[-1])
             (site / "web").mkdir(parents=True, exist_ok=True)
             (site / "web" / "scoring.json").write_text("{}")
-            (site / "requirements-publication.txt").write_text("papyrus-newsroom[markus]==5.28.0\n")
+            if self.pin_file:
+                (site / "requirements-publication.txt").write_text("papyrus-newsroom[markus]==5.28.0\n")
+            if self.site_json is not None:
+                (site / "infra").mkdir(parents=True, exist_ok=True)
+                (site / "infra" / "site.json").write_text(self.site_json)
         elif args[:2] == ["pip", "install"]:
             Path(args[args.index("--target") + 1]).mkdir(parents=True, exist_ok=True)
         elif args[:2] == ["python", "-c"]:
@@ -93,7 +141,25 @@ class FakeShell:
         elif args[:3] == ["papyrus", "knowledge", "corpus"]:
             raw = Path(args[args.index("--out") + 1])
             raw.mkdir(parents=True, exist_ok=True)
-            (raw / "item-1.md").write_text("# one")
+            for number in range(1, self.items + 1):
+                (raw / f"item-{number}.md").write_text("# one" if number == 1 else f"# item {number}")
+            if "--monitor-records-out" in args:  # the export also writes the monitor records of a site that sets monitorSources
+                records = Path(args[args.index("--monitor-records-out") + 1])
+                records.parent.mkdir(parents=True, exist_ok=True)
+                rows = [
+                    {"referenceId": f"ref-{n}", "lineageId": f"ref-{n}", "source": "routed", "url": f"https://example.test/{n}", "title": f"Record {n}",
+                     "createdAt": "2026-10-20T00:00:00Z", "details": {"monitorId": "hn"}, "state": "pending"}
+                    for n in range(1, self.records + 1)
+                ]
+                records.write_text(json.dumps({"schemaVersion": 1, "asOf": "2026-10-26", "sources": ["huggingface"], "records": rows}))
+            if "--reference-documents-out" in args:  # the export also writes the Reference documents of a site that sets referenceDocuments
+                documents = Path(args[args.index("--reference-documents-out") + 1])
+                documents.parent.mkdir(parents=True, exist_ok=True)
+                rows = [{"referenceId": "reference-1", "lineageId": "reference-1", "title": "A paper", "url": "https://example.test/paper.pdf", "publishedAt": "2026-10-01T00:00:00Z"}]
+                documents.write_text(json.dumps({"schemaVersion": 1, "referenceDocuments": rows}))
+                (raw / "ref-reference-1.md").write_text("# A paper")
+        elif args[:4] == ["papyrus", "knowledge", "wiki", "sync"] and "--json" in args:
+            out = json.dumps(self.wiki_plan)
         elif args[:2] == ["biblicus", "init"]:
             (Path(args[2]) / "metadata").mkdir(parents=True, exist_ok=True)
         elif args[:3] == ["biblicus", "extract", "build"]:
@@ -106,11 +172,12 @@ class FakeShell:
             out = json.dumps({"snapshot_id": self.trends})
         elif args[:3] == ["biblicus", "analyze", "topic-identity"]:
             out = "{}"
-        elif args[:3] == ["biblicus", "extract", "typed-entities"]:
+        elif args[:3] == ["papyrus", "knowledge", "extract-entities"]:
             typed = Path(args[args.index("--out") + 1])
             typed.mkdir(parents=True, exist_ok=True)
             (typed / "output.json").write_text("{}")
-            out = "{}"
+            usage = Path(args[args.index("--usage-out") + 1])
+            usage.write_text(json.dumps(self.entity_usage))
         elif args[:4] == ["papyrus", "ops", "content", "project"]:
             out = json.dumps({"written": 3, "deleted": 0})
         if stdout is not None:
@@ -118,9 +185,13 @@ class FakeShell:
             stdout.write_text(out)
 
 
-def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execution: str | None = None) -> tuple[Run, FakeShell]:
-    """A Run over moto S3 and DynamoDB (call inside ``mock_aws``). ``config/`` holds the operator-maintained files."""
+def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execution: str | None = None, seeded: bool = True,
+             settings: Mapping[str, str] | None = None) -> tuple[Run, FakeShell]:
+    """A Run over moto S3 and DynamoDB (call inside ``mock_aws``). ``seeded`` publications commit ``COMMITTED_SETTINGS`` (or ``settings``); a new site commits none."""
     values = {**ENVIRONMENT, "KNOWLEDGE_WORK_DIR": str(work), **(environment or {})}
+    files = settings if settings is not None else (COMMITTED_SETTINGS if seeded else None)
+    if files is not None:
+        values.setdefault("KNOWLEDGE_SETTINGS_ARCHIVE", f"s3://{SETTINGS_BUCKET}/{SETTINGS_KEY}")
     if execution:
         values["KNOWLEDGE_EXECUTION_NAME"] = execution
     config = CloudRunConfig.from_environment(values)
@@ -134,12 +205,13 @@ def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execut
             AttributeDefinitions=[{"AttributeName": "publication", "AttributeType": "S"}, {"AttributeName": "runKey", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
-        state = StateStore(s3, STATE_BUCKET, config.state_prefix)
-        state.write_text("config/vocabulary.yml", "entity_kinds:\n  - {key: maker, label: company or developer}\n")
-        state.write_text("config/stop-words.txt", "card\n")
-        state.write_text("config/amplify_outputs.json", json.dumps({"data": {"url": "https://api.example.test/graphql"}}))
     state = StateStore(s3, STATE_BUCKET, config.state_prefix)
     table = boto3.resource("dynamodb", region_name="us-east-1").Table(LEDGER_TABLE)
     ledger = RunLedger(table, config.publication, config.week, config.execution_name, clock=lambda: dt.datetime(2026, 10, 26, 5, tzinfo=dt.timezone.utc))
     shell = FakeShell(work)
-    return Run(config=config, state=state, ledger=ledger, shell=shell, environment=values, services=FakeSite()), shell
+    ticks = itertools.count(0, STAGE_SECONDS)  # every stage takes STAGE_SECONDS on this clock (read once at its start, once at its end)
+    run = Run(config=config, state=state, ledger=ledger, shell=shell, environment=values, services=FakeSite(),
+              task_info=lambda: dict(TASK), clock=lambda: float(next(ticks)), now=lambda: dt.datetime(2026, 10, 26, 6, tzinfo=dt.timezone.utc))
+    if files is not None:
+        run.services.assets[SETTINGS_KEY] = settings_archive(files)
+    return run, shell

@@ -9,6 +9,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from .tokens import TokenCounter
@@ -58,6 +59,22 @@ score confidence rank classifierId modelVersion reviewRecommended sourceSnapshot
 
 REFERENCE_ATTACHMENT_FIELDS = """
 id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath sourceUri filename mediaType byteSize sha256 etag importRunId importedAt metadata
+"""
+
+CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION = """
+mutation CreateModelAttachmentDownload($attachmentId: ID!) {
+  createModelAttachmentDownload(attachmentId: $attachmentId) {
+    ok
+    attachmentId
+    method
+    downloadUrl
+    storagePath
+    mediaType
+    byteSize
+    expiresAt
+    requiredHeaders
+  }
+}
 """
 
 KNOWLEDGE_RELATION_DOMAINS = {"knowledge", "ontology", "classification", "evidence"}
@@ -302,6 +319,16 @@ class S3CorpusTextProvider:
         return self._client
 
 
+LINK_EXPLANATION_VECTOR_KIND = "link_explanation"   # papyrus_knowledge_query.vector_index.LINK_EXPLANATION_VECTOR_KIND
+EDITOR_AUDIENCE = "editor"
+
+
+def explanations_allowed(scope: dict[str, Any]) -> bool:
+    """An editor's explanation of a link is an internal note: only a request that is not for a public reader may be answered with one. ``scope.audience``
+    is ``editor`` (the default: ``knowledgeQuery`` is callable only by the site's editors); ``public``, or any other value, never gets one."""
+    return str(scope.get("audience") or "").strip().lower() in ("", EDITOR_AUDIENCE)
+
+
 @dataclass
 class S3VectorsProvider:
     """S3 Vectors-backed semantic provider.
@@ -315,6 +342,8 @@ class S3VectorsProvider:
     embedding_model: str = "text-embedding-3-small"
     region_name: str | None = None
     name: str = "s3-vectors"
+    _client: Any = field(default=None, init=False, repr=False, compare=False)
+    _client_lock: Any = field(default_factory=threading.Lock, init=False, repr=False, compare=False)
 
     def search(self, query: str, scope: dict[str, Any], limit: int) -> list[dict[str, Any]]:
         if not query.strip():
@@ -328,6 +357,7 @@ class S3VectorsProvider:
                 + self._query_vectors(vector, scope, query_limit, vector_kind="reference_card")
                 + self._query_vectors(vector, scope, query_limit, vector_kind="note_source")
                 + self._query_vectors(vector, scope, query_limit, vector_kind="note_summary")
+                + (self._query_vectors(vector, scope, query_limit, vector_kind=LINK_EXPLANATION_VECTOR_KIND) if explanations_allowed(scope) else [])
             )
             passage_limit = min(query_limit, max(limit, 40))
             passage_matches = (
@@ -364,6 +394,10 @@ class S3VectorsProvider:
         matches = []
         for index, vector_match in enumerate(response.get("vectors") or response.get("matches") or []):
             metadata = vector_match.get("metadata") or {}
+            if metadata.get("curationStatus") not in (None, "accepted"):
+                continue   # defence in depth behind the filter: a pending or rejected Reference is never a search result
+            if metadata.get("vectorKind") == LINK_EXPLANATION_VECTOR_KIND and not explanations_allowed(scope):
+                continue   # defence in depth behind the filter: an editor's explanation is never a public reader's result
             matches.append(
                 {
                     "providerRank": index + 1,
@@ -379,6 +413,58 @@ class S3VectorsProvider:
             )
         return matches
 
+    def get_vector(self, key: str) -> list[float] | None:
+        """The stored embedding for one vector key (``GetVectors`` with ``returnData``); no embedding call is made."""
+        client = self._s3vectors_client()
+        response = client.get_vectors(indexArn=self.vector_index_arn, keys=[key], returnData=True)
+        vectors = response.get("vectors") or []
+        if not vectors:
+            return None
+        return list((vectors[0].get("data") or {}).get("float32") or []) or None
+
+    def existing_keys(self, keys: list[str]) -> list[str]:
+        """The subset of ``keys`` that has a vector in the index (``GetVectors`` without data, 100 keys to a request)."""
+        client = self._s3vectors_client()
+        found: list[str] = []
+        for start in range(0, len(keys), 100):
+            response = client.get_vectors(indexArn=self.vector_index_arn, keys=keys[start:start + 100], returnData=False)
+            found.extend(str(vector.get("key")) for vector in response.get("vectors") or [])
+        return found
+
+    def query_by_vector(self, vector: list[float], top_k: int, metadata_filter: dict[str, Any] | None) -> list[dict[str, Any]]:
+        """``QueryVectors`` with a ready vector; each match is ``{key, distance, metadata}``."""
+        client = self._s3vectors_client()
+        arguments: dict[str, Any] = {
+            "indexArn": self.vector_index_arn,
+            "queryVector": {"float32": vector},
+            "topK": top_k,
+            "returnDistance": True,
+            "returnMetadata": True,
+        }
+        if metadata_filter:
+            arguments["filter"] = metadata_filter
+        response = client.query_vectors(**arguments)
+        return [
+            {"key": match.get("key"), "distance": match.get("distance"), "metadata": match.get("metadata") or {}}
+            for match in response.get("vectors") or []
+        ]
+
+    def _s3vectors_client(self):
+        """One client for the provider, made once: a client is safe to share between threads, and making one per call both costs time and is not safe to do from
+        several threads at once (the router's suggestion step asks from eight)."""
+        with self._client_lock:
+            if self._client is None:
+                try:
+                    import boto3  # type: ignore
+                except ImportError as exc:  # pragma: no cover - deployment guard
+                    raise RuntimeError("boto3 is required for S3VectorsProvider") from exc
+                self._client = boto3.client("s3vectors", region_name=self.region_name)
+            return self._client
+
+    def embed_text(self, text: str) -> list[float]:
+        """The query embedding for ``text`` (one OpenAI call); the vector can then go to ``query_by_vector`` with any metadata filter."""
+        return self._embed(text)
+
     def _embed(self, text: str) -> list[float]:
         api_key = _resolve_openai_api_key()
         if not api_key:
@@ -392,14 +478,23 @@ class S3VectorsProvider:
         )
         with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - fixed OpenAI endpoint
             payload = json.loads(response.read().decode("utf-8"))
+        _record_embedding_usage(payload)
         return payload["data"][0]["embedding"]
 
     def _metadata_filter(self, scope: dict[str, Any], vector_kind: str | None = None) -> dict[str, Any] | None:
         clauses: list[dict[str, Any]] = []
-        for key in ("corpusId", "categorySetId", "classifierId", "curationStatus"):
+        for key in ("corpusId", "categorySetId", "classifierId"):
             value = scope.get(key)
             if isinstance(value, str) and value:
                 clauses.append({key: {"$eq": value}})
+        # Pending References are indexed as context for suggestions and packs only; no search ever returns one, whatever the scope asks for. Vectors that
+        # carry no curationStatus (notes, concepts, ontology) are not References and stay in.
+        if scope.get("curationStatus") == "accepted":
+            clauses.append({"curationStatus": {"$eq": "accepted"}})
+        else:
+            clauses.append({"$or": [{"curationStatus": {"$exists": False}}, {"curationStatus": {"$eq": "accepted"}}]})
+        if not explanations_allowed(scope):
+            clauses.append({"vectorKind": {"$ne": LINK_EXPLANATION_VECTOR_KIND}})
         if vector_kind:
             clauses.append({"vectorKind": {"$eq": vector_kind}})
         vector_kinds = scope.get("vectorKinds")
@@ -444,20 +539,32 @@ def _resolve_openai_api_key() -> str:
         if direct_key and not _is_amplify_secret_placeholder(direct_key):
             _cached_openai_api_key = direct_key
             return direct_key
-        parameter_name = _resolve_amplify_ssm_secret_path("OPENAI_API_KEY")
-        if not parameter_name:
+        parameter_names = _resolve_amplify_ssm_secret_paths("OPENAI_API_KEY")
+        if not parameter_names:
             return ""
         try:
             import boto3  # type: ignore
         except ImportError as exc:  # pragma: no cover - deployment guard
             raise RuntimeError("boto3 is required to load OPENAI_API_KEY from SSM") from exc
-        response = boto3.client("ssm", region_name=os.environ.get("AWS_REGION")).get_parameter(
-            Name=parameter_name,
-            WithDecryption=True,
-        )
-        key_value = _normalize_optional_string((response.get("Parameter") or {}).get("Value"))
+        client = boto3.client("ssm", region_name=os.environ.get("AWS_REGION"))
+        key_value = ""
+        for parameter_name in parameter_names:
+            try:
+                response = client.get_parameter(Name=parameter_name, WithDecryption=True)
+            except Exception as exc:
+                # Only a missing parameter moves on to the next path; access denied,
+                # throttling and every other failure surface unchanged.
+                if _is_parameter_not_found(exc):
+                    continue
+                raise
+            key_value = _normalize_optional_string((response.get("Parameter") or {}).get("Value"))
+            if not key_value:
+                raise RuntimeError(f"SSM parameter {parameter_name} did not include a value.")
+            break
         if not key_value:
-            raise RuntimeError(f"SSM parameter {parameter_name} did not include a value.")
+            raise RuntimeError(
+                "OPENAI_API_KEY was not found in SSM at any configured path: " + ", ".join(parameter_names)
+            )
         _cached_openai_api_key = key_value
         return key_value
 
@@ -466,20 +573,32 @@ def _is_amplify_secret_placeholder(value: str) -> bool:
     return bool(re.match(r"^<.*will be resolved.*>$", value, re.IGNORECASE))
 
 
-def _resolve_amplify_ssm_secret_path(name: str) -> str:
+def _is_parameter_not_found(exc: BaseException) -> bool:
+    response = getattr(exc, "response", None)
+    error = response.get("Error") if isinstance(response, dict) else None
+    return isinstance(error, dict) and error.get("Code") == "ParameterNotFound"
+
+
+def _resolve_amplify_ssm_secret_paths(name: str) -> list[str]:
+    """Candidate SSM names for a secret: the branch path first, then the shared path."""
     raw_config = _normalize_optional_string(os.environ.get("AMPLIFY_SSM_ENV_CONFIG"))
     if not raw_config:
-        return ""
+        return []
     try:
         config = json.loads(raw_config)
     except json.JSONDecodeError as exc:
         raise RuntimeError("AMPLIFY_SSM_ENV_CONFIG contains invalid JSON.") from exc
     if not isinstance(config, dict):
-        return ""
+        return []
     entry = config.get(name)
     if not isinstance(entry, dict):
-        return ""
-    return _normalize_optional_string(entry.get("path")) or _normalize_optional_string(entry.get("sharedPath")) or ""
+        return []
+    names: list[str] = []
+    for key in ("path", "sharedPath"):
+        candidate = _normalize_optional_string(entry.get(key))
+        if candidate and candidate not in names:
+            names.append(candidate)
+    return names
 
 
 def _normalize_optional_string(value: Any) -> str:
@@ -497,6 +616,7 @@ class GraphQLKnowledgeGraphProvider:
     name: str = "appsync-graphql"
     profile_stats: dict[str, Any] = field(default_factory=lambda: {"graphqlCalls": 0, "graphqlMs": 0.0, "operations": {}})
     profile_lock: threading.Lock = field(default_factory=threading.Lock)
+    header_factory: Callable[[bytes], dict[str, str]] | None = None   # signs each request body (the router's IAM access); replaces authorization_header
 
     def resolve_anchor(self, anchor: dict[str, Any]) -> dict[str, Any] | None:
         normalized = normalize_anchor(anchor)
@@ -622,6 +742,33 @@ class GraphQLKnowledgeGraphProvider:
                 results[lineage_id] = [item for item in connection.get("items") or [] if item]
         return results
 
+    def read_model_attachment_text(self, attachment: dict[str, Any], max_bytes: int = 2_000_000) -> str | None:
+        """The text of one ``ModelAttachment`` body, fetched as the caller: ``createModelAttachmentDownload`` is authorized for the caller's group
+        and returns a short-lived URL for exactly that attachment. The knowledge-query function's own role reads only ``corpora/*`` (not the
+        ``newsroom/payloads/*`` keys these bodies live under), so this is the one way it can read them and still never returns text the caller could not
+        fetch. A refusal or a failed download raises; the caller reports it."""
+        attachment_id = str(attachment.get("id") or "")
+        if not attachment_id:
+            return None
+        data = self.graphql(CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION, {"attachmentId": attachment_id})
+        slot = data.get("createModelAttachmentDownload") or {}
+        url = slot.get("downloadUrl")
+        if not url:
+            raise RuntimeError(f"the download slot for {attachment_id} had no URL")
+        headers = slot.get("requiredHeaders") or {}
+        if isinstance(headers, str):
+            try:
+                headers = json.loads(headers)
+            except json.JSONDecodeError:
+                headers = {}
+        request = urllib.request.Request(url, headers={str(key): str(value) for key, value in headers.items()}, method=slot.get("method") or "GET")
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - a presigned URL our own API just issued for this attachment
+                body = response.read(max_bytes + 1)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f"download of {attachment_id} failed with HTTP {exc.code}") from exc
+        return body[:max_bytes].decode("utf-8", errors="replace")
+
     def list_outgoing_relations(self, obj: dict[str, Any]) -> list[dict[str, Any]]:
         kind = str(obj.get("kind") or obj.get("subjectKind") or "").strip()
         lineage_id = str(obj.get("lineageId") or obj.get("subjectLineageId") or obj.get("id") or "").strip()
@@ -734,7 +881,7 @@ query ResolveKnowledgeObjectByLineage($lineageId: ID!, $limit: Int, $nextToken: 
         request = urllib.request.Request(
             self.endpoint,
             data=body,
-            headers={
+            headers=self.header_factory(body) if self.header_factory else {
                 "Content-Type": "application/json",
                 "Authorization": self.authorization_header,
             },
@@ -1033,3 +1180,12 @@ def _bucket_from_amplify_outputs() -> str:
             if isinstance(entry, dict) and isinstance(entry.get("bucket_name"), str) and entry["bucket_name"]:
                 return entry["bucket_name"]
     return ""
+
+
+def _record_embedding_usage(payload: dict[str, Any]) -> None:
+    """Reports the embedding's tokens to the site's Prospectus usage sender (inactive outside a deployed site)."""
+    try:
+        from papyrus_cost_usage import site_usage
+    except ImportError:  # a bundle without the sender reports nothing
+        return
+    site_usage().record_openai(payload.get("usage"))

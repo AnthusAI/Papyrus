@@ -22,12 +22,14 @@ import os
 import time
 from datetime import datetime, timezone
 
+from .appsync_event import NoOperation, operation_name
+from .staff_groups import STAFF_GROUPS
 from .automations import (
     DEFAULT_RUN_LIMIT, AutomationError, MonitoringReader, MonitoringWriter, automation_overview, lambda_invoker,
     monitoring_reader_from_environment, monitoring_table_from_environment, read_record, run_now)
 
 LOG = logging.getLogger(__name__)
-EDITOR_GROUPS = frozenset({"editor", "admin"})
+EDITOR_GROUPS = STAFF_GROUPS
 
 
 def default_client_factory(env):
@@ -55,13 +57,16 @@ def actor_label(event: dict) -> str:
 
 def handle(event: dict, *, env=None, reader_factory=None, client_factory=None, now: float | None = None,
            account_id: str | None = None, table_factory=None, invoker=None) -> dict:
-    """AppSync resolver entry: `automationOverview` (the default) or `runAutomation`."""
+    """AppSync resolver entry: `automationOverview` or `runAutomation`, named by the request's field (`appsync_event.operation_name`)."""
     env = os.environ if env is None else env
     identity = event.get("identity") or {}
     groups = identity.get("groups")
     groups = [group for group in groups if isinstance(group, str)] if isinstance(groups, list) else []
     is_editor = bool(set(groups) & EDITOR_GROUPS)
-    field = str((event.get("info") or {}).get("fieldName") or "automationOverview")
+    try:
+        field = operation_name(event)
+    except NoOperation as error:
+        return {"error": "bad_request", "message": str(error)}
     arguments = event.get("arguments") or {}
     automation_id = arguments.get("automationId") or None
     if automation_id is not None and not isinstance(automation_id, str):

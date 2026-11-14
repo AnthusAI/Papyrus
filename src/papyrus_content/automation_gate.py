@@ -29,7 +29,6 @@ IN_FLIGHT = frozenset({"starting", "started", "running"})
 MAX_TIMEOUT_SECONDS = 840           # the runner Lambda's 15 minutes less its recording margin
 DEFAULT_TIMEOUT_SECONDS = MAX_TIMEOUT_SECONDS
 GRACE_SECONDS = 120                 # beyond the timeout, for the runner to record its outcome
-MAX_QUERY_PAGES = 5
 MANUAL_PREFIX = "MANUAL#"
 
 
@@ -65,18 +64,17 @@ def manual_prefix(automation_id: str) -> str:
     return f"{MANUAL_PREFIX}{automation_id}#"
 
 
-def query_prefix(table, monitor_id: str, prefix: str, *, pages: int = MAX_QUERY_PAGES) -> list[dict]:
-    """The rows of `MONITOR#<monitor_id>` whose sort key starts with `prefix` (Query on the base table)."""
+def query_prefix(table, monitor_id: str, prefix: str) -> list[dict]:
+    """Every row of `MONITOR#<monitor_id>` whose sort key starts with `prefix` (Query on the base table, all pages)."""
     rows, start = [], None
-    for _ in range(pages):
+    while True:
         extra = {"ExclusiveStartKey": start} if start else {}
         result = table.query(KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
                              ExpressionAttributeValues={":pk": f"MONITOR#{monitor_id}", ":prefix": prefix}, **extra)
         rows += result.get("Items", [])
         start = result.get("LastEvaluatedKey")
         if not start:
-            break
-    return rows
+            return rows
 
 
 def matching_automation(rows: list[dict] | None, *, monitor_id: str, publication_id: str, procedure_key: str) -> dict | None:

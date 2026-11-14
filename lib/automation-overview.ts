@@ -14,7 +14,9 @@ export type AutomationUsage = {
 };
 
 export type AutomationRun = {
-  origin: "monitor" | "manual";
+  origin: "monitor" | "manual" | "stage";
+  /** The stage a story entered to start this run (origin "stage"). */
+  stage?: string | null;
   requestedBy: string | null;
   reason: string | null;
   sourceId: string | null;
@@ -28,6 +30,10 @@ export type AutomationRun = {
   error: string | null;
   runRecord: "found" | "missing" | "unavailable" | "none";
   storyId: string | null;
+  /** False when no version of the story remains (it was deleted); null when this was not looked up. */
+  storyExists?: boolean | null;
+  /** Tool name to number of calls the procedure made, when the run recorded them. */
+  toolsUsed?: Record<string, number> | null;
   storyVersionId: string | null;
   storyTitle: string | null;
   costUsd: number | null;
@@ -72,6 +78,10 @@ export type AutomationRecord = {
   enabled: boolean;
   enabledNote: string;
   trigger: { kind: "monitor" | "schedule" | "event" | "manual"; config: Record<string, unknown> };
+  /** Story-stage automations only: the stage that fires it, where the engine moves the story after, and the bot-hop limit. */
+  onStage?: string | null;
+  nextStage?: string | null;
+  maxHops?: number | null;
   supported: boolean;
   supportNote: string | null;
   procedureKey: string;
@@ -105,6 +115,10 @@ export function triggerText(trigger: AutomationRecord["trigger"]): string {
   const kind = KIND_WORDS[trigger.kind] ?? trigger.kind;
   if (trigger.kind === "monitor") {
     return `${kind} ${String(trigger.config.monitorId ?? "?")}, delivering to ${String(trigger.config.publicationId ?? "?")}`;
+  }
+  if (trigger.kind === "event" && trigger.config.event === "story.stage_entered") {
+    const next = trigger.config.nextStage ? `, then moves it to ${String(trigger.config.nextStage)}` : "";
+    return `${kind}: a story enters ${String(trigger.config.onStage ?? "?")}${next}`;
   }
   return kind;
 }
@@ -156,7 +170,13 @@ export function costText(run: Pick<AutomationRun, "costUsd" | "costNote" | "over
   return run.overBudget && run.budgetUsd != null ? `${base}. Over the budget of ${dollars(run.budgetUsd)} per run` : base;
 }
 
-export function whoText(run: Pick<AutomationRun, "origin" | "requestedBy" | "sourceId">): string {
+export function toolsText(run: Pick<AutomationRun, "toolsUsed">): string {
+  const tools = Object.entries(run.toolsUsed ?? {}).sort(([a], [b]) => a.localeCompare(b));
+  return tools.length ? `Tools used: ${tools.map(([name, count]) => `${name} x${count}`).join(", ")}` : "Tools used: none recorded";
+}
+
+export function whoText(run: Pick<AutomationRun, "origin" | "requestedBy" | "sourceId"> & { stage?: string | null }): string {
+  if (run.origin === "stage") return `Story entered ${run.stage ?? "a stage"}`;
   return run.origin === "manual" ? `Run now by ${run.requestedBy ?? "someone"}` : `Item: ${run.sourceId ?? "unknown"}`;
 }
 

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "20a443fa-ebca-49ce-ba8a-2b86b7b7a5a6",
+  "issue_id": "PPY-f0af422f-da31-4d42-b6ba-e0c8b4af71d6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:33.064Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Choose an image generation model and record the decision",
+    "description": "Compare candidates on quality, cost per image, rights in the output and terms. Bring Ryan a recommendation. No provider is used before he approves it.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

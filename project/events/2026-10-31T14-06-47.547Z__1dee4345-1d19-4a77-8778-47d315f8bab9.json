@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1dee4345-1d19-4a77-8778-47d315f8bab9",
+  "issue_id": "PPY-6a104757-9727-4d8b-abb1-e44f7c248f50",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:47.547Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Enable the pilot skill in development stage on Ryan's Echo devices and record evidence",
+    "description": "Turn the plugin on for Pilobolus, deploy, and test on the developer account's devices: launch, read, help, stop, fallback. Record transcripts and screenshots on this epic.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a541d0a9-3452-4f4c-8f08-6ff659ec3f43",
+    "labels": []
+  }
+}

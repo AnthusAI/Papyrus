@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "98aa8cc4-4980-4906-90db-85fde2eab489",
+  "issue_id": "PPY-95067f00-9894-46b7-b00f-b7dc0ad98cfa",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-31T12:30:57.878Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "",
+        "to": "Repo: **Papyrus**. Bug-shaped chore: once a site sets `homePage`, every page links `css/papyrus-home-page.css`, and because the stylesheet joins the site-wide `?v=` hash, every Anth.us page's `?v=` changed when the newsroom page landed (Anth.us pages were meant to be byte-identical).\n\n## Where it is\n- `src/papyrus_content/projection/standard/projector.py`: `HOME_PAGE_CSS_PATH = \"css/papyrus-home-page.css\"` (line ~95); the file is copied from `assets/papyrus-home-page.css` when `standard.home_page is not None` (~123); it is appended to the stylesheets in `_chrome()` (~1175-1176).\n- `?v=`: `MarkusSiteProjector.__init__` -> `static_version(static_files)` (`src/papyrus_content/projection/projector.py` ~152-183) -> `version_token()` (`markus_renderer/pages.py` ~128): one SHA-256 over all top-level `css/*.css` and `assets/**`. The link suffix is built in `markus_renderer/shell.py` ~278; the static-build twin is `markus_renderer/build.py` `_css_version` (~364).\n\n## Change\n1. Link the stylesheet only on pages whose rendered body contains a home-page include (`references`, `threads`) or a section-front block. Follow the islands precedent: `_body()` injects the islands script only when the body contains `data-island=\"` (~1225-1232). Do the same for the CSS: `_chrome()` receives a flag `needs_home_page_css` computed from the page's include records (the include already records which selections a page uses for the digest; reuse that record, do not scan HTML with a regex if the record is available).\n2. Give the home-page stylesheet its own version token: `?v=<sha256 of that file, first 12 hex>` instead of the site-wide token, and exclude `css/papyrus-home-page.css` from `static_version`'s input so the site-wide `?v=` of every other page is what it was before the feature. Keep the file itself written to `css/` only when `homePage` is set (unchanged).\n3. Same behaviour in `markus_renderer/build.py` for the static build.\n\n## Acceptance\n- A fixture site with `homePage` set: a page without includes has the same `?v=` and no home-page `<link>` as the same site without `homePage` (byte-identical HTML). A page with a `references` include has the link with the file's own token.\n- Reconcile does not delete `css/papyrus-home-page.css`.\n- `procedures/newsroom/tests/test_standard_frontend_*` cover both cases; `npm run lint`/python tests green.\n\n## Gherkin (`features_backend/home-page-stylesheet.feature`)\nFeature: The home-page stylesheet is linked only where it is used\n  Scenario: A page without home-page includes is byte-identical with and without the homePage setting\n  Scenario: A page with a references include links papyrus-home-page.css with its own version token\n  Scenario: Changing the home-page stylesheet does not change the version token of other pages\n\nDocs: one line in `docs/home-page.md` (\"Stylesheet\"). No shared files with the other tasks of this wave except `projector.py` (the Anth.us task touches only the site repo)."
+      }
+    }
+  }
+}

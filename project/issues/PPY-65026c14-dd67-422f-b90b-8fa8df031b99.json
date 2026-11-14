@@ -1,0 +1,280 @@
+{
+  "id": "PPY-65026c14-dd67-422f-b90b-8fa8df031b99",
+  "title": "Route authorized email submissions into existing Monitoring intake",
+  "description": "As an editor, I want newsletter email received at publication or explicitly shared Cyclotron destinations to enter existing pending-reference workflows as untrusted source material. SPF, DKIM, and DMARC verdicts are recorded as provenance signals, not sender authorization. Sender addresses and MIME headers never grant roles or choose destination; exact recipient configuration scopes routing. Passing SES spam and virus checks, bounded MIME parsing, safe link handling, idempotent retries, and visible failures remain. Editors can privately read an inert text rendering, verdicts, and every extracted candidate link. No instructions, action links, human labels, automated feedback, or publishing are executed.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0a1bd895-7a4b-4adf-8b86-67c180f55dc8",
+      "author": "home",
+      "text": "Initial findings: primary develop is behind, Claude worktrees contain board edits and are untouched. Isolated worktree is based on fetched origin/develop 79bee759 (includes latest stack-limit fix). Existing inbound multi-link/prose path delegates to console commands, so new submission-only receiver bypasses it. Reuse Dynamo Monitoring discoveries and ReferenceIntake, explicit account/shared Cyclotron binding, then existing decide-site-sections queue. Require explicit cloud email managed/existing identity selection; static-only app shells synthesize none. No per-site rule-set activation or DNS edits. Expected red checks: extraction BDD (4 missing-module errors), intake BDD (missing module), package test (build_email missing). Implementation underway; no production action.",
+      "created_at": "2026-10-23T13:48:56.020176Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    },
+    {
+      "id": "546f8d24-2e68-4411-bdf7-7cc850303d23",
+      "author": "home",
+      "text": "Implementation and local verification complete; awaiting draft PR review, not landed. Branch feature/PPY-65026c-email-submissions from origin/develop 79bee759. Changes: mandatory explicit managed/existing cloud email ownership (static-only none), separate strict SES receiver with disabled receipt/router schedule, bounded safe MIME/link extraction, trusted DMARC/SPF/DKIM plus sender grants, account-scoped destinations, retry/rate receipts, existing shared router and pending Reference delivery. No source fetch, console commands, procedure triggers, feedback labels, sending or publishing. Shared relevance selects publications; existing site sweep selects sections and must be running on activation.\n\nVerification: PYTHONPATH=src:. Python3.12 -m pytest -q procedures/newsroom/tests/test_email_submission.py procedures/newsroom/tests/test_email_submission_intake.py procedures/newsroom/tests/test_email_submission_infra.py procedures/newsroom/tests/test_email_submission_package.py procedures/newsroom/tests/test_monitoring_cloud.py procedures/newsroom/tests/test_monitoring_router.py procedures/newsroom/tests/test_monitoring_intake.py => 183 passed. Existing Cyclotron-enabled Python3.12 env: -m pytest -q src/papyrus_content/site_sweep_test.py => 17 passed. Behave email-submission-extraction.feature email-submission-intake.feature cloud-email-infrastructure.feature monitoring-hacker-news.feature monitoring-private-queue.feature => 20 scenarios, 72 steps passed. npm run lint; npm run typecheck; SITE_ENV=staging PAPYRUS_CONTENT_SOURCE=drafts npm run build passed (build required network for Google Fonts). node --import tsx scripts/test-cloud-email-infra.ts, scripts/test-infra-site-config.ts, scripts/test-site-backend-names.ts, scripts/test-site-backend-synth.ts passed. App-shell tsc and test-infra-app-shell-account.mjs passed. Package contents passed using writable npm cache; pilot guard and diff check passed; both worker zips built locally.\n\nFailures: expected red specs preceded implementation. Initial section tests lacked optional decision_flywheel; passed in existing env containing it. Root-dependency app-shell type conflicts resolved with its own dependency set and correct test import boundary. tsx CLI IPC was sandbox-blocked; equivalent node --import tsx harnesses pass. Backend Node policy check remains red with exactly the same 41 preexisting paths on untouched develop; no new violation. No live AWS, DNS/MX, policy, credential, model, email or publishing action performed. Activation/migration steps in docs/email-reference-intake.md and infra/email/README.md.",
+      "created_at": "2026-10-23T14:03:50.431336Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    },
+    {
+      "id": "10259570-2015-49c2-b834-b5a33b0f1aa5",
+      "author": "home",
+      "text": "Draft PR: https://github.com/AnthusAI/Papyrus/pull/657 into develop. Branch feature/PPY-65026c-email-submissions, implementation commit abd92714, based on develop 79bee759. Verified 200 Python tests and 20 Gherkin scenarios; lint, typecheck, staging build, app-shell synth, packaging and guards passed except the identical 41-path baseline backend Node policy violation already documented. Issue stays in_progress pending review and landing. No merge/promotion PR, deploy, live email or DNS change. Separate editor Reference UI task has no file overlap. Private receipts/DLQ visibility and existing site-section sweep activation are explicit runbook tradeoffs. Temporary worktree will be removed after recording delivery; branch remains pushed.",
+      "created_at": "2026-10-23T14:08:52.552389Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    },
+    {
+      "id": "4cf90acd-d5af-4cb5-9ac8-73b690f3cebd",
+      "author": "home",
+      "text": "PR657 CI at 7a0a998b exposed two task-introduced integration failures: the new root test runner statically imports the app-shell stack, pulling its newer CDK-only API into root typecheck; and site-config imports cloud-email with eager CDK imports, bypassing the packaged optional-peer diagnostic. Reopening the same isolated worktree to fix both boundaries and run the actual package smoke path. Python CI is still running. No shared checkout, UI, AWS or DNS changes.",
+      "created_at": "2026-10-23T14:13:37.390961Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    },
+    {
+      "id": "b83aa60b-5d17-48ed-87de-8921c5840b34",
+      "author": "home",
+      "text": "CI corrections validated locally: separate pure cloud-email-config from CDK resources so package optional-peer checks remain intact; execute the infrastructure harness in a child process so root typecheck does not import the separately versioned stack. npm run typecheck and lint passed with root dependencies only. node packages/stage.mjs --version 0.0.0-smoke.1 and packages/verify-packages.mjs passed the actual isolated consumer install, optional-CDK diagnostic, upgrade and Python wheel checks. Infrastructure/intake tests: 35 passed; cloud-email BDD: 6 scenarios passed. Added tested ReservedConcurrency=0 option matching existing Monitoring for low-quota accounts; durable lease still serializes intake. Existing site config already gives AWS account/region/site IDs; current deployed router provides logical Account, Cyclotron and publication endpoint values. Operator decisions remain exact receiving addresses, initial publication membership, sender allowlist and ownership for domains without existing sending resources. Awaiting GitHub verification on the corrective commit; no merge/deploy.",
+      "created_at": "2026-10-23T14:18:03.615531Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    },
+    {
+      "id": "6df9118c-acba-4cd1-a74d-9fd56be7bbbb",
+      "author": "home",
+      "text": "Corrective head04c32e39 passed package-smoke CI, root typecheck/lint/build and app-shell build. Full npm test reached261 pass/1 failure: the static reader fixture in test-infra-synth.mjs removed cms but retained the new email block. Corrected the fixture to remove cloud email and assert no SES identity; the complete local packaged synth script is running. Original7a0a998b Python CI is green (3349 tests,649 scenarios); final corrective Python still running. Live-test preparation remains read-only: public p.apyr.us MX already targets SES us-east-1, but production and legacy AWS STS failed due expired shared Endymion SSO session. User login flow confirmed: aws sso login --profile papyrus-production. Proposed submissions-test alias is inactive/unverified; no AWS retry or change pending renewal and later exact deployment/security approval.",
+      "created_at": "2026-10-23T14:27:39.582981Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    },
+    {
+      "id": "cbf080f8-5c73-457f-a9e2-a301d2348089",
+      "author": "home",
+      "text": "Confirmed local fixture validation completed successfully (exit0): npm_config_cache=/tmp/papyrus-email-npm-cache node scripts/test-infra-synth.mjs. git diff --check also passed. Pushing only the fixture correction and this coordination record.",
+      "created_at": "2026-10-23T14:28:13.950337Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    },
+    {
+      "id": "b310ef16-e013-4b72-8cac-978c916284d3",
+      "author": "home",
+      "text": "Read-only AWS reconciliation corrected the Papyrus endpoint mapping: production Amplify app ds6yswxui41yi (account 712236451410, us-east-1) reports AppSync API ID 36xh4ckhhvfyrlxxbltoy246ea; AWS confirms its GraphQL URI host is 632qpvm7w5emhb2zo2vomc5rae, and the Monitoring router already has field grants for that API. Keep the processor, raw bucket, Monitoring table, and email router schedule in account 712236451410. SES owns the active receipt set papyrus-inbound-p-apyr-us in account 335163751677, so the intake IaC must split the exact-recipient receipt rule into an SES-account stack. The production bucket and Lambda resource policies must accept SES only from account 335163751677 and the exact receipt-rule ARN; the function role keeps same-account DynamoDB access limited to MONITOR#<monitor-id>. Add Gherkin/synth coverage for those exact conditions. Do not change DNS, identity, AWS resources, permissions, aliases, or send mail in this task.",
+      "created_at": "2026-10-23T16:48:02.803789Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "74cab354-66ec-4818-8631-5ba87e1323ee",
+      "author": "home",
+      "text": "Correction to the earlier account-split note: the production receiver and router belong together in papyrus-production (712236451410); this work does not require cross-account S3/Lambda grants. Read-only ownership evidence shows the legacy SES set papyrus-inbound-p-apyr-us and old Amplify media bucket are owned by stack amplify-dbsyytcm9drqa-main-branch-cb38ada667-storage0EC3F24A-1CP824J3CJ16B, created 2026-05-30. Git history shows the initial email feature was wired to the old app production main pipeline; CloudTrail has no retained matching event or trail/data store, so the AWS deployment actor is unknown. Current legacy identity p.apyr.us is Failed; production has no p.apyr.us identity or receiving set. Public authoritative DNS remains unresolved because the two known Route 53 zones have different name-server sets. Local correction adds a retained inactive production receiving-set template and updates the cutover runbook to require account-local identity verification, same-account scoped receiver/router, an approved disable of the old matching rule to avoid duplicate delivery, and a privately configured exact test sender. No AWS, DNS, IAM, SES rule, email or publishing change performed.",
+      "created_at": "2026-10-23T17:00:43.972260Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "c199cb43-9128-464a-bfb8-5759cab9e39b",
+      "author": "home",
+      "text": "Follow-up approved by Ryan: configure Papyrus Cognito Google federation to map Google's email_verified claim to Cognito's standard email_verified attribute so verified sender authorization can succeed without administrative verification. Add synthesis regression coverage for the mapping and app-client write access. Do not change live Cognito or trigger an Amplify deployment in this branch; coordinate the guarded site deployment with the Amplify owner.",
+      "created_at": "2026-10-24T08:13:51.928006Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "fix/PPY-65026c-google-email-verification",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "72c5cbc3-0ea1-4a8e-b74c-31c5e4e18b95",
+      "author": "home",
+      "text": "Implementation update: remove the editorial link-count cap rather than raising it. Keep technical message bounds (1 MiB MIME, 64 MIME parts, depth 12, 2,048 chars per candidate URL) and normalize/deduplicate every eligible URL inside those bounds. Persist a compact private JSONL sidecar in the existing 30-day raw bucket; receipt metadata records its digest/size, total eligible/excluded counts, byte cursor, processed count and pending status. Drain discoveries in time-budgeted batches with a stable cursor; conditional discovery puts make an interrupted batch safe to replay without overwriting a routed item. Reuse the existing Monitoring routing GSI with an exact monitor-scoped pending key and a small EventBridge resume schedule that invokes the same receiver; keep the existing router schedule/target and sender/MIME checks unchanged. Any additional S3 manifest-write, DynamoDB query and EventBridge invoke grants will be exact resource/prefix/leading-key/source-ARN scoped in the reviewable template, not live-applied here. Final receipt says queued only when every eligible unique link is durable; partial progress remains processing with a checkpoint, hard format/security violations reject visibly, no content is silently truncated. Remove known Beehiiv click-wrapper URLs from downstream discovery and count them as excluded; do not resolve/fetch them until explicit privacy permission. Cross-email canonical Reference reuse remains in existing ReferenceIntake; duplicate deliveries retain independent audit receipts but retries do not duplicate discoveries or recurate References.\n\nFocused tests: all 41 direct links survive in multiple internal batches; more than 1,000 links under the byte bound are not rejected; excluded action/unsubscribe/tracker links; same-email normalization/dedup; mid-batch failure/retry after router advancement; checkpoint resume across schedule invocations; progress and final receipt counts; expired/changed binding fails closed; router cross-email Reference dedup unchanged. No production message, live AWS, security policy, deployment, or tracking URL fetch is part of this change.",
+      "created_at": "2026-10-24T15:22:13.556353Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e72cd1fd-3421-405d-94b0-c2ea4067b418",
+      "author": "home",
+      "text": "Bounded newsletter intake correction implemented on isolated branch feature/PPY-65026c-bounded-email-intake (based on develop 3d4f95b2). Removed editorial candidate/link-count rejection; existing 1 MiB MIME, 64-part, depth-12 and per-URL bounds remain. Eligible normalized links are stored in private JSONL manifests under the existing 30-day email-submissions prefix. Receipt cursor/progress and an exact-monitor-scoped one-minute resume schedule drain at most 25 links or 60 seconds per invocation; conditional discovery puts make retries safe after partial writes/router progress. Added exact-prefix S3 manifest write, exact Monitor routing-GSI query, and exact EventBridge invoke permissions. Known Beehiiv click-wrapper URLs are excluded without persistence or fetch. Current local validation: 197 focused Python tests and 16 email extraction/intake Gherkin scenarios pass; no deployment, merge, live email, labels, publication, or tracking-URL request occurred. Full local checks and draft PR are still in progress; resend acceptance remains separate.",
+      "created_at": "2026-10-24T15:29:50.094662Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-bounded-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "cf4f6bb7-d6ce-4437-b459-b35f0070a30d",
+      "author": "home",
+      "text": "Acceptance-test update, separate from this code change: the newly reported resend reached the production intake at 2026-10-24T15:31:08Z and was rejected at the trusted SES-authentication gate with reason sender_authentication_failed. Its exact receipt has no manifest, processed/link counts or pending cursor, confirming it was not MIME-parsed or queued for discovery. No Cyclotron/router/Reference handoff occurred; the earlier rejected delivery was not reprocessed. Header-only inspection of this exact message showed no SPF/DKIM/DMARC pass; no article or tracking URL was fetched. Keep this production result separate from PR 667; no live policy or deployment change was made.",
+      "created_at": "2026-10-24T15:34:29.298602Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-bounded-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "0ed5308b-0183-444e-b228-95562efbb8d7",
+      "author": "home",
+      "text": "Added and pushed a diagnostic-only extension on PR #667, commit cb497657833ad0275f6bdc0610a2f9328a947146. The existing private EMAIL receipt now stores a bounded SES invocation-verdict snapshot (five status enums), provenance, and derived failed-gate codes; it does not copy raw event fields, MIME headers, signatures, or reasons supplied outside the SES event. Receipts also record processingStage so SES auth, sender rate, current editor membership, MIME read/parse, manifest queue, and resumed work are distinguishable. The acceptance predicate, sender trust policy, IAM and live configuration are unchanged. Focused local checks: test_email_submission_intake.py 46 passed; email-submission-intake.feature 12 scenarios / 51 steps passed; Ruff passed; git diff --check passed. No deployment.",
+      "created_at": "2026-10-24T16:16:01.537617Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-bounded-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "b78daed8-27b3-4ae2-8927-511f635333fc",
+      "author": "home",
+      "text": "Offline-only redirect hardening added to the existing email-intake branch: an explicit resolver seam recognizes only Beehiiv HTTPS click wrappers, rechecks every redirect host, rejects private/mixed DNS, unsafe actions, HTTPS downgrade and loops, and bounds redirect count, header size, per-hop/total time. Synthetic fixtures assert HEAD-only, no response body, no automatic redirects, pinned public IPs and bounded DNS. Production intake still does not inject the resolver, so no recipient-specific tracking URL is contacted or persisted. Verification: 118 focused Python tests passed; extraction/intake BDD 17 scenarios and 68 steps passed; Ruff and diff check passed. No deployment or live URL fetch.",
+      "created_at": "2026-10-24T18:33:26.350691Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "995edf8f-3712-4332-973d-2ee1d78d1ac5",
+      "author": "home",
+      "text": "Implemented locally on `feature/PPY-65026c-bounded-email-intake` (PR #667 remains draft; no deployment). Failed or unavailable SPF/DKIM/DMARC now remain untrusted per-check signals and do not reject safe data-only intake. SES event source, exact envelope recipient scope, and passing spam/virus checks remain gates; envelope/MIME sender identity never grants editor authority or selects a publication. Old rejected auth-only deliveries can be replayed idempotently, while other terminal failures remain terminal. Accepted mail without extractable URLs is still available for private review.\n\nAdded safe HTML-to-text rendering, expiring private body/link chunks and a publication-scoped editor/admin Monitoring view with receipt verdicts and all candidate links. HTML, scripts and remote images are never activated, and body prose is not sent to the classifier. Existing MIME/byte/part/depth, URL-safety, recipient-scope, durable batch and retry controls remain. Real tracking wrappers are still excluded/unresolved; no subscriber URL is contacted.\n\nVerification: 144 focused parser/intake/router/Monitoring Python tests passed; the email-intake Gherkin feature passed (9 scenarios, 40 steps); Monitoring backend and rendered-page checks passed; TypeScript typecheck passed with a temporary local placeholder for generated `amplify_outputs.json`; ESLint passed. Ruff reports one existing unrelated F841 in `monitoring_router.py` at line 1216; the only additional warning found in this delta was removed. No production state or email was changed. Awaiting coordinated release timing with the Chatticus/site deployment owner.\n",
+      "created_at": "2026-10-24T23:08:43.915316Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "e45dc13f-d7bc-4b9f-9ffb-7a28ec7d0cb5",
+      "author": "home",
+      "text": "Updated implementation is pushed to draft [PR #667](https://github.com/AnthusAI/Papyrus/pull/667), code commit `db78846475a89d393a69c62d1b60fb07366151fe` (the branch also contains the Kanbus state commit). The PR remains open/draft; this work has not been merged or deployed.\n\nCurrent semantics: SPF/DKIM/DMARC failures are visible SES signals, not rejection or sender identity. SES event source, exact recipient configuration, and passing spam/virus verdicts remain hard gates. Every accepted message is data-only; sender/MIME headers cannot gain authority or choose publications. Safe email body text and all extracted links are privately retained in expiring chunks and readable by the destination publication's authenticated editors/admins in Monitoring. No active HTML, remote images, automatic fetching, labels, feedback, procedures or publication. Emails with no eligible links remain readable. Legacy auth-only rejected receipts can be replayed idempotently; other terminal failures do not replay.\n\nVerification on BlackbookM1: 150 focused Python tests passed; 9 email-intake Gherkin scenarios / 40 steps passed; Monitoring API-schema and rendered-page tests passed; TypeScript typecheck and ESLint passed; `git diff --check` and targeted Ruff passed. The email receiver artifact built locally at SHA-256 `6003ccfe7f8f33987d19971d2482f987b58e4b6d46d47c0da6a5b3cd5a9ebfa6` (174,250 bytes), not uploaded. Full Ruff reports only the existing unrelated F841 at `monitoring_router.py:1216`. GitHub `python`, `ts`, and `smoke` checks are still queued. No live intake replay or production change.\n\nRelease coordination remains with the site/Chatticus owner: merge/publish the engine package, update/deploy the p.apyr.us site API pin, and deploy the receiver-specific artifact/stack through the approved pipeline in a coordinated sequence. Then replay the two eligible old rejected messages idempotently and verify Monitoring receipts, extracted links, router delivery and section-sweep predictions. Beehiiv subscriber-specific tracking links remain unresolved and unfetched pending the requested privacy approval.\n",
+      "created_at": "2026-10-24T23:13:50.731311Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "51b54e45-45e4-4165-ac78-06a7f0a2b737",
+      "author": "home",
+      "text": "Editor-to-Reference follow-up is ready locally on feature/PPY-65026c-email-reference-import, based on current develop b45beb17. Monitoring now offers editor-selected import through the existing editor/admin Reference intake. Selected direct links and explicitly resolved Beehiiv article links become pending References with signed-in editor and receipt rationale; repeated import is canonical-URL idempotent and makes no vote, label, classifier request, or publication. The Beehiiv resolver remains explicit, limited to article wrappers, pinned to validated public DNS, HTTPS HEAD-only, bounded, and excludes action links. The UI batches at 20 requests but processes the full selection (tested with 41 links); this is not a total limit. Verification on BlackbookM1: 171 focused Python tests passed; email intake Gherkin 11 scenarios / 50 steps passed; Monitoring UI rendering and 41-link batching test passed; TypeScript noEmit passed using a temporary ignored amplify_outputs.json placeholder; targeted ESLint passed; schema parity passed; git diff --check passed. Ruff passed with pre-existing E701/E702 formatting disabled for the legacy test file. No live AWS, email replay, deployment, classification, or publication changes. Editor review UI coordination remains a release prerequisite for end-to-end voting.",
+      "created_at": "2026-10-25T13:13:38.215630Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "f2bf8e66-0c28-475d-94de-ac8714eea519",
+      "author": "home",
+      "text": "Quarantine and release for held and refused email submissions is implemented in PR #784 (tracked in PPY-f58226): editors Accept or Reject held messages on the Monitoring receipt page; nothing is routed, resolved or imported until accepted. Pending: deploy and live test with the two refused receipts.",
+      "created_at": "2026-10-27T16:55:56.749399Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-23T13:42:33.927657Z",
+  "updated_at": "2026-10-27T16:55:56.749663Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6-luna",
+    "name": "Codex",
+    "settings": {
+      "reasoning_effort": "medium"
+    }
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

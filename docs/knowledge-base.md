@@ -8,6 +8,10 @@ Status words used here: Live, Beta, Not built yet.
 
 `/newsroom/concepts` is a wiki of concepts for editors. It sits in the newsroom, so it is for signed-in editors and not for the public. Each page is a concept: an entity in the knowledge graph that the newsroom has reported on, researched or cited. A page shows what it is, what it connects to and the references behind it. The front page is an ordinary content item with the slug `wiki-index`, and it lists recently edited concepts and all concepts. Code: `lib/wiki.ts`.
 
+## Searching concepts (Live)
+
+`papyrus knowledge concepts search "free text"` finds accepted concepts by meaning, from the `concept_card` and `ontology_concept_profile` vectors only; the order is relevance, never how many stories carry a concept, and a typed exact name comes first. `papyrus knowledge concepts related --concept NAME` shows the concepts near one concept, and `papyrus stories suggest-links` uses both hops to rank related content for a story. Search reports a concept index that is empty or missing concepts and the `knowledge-vector-index --action sync` command that rebuilds it, and flags likely duplicates (the same name filed twice). Details: [Suggesting related content](story-reporting.md#suggesting-related-content).
+
 ## Public wiki (Beta)
 
 Accepted entities and beats become pages of a public, read-only wiki: `papyrus knowledge wiki sync` makes draft pages, `papyrus knowledge wiki publish` stamps and publishes them. Every page says who last put it in front of readers. See [public-wiki.md](public-wiki.md).
@@ -21,11 +25,16 @@ Accepted topics are a versioned tree: a `CategorySet` with parent and child `Cat
 - `SemanticNode` rows are typed entities and concepts.
 - `SemanticRelation` rows are explicit, versioned relations between them, with relation types seeded as `SemanticRelationType` records.
 - Graph artifacts are imported and published with the `papyrus analysis` commands (`src/papyrus_content/analysis_graph.py`).
+- **Automated writers never change a concept that exists.** A knowledge run, a graph import or any other machine gets or creates the concept: a missing one is created (create-only), an existing one is left alone, and the associations are written to it either way. A person's edits to a name, description or aliases survive every run. Matching is by kind and a case and white-space insensitive name or alias, and a rejected concept is never revived or linked. The only machine update of an existing concept is a partial update of the numbers derived from the graph (`authorityScore`, `authorityRank`, `acceptedReferenceMentionCount`, `distinctSourceKindCount`, `relationCount`) and the extractor's page answer (`pageAnswer`; an editor's own decision lives in `changeReason` and wins, see [page answer](knowledge-snapshot.md#page-answer)). Three exceptions: a `generated` concept becomes `accepted` when a published Story's front matter names it or when a monitor record names it (never from `rejected`), and the front-matter path records the acceptance mark on a concept it created. The rule lives in `src/papyrus_content/semantic_node_writes.py` and a test fails when another module writes a concept without create-only. Specified in `features_backend/knowledge-run-concepts.feature`.
 - Ontology enrichment (`src/papyrus_content/ontology_enrichment.py`) is run with the `papyrus ontology` commands: `preflight`, `rank`, `status`, `explain`, `profile`, `associate`, `dedupe`, `recompute-authority` and `doctor`.
 
 ## Context packs for agents (Live)
 
 `knowledgeQuery` searches accepted references and the graph and returns a context pack for a model: semantic search, lookup by anchor, and budgeted graph expansion. Only accepted references count as evidence. Research and reporting procedures call it as `knowledge_search`. See [internal-knowledge-research.md](internal-knowledge-research.md).
+
+## Concept tags are `tagged_with`
+
+A story or a Reference is tagged with a concept by a `tagged_with` relation (renamed from `related_to` on 2026-11-09; `related_to` stays for two References and for two concepts). Concept statistics, the concept pages, "Linked by editors", the knowledge query, the context packs and the wiki read both names until `papyrus relations migrate-concept-tags` has moved the stored rows (the old rows become `superseded`, not deleted). See [Tagging with concepts](story-reporting.md#tagging-with-concepts).
 
 ## Trending concepts report (Beta)
 
@@ -34,10 +43,9 @@ A report ranks concepts by popularity, by trend over a time window, or by PageRa
 ```bash
 # Trending concepts over the last 30 days. Prints the report and writes nothing.
 papyrus signals concept-report --corpus-key <corpus key> --report-type trending --json
-
-# Same report, saved to the backend as a private Message of kind concept_report.
-papyrus signals concept-report --corpus-key <corpus key> --report-type trending --apply
 ```
+
+The command only prints. It has no `--apply`: Messages come only from people, so a report is never saved as a Message. `papyrus knowledge signals trend-report` behaves the same way.
 
 Options: `--report-type all|popularity|trending|pagerank` (default `all`), `--trend-window-days` (default 30), `--limit` (default 25), `--node-kinds` (default `entity`), `--max-nodes-per-reference`, `--run-id` and `--input` (a fixture file). The report creates no article and no edition item. The command is in `src/papyrus_newsroom/cli.py` and is reached through `papyrus signals`.
 

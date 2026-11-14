@@ -1,0 +1,28 @@
+{
+  "id": "PPY-f2469685-8b84-4962-9ca3-78bd04c41397",
+  "title": "Home pages interleave small groups of different kinds, with raw References last",
+  "description": "Ryan, 2026-11-05. Replace big blocks with a rhythm of small mixed groups. His direction: (1) the top few Stories are the best recent ones, not constrained by section; (2) then a few recent high-rated Stories and posts from each of several sections, so readers see the breadth of sections; (3) more than one video when there are several worth showing; (4) raw References (linking off-site, no post of ours yet) go all the way at the end; their main purpose is to show how the system works, automated monitors feeding Cyclotrons that keep aligning to editors' feedback, with a few of the most recent; (5) no wall of words near the top, but deeper down an explanation is welcome: a header, a subheading, and a dedicated explainer card inside the References grid. Adaptive: an empty slot is skipped. Nothing appears twice (page ledger). Rhythm lives in site settings (an include pattern), not code. Each group queries an index for its few items (PPY-7f1e54). Mock up two or three rhythms on Machines on Machines as screenshots for Ryan before building. Gherkin.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "64c627a7-6807-412f-acb1-55f28cf994db",
+      "author": "home",
+      "text": "Ryan 2026-11-05 chose layout E: the top of A for Top Articles, then the top of B for Latest Posts, then the bottom of A (Worth Watching, Just Found with the How It Works card). Two-word labels in the Apple News style. No gaps: every row full at every width. Curate the whole page by quality: the best items first and largest in every group, including the Just Found References, which are ordered by quality (stars, then Cyclotron prediction), not by arrival. Mock-up: scratchpad home-rhythm/e-sample.html.",
+      "created_at": "2026-11-06T01:47:54.750373Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-06T01:28:21.205197Z",
+  "updated_at": "2026-11-06T01:47:54.750976Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

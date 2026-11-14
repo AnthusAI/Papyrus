@@ -39,10 +39,17 @@
       "text": "v0 status: digest plus synthesis merged (#641); soft-review wiring and steering read-back merged (#651, in the next release). Tried locally on TI (3 ideas, $0.003) and Anth.us (3 ideas, $0.002); ideas are in ~/Projects/shipped-handover-20261022/ideas-v0-*.md. Key finding: monitors deliver references as pending (Anth.us: 0 accepted / 10 pending; TI: 11 / 1,076), so accepted-only runs have no input. Next: an auto-accept or soft-review policy for pending references, then scheduling via automations, a service identity that can file Proposals, weekly trends and embedding-based dedupe. Proposals are now private by default (proposals.publish opt-in).",
       "created_at": "2026-10-23T12:21:49.972454Z",
       "comment_type": "default"
+    },
+    {
+      "id": "6575c112-1055-4e6d-8806-7e18e874bf23",
+      "author": "home",
+      "text": "Trend-story path built: PR #690 (feat/idea-trend-stories), merged to develop at c50b6fd6 after CI (ts, python, smoke) passed. Not on main, no release, no deploy, no live run or live LLM call. Adds papyrus ideas trends --site KEY --snapshot PATH|URL [--store proposals] [--dry-run] [--max N]: signals from the weekly knowledge snapshot without a model, one GPT-6 Luna call, a deterministic citation check (each sentence cites a snapshot signal; its numbers and dates come from the signals it cites; failing drafts are not filed and the run record says why), story_draft Proposals in draft with proposer AI, targets = cited clusters/entities, evidence.figure = line-chart spec of the cited signals' weekly counts for the editor to approve with the copy. Dedupe on same targets (skipped under IAM, recorded), one soft review per run, works with PAPYRUS_GRAPHQL_AUTH=iam and as an editor. The reader-actions function now keeps a validated evidence.figure, so a site needs a backend deploy with this release before the figure is stored. Specs: features_backend/idea-trend-stories.feature, proposals.feature; tests test_idea_trends.py. Docs: docs/idea-pipeline.md#trend-stories. Remaining: first real dry run against Shipped's latest snapshot (needs Ryan: OPENAI_API_KEY and an IAM or editor session), Shipped backend deploy, scheduling.",
+      "created_at": "2026-10-24T20:51:17.123189Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T06:21:29.259854Z",
-  "updated_at": "2026-10-23T12:21:49.972497Z",
+  "updated_at": "2026-10-24T20:51:17.123213Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

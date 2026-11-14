@@ -51,6 +51,7 @@ SEMANTIC_PREDICATES: dict[str, dict[str, str]] = {
     "produces": {"label": "produces", "group": "workflow", "inverse_label": "produced by"},
     "derived_from": {"label": "derived from", "group": "evidence", "inverse_label": "source for"},
     "related_to": {"label": "related to", "group": "generic", "inverse_label": "related from"},
+    "tagged_with": {"label": "tagged with", "group": "editorial", "inverse_label": "tag of"},
     "broader_than": {"label": "broader than", "group": "ontology", "inverse_label": "narrower concept"},
     "narrower_than": {"label": "narrower than", "group": "ontology", "inverse_label": "broader concept"},
     "member_of": {"label": "member of", "group": "ontology", "inverse_label": "members"},
@@ -62,7 +63,7 @@ SEMANTIC_PREDICATES: dict[str, dict[str, str]] = {
 REFERENCE_FIELDS = """
 id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash
 corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt
-    retrievedAt importRunId importedAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason updatedAt
+    retrievedAt importRunId importedAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy updatedAt
 """
 
 ATTACHMENT_FIELDS = """

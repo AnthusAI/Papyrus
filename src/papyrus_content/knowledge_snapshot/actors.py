@@ -2,7 +2,8 @@
 
 An actor is ``{"actor": "ai" | "human", "name": str | None, "on": "YYYY-MM-DD"}``. The schema has no field for it, so
 it rides in strings the rows already have: a node's ``changeReason`` holds one JSON object behind ``REVIEW_MARKER``
-(``acceptedBy``, ``rejectedBy``, ``descriptionEditedBy`` ``retypedBy`` once a node has been retyped and ``aliasedBy`` once an alias was added to it), and a topic cluster's proposal ``summary`` object holds
+(``acceptedBy``, ``rejectedBy``, ``descriptionEditedBy`` ``retypedBy`` once a node has been retyped, ``aliasedBy`` once an alias was added to it, ``mergedBy`` once a duplicate was merged into it (or away), and
+``pageGivenBy`` or ``pageTakenBy`` once an editor decided against the machine's page answer whether it has a public page), and a topic cluster's proposal ``summary`` object holds
 ``acceptedBy``. Nothing here reads a clock: callers pass the day.
 """
 
@@ -31,9 +32,12 @@ class Actor:
     actor: str
     name: str | None
     on: str
+    #: Where the decision was made, stamped by the site and never by the person: ``cli``, ``newsroom`` or ``signed-in`` (see
+    #: ``amplify/functions/shared/edit-origin.ts``). Absent on a decision from before it was recorded, or one written with AWS credentials.
+    via: str | None = None
 
     def to_dict(self) -> dict:
-        return {"actor": self.actor, "name": self.name, "on": self.on}
+        return {"actor": self.actor, "name": self.name, "on": self.on, **({"via": self.via} if self.via else {})}
 
     @property
     def is_human(self) -> bool:
@@ -65,7 +69,8 @@ def actor_from_dict(value: Any) -> Actor | None:
     if not isinstance(value, Mapping) or value.get("actor") not in ACTORS or not isinstance(value.get("on"), str):
         return None
     name = value.get("name")
-    return Actor(actor=value["actor"], name=name if isinstance(name, str) and name.strip() else None, on=value["on"])
+    via = value.get("via")
+    return Actor(actor=value["actor"], name=name if isinstance(name, str) and name.strip() else None, on=value["on"], via=via if isinstance(via, str) and via.strip() else None)
 
 
 @dataclass(frozen=True)
@@ -75,6 +80,11 @@ class ReviewMarks:
     description_edited_by: Actor | None = None
     retyped_by: Actor | None = None
     aliased_by: Actor | None = None
+    #: Who merged another entity into this one (``entities merge``), or who merged this one away (the superseded duplicate keeps the mark too).
+    merged_by: Actor | None = None
+    #: An editor's own decision whether the concept has a public page, against the extractor's answer (``page_answer.py``). At most one is set.
+    page_given_by: Actor | None = None
+    page_taken_by: Actor | None = None
 
     def encode(self) -> str:
         body = {
@@ -86,6 +96,12 @@ class ReviewMarks:
             body["retypedBy"] = self.retyped_by.to_dict()
         if self.aliased_by:
             body["aliasedBy"] = self.aliased_by.to_dict()
+        if self.merged_by:
+            body["mergedBy"] = self.merged_by.to_dict()
+        if self.page_given_by:
+            body["pageGivenBy"] = self.page_given_by.to_dict()
+        if self.page_taken_by:
+            body["pageTakenBy"] = self.page_taken_by.to_dict()
         return REVIEW_MARKER + json.dumps(body, sort_keys=True, separators=(",", ":"))
 
     def replace(self, **changes: Actor | None) -> "ReviewMarks":
@@ -107,6 +123,9 @@ def decode_review(change_reason: Any) -> ReviewMarks:
         description_edited_by=actor_from_dict(body.get("descriptionEditedBy")),
         retyped_by=actor_from_dict(body.get("retypedBy")),
         aliased_by=actor_from_dict(body.get("aliasedBy")),
+        merged_by=actor_from_dict(body.get("mergedBy")),
+        page_given_by=actor_from_dict(body.get("pageGivenBy")),
+        page_taken_by=actor_from_dict(body.get("pageTakenBy")),
     )
 
 

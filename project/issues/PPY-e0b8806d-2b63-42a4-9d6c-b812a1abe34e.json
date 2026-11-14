@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e0b8806d-2b63-42a4-9d6c-b812a1abe34e",
+  "title": "Public wiki: fun views and who may edit",
+  "description": "Public-safe rule stands: accepted concepts only, no reference text or private notes. Numbers are labelled by what they count.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-17d05702-569a-41fd-bfc8-4e11eca9792e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:48.648541Z",
+  "updated_at": "2026-11-04T02:52:48.648581Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

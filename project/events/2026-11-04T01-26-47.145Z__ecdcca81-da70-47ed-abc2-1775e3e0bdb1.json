@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ecdcca81-da70-47ed-abc2-1775e3e0bdb1",
+  "issue_id": "PPY-cb69fef2-7823-423b-bf5c-ac91940139e9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T01:26:47.145Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Overnight processes follow the Story procedure: one driver and a nightly audit",
+    "description": "Ryan 2026-11-03: the CLI only warns, but automated background processes must follow every procedure. CLI reminders never reach them. Proposed: (1) a per-publication scheduled pass that runs assess() on every Story past Idea and runs the next step, reading the same STEPS table, so order comes from the table and one step cannot be skipped; claims one run per Story, step and version; a failure leaves the Story where it is and raises a flag review request, the Stage Bots contract. Choosing a Story and publishing stay with people. (2) The research worker becomes the handler of the research step, not its own schedule. (3) A nightly audit over all Stories reports skipped steps and stuck Stories as review requests, which catches writers outside the driver. (4) A test fails when a live step has no handler and is not marked for people, and stage writes go through move_story_stage (copywriting.py and publishing.py set stage on their own today). (5) docs/automated-processes.md gets this process in the template. Starts on Machines on Machines only; model spend and the stack change need Ryan's yes. Requires PPY-c63c9f and PPY-41909c.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-aab37edd-ee4e-4784-96a1-974ae040b452",
+    "labels": []
+  }
+}

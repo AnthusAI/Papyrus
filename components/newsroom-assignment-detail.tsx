@@ -36,7 +36,7 @@ export function NewsroomAssignmentDetail({ assignment, deskOptions = [], onDeskC
   const changeDesk = (value: string) => {
     if (!onDeskChange) return;
     setSavingDesk(true); setDeskError(null);
-    onDeskChange(value === NO_DESK_VALUE ? null : value).catch((reason: unknown) => setDeskError(reason instanceof Error ? reason.message : "Could not save the desk.")).finally(() => setSavingDesk(false));
+    onDeskChange(value === NO_DESK_VALUE ? null : value).catch((reason: unknown) => setDeskError(reason instanceof Error ? reason.message : "Could not save the section.")).finally(() => setSavingDesk(false));
   };
   const facts: DetailField[] = [
     { label: "Status", value: assignment.status },
@@ -58,14 +58,14 @@ export function NewsroomAssignmentDetail({ assignment, deskOptions = [], onDeskC
       {facts.map(field => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}
     </dl>
     {onDeskChange && <label className="newsroom-assignment-detail-desk">
-      <span>Desk</span>
+      <span>Section</span>
       <Select onValueChange={(value) => { if (typeof value === "string") changeDesk(value); }} value={deskChoices.some(option => option.value === currentDesk) ? currentDesk : NO_DESK_VALUE} disabled={savingDesk}>
-        <SelectTrigger aria-label="Desk" className="w-full" data-newsroom-assignment-desk>
-          <SelectValue>{deskChoices.find(option => option.value === currentDesk)?.label ?? "No desk"}</SelectValue>
+        <SelectTrigger aria-label="Section" className="w-full" data-newsroom-assignment-desk>
+          <SelectValue>{deskChoices.find(option => option.value === currentDesk)?.label ?? "No section"}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NO_DESK_VALUE}>No desk</SelectItem>
-          {(["core", "rotating"] as const).map(kind => deskChoices.some(option => option.kind === kind) ? <SelectGroup key={kind}><SelectLabel>{kind === "core" ? "Core desks" : "Rotating desks"}</SelectLabel>{deskChoices.filter(option => option.kind === kind).map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup> : null)}
+          <SelectItem value={NO_DESK_VALUE}>No section</SelectItem>
+          {(["core", "rotating"] as const).map(kind => deskChoices.some(option => option.kind === kind) ? <SelectGroup key={kind}><SelectLabel>{kind === "core" ? "Core sections" : "Rotating sections"}</SelectLabel>{deskChoices.filter(option => option.kind === kind).map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup> : null)}
         </SelectContent>
       </Select>
       {currentDesk && !deskChoices.some(option => option.value === currentDesk) ? <small className="newsroom-desk-legacy-value">Old section value: {currentDesk}</small> : null}

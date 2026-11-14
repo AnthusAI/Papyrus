@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ca8f3f5e-95ee-461f-beef-2b5cafe724e8",
+  "issue_id": "PPY-5d3f7f87-fb7f-46a7-9ffe-47579402d9f5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-28T02:21:03.474Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Backend: shared Candidate with provenance, dedupe across HN, email and web",
+    "description": "CAND by canonical URL, provenance[], write-once content-addressed enrichment, per-publication decisions, votes; backfill of existing discoveries.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2069646f-2bd9-4471-8d91-9908015e9419",
+    "labels": []
+  }
+}

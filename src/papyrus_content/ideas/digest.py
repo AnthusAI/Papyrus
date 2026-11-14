@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlsplit
 
+from ..tenant_knowledge_keys import corpus_key_of
 from .excerpt import Fetcher, excerpt_for, fetch_html
 
 SCHEMA_VERSION = 1
@@ -27,7 +28,6 @@ STATUSES = (ACCEPTED, PENDING)
 RELEVANCE_PREDICATE = "relevance_decision_is"
 RELEVANCE_NODE_PREFIX = "semantic-node-relevance-"
 UNLABELLED = "unlabelled"
-CORPUS_PREFIX = "knowledge-corpus-"
 DEFAULT_WINDOW = "7d"
 DEFAULT_MAXIMUM_REFERENCES = 60
 
@@ -65,7 +65,7 @@ def parse_time(value: str | None) -> datetime | None:
 
 
 def corpus_key(corpus_id: str) -> str:
-    return corpus_id.removeprefix(CORPUS_PREFIX)
+    return corpus_key_of(corpus_id)
 
 
 def _metadata(relation: dict[str, Any]) -> dict[str, Any]:
@@ -104,6 +104,7 @@ def relevance_of(relations: Iterable[dict[str, Any]]) -> dict[str, Any] | None:
         "confidence": _number(newest.get("confidence")),
         "classifier": metadata.get("classifier") or metadata.get("cyclotronId"),
         "decidedAt": metadata.get("decidedAt"),
+        "positiveLabel": metadata.get("positiveLabel"),
     }
 
 
@@ -229,12 +230,13 @@ def current_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return [row for row in rows if row and row.get("versionState", "current") == "current"]
 
 
-def collect_references(client: Any, corpus_ids: list[str], statuses: list[str], since: datetime) -> list[dict[str, Any]]:
+def collect_references(client: Any, corpus_ids: list[str], statuses: list[str], since: datetime | None) -> list[dict[str, Any]]:
+    """Every current Reference of the corpora in the statuses (each index is paged to the end); with ``since``, only those created at or after it."""
     found: list[dict[str, Any]] = []
     for corpus_id in corpus_ids:
         for status in statuses:
             rows = current_rows(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}"))
-            found.extend(row for row in rows if (parse_time(row.get("createdAt")) or since) >= since)
+            found.extend(row for row in rows if since is None or (parse_time(row.get("createdAt")) or since) >= since)
     unique = {row["id"]: row for row in found}
     return list(unique.values())
 

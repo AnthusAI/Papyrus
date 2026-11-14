@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cf2b97ce-8270-4e63-9c28-7e31a236d681",
+  "issue_id": "PPY-694f0381-4c92-41d0-a0bf-ef4db9fd921f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T19:02:37.003Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Show total References by status, from cached counts",
+    "description": "Ryan 2026-11-03: low priority, blocks nothing. DynamoDB has no aggregation queries, so totals by status need an efficient count and cached aggregates.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 4,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

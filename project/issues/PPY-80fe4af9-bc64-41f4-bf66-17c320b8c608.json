@@ -1,0 +1,41 @@
+{
+  "id": "PPY-80fe4af9-bc64-41f4-bf66-17c320b8c608",
+  "title": "DataParade-newsroom and Papyrus-web adopt local CI + LeftBlock receipt gate",
+  "description": "Repos: AnthusAI/DataParade-newsroom (private, app d35q7zv4zad2we, main auto-build on), AnthusAI/Papyrus-web (private, app d2scc0rkxkbrhl, main auto-build on). Blocked by the two LeftBlock stories and the app-shell gate story.\n\nPer repo:\n1. `.leftblock.yml` `ci.command`: DataParade-newsroom = `npm ci && echo '{}' > amplify_outputs.json && npx papyrus-app sync && npx tsc --noEmit && npm test`; Papyrus-web = `npm ci && npm test` (uses `bin/python.mjs`; document the Python 3.12 requirement). Both add `ci.protected_branches: [main]`.\n2. Install the guard: `leftblock install --local --check-only --ci-guard` (name per the LeftBlock story) in each clone; AGENTS.md gets a \"Merging to main\" section: merge locally, `leftblock ci`, push; never merge in the GitHub UI.\n3. `infra/site.json` (DataParade-newsroom has one; Papyrus-web deploys with its own amplify.yml + `bin/deploy.py`): set `ci.gate: leftblock-receipt`; redeploy the app-shell stack (CDK write: ask Ryan). For Papyrus-web, add the same curl gate as the first backend command in `amplify.yml` by hand, since it is not on the app shell; also add `cache.paths` for `.npm/**/*` and `.build/python/**/*` (today it installs Python with dnf and caches nothing).\n4. Status posting needs `gh auth status` OK on Ryan's machine for both repos (private: requires repo scope; already true since gh reads them).\nAcceptance: a push of a receipted commit deploys; a deliberately un-receipted push to a throwaway branch pointed at the app (or a dry test with `AWS_COMMIT_ID` of a commit without status) fails in <1 min with the message; Amplify job log shows the gate step. Gherkin in each repo's features: \"main deploy requires a LeftBlock CI receipt\".",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+  "labels": [
+    "ci",
+    "cost"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-4380a65e-0b5a-4544-a048-bbcf55c4b7f3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-466bdd03-4954-4549-ad7c-d7f6d7002797",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4cca9dd7-42d2-44a4-b4fa-87f824a58658",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T18:09:36.361652Z",
+  "updated_at": "2026-10-31T18:10:12.788949Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-fable-5-1",
+    "name": "plan-ci-cost"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

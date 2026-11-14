@@ -1,0 +1,37 @@
+{
+  "id": "PPY-3504bf66-4fa8-4fc8-be09-f9f9db9b8e8f",
+  "title": "Cleanup: drop the fallbacks, the #1361 filter and the old stage index",
+  "description": "After all seven sites have run the backfill and read the new index for two weeks with zero verify drift: remove the CLI fallback and capability check, the console versionState filter, and (separate deploy, the only GSI change in it) the old index stage/updatedAt (listItemsByStageAndUpdatedAt), which stops copying every version of every story into a second index. A repository test fails if anything still names listItemsByStageAndUpdatedAt or itemsByStage. Deploys: 1 backend deploy per site, Ryan's approval. Acceptance: grep test green; verify dry run zero changes on all seven sites before and after.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+  "labels": [
+    "deploy:backend",
+    "needs-ryan-approval",
+    "cleanup"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-52f3da00-bbc4-4a86-82e1-a85b2c662b28",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9281e475-96ea-4242-9e28-245a480c0ab7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2f3d947a-d99a-4c3b-8e19-01d9520da080",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-10T02:38:57.960725Z",
+  "updated_at": "2026-11-10T02:39:04.238148Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

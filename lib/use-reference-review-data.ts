@@ -11,9 +11,10 @@ export function useReferenceReviewData<Relation, Message>({
   onMessages,
 }: {
   enabled: boolean;
-  loadRelations: () => Promise<Relation[]>;
+  /** Optional: the References feed reads predictions per Reference instead. */
+  loadRelations?: () => Promise<Relation[]>;
   loadMessages: () => Promise<Message[]>;
-  onRelations: (relations: Relation[]) => void;
+  onRelations?: (relations: Relation[]) => void;
   onMessages: (messages: Message[]) => void;
 }) {
   const [state, setState] = useState<"loading" | "ready" | "error">(enabled ? "loading" : "ready");
@@ -25,9 +26,9 @@ export function useReferenceReviewData<Relation, Message>({
     let active = true;
     setState("loading");
     setError(null);
-    void Promise.allSettled([loadRelations(), loadMessages()]).then(([relations, history]) => {
+    void Promise.allSettled([loadRelations ? loadRelations() : Promise.resolve([] as Relation[]), loadMessages()]).then(([relations, history]) => {
       if (!active) return;
-      if (relations.status === "fulfilled") onRelations(relations.value);
+      if (relations.status === "fulfilled" && onRelations) onRelations(relations.value);
       if (history.status === "fulfilled") onMessages(history.value);
       const failure = relations.status === "rejected" ? relations.reason : history.status === "rejected" ? history.reason : null;
       if (failure) {

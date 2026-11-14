@@ -3,6 +3,7 @@ import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtim
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
+import { claimGroups } from "../../../lib/staff-groups";
 
 type DataClient = ReturnType<typeof generateClient<Schema>>;
 type DataClientErrors = Array<{ message?: string | null } | string | null> | null | undefined;
@@ -474,18 +475,9 @@ function validateJsonSchemaInput(schema: Record<string, unknown>, input: Record<
 
 function requireAdmin(event: ProcedureEvent): void {
   const claims = objectValue(event.identity?.claims);
-  const groups = [
-    ...normalizeClaimGroups(claims["cognito:groups"]),
-    ...normalizeClaimGroups(claims.groups),
-  ];
+  const groups = [...claimGroups(claims["cognito:groups"]), ...claimGroups(claims.groups)];
   if (groups.includes("admin")) return;
   throw new Error("Admin role required.");
-}
-
-function normalizeClaimGroups(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
-  if (typeof value === "string") return value.split(",").map((entry) => entry.trim()).filter(Boolean);
-  return [];
 }
 
 async function getDataClient(): Promise<DataClient> {

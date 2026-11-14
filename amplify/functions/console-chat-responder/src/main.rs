@@ -25,8 +25,9 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 const DEFAULT_RESPONSE_TARGET: &str = "cloud";
-const DEFAULT_MODEL: &str = "gpt-5-nano";
-const SUPPORTED_CONSOLE_MODELS: [&str; 5] = [
+const DEFAULT_MODEL: &str = "gpt-6-luna";
+const SUPPORTED_CONSOLE_MODELS: [&str; 6] = [
+    "gpt-6-luna",
     "gpt-5.5",
     "gpt-5.4",
     "gpt-5.4-mini",

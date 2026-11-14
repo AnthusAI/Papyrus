@@ -1,0 +1,33 @@
+{
+  "id": "PPY-d683da93-2b26-4887-b861-cb03a495b42f",
+  "title": "Investigate whether manual Reference intake skips full ingestion",
+  "description": "Suspected, not yet confirmed: References created manually through the Papyrus CLI (and potentially the MCP interface) may be registered and accepted without running the same content-capture and metadata/summary ingestion expected for newly discovered References. Investigate the actual behavior and intended contracts for manual CLI, MCP, newsroom UI and monitor intake; do not assume every missing capture is a bug, or that MCP exhibits the same behavior, before reproducing each path.\n\nEvidence from Machines on Machines, 2026-11-06: ten accepted References returned by an oversight research query had empty captureState. Their importRunId values began `reference-user-intake-`; at least one had original capture status `not_run` when text was later saved. The local Papyrus capture reader could fetch eight of the source URLs during a later attempt; another source yielded its full paper from an alternate linked PDF, and the tenth was a valid 8.66 MB PDF exceeding the normal 8 MB reader limit. All ten were subsequently captured manually through the supported capture action, with notes identifying automated extraction and unverified completeness. Availability now does not prove a source was available when registered.\n\nAudit representative References, assignment/trigger logs, intake call paths and deployed site configuration to distinguish: never queued, queued but not run, actual failed capture, blocked/oversized source, and state/index inconsistency. Determine whether title, summary and body are generated, how failures are surfaced and retried, and whether manual additions reuse the normal pipeline. If automatic ingestion is expected but omitted, fix the shared behavior for CLI and MCP with explicit status and idempotence; do not silently infer the correct behavior or write user-facing content. Coordinate with PPY-47e246 (full ingestion on manual intake), PPY-caa222 (captured text not returned by knowledge query), and the MCP work.\n\nFeature: Manually added References receive the intended ingestion workflow\n  Scenario: A reachable Reference is added from a supported interface\n    Given a publication has configured Reference ingestion\n    When an authorized user adds a new reachable Reference through the CLI or MCP\n    Then the intended capture and metadata stages are started or an explicit actionable status explains why not\n    And the captured text is available to downstream research\n\n  Scenario: Capture is blocked or fails\n    Given an added Reference cannot be captured\n    When ingestion completes or stops\n    Then the reason and retry path are visible without falsely claiming full content\n\n  Scenario: A duplicate Reference is added\n    Given the Reference already exists\n    When it is added again\n    Then the existing record and capture are preserved without duplicating work.\n",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-47e24632-3d9c-4b9c-9495-8af8354e8bd0",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-caa222aa-81d1-4837-a831-17c89b8bc211",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-06T19:36:36.269532Z",
+  "updated_at": "2026-11-06T19:36:58.709180Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

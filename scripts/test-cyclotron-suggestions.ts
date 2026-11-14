@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { MessageRecord, SemanticRelationRecord } from "../lib/category-repository";
+import type { ReferenceRecord, SemanticRelationRecord } from "../lib/category-repository";
 import {
   agreementStripState,
   dailyCapWords,
@@ -35,11 +35,11 @@ function relation(metadata: Record<string, unknown>): SemanticRelationRecord {
   } as SemanticRelationRecord;
 }
 
-function curationMessage(id: string, lineageId: string, createdAt: string, actorKind?: string): MessageRecord {
+function votedReference(lineageId: string, actorKind?: string, fields: Partial<ReferenceRecord> = {}): ReferenceRecord {
   return {
-    id, messageKind: "reference_curation", messageDomain: "commentary", status: "active", createdAt, updatedAt: createdAt,
-    metadata: JSON.stringify({ referenceLineageId: lineageId, ...(actorKind ? { actorKind } : {}) }),
-  } as MessageRecord;
+    id: `${lineageId}-v1`, lineageId, versionNumber: 1, versionState: "current", corpusId: "corpus", externalItemId: lineageId,
+    curationStatus: "accepted", curationStatusUpdatedAt: "2026-10-10T00:00:00Z", ...(actorKind ? { curationActorKind: actorKind } : {}), ...fields,
+  } as ReferenceRecord;
 }
 
 async function main() {
@@ -74,31 +74,30 @@ async function main() {
   assert.match(stopReasonSentence("daily decision cap"), /daily limit/);
   assert.match(stopReasonSentence("odd"), /stopped early: odd/);
 
-  // Only a latest curation Message made by a person counts as a training label.
+  // Only a latest vote made by a person counts as a training label.
   const humanLabels = referencesWithHumanLatestCuration([
-    curationMessage("m1", "human-ref", "2026-10-10T00:00:00Z", "human"),
-    curationMessage("m2", "service-ref", "2026-10-10T00:00:00Z", "service"),
-    curationMessage("m3", "unstamped-ref", "2026-10-10T00:00:00Z"),
-    curationMessage("m4", "overwritten-ref", "2026-10-10T00:00:00Z", "human"),
-    curationMessage("m5", "overwritten-ref", "2026-10-11T00:00:00Z", "service"),
-    { ...curationMessage("m6", "other-kind-ref", "2026-10-10T00:00:00Z", "human"), messageKind: "ingestion_rationale" },
+    votedReference("human-ref", "human"),
+    votedReference("agent-ref", "agent"),
+    votedReference("cyclotron-ref", "cyclotron"),
+    votedReference("rule-ref", "rule"),
+    votedReference("unvoted-ref"),
   ]);
   assert.deepEqual([...humanLabels], ["human-ref"]);
 
-  // A delegated curation names the agent, the person, the quoted instruction and a short delegation id.
-  const delegatedMessage = {
-    ...curationMessage("m7", "delegated-ref", "2026-10-12T00:00:00Z", "human"), authorLabel: "Maya Okafor",
-    metadata: JSON.stringify({ referenceLineageId: "delegated-ref", actorKind: "human", attestation: "delegated", relayedBy: "newsroom-reporter",
-      delegationId: "curation-delegation-9b1f6c24-5d0e", instruction: "Reject it." }),
-  } as MessageRecord;
-  const delegations = delegatedCurationsByReference([delegatedMessage, curationMessage("m8", "human-ref", "2026-10-12T00:00:00Z", "human")]);
+  // A delegated vote names the agent, the person, the quoted instruction and a short delegation id.
+  const delegatedReference = votedReference("delegated-ref", "human", {
+    curationStatusUpdatedBy: "Maya Okafor",
+    curationDelegation: JSON.stringify({ relayedBy: "newsroom-reporter", delegationId: "curation-delegation-9b1f6c24-5d0e", instruction: "Reject it." }),
+  });
+  const delegations = delegatedCurationsByReference([delegatedReference, votedReference("human-ref", "human")]);
   assert.deepEqual([...delegations.keys()], ["delegated-ref"]);
   assert.deepEqual(delegations.get("delegated-ref"), {
     agent: "newsroom-reporter", person: "Maya Okafor", instruction: "Reject it.",
     delegationId: "curation-delegation-9b1f6c24-5d0e", delegationShortId: "9b1f6c24", countsAsTrainingLabel: true,
   });
   assert.equal(delegationShortId("curation-delegation-abcdef0123"), "abcdef01");
-  assert.equal(delegatedCurationsByReference([delegatedMessage, curationMessage("m9", "delegated-ref", "2026-10-13T00:00:00Z", "service")]).size, 0);
+  // A later non-delegated vote replaces the delegated one: the Reference keeps only its latest vote.
+  assert.equal(delegatedCurationsByReference([votedReference("delegated-ref", "agent", { curationDelegation: null })]).size, 0);
 
   // Agree does what the suggestion implies; overrule the opposite.
   const includeDecision = currentRelevanceDecisions([relation({})]).get("reference-a")!;

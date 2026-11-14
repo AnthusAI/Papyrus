@@ -25,6 +25,7 @@ export type ReaderSettingsResolution = {
   email?: string | null;
   userProfileId?: string | null;
   avatarHash?: string | null;
+  publicHandle?: string | null;
 };
 
 type DataClientErrors = Array<{ message?: string | null } | string | null> | null | undefined;
@@ -32,12 +33,14 @@ type ReaderSettingsResult = {
   email?: string | null;
   userProfileId?: string | null;
   avatarHash?: string | null;
+  publicHandle?: string | null;
   settings?: ReaderSettings | null;
 };
 type RawReaderSettingsResult = {
   email?: string | null;
   userProfileId?: string | null;
   avatarHash?: string | null;
+  publicHandle?: string | null;
   settings?: unknown;
 };
 
@@ -164,6 +167,7 @@ export async function resolveReaderSettings(): Promise<ReaderSettingsResolution>
         email: remote.email,
         userProfileId: remote.userProfileId,
         avatarHash: remote.avatarHash,
+        publicHandle: remote.publicHandle,
       };
     }
     const saved = await saveRemoteReaderSettings(localSettings);
@@ -174,6 +178,7 @@ export async function resolveReaderSettings(): Promise<ReaderSettingsResolution>
       email: saved.email,
       userProfileId: saved.userProfileId,
       avatarHash: saved.avatarHash,
+      publicHandle: saved.publicHandle,
     };
   } catch (error) {
     if (isUnauthenticatedError(error)) {
@@ -200,6 +205,7 @@ export async function saveReaderSettings(settings: ReaderSettings): Promise<Read
     email: saved.email,
     userProfileId: saved.userProfileId,
     avatarHash: saved.avatarHash,
+    publicHandle: saved.publicHandle,
   };
 }
 
@@ -242,8 +248,26 @@ function normalizeReaderSettingsResult(value: RawReaderSettingsResult | null | u
     email: typeof value.email === "string" && value.email.trim() ? value.email.trim() : null,
     userProfileId: value.userProfileId ?? null,
     avatarHash: typeof value.avatarHash === "string" && value.avatarHash.trim() ? value.avatarHash.trim() : null,
+    publicHandle: typeof value.publicHandle === "string" && value.publicHandle.trim() ? value.publicHandle.trim() : null,
     settings: value.settings ? normalizeReaderSettings(value.settings) : null,
   };
+}
+
+/** Sets or clears (null) the signed-in person's public handle and returns what was stored. Throws an Error whose message is the text to show. */
+export async function savePublicHandle(handle: string | null): Promise<string | null> {
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as {
+    mutations: {
+      setPublicHandle(
+        input: { handle: string | null },
+        options: { authMode: typeof USER_POOL_AUTH_MODE },
+      ): Promise<{ data?: { publicHandle?: string | null } | null; errors?: DataClientErrors }>;
+    };
+  };
+  const response = await client.mutations.setPublicHandle({ handle }, { authMode: USER_POOL_AUTH_MODE });
+  const first = response.errors?.[0];
+  if (first) throw new Error((typeof first === "string" ? first : first?.message) || "The handle could not be saved");
+  return response.data?.publicHandle ?? null;
 }
 
 export function normalizeReaderSettings(value: unknown): ReaderSettings {

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "993c6ca2-91f5-469a-ada9-b6655ec7dd66",
+  "issue_id": "PPY-a9f068a1-daef-4822-b410-9a31bbc3d261",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T07:06:59.279Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Rename the working identifier wire to the chosen feature name",
+    "description": "Chore in the `wire` epic, to run once Ryan picks the feature name (open question 1 in the epic). Until then, nothing to do.\n\nRename the working identifier `wire` everywhere it appears as the feature name: `projection.json` key `wire`, `_data/wire/` (with a one-release compatibility read of the old directory in `WireSource`, then remove), `src/papyrus_content/wire/`, `projection/standard/wire*.py`, `papyrus-wire.css`, the projection task `wire-snapshot`, the plugin `amplify/plugins/wire/`, `KNOWN_PLUGINS`, the schedule prefix `papyrus-wire-snapshot-`, the debounce pk, the CLI `papyrus wire ...`, `docs/wire.md`, the feature files `features_backend/wire-*.feature` and their step module names, the Anth.us `projection.json` and `papyrus.config.ts` (site PR). Keep the Anth.us segment and label \"newsroom\" as they are: they are the site's choice, not the feature name.\n\nAcceptance: `git grep -i wire` in Papyrus returns only unrelated hits (e.g. \"wire(backend, ...)\" in the plugin API); CI green; one release; Anth.us bumped. Gherkin: no behaviour change, so the existing scenarios pass unchanged under the new names.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

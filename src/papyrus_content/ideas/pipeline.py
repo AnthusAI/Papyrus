@@ -6,10 +6,12 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
-from . import dedupe, synthesis
+from . import dedupe, duplicate_cut, synthesis
 from .digest import ACCEPTED, PENDING, iso
 from .review import mark_steering_applied, merge_feedback, read_steering, request_human_review
-from .store import JsonStore, ProposalStore
+from .items import IdeaRefused
+from .items import ItemStore
+from .store import JsonStore
 
 DEFAULT_MAXIMUM_COST_USD = 0.50
 
@@ -72,7 +74,7 @@ def idea_record(candidate: dict[str, Any], *, run: dict[str, Any], digest: dict[
         "createdAt": iso(now),
         **candidate,
         "citations": [
-            {key: by_id[identifier].get(key) for key in ("id", "title", "source", "sourceUri", "status", "arrivedAt")}
+            {key: by_id[identifier].get(key) for key in ("id", "lineageId", "title", "source", "sourceUri", "status", "arrivedAt")}
             for identifier in candidate["citedReferenceIds"]
         ],
     }
@@ -102,32 +104,36 @@ def synthesize(
     context: dict[str, Any],
     json_store: JsonStore,
     transport: synthesis.Transport,
-    proposal_store: ProposalStore | None = None,
+    idea_store: ItemStore | None = None,
     review_client: Any = None,
     feedback: list[dict[str, Any]] | None = None,
     model: str = synthesis.DEFAULT_MODEL,
     maximum: int = synthesis.DEFAULT_MAXIMUM_IDEAS,
-    threshold: float = dedupe.DEFAULT_THRESHOLD,
+    threshold: float | None = None,
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Runs synthesis and returns the run ledger (also saved); the ideas are in ``run['ideas']`` and saved one file each."""
     moment = now or datetime.now(timezone.utc)
+    cut = duplicate_cut.resolve_threshold(review_client, threshold)
+    threshold = cut.threshold
     run: dict[str, Any] = {
+        "duplicateCut": cut.record(),
         "runId": run_id_for(digest["digestId"], moment),
         "kind": "ideas-run",
         "publication": digest["publication"],
         "digestId": digest["digestId"],
         "startedAt": iso(moment),
         "model": model,
-        "store": "proposals" if proposal_store else "json",
+        "store": idea_store.kind if idea_store else "json",
         "private": True,
     }
     stored = json_store.ideas()
     steering, steering_ids, steering_error = read_steering(review_client, json_store.batch_titles())
-    feedback = merge_feedback(steering, feedback or [])
-    run["steering"] = {"entries": len(steering), "requestIds": steering_ids, **({"error": steering_error} if steering_error else {})}
-    drafts = proposal_store.story_drafts() if proposal_store else []
+    decisions = idea_store.feedback() if hasattr(idea_store, "feedback") else []   # Items: accepted ideas and spiked ones with their reasons
+    feedback = merge_feedback([*steering, *decisions], feedback or [])
+    run["steering"] = {"entries": len(steering), "decisions": len(decisions), "requestIds": steering_ids, **({"error": steering_error} if steering_error else {})}
+    drafts = idea_store.story_drafts() if idea_store else []
     documents = comparison_documents(context, stored, drafts, feedback)
     run["inputs"] = count_inputs(digest, context, documents, feedback)
     handles = synthesis.handles_for(digest)
@@ -151,12 +157,17 @@ def synthesize(
         kept, run["duplicates"] = dedupe.split_duplicates(valid, documents, threshold)
         for candidate in kept:
             idea = idea_record(candidate, run=run, digest=digest, now=moment)
-            if proposal_store:
-                idea["proposalId"] = proposal_store.file_idea(idea, idea["body"], digest["digestId"])
+            if idea_store:
+                try:
+                    idea_store.mark(idea, idea_store.file_idea(idea, idea["body"], digest["digestId"]))
+                except IdeaRefused as refusal:   # the editorial check found an error-severity violation: not filed
+                    run["invalid"].append(refusal.as_invalid(idea))
+                    continue
             json_store.save_idea(idea)
             run["ideas"].append(idea)
     run["ideasCreated"] = len(run["ideas"])
     request_human_review(review_client, run, run["ideas"])
+    run["storiesInPrompts"] = context.get("promptStories")
     run["finishedAt"] = iso(datetime.now(timezone.utc))
     json_store.save_run(run)
     return run

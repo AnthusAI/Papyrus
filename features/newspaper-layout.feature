@@ -234,7 +234,7 @@ Feature: Newspaper layout scenarios
   @brand-agnostic
   Scenario: Demo newsroom navigation keeps the desk visible
     Given I open the newsroom at 1280 by 900
-    When I follow the newsroom overview link for "References"
+    When I follow the newsroom navigation link for "References"
     Then the active newsroom section should be "references"
     And the newsroom should not show an editor access gate
     When I follow the newsroom tab for "Concepts"

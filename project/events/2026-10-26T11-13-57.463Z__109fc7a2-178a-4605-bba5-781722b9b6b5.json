@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "109fc7a2-178a-4605-bba5-781722b9b6b5",
+  "issue_id": "PPY-98b5e907-782c-4799-888a-79b4f63825c2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-26T11:13:57.463Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Open a submitted email by receipt without listing other submissions",
+    "description": "An editor with one receipt should be able to review and import its candidate references without fetching the publication monitoring overview. Reuse existing user-pool authorization and candidate controls. Live acceptance remains scoped to the two user-authorized receipts; no new grants or chat changes.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

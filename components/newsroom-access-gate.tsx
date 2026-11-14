@@ -1,31 +1,36 @@
 "use client";
 
-import { newsroomHref } from "../lib/newsroom-base-path";
 import Link from "next/link";
 import { SITE_BRAND } from "../lib/site-brand";
 import type { NewsDeskShellState } from "../lib/news-desk-session";
 import { cn } from "../lib/utils";
 import { NewsroomOpsShell } from "./newsroom-ops-shell";
+import { NotificationSkeleton } from "./notification-cards";
 import { ReaderAuthControl } from "./reader-auth-control";
 import { buttonVariants } from "./ui/button";
+import { ReferencesPageLoading } from "./references-page-loading";
 
-export function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: NewsDeskShellState | null; showSectionTabs?: boolean }) {
+export function NewsDeskAccessGate({ initialTab, shell, showSectionTabs = false }: { initialTab?: string; shell: NewsDeskShellState | null; showSectionTabs?: boolean }) {
   const accessPhase = shell?.phase ?? "checkingAccess";
+  const pending = accessPhase === "checkingAccess" || accessPhase === "loadingDesk";
+  const referencesPage = initialTab === "references";
 
   return (
     <NewsroomOpsShell
-      activeTab="overview"
+      activeTab={referencesPage ? "references" : "overview"}
       appTitle={SITE_BRAND.appTitle}
       backHref="/"
       backLabel={SITE_BRAND.backToHomeLabel}
       headerActions={(
-        <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
+        <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "organizer-header-settings")} href="/settings">Settings</Link>
       )}
-      pageTitle="Newsroom"
-      showNavigation={showSectionTabs}
+      pageTitle={referencesPage ? "References" : showSectionTabs ? "Newsroom home" : "Newsroom"}
+      showNavigation={showSectionTabs || referencesPage}
     >
+      {/* The loading state is the feed's own skeleton, so what loads replaces it in place. */}
+      {pending && referencesPage ? <ReferencesPageLoading /> : pending ? <NotificationSkeleton bare={!showSectionTabs} count={4} /> : (
       <section aria-live="polite" data-news-desk-access={accessPhase} data-news-desk-access-phase={accessPhase}>
-        <div className="space-y-3 rounded-xl border border-border bg-card p-6">
+        <div className="space-y-3 rounded-xl bg-card p-6">
           <p className="m-0 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Access</p>
           <h2 className="m-0 font-sans text-xl font-semibold tracking-tight">{formatAccessTitle(shell)}</h2>
           <p className="m-0 text-sm text-muted-foreground">{formatAccessDetail(shell)}</p>
@@ -33,17 +38,19 @@ export function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: 
           <p className="m-0 text-sm text-foreground">{formatAccessActionDetail(shell)}</p>
           {shell?.phase === "signedOut" || shell?.phase === "error" ? (
             <div className="news-desk-access-panel__auth">
-              <ReaderAuthControl postAuthPath={newsroomHref()} showIdentity />
+              {/* No fixed return path: sign-in comes back to the page that asked, so a deep link survives it. */}
+              <ReaderAuthControl showIdentity />
             </div>
           ) : null}
         </div>
       </section>
+      )}
     </NewsroomOpsShell>
   );
 }
 
 function formatAccessTitle(state: NewsDeskShellState | null): string {
-  if (!state || state.phase === "checkingAccess") return "Checking Desk Credentials";
+  if (!state || state.phase === "checkingAccess") return "Checking Credentials";
   if (state.phase === "loadingDesk") return "Loading Newsroom Records";
   if (state.phase === "forbidden") return "Editor Role Required";
   if (state.phase === "error") return "Newsroom Unavailable";

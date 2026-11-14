@@ -199,7 +199,7 @@ async function main() {
     const start = source.search(/^  Message: (a|realtimeModel)/m);
     assert.ok(start >= 0, `${file}: Message model`);
     const block = source.slice(start, source.search(/^  MessageThread: /m));
-    assert.ok(block.includes('allow.groups(categoryWriteGroups)'), `${file}: editors and admins`);
+    assert.ok(block.includes('allow.group("editor")') && block.includes("allow.group(adminGroup)"), `${file}: editors and admins`);
     assert.ok(!/allow\.guest|allow\.publicApiKey|allow\.public\(/.test(block), `${file}: Message is never public`);
     assert.ok(source.includes('allow.resource(publicForms).to(["mutate"])'), `${file}: the endpoint function may only mutate`);
   }

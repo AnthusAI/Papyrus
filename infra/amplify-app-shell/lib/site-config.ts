@@ -1,3 +1,5 @@
+import { parseCloudEmail, type CloudEmailConfig } from "./cloud-email-config";
+
 export type CmsRedirect = {
   source: string;
   status: 301 | 302;
@@ -28,12 +30,32 @@ export type StagingPreviewConfig = {
   baseDirectory: string;
 };
 
+/**
+ * Opt-in deploy gate. Absent means today's build spec, unchanged.
+ * `actions`: a public repository whose GitHub Actions workflow starts the Amplify job (requires autoDeploy).
+ * `leftblock-receipt`: a private repository whose Amplify build first verifies the `statusContext` commit status
+ * (posted by `leftblock ci`) for $AWS_COMMIT_ID and stops before `npm ci` when it is missing (requires autoDeploy false).
+ */
+export type CiGateConfig = {
+  gate: "actions" | "leftblock-receipt";
+  statusContext: string;
+  requireSignature: boolean;
+};
+
+export const DEFAULT_CI_STATUS_CONTEXT = "leftblock/ci";
+
 export type CmsConfig = {
   appName?: string;
   domainName?: string;
   domainPrefix?: string;
   /** Public https origin of a site whose host is served by its own edge (no Amplify domain association). */
   siteOrigin?: string;
+  /**
+   * Public https origin of the newsroom console when it is served from its own host (such as https://newsroom.shipped.anth.us)
+   * and not from the site origin. Defaults to `siteOrigin`. It is the origin of the CLI remote-login pages and the Cognito
+   * callbacks; `PAPYRUS_SITE_ORIGIN` stays the public site's origin.
+   */
+  consoleOrigin?: string;
   staging?: boolean;
   stagingPreview?: StagingPreviewConfig;
   cognitoDomainPrefix: string;
@@ -50,7 +72,39 @@ export type CmsConfig = {
    * `prospectusAccountsApiStageArn`; docs/reader-steering.md).
    */
   readerRetirementPoll?: boolean;
+  /**
+   * Switch on `papyrus login --remote` for this site's production branch (docs/cli-login.md). The stack then sets
+   * `PAPYRUS_ENABLE_CLI_REMOTE_LOGIN` and `PAPYRUS_CLI_INVOKER_ROLE_ARN` (this app's compute role, the only principal
+   * allowed to invoke the approval pages function) on the branch. Off when absent: the branch is unchanged.
+   */
+  cliRemoteLogin?: boolean;
+  /**
+   * Move `papyrus login` (and `--remote`) onto this site's registered Prospectus federation client (docs/cli-login.md
+   * "Which client"). The stack then sets `PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT` on the production branch and the backend
+   * adds the CLI's fixed loopback callback and `/cli/callback` to that client. Off when absent: the branch is unchanged.
+   */
+  cliOnFederationClient?: boolean;
+  /**
+   * The SNS topic that the site's alarms notify (today the remote-login broker's two alarms). The stack sets
+   * `PAPYRUS_ALARM_TOPIC_ARN` on the production branch. The ARN belongs in the site's own config, never in this repo.
+   */
+  alarmTopicArn?: string;
   deployStackInBuild?: boolean;
+};
+
+export type ChatConfig = {
+  enabled: boolean;
+  /** SSM SecureString parameter holding the site's OpenAI key; only the chat run worker may read it. */
+  modelKeyParameter: string;
+  /** Chat data stack name (also its CDK construct id). Default `papyrus-chat-<siteId>`. */
+  stackName?: string;
+  /** CloudWatch log group prefix of the two workers (`<prefix>-run-worker`, `<prefix>-probe-worker`). Default `/aws/lambda/papyrus-chat-<siteId>`. */
+  logGroupPrefix?: string;
+  /**
+   * Pins the worker code to an already uploaded CDK asset object (key in the CDK assets bucket) instead of
+   * bundling and uploading new bytes. Only for adopting a stack whose workers are already verified live.
+   */
+  workerCodeS3Key?: string;
 };
 
 export type AmplifyAppShellSiteConfig = {
@@ -63,6 +117,8 @@ export type AmplifyAppShellSiteConfig = {
   stackName?: string;
   aws?: SiteAwsConfig;
   cms?: CmsConfig;
+  /** Required for cloud CMS sites; independent of newsletter feature enablement. */
+  email?: CloudEmailConfig;
   reader?: {
     appName?: string;
     domainName?: string;
@@ -79,6 +135,11 @@ export type AmplifyAppShellSiteConfig = {
   papyrusVersion: string;
   storagePreviewPrefix?: string;
   /**
+   * Private newsroom chat for this publication (docs/private-newsroom-chat-per-site.md). Absent or
+   * `enabled: false` means the site gets neither the chat data stack nor the chat environment on its CMS.
+   */
+  chat?: ChatConfig;
+  /**
    * The scheduled cloud knowledge run for this publication. The app-shell stack ignores it; it is validated by
    * infra/scheduled-jobs/lib/knowledge-run-config.ts, which owns the schema.
    */
@@ -90,6 +151,13 @@ export type AmplifyAppShellSiteConfig = {
    * private repositories get no Actions minutes, so Amplify's own repository-connected auto-build stays on.
    */
   autoDeploy: boolean;
+  /**
+   * Prospectus cost accounting (docs/cost-accounting.md) on the app shell and private chat stacks. Default true: every
+   * resource gets the anthus: cost tags. The site backend tags itself in waves (papyrus-infra backend-deploy) and reads
+   * its site ID from this file, so nothing here switches it.
+   */
+  costAccounting: boolean;
+  ci?: CiGateConfig;
   github?: {
     owner: string;
     repo: string;
@@ -149,6 +217,9 @@ const HOST_NAME_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
 const SITE_ORIGIN_PATTERN = /^https:\/\/([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(:\d{1,5})?$/;
 const DOMAIN_PREFIX_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.-]*$/;
+const CHAT_MODEL_KEY_PARAMETER_PATTERN = /^\/[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)+$/;
+const CHAT_LOG_GROUP_PREFIX_PATTERN = /^\/aws\/lambda\/[A-Za-z0-9_.-]{1,100}$/;
+const CHAT_WORKER_CODE_KEY_PATTERN = /^[0-9a-f]{64}\.zip$/;
 const STACK_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9-]{0,127}$/;
 const BRANCH_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/;
 const PAPYRUS_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+\.\d+)?$/;
@@ -157,7 +228,7 @@ const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
 const PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN = /^arn:aws:execute-api:[a-z0-9-]+:\d{12}:[a-z0-9]+\/api$/;
-const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN"];
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_EMAIL_FROM_ADDRESS", "PAPYRUS_EMAIL_IDENTITY_ARN", "PAPYRUS_EMAIL_CONFIGURATION_SET", "PAPYRUS_EMAIL_EVENT_TOPIC_NAME", "PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN", "PAPYRUS_CONSOLE_ORIGIN", "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN", "PAPYRUS_CLI_INVOKER_ROLE_ARN", "PAPYRUS_ALARM_TOPIC_ARN", "PAPYRUS_AMPLIFY_APP_ID", "PAPYRUS_COMPUTE_ROLE_ARN"];
 
 /** Routes Prospectus admits for a registered Papyrus site (Prospectus accounts/papyrus-sites.ts). */
 export const PROSPECTUS_PAPYRUS_SITE_ROUTES = [
@@ -186,6 +257,14 @@ function originOfRedirectUrl(value: string): string {
 
 export function resolveProspectusSessionSealingParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
   return `/papyrus/${config.siteId}/prospectus-session-sealing`;
+}
+
+export function resolveGithubStatusTokenParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
+  return `/papyrus/${config.siteId}/github-status-token`;
+}
+
+export function hasReceiptGate(config: Pick<AmplifyAppShellSiteConfig, "ci">): config is { ci: CiGateConfig } {
+  return config.ci?.gate === "leftblock-receipt";
 }
 
 export function resolveReaderPollSecretParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
@@ -335,6 +414,57 @@ export function resolveStackName(config: Pick<AmplifyAppShellSiteConfig, "siteId
   return config.stackName ?? `amplify-app-shell-${config.siteId}`;
 }
 
+/** The chat data stack of a site; its construct id and CloudFormation name. Nothing when chat is not enabled. */
+export function resolveChatStackName(config: Pick<AmplifyAppShellSiteConfig, "siteId" | "chat">): string | undefined {
+  if (!config.chat?.enabled) return undefined;
+  return config.chat.stackName ?? `papyrus-chat-${config.siteId}`;
+}
+
+export function resolveChatLogGroupPrefix(config: Pick<AmplifyAppShellSiteConfig, "siteId" | "chat">): string {
+  return config.chat?.logGroupPrefix ?? `/aws/lambda/papyrus-chat-${config.siteId}`;
+}
+
+/** CloudFormation export names the chat stack publishes and the app shell imports (no stack ever references the other directly). */
+export const CHAT_EXPORTED_RESOURCES = ["MessagingTableName", "ConversationIndexTableName", "SessionBucketName", "TurnRunsQueueUrl", "TurnProbesQueueUrl"] as const;
+export const CHAT_ENVIRONMENT_NAMES: Record<(typeof CHAT_EXPORTED_RESOURCES)[number], string> = {
+  MessagingTableName: "PAPYRUS_CHAT_MESSAGING_TABLE",
+  ConversationIndexTableName: "PAPYRUS_CHAT_CONVERSATIONS_TABLE",
+  SessionBucketName: "PAPYRUS_CHAT_SESSION_BUCKET",
+  TurnRunsQueueUrl: "PAPYRUS_CHAT_TURN_RUNS_QUEUE_URL",
+  TurnProbesQueueUrl: "PAPYRUS_CHAT_TURN_PROBES_QUEUE_URL",
+};
+export const CHAT_PRIVATE_ASSISTANT_ID = "papyrus-private-assistant";
+export const CHAT_PRIVATE_ASSISTANT_NAME = "Papyrus Assistant";
+export function chatExportName(stackName: string, resource: (typeof CHAT_EXPORTED_RESOURCES)[number]): string {
+  return `${stackName}:${resource}`;
+}
+
+function parseChat(value: unknown, cms: CmsConfig | undefined): ChatConfig | undefined {
+  if (value === undefined) return undefined;
+  const record = requireObject(value, "chat");
+  rejectUnknownKeys(record, ["enabled", "modelKeyParameter", "stackName", "logGroupPrefix", "workerCodeS3Key"], "chat");
+  if (typeof record.enabled !== "boolean") fail("chat.enabled", "must be a boolean");
+  const chat: ChatConfig = {
+    enabled: record.enabled,
+    modelKeyParameter: requireString(record.modelKeyParameter, "chat.modelKeyParameter", CHAT_MODEL_KEY_PARAMETER_PATTERN, "SSM parameter name such as /papyrus/<site>/openai-api-key"),
+    stackName: optionalString(record.stackName, "chat.stackName", STACK_NAME_PATTERN, "CloudFormation stack name"),
+    logGroupPrefix: optionalString(record.logGroupPrefix, "chat.logGroupPrefix", CHAT_LOG_GROUP_PREFIX_PATTERN, "/aws/lambda/<name>"),
+    workerCodeS3Key: optionalString(record.workerCodeS3Key, "chat.workerCodeS3Key", CHAT_WORKER_CODE_KEY_PATTERN, "<64 hex>.zip CDK asset key"),
+  };
+  for (const key of ["stackName", "logGroupPrefix", "workerCodeS3Key"] as const) {
+    if (chat[key] === undefined) delete chat[key];
+  }
+  if (chat.enabled && cms === undefined) fail("chat.enabled", "requires cms (the chat gateway runs in the CMS compute role)");
+  if (chat.enabled && cms) {
+    for (const key of Object.keys(cms.environment)) {
+      if (key === "PAPYRUS_PRIVATE_CHAT_ENABLED" || key.startsWith("PAPYRUS_CHAT_")) {
+        fail(`cms.environment.${key}`, "is managed by the chat block when chat is enabled: remove it and use chat.enabled");
+      }
+    }
+  }
+  return chat;
+}
+
 export function resolveStoragePreviewPrefix(config: Pick<AmplifyAppShellSiteConfig, "storagePreviewPrefix">): string {
   return config.storagePreviewPrefix ?? "preview/";
 }
@@ -349,9 +479,9 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
   };
 }
 
-function parseCms(value: unknown): CmsConfig {
+function parseCms(value: unknown, environment: Record<string, string | undefined>): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "deployStackInBuild"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild", "cms", "alarmTopicArn", "cms", "cliOnFederationClient"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -365,8 +495,20 @@ function parseCms(value: unknown): CmsConfig {
   if (cmsRecord.readerRetirementPoll !== undefined && typeof cmsRecord.readerRetirementPoll !== "boolean") {
     fail("cms.readerRetirementPoll", `must be a boolean, got ${JSON.stringify(cmsRecord.readerRetirementPoll)}`);
   }
-  if (cmsRecord.readerRetirementPoll === true && cmsRecord.prospectusAccountsApiStageArn === undefined) {
+  // The ARN carries an account and an API id, so a site can keep it out of Git: the environment value wins over the literal.
+  const prospectusFromEnvironment = environment[PROSPECTUS_ACCOUNTS_API_STAGE_ARN_ENVIRONMENT_VARIABLE]?.trim();
+  const prospectusAccountsApiStageArn = prospectusFromEnvironment || cmsRecord.prospectusAccountsApiStageArn;
+  if (cmsRecord.readerRetirementPoll === true && prospectusAccountsApiStageArn === undefined) {
     fail("cms.readerRetirementPoll", "requires cms.prospectusAccountsApiStageArn: the poll calls Prospectus as the site");
+  }
+  if (cmsRecord.cliRemoteLogin !== undefined && typeof cmsRecord.cliRemoteLogin !== "boolean") {
+    fail("cms.cliRemoteLogin", `must be a boolean, got ${JSON.stringify(cmsRecord.cliRemoteLogin)}`);
+  }
+  if (cmsRecord.cliOnFederationClient !== undefined && typeof cmsRecord.cliOnFederationClient !== "boolean") {
+    fail("cms.cliOnFederationClient", `must be a boolean, got ${JSON.stringify(cmsRecord.cliOnFederationClient)}`);
+  }
+  if (cmsRecord.alarmTopicArn !== undefined && (typeof cmsRecord.alarmTopicArn !== "string" || !/^arn:aws[a-z-]*:sns:[a-z0-9-]+:\d{12}:[A-Za-z0-9_-]{1,256}$/.test(cmsRecord.alarmTopicArn))) {
+    fail("cms.alarmTopicArn", `must be an SNS topic ARN, got ${JSON.stringify(cmsRecord.alarmTopicArn)}`);
   }
   if (cmsRecord.deployStackInBuild !== undefined && typeof cmsRecord.deployStackInBuild !== "boolean") {
     fail("cms.deployStackInBuild", `must be a boolean, got ${JSON.stringify(cmsRecord.deployStackInBuild)}`);
@@ -376,6 +518,7 @@ function parseCms(value: unknown): CmsConfig {
     domainName: optionalString(cmsRecord.domainName, "cms.domainName", HOST_NAME_PATTERN, "host name"),
     domainPrefix: optionalString(cmsRecord.domainPrefix, "cms.domainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
     siteOrigin: optionalString(cmsRecord.siteOrigin, "cms.siteOrigin", SITE_ORIGIN_PATTERN, "https origin with no path, query or trailing slash, such as https://shipped.anth.us"),
+    consoleOrigin: optionalString(cmsRecord.consoleOrigin, "cms.consoleOrigin", SITE_ORIGIN_PATTERN, "https origin with no path, query or trailing slash, such as https://newsroom.shipped.anth.us"),
     staging: cmsRecord.staging as boolean | undefined,
     cognitoDomainPrefix: requireString(
       cmsRecord.cognitoDomainPrefix,
@@ -391,10 +534,13 @@ function parseCms(value: unknown): CmsConfig {
     redirects: parseRedirects(cmsRecord.redirects),
     deployStackInBuild: cmsRecord.deployStackInBuild as boolean | undefined,
     readerRetirementPoll: cmsRecord.readerRetirementPoll as boolean | undefined,
+    cliRemoteLogin: cmsRecord.cliRemoteLogin as boolean | undefined,
+    cliOnFederationClient: cmsRecord.cliOnFederationClient as boolean | undefined,
+    alarmTopicArn: cmsRecord.alarmTopicArn as string | undefined,
     stagingPreview: parseStagingPreview(cmsRecord.stagingPreview),
     prospectusAccountsApiStageArn: optionalString(
-      cmsRecord.prospectusAccountsApiStageArn,
-      "cms.prospectusAccountsApiStageArn",
+      prospectusAccountsApiStageArn,
+      prospectusFromEnvironment ? PROSPECTUS_ACCOUNTS_API_STAGE_ARN_ENVIRONMENT_VARIABLE : "cms.prospectusAccountsApiStageArn",
       PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN,
       "arn:aws:execute-api:<region>:<account>:<api id>/api",
     ),
@@ -409,9 +555,19 @@ function parseCms(value: unknown): CmsConfig {
       fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on, the Cognito domain comes from cms.cognitoDomainPrefix, the revalidation secret parameter is derived from siteId and the Prospectus endpoint comes from cms.prospectusAccountsApiStageArn and the public site origin comes from the site host");
     }
   }
+  const privateChatEnabled = cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED;
+  if (privateChatEnabled !== undefined && privateChatEnabled !== "true" && privateChatEnabled !== "false") {
+    fail("cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED", "must be the string \"true\" or \"false\"");
+  }
 
   if (cms.siteOrigin && cms.domainName) {
     fail("cms.siteOrigin", "is for sites whose host is served by their own edge; remove it when cms.domainName is set");
+  }
+  if (cms.consoleOrigin && !cms.siteOrigin) {
+    fail("cms.consoleOrigin", "requires cms.siteOrigin (a console on its own host belongs to a site served by its own edge)");
+  }
+  if (cms.consoleOrigin && cms.consoleOrigin === cms.siteOrigin) {
+    fail("cms.consoleOrigin", "must differ from cms.siteOrigin; omit it when the console is served from the site origin");
   }
   if (cms.staging === false && cms.stagingDomainName) {
     fail("cms.stagingDomainName", "must not be set when cms.staging is false");
@@ -486,11 +642,36 @@ function parseAws(value: unknown): SiteAwsConfig | undefined {
   };
 }
 
-export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
+const CI_STATUS_CONTEXT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._\/-]{0,99}$/;
+
+function parseCi(raw: unknown, autoDeploy: boolean): CiGateConfig | undefined {
+  if (raw === undefined) return undefined;
+  const record = requireObject(raw, "ci");
+  rejectUnknownKeys(record, ["gate", "statusContext", "requireSignature"], "ci");
+  const gate = requireString(record.gate, "ci.gate");
+  if (gate !== "actions" && gate !== "leftblock-receipt") {
+    fail("ci.gate", `must be "actions" or "leftblock-receipt", got ${JSON.stringify(gate)}`);
+  }
+  if (autoDeploy && gate !== "actions") {
+    fail("ci.gate", `must be "actions" when autoDeploy is true (the Actions workflow is the only trigger)`);
+  }
+  if (!autoDeploy && gate !== "leftblock-receipt") {
+    fail("ci.gate", `must be "leftblock-receipt" when autoDeploy is false (Amplify auto-build is on for a private repository)`);
+  }
+  const statusContext = record.statusContext === undefined
+    ? DEFAULT_CI_STATUS_CONTEXT
+    : requireString(record.statusContext, "ci.statusContext", CI_STATUS_CONTEXT_PATTERN, "a GitHub commit status context such as leftblock/ci");
+  const requireSignature = record.requireSignature ?? false;
+  if (typeof requireSignature !== "boolean") fail("ci.requireSignature", "must be a boolean");
+  if (requireSignature) fail("ci.requireSignature", "true is not supported yet: signature verification arrives with the LeftBlock verify-ci story (PPY-466bdd)");
+  return { gate: gate as CiGateConfig["gate"], statusContext, requireSignature: false };
+}
+
+export function parseSiteConfig(raw: unknown, environment: Record<string, string | undefined> = process.env): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "knowledgeRun", "autoDeploy", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "email", "reader", "papyrusVersion", "storagePreviewPrefix", "chat", "knowledgeRun", "autoDeploy", "costAccounting", "ci", "github"],
     "site",
   );
 
@@ -510,7 +691,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const papyrusVersion = requireString(record.papyrusVersion, "papyrusVersion", PAPYRUS_VERSION_PATTERN, "exact version such as 1.0.0 or 1.0.0-next.1");
   const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
 
-  const cms = record.cms === undefined && frontend === "markus-static" ? undefined : parseCms(record.cms);
+  const cms = record.cms === undefined && frontend === "markus-static" ? undefined : parseCms(record.cms, environment);
 
   let reader: AmplifyAppShellSiteConfig["reader"];
   if (record.reader !== undefined) {
@@ -547,6 +728,11 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const autoDeploy = record.autoDeploy ?? true;
   if (typeof autoDeploy !== "boolean") fail("autoDeploy", "must be a boolean");
 
+  const costAccounting = record.costAccounting ?? true;
+  if (typeof costAccounting !== "boolean") fail("costAccounting", "must be a boolean");
+
+  const ci = parseCi(record.ci, autoDeploy as boolean);
+
   let github: AmplifyAppShellSiteConfig["github"];
   if (record.github !== undefined) {
     if (cms === undefined) fail("github", "requires cms (the CI role is scoped to the CMS app)");
@@ -582,6 +768,8 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     github = { owner, repo, branches, ciCanDeployInfra: ciCanDeployInfra as boolean, ...(ownerId !== undefined ? { ownerId, repoId } : {}) };
   }
 
+  const chat = parseChat(record.chat, cms);
+
   const hasDomain = cms?.domainName !== undefined || reader?.domainName !== undefined;
   if (hasDomain && hostedZoneId === undefined) {
     fail("hostedZoneId", "is required when cms.domainName or reader.domainName is set");
@@ -600,10 +788,14 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     stackName,
     aws,
     cms,
+    email: parseCloudEmail(record.email, cms !== undefined, siteId),
     reader,
     papyrusVersion,
     storagePreviewPrefix,
+    ...(chat ? { chat } : {}),
     autoDeploy: autoDeploy as boolean,
+    costAccounting: costAccounting as boolean,
+    ...(ci ? { ci } : {}),
     github,
     ...(record.knowledgeRun !== undefined ? { knowledgeRun: record.knowledgeRun } : {}),
   };
@@ -613,18 +805,45 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   return config;
 }
 
+/** Environment variable that names the AWS account a site deploys to, so `infra/site.json` need not carry it. */
+export const AWS_ACCOUNT_ID_ENVIRONMENT_VARIABLE = "PAPYRUS_AWS_ACCOUNT_ID";
+/** Environment variable that replaces `cms.prospectusAccountsApiStageArn`, so the ARN need not live in Git. */
+export const PROSPECTUS_ACCOUNTS_API_STAGE_ARN_ENVIRONMENT_VARIABLE = "PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN";
+
 /**
- * The CDK environment for a site's app-shell stack, taken only from the site's own `aws` block. There is
- * deliberately no default account: a deploy that guesses an account can land in, or fail against, the wrong
- * one.
+ * The account a site deploys to: `PAPYRUS_AWS_ACCOUNT_ID` when set, otherwise the `aws.accountId` literal of
+ * `infra/site.json` (still honoured so existing sites keep deploying), otherwise undefined. An environment value
+ * that is not a 12-digit account id is an error rather than something to guess around.
  */
-export function resolveDeployEnvironment(config: Pick<AmplifyAppShellSiteConfig, "siteId" | "aws">): { account: string; region: string } {
-  const account = config.aws?.accountId;
+export function resolveAwsAccountId(
+  aws: SiteAwsConfig | undefined,
+  environment: Record<string, string | undefined> = process.env,
+): string | undefined {
+  const fromEnvironment = environment[AWS_ACCOUNT_ID_ENVIRONMENT_VARIABLE]?.trim();
+  if (fromEnvironment) {
+    if (!/^\d{12}$/.test(fromEnvironment)) {
+      throw new Error(`${AWS_ACCOUNT_ID_ENVIRONMENT_VARIABLE} must be a 12-digit AWS account id`);
+    }
+    return fromEnvironment;
+  }
+  return aws?.accountId || undefined;
+}
+
+/**
+ * The CDK environment for a site's app-shell stack, taken only from the deploy environment
+ * (`PAPYRUS_AWS_ACCOUNT_ID`) or the site's own `aws` block. There is deliberately no default account: a deploy
+ * that guesses an account can land in, or fail against, the wrong one.
+ */
+export function resolveDeployEnvironment(
+  config: Pick<AmplifyAppShellSiteConfig, "siteId" | "aws">,
+  environment: Record<string, string | undefined> = process.env,
+): { account: string; region: string } {
+  const account = resolveAwsAccountId(config.aws, environment);
   const region = config.aws?.region;
-  const missing = [account ? "" : "aws.accountId", region ? "" : "aws.region"].filter(Boolean);
+  const missing = [account ? "" : `${AWS_ACCOUNT_ID_ENVIRONMENT_VARIABLE} (or aws.accountId)`, region ? "" : "aws.region"].filter(Boolean);
   if (!account || !region) {
     throw new Error(
-      `site "${config.siteId}" does not say where it deploys: add ${missing.join(" and ")} to its site.json, e.g. "aws": { "accountId": "<12-digit account>", "region": "us-east-1" }. No account is assumed.`,
+      `site "${config.siteId}" does not say where it deploys: set ${missing.join(" and ")}, e.g. ${AWS_ACCOUNT_ID_ENVIRONMENT_VARIABLE}=<12-digit account> in the environment and "aws": { "region": "us-east-1" } in its site.json. No account is assumed.`,
     );
   }
   return { account, region };

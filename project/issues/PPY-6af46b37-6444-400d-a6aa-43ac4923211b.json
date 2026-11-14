@@ -1,0 +1,25 @@
+{
+  "id": "PPY-6af46b37-6444-400d-a6aa-43ac4923211b",
+  "title": "OpenAI keys without long-lived secrets: workload identity federation or automated rotation, before the 2026-12-01 key expiry",
+  "description": "Ryan, 2026-11-01: the new OpenAI API key lasts 30 days (expires about 2026-12-01). Implement OpenAI's federated (workload identity) access with automated key rotation well before then.\n\nWhere the key lives today (papyrus-production 712236451410), all SecureString:\n- /papyrus/shipped/openai-api-key (Shipped knowledge run, KNOWLEDGE_OPENAI_KEY_PARAMETER)\n- /papyrus/p-apyr-us/openai-api-key\n- /papyrus/search/openai-api-key (search provider layer, #963)\n- /amplify/shared/<appId>/OPENAI_API_KEY for threat-intelligence-cms d12wnrx15qbcc2, distinctive-cms d2xke8ygmrzqpp, dataparade-cms d35q7zv4zad2we (Amplify secret() resolved at Lambda cold start)\n- ~/Projects/Papyrus/.env for local runs\n\nPrevious key was revoked without warning on 2026-11-01; the Shipped knowledge run failed at ai-review with HTTP 401.\n\nPlan:\n1. Research what OpenAI offers today for federated workload identity (OIDC from AWS IAM roles, short-lived tokens) and its admin API for project keys and rotation. Write up the options.\n2. Preferred: callers obtain short-lived OpenAI credentials from their AWS role (no stored key). Fallback: one SSM parameter per site plus a scheduled rotation Lambda that mints a new project key via the admin API, writes SSM, verifies it, then revokes the old one.\n3. Collapse the copies to one parameter per site, read through one helper in papyrus_content.\n4. Alarm on 401 from OpenAI anywhere (knowledge run, editorial checks, search) and on rotation failure, notifying the site alarm topic.\n5. Docs plus Gherkin for rotation and the 401 alarm.\n\nAcceptance: no OpenAI key needs manual replacement; a rotation runs end to end in production before 2026-12-01.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-01T12:46:10.195908Z",
+  "updated_at": "2026-11-01T12:46:14.053838Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "Papyrus implementation"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

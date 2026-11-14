@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e0de42e5-eaeb-4cf6-a7fb-554084c24233",
+  "issue_id": "PPY-1cb31122-fe96-4195-830b-237f8716e0e3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T16:37:20.190Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Router health in the monitoring view: stuck jobs, waiting ages and failures per monitor",
+    "description": "Today waiting jobs, ages, timeouts and BatchInProgress are only visible through DynamoDB and CloudWatch. Add them to the monitoring-view response, field-projected so no endpoints, ARNs or account ids leave the function, and show them in papyrus monitors overview. Keep RouterRole policy descriptions untouched: the role is at the 20 managed-policy limit.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+    "labels": []
+  }
+}

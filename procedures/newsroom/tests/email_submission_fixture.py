@@ -1,0 +1,134 @@
+"""Offline SES and table fixtures shared by email intake unit and narrative tests."""
+from copy import deepcopy
+from io import BytesIO
+from types import SimpleNamespace
+
+from papyrus_content.email_quarantine import request_decision
+from papyrus_content.email_submission_intake import EmailStore, apply_pending_decisions, process_ses_record
+from papyrus_content.monitoring_view import TableViewStore
+from papyrus_content.monitoring_router import RouterStore, run_router
+from procedures.newsroom.tests.test_monitoring_router import FakeTable
+
+RAW = b'''From: Editor <editor@example.org>\r
+To: submissions@publication.example\r
+Subject: Sources\r
+Message-ID: <newsletter-1@example.org>\r
+Content-Type: text/plain; charset=utf-8\r
+\r
+https://example.org/alpha\r
+https://example.org/beta\r
+'''
+
+
+class S3:
+    def __init__(self, raw=RAW):
+        self.raw, self.calls, self.objects = raw, [], {}
+
+    def put_object(self, *, Bucket, Key, Body, Metadata=None, **_):
+        self.objects[Key] = (bytes(Body), Metadata or {})
+
+    def get_object(self, *, Bucket, Key, Range=None):
+        self.calls.append((Bucket, Key))
+        if Key not in self.objects:
+            return {"ContentLength": len(self.raw), "Body": BytesIO(self.raw)}
+        data, metadata = self.objects[Key]
+        if Range:
+            start, end = (int(part) for part in Range.removeprefix("bytes=").split("-"))
+            data = data[start:end + 1]
+        return {"ContentLength": len(data), "Metadata": metadata, "Body": BytesIO(data)}
+
+
+class EmailTable(FakeTable):
+    def query(self, KeyConditionExpression, ExpressionAttributeValues=None, IndexName=None,
+              ScanIndexForward=True, Limit=None, **kwargs):
+        if IndexName == "routing" and not isinstance(KeyConditionExpression, str):
+            partition = KeyConditionExpression.get_expression()["values"][1]
+            rows = sorted((row for row in self.items.values() if row.get("gsi1pk") == partition),
+                          key=lambda row: row["gsi1sk"], reverse=not ScanIndexForward)
+            return {"Items": [deepcopy(row) for row in rows[:Limit]]}
+        return super().query(KeyConditionExpression, ExpressionAttributeValues, IndexName,
+                             ScanIndexForward, Limit, **kwargs)
+
+
+class Cognito:
+    def __init__(self, editors=None, *, enabled=True, verified=True, fail=False):
+        self.editors = editors or {"us-east-1_fixture": {"editor@example.org"}}
+        self.groups = {pool: {"editor"} for pool in self.editors}
+        self.enabled, self.verified, self.fail = enabled, verified, fail
+        self.calls = []
+
+    def list_users(self, *, UserPoolId, Filter, Limit, AttributesToGet=None):
+        self.calls.append(("list", UserPoolId, Filter, Limit))
+        if self.fail:
+            raise RuntimeError("directory unavailable")
+        address = Filter[len('email = "'):-1]
+        if address not in self.editors.get(UserPoolId, set()):
+            return {"Users": []}
+        return {"Users": [{"Username": "user-1", "Enabled": self.enabled, "Attributes": [
+            {"Name": "email", "Value": address}, {"Name": "email_verified", "Value": str(self.verified).lower()}]}]}
+
+    def admin_list_groups_for_user(self, *, UserPoolId, Username):
+        self.calls.append(("groups", UserPoolId, Username))
+        if self.fail:
+            raise RuntimeError("directory unavailable")
+        return {"Groups": [{"GroupName": name} for name in self.groups.get(UserPoolId, set())]}
+
+
+def email_fixture():
+    table = EmailTable()
+    config = {"pk": "MONITOR#email-publication", "sk": "CONFIG#email", "schemaVersion": 1,
+              "enabled": True, "accountId": "account-fixture", "kind": "publication",
+              "addresses": ["submissions@publication.example"],
+              "publicationIds": ["publication"], "maxMessagesPerSenderHour": 5}
+    router = {"pk": config["pk"], "sk": "CONFIG#router", "accountId": config["accountId"],
+              "mode": "live", "decisions": "direct", 
+              "publications": [{"publicationId": "publication", "site": "publication.example",
+                                "userPoolId": "us-east-1_fixture",
+                                "appsyncEndpoint": "https://fixture.appsync-api.us-east-1.amazonaws.com/graphql"}]}
+    table.put_item(Item=config)
+    table.put_item(Item=router)
+    event = {"Records": [{"eventSource": "aws:ses", "ses": {
+        "mail": {"messageId": "ses-delivery-1", "source": "editor@example.org",
+                 "destination": config["addresses"], "commonHeaders": {"from": ["Editor <editor@example.org>"]}},
+        "receipt": {"recipients": config["addresses"], **{field: {"status": "PASS"} for field in
+                    ("spfVerdict", "dkimVerdict", "dmarcVerdict", "spamVerdict", "virusVerdict")}}
+    }}]}
+    return SimpleNamespace(table=table, config=config, router=router, event=deepcopy(event), s3=S3(), cognito=Cognito())
+
+
+def collect_email(fixture, **options):
+    return process_ses_record(fixture.event["Records"][0], EmailStore(fixture.table),
+                              monitor_id="email-publication", bucket="mail-fixture", prefix="email-submissions/",
+                              s3=fixture.s3, cognito=fixture.cognito, now=1000, **options)
+
+
+def route_email(fixture, **options):
+    delivered = []
+    def deliver(_client, publication, discovery, _decision, _config):
+        delivered.append((publication, discovery))
+        return {"referenceId": "ref-" + discovery["sourceId"]}
+    result = run_router(RouterStore(fixture.table), "email-publication", now=2000,
+                        appsync=lambda endpoint: object(), deliver=deliver,
+                        context_receipt=lambda client, publication: {}, cognito=fixture.cognito, **options)
+    return result, delivered
+
+
+def decide_email(fixture, decision, *, receipt_key=None, reason="", publication_id="publication", now=1500):
+    """An editor's recorded Accept ("release") or Reject ("discard"), as the Monitoring view writes it."""
+    store = TableViewStore(fixture.table, "email-publication")
+    receipt_key = receipt_key or fixture.table.by_prefix("EMAIL#")[0]["sk"]
+    return request_decision(store, receipt=store.get(receipt_key), receipt_id=receipt_key, decision=decision,
+                            reason=reason, actor="editor-sub", actor_email=None,
+                            publication_id=publication_id, now=now)
+
+
+def apply_email_decisions(fixture, now=1600):
+    return apply_pending_decisions(EmailStore(fixture.table), fixture.s3, monitor_id="email-publication",
+                                   bucket="mail-fixture", now=now)
+
+
+def accept_held_email(fixture, **options):
+    """Accept the held message and let the receiver apply it, as the live editor flow does."""
+    result = decide_email(fixture, "release", **options)
+    assert result.get("ok"), result
+    return apply_email_decisions(fixture)

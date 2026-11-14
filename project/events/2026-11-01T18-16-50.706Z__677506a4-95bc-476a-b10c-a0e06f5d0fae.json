@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "677506a4-95bc-476a-b10c-a0e06f5d0fae",
+  "issue_id": "PPY-1f1da0f7-77a1-4683-b7f8-21318b470725",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:50.706Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Gherkin: reference-links.feature and reference-related-ui.feature",
+    "description": "features_backend/reference-links.feature: a human link is current with provenance; a suggestion is suggested and invisible to the graph; Accept/Reject flips state and records who and why; knee cut with no learned cut; Wilson cut once decisions exist; concept link counts in the concept report. features/reference-related-ui.feature: chips and cards have text labels; reject offers the reason box; add by hashtag.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

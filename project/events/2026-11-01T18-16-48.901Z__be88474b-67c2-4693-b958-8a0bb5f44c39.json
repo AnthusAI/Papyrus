@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "be88474b-67c2-4693-b958-8a0bb5f44c39",
+  "issue_id": "PPY-4b249c61-8f1b-4df3-9300-9f9f7c1bec0b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:48.901Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Suggestion job: reference_suggestions.suggest_for",
+    "description": "New src/papyrus_content/reference_suggestions.py:\n- Related References: GetVectors(returnData) on the Reference's own reference_summary key (no new embedding), QueryVectors topK (API max) with filter vectorKind=reference_summary, curationStatus accepted; exclude own lineage and anything already current or rejected.\n- Concepts: query concept_card + ontology_concept_profile; exclude linked concepts.\n- How many: cut at the largest gap between consecutive similarities in the first half (knee); once S2.11's calibrated cut exists, use it instead. No fixed threshold.\n- Each kept neighbour -> a suggested SemanticRelation row (S2.1), idempotent.\n- Runs when a Reference is accepted (router pass) and on demand (S2.7).\nTests with a fake vector provider: no embedding call is made; rejected never returns; knee cut behaves on synthetic scores.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

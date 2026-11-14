@@ -93,16 +93,11 @@ def sweep(steering, client, tmp_path, *, model=None, sections=SECTIONS, apply=Tr
 
 
 def curate_into_section(client, item, *, section_id, actor_kind, status="accepted", at="2999-01-01T00:00:00Z"):
+    """Record a vote on the Reference itself, as a vote leaves it (no Message, no comment relation)."""
     client.tables["Reference"][item["id"]].update({
-        "curationStatus": status, "curationStatusKey": f"{CORPUS_ID}#{status}", "curationStatusReason": "Fits well."})
-    message_id = f"message-reference-curation-{item['lineageId']}-{status}"
-    metadata = {"action": "accept", "actorKind": actor_kind, **({"sectionId": section_id} if section_id else {})}
-    client.upsert("Message", {"id": message_id, "messageKind": "reference_curation", "authorLabel": "someone",
-                              "createdAt": at, "metadata": json.dumps(metadata)})
-    client.upsert("SemanticRelation", {
-        "id": f"relation-{message_id}", "relationState": "current", "predicate": "comment", "subjectKind": "message",
-        "subjectId": message_id, "objectKind": "reference", "objectLineageId": item["lineageId"],
-        "objectStateKey": f"reference#{item['lineageId']}#current", "subjectStateKey": f"message#{message_id}#current"})
+        "curationStatus": status, "curationStatusKey": f"{CORPUS_ID}#{status}", "curationStatusReason": "Fits well.",
+        "curationStatusUpdatedAt": at, "curationStatusUpdatedBy": "someone",
+        "curationActorKind": {"service": "agent"}.get(actor_kind, actor_kind), "curationSectionId": section_id or None})
 
 
 def site_relations(client, lineage_id):

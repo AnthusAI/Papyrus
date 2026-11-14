@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "a02dbd31-0714-493c-bdf7-52fe5e5b9ea2",
+  "issue_id": "PPY-61b33283-226c-46b6-8ecf-0f7b8f0989a1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T10:51:11.501Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Copy guard refuses a body copied from the Reference text",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d9090fa8-2170-48d7-84c5-4aff10126b06",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Sonnet 5.5",
+      "name": "Claude Code"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "06ca7cba-98f6-4d62-8eda-7b1438b3e492",
+  "issue_id": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T23:51:23.749Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Messages come only from people",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

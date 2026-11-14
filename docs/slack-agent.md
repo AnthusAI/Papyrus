@@ -48,7 +48,7 @@ Point the Slack app **Event Subscriptions** request URL at that URL.
 
 ### Production (`main` branch)
 
-1. Merge or deploy `main` via Amplify Gen 2 (push to `main` triggers the pipeline).
+1. Release `develop` to `main` via Amplify Gen 2 (a push to `main` triggers the pipeline; `develop` builds nothing).
 2. In the Amplify console for the **main** backend, set branch env vars and secrets above.
    Slack Lambdas are created only when `PAPYRUS_ENABLE_SLACK=true`.
 3. After a successful deploy, open **Backend deployments → Outputs** (or `amplify_outputs`)

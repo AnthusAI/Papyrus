@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a1f0e82e-be06-44a5-bf75-bee7a139cba2",
+  "issue_id": "PPY-65fc6bd9-efdc-4f1a-bdb8-8942ea69d315",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T05:03:09.248Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Index pending References as query vectors; neighbours stay accepted-only",
+    "description": "",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-41134cac-0ca4-4ba0-9ad2-67a7a22aa859",
+    "labels": []
+  }
+}

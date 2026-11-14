@@ -1,0 +1,28 @@
+{
+  "id": "PPY-77244e29-3b23-411b-8db2-9fd5862f880b",
+  "title": "papyrus references audit: relevance model vs editors' decisions",
+  "description": "Read-only CLI command that audits a site's relevance predictions against editor decisions; docs in steering-and-relevance.md. Ryan approved 2026-10-31.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "293a1b5c-4b46-49d3-9906-42d79f5f9461",
+      "author": "home",
+      "text": "Merged #939: papyrus references audit; verified on live Anth.us (reproduces the 2026-10-31 audit exactly). Next release.",
+      "created_at": "2026-11-01T11:58:34.809750Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-31T15:02:28.065849Z",
+  "updated_at": "2026-11-01T11:58:34.940117Z",
+  "closed_at": "2026-11-01T11:58:34.940090Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

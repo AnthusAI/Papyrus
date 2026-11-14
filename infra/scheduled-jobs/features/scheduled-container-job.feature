@@ -24,7 +24,7 @@ Feature: Scheduled container jobs
     And it has no ingress rules and there are no separate ingress resources
 
   Scenario: every stage is a Fargate task with retries, backoff and a timeout
-    Then each of the ten stages is an "ecs:runTask.sync" task on Fargate
+    Then each of the ten knowledge stages is an "ecs:runTask.sync" task on Fargate
     And each runs "papyrus knowledge cloud-run --stage <name>" in the container "job"
     And each retries task failures and ECS service errors twice, 60 seconds apart, doubling, with full jitter
     And each has a TimeoutSeconds of 7200 unless the config overrides that stage
@@ -32,7 +32,63 @@ Feature: Scheduled container jobs
   Scenario: stages run strictly in order and projection is last
     Then the stages are corpus-sync, topic-model, typed-extraction, publish-run, ai-review, publish-relations, snapshot, archive, wiki-sync, projection
     And each stage continues only into the next one, and only wiki-sync continues into projection
-    And after projection the execution succeeds
+    And after projection the execution succeeds, or runs the optional trend-drafts step first
+
+  Scenario: the weekly knowledge run drafts trend stories once the snapshot is fresh
+    Given the stack parameter TrendDraftsEnabled is "true" with the publication's GraphQL endpoint and snapshot address
+    When the ten knowledge stages have succeeded and projection has published the snapshot
+    Then one more task, trend-drafts, runs after projection and runs the job script baked into the image
+    And the script waits briefly for the published index.json to show the run week's Monday as its asOf
+    And a snapshot that is still stale after those attempts is skipped with the reason in the log, and nothing is drafted
+    And a fresh snapshot is read once by "papyrus ideas trends --store items --max 2" with IAM authentication against the endpoint
+    And the OpenAI key is read from the SSM SecureString by the task role at run time and is only in the environment of that command
+    And the run files private story_draft Proposals, raises one soft review request and publishes nothing
+
+  Scenario: trend drafts are off by default and never fail the run
+    Given the stack parameter TrendDraftsEnabled is "false", its default
+    Then the execution goes from projection straight to Done and no trend-drafts task starts
+    And when it is enabled and the step fails or times out, the execution still ends in Done
+    And the failure is in the task log and no Fail state, alarm or rollback follows from it
+
+  Scenario: a site that does not opt in gets no monitor-stories step
+    Given the site's knowledgeRun block has no monitorStories setting
+    Then the state machine has no monitor-stories task and no Run-monitor-stories choice
+    And the stack has no MonitorStoriesEnabled parameter and the task has no MONITOR_STORIES_LIMIT setting
+    And the template is otherwise what it was before the step existed
+
+  Scenario: a site that opts in with monitorStories gets an optional step after trend-drafts
+    Given the site's knowledgeRun block says monitorStories is {"limit": 2}
+    Then the stack has a MonitorStoriesEnabled parameter that is "false" by default
+    And trend-drafts continues into the Run-monitor-stories choice, also when trend-drafts is switched off
+    And when MonitorStoriesEnabled is "true", one more task, monitor-stories, runs the job script baked into the image with the AppSync endpoint of trend-drafts
+    And the task gets MONITOR_STORIES_LIMIT 2, and 3 when the block gives no limit
+    And the script calls "papyrus ideas monitor-stories --store items" with IAM authentication and writes its own ledger row with its cost
+    And it publishes nothing, it files private story_draft Proposals and raises one soft review request
+
+  Scenario: monitor stories are off until switched on and never fail the run
+    Given the stack parameter MonitorStoriesEnabled is "false", its default
+    Then the execution goes from the trend drafts straight to Done and no monitor-stories task starts
+    And when it is enabled and the step fails or times out, the execution still ends in Done
+    And the failure is in the task log and the ledger row, and no Fail state, alarm or rollback follows from it
+
+  Scenario: a site's committed run settings ship with the stack and nowhere else
+    Given the site's knowledgeRun block names a settingsDirectory beside its site file, holding a vocabulary.yml and a stop-words.txt
+    Then the stack uploads that directory as one asset at deploy time and the tasks get KNOWLEDGE_SETTINGS_ARCHIVE with its s3:// address
+    And the task role may read that one object and nothing else in the asset bucket
+    And the asset adds no resource to the template
+    And a site without a settingsDirectory gets no such variable and no such grant, and its template is what it was
+
+  Scenario: the settingsDirectory is validated
+    Then a directory that does not exist, an empty one, one that leaves the site file's directory and one that holds a file other than vocabulary.yml, stop-words.txt and review-guidance.md are all refused with the field named
+    And Shipped's directory holds no description in its vocabulary, because none has been written, and Machines on Machines' holds the evaluated one
+
+  Scenario: a site can list source hosts its AI drafts never cite
+    Given the site's knowledgeRun block says excludedSourceHosts is ["ipwatchdog.com"]
+    Then the task environment has KNOWLEDGE_EXCLUDED_SOURCE_HOSTS "ipwatchdog.com" and the trend-drafts and monitor-stories steps pass it to their commands as --exclude-host
+    And a site without the setting gets no such variable, and a value that is not a list of bare lowercase host names is refused with the field named
+
+  Scenario: the monitorStories setting is validated
+    Then a limit below 1 or above 20, a limit that is not a whole number, an unknown field and a value that is not an object are all refused with the field named
 
   Scenario: a failing stage ends the execution in a Fail state
     Then each stage catches every error into its own Fail state
@@ -85,11 +141,19 @@ Feature: Scheduled container jobs
     And the OpenAI key is read from an SSM parameter, never Secrets Manager
     And the template mentions Secrets Manager nowhere
     And appsync:GraphQL is limited to the Query and Mutation fields of the publication's API
+    And appsync:GetGraphqlApi is limited to the publication's API, so the run can ask AppSync for its endpoint
     And the site bucket, distribution and key-value store are limited to the ARNs in config
 
   Scenario: the projection stages know the site's plugins
     Then the container environment carries PAPYRUS_PLUGINS from the site config
     And the task role may read the configuration of the site's content-actions Lambda and nothing else of Lambda
+
+  Scenario: monitor records are opt-in and reach the container only when the site names a source
+    Then the container has no KNOWLEDGE_MONITOR_SOURCES for the example config
+    And the example config sets no monitorWeeks, so the container has no KNOWLEDGE_MONITOR_WEEKS and every monitor record counts
+    And a knowledgeRun block with monitorSources "huggingface" and monitorWeeks 26 sets KNOWLEDGE_MONITOR_SOURCES and KNOWLEDGE_MONITOR_WEEKS
+    And a knowledgeRun block with monitorSources "routed" sets KNOWLEDGE_MONITOR_SOURCES to "routed"
+    And an empty, unknown or non-whole-week monitor setting is rejected naming "knowledgeRun.monitorSources" or "knowledgeRun.monitorWeeks"
 
   Scenario: the stages check out the commit the site runs
     Then the container environment names the CMS Amplify app
@@ -113,4 +177,4 @@ Feature: Scheduled container jobs
   Scenario: invalid knowledgeRun config is rejected with the field name
     Given a knowledgeRun block with an unknown key, a missing site bucket, a bad KVS ARN, a bad vCPU, too little memory, a bad schedule or an unknown stage timeout
     Then validation fails naming the field, such as "knowledgeRun.siteBucket"
-    And a site without a knowledgeRun block, or without aws.accountId and aws.region, is rejected
+    And a site without a knowledgeRun block, or without an account (PAPYRUS_AWS_ACCOUNT_ID or aws.accountId) and aws.region, is rejected

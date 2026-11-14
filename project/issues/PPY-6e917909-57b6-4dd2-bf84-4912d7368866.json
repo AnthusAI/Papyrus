@@ -1,0 +1,20 @@
+{
+  "id": "PPY-6e917909-57b6-4dd2-bf84-4912d7368866",
+  "title": "Make an editor's note on a link searchable as soon as it is saved",
+  "description": "Follow-up to PPY-968345, decided by the main session 2026-11-04. The daily pass no longer reads notes editors write on links between References. Embed a note when it is saved or edited, once, so it reaches the editors' internal knowledge search without any pass over the corpus. Gherkin with the change.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T22:03:47.682342Z",
+  "updated_at": "2026-11-04T22:03:47.682410Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

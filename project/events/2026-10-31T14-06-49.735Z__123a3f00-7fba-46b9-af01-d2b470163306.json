@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "123a3f00-7fba-46b9-af01-d2b470163306",
+  "issue_id": "PPY-8f3d3177-8d88-45ce-9e0e-f3c0bafc4e33",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:49.735Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us docs page: Papyrus on Alexa",
+    "description": "A docs page on p.apyr.us: what the skill does, how to turn it on for a site (config), linking, and voice and touch commands. A Papyrus-web PR that merges freely.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1b7f66d4-dbb9-4728-ba02-51868f05edd9",
+    "labels": []
+  }
+}

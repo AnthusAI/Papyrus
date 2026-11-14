@@ -1,0 +1,25 @@
+{
+  "id": "PPY-5707068e-d59e-42cd-9117-8d3937582415",
+  "title": "The monitoring router speaks Cyclotron's decision contract",
+  "description": "Cyclotron step 3 (docs/general-decision-engine.md in AnthusAI/Cyclotron): the router calls /machine/bindings/{id}/operations and /commands/{job}, sends contractVersion cyclotron-decision/v1, reads bindingId and the decisions map, and sends feedback as caller/reviewer instead of editor {site, subject}. Papyrus's own config keeps publicationId. The curation host and routing selection client stay on cyclotron-publication/v1 until Cyclotron gives its curation routes a neutral form.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-30T09:43:04.976274Z",
+  "updated_at": "2026-10-30T09:43:08.182744Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Opus 5.5",
+    "name": "Claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

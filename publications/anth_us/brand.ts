@@ -1,6 +1,6 @@
 import type { SiteBrand } from "../../lib/site-brand";
 import { ANTH_US_THEME_PACK_TOKENS } from "../../lib/site-stack";
-import { AnthUsLogo } from "./logo";
+import { AnthUsLogo, AnthUsLogoCompact } from "./logo";
 
 /**
  * Site definition for the Anth.us publication on Papyrus.
@@ -68,5 +68,5 @@ export const anthUsBrand: SiteBrand = {
   newsroomSectionsConfigPath: "corpora/anth-us-newsroom-sections.yml",
   analysisProfilesPath: "corpora/anth-us-analysis-profiles.yml",
   publicationName: "Anthus",
-  components: { NewsroomLogo: AnthUsLogo },
+  components: { NewsroomLogo: AnthUsLogo, NewsroomLogoCompact: AnthUsLogoCompact },
 };

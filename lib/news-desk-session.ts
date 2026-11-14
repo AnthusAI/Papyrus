@@ -1,5 +1,4 @@
 import type { CategorySteeringDashboard } from "./category-repository";
-import { createEmptyCategorySteeringDashboard } from "./category-dashboard";
 import type { ReaderAuthSnapshot } from "../components/reader-auth-state";
 
 export type NewsDeskShellPhase =
@@ -54,26 +53,6 @@ export function beginDeskLoad(state: NewsDeskShellState, auth: ReaderAuthSnapsho
     ...state,
     phase: state.dashboard ? "refreshing" : "loadingDesk",
     auth,
-    stale: false,
-    error: null,
-  };
-}
-
-export function beginAuthenticatedDeskHydration(
-  state: NewsDeskShellState,
-  auth: ReaderAuthSnapshot,
-  options: { canManageUsers: boolean },
-): NewsDeskShellState {
-  const dashboard = state.dashboard ?? {
-    ...createEmptyCategorySteeringDashboard(),
-    isPublicSkeleton: false,
-    canManageUsers: options.canManageUsers,
-  };
-  return {
-    ...state,
-    phase: state.dashboard ? "refreshing" : "loadingDesk",
-    auth,
-    dashboard,
     stale: false,
     error: null,
   };
@@ -137,6 +116,18 @@ export function resolveDashboardFailure(
     ...state,
     phase: "error",
     auth,
+    dashboard: null,
+    stale: false,
+    error,
+  };
+}
+
+/** An unverified session must never leave private records on screen. */
+export function resolveAccessFailure(state: NewsDeskShellState, error: string): NewsDeskShellState {
+  return {
+    ...state,
+    phase: "error",
+    auth: { status: "signedOut", label: "Signed out" },
     dashboard: null,
     stale: false,
     error,

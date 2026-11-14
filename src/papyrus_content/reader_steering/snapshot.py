@@ -14,6 +14,7 @@ from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from .proposal_votes import attention_by_proposal, partition_votes
 from .ranking import (
     COMBINATION_SHRINKAGE,
     COMBINATIONS,
@@ -297,6 +298,10 @@ class Snapshot:
     """Subject key to the content of its comment file, for every subject with a visible comment or a stub."""
     votes: dict[str, dict] = field(default_factory=dict)
     """Subject type to the content of its ``votes/<type>.json`` file, for every enabled type."""
+    proposal_exclusions: dict[str, dict[str, int]] = field(default_factory=dict)
+    """Proposal id to the up/down votes left out of its count, per reason (an exclusion id or ``limited-or-spam``)."""
+    proposal_attention: dict[str, list[dict]] = field(default_factory=dict)
+    """Proposal id to the reasons an editor should look at it. Editor-only: stored on the private proposal row, never published."""
 
 
 def visible_submissions(submissions: Iterable[Mapping]) -> list[Mapping]:
@@ -448,11 +453,15 @@ def build_snapshot(
     comments: Iterable[Mapping] = (),
     published_items: Iterable[Mapping] = (),
     flags: Iterable[Mapping] = (),
+    proposals: Iterable[Mapping] = (),
 ) -> Snapshot:
     """``published_at`` holds exactly the published subjects (its values may be ``None``); votes on any other subject are ignored.
 
     Visible submissions (pending or promoted) are subjects too, published when they were submitted. ``submitter_of`` defaults to
     the readers of those submissions, so upvotes and used-it reports on a submission (or on the item it became) earn its submitter karma.
+
+    ``proposals`` are the stored proposal rows. Votes on them that an editor excluded, and votes by limited or banned readers, are
+    left out of every count here (see ``proposal_votes``); the proposals that need an editor's look come back in ``proposal_attention``.
     """
     generated_at = iso(now_seconds)
     item_rows = list(published_items)  # {subject, title, url, section, date, publishedAt}: the page facts the task resolved
@@ -461,6 +470,9 @@ def build_snapshot(
     if submitter_of is None:
         submitter_of = submitters(submission_rows).get
     profile_rows = list(profiles)
+    age_of = account_ages(profile_rows)
+    proposal_rows = list(proposals)
+    votes, proposal_exclusions = partition_votes(votes, profile_rows, proposal_rows, age_of)
     handles = {profile["readerId"]: profile["handle"] for profile in profile_rows if profile.get("handle")}
     threads = comment_threads(comments, handles, published_at)
     comment_counts = {subject: sum(1 for entry in entries if not entry.get("stub")) for subject, entries in threads.items()}
@@ -491,7 +503,6 @@ def build_snapshot(
     front_rows: list[dict] = []
     rising_rows: list[dict] = []
     window_start = now_seconds - settings.ranking.rising_window_hours * SECONDS_PER_HOUR
-    age_of = account_ages(profile_rows)
     minimum_age = settings.ranking.rising_minimum_account_hours
     shrinking = settings.ranking.combination == COMBINATION_SHRINKAGE
     for subject in sorted(by_subject):
@@ -620,6 +631,8 @@ def build_snapshot(
             if comments_key(subject) is not None
         },
         votes=vote_files,
+        proposal_exclusions=proposal_exclusions,
+        proposal_attention=attention_by_proposal(proposal_rows, live_votes, age_of, now_seconds),
     )
 
 

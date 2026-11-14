@@ -51,7 +51,7 @@ Then("I should see the newsroom app shell", async function () {
   await page.waitForSelector("[data-newsroom-ops-shell='true']", { state: "visible", timeout: 15_000 });
   await page.waitForSelector("[data-newsroom-ops-topbar]", { state: "visible", timeout: 15_000 });
   const title = await page.locator("[data-newsroom-ops-title]").innerText();
-  assert.match(title, /Overview|Notification Center|Newsroom|Assignments|References|Topics|Concepts|Messages|Administration/i);
+  assert.match(title, /Overview|Newsroom home|Newsroom|Assignments|References|Topics|Concepts|Messages|Administration/i);
 });
 
 Then("I should not see a newspaper masthead or paper page in the newsroom chrome", async function () {
@@ -83,9 +83,18 @@ Given("I open the topics newsroom at {int} by {int}", async function (width, hei
   await requirePage(this).waitForSelector("[data-news-desk-section='topics']", { state: "visible", timeout: 15_000 });
 });
 
+/** References open as a feed; the list/queue scenarios work in the List view, which stays one tap away. */
+async function showReferenceList(page) {
+  const toggle = page.locator("[data-reference-view='list']");
+  await toggle.waitFor({ state: "visible", timeout: 15_000 });
+  if ((await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
+  await page.waitForSelector("[data-newsroom-card-grid]", { state: "visible", timeout: 15_000 });
+}
+
 Given("I open the references newsroom at {int} by {int}", async function (width, height) {
   await this.openPath("/newsroom/references?demo=1", width, height);
   await requirePage(this).waitForSelector("[data-news-desk-section='references']", { state: "visible", timeout: 15_000 });
+  await showReferenceList(requirePage(this));
 });
 
 Given("I open the concepts newsroom at {int} by {int}", async function (width, height) {
@@ -109,6 +118,7 @@ Given("I open the {string} newsroom section at {int} by {int}", async function (
   this.newsroomCardGridSection = sectionId;
   await this.openPath(`/newsroom/${sectionId}?demo=1`, width, height);
   await waitForNewsroomSection(requirePage(this), sectionId);
+  if (sectionId === "references") await showReferenceList(requirePage(this));
   await requirePage(this).waitForSelector("[data-newsroom-card-grid]", { state: "visible", timeout: 15_000 });
 });
 
@@ -234,11 +244,10 @@ When("I follow the newsroom tab for {string}", async function (label) {
   await waitForNewsroomSection(page, sectionId);
 });
 
-When("I follow the newsroom overview link for {string}", async function (label) {
+When("I follow the newsroom navigation link for {string}", async function (label) {
   const page = requirePage(this);
   const sectionId = getNewsroomSectionId(label);
-  const destinationKey = sectionId === "topics" ? "topics" : sectionId;
-  const link = page.locator(`[data-newsroom-ops-destination="${destinationKey}"]`).first();
+  const link = page.locator(`[data-news-desk-tab="${sectionId}"]`).first();
   await link.waitFor({ state: "visible", timeout: 10_000 });
   await link.click();
   await waitForNewsroomSection(page, sectionId);
@@ -411,7 +420,7 @@ Then("the newsroom should render", async function () {
   const page = requirePage(this);
   await page.locator("[data-news-desk]").waitFor({ state: "visible", timeout: 10_000 });
   assert.equal(await page.locator("[data-news-desk]").getAttribute("data-category-steering-demo"), "true");
-  await page.locator("[data-newsroom-ops-title]", { hasText: "Notification Center" }).waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-ops-title]", { hasText: "Newsroom home" }).waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-section='overview']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-tab='desks']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-tab='concepts']").waitFor({ state: "visible", timeout: 10_000 });
@@ -429,9 +438,26 @@ Then("the newsroom should show the knowledge overview", async function () {
   await page.locator("[data-news-desk-section='overview']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-newsroom-ops-home]").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-newsroom-overview-feeds]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-ops-destination='references']").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-ops-destination='assignments']").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-ops-destination='messages']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-overview-notifications]").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-overview-feeds] [aria-label='Needs attention']").waitFor({ state: "visible", timeout: 10_000 });
+});
+
+Then("the newsroom overview should focus on the Notification Center", async function () {
+  const page = requirePage(this);
+  const center = page.locator("[data-notification-center]");
+  await center.waitFor({ state: "visible", timeout: 10_000 });
+  const isFirstOverviewSection = await page.locator("[data-newsroom-overview-feeds]").evaluate((overview) => (
+    overview.firstElementChild?.matches("[data-newsroom-overview-notifications]") ?? false
+  ));
+  assert.equal(isFirstOverviewSection, true, "Expected the Notification Center to lead the overview");
+  assert.equal(await page.locator("[aria-label='Destinations']").count(), 0, "Expected no destination-card section on the overview");
+  assert.equal(await page.getByRole("heading", { name: "Go to" }).count(), 0, "Expected no Go to heading on the overview");
+});
+
+Then("the newsroom overview should keep its main navigation available", async function () {
+  const page = requirePage(this);
+  await page.locator("[data-news-desk-tab='references']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-news-desk-tab='assignments']").waitFor({ state: "visible", timeout: 10_000 });
 });
 
 Then("the newsroom ops desks should render as cards", async function () {
@@ -620,9 +646,9 @@ Then("the references desk should show reference metadata and semantic neighbors"
 
 Then("the reference detail should render the curation cluster", async function () {
   const page = requirePage(this);
-  await page.locator("[data-news-desk-reference-curation-cluster]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-news-desk-reference-accept]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-news-desk-reference-reject]").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-review-row='you']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-review-row='you'] [data-review-choice='accept']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-review-row='you'] [data-review-choice='reject']").waitFor({ state: "visible", timeout: 10_000 });
 });
 
 Then("the reference detail curation controls should share one height", async function () {
@@ -738,7 +764,7 @@ Then("the reference detail toolbar should show previous and next actions", async
   const page = requirePage(this);
   const report = await page.evaluate(() => {
     const shell = document.querySelector("[data-newsroom-list-detail-shell][data-news-desk-section='references']");
-    const buttons = Array.from(shell?.querySelectorAll(".newsroom-list-detail-shell__detail-toolbar-trailing button") ?? []).map((button) => {
+    const buttons = Array.from(shell?.querySelectorAll("[data-review-queue-bar] button") ?? []).map((button) => {
       const rect = button.getBoundingClientRect();
       return {
         ariaLabel: button.getAttribute("aria-label"),
@@ -759,7 +785,7 @@ Then("the reference detail toolbar should show previous and next actions", async
 
 Then("the reference detail toolbar previous action should be disabled", async function () {
   const disabled = await requirePage(this)
-    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] .newsroom-list-detail-shell__detail-toolbar-trailing button[aria-label='Previous']")
+    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] [data-review-queue-bar] button[aria-label='Previous']")
     .first()
     .isDisabled();
   assert.equal(disabled, true, "Expected Previous action to be disabled");
@@ -767,7 +793,7 @@ Then("the reference detail toolbar previous action should be disabled", async fu
 
 Then("the reference detail toolbar previous action should be enabled", async function () {
   const disabled = await requirePage(this)
-    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] .newsroom-list-detail-shell__detail-toolbar-trailing button[aria-label='Previous']")
+    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] [data-review-queue-bar] button[aria-label='Previous']")
     .first()
     .isDisabled();
   assert.equal(disabled, false, "Expected Previous action to be enabled");
@@ -775,7 +801,7 @@ Then("the reference detail toolbar previous action should be enabled", async fun
 
 Then("the reference detail toolbar next action should be enabled", async function () {
   const disabled = await requirePage(this)
-    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] .newsroom-list-detail-shell__detail-toolbar-trailing button[aria-label='Next']")
+    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] [data-review-queue-bar] button[aria-label='Next']")
     .first()
     .isDisabled();
   assert.equal(disabled, false, "Expected Next action to be enabled");
@@ -785,7 +811,7 @@ When("I open the next reference from the detail toolbar", async function () {
   const page = requirePage(this);
   const currentId = await page.locator("[data-news-desk-reference-detail]").first().getAttribute("data-news-desk-reference-detail");
   this.previousReferenceDetailId = currentId;
-  await page.locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] .newsroom-list-detail-shell__detail-toolbar-trailing button[aria-label='Next']").first().click();
+  await page.locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] [data-review-queue-bar] button[aria-label='Next']").first().click();
   await page.waitForFunction((id) => {
     const detail = document.querySelector("[data-news-desk-reference-detail]");
     return detail?.getAttribute("data-news-desk-reference-detail") !== id;
@@ -801,7 +827,7 @@ Then("the selected reference detail should change", async function () {
 
 When("I open the previous reference from the detail toolbar", async function () {
   const page = requirePage(this);
-  await page.locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] .newsroom-list-detail-shell__detail-toolbar-trailing button[aria-label='Previous']").first().click();
+  await page.locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] [data-review-queue-bar] button[aria-label='Previous']").first().click();
 });
 
 Then("the selected reference detail should return to the original selection", async function () {

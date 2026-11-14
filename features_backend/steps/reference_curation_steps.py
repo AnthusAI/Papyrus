@@ -1,0 +1,549 @@
+"""Steps for features_backend/reference-curation-before-review.feature. Everything is in memory: no network, no AWS, no model."""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from unittest import mock
+
+from behave import given, then, when
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+for path in (REPO_ROOT / "src", REPO_ROOT / "procedures" / "newsroom" / "tests"):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+from curation_support import (  # noqa: E402
+    NOW, MemoryClient, Grobid, Summarizer, article_html, directed_world, page, stored_attachment_bodies, paper_pdf, reference, services as build_services,
+)
+from papyrus_content import reference_curation as curation  # noqa: E402
+from papyrus_content.reference_curation_store import CurationError, apply_editor_correction, correct_reference_capture  # noqa: E402
+from pdf_fixtures import make_pdf  # noqa: E402
+
+ARTICLE_URL = "https://news.example.org/r1"
+ARXIV_URL = "https://arxiv.org/abs/2601.01234"
+ARXIV_PDF = "https://arxiv.org/pdf/2601.01234"
+
+
+def svc(context):
+    if getattr(context, "services", None) is None:
+        context.services = build_services(context.client, pages=context.pages, summarizer=context.summarizer,
+                                          grobid_url=context.grobid_url, grobid=context.grobid)
+    return context.services
+
+
+def curate(context, **kwargs):
+    context.result = curation.curate_reference(context.client, context.ref, services=svc(context), **kwargs)
+    return context.result
+
+
+def card(context):
+    found = context.client.card(context.ref["id"])
+    assert found is not None, "the Reference has no curation card"
+    return found
+
+
+@given("a site with a pending Reference whose source is a news article")
+def _(context):
+    context.ref = reference()
+    context.client = MemoryClient([context.ref])
+    context.pages = {ARTICLE_URL: page(article_html())}
+    context.summarizer = None
+    context.grobid_url = context.grobid = context.services = None
+
+
+@given("a model that summarizes in source voice")
+def _(context):
+    context.summarizer = Summarizer()
+
+
+@given('the source refuses the request as "{failure}"')
+def _(context, failure):
+    context.pages[ARTICLE_URL] = failure
+
+
+def _paper(context, *, grobid: bool):
+    context.ref = reference(sourceUri=ARXIV_URL)
+    context.client = MemoryClient([context.ref])
+    context.pages = {ARXIV_PDF: page(paper_pdf(), "application/pdf")}
+    context.grobid_url, context.grobid = ("http://grobid.test:8070", Grobid()) if grobid else (None, None)
+    context.services = None
+
+
+@given("the Reference is an arXiv paper and a GROBID service is available")
+def _(context):
+    _paper(context, grobid=True)
+
+
+@given("the Reference is an arXiv paper and no GROBID service is configured")
+def _(context):
+    _paper(context, grobid=False)
+
+
+@given("the curation procedure has run for the Reference")
+def _(context):
+    curate(context)
+
+
+@given('the editor "{editor}" pasted the full text "{text}" and labeled the capture "{assessment}"')
+def _(context, editor, text, assessment):
+    apply_editor_correction(context.client, context.ref, editor=editor, text=text, assessment=assessment, store=svc(context).store, now=NOW)
+
+
+@when("the router delivers the Reference and the curation procedure it started runs")
+def _(context):
+    from test_monitoring_router import Delivery
+    from test_procedure_runner import route, triggered_table
+
+    trigger = {"procedureKey": "papyrus.reference.curate", "input": {"reference_id": "{referenceId}"}}
+    table, delivery, started = triggered_table(procedureTriggers=[trigger]), Delivery(), []
+    route(table, delivery, started)
+    reference_id = started[0]["input"]["reference_id"]
+    context.ref = reference(id=reference_id, lineageId=reference_id, sourceUri=ARTICLE_URL)
+    context.client = MemoryClient([context.ref])
+    context.services = None
+    context.card_when_routing_returned = context.client.card(reference_id)
+    context.result = curation.curate_reference_by_id(reference_id, client=context.client, services=svc(context))
+
+
+@when("the curation procedure runs for the Reference")
+def _(context):
+    curate(context)
+
+
+@when("a GROBID service becomes available and the curation procedure runs again")
+def _(context):
+    svc(context).grobid_url, svc(context).grobid_post = "http://grobid.test:8070", Grobid()
+    curate(context)
+
+
+@when('the editor "{editor}" pastes the full text "{text}" and labels the capture "{assessment}"')
+def _(context, editor, text, assessment):
+    context.original_text = svc(context).store.text(context.ref, "curation-text")
+    context.correction = apply_editor_correction(context.client, context.ref, editor=editor, text=text, assessment=assessment,
+                                                 store=svc(context).store, now=NOW)
+
+
+@then("the router did not wait for the curation")
+def _(context):
+    assert context.card_when_routing_returned is None
+
+
+@then('the Reference\'s curation card is "{status}"')
+def _(context, status):
+    assert card(context)["status"] == status, card(context)["status"]
+
+
+@then("the card holds the article's full text with its word count")
+def _(context):
+    current = card(context)
+    stored = svc(context).store.text(context.ref, current["capture"]["textSortKey"])
+    assert stored.startswith("# County adopts transit plan") and current["signals"]["wordCount"] == current["capture"]["wordCount"] > 80
+
+
+@then("the card holds the completeness signals as facts and no completeness verdict")
+def _(context):
+    signals = card(context)["signals"]
+    assert {"wordCount", "metaDescriptionWordCount", "paywallMarkers", "endingPattern", "endsWithTerminalPunctuation"} <= set(signals)
+    assert not ({"complete", "isComplete", "verdict", "completeness"} & (set(signals) | set(card(context))))
+
+
+@then('the card holds a summary written by "{model}"')
+def _(context, model):
+    summary = card(context)["summary"]
+    assert summary["status"] == "completed" and summary["text"] and summary["model"] == model
+
+
+@then("the Reference is still pending")
+def _(context):
+    assert context.client.get_record("Reference", context.ref["id"])["curationStatus"] == "pending"
+
+
+@then('the capture failure is "{failure}" and the card holds no text')
+def _(context, failure):
+    current = card(context)
+    assert current["capture"]["reason"] == failure and not current["current"].get("textSortKey")
+
+
+@then("the card holds GROBID fields with {authors:d} authors, {sections:d} sections and {references:d} reference")
+def _(context, authors, sections, references):
+    grobid = card(context)["grobid"]
+    assert (grobid["status"], grobid["authorCount"], grobid["sectionCount"], grobid["referenceCount"]) == ("completed", authors, sections, references)
+
+
+@then("the GROBID title, authors, abstract, sections and references are stored with the Reference")
+def _(context):
+    fields = json.loads(svc(context).store.text(context.ref, card(context)["grobid"]["fieldsSortKey"]))
+    assert fields["title"] and fields["authors"] and fields["abstract"] and fields["sections"] and fields["references"]
+
+
+@then('the card says GROBID was skipped as "{reason}"')
+def _(context, reason):
+    assert card(context)["grobid"] == {"status": "skipped", "reason": reason}
+
+
+@given('the Reference came from the Assignment "{title}" with the direction "{direction}"')
+def _(context, title, direction):
+    patcher = stored_attachment_bodies()
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+    directed_world(context.client, context.ref, direction=direction, assignment_title=title, found_by="assignment-1",
+                   stories=[("story-found", "Found headline", "Found deck", "news", "consulted", "2026-10-15T00:00:00Z")])
+
+
+@given('the Story "{headline}" with the deck "{deck}" in the section "{section}" is linked to the Reference as "{role}"')
+def _(context, headline, deck, section, role):
+    created = {"Older headline": "2026-10-01T00:00:00Z"}.get(headline, "2026-11-01T00:00:00Z")
+    directed_world(context.client, context.ref, stories=[(f"story-{headline.split()[0].lower()}", headline, deck, section, role, created)])
+
+
+@given("the environment has no OPENAI_API_KEY and names an SSM parameter holding the key")
+def _(context):
+    context.environ = {"PAPYRUS_OPENAI_KEY_PARAMETER": "/synthetic/openai-key"}
+    context.secret_reads = []
+
+
+@when("curation services are built for a research run")
+def _(context):
+    from papyrus_content import multi_search_research
+
+    sent = []
+
+    def transport(url, headers, payload):
+        sent.append(headers)
+        return {"output_text": "Keyed summary.", "usage": {"input_tokens": 1, "output_tokens": 1}}
+
+    def read_secret(parameter):
+        context.secret_reads.append(parameter)
+        return "synthetic-key"
+
+    with mock.patch.object(curation, "default_services", lambda client: build_services(client, pages=context.pages, summarizer=None)):
+        context.research_services = multi_search_research.research_summary_services(context.client, environ=context.environ, read_secret=read_secret,
+                                                                                    transport=transport)
+    context.research_summary = context.research_services.summarizer({"text": "Body text.", "title": "T", "sourceUri": ARTICLE_URL})
+
+
+@then("the summarizer is keyed from the parameter and writes a summary")
+def _(context):
+    assert context.secret_reads == ["/synthetic/openai-key"] and context.research_summary["text"] == "Keyed summary."
+
+
+@given('the model fails with "{reason}"')
+def _(context, reason):
+    context.summarizer = Summarizer(fail_with=reason)
+    context.services = None
+
+
+@when('the curation procedure runs for the Reference with force')
+def _(context):
+    curate(context, force=True)
+
+
+@when('a research run for the Assignment "{assignment_id}" takes in the Reference')
+def _(context, assignment_id):
+    from papyrus_content import multi_search_research
+
+    context.research_curation = multi_search_research.curate_found_references(context.client, assignment_id, [context.ref["id"]], services=svc(context))
+
+
+def purpose_sent(context):
+    return context.summarizer.calls[-1].get("purposeContext")
+
+
+@then("the model was given no purpose context")
+def _(context):
+    assert all("purposeContext" not in call for call in context.summarizer.calls)
+
+
+@then('the model\'s purpose context includes "{text}"')
+def _(context, text):
+    assert text in purpose_sent(context)
+
+
+@then('the model\'s purpose context does not include "{text}"')
+def _(context, text):
+    assert text not in purpose_sent(context)
+
+
+@then('the model\'s purpose context lists "{first}" before "{second}"')
+def _(context, first, second):
+    sent = purpose_sent(context)
+    assert sent.index(first) < sent.index(second)
+
+
+def reference_metadata(context):
+    return json.loads(svc(context).store.text(context.ref, "metadata") or "{}")
+
+
+@then('the Reference\'s metadata holds no "summary_purpose"')
+def _(context):
+    assert "summary_purpose" not in reference_metadata(context) and "purpose" not in card(context)["summary"]
+
+
+@then('the Reference\'s metadata holds a "summary_purpose" with its Story ids and a hash of the context')
+def _(context):
+    recorded = reference_metadata(context)["summary_purpose"]
+    assert set(recorded) == {"assignmentId", "storyLineageIds", "contextHash"}
+    assert recorded["storyLineageIds"] and len(recorded["contextHash"]) == 64
+
+
+@then('the recorded purpose names the Assignment "{assignment_id}"')
+def _(context, assignment_id):
+    assert reference_metadata(context)["summary_purpose"]["assignmentId"] == assignment_id
+
+
+@then("the summary was written with the directed prompt version")
+def _(context):
+    assert reference_metadata(context)["summary_resolution"]["promptVersion"] == curation.SUMMARY_DIRECTED_PROMPT_VERSION
+    assert card(context)["summary"]["purpose"]["contextHash"] == reference_metadata(context)["summary_purpose"]["contextHash"]
+
+
+@then("the research run still reports its References as curated")
+def _(context):
+    assert context.research_curation["curated"] == [context.ref["id"]] and not context.research_curation["failed"]
+
+
+@then('the card records the summary failure "{reason}"')
+def _(context, reason):
+    summary = card(context)["summary"]
+    assert (summary["status"], summary["reason"]) == ("failed", reason)
+
+
+@then("the model was asked for a summary only once")
+def _(context):
+    assert len(context.summarizer.calls) == 1
+
+
+@then("the original captured text is unchanged")
+def _(context):
+    assert svc(context).store.text(context.ref, "curation-text") == context.original_text
+
+
+@then('the correction is stored as version {number:d} "{provenance}" by "{editor}"')
+def _(context, number, provenance, editor):
+    edit = card(context)["edits"][number - 1]
+    assert (edit["n"], edit["provenance"], edit["editedBy"]) == (number, provenance, editor)
+    assert svc(context).store.text(context.ref, edit["sortKey"]) == "The complete article, pasted by an editor."
+
+
+@then("the card shows the correction as the current text")
+def _(context):
+    assert card(context)["current"]["textSortKey"] == "curation-edit-0001-text"
+
+
+@then('the label records that the original capture was "{assessment}" with its signals')
+def _(context, assessment):
+    label = card(context)["labels"][0]
+    assert label["assessment"] == assessment and label["originalSignals"]["wordCount"] > 80 and label["originalTextSha256"]
+
+
+@then("the summary is marked stale until the next curation run")
+def _(context):
+    assert card(context)["summary"]["stale"] is True
+
+
+@then('the model summarized "{text}"')
+def _(context, text):
+    assert context.summarizer.calls[-1]["text"] == text
+
+
+@then("the source was not fetched again")
+def _(context):
+    assert svc(context).explorer.asked.count(ARTICLE_URL) == 1
+
+
+# --- the backfill ------------------------------------------------------------------------------------------------------------------------
+
+
+@given("a corpus with {pending:d} pending References, {accepted:d} accepted Reference and {other:d} Reference in another corpus")
+def _(context, pending, accepted, other):
+    rows = [reference(f"p{n}") for n in range(pending)] + [reference(f"a{n}", curationStatus="accepted") for n in range(accepted)] \
+        + [reference(f"o{n}", corpusId="knowledge-corpus-other") for n in range(other)]
+    context.client = MemoryClient(rows)
+    context.pages = {row["sourceUri"]: page(article_html()) for row in rows}
+    context.summarizer, context.grobid_url, context.grobid, context.services = Summarizer(), None, None, None
+
+
+@when("the backfill runs for the pending References")
+def _(context):
+    context.writes_before = context.client.writes
+    context.backfill = curation.curate_corpus(context.client, corpus_id="knowledge-corpus-site", status="pending", services=svc(context))
+
+
+@when("the backfill runs for the pending References again")
+def _(context):
+    context.writes_before = context.client.writes
+    context.backfill = curation.curate_corpus(context.client, corpus_id="knowledge-corpus-site", status="pending", services=svc(context))
+
+
+@when("the backfill runs as a dry run")
+def _(context):
+    context.writes_before = context.client.writes
+    context.backfill = curation.curate_corpus(context.client, corpus_id="knowledge-corpus-site", status="pending", dry_run=True)
+
+
+@then("{count:d} References were curated and the others were left alone")
+def _(context, count):
+    assert context.backfill["counts"]["curated"] == count
+    assert {row["referenceId"] for row in context.client.tables["ReferenceAttachment"].values()} == {"p0-v1", "p1-v1"}
+
+
+@then("no Reference was curated and nothing was written")
+def _(context):
+    assert context.backfill["counts"]["curated"] == 0 and context.client.writes == context.writes_before
+
+
+@then("it plans {count:d} References and writes nothing")
+def _(context, count):
+    assert context.backfill["counts"]["planned"] == count and context.client.writes == context.writes_before
+
+
+# --- full-text links on thin landing pages -------------------------------------------------------------------------------------------------
+
+JOURNAL_URL = "https://journal.example.org/article/view/42"
+JOURNAL_PDF = "https://journal.example.org/article/download/42/paper.pdf"
+BLURB = "A peer-reviewed record of the contemporary biodiversity crisis."
+
+
+def _landing(head: str = "", body: str = "") -> str:
+    return (f"<html><head><title>Record</title><meta name='description' content='{BLURB}'>{head}</head>"
+            f"<body><header><p>Journal menu that is not content</p></header>{body}</body></html>")
+
+
+@given("the source is a journal landing page whose only text is its one-line description")
+def _(context):
+    context.ref = reference(sourceUri=JOURNAL_URL)
+    context.client = MemoryClient([context.ref])
+    context.pages = {JOURNAL_URL: page(_landing())}
+    context.summarizer = Summarizer()
+    context.grobid_url = context.grobid = context.services = None
+
+
+@given('the landing page declares its full text with "{signal}"')
+def _(context, signal):
+    head, body = {"citation_pdf_url": (f'<meta name="citation_pdf_url" content="{JOURNAL_PDF}">', ""),
+                  "alternate_pdf": (f'<link rel="alternate" type="application/pdf" href="{JOURNAL_PDF}">', ""),
+                  "linked_pdf": ("", f'<p><a href="{JOURNAL_PDF}">Download</a></p>')}[signal]
+    context.pages = {JOURNAL_URL: page(_landing(head, body)), JOURNAL_PDF: page(paper_pdf(), "application/pdf")}
+
+
+@given('the landing page declares its full text with "{signal}" but the file is gone')
+def _(context, signal):
+    context.pages = {JOURNAL_URL: page(_landing(f'<link rel="alternate" type="application/pdf" href="{JOURNAL_PDF}">'))}
+
+
+@given("the source is an article that also links a PDF")
+def _(context):
+    context.ref = reference(sourceUri=JOURNAL_URL)
+    context.client = MemoryClient([context.ref])
+    context.pages = {JOURNAL_URL: page(article_html(footer=f'<a href="{JOURNAL_PDF}">PDF</a>')), JOURNAL_PDF: page(paper_pdf(), "application/pdf")}
+    context.summarizer = Summarizer()
+    context.grobid_url = context.grobid = context.services = None
+
+
+@then("the card's text is the PDF's text and not the one-line description")
+def _(context):
+    text = svc(context).store.text(context.ref, "curation-text")
+    assert "Introduction" in text and BLURB not in text
+
+
+@then("the card's text is the one-line description")
+def _(context):
+    assert svc(context).store.text(context.ref, "curation-text") == BLURB
+
+
+@then("the capture records the full-text address the text came from")
+def _(context):
+    assert card(context)["capture"]["fullTextUrl"] == JOURNAL_PDF
+
+
+@then("the capture records no full-text address")
+def _(context):
+    assert "fullTextUrl" not in card(context)["capture"]
+
+
+@given("one of the pending References has a source with only a short body")
+def _(context):
+    context.pages["https://news.example.org/p0"] = page("<p>The board met on Tuesday and adopted the transit plan.</p>")
+
+
+@then("the backfill counts {count:d} short body and still curated both References")
+def _(context, count):
+    assert context.backfill["counts"]["shortBodies"] == count and context.backfill["counts"]["curated"] == 2, context.backfill["counts"]
+
+
+@when('the editor "{editor}" uploads a PDF of a research paper and labels the capture "{assessment}"')
+def _(context, editor, assessment):
+    context.original_text = svc(context).store.text(context.ref, "curation-text")
+    attachment_id = svc(context).store.upload(context.ref["id"], paper_pdf())
+    correct_reference_capture(context.client, {"referenceId": context.ref["id"], "pdfAttachmentId": attachment_id, "assessment": assessment},
+                              {"username": editor}, now=lambda: NOW, store=svc(context).store)
+
+
+@then('the PDF\'s text is stored as version {number:d} "{provenance}" by "{editor}", marked as coming from an uploaded PDF')
+def _(context, number, provenance, editor):
+    edit = card(context)["edits"][number - 1]
+    assert (edit["n"], edit["provenance"], edit["editedBy"], edit["via"]) == (number, provenance, editor, "editor_pdf")
+    assert "steered by retrieval" in svc(context).store.text(context.ref, edit["sortKey"])
+    assert card(context)["current"]["textVia"] == "editor_pdf"
+
+
+@then("the card says whether it is a research paper, so the next curation run can decide on GROBID")
+def _(context):
+    assert card(context)["paper"]["isPaper"] is True
+
+
+@when("the editor uploads a file that is not a PDF, a PDF with no text, or a PDF uploaded to another Reference")
+def _(context):
+    store, context.refusals = svc(context).store, []
+    for owner, body in (("r1-v1", b"<html>no</html>"), ("r1-v1", make_pdf([[""]])), ("other-v1", paper_pdf())):
+        attachment_id = store.upload(owner, body)
+        try:
+            correct_reference_capture(context.client, {"referenceId": context.ref["id"], "pdfAttachmentId": attachment_id, "assessment": "incomplete"},
+                                      {"username": "editor-one"}, now=lambda: NOW, store=store)
+        except CurationError as error:
+            context.refusals.append(str(error))
+
+
+@then("each is refused saying what is wrong, and the card still shows the original text")
+def _(context):
+    assert len(context.refusals) == 3 and all(len(message) > 20 for message in context.refusals), context.refusals
+    assert card(context)["current"]["textSortKey"] == "curation-text" and card(context).get("edits") == []
+
+
+VIDEO_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+VIDEO_DESCRIPTION = "The speaker explains steerable feeds."
+
+
+@given("the Reference is a YouTube video whose page only has a short description")
+def _(context):
+    context.ref = reference(sourceUri=VIDEO_URL, curationStatus="accepted", medium="video", mediumFeedKey="knowledge-corpus-site#video#accepted")
+    context.client = MemoryClient([context.ref])
+    context.pages = {VIDEO_URL: page(f"<html><head><title>Talk</title><meta property='og:description' content='{VIDEO_DESCRIPTION}'></head><body></body></html>")}
+    context.services = None
+
+
+@given("the transcript library is not installed")
+def _(context):
+    patcher = mock.patch.dict(sys.modules, {"youtube_transcript_api": None})   # an import of it now raises ImportError
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+
+
+@then("the card's text is the video's short description")
+def _(context):
+    assert svc(context).store.text(context.ref, "curation-text") == VIDEO_DESCRIPTION
+
+
+@then('the capture records that the text came from the video description because the transcript is "{reason}"')
+def _(context, reason):
+    capture = card(context)["capture"]
+    assert capture["textVia"] == "youtube_description" and capture["textReason"] == reason
+
+
+@then("the Reference is stored as not captured in full and waits in the list of videos that need content")
+def _(context):
+    row = context.client.get_record("Reference", context.ref["id"])
+    assert row["captureState"] == "thin", row.get("captureState")
+    assert row["contentNeededKey"] == "knowledge-corpus-site#video#needs_content#accepted", row.get("contentNeededKey")

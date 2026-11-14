@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "812c99ea-8daf-464b-b291-78df27967055",
+  "issue_id": "PPY-4a79f900-8843-4125-a9e4-e2093cd51311",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:25.883Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Load test of the shared stack, including the index-backed home page and one noisy tenant",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

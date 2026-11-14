@@ -13,30 +13,36 @@ One sweep, run by a worker, mirrors the relevance sweep for the site plan:
 4. Decides every current pending ``Reference`` with one ``decide`` call that
    answers every classifier, and records each classifier's answer as its own
    ``site_decision_is`` relation superseding the previous current one.
-5. Records the shadow agreement per classifier, saves the store, releases the claim.
+5. Gives a Section to each Reference accepted since the last pass when the selector is sure enough
+   (``site_auto_section``, docs/reference-auto-section.md): the on-accept path of the automatic Section.
+6. Records the shadow agreement per classifier, saves the store, releases the claim.
 
-Every result is a suggestion. The sweep never changes a Reference's curation status.
+Every decision is a suggestion. The sweep never changes a Reference's curation status; the only thing it sets is the automatic Section.
 """
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import json
+import shutil
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Iterator, Mapping, Sequence
 
+from .tenant_knowledge_keys import SEMANTIC_NODE_FEED_KEY, global_key, tenant_unique_id
 from .auto_decision_gate import auto_decision_gate, load_approved_proof
 from .assignments import active_claim_held_by_different_assignee
 from .catalog import _record, semantic_relation_record
 from .ids import hash_short, knowledge_corpus_id, safe_id
 from .relevance_cyclotron import decision_model_from_environment, optimizer_from_environment
+from .reference_vote import latest_vote
 from .relevance_decisions import human_section_for_review
 from .relevance_shadow import (decisions_remaining_today, live_agreement, shadow_agreement_record, usage_record,
                                utc_day, SHADOW_AGREEMENT_SCHEMA)
 from .relevance_sweep import (REVIEWED_STATUSES, SNAPSHOT_NAME, AssignmentClaimLease, CyclotronClaimed, S3SnapshotStore,
-                              SweepResult, _HeldLease, _apply, _curation_messages, _current, _recorded_usage,
+                              SweepResult, _HeldLease, _apply, _current, _recorded_usage,
                               reference_item)
 from .site_classifier_set import (apply_site_classifier_set, definition_with_classifiers, plan_site_classifier_set,
                                   stored_active_specs)
@@ -92,7 +98,7 @@ def site_decision_node_key(classifier: str, label: str) -> str:
 
 
 def site_decision_node_lineage_id(classifier: str, label: str) -> str:
-    return f"semantic-node-{safe_id(site_decision_node_key(classifier, label))}"
+    return tenant_unique_id(f"semantic-node-{safe_id(site_decision_node_key(classifier, label))}")
 
 
 def site_decision_node_record(classifier: str, label: str, *, now: str) -> dict[str, Any]:
@@ -105,7 +111,7 @@ def site_decision_node_record(classifier: str, label: str, *, now: str) -> dict[
         "versionCreatedAt": now, "versionCreatedBy": "papyrus-cyclotron", "changeReason": "siteDecision-seed",
         "contentHash": hash_short([key, SITE_DECISION_NODE_KIND, display, description]),
         "nodeKey": key, "nodeKind": SITE_DECISION_NODE_KIND, "displayName": display, "description": description,
-        "aliases": [label], "status": "accepted", "createdAt": now, "updatedAt": now, "newsroomFeedKey": "semanticNodes",
+        "aliases": [label], "status": "accepted", "createdAt": now, "updatedAt": now, "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
     })
 
 
@@ -220,14 +226,13 @@ def site_provenance(plan, cyclotron, doctrine: Sequence[Mapping[str, Any]]) -> d
 
 
 def _human_section_references(client, corpus_id: str, enabled_section_ids: Sequence[str]):
-    """Each reviewed Reference a person explicitly placed in a Section: (reference, messages, section id)."""
+    """Each reviewed Reference a person explicitly placed in a Section: (reference, section id)."""
     placed = []
     for status in REVIEWED_STATUSES:
         for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
-            messages = _curation_messages(client, reference["lineageId"])
-            section_id = human_section_for_review(reference, messages, enabled_section_ids)
+            section_id = human_section_for_review(reference, enabled_section_ids)
             if section_id is not None:
-                placed.append((reference, messages, section_id))
+                placed.append((reference, section_id))
     return placed
 
 
@@ -236,8 +241,8 @@ def _live_site_agreement(client, plan, corpus_id: str, enabled_section_ids: Sequ
     """Per-classifier agreement of earlier suggestions with later explicit human Section decisions."""
     outcomes: dict[str, list[tuple[str, str]]] = {spec.id: [] for spec in plan.definition.classifiers}
     placed = _human_section_references(client, corpus_id, enabled_section_ids)
-    for reference, messages, section_id in placed:
-        reviewed_at = str(messages[-1].get("createdAt") or "")
+    for reference, section_id in placed:
+        reviewed_at = str(latest_vote(reference)["createdAt"] or "")
         decisions = current_site_decisions(_site_decision_relations(client, reference["lineageId"]), reference["lineageId"])
         for classifier, human_label in human_labels_for_section(section_id, enabled_section_ids).items():
             relation = decisions.get(classifier)
@@ -283,9 +288,9 @@ def _teach_from_human_sections(client, cyclotron, plan, corpus_id: str, enabled_
     from decision_flywheel import Item, LabeledItem
 
     primed = reviewed = 0
-    for reference, messages, section_id in _human_section_references(client, corpus_id, enabled_section_ids):
+    for reference, section_id in _human_section_references(client, corpus_id, enabled_section_ids):
         labels = human_labels_for_section(section_id, enabled_section_ids)
-        latest = messages[-1]
+        latest = latest_vote(reference)
         decisions = current_site_decisions(_site_decision_relations(client, reference["lineageId"]), reference["lineageId"])
         decision_id = _decision_id_of(decisions)
         if decision_id is None:
@@ -297,19 +302,18 @@ def _teach_from_human_sections(client, cyclotron, plan, corpus_id: str, enabled_
             examples = {classifier: values for classifier, values in examples.items() if classifier in cyclotron.specs}
             try:
                 outcome = asyncio.run(cyclotron.add_priming_examples(
-                    examples, added_by=str(latest.get("authorLabel") or "newsroom editor")))
+                    examples, added_by=str(latest["authorLabel"] or "newsroom editor")))
             except ValueError as error:
                 warnings.append(f"{reference['lineageId']}: {error}")
                 continue
             primed += 1 if outcome["added"] else 0
             continue
-        metadata = latest.get("metadata") or {}
         labels = {classifier: label for classifier, label in labels.items()
                   if classifier in cyclotron.specs and classifier in decisions}
         try:
             asyncio.run(cyclotron.review(
                 decision_id, labels=labels, explanation=reference.get("curationStatusReason"),
-                reason_code=metadata.get("reasonCode"), reviewer=latest.get("authorLabel"), review_id=latest["id"]))
+                reason_code=latest["reasonCode"], reviewer=latest["authorLabel"], review_id=latest["id"]))
         except ValueError as error:
             warnings.append(f"{reference['lineageId']}: {error}")
             continue
@@ -327,7 +331,7 @@ def _prime_added_classifiers(client, cyclotron, corpus_id: str, enabled_section_
     from decision_flywheel import Item, LabeledItem
 
     primed = 0
-    for reference, messages, section_id in _human_section_references(client, corpus_id, enabled_section_ids):
+    for reference, section_id in _human_section_references(client, corpus_id, enabled_section_ids):
         labels = {classifier: label for classifier, label in human_labels_for_section(section_id, enabled_section_ids).items()
                   if classifier in added_classifier_ids}
         if not labels:
@@ -339,7 +343,7 @@ def _prime_added_classifiers(client, cyclotron, corpus_id: str, enabled_section_
                     for classifier, label in labels.items()}
         try:
             outcome = asyncio.run(cyclotron.add_priming_examples(
-                examples, added_by=str(messages[-1].get("authorLabel") or "newsroom editor")))
+                examples, added_by=str(latest_vote(reference)["authorLabel"] or "newsroom editor")))
         except ValueError as error:
             warnings.append(f"{reference['lineageId']}: {error}")
             continue
@@ -400,26 +404,102 @@ def run_decide_site_sections(client, steering_config: Mapping[str, Any], doctrin
     if not apply:
         return result
 
+    with opened_site_cyclotron(client, plan, steering_config, sections, doctrine, corpus_id=corpus_id,
+                               enabled_section_ids=enabled_section_ids, set_plan=set_plan, worker=worker, model=model,
+                               optimizer=optimizer, snapshots=snapshots, now=now, result=result) as site:
+        cyclotron, model, provenance = site.cyclotron, site.model, site.provenance
+        questions = {spec.id: spec.question for spec in plan.definition.classifiers}
+        labels = {spec.id: spec.labels for spec in plan.definition.classifiers}
+        positive_labels = {spec.id: spec.positive_label for spec in plan.definition.classifiers}
+        records: list[dict[str, Any]] = []
+        for reference in pending:
+            if decisions_allowed is not None and result.decided >= decisions_allowed:
+                result.stopped_because = "daily decision cap"
+                result.warnings.append(
+                    f"{plan.definition.id} reached its cap of {plan.max_decisions_per_day} decisions today.")
+                break
+            decision = asyncio.run(cyclotron.decide(model.prepare(reference_item(reference))))
+            current_relations = _site_decision_relations(client, reference["lineageId"])
+            existing = current_site_decisions(current_relations, reference["lineageId"])
+            if set(existing) == set(decision.results) and all(
+                    json.loads(relation.get("metadata") or "{}").get("decisionId") == decision.decision_id
+                    for relation in existing.values()):
+                continue
+            records.extend(site_decision_records(
+                reference, decision.to_json(), cyclotron_id=plan.definition.id, classifier_questions=questions,
+                classifier_labels=labels, classifier_positive_labels=positive_labels, now=now(),
+                current_relations=current_relations, review_control=plan.review_control, provenance=provenance))
+            result.decided += 1
+        _apply(client, records)
+        # The automatic Section of each Reference accepted since the last pass (docs/reference-auto-section.md): the on-accept path.
+        from .site_auto_section import auto_section_in_sweep
+        result.auto_section = auto_section_in_sweep(
+            client, site, plan, steering_config, corpus_id=corpus_id, sections=sections, now=now,
+            decisions_allowed=None if decisions_allowed is None else max(0, decisions_allowed - result.decided))
+        result.decided += result.auto_section.get("decided", 0)
+        result.live_agreement = _live_site_agreement(client, plan, corpus_id, enabled_section_ids, now(),
+                                                     result.stopped_because)
+        records = [shadow_agreement_record(plan.definition.id, result.live_agreement, now=now())]
+        if plan.max_decisions_per_day is not None:
+            already_decided_today = recorded_usage["decisions"] if recorded_usage and recorded_usage.get("day") == today else 0
+            records.append(usage_record(plan.definition.id, day=today,
+                                        decisions=already_decided_today + result.decided, now=now()))
+        _apply(client, records)
+    return result
+
+
+class OpenedSiteCyclotron:
+    """The site cyclotron opened for one pass, taught from every explicit human Section choice."""
+
+    def __init__(self, cyclotron, model, provenance, plan):
+        self.cyclotron, self.model, self.provenance, self.plan = cyclotron, model, provenance, plan
+        self.questions = {spec.id: spec.question for spec in plan.definition.classifiers}
+        self.labels = {spec.id: spec.labels for spec in plan.definition.classifiers}
+        self.positive_labels = {spec.id: spec.positive_label for spec in plan.definition.classifiers}
+
+
+@contextmanager
+def opened_site_cyclotron(client, plan, steering_config: Mapping[str, Any], sections: Sequence[Mapping[str, Any]],
+                          doctrine: Sequence[Mapping[str, Any]], *, corpus_id: str, enabled_section_ids: Sequence[str],
+                          set_plan, worker: str, model=None, optimizer=None, snapshots=None,
+                          now: Callable[[], str], result: SweepResult, scratch: bool = False) -> Iterator[OpenedSiteCyclotron]:
+    """Open the site cyclotron for one pass: restore the store, follow the Section list, teach from human Section choices.
+
+    The writing pass (``scratch=False``) holds the ``cyclotron.site`` claim, opens the worker's store and saves it to the bucket afterwards. A dry run
+    (``scratch=True``) opens a throwaway copy of the store instead: it can decide and be taught, and nothing it does is kept or written anywhere.
+    """
+    from decision_flywheel import Cyclotron
+
     from .editorial_model_context import classification_model
     model = classification_model(model if model is not None else decision_model_from_environment(plan),
                                  client, steering_config, sections)
     model.verify_context()
-
-    from decision_flywheel import Cyclotron
-
-    assignment_id = ensure_site_sweep_assignment(client, plan.definition.id, corpus_id, now())
-    lease = AssignmentClaimLease(client, assignment_id, worker)
-    lease.acquire()
+    local = Path(plan.local_path)
+    snapshot_uri = f"{plan.s3_prefix.rstrip('/')}/{SNAPSHOT_NAME}" if plan.s3_prefix else None
+    lease = None
+    scratch_directory = tempfile.TemporaryDirectory() if scratch else None
     try:
-        if snapshots and snapshot_uri and not (local / "cyclotron.sqlite3").exists():
-            with tempfile.TemporaryDirectory() as scratch:
-                archive = Path(scratch) / SNAPSHOT_NAME
+        if scratch:
+            store = Path(scratch_directory.name) / "store"
+            if (local / "cyclotron.sqlite3").exists():
+                shutil.copytree(local, store)
+            elif snapshots and snapshot_uri:
+                archive = Path(scratch_directory.name) / SNAPSHOT_NAME
                 if snapshots.download(snapshot_uri, archive):
-                    Cyclotron.restore(archive, local, lease=_HeldLease())
-        optimizer = optimizer if optimizer is not None else optimizer_from_environment(plan)
-        stored_specs = stored_active_specs(local)
+                    Cyclotron.restore(archive, store, lease=_HeldLease())
+        else:
+            store = local
+            lease = AssignmentClaimLease(client, ensure_site_sweep_assignment(client, plan.definition.id, corpus_id, now()), worker)
+            lease.acquire()
+            if snapshots and snapshot_uri and not (local / "cyclotron.sqlite3").exists():
+                with tempfile.TemporaryDirectory() as restore_scratch:
+                    archive = Path(restore_scratch) / SNAPSHOT_NAME
+                    if snapshots.download(snapshot_uri, archive):
+                        Cyclotron.restore(archive, local, lease=_HeldLease())
+        optimizer = None if scratch else (optimizer if optimizer is not None else optimizer_from_environment(plan))
+        stored_specs = stored_active_specs(store)
         opening_definition = definition_with_classifiers(plan.definition, stored_specs) if stored_specs else plan.definition
-        cyclotron = Cyclotron.open(local, opening_definition, model, optimizer, lease=_HeldLease(),
+        cyclotron = Cyclotron.open(store, opening_definition, model, optimizer, lease=_HeldLease(),
                                    max_requests=plan.max_requests, review_program=plan.review_program,
                                    seed_rubrics={identifier: rubric for identifier, rubric in plan.seed_rubrics.items()
                                                  if identifier in {spec.id for spec in opening_definition.classifiers}})
@@ -431,47 +511,19 @@ def run_decide_site_sections(client, steering_config: Mapping[str, Any], doctrin
             primed_by_teaching, result.reviews = _teach_from_human_sections(
                 client, cyclotron, plan, corpus_id, enabled_section_ids, result.warnings)
             result.primed_from_human_reviews += primed_by_teaching
-            provenance = site_provenance(plan, cyclotron, doctrine)
-            questions = {spec.id: spec.question for spec in plan.definition.classifiers}
-            labels = {spec.id: spec.labels for spec in plan.definition.classifiers}
-            positive_labels = {spec.id: spec.positive_label for spec in plan.definition.classifiers}
-            records: list[dict[str, Any]] = []
-            for reference in pending:
-                if decisions_allowed is not None and result.decided >= decisions_allowed:
-                    result.stopped_because = "daily decision cap"
-                    result.warnings.append(
-                        f"{plan.definition.id} reached its cap of {plan.max_decisions_per_day} decisions today.")
-                    break
-                decision = asyncio.run(cyclotron.decide(model.prepare(reference_item(reference))))
-                current_relations = _site_decision_relations(client, reference["lineageId"])
-                existing = current_site_decisions(current_relations, reference["lineageId"])
-                if set(existing) == set(decision.results) and all(
-                        json.loads(relation.get("metadata") or "{}").get("decisionId") == decision.decision_id
-                        for relation in existing.values()):
-                    continue
-                records.extend(site_decision_records(
-                    reference, decision.to_json(), cyclotron_id=plan.definition.id, classifier_questions=questions,
-                    classifier_labels=labels, classifier_positive_labels=positive_labels, now=now(),
-                    current_relations=current_relations, review_control=plan.review_control, provenance=provenance))
-                result.decided += 1
-            result.live_agreement = _live_site_agreement(client, plan, corpus_id, enabled_section_ids, now(),
-                                                         result.stopped_because)
-            records.append(shadow_agreement_record(plan.definition.id, result.live_agreement, now=now()))
-            if plan.max_decisions_per_day is not None:
-                already_decided_today = recorded_usage["decisions"] if recorded_usage and recorded_usage.get("day") == today else 0
-                records.append(usage_record(plan.definition.id, day=today,
-                                            decisions=already_decided_today + result.decided, now=now()))
-            _apply(client, records)
-            if snapshots and snapshot_uri:
-                with tempfile.TemporaryDirectory() as scratch:
-                    archive = Path(scratch) / SNAPSHOT_NAME
+            yield OpenedSiteCyclotron(cyclotron, model, site_provenance(plan, cyclotron, doctrine), plan)
+            if not scratch and snapshots and snapshot_uri:
+                with tempfile.TemporaryDirectory() as upload_scratch:
+                    archive = Path(upload_scratch) / SNAPSHOT_NAME
                     cyclotron.snapshot(archive)
                     snapshots.upload(archive, snapshot_uri)
         finally:
             cyclotron.close()
     finally:
-        lease.release()
-    return result
+        if lease is not None:
+            lease.release()
+        if scratch_directory is not None:
+            scratch_directory.cleanup()
 
 
 def default_sections_path(config_path: str | None) -> str:

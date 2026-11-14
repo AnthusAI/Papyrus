@@ -12,7 +12,10 @@ import { fileURLToPath } from "node:url";
  * - trace the corpora/ YAML and amplify_outputs.json that the reader reads via fs at runtime,
  * - cap static generation at 2 workers x 3 pages (override with PAPYRUS_STATIC_GENERATION_WORKERS / _CONCURRENCY) and retry
  *   failed pages 3 times, so pre-building the reader pages stays under Cognito guest-credential throttles,
- * - carry Papyrus's own server-external packages and image settings.
+ * - inside an Amplify build, skip Next's type-check and lint (CI never runs in Amplify; see amplifyBuildChecks),
+ * - carry Papyrus's own server-external packages and image settings,
+ * - copy the Story-type settings of the site's `web/projection.json` (`storyTypes`, `urls`, `listings.types`) into NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES, which
+ *   lib/site-story-types.ts reads: the newsroom and the Python code read one file.
  */
 const SERVER_EXTERNAL = [
   "aws-amplify",
@@ -50,10 +53,22 @@ export function staticGenerationSettings() {
   };
 }
 
-export const DEFAULT_TRANSPILE_PACKAGES = ["@anthusai/papyrus", "cyclotron"];
+export const DEFAULT_TRANSPILE_PACKAGES = ["@anthusai/papyrus", "cyclotron", "chatticus", "lucide-react"];
 
 export function mergeTranspilePackages(existing = []) {
   return [...new Set([...existing, ...DEFAULT_TRANSPILE_PACKAGES])];
+}
+
+/**
+ * chatticus's prebuilt chat runtime is written against zod 4 (`z.looseObject`) and imports bare `zod`.
+ * Publication repos pin zod 3.25 through a root `overrides` entry (Amplify constructs need it), which
+ * also flattens chatticus's own zod 4 dependency, so the bundle then fails to build. zod 3.25 ships the
+ * zod 4 API at `zod/v4`; point only chatticus's `zod` imports there, leaving every other zod import alone.
+ */
+export const CHATTICUS_PACKAGE_PATH = /[\\/]node_modules[\\/]chatticus[\\/]/;
+
+export function redirectChatticusZod(resource) {
+  if (resource.request === "zod" && CHATTICUS_PACKAGE_PATH.test(resource.context ?? "")) resource.request = "zod/v4";
 }
 
 export const RUNTIME_TRACED_FILES = ["./corpora/**/*", "./amplify_outputs.json"];
@@ -63,6 +78,61 @@ export function mergeOutputFileTracingIncludes(existing = {}) {
   const current = merged["/**"] ?? [];
   merged["/**"] = [...new Set([...current, ...RUNTIME_TRACED_FILES])];
   return merged;
+}
+
+/**
+ * Amplify builds only deploy: CI (type-check, lint, tests) runs in GitHub Actions or locally, never in Amplify.
+ * Amplify sets AWS_APP_ID and AWS_BRANCH during the build. PAPYRUS_NEXT_BUILD_CHECKS=1 forces the checks back on.
+ */
+export function isAmplifyBuild(env = process.env) {
+  return Boolean(env.AWS_APP_ID || env.AWS_BRANCH);
+}
+
+export function skipNextBuildChecks(env = process.env) {
+  return isAmplifyBuild(env) && env.PAPYRUS_NEXT_BUILD_CHECKS !== "1";
+}
+
+export function amplifyBuildChecks(nextConfig = {}, env = process.env) {
+  if (!skipNextBuildChecks(env)) return {};
+  return {
+    typescript: { ignoreBuildErrors: true, ...nextConfig.typescript },
+    eslint: { ignoreDuringBuilds: true, ...nextConfig.eslint },
+  };
+}
+
+/** The part of a site's projection.json the newsroom needs to know its Story types and where they are published; the text is inlined into the browser bundle. */
+export function projectionTypesSlice(projection) {
+  const object = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+  const urls = object(projection.urls);
+  const groups = (entries, keep) => Object.fromEntries(Object.entries(object(entries)).map(([name, entry]) => [name, keep(object(entry))]));
+  return {
+    storyTypes: projection.storyTypes,
+    urls: {
+      types: groups(urls.types, (entry) => ({ ...(entry.base === undefined ? {} : { base: entry.base }) })),
+      sections: groups(urls.sections, (entry) => ({ ...(entry.base === undefined ? {} : { base: entry.base }), ...(entry.aliases === undefined ? {} : { aliases: entry.aliases }) })),
+    },
+    listings: { types: object(projection.listings).types },
+  };
+}
+
+/** NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES for the site at `root`: nothing when it has no projection.json (the Story types then fall back to `article`). */
+export function projectionTypesEnvironment(root, projectionPath = "web/projection.json") {
+  const file = path.join(root, projectionPath);
+  if (!fs.existsSync(file)) return {};
+  return { NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES: JSON.stringify(projectionTypesSlice(JSON.parse(fs.readFileSync(file, "utf8")))) };
+}
+
+/**
+ * PAPYRUS_ENGINE_VERSION: the version of this installed package, which `/.well-known/papyrus-site.json` tells the CLI so it can
+ * say "upgrade" for a command it does not know. Nothing from a checkout of the engine, whose package.json is the template.
+ */
+export function engineVersionEnvironment(packageJsonPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../package.json")) {
+  try {
+    const { name, version } = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+    return name === "@anthusai/papyrus" && typeof version === "string" ? { PAPYRUS_ENGINE_VERSION: version } : {};
+  } catch {
+    return {};
+  }
 }
 
 const EMPTY_THEME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../lib/empty-theme.css");
@@ -83,6 +153,8 @@ export function withPapyrus(nextConfig = {}, options = {}) {
     distDir: process.env.NEXT_DIST_DIR || ".next",
     expireTime: READER_EXPIRE_TIME_SECONDS,
     ...nextConfig,
+    ...amplifyBuildChecks(nextConfig),
+    env: { ...projectionTypesEnvironment(root, options.projectionPath), ...engineVersionEnvironment(), ...nextConfig.env },
     transpilePackages: mergeTranspilePackages(nextConfig.transpilePackages),
     serverExternalPackages: [...new Set([...(nextConfig.serverExternalPackages ?? []), ...SERVER_EXTERNAL])],
     outputFileTracingIncludes: mergeOutputFileTracingIncludes(nextConfig.outputFileTracingIncludes),
@@ -99,6 +171,10 @@ export function withPapyrus(nextConfig = {}, options = {}) {
     },
     webpack(config, context) {
       config.resolve.alias = { ...config.resolve.alias, ...aliases };
+      config.plugins = [
+        ...(config.plugins ?? []),
+        new context.webpack.NormalModuleReplacementPlugin(/^zod$/, redirectChatticusZod),
+      ];
       return typeof nextConfig.webpack === "function" ? nextConfig.webpack(config, context) : config;
     },
   };

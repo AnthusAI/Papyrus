@@ -1,0 +1,20 @@
+{
+  "id": "PPY-2905c582-bc56-4a6d-9f89-d0dc0cccc787",
+  "title": "stories next and the Story card should show the stored checklist state, not only the evidence view",
+  "description": "papyrus stories next (newsroom_process.assess) computes each step from evidence: direction and research from an Assignment with a direction or research packet, outline and draft from versions, the four review lenses always not_done (no record proves them). The publish gate reads the STORED checklist rows (story_checklist.require_checklist_closed), so a Story whose steps were closed with stories step still shows not_done in stories next. Show the stored row state (done, skipped, not applicable, with its note and who) when one exists; keep the evidence view as a hint only. Add a CLI to print the stored checklist (stories checklist or stories show). Found 2026-11-09 by the news desk editing session.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T22:48:53.863590Z",
+  "updated_at": "2026-11-09T22:48:53.863620Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

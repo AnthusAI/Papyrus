@@ -297,6 +297,7 @@ The uv cache is kept under `.uv-cache/` and listed in the spec's cache paths.
 GitHub Actions in a publication repo reaches AWS with GitHub OIDC: no AWS
 access keys or tokens are stored anywhere. Two pieces:
 
+0. **Shared-stack pipeline roles, once per AWS account** (a person runs the one-time setup, `infra/pipeline/bootstrap.sh --approver-only`, which can also create the account's GitHub OIDC provider with `--create-oidc-provider`; later changes to the roles are merged, planned and approved in GitHub by the `role-stack-deploy` workflow, never run by hand). Required before any shared stack deploys: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github). If you use that, the provider below is already handled for the account.
 1. **Account-level provider, once per AWS account** (`GithubOidcProviderStack`
    in `@anthusai/papyrus/infra`). Run `aws iam list-open-id-connect-providers`
    first. If `token.actions.githubusercontent.com` is listed (account
@@ -345,7 +346,7 @@ A site whose product has a dedicated AWS account is hosted in that account, not 
 `cyclotron-production`, Chattic.us in `chatticus-production`. Publication bucket, CloudFront, certificate,
 pipeline and CodeConnections connection all live there; only DNS validation and alias records may be written
 cross-account into the zone's own account. Sites that belong to the Papyrus platform itself (Shipped,
-Distinctive, Pilobol.us, Anth.us, Threat Intelligence, p.apyr.us) are the ones hosted in `papyrus-production`. Each site records its account in `infra/site.json` under `aws.accountId`; the app-shell stack deploys there and nowhere else.
+Distinctive, Pilobol.us, Anth.us, Threat Intelligence, p.apyr.us) are the ones hosted in `papyrus-production`. A site names its account in the deploy environment (`PAPYRUS_AWS_ACCOUNT_ID`, see [AWS identifiers outside Git](#aws-identifiers-outside-git)) or, for sites not yet migrated, in `infra/site.json` under `aws.accountId`; the app-shell stack deploys there and nowhere else.
 A new CodeConnections connection is created PENDING and needs a one-time console approval by a human
 (Developer Tools, Settings, Connections, Update pending connection) before its pipeline can run.
 
@@ -358,17 +359,79 @@ SITE=infra/site.json AWS_PROFILE=<profile> npm run diff
 SITE=infra/site.json AWS_PROFILE=<profile> npm run deploy
 ```
 
-`SITE` is the path to the site's own `infra/site.json` (resolve it from the shell directory, or use an absolute path). The stack deploys to the account and region in that file's `aws` block:
+`SITE` is the path to the site's own `infra/site.json`. The stack deploys to the account named by `PAPYRUS_AWS_ACCOUNT_ID` (a 12-digit id in the environment, not in a file) and the region in the file's `aws` block:
 
-```json
-"aws": { "profile": "papyrus-production", "accountId": "712236451410", "region": "us-east-1" }
+```
+export PAPYRUS_AWS_ACCOUNT_ID=111122223333
 ```
 
-There is no default account and no `CDK_DEFAULT_ACCOUNT` or `CDK_DEFAULT_ENV` override: a `site.json` without `aws.accountId` and `aws.region` fails with `does not say where it deploys`. Point `AWS_PROFILE` at credentials for that account; CDK refuses to deploy if they belong to another one. `TS_NODE_TRANSPILE_ONLY` is not needed: `npm run build` type-checks the app and CI runs it.
+```json
+"aws": { "profile": "papyrus-production", "region": "us-east-1" }
+```
+
+An `aws.accountId` still in `site.json` is a fallback and works as before; when `PAPYRUS_AWS_ACCOUNT_ID` is set it wins. There is no default account and no `CDK_DEFAULT_ACCOUNT` or `CDK_DEFAULT_ENV` override: with neither, the deploy fails with `does not say where it deploys` and names `PAPYRUS_AWS_ACCOUNT_ID`. Point `AWS_PROFILE` at credentials for that account; CDK refuses to deploy if they belong to another one. `TS_NODE_TRANSPILE_ONLY` is not needed: `npm run build` type-checks the app and CI runs it.
+
+## AWS identifiers outside Git
+
+LeftBlock blocks AWS account ids and resource ids in commits (`leftblock-aws-account-id`, `leftblock-aws-resource-id`). A site repository therefore holds none of them. Every place that used to read a literal now reads a value from somewhere that is not Git, and keeps the literal as a fallback so an unmigrated site behaves exactly as before. **A value from the environment always wins over a literal; with neither, the command fails and names the variable.**
+
+One pattern:
+
+| Where it runs | Where the value lives | Names |
+| --- | --- | --- |
+| GitHub Actions workflows | repository **variables** (Settings, Secrets and variables, Actions, Variables). Variables, not secrets: they only need to stay out of Git | `AWS_ACCOUNT_ID`, `AMPLIFY_APP_ID` |
+| Amplify builds and backend synthesis (`amplify.yml`, `postinstall`, `papyrus.config.ts`, `ampx`) | Amplify **branch environment variables** | `PAPYRUS_AMPLIFY_APP_ID`, `PAPYRUS_COMPUTE_ROLE_ARN` (both set by the app-shell stack), `PAPYRUS_EDGE_DISTRIBUTION_ARN` |
+| Operator tooling and the app-shell CDK app (`cdk synth -c site=`, `papyrus-infra`, `papyrus site google-secrets`, the knowledge-run stack) | the shell or CI environment | `PAPYRUS_AWS_ACCOUNT_ID`, `PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN` |
+
+None of these reaches a browser bundle: they are read at deploy, build and synth time only, and none is `NEXT_PUBLIC_`.
+
+| Variable | Read by | Replaces |
+| --- | --- | --- |
+| `PAPYRUS_AWS_ACCOUNT_ID` | `resolveDeployEnvironment` (`bin/app-shell.ts`, the knowledge-run app), `papyrus-infra synth` and `deploy` (verified against the credentials before `deploy` starts: a mismatch deploys nothing), `papyrus site google-secrets` (asserted with STS before any read or write; `--account` still wins) | `aws.accountId` in `infra/site.json`, and `--account` in a `postinstall` |
+| `PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN` | `parseSiteConfig` | `cms.prospectusAccountsApiStageArn` |
+| `PAPYRUS_AMPLIFY_APP_ID` | the `deploy` and `deploy-edge` guards of `papyrus-infra`; an `amplify.yml` guard such as `test "$AWS_APP_ID" = "${PAPYRUS_AMPLIFY_APP_ID:?...}"` | the literal after `--only-app-id`, and the literal in an `amplify.yml` guard. The app-shell stack sets it on its own production and staging branches, so it needs no manual step on a site that redeploys the stack |
+| `PAPYRUS_COMPUTE_ROLE_ARN` | the `reader-steering` and `newsletter` plugins | `computeRoleArn` in `papyrus.config.ts`. Set by the app-shell stack on its branches |
+| `PAPYRUS_EDGE_DISTRIBUTION_ARN` | `publication` resolution in the site backend | `publication.edgeDistributionArn` in `papyrus.config.ts`. Not derivable (the edge stack is separate), so set it by hand on the branch. A stack deploy rewrites a branch's whole variable list, so the stack carries this one through from the environment it deploys in (the branch's own variable in the Amplify build; export it yourself for a deploy from a checkout) |
+| `vars.AWS_ACCOUNT_ID`, `vars.AMPLIFY_APP_ID` | the deploy workflow caller | the role ARN and `app-id` literals in `.github/workflows/deploy.yml` |
+
+Account ids that can be derived are not configured at all: the stack uses `${AWS::AccountId}` and its own outputs for everything it creates, which is why the two stack-set variables above need no manual setting.
+
+### The owning-app guard fails closed
+
+`papyrus-infra deploy` and `deploy-edge` run in every Amplify build of the repository and deploy only from the app and branch that own the stack. The owning app is `PAPYRUS_AMPLIFY_APP_ID` when set, otherwise the value after `--only-app-id`. A site that passes `--only-app-id` has opted in to the guard; if the value is empty (`--only-app-id "$PAPYRUS_AMPLIFY_APP_ID"` with the variable unset) the build **fails** and deploys nothing, rather than lifting the guard. Outside an Amplify build nothing is evaluated, so a local `npm install` still works. A `postinstall` with neither the flag nor the variable has no guard, as before.
+
+For the same reason, an Amplify app that builds this repository but does not own the stack (a second app, for example a reader app) must also have `PAPYRUS_AMPLIFY_APP_ID` set, to the owning app's id; otherwise its build fails at the guard. The same holds for an `amplify.yml` guard written with `${PAPYRUS_AMPLIFY_APP_ID:?...}`.
+
+### Migration recipe
+
+Every step is additive until the last one, so the build never breaks: **set the variables first, change the code that reads them second, delete the literal last**, one site at a time, a release after the Papyrus version that has this feature (the feature is in the version that contains this section; bump `@anthusai/papyrus` and `papyrusVersion` first, as in [Deploy on merge to main](#deploy-on-merge-to-main), in the same change as step 2 below, because an older pin ignores the variables).
+
+1. **Variables (no code change).**
+   - GitHub repository variables `AWS_ACCOUNT_ID` and `AMPLIFY_APP_ID` (`CmsAppId` output).
+   - Amplify branch variables on the owning app's production branch (and on any other app that builds the repository): `PAPYRUS_AMPLIFY_APP_ID`. Redeploying the app-shell stack sets this and `PAPYRUS_COMPUTE_ROLE_ARN` on its own branches, and replaces the branch's variables with the stack's, so do it in the one deploy that carries the version bump. Add `PAPYRUS_EDGE_DISTRIBUTION_ARN` by hand before that deploy (and export it in the shell if you deploy the stack from a checkout), because it is the one value the stack cannot derive but does carry through.
+   - Your shell or CI: `PAPYRUS_AWS_ACCOUNT_ID` (and `PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN` for a site with reader features) wherever you run `cdk`, `papyrus-infra` or `papyrus site google-secrets`.
+2. **Code that reads them** (one pull request per site, with the version bump):
+   - `.github/workflows/deploy.yml`: replace `app-id: <literal>` and `role-to-assume: <literal arn>` with `app-id: ${{ vars.AMPLIFY_APP_ID }}`, `aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}` and `role-name: <siteId>-github-deploy`.
+   - `amplify.yml`: replace `test "$AWS_APP_ID" = "<literal>"` with `test "$AWS_APP_ID" = "${PAPYRUS_AMPLIFY_APP_ID:?set PAPYRUS_AMPLIFY_APP_ID on this Amplify branch}"`.
+   - `package.json` `postinstall`: replace `--only-app-id <literal>` with `--only-app-id "$PAPYRUS_AMPLIFY_APP_ID"` and delete `--account <literal>`.
+   - `papyrus.config.ts`: delete `computeRoleArn` (plugins read `PAPYRUS_COMPUTE_ROLE_ARN`) and `edgeDistributionArn` (read from `PAPYRUS_EDGE_DISTRIBUTION_ARN`) once the branch variables exist. If `computeRoleArn` is the only setting a plugin still needs, keep the plugin entry as the plain name.
+   - `infra/site.json`: delete `aws.accountId` and, for Shipped, `cms.prospectusAccountsApiStageArn`. Keep `aws.region`, `aws.profile`.
+3. **Verify**, then delete literals you kept as insurance (GitHub variables are visible in the workflow run; Amplify shows the branch variables in the console). Check the next merge: the workflow started a job, the build ran the guard (`papyrus-infra deploy: ... does not own the stack, skipping` in a non-owning app, a deploy in the owner), and `papyrus site google-secrets check` still asserts the account.
+4. **Roll back** by putting the literal back; it wins only when the variable is unset.
+
+Per site:
+
+| Site | GitHub variables | Amplify branch variables | Environment for operators | Literals to delete |
+| --- | --- | --- | --- | --- |
+| Pilobolus | `AWS_ACCOUNT_ID`, `AMPLIFY_APP_ID` | `PAPYRUS_AMPLIFY_APP_ID` on every app that builds the repository | `PAPYRUS_AWS_ACCOUNT_ID` | `--only-app-id` and `--account` values in `package.json` `postinstall`; `aws.accountId`; the role ARN and app id in `deploy.yml` |
+| Shipped | `AWS_ACCOUNT_ID`, `AMPLIFY_APP_ID` | `PAPYRUS_AMPLIFY_APP_ID`, `PAPYRUS_COMPUTE_ROLE_ARN`, `PAPYRUS_EDGE_DISTRIBUTION_ARN` | `PAPYRUS_AWS_ACCOUNT_ID`, `PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN` | `computeRoleArn` (two places) and `edgeDistributionArn` in `papyrus.config.ts`; `aws.accountId` and `cms.prospectusAccountsApiStageArn` in `site.json`; the role ARN and app id in `deploy.yml`; the app id in the OAuth redirect list is a hostname, handled separately (below) |
+| Anth.us | `AWS_ACCOUNT_ID`, `AMPLIFY_APP_ID` | `PAPYRUS_AMPLIFY_APP_ID`, `PAPYRUS_EDGE_DISTRIBUTION_ARN` | `PAPYRUS_AWS_ACCOUNT_ID` | the `test "$AWS_APP_ID" = ...` literal in `amplify.yml`; `edgeDistributionArn` in `papyrus.config.ts`; `aws.accountId`; the role ARN and app id in `deploy.yml` |
+
+Anth.us is the live site: do its steps in the order above, with variables set and verified on the branch before the pull request that removes literals, and without a second deploy. A literal that is part of a URL (an `https://main.<appId>.amplifyapp.com/` entry in `PAPYRUS_OAUTH_REDIRECT_URLS`, or `PAPYRUS_SITE_PUBLIC_URL` built from `$AWS_APP_ID`) is not read by this feature: build it from `$AWS_APP_ID` in the build command, or leave it for the separate clean-up.
 
 ## Deploy on merge to main
 
-A merge to `main` always deploys, with no manual step. How depends on whether the site's
+(Anchor kept for old links; the deploy is the **release**.) Merging a pull request into a site's `develop` builds nothing in Amplify; develop and verify on the local dev server. A release, which is `develop` merged into `main`, always deploys, with no manual step. Release once or twice a day; an extra release needs Ryan's say-so. How depends on whether the site's
 repository is public, because GitHub Actions minutes are free for public repositories and not
 for private ones.
 
@@ -398,7 +461,7 @@ Public sites get everything from the app shell, so a new site needs no extra inf
 3. **The workflow.** Copy
    [`infra/amplify-app-shell/examples/deploy-on-merge.workflow.yml`](../infra/amplify-app-shell/examples/deploy-on-merge.workflow.yml)
    to `.github/workflows/deploy.yml`, replace its CI steps with the repository's own checks and
-   fill in the app id (`CmsAppId`) and the role ARN. Its `deploy` job calls the reusable
+   pass the app id and account from the repository variables `AMPLIFY_APP_ID` and `AWS_ACCOUNT_ID` (see [AWS identifiers outside Git](#aws-identifiers-outside-git)); no id goes in the file. Its `deploy` job calls the reusable
    workflow `AnthusAI/Papyrus/.github/workflows/amplify-deploy.yml`, which assumes the role,
    runs `aws amplify start-job --job-type RELEASE --commit-id <the merged sha>` and polls
    `get-job` until it succeeds or fails. The Amplify job therefore records the real commit id,
@@ -411,7 +474,7 @@ Public sites get everything from the app shell, so a new site needs no extra inf
 Rolling out to an existing site: bump `@anthusai/papyrus` and `papyrusVersion` to the release
 that has this feature **in the same change** as the workflow. The production build runs
 `papyrus-infra deploy`, so a build on an older pin would redeploy the old template and remove
-the role. After the stack has the role, the first merge to `main` is the proof: the workflow
+the role. After the stack has the role, the first release to `main` is the proof: the workflow
 run shows the job id, and `aws amplify list-jobs` shows the merged commit id.
 
 Private sites set `"autoDeploy": false` (no role, Amplify auto-build stays on), or use
@@ -421,6 +484,41 @@ auto-build stays off and nothing builds. If a repository-connected Amplify app a
 job, check that the branch has `enableAutoBuild` true, that exactly one Amplify app is
 connected to the repository branch, and CloudTrail for the `amplify.amazonaws.com` webhook
 events before replacing it with a pipeline.
+
+### Private sites: the LeftBlock receipt gate
+
+Branch protection is not available on our private repositories, so the enforcement point is the
+deploy. A private site opts in with a `ci` section in `site.json`:
+
+```json
+"autoDeploy": false,
+"ci": { "gate": "leftblock-receipt", "statusContext": "leftblock/ci" }
+```
+
+The production build then starts with a small shell gate (before `npm ci`) that reads the
+`statusContext` commit status for `$AWS_COMMIT_ID` from the GitHub API and exits 1 with
+`No LeftBlock CI receipt for <sha>: run `leftblock ci` and push again` unless it is `success`. A
+rejected commit costs under a minute of build time. `leftblock ci` (the receipt) posts the status
+for the exact commit it tested; merge locally, never with the GitHub merge button, which creates a
+commit without a receipt.
+
+- `ci.gate` must be `leftblock-receipt` when `autoDeploy` is false and `actions` when it is true
+  (public sites, whose Actions workflow is the gate and whose build spec is unchanged).
+- A site without `ci` is unchanged. `requireSignature: true` is not supported yet.
+- The stack creates the SecureString `/papyrus/<siteId>/github-status-token` and lets the Amplify
+  build service role `ssm:GetParameter` that one parameter. CloudFormation cannot know a GitHub
+  token, so after the first deploy replace the generated placeholder once with a fine-grained,
+  read-only (commit statuses) token: `aws ssm put-parameter --name /papyrus/<siteId>/github-status-token --type SecureString --overwrite --value ...`.
+  The stack adopts it as it is and never overwrites it.
+
+## Which releases need a site bump
+
+Every site bump is merged to `develop` and ships in that site's release, which is a push to `main` and therefore a build of about ten minutes, so seven sites cost about 84 minutes per Papyrus release. Two rules keep that bounded without a numeric cap.
+
+1. **Classify.** The release workflow appends one line to every release's notes, `Affects sites: yes` or `Affects sites: no`, from `procedures/release/classify_release.py classify`. A release affects sites when it changes a path that ships in the npm package or the standard projector: `app/`, `components/`, `lib/`, `renderers/`, `amplify/` (not tests, fixtures or seeds), `packages/`, `infra/amplify-app-shell/`, `scripts/videoml/`, `src/papyrus_content/` and `middleware.ts`. A release that changes only the Python CLI, newsroom libraries, docs or board does not. A release with no marker is treated as affecting sites.
+2. **Batch.** A site bumps at most once per planned bump, straight to the newest release, and only when at least one release since its pin affects sites. Save `gh release list -R AnthusAI/Papyrus --json tagName,body,isPrerelease` as JSON (rename `isPrerelease` to `prerelease`), then run `python3 procedures/release/classify_release.py plan-bump --current <pinned version> --releases-json <file>`. It prints `bump_needed`, the `target` version and the site-affecting releases.
+
+Spec: `features_backend/release-classification.feature`.
 
 ## Authoring role and the CLI
 
@@ -613,6 +711,20 @@ variable `PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN`) is a one-time sign-out: there 
 dual-read. Deploy the stack with the old secret set to `RemovalPolicy.RETAIN` first, then
 the stack without it, then delete the retained secret by hand once sign-in works.
 
+## Paths the CMS edge reserves
+
+On a site whose public host serves an S3 projection with the CMS app behind the same CloudFront distribution (`infra/edge/s3-projection-cms.yaml`: Shipped, Distinctive Mark, Data Parade, Threat Intelligence, and p.apyr.us's marketing distribution), these paths go to the CMS app, not the bucket:
+
+| Path | Why |
+| --- | --- |
+| `/newsroom*` | the newsroom console |
+| `/_next/*` | the console's Next.js assets |
+| `/api/*` | the console's API routes |
+| `/cli/*` | remote CLI sign-in approval pages (`papyrus login --remote`) |
+| `/.well-known/papyrus-cli.json` | the CLI sign-in details |
+
+A projected page, a section base or a `homePage` segment that starts with one of these is shadowed by the CMS on those hosts, so pick another segment there. Anth.us is the exception: `anth.us` is pure S3 (the console is a separate host, `newsroom.anth.us`), so its public section can live at `anth.us/newsroom/` with no edge change.
+
 ## Custom domains and Route 53
 
 1. Create a **public** hosted zone for the publication domain (e.g. `pilobol.us`).
@@ -643,8 +755,9 @@ the stack without it, then delete the retained secret by hand once sign-in works
 `papyrus-infra synth` and `papyrus-infra deploy` never default to a fixed AWS account. The account is the first of:
 
 1. `--account <id>`
-2. `CDK_DEFAULT_ACCOUNT`
-3. the account returned by `aws sts get-caller-identity` for the current credentials (the aws CLI must be on `PATH`)
+2. `PAPYRUS_AWS_ACCOUNT_ID`, which `deploy` then checks against the credentials (a mismatch deploys nothing)
+3. `CDK_DEFAULT_ACCOUNT`
+4. the account returned by `aws sts get-caller-identity` for the current credentials (the aws CLI must be on `PATH`)
 
 If none of these yields a 12-digit account id, the command exits with `cannot determine the AWS account` and the reason. The region is `--region`, then `AWS_REGION`, `AWS_DEFAULT_REGION`, `CDK_DEFAULT_REGION`, and finally `us-east-1`. Amplify builds set none of the `CDK_DEFAULT_*` variables, so a deploy from a build uses the build role's own account; passing `--account` in the postinstall hook is still allowed and wins.
 
@@ -670,16 +783,45 @@ model nested stacks in waves: each wave of `backend.resolverWaveSize` stacks
 between nested stacks; no resource, schema or API changes. Set
 `backend: { resolverWaveSize: 0 }` in `papyrus.config.ts` to turn it off.
 
-## Fresh deploy exceeds the CloudFormation per-operation cap (staged first deploy)
+## Start a new Papyrus site: the two-deploy first backend
 
-CloudFormation creates at most 2,500 resources in one stack operation, nested stacks included. The full model set is
-about 2,560 resources, so the first deploy of a brand-new site fails with "Limit on the number of resources in a single
-stack operation exceeded" and rolls back. Existing sites passed it through incremental updates. `resolverWaveSize` does
-not help: every wave runs inside the same root operation.
+CloudFormation creates at most 2,500 resources in one stack operation, nested stacks included, and the limit cannot be
+raised. The full Papyrus backend is about 2,700 resources for a minimal site and more with plugins (the Shipped site's
+is 3,100), so the first `ampx pipeline-deploy` of a brand-new site fails with "Limit on the number of resources in a
+single stack operation exceeded" and rolls back. Existing sites passed it one release at a time; an update only counts
+the resources it creates or changes. `resolverWaveSize` does not help: every wave runs inside the same root operation.
 
-Stage the first deploy: set `backend.excludeModelGroups: ["editions"]` in `papyrus.config.ts` (the four edition models;
-editions are off by default), deploy, then remove the line and deploy again. The second deploy is an ordinary update
-that adds the models. Known groups are in `OPTIONAL_MODEL_GROUPS` (`amplify/data/schema.ts`); an unknown name fails the build.
+A new site therefore deploys its backend twice:
+
+1. **First deploy, bootstrap stage.** Set the Amplify branch variable `PAPYRUS_BOOTSTRAP_STAGE=1`. The data API then
+   leaves out the optional model groups in `OPTIONAL_MODEL_GROUPS` (`amplify/data/schema.ts`): editions, knowledge,
+   semantic, review, procedures, editorial checks, steering, story variations, tenancy and localization. Nothing else depends on those models, so the schema
+   stays valid. A minimal site synthesizes to about 1,700 resources (a site with the `home-page` plugin: 1,678), well
+   under the limit. `scripts/test-bootstrap-stage.ts` holds the figure under 2,000. Plugins add their own models (reader-steering plus signup: 2,030), so a site with many plugins has less headroom; check it with `npx tsx scripts/synth-site-backend.mts <dir> '<backend json>'` under `PAPYRUS_BOOTSTRAP_STAGE=1`.
+2. **Second deploy, normal.** Remove the variable and deploy again. This is an ordinary update that adds the deferred
+   models (about 1,000 resources, created in the one update).
+
+```bash
+# Before the first build (the site's Amplify app id and branch):
+aws amplify update-branch --app-id <appId> --branch-name main \
+  --environment-variables "$(aws amplify get-branch --app-id <appId> --branch-name main \
+      --query 'branch.environmentVariables' --output json | jq -c '. + {PAPYRUS_BOOTSTRAP_STAGE:"1"}')"
+# Run the build (a release to main, or aws amplify start-job). When the backend deploy succeeds, remove the variable:
+aws amplify update-branch --app-id <appId> --branch-name main \
+  --environment-variables "$(aws amplify get-branch --app-id <appId> --branch-name main \
+      --query 'branch.environmentVariables' --output json | jq -c 'del(.PAPYRUS_BOOTSTRAP_STAGE)')"
+# Run the build again.
+```
+
+`update-branch --environment-variables` replaces the whole map, so merge into the existing variables as above.
+
+With the variable unset the synthesized templates are byte-for-byte what they were before the switch existed (apart from
+asset hashes, deploy tokens and the API key expiry that change on every synth), so it cannot affect a live site. Between
+the two deploys the newsroom lacks the deferred models; do not point users at it yet. A failed first create can leave the
+root stack `amplify-<appId>-<branch>-branch-<hash>` in `ROLLBACK_COMPLETE`; CloudFormation cannot update such a stack,
+so delete it (`aws cloudformation delete-stack`) before the first bootstrap build. Sites that cannot set a branch
+variable can set `backend.excludeModelGroups: [...]` in `papyrus.config.ts` instead, then remove it for the second deploy.
+Known groups: `OPTIONAL_MODEL_GROUPS`; an unknown name fails the build.
 
 ## Data API Lambda resolvers and the 500-resource stack limit
 
@@ -720,7 +862,7 @@ brand id (`defaultBrand`) or by a hash of its stack name:
 | Feature | Resource | Scope | Name for a new site |
 | --- | --- | --- | --- |
 | always | S3 Vectors index | region | `papyrus-knowledge-<brand>` (legacy: `papyrus-knowledge`) |
-| inboundEmail | SES receipt rule set | region, one ACTIVE | `papyrus-site-inbound-<brand>`, created and never activated by CloudFormation |
+| inboundEmail | SES receipt rule set | account + region, one ACTIVE per account | `papyrus-site-inbound-<brand>`, created and never activated by CloudFormation |
 | inboundEmail | SES receipt rule | inside the rule set | `<brand>-inbound-submissions` |
 | inboundEmail | SES domain identity and `_amazonses` TXT | account | not created (verify once by hand); `inboundEmailSes.manageDomainIdentity: true` opts in |
 | inboundEmail | SES rule set that another stack owns | account | `inboundEmailSes.existingReceiptRuleSetName` adds only this site's rule to it |
@@ -735,47 +877,41 @@ a sandbox or on a `staging` branch.
 
 ### Coexisting with a live SES rule set (human steps)
 
-SES allows one active receipt rule set per region, and mail for `p.apyr.us` can
-reach only one backend. The old backend's active set is
-`papyrus-inbound-p-apyr-us`; the new site creates its own set and leaves the
-old one active. Run these with `AWS_PROFILE=legacy` (account 335163751677,
-`us-east-1`). Nothing here is run by the deploy.
+SES allows one active receipt rule set per account and region. That limit does not
+span accounts: SES can process matching rules in multiple accounts for the same
+domain. SES identities are also account-owned, so a verified identity in one account
+does not verify it in another. The receiving identity and active set must belong to
+the same account as the receiver resources. Nothing here is run by the deploy.
 
-Before the first deploy with `inboundEmail: true`, check that the domain
-identity exists (the old backend already verified `p.apyr.us`; reuse it):
+For p.apyr.us, the current site and Monitoring router are in account
+`712236451410` (`papyrus-production`). The old active rule set
+`papyrus-inbound-p-apyr-us`, its identity and its Amplify media bucket are in
+account `335163751677` (`legacy`), under the retired app's storage stack. The old
+identity currently reports `Failed`; the production account has no `p.apyr.us`
+identity or receipt rule set. Do not treat the old identity or rule set as a
+production resource. A new receiver belongs in `papyrus-production`.
 
-```bash
-aws ses get-identity-verification-attributes --identities p.apyr.us --region us-east-1
-aws ses describe-active-receipt-rule-set --region us-east-1
-```
+Create one retained, inactive set in the receiving account and region with
+`infra/email/papyrus-email-receiving-set.yaml`, then add scoped rules through
+`papyrus-email-submissions.yaml`. The receiver's `Enabled` and `RouterEnabled`
+parameters stay false until configuration and grants have been reviewed. At an
+approved cutover, enable the production route and disable the old matching rule;
+otherwise the two AWS accounts can both store/process the same message. Keep the
+legacy bucket and messages for rollback. Do not delete the legacy stack as part of
+the first cutover because its custom resource can alter its own account's active
+receipt rule set on deletion.
 
-A domain no other backend verified needs a one-time `aws ses verify-domain-identity --domain <domain> --region us-east-1`,
-the returned token as a TXT record `_amazonses.<domain>`, and an MX record
-`10 inbound-smtp.us-east-1.amazonaws.com` for the mail host.
+For domains that have not been verified in the receiving account, publish that
+account's SES verification TXT record at `_amazonses.<domain>` after confirming the
+publicly authoritative DNS zone. The domain name `apyr.us` has two Route 53 hosted
+zones with different assigned name-server sets; the public delegation is not yet
+confirmed. Both zones currently contain the SES MX record for us-east-1. Preserve
+it unless the receiving region changes. See the account-specific p.apyr.us status
+and cutover steps in [email infrastructure](../infra/email/README.md).
 
-After the deploy, the new rule set exists but is inactive. Confirm and review it:
-
-```bash
-aws ses list-receipt-rule-sets --region us-east-1
-aws ses describe-receipt-rule-set --rule-set-name papyrus-site-inbound-<brand> --region us-east-1
-```
-
-At cutover, the single switch (atomic; mail goes to the new media bucket from the next message):
-
-```bash
-aws ses set-active-receipt-rule-set --rule-set-name papyrus-site-inbound-<brand> --region us-east-1
-```
-
-Rollback is the same command with `papyrus-inbound-p-apyr-us`. Do not delete the
-old rule set while it is the rollback. Do not let the old stack's CloudFormation
-delete run after the switch without first re-activating a rule set: its custom
-resource deactivates ALL rules on delete (`setActiveReceiptRuleSet` with no name).
-
-To share one rule set instead, set `inboundEmailSes.existingReceiptRuleSetName`
-to the live set; the new site then adds only its own rule, named
-`<brand>-inbound-submissions`. Two rules in one set cannot share a recipient
-(`submissions@p.apyr.us` would be claimed twice), so this suits sites with
-different recipient domains.
+Within one account and rule set, receipt rule names must be unique and exact
+recipient addresses must not overlap. Reuse an existing set only when it is owned
+by that account and the rule order is reviewed.
 
 ## S3 projection publication (Markus sites)
 
@@ -787,9 +923,9 @@ backend: {
     kind: "s3-projection",
     projector: "web/projector.py",                 // optional, relative .py path in the site repo
     staticDir: "web/static",                       // optional, relative directory in the site repo
-    edgeDistributionArn: "arn:aws:cloudfront::123456789012:distribution/E3UMOOJRMY7FK7", // optional
+    edgeDistributionArn: "arn:aws:cloudfront::111122223333:distribution/EEXAMPLE12345", // optional; or set PAPYRUS_EDGE_DISTRIBUTION_ARN on the Amplify branch and leave this out
     distribution: { create: false },               // or { create: true, aliases, certificateArn | acm }
-    cache: { htmlSMaxAgeSeconds: 300, invalidation: "targeted" }, // optional; these are the defaults ("off" and 60 s for the no-invalidation fallback)
+    cache: { htmlSMaxAgeSeconds: 300, invalidation: "targeted", livePrefixes: ["conversations/"] }, // optional; "targeted" is the default (also "off", and "all": billable, discouraged); 300 s, or 60 s with "off"; livePrefixes: see "Live pages" below
     retainBucketOnDelete: true,                    // default; false destroys the bucket with the stack
   },
 }
@@ -809,7 +945,12 @@ The environment contract with the Python side:
 | `PAPYRUS_PROJECTION_DLQ_URL` | always |
 | `PAPYRUS_EDGE_DISTRIBUTION_ID` | a distribution is created or `edgeDistributionArn` is given |
 | `PAPYRUS_HTML_S_MAXAGE_SECONDS` | `cache.htmlSMaxAgeSeconds` is set |
+| `PAPYRUS_HTML_LIVE_PREFIXES` | `cache.livePrefixes` is set (comma-separated) |
+| `PAPYRUS_HTML_LIVE_S_MAXAGE_SECONDS` | `cache.liveSMaxAgeSeconds` is set (the writers default to 5) |
 | `PAPYRUS_EDGE_INVALIDATION=off` | `cache.invalidation` is `"off"` |
+| `PAPYRUS_EDGE_INVALIDATION=all` | `cache.invalidation` is `"all"` (the old collapse-to-`/*` purge; billable, discouraged) |
+| (unset) | `cache.invalidation` is unset or `"targeted"`: the default, below |
+| `PAPYRUS_INVALIDATION_MAX_PATHS` | `cache.maxInvalidationPaths` is set (the per-call cap, default 25) |
 | `PAPYRUS_SITE_PUBLIC_URL` | a distribution is created (first alias, else its domain name) |
 | `PAPYRUS_SITE_PROJECTOR=site_projector` | `projector` is set |
 | `PAPYRUS_SITE_STATIC_DIR=/var/task/site_static` | `staticDir` is set |
@@ -827,17 +968,19 @@ A site that serves media as they were uploaded (no image pipeline, pages that re
 ### Edge caching and invalidation
 
 - **Cache-Control per object.** HTML and every other file a projection can rewrite (`sitemap`, `robots.txt`, unhashed CSS and JS, JSON) get `public, max-age=0, s-maxage=300, stale-while-revalidate=60`: the browser always revalidates, the edge keeps a page for at most five minutes even if a purge is lost. Renditions under `assets/responsive/` (except `.meta.json`), `_next/static/` and file names that end in an eight-or-more-digit hex content hash get `public, max-age=31536000, immutable`.
-- **Targeted invalidation, one call per run.** After the writes, the projection makes one invalidation call (each `index.html` page in its `/x/index.html` and `/x/` forms), with exponential back-off when CloudFront throttles. Up to 10 distinct paths are listed exactly. More than 10, which is every full render and every site-wide follow-up, becomes a single `/*`: CloudFront bills a wildcard as one path, while listing a few hundred pages cost about $65 in 20 days. Callers still cannot pass a wildcard themselves; only this size rule chooses it. The first 1,000 paths a month are free, then $0.005 per path.
+- **Live pages (`cache.livePrefixes`).** A forum cannot work behind an edge that keeps a page for five minutes. A site that sets `cache: { livePrefixes: ["conversations/"] }` has every page and Markdown twin whose site key starts with a prefix (`conversations/index.html`, `conversations/<key>/index.html`, `conversations/<key>/index.md`) stored with `public, max-age=0, s-maxage=5` and **no** `stale-while-revalidate` (with it the edge would show the expired page once more while it refetches). `liveSMaxAgeSeconds` changes the 5 (an integer from 0 to 60; it needs `livePrefixes`). A prefix ends in `/`, has no leading `/`, no `..` and no comma; a site under `urls.basePath` writes the prefix with the base path (`posts/conversations/`). Hashed and rendition files keep `immutable`. Nothing needs to be purged for a live page, so it works with `invalidation: "off"`. The setting applies to a page the next time the projection writes it: a page that has not changed keeps the header it was stored with until then, and the edge keeps that copy for at most its old lifetime. The lifetime is only half of how fast a post is visible; the other half is how soon the pages are rewritten, see `homePage.freshness.threadDebounceSeconds` in [home page](home-page.md#freshness). CloudFront must honour the origin header: a cache policy whose minimum TTL is above the live lifetime would keep pages longer (the managed `CachingOptimized` policy has a minimum of 1 second and is fine).
+- **`cache.invalidation: "all"` (legacy, billable, discouraged).** After the writes, the projection makes one invalidation call (each `index.html` page in its `/x/index.html` and `/x/` forms), with exponential back-off when CloudFront throttles. Up to 10 distinct paths are listed exactly. More than 10, which is every full render and every site-wide follow-up, becomes a single `/*`: CloudFront bills a wildcard as one path, while listing a few hundred pages cost about $65 in 20 days. Callers still cannot pass a wildcard themselves; only this size rule chooses it. The first 1,000 paths a month are free, then $0.005 per path. A site gets this only by setting `"all"`.
 - **Redirect writes.** A full render reads the KeyValueStore once and writes only redirects whose target changed, 50 keys per `UpdateKeys` call, and new-page redirect checks use one listing instead of a read per path when more than 10 paths are checked.
+- **`cache.invalidation: "targeted"` (the default, PPY-2745c1).** A site that leaves `cache.invalidation` unset, or sets `"targeted"`, purges on a single-story publish or save exactly the pages that publish wrote: the Story's page and Markdown twin first, then the home, list and section pages that list it, each under both URL forms (`/dir/` and `/dir/index.html`; with `urls.style: clean` also `/x`), from the same path code as the [page refresh](#refreshing-pages-on-demand) (`invalidation_paths_for`, `page_refresh/paths.py`). It **never collapses to `/*`**, whatever the count; it is **capped** at `publication.cache.maxInvalidationPaths` (default 25) paths per call, and above the cap the story's pages and then the listings are purged up to the cap and the rest are returned as `invalidationCapped` (with `edgePurged: false`), not retried and not a failed write. A **deploy never purges**, and neither do the whole-site render (`all`) and the follow-up render of other pages (`item-pages`): pages age out with the HTML lifetime (300 s), or use a [page refresh](#refreshing-pages-on-demand). A typical publish touches under 10 paths, so the cost is a few tenths of a cent beyond the free 1,000 paths a month. `"off"` purges nothing on a Save (60 s HTML lifetime); `"all"` restores the old behaviour above.
 - **Failure.** A failed purge does not make the item not live; the response says `edgePurged: false` and the function schedules an asynchronous `invalidate` task for the unpurged keys. If that keeps failing, Lambda sends it to the dead letter queue.
-- **Fallback.** `cache: { invalidation: "off" }` removes the invalidation call and its IAM statement and shortens the HTML lifetime to 60 seconds (or `htmlSMaxAgeSeconds`).
+- **Fallback.** `cache: { invalidation: "off" }` stops a Save from invalidating and shortens the HTML lifetime to 60 seconds (or `htmlSMaxAgeSeconds`). The `cloudfront:CreateInvalidation` statement and the path alarm stay, because an editor's explicit [page refresh](#refreshing-pages-on-demand) always invalidates when asked.
 - **Alarm.** Each invalidation call writes a CloudWatch embedded metric (`Papyrus/Edge` `InvalidatedPaths`, dimension `DistributionId`). The stack alarms when a week sums to 230 paths or more, which is the pace of the 1,000 free paths a month (CloudWatch cannot alarm across more than seven days).
 
 ### Serving a projection under a host site's path
 
 A publication whose main website is a separate app (its own build, its own account) can serve the projected articles under a path of that website, for example `https://dataparade.io/posts/`, without the host app being rebuilt for a publish. Papyrus epic PPY-116551; first user Data Parade (PPY-d74fb4).
 
-1. **Base path.** Set `urls.basePath` in `web/projection.json` (`"/posts"`). Every key the projection writes and every URL it generates move under it: pages, listings, tags, feeds, the sitemap, `_data/*.json`, the `.md` twins, `llms.txt`, page actions and the files of the static directory. `404.html` and `robots.txt` stay at the bucket root (the distribution's error response and crawlers read them there). Paths you write (nav links, icons, `seo.defaultImage`, `redirects.exact`, aliases, links in articles) are used as written: write `/posts/assets/logo.png`, not `/assets/logo.png`. Add `"redirects": {"exact": {"/": "/posts/"}}` so the root of the Papyrus host lands on the articles.
+1. **Base path.** Set `urls.basePath` in `web/projection.json` (`"/posts"`). Every key the projection writes and every URL it generates move under it: pages, listings, tags, feeds, the sitemap, `_data/*.json`, the `.md` twins, `llms.txt`, page actions, the files of the static directory, and with `images` the responsive renditions and listing copies (`posts/assets/responsive/<srcPath dir>/...`, `posts/assets/content/<srcPath>`) and with `media.originals` the original media objects (`posts/<srcPath>`). The renditions function (upload time) and the local command write there, and the pages address images as `/posts/assets/responsive/...`, so `og:image` and the structured data carry `https://<host>/posts/assets/...`. The image `src` in a story stays its content path (`assets/draft-unsectioned-<hash>/chart.png`: the media key `media/assets/...` without `media/`); nothing about stories changes. A site that already has renditions at the bucket root must make them again after setting a base path (`papyrus ops content renditions --backfill`), or its pages fail naming the missing `posts/assets/responsive/...` description. `papyrus ops content project --all --from-dir DIR --static-dir web --out OUT` makes the renditions of the images in DIR (and copies them with `media.originals`) into OUT under the base path before it renders. `404.html` and `robots.txt` stay at the bucket root (the distribution's error response and crawlers read them there). Paths you write (nav links, icons, `seo.defaultImage`, `redirects.exact`, aliases, links in articles) are used as written: write `/posts/assets/logo.png`, not `/assets/logo.png`. Add `"redirects": {"exact": {"/": "/posts/"}}` so the root of the Papyrus host lands on the articles.
 2. **Moving an existing site.** The projector owns only keys under the base path, so a full projection (`papyrus ops content project --all`) leaves the old root pages in the bucket, still served. List them with `aws s3 ls s3://<site bucket>/` and remove everything outside `posts/`, `_papyrus/`, `404.html` and `robots.txt` once the new pages are verified; old addresses that people may have linked get `redirects.exact` entries.
 3. **Host CDN.** On the host's CloudFront distribution add the Papyrus edge host (the `ApexHost` of `papyrus-edge-<site>`, for example `dataparade.anth.us`) as a custom origin (`https-only`), and one cache behavior `/posts/*` (and `/posts` if the host has no redirect for it) to that origin with the managed `CachingDisabled` cache policy and the `AllViewerExceptHostHeader` origin request policy. The inner distribution keeps doing the work: index rewrites, redirects from the KeyValueStore, Markdown negotiation, caching and the targeted purges, so a publish is visible on the host as soon as it is on the Papyrus host. Nothing crosses accounts except HTTPS between the two distributions; no bucket policy changes.
 4. **Canonical host.** Set `site.productionUrl` to the host origin (`https://dataparade.io`) once the route works, so canonical links, Open Graph URLs, feeds, the sitemap and `llms.txt` name the host. Until then the pages name the Papyrus host. This holds for a backend whose edge is its own stack (`edgeDistributionArn`, as Data Parade has): the projection then takes its origin from `productionUrl`. A backend that creates its distribution sets `PAPYRUS_SITE_PUBLIC_URL` to that distribution's alias, so a different `productionUrl` keeps its pages guarded (`noindex`).
@@ -870,6 +1013,88 @@ What an editor can expect from a Save of a live item, as measured on the product
 
 Say "seconds", not "instant". Browsers always revalidate HTML (`max-age=0`).
 
+### Published and updated dates
+
+A Story has two public times, both stored on the Item and copied to its PublishedItem (PPY-271940, epic PPY-156614, plan `docs/plans/revision-history-and-published-dates.md`):
+
+| Field | Meaning | Changes when |
+| --- | --- | --- |
+| `publishedAt` | The moment the Story was first published. Every list orders by it (the `typeStatus` and `sectionStatus` indexes on `publishedAt`). | Never after the first publish. `save_story_version` carries it to every later version; a takedown and a republish keep it. |
+| `versionPublishedAt`, `versionPublishedBy` | When, and by whom, the version now served went live. The public "Updated" time. | Publishing writes a PublishedItem (a new version, or changed content). Notes, section moves, links, ratings and re-renders never change it. A saved draft has neither field until it is published. |
+| `versionCreatedAt`, `versionCreatedBy`, `changeReason` | The version's own record: who saved it, when, and the editor's "What changed" text. | Only when the version is saved. Publishing and unpublishing no longer overwrite them. |
+
+A value that is absent is absent: nothing substitutes a default. `updatedAt` stays the last write of any kind and belongs to the newsroom work queues; nothing public reads it.
+
+`papyrus stories backfill-published-dates` moves Stories published before this change to the meaning above, using only what their versions recorded (the earliest version whose `changeReason` is `publish`; an imported Story's earlier front matter date is kept). It is a dry run unless `--apply`, writes only rows that differ with each row's own `updatedAt`, and lists as `unclear` the Stories whose first publication cannot be derived, for a person to decide. See the agent CLI guide.
+
+A publish at a scheduled time is a normal publish (PPY-085d0b, `docs/scheduled-publishing.md`): `publishedAt` stays the first publication, and `versionPublishedAt` is the moment it actually went live (not the scheduled moment), with `versionPublishedBy` reading `scheduled by <person>`.
+
+`publication.timeZone` (an IANA name such as `America/New_York`) in the site's publication settings turns scheduled publishing on and is the zone editors pick times in; the deploy wires the EventBridge Scheduler role, a dead letter queue and its alarm for it. It needs the S3 projection publication. See `docs/scheduled-publishing.md`.
+
+### What `content publish` reports, and its exit codes
+
+`papyrus ops content publish --id ID [--verify] [--verify-seconds N] [--json]` reports four stages on their own (PPY-f3b296). A purge or a check that fails never looks like a failed write.
+
+| Stage | Statuses | What it means |
+| --- | --- | --- |
+| `saved` | `ok` | The data is published (version number). Failing here means nothing is live. |
+| `projected` | `ok`, `scheduled`, `still-running`, `timed-out`, `failed`, `skipped`, `not-applicable` | The page is built. `pages` lists the page keys written. `still-running` is not a failure: the client stopped waiting while the page-building function was still working. `scheduled` is the operator (IAM) lane, which hands the work to the function and cannot see the result. |
+| `invalidated` | `ok`, `skipped`, `capped`, `failed`, `unknown` | The edge cache was told to drop the old page. `paths` were purged, `skippedPaths` were not (targeted mode over its cap). `skipped` is the site's own setting. |
+| `verified` | `current`, `stale`, `not-checked` | The public URL was fetched and its `papyrus-source-version` marker compared with the published version, with the same check `update-live` uses. Without `--verify` it is one fetch, and `stale` is only information (a site that lets pages age out is expected to be stale for a while). With `--verify` the command waits up to `--verify-seconds` (default 60) for the new version and `stale` is a failure. |
+
+`--json` prints the same `stages`, plus `ok`, `exitCode`, `failedStage`, `verdict` (the words `update-live` uses, chosen from the stages in `publish_stages.verdict_for`) and, on a failure, `dataPublished`, `pagePublished` and `retry`.
+
+The verdict follows the stages. `NOT LIVE` is a page that was not built, `STILL BUILDING` a page the function is still writing, `NOT PROJECTED` a publish that built no page (`--no-trigger`). A failed or capped purge is `PROJECTED BUT NOT PURGED`. A purge that was made (`invalidated: ok`) gives `LIVE` when the public page shows the published version, `PURGED BUT THE EDGE IS STILL STALE` when it does not, and `PURGED, NOT VERIFIED` when it was not checked. A purge that was not made (`invalidated: skipped`, `unknown` or `not-applicable`) never gives a `PURGED` verdict: it gives `LIVE` when the page is current, `NOT PURGED, THE PAGE IS STALE` when it is not, and `PROJECTED, NOT PURGED, NOT VERIFIED` when it was not checked.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Every stage that ran worked |
+| 1 | The data could not be saved or published (any `PublishError` other than the checklist) |
+| 2 | The request could not run (bad flags, unknown story) |
+| 3 | `checklist-open`: a required checklist step is open. `--json` lists them as `openSteps: [{"key", "label"}]`; the text output prints one `open step:` line each |
+| 4 | The page could not be built (`failed`, or the function's own `timed-out`; running the command again is safe) |
+| 5 | The page is still being built and was not confirmed (not a failure; run it again, or add `--verify`, which changes nothing already done) |
+| 6 | The edge cache was not (fully) purged: refused, failed, or over the cap. The page is written |
+| 7 | With `--verify`, the public page still showed an older version when the wait ended |
+
+A script must check the exit code, not look for a marker in the text. The first failed stage, in the order saved, projected, invalidated, verified, decides the code. The call that builds the page now waits up to 120 s by default (`PAPYRUS_PROJECTION_TIMEOUT_SECONDS`) instead of the ordinary 30 s. Re-running a publish is safe: published data is not rewritten when unchanged and the pages are rebuilt from it. There is no job id to poll yet (that needs a backend change); `--verify` polls the public page instead, which needs the page address the signed-in lane reports.
+
+### Refreshing pages on demand
+
+The edge keeps a page for the cache lifetime (one hour, `s-maxage=3600`, on the production sites; `publication.cache`), and that stays the default. For the moments an edit must be visible now, explicit operations exist (PPY-105508). They are one definition (`src/papyrus_content/page_refresh/operations.py`) behind the command line, the MCP tools and the `refreshSitePages` mutation, so the three cannot differ.
+
+**The one command an editor or agent needs:** `papyrus ops content update-live --story LINEAGE`. It re-projects the Story's page and Markdown twin, invalidates exactly those pages and the index and section pages that list it (both URL forms), then fetches the public page and checks it shows the published version (the source-version marker, below). It prints the paths, the count, the cost and a verdict (`LIVE`, `PURGED BUT THE EDGE IS STILL STALE`, `PURGED, NOT VERIFIED`, `NOT LIVE`, and for a skipped purge `NOT PURGED, THE PAGE IS STALE` or `PROJECTED, NOT PURGED, NOT VERIFIED`). A Story touches more than 5 paths, so the first call is a dry run that lists them; repeat it with `--run` to do it.
+
+| MCP tool | Command (`papyrus ops content ...`) | What it does |
+| --- | --- | --- |
+| `site_inspect` | `inspect-page --path /articles/x/` or `--story LINEAGE` [`--fix --run`] | Read only. Says exactly what is wrong with a page, stage by stage: the record (every version with state, stage, author and time, the current version and the published pointer), the stored page (`LastModified`, `papyrus-version`, the version it was rendered from by the marker), and the edge (status, age, last-modified, etag, `x-cache`, `s-maxage`, the marker version) for the `/dir/` and `/dir/index.html` forms and the twin. One verdict: `NOT PUBLISHED`, `PUBLISHED BUT NEVER RE-PROJECTED`, `PROJECTED BUT THE EDGE IS STALE` (with the exact command) or `EVERYTHING CURRENT`. `--fix` makes the smallest repair (update-live, or a purge of that page's three exact paths), subject to the same guard, and inspects again. |
+| `site_update_live` | `update-live --story LINEAGE` | The whole loop above. |
+| `site_refresh_pages` | `refresh --path /articles/my-story/ [--path ...]` | Purges each page under every URL form it is cached under, and its Markdown twin. |
+| `site_refresh_story` | `refresh --story LINEAGE` | Purges the Story's page and twin, and every index page that lists it: the home page, its list page and its section page, and the pages of their paging that show it. |
+| `site_refresh_indexes` | `refresh --indexes` | Purges the home page, every list page and every section page, with paging, archives, tag pages and twins. No Story page. |
+| `site_rerender_pages` | `rerender --story LINEAGE`, `--indexes [--under /PREFIX/ ...]` or `--all` | Rebuilds pages from the hooks and templates the site has deployed now, without a content change, then purges what it wrote. `--under` (repeatable; `under` in the MCP tool) limits an `--indexes` re-render to the index pages whose URL path starts with a prefix, such as `--indexes --under /posts/`. The match is on the URL path alone (Papyrus knows no site's Story types), `/posts` stops at a path segment, and a prefix that matches no index page is an error that says so. |
+
+**Guardrails, enforced by the tool and not by anyone's judgment.**
+
+- **Hard cap per call: 25 paths** (`publication.cache.maxInvalidationPaths`, per site). Above it the call is refused before anything is written, and the message names the flag: `--force-paths N` (`forcePaths` in the MCP tools). Nothing implies it: `--indexes`, `--all` and a re-render never raise the cap, so a site with more index pages than the cap refuses `--indexes` until someone forces it by number, after reading the list.
+- **Dry run first above 5 paths.** More than 5 paths is a dry run that prints the exact list until a second call adds `--run` (`confirm: true`). `--dry-run` forces a dry run at any size.
+- **No wildcard.** Exact paths only; a `*` in a requested path is refused, and a long list is never collapsed to `/*` (only a site set to `"all"` does that above 10 paths; these operations never do). There is no whole-site purge operation. If one is ever added it needs its own, clearly named force flag.
+- **Invalidation goes through the `content-actions` function**, not through the caller's AWS credentials. The signed-in command asks the `refreshSitePages` mutation (same editor groups as `publishItem`); the operator command invokes the function directly. Neither lane needs `cloudfront:CreateInvalidation`, and the function is where the cap and the dry-run rule live. A raw `aws cloudfront create-invalidation` bypasses the guard (this is what once purged 625 paths for one stale article): never use it, and agents are told never to.
+- An explicit refresh invalidates when asked, whatever `publication.cache.invalidation` is. That setting only decides whether a Save purges.
+- Cost: the first 1,000 paths a month are free, then 0.005 USD each. Every result prints the count and the most it can cost. The month's use so far is not tracked.
+
+**Why every form.** CloudFront caches by the address a reader asked for, so `/dir/` and `/dir/index.html` are two cache entries for one page, and a `urls.style: clean` site also answers `/x` for `x.html`. Purging one form left the other stale in the 2026-11-08 sessions (the reverse happened in another). Every page is purged as `/dir/`, `/dir/index.html` and `/dir/index.md`; a page file `x.html` as `/x.html`, `/x` and `/x.md`. A bare path such as `/about` covers both the clean page and the directory page. Which index pages list a Story is read from the site's own projection plan (`index_page_keys` and `listing_keys_of` on the standard projector), so it follows the site's `projection.json` (sections, paging, collections, tags, archives, `urls.basePath`) and is not written for any one site. A projector without a plan (the generic Markus projector) refreshes the pages it generates.
+
+**The source-version marker.** Every item page and Markdown twin the projection writes to the site bucket ends with `<!-- papyrus-source-version: N -->`, N being the published version it was rendered from (the S3 `papyrus-version` metadata says the same, but metadata does not reach the edge). `update-live` reads it from the public URL to say which version the edge serves. Pages written before this change have no marker until they are projected again (a publish of the Story, or `rerender`); a page without one verifies as "not verified", not as current.
+
+**What it reports.** Writes and purges are separate outcomes: `rendered.ok` (re-render only; the pages written) and `invalidation.ok` with `status` (`invalidated`, `failed`, `refused`, `dry-run`, `not-requested`, `scheduled`), the exact `paths`, `count`, `cost`, and for each request the CloudFront invalidation `id` and `status`. `ok` is true only when everything requested worked. The command exits 1 when the write, the invalidation or the verification failed, and 2 when the request could not run at all (an unknown Story, a refused cap, a site that does not project pages). `--json` prints the same result an MCP tool returns.
+
+**A re-render is a job you can ask about (PPY-4611d5).** A story re-render used to run inside one `refreshSitePages` call, which AppSync cuts off at about 30 seconds while the render goes on, so a slow story printed "Execution timed out" for pages that were being written. The CLI now sends `{"async": true}`: the function saves a job record (the same table and mechanism as publish jobs, keyed by scope, lineage, purge and `under`, so a repeat of the same request joins the running job), schedules the render as a task and answers at once with `jobKey` and `job`. The CLI asks `refreshSitePages` with `{"jobStatus": true, "jobKey": ...}` every 3 seconds, up to `PAPYRUS_PROJECTION_TIMEOUT_SECONDS` (120), and ends with one of: done (exit 0, the usual lines), `failed` (exit 1, with the reason), `STILL RUNNING, not failed` (exit 5, with the exact `--status` command to check) or `OUTCOME NOT KNOWN, not failed` (exit 5, when the start request itself got no answer). `rerender --status` takes the same arguments and asks once. A dry run is not a job and answers at once. **The CLI needs a backend that includes this change**: an older backend rejects the `async` input; there is no fallback to waiting inside the call.
+
+**Scheduled re-renders.** A re-render of the index pages or the whole site can outlast one request, so after it passes the guard it is scheduled as an asynchronous task (`page-refresh-rerender`) that re-renders and then purges what it wrote; the answer says `scheduled` and the outcome is in the function's log (a failure goes to the dead letter queue). `rerender --story`, `update-live` and the purges run in the request. Because the work runs after the answer, the answer cannot say how many pages were written: it says how many pages the task was asked to rebuild (`rendered.requested`, printed as "asked to rebuild N pages"). `--dry-run` lists every page it would write (`rendered.wouldWrite`, printed as `would write /path`) and the count, and never says "wrote".
+
+**What needs deploying.** The `refreshSitePages` mutation, the function code, and for a site whose `cache.invalidation` is `off` the kept `cloudfront:CreateInvalidation` statement and path alarm are a backend change: each site's backend deploys with the engine version that carries them. The operator command needs the site's content-actions function name (`PAPYRUS_CONTENT_ACTIONS_FUNCTION`, or `custom.publication.contentActionsFunction` in `amplify_outputs.json`) and `lambda:InvokeFunction` on it, which the publish command already uses. Until the function is deployed, the commands cannot run.
+
 ### Operations runbook
 
 Run these with the site's credentials (the authoring role or an SSO profile) and `PAPYRUS_GRAPHQL_ENDPOINT` set, as in [Running the CLI locally](#running-the-cli-locally). Every projection command is idempotent and safe to repeat.
@@ -885,7 +1110,7 @@ Run these with the site's credentials (the authoring role or an SSO profile) and
 | Render to a local directory instead of S3 | `papyrus ops content project --all --out DIR --static-dir DIR` | Parity checks against another build, local diff before a deploy |
 | Make image renditions for existing media | `papyrus ops content renditions --backfill --dry-run`, then `--backfill` | After enabling `images` in `projection.json` |
 | Copy media originals to the site bucket | `papyrus ops content renditions --backfill --originals` | Sites with `"media": { "originals": true }` |
-| Redo one image | `papyrus ops content renditions --source <srcPath>` | After the pipeline settings change for it |
+| Redo one image | `papyrus ops content renditions --source <srcPath>` | After the pipeline settings change for it, or when a publish says its renditions are missing. Signed in it needs no AWS login (it rewrites the stored picture to wake the site's image function) |
 
 `project --all` also uploads the site's static files (CSS, scripts, robots, 404 page) and the redirect entries. After a backend deploy that changes the projector or the theme, run `project --all` once; until then pages keep the previous chrome. With `reprojectOnDeploy: true` the deploy does this itself, with no personal credentials (below). A full run of the Anth.us site (230 files and 520 redirects) took 77 seconds.
 
@@ -901,11 +1126,23 @@ Routine habit: run the dry run after any deploy that touched `content-actions`. 
 
 #### Merge is deploy: the post-deploy render
 
-With `publication.reprojectOnDeploy: true` (the default for the publication a Markus site gets when it sets none; a site that spells `publication` out must set it), the backend deploy renders the whole site itself, so merging to `main` is the only step once the CMS Amplify app builds `main` automatically (branch `enableAutoBuild`, which the app-shell template sets and which the CMS app's `main` branch must keep). Nothing in the path needs a person's AWS access.
+With `publication.reprojectOnDeploy: true` (the default for the publication a Markus site gets when it sets none; a site that spells `publication` out must set it), the backend deploy renders the whole site itself, so the release to `main` is the only step once the CMS Amplify app builds `main` automatically (branch `enableAutoBuild`, which the app-shell template sets and which the CMS app's `main` branch must keep). Nothing in the path needs a person's AWS access.
 
 1. The deploy runs a custom resource in the site backend. It invokes the content-actions Lambda **synchronously** with the `deploy-render` projection task and waits (the function timeout is 15 minutes; a full Anth.us render took 77 seconds).
+   Before it renders, `deploy-render` asks the live GraphQL API by introspection whether it serves every field the tools select (`papyrus_content/live_schema.py`), and waits up to five minutes while it does not. A deploy that adds attributes to a model updates the schema and the Lambda code together, and CloudFormation calls the schema complete before the API reliably validates queries against it (Machines on Machines, 5.107.2: `Field 'versionPublishedAt' in type 'Item' is undefined`). If the fields never arrive the deploy fails naming each missing `Type.field`. The same rule applies to the command-line tool: a `papyrus` version newer than the deployed backend selects fields the backend does not have yet, so deploy the backend release first.
 2. `deploy-render` runs the same render as `project --all`, then runs `reconcile` as a **dry run**. Orphan pages, stale pages and missing redirects are reported and nothing is deleted: `--all` and the dry run never delete. Repair stays a deliberate `papyrus ops content project --reconcile`.
-3. A render that fails raises, the custom resource fails, the stack update fails and the Amplify build goes red with the failure in the build log. A render that succeeds returns its summary (pages written, redirect count and the drift lists, at most 25 keys each) to the Lambda log and the CloudFormation resource data. The run also writes a CloudWatch embedded-metric line, `Papyrus/Projection` `DeployRenderDrift` (dimension `FunctionName`), and the backend creates an alarm that is in ALARM for a day after any run that found drift.
+3. A render that cannot run fails the deploy: if the function crashes or the platform fails (storage, the projector), the custom resource fails, the stack update fails and the Amplify build goes red with the failure in the build log. That is the point of the resource, and a deploy that cannot render is a bad deploy. **A Story whose own content cannot be rendered does not fail it** (markup the site does not know, a missing rendition, a bad citation): the render skips that Story, leaves its page as it was, renders the rest (the only other place a Story's body is parsed is the introduction of a section listing, an item named `index`: that listing is written without its introduction and the Story is reported the same way; feeds, the sitemap, `llms.txt`, `llms-full.txt` and the search index read front matter and the Story's source text and never parse a body) and lists it as `unrenderable` (item id, slug, error) in the result, the Lambda log and the `DeployRenderDrift` count, so the drift alarm is in ALARM for a day after the deploy. **A rollback never fails**: CloudFormation rolls back by updating the resource with the older properties, so an Update whose deploy token (`job-<n>` or `time-<n>`) is older than the one it replaces renders nothing and succeeds. Where a rollback cannot be recognised with certainty, the content rule above still holds: content never fails the resource on any event. Delete never fails. A render that succeeds returns its summary (pages written, redirect count and the drift lists, at most 25 keys each) to the Lambda log and the CloudFormation resource data. The run also writes a CloudWatch embedded-metric line, `Papyrus/Projection` `DeployRenderDrift` (dimension `FunctionName`), and the backend creates an alarm that is in ALARM for a day after any run that found drift.
+
+##### Recovery: a stack in UPDATE_ROLLBACK_FAILED
+
+What happened on Machines on Machines (2026-11-04): a Story was published whose page could not be rendered (`Unknown directive 'image'`, the site had no `images` setting). The next deploy's `ReprojectOnDeploy` failed on it, the rollback ran the same render and failed too, and the root stack went to `UPDATE_ROLLBACK_FAILED`. The public site and the newsroom stayed up. This cannot happen from content now (see above), but a stack already in this state is recovered like this.
+
+1. **Symptom.** The root stack is `UPDATE_ROLLBACK_FAILED`, and every later Amplify job fails at once with "being in UPDATE_ROLLBACK_FAILED state".
+2. **Read the failed build log first.** It names the resource and the error that failed it.
+3. **Continue the rollback on the ROOT stack, skipping the nested resource**, with the nested stack's full **name** (not its logical id; the logical id answers "Stack [...] does not exist" and changes nothing):
+   `aws cloudformation continue-update-rollback --stack-name <root stack> --resources-to-skip <full nested stack name>.ReprojectOnDeploy`
+4. **Poll the status; do not trust `aws cloudformation wait stack-rollback-complete`.** It can return failure at once because the status has not changed yet. Poll `describe-stacks` until the root stack is `UPDATE_ROLLBACK_COMPLETE`.
+5. **Fix the cause** (here, the site setting; with images and citations on by default, an older site needs the release that has them), then run the deploy again.
 
 The 404 page is stored by the writer itself with `Content-Type: text/html` and no `Cache-Control`, because CloudFront serves it through the error-response path where no viewer-response function runs. No follow-up script is needed after a render.
 
@@ -939,6 +1176,7 @@ Known differences to expect after a flip: the cache-bust token does not cover me
 ### Rollback
 
 - **A bad edit.** Restore the previous version of the item in the newsroom and save: that is a normal save and re-projects. S3 versioning keeps earlier copies of each page for 90 days for single-page undelete, but it does not roll back a whole site, and it does not record who changed what.
+- **A bad write to newsroom data.** Every Amplify Data table has point-in-time recovery for 35 days. A restore creates a new table that an operator compares and copies back from; S3 attachments are not covered. See [restoring newsroom data](automated-processes.md#restoring-newsroom-data).
 - **A bad site-code or theme deploy.** Redeploy the previous code, then run `papyrus ops content project --all`. Pages mix old and new chrome for about the length of that run.
 - **A bad edge change.** Update the edge stack with the previous template (or the previous change set's template). Aliases and DNS never moved, so this is the whole rollback.
 - **Back to the Amplify reader.** While the reader app still exists and has not been deleted, swap the origin back with the edge stack's previous template and re-enable the reader id in the site config. After the reader app is deleted, this path is gone.
@@ -959,11 +1197,22 @@ Every projection that writes a site bucket (`project`, `project_all`, `project_l
 
 - Table: `papyrus-projection-locks` (one per account, created by the cloud knowledge run stack). Partition key `publication` (string) is the site bucket name (`PAPYRUS_SITE_BUCKET` or `--bucket`). Attributes: `owner`, `acquiredAt` (ISO), `expiresAt` (epoch seconds, also the DynamoDB TTL attribute), `purpose`.
 - Discovery: env `PAPYRUS_PROJECTION_LOCK_TABLE`, else the SSM String parameter `/papyrus/projection-lock/table-name`. Neither found means no lease and projection runs as before. A parameter that exists but cannot be read (access denied) fails loudly.
+- The key depends on the tenancy mode (`papyrus_content.projection.lease.lease_key`, which asks `is_shared_stack()`). A dedicated stack keys the lease by the bucket name, whether or not a tenant id is set, so a site that already runs with one keeps its key. A shared stack keys it `<bucket>#<tenant>`, so tenants in one bucket project at the same time and queue only behind their own projections; a projection there with no tenant (`PAPYRUS_TENANT_ID`) is refused with `ProjectionTenantRequired` before any lease is taken. The table and its `publication` hash key are unchanged. Spec: `features_backend/tenant-fair-projection.feature`.
 - Acquire is a conditional put (no item, or `expiresAt` in the past), so a crashed holder blocks nobody for more than the 30 minute TTL. Release and renew only touch an item the caller owns; long writes renew halfway through the TTL.
 - A held lease is retried with exponential backoff and jitter (1, 2, 4, 8, then 15 seconds) for `PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS` (default 120; the scheduled cloud run sets a longer wait). Then the projection raises `ProjectionLeaseHeld`. In the content-actions Lambda that becomes a failed projection task (Lambda retry, then the dead letter queue), and a publish-time projection schedules the same retry.
 - `PAPYRUS_PROJECTION_LEASE_PURPOSE` labels the holder (for example `cloud-run projection`).
 
-The error reads: `Projection lease for <bucket> is held by <owner> (<purpose>) until <time>; waited <n>s. Another projection of this publication is running. Retry when it finishes; if its holder crashed, the lease expires by itself. To clear it now: aws dynamodb delete-item --table-name <table> --key '{"publication":{"S":"<bucket>"}}'`.
+#### Publish builds as jobs (PPY-3acc8d)
+
+AppSync gives a Lambda resolver about 30 seconds, so a `publishItem` that waits for its pages on a large site always looked like a timeout. The CLI's publish (`papyrus ops content publish`, signed-in lane) now sends `{"id", "async": true}`: the function saves the data, starts the build as an asynchronous task of itself and answers at once with `projection: {jobId, state, joined}`, the page's `itemPaths` and `url`. The CLI then asks `publishItem` with `{"id", "jobStatus": true}` every 3 seconds, up to `PAPYRUS_PROJECTION_TIMEOUT_SECONDS` (120), and reports `projected`, `failed` or `still-running` (exit 5, not a failure). The console's Publish button still builds inline; its lease wait is now 20 seconds so it answers inside AppSync's limit, and a held lease schedules the build. `papyrus ops content unpublish` and `papyrus stories retire` do the same (PPY-f171b4): `unpublishItem` takes `{"id", "async": true}`, saves the data, and answers with a job that the CLI follows through `publishItem` `jobStatus`. Rewriting listings, feeds and redirects can outlast AppSync's 30 seconds, so these commands no longer report "Execution timed out" for work that is still going: they end `projected` when the job is done, `still-running` (not a failure) when `PAPYRUS_PROJECTION_TIMEOUT_SECONDS` passes first, and `failed` only when the job fails. A backend that predates this (it builds the pages inside the call) is refused with a message to deploy one that includes PPY-f171b4; there is no fallback to waiting in the call.
+
+- Records live in the lock table, under keys of their own (no new table, index or permission): `<bucket>#publish-job#<item id>` (the item's latest job: `jobId`, `state` queued, running, done or failed, `version`, times, and the `outcome` the CLI reports; expires after a day) and `<bucket>#publish-queue` (string set `items`).
+- A request for a story whose job is still queued joins it (that build reads the data when it starts); so does a request for the version a running build is building. A job untouched for 15 minutes is treated as gone.
+- A build waits at most 10 seconds for the lease. If it is held, the story stays queued and the task fails, so Lambda retries it once a minute later. Whoever holds the lease (a build, the item-pages follow-up, `project --all`, the deploy render) builds the queue before letting go, or schedules a `drain` task when it finishes; a retry whose job is already done does nothing.
+- The item-pages follow-up is one job too (`__item-pages__`): while one is queued, further publishes do not schedule another.
+- What one publish costs no longer grows with the site: the bodies that `llms-full.txt`, a section's introduction and the item-pages follow-up need come from `_papyrus/bodies.json.gz` (kept per published version, written under the lease), not from two AppSync reads per Story; the published summaries are read in pages of 1,000. Pages rendered again with the bytes the bucket already holds are not named for the edge purge (and are written again only when their inputs digest changed). Spec: `features_backend/publish-cost.feature`, `features_backend/publish-jobs.feature`.
+
+The error reads: `Projection lease for <bucket> is held by <owner> (<purpose>) until <time>; waited <n>s. Another projection of this publication is running. Retry when it finishes; if its holder crashed, the lease expires by itself. To clear it now: aws dynamodb delete-item --table-name <table> --key '{"publication":{"S":"<bucket>"}}'`. On a shared stack the key is `<bucket>#<tenant>`.
 
 Inspect: `aws dynamodb get-item --table-name papyrus-projection-locks --key '{"publication":{"S":"<bucket>"}}'`. Clear a stuck lease only after confirming the holder is gone: the same command with `delete-item`.
 
@@ -975,7 +1224,7 @@ Inspect: `aws dynamodb get-item --table-name papyrus-projection-locks --key '{"p
 | **Pod-only README** | Next agent copies Pilobolus by accident; no Papyrus template |
 | **Cargo-cult SSR `amplify.yml`** | Markus site runs `npm run build`, `ampx pipeline-deploy`, ships `.next`; build breaks or wrong stack |
 | **Shared p.apyr.us Amplify app** | Couples unrelated publications; forbidden for Pilobolus CMS |
-| **Expect `/newsroom` on static reader** | Markus `WEB` app has no Next.js server; use desk subdomain on CMS app |
+| **Expect `/newsroom` on static reader** | Markus `WEB` app has no Next.js server; use the newsroom subdomain on the CMS app |
 | **Wrong domain zone** (`pilobil.us`) | Typo domain; certs and links diverge from **pilobol.us** |
 | **Commit `web/dist/`** | Stale HTML in git; CI drift |
 
@@ -1033,6 +1282,13 @@ of `ConsentModeSettings` fields; `{}` takes every default.
   `footer_html` (the script unhides it, so it never shows without JS), or add a footer link whose href is `#cookie-settings` (for the standard front end's `footer.columns`, which cannot carry attributes), or call
   `window.papyrusOpenConsentChoices()`.
 - `analytics_only: true` (off by default) keeps `ad_storage`, `ad_user_data` and `ad_personalization` denied after every choice: Accept all grants only `analytics_storage`, and the default banner text says the cookies are not used for advertising. Use it for sites that run no advertising.
+- **Region-aware notice (opt-in).** `region_lookup: true` skips the banner for visitors who do not need it; see
+  [region-aware consent](region-aware-consent.md). Settings: `region_lookup` (default `false`: the banner shows to everyone
+  without a stored choice, exactly as above), `region_lookup_address` (default `/_papyrus/consent`, a site-absolute path),
+  `region_lookup_timeout_milliseconds` (default 1500, 100 to 10000), `denied_by_default_regions` (replaces the shipped list)
+  and `additional_denied_by_default_regions` (adds to it). Every region must be an ISO 3166 code; with `region_lookup` on it
+  must be a two-letter country code, because the edge decides by country. A wrong value fails the projection with a message
+  naming the setting.
 - Banner wording (`banner_heading`, `banner_message`, `accept_label`,
   `reject_label`, `banner_region_label`, `privacy_policy_url`,
   `privacy_policy_label`) is plain text, HTML-escaped on output. The shipped

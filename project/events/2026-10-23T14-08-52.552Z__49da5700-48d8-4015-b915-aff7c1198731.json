@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "49da5700-48d8-4015-b915-aff7c1198731",
+  "issue_id": "PPY-65026c14-dd67-422f-b90b-8fa8df031b99",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-23T14:08:52.552Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "10259570-2015-49c2-b834-b5a33b0f1aa5",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "email-intake"
+    }
+  }
+}

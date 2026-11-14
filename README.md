@@ -49,7 +49,7 @@ Status words: **Live** (in production on at least one site), **Beta**, **In prog
 - **Procedure runner and site procedures.** A site registers its own Tactus procedure with `papyrus procedures register`; the runner executes it in the cloud when a monitor delivers a new Reference. Live for Distinctive Mark. [Procedure runner](docs/procedure-runner.md).
 - **Knowledge run.** Weekly topic model, extraction, AI review, snapshot, archive, wiki and projection, local or unattended in AWS, guarded by the projection lease. Beta (Shipped first). [Cloud run](docs/knowledge-cloud-run.md).
 - **Automations.** Records that bind a monitor to a procedure, with `enabled`, concurrency and budget limits, cost and run history, and Run now (PPY-9ff95b slices 1 and 2). Monitor triggers are live; schedule, event and manual triggers are stored but not started. [Automations](docs/automations.md).
-- **Idea pipeline v0.** `papyrus ideas digest` and `synthesize` turn recent references into private story ideas, run by hand, with `--store proposals` filing them as `story_draft` Proposals (needs a `papyrus login` session; IAM cannot file). Merged to `develop`; scheduling and weekly trends are in progress (PPY-8ffc18). [Idea pipeline](docs/idea-pipeline.md).
+- **Idea pipeline v0.** `papyrus ideas digest` and `synthesize` turn recent references into private story ideas, run by hand, filed as Items at the `idea` stage (the Idea column of the Stories board, marked "Generated"; `--store json` keeps local files only). Merged to `develop`; `papyrus ideas trends` writes cited trend ideas from the weekly knowledge snapshot (citation check, figure spec, dry run). `papyrus ideas monitor-stories` writes cited story ideas about the items a site's monitors found, any source, ranked by the relevance Cyclotron's verdict. Scheduling is in progress (PPY-8ffc18). [Idea pipeline](docs/idea-pipeline.md).
 - **Review requests and the Notification Center** as the console home: flags, timed soft reviews and hard gates, ignore-safe, with steering read back by the step that raised them (`papyrus reviews`). Merged to `develop` (#642, PPY-ab6a50, PPY-1cd261); it takes effect on a site only after that site's data API is deployed with a release that has it. In progress: email, filters and ground-truth correction. [Notification Center](docs/notification-center.md), [review requests](docs/review-requests.md).
 - **Reconcile guard.** A reconcile refuses to run without the deployed plugin list and never deletes a plugin's pages (#594). Live. [Site hosting: reconcile](docs/site-hosting.md#the-dead-letter-queue-and-reconcile).
 - **Pretext newspaper layout lab, newsroom, knowledge base, editor agents.** Live. [Layout system](docs/layout-system.md), [newsroom operations](docs/newsroom-operations.md), [editor agents](docs/editor-agents.md).
@@ -84,23 +84,40 @@ More: [verification](docs/verification.md), [Python CLI and testing](docs/python
 
 ## How a change reaches production
 
+Develop and verify on a local dev server (`npm run dev:preview`, seeded, no AWS; `npm run dev:127` for the real backend). Do not deploy to see whether something works. **Merge** means merging a pull request into `develop`, where things are reviewed. **Release** means merging `develop` into `main`, which deploys; aim for once or twice a day, and an extra release needs Ryan's say-so.
+
 1. **Branch from `origin/develop`** (`feature/PPY-xxxxxx-slug`, `fix/...`, `chore/...`, `docs/...`) and open a pull request to `develop`. Behaviour changes ship with Gherkin specs.
 2. **CI** (`tests.yml`, plus `package-smoke.yml` when packages, app or Python code changes) runs the type check, lint, the TypeScript tests, the app-shell CDK build, the Python tests and the pilot-identifier guard. Merge to `develop` with a merge commit once it is green.
 3. **A push to `develop` publishes a prerelease** `X.Y.Z-next.N` (npm dist-tag `next`, PyPI `X.Y.Z.devN`).
-4. **Promote `develop` to `main` with a pull request and a merge commit** (never a squash). A push to `main` runs `release.yml`: semantic-release (conventional commits) cuts the stable version and publishes `@anthusai/papyrus` to npm and `papyrus-newsroom` to PyPI at the same number, through trusted publishing (OIDC), with no stored tokens. `feat:` releases a minor, `fix:` a patch, `feat!:` or `BREAKING CHANGE` a major. `chore:`, `docs:`, `test:`, `refactor:` and `ci:` do not release. Versions are stamped into the staged packages and never committed back. Agents promote only when told to; see [AGENTS.md](AGENTS.md#git-workflow).
-5. **A site picks up a release by bumping its pin** by hand in four places: `package.json`, `infra/package.json`, `infra/site.json` (`papyrusVersion`) and `requirements-publication.txt` (`papyrus-newsroom[markus]==X`). Merging that to the site's `main` deploys it:
-   - **Public site repositories** run Actions CI, and a green push to `main` starts the Amplify job through GitHub OIDC (the reusable workflow `.github/workflows/amplify-deploy.yml`). Amplify auto-build is off on `main`.
-   - **Private site repositories** run all CI and CD in AWS (Amplify auto-build or CodePipeline).
-   - The deploy renders the whole site again (`reprojectOnDeploy`), so merging is the only step. Backend changes ride the same deploy.
+4. **Release: merge `develop` into `main` with a pull request and a merge commit** (never a squash). A push to `main` runs `release.yml`: semantic-release (conventional commits) cuts the stable version and publishes `@anthusai/papyrus` to npm and `papyrus-newsroom` to PyPI at the same number, through trusted publishing (OIDC), with no stored tokens. `feat:` releases a minor, `fix:` a patch, `feat!:` or `BREAKING CHANGE` a major. `chore:`, `docs:`, `test:`, `refactor:` and `ci:` do not release. Versions are stamped into the staged packages and never committed back. Agents release only when told to; see [AGENTS.md](AGENTS.md#git-workflow).
+5. **A site picks up a release by bumping its pin** by hand in four places: `package.json`, `infra/package.json`, `infra/site.json` (`papyrusVersion`) and `requirements-publication.txt` (`papyrus-newsroom[markus]==X`). The bump pull request goes to the site's `develop` and deploys nothing. It ships in that site's release, when `develop` is merged into `main`. A Papyrus release can add a GSI and a deploy can add only one per table, so a site cannot skip a release that adds one.
+   - **Public site repositories** run Actions CI on pull requests, and a green push to `main` starts the Amplify job through GitHub OIDC (the reusable workflow `.github/workflows/amplify-deploy.yml`). Amplify auto-build is off on `main`, and nothing builds on `develop`.
+   - **Private site repositories** run all CI and CD in AWS (Amplify auto-build or CodePipeline) on `main` only.
+   - The deploy renders the whole site again (`reprojectOnDeploy`), so the release is the only step. Backend changes ride the same deploy.
 
-Details: [Releasing](docs/releasing.md), [Deploy on merge to main](docs/site-hosting.md#deploy-on-merge-to-main). This repository's own `main` does not deploy a site; the engine ships as packages. Production deploys through `ampx pipeline-deploy` are never run from a laptop.
+Details: [Releasing](docs/releasing.md), [Deploy on release to main](docs/site-hosting.md#deploy-on-merge-to-main). This repository's own `main` does not deploy a site; the engine ships as packages. Production deploys through `ampx pipeline-deploy` are never run from a laptop.
+
+## Set up a new AWS account or deployment (once), and how pipeline roles change
+
+Shared stacks (`papyrus-monitoring`, `papyrus-newsletter-sending-operators`) deploy from a release through IAM roles. Nobody applies those roles by hand. A merge to `develop` that changes `infra/pipeline/papyrus-stack-pipeline.yaml` starts the `role-stack-deploy` workflow: it plans the change in the job summary, and the reviewer approves it with one click in GitHub. After **any** change to that file, that is the whole process. Agents link the reviewer to the approval; they never approve it.
+
+On a **new AWS account** there is one setup step, once, run by a person, because the workflow cannot create the roles it runs as:
+
+```bash
+export AWS_PROFILE=<profile for the account>
+infra/pipeline/bootstrap.sh --account <12-digit account id> --approver-only      # add --create-oidc-provider if the account has no GitHub OIDC provider
+infra/pipeline/create-environment.sh --reviewer <github login>                  # the GitHub approval environment
+```
+
+If a release says "The pipeline roles are out of date" or fails "not authorized", an approval is waiting or the template change is not merged. What a new account needs besides this (CDK bootstrap, a hosted zone), what the roles can do, and the console alternative: [infra/pipeline/README.md](infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
 
 ## Start a new Papyrus site
 
 The steps below are the real sequence; each links to the page that holds the detail. A site repository starts from the layout of a recent one (Shipped-web is the cleanest example) and contains no engine code.
 
+0. **The account must be set up first**: [account setup](#set-up-a-new-aws-account-or-deployment-once-and-how-pipeline-roles-change). Skip it only if the account has been set up before.
 1. **Create the site repository** with `papyrus.config.ts` (`defineSite`), `web/projection.json`, `web/css/`, `amplify.yml`, `infra/site.json` and `requirements-publication.txt`. [Building a static site](docs/building-a-papyrus-static-site.md), [standard site layout](docs/standard-site.md).
-2. **Write `infra/site.json`** with an `aws` block (`profile`, `accountId`, `region`). There is no default account, and a file without `aws.accountId` and `aws.region` fails with `does not say where it deploys`. Also set `cms.cognitoDomainPrefix` (distinct per site), `cms.siteOrigin` for a site behind its own edge, and the `github` block with `ownerId` and `repoId`. Examples: [`infra/amplify-app-shell/examples/`](infra/amplify-app-shell/examples), reference: [app-shell README](infra/amplify-app-shell/README.md).
+2. **Write `infra/site.json`** with an `aws` block (`profile`, `region`). The account comes from `PAPYRUS_AWS_ACCOUNT_ID` in the deploy environment (a legacy `aws.accountId` still works), never a default: with neither, the deploy fails with `does not say where it deploys` ([AWS identifiers outside Git](docs/site-hosting.md#aws-identifiers-outside-git)). Also set `cms.cognitoDomainPrefix` (distinct per site), `cms.siteOrigin` for a site behind its own edge, and the `github` block with `ownerId` and `repoId`. Examples: [`infra/amplify-app-shell/examples/`](infra/amplify-app-shell/examples), reference: [app-shell README](infra/amplify-app-shell/README.md).
 3. **Pin the engine** to one released version in the four places listed above.
 4. **Deploy the app shell** from a Papyrus checkout (a human approves the change set; connect the GitHub App once per app and approve a new CodeConnections connection by hand):
 
@@ -111,6 +128,8 @@ The steps below are the real sequence; each links to the page that holds the det
    ```
 
    [Deploying the app-shell stack](docs/site-hosting.md#deploying-the-app-shell-stack-from-a-checkout), [GitHub App connection](docs/site-hosting.md#one-time-github-app-connection-per-app).
+   **First backend build: two deploys.** The full backend is more than CloudFormation's 2,500-resource limit per operation, so a new site's first build runs with the Amplify branch variable `PAPYRUS_BOOTSTRAP_STAGE=1`, then a second build without it. [Exact commands](docs/site-hosting.md#start-a-new-papyrus-site-the-two-deploy-first-backend).
+
 5. **Secrets.** Create the site's Google OAuth client, then from the site repository run `papyrus site google-secrets set` (it stores SSM SecureString secrets after asserting the account) and `papyrus site google-secrets check`. Add editors to a Cognito group after their first sign-in. [Google sign-in](docs/site-hosting.md#google-sign-in), [OAuth setup](docs/google-oauth-setup.md).
 6. **Edge.** Give the site its own CloudFront: `backend.publication.distribution` in `papyrus.config.ts`, or a `papyrus-edge-<siteId>` stack from `infra/edge/s3-projection-cms.yaml` (use this one when `/newsroom*` and `/api/*` share the host: it carries the 404 handler). DNS and certificates: [edge README](infra/edge/README.md), [own CloudFront](docs/site-hosting.md#own-cloudfront-in-front-of-the-bucket-papyrus-edge-).
 7. **First content and projection.** `papyrus publication init --key <key> --name <name>`, then `papyrus ops content project --all`. [How a publish flows](docs/how-a-publish-flows.md).

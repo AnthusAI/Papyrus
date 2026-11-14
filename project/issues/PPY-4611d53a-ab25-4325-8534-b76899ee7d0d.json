@@ -1,0 +1,37 @@
+{
+  "id": "PPY-4611d53a-ab25-4325-8534-b76899ee7d0d",
+  "title": "ops content publish reports failure on a 30 second client timeout while the page-building Lambda is still writing pages",
+  "description": "papyrus ops content publish prints 'FAILED to project the page: the data is published but the page is not live (The read operation timed out)' when the page-build step outlasts the CLI GraphQL timeout (default 30 s, PAPYRUS_GRAPHQL_TIMEOUT_SECONDS). The content-actions Lambda runs up to about 75 s and completes the write anyway, so the report is wrong and operators retry. Fix: a longer default for the projection call, or return a job id and poll; report 'still running' distinctly from 'failed'. Seen on machines-on-machines 2026-11-08 across about 20 publishes.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "2cae3c17-3ff7-4bba-bc2f-bc29d1b4cd77",
+      "author": "home",
+      "text": "Branch feature/PPY-2745c1-publish-stages, PR https://github.com/AnthusAI/Papyrus/pull/1304 (stacked on #1302). Verified with fakes only (pytest + behave, see PR); nothing run against real AWS. Needs deploy: content-actions function per site.",
+      "created_at": "2026-11-08T17:45:30.879373Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "4e1f261e-88b5-4094-b086-dbf73e753c82",
+      "author": "home",
+      "text": "2026-11-13: PR #1498 (merged to develop) moves ops content rerender and the re-render that stories link-story / link-concept trigger onto the publish job mechanism from #1304: refreshSitePages takes async and returns a jobKey, the CLI polls jobStatus and reports done / failed / still running (exit 5, not failed) / outcome unknown, with ops content rerender --status to ask again. Publish was covered by #1304. Live once a release ships the content-actions handler; a CLI newer than the backend is refused by the old handler (async is unknown there). Not closed until that release is deployed and seen working.",
+      "created_at": "2026-11-13T20:28:58.480015Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T16:40:45.345188Z",
+  "updated_at": "2026-11-13T20:28:58.484570Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

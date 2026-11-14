@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "effb6e57-97d8-478d-9fb8-f166d80508ae",
+  "issue_id": "PPY-a89c4dac-c22d-4402-a7fd-a06b4f061cf3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T20:56:18.636Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "stories repair-image-paths needs boto3, which a plain install does not have",
+    "description": "Found 2026-11-04 on 5.86.0: papyrus-newsroom without the markus extra crashes with No module named boto3 at the write step, after printing its plan. Signed-in --images and ops content renditions likely share this. The commands are meant for an ordinary install, so anything they import belongs in base dependencies, as in PPY-a4ae21. Also: references backfill-medium --write on the signed-in lane fails with Not Authorized to access updateReference; state that it is an operator command, or give it a signed-in path.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

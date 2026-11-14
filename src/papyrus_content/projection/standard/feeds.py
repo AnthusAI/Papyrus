@@ -56,7 +56,7 @@ def _atom_author(author, environment: SiteEnvironment) -> str:
 
 def _root(settings: StandardSettings) -> str:
     """The base path with a trailing slash (``posts/``), or "" for a site at the root."""
-    return f"{settings.base_path}/" if settings.base_path else ""
+    return (f"{settings.base_path}/" if settings.base_path else "") + (f"{settings.language_prefix}/" if settings.language_prefix else "")
 
 
 def _latest(selection: list[StandardEntry]) -> str:

@@ -1,0 +1,54 @@
+<!-- @dsCard group="Feed" height=360 subtitle="Before the vote, Match, Miss" -->
+<div id="root"></div>
+<style>
+  #root { background: var(--surface-muted); border-radius: var(--radius-lg); display: grid; font-family: var(--font-sans); gap: var(--space-5); padding: var(--space-4); }
+  .ex { display: grid; gap: var(--space-2); }
+  .cap { color: var(--ink-muted); font-family: var(--font-label); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+  .grid { display: grid; gap: var(--space-2); grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); }
+  .row { display: grid; grid-column: span 3; grid-template-columns: subgrid; }
+  .lab { align-self: center; font-size: 12px; font-weight: 600; }
+  .cell, .btn { align-items: center; border: 0; border-radius: 8px; display: flex; font: inherit; font-size: 13px; gap: 6px; justify-content: center; min-height: 40px; }
+  .cell { background: color-mix(in srgb, var(--surface-accent) 45%, transparent); color: var(--ink-muted); }
+  .cell.on { background: var(--surface-accent); color: var(--ink-strong); font-weight: 600; }
+  .cell.match { background: var(--verdict-match-tint); color: var(--verdict-match-ink); font-weight: 600; }
+  .cell.miss { background: var(--verdict-miss-tint); color: var(--verdict-miss-ink); font-weight: 600; }
+  .cell small { font-size: 11px; font-weight: 500; opacity: 0.85; }
+  .bar { background: var(--surface-accent); border-radius: 999px; grid-column: 2 / span 2; height: 10px; overflow: hidden; position: relative; }
+  .fill { border-radius: 999px; inset-block: 0; position: absolute; }
+  .notch { background: var(--surface-muted); inset-block: 0; left: 50%; position: absolute; transform: translateX(-50%); width: 4px; }
+  .btn { background: var(--surface-accent); color: var(--ink); }
+  .btn.chosen { background: var(--primary); color: var(--primary-contrast); font-weight: 600; }
+  svg { height: 15px; width: 15px; }
+</style>
+<script>
+  const check = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  const cross = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+  const ringCheck = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg>';
+  const ringCross = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>';
+
+  // One example: the predicted side, its confidence, the verdict and the editor's answer.
+  function example(caption, predicted, confidence, verdict, chosen) {
+    const fillWidth = Math.abs(confidence - 0.5) * 100;
+    const fillColour = verdict ? `var(--verdict-${verdict})` : "var(--primary)";
+    const left = predicted === "accept" ? 50 - fillWidth : 50;
+    const cellClass = verdict ? verdict : "on";
+    const icon = verdict === "match" ? ringCheck : verdict === "miss" ? ringCross : predicted === "accept" ? check : cross;
+    const word = verdict === "match" ? " · Match" : verdict === "miss" ? " · Miss" : "";
+    const cellFor = (side) => side === predicted
+      ? `<span class="cell ${cellClass}">${icon}${side === "accept" ? "Accept" : "Reject"}<small>${Math.round((side === "accept" ? confidence : 1 - confidence) * 100)}%${word}</small></span>`
+      : `<span class="cell">${side === "accept" ? "Accept" : "Reject"}</span>`;
+    return `<div class="ex"><span class="cap">${caption}</span><div class="grid">
+      <div class="row"><span class="lab">Cyclotron</span>${cellFor("accept")}${cellFor("reject")}</div>
+      <div class="bar"><span class="fill" style="left:${left}%;width:${fillWidth}%;background:${fillColour}"></span><span class="notch"></span></div>
+      <div class="row"><span class="lab">You</span>
+        <button class="btn ${chosen === "accept" ? "chosen" : ""}" type="button">${check}Accept</button>
+        <button class="btn ${chosen === "reject" ? "chosen" : ""}" type="button">${cross}Reject</button>
+      </div></div></div>`;
+  }
+
+  document.getElementById("root").innerHTML = [
+    example("Before the vote", "accept", 0.96, null, null),
+    example("Match", "accept", 0.96, "match", "accept"),
+    example("Miss", "reject", 0.94, "miss", "accept"),
+  ].join("");
+</script>

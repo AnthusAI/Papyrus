@@ -16,13 +16,15 @@ export const READER_STEERING_OUTPUT_KEY = "readerSteering";
 export const SNAPSHOT_SCHEDULE_PREFIX = "papyrus-reader-snapshot-";
 export const READER_SNAPSHOT_TASK = { projectionTask: { task: "reader-snapshot" } };
 export const READER_SCHEDULED_SNAPSHOT_TASK = { projectionTask: { task: "reader-snapshot", retirementPoll: true } };
+export const EXTRACTION_KEY_PARAMETER_ENV = "PAPYRUS_READER_EXTRACTION_KEY_PARAMETER";
+export const EXTRACTION_SECONDS_ENV = "PAPYRUS_READER_EXTRACTION_SECONDS";
 export const READER_POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARAMETER";
 
 export const readerSteeringManifest: PluginManifest = {
   name: "reader-steering",
   contract: 1,
-  models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderFlag", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Proposal"],
-  mutations: ["moderateReader", "fileProposal", "transitionProposal"],
+  models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderFlag", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction"],
+  mutations: ["moderateReader"],
   guest: { mutations: [] },
   newsroomPanels: [{ id: "moderation", label: "Moderation" }],
   staticAssets: ["_plugins/papyrus-reader@1.js", "_plugins/papyrus-reader@1.css"],
@@ -112,6 +114,25 @@ function wireAiModeration(readerLambda: LambdaFunction, contentActions: LambdaFu
   );
 }
 
+/**
+ * Submission extraction (`submissions.extraction`). The snapshot worker (content-actions) reads each visible submission's link and asks a model what it is
+ * about, so it may read exactly one SSM SecureString (the API key, which the plugin never creates and never receives), and its timeout grows by the time
+ * extraction may take. Nothing is added to a site that does not set it.
+ */
+function wireExtraction(contentActions: LambdaFunction, extraction: { apiKeyParameter: string; seconds: number }) {
+  const stack = Stack.of(contentActions);
+  contentActions.addEnvironment(EXTRACTION_KEY_PARAMETER_ENV, extraction.apiKeyParameter);
+  contentActions.addEnvironment(EXTRACTION_SECONDS_ENV, String(extraction.seconds));
+  contentActions.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["ssm:GetParameter"],
+      resources: [`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${extraction.apiKeyParameter}`],
+    }),
+  );
+  (contentActions.node.defaultChild as CfnFunction).addPropertyOverride("Timeout", extraction.seconds + 60);
+}
+
 export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerActions: typeof readerActions }> = {
   manifest: readerSteeringManifest,
   resolveConfig: resolveReaderSteeringConfig,
@@ -137,7 +158,6 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
       ["PAPYRUS_READER_COMMENT_TABLE", "ReaderComment"],
       ["PAPYRUS_READER_REPORT_TABLE", "ReaderReport"],
       ["PAPYRUS_READER_ACTION_TABLE", "ModerationAction"],
-      ["PAPYRUS_READER_PROPOSAL_TABLE", "Proposal"],
     ] as const) {
       tables[model].grantReadWriteData(lambda);
       lambda.addEnvironment(variable, tables[model].tableName);
@@ -154,8 +174,10 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
     // The snapshot reads submissions, and the review step writes their signals and moderation state.
     tables.ReaderSubmission.grantReadWriteData(contentActions);
     tables.ReaderComment.grantReadWriteData(contentActions);
-    // The snapshot reads proposals and freezes the community result of one that reaches editor review.
+    // The snapshot reads proposals and freezes the community result of one that reaches editor review. The Proposal model and the
+    // functions that file and move proposals are core (amplify/functions/proposal-actions); this plugin only reads the same table.
     tables.Proposal.grantReadWriteData(contentActions);
+    contentActions.addEnvironment("PAPYRUS_READER_PROPOSAL_TABLE", tables.Proposal.tableName);
 
     lambda.addEnvironment("PAPYRUS_READER_SETTINGS", JSON.stringify(readerActionsSettings(config, interimSubjectsAllowedAtSynth())));
     if (config.reservedConcurrency !== undefined) {
@@ -185,6 +207,7 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
     // Proposals are private unless the site opts in (docs/reader-steering.md, Proposals); the snapshot reads this flag.
     contentActions.addEnvironment("PAPYRUS_READER_PUBLISH_PROPOSALS", config.proposals.publish ? "true" : "false");
 
+    if (config.submissions.extraction) wireExtraction(contentActions, config.submissions.extraction);
     if (config.moderation.ai) wireAiModeration(lambda, contentActions, schedulerRole, config.moderation.ai.apiKeyParameter);
 
     lambda.addPermission("InvokeFromCmsCompute", {

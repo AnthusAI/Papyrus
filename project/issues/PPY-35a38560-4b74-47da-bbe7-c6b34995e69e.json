@@ -1,0 +1,40 @@
+{
+  "id": "PPY-35a38560-4b74-47da-bbe7-c6b34995e69e",
+  "title": "Backfill command: papyrus stories head-index (dry run, idempotent, per site)",
+  "description": "papyrus stories head-index [--dry-run] [--stage S] [--rate N]: reads the old stage index partition by partition (the one-time migration read, inside a named request_meter sweep), groups rows by lineage, picks the head with the existing _current_of rule (the row marked current; the most recently created if a muddled lineage has several), and writes headStageKey on the head and removes it from any other row. It writes only what differs (re-running writes nothing), passes the row's own updatedAt so no card jumps to the top, writes at a capped rate (default 5 per second), prints one line per change and a summary (lineages, heads set, keys removed, muddled lineages, already correct), and doubles as the verify command (dry run with zero changes = healthy). Per site, through the signed-in papyrus CLI. MoM: about 830 story rows read, one write per lineage that has a stage. Acceptance: dry run on MoM reviewed by Ryan; apply; second dry run reports zero changes; then the same for the other six sites.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+  "labels": [
+    "production-data-write",
+    "needs-ryan-approval"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-ad0997c7-5156-4fde-b5a7-32bbde51a28f",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fe0b1604-bb73-4767-93ad-c3aac13842ea",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "24e99ce3-7131-4f30-9f6f-eeb8a1582b0c",
+      "author": "home",
+      "text": "papyrus stories head-index in https://github.com/AnthusAI/Papyrus/pull/1364: dry run unless --apply, idempotent, keeps updatedAt, never writes superseded rows, 5 writes/s by default, reports muddled lineages, refuses --apply on a site without the field. MoM dry run (read only, 2026-11-09): rows read 888, stories 259, heads to set 259 (published 159, idea 63, retired 20, reporting 10, spiked 6, assignment 1), keys to remove 0, muddled 0, no head 0. --apply NOT run; needs the deploy and then Ryan's approval.",
+      "created_at": "2026-11-10T03:44:47.769542Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-10T02:38:57.628349Z",
+  "updated_at": "2026-11-10T03:44:47.769804Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

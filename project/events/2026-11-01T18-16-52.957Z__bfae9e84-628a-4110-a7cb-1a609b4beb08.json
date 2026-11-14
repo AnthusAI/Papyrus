@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "bfae9e84-628a-4110-a7cb-1a609b4beb08",
+  "issue_id": "PPY-b322345d-523c-45e9-8888-5d0c6a2f9391",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:52.957Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Learning: the site Cyclotron learns from link, suggestion and idea decisions and their reasons",
+    "description": "Slice 4 of PPY-2e9064, tied to PPY-c6aced (votes must train the site's Cyclotron). Statistical rules from slices 1-3 stay in charge until a trained classifier beats them on held-out human decisions.\nDesign: the design comment on the epic PPY-2e9064 (copied to docs/idea-context-packs.md by S1.0).\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2e906437-368b-49fa-b003-1369f1f7cae7",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

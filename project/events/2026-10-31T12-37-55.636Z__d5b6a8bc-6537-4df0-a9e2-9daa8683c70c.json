@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "d5b6a8bc-6537-4df0-a9e2-9daa8683c70c",
+  "issue_id": "PPY-cd265a3c-8c1f-4dfd-b581-6e31d002f1e4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:37:55.636Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The forum on Shipped: posting on items and Stories, AI moderation, first live reader post",
+    "description": "Repo: **Shipped-web** (config, page, hooks) with Papyrus features from the forum tasks. The forum on Shipped: readers (already signing in through Prospectus for votes, submissions, comments) read and post in threads on items, Stories and proposals.\n\n## Change\n1. `web/projection.json` `homePage.forum.posting: {enabled: true, subjects: [\"story\", \"reference\"], moderation: \"ai\"}`; `papyrus.config.ts` reader-steering `moderation: {mode: \"ai\"}` (today `human`; Ryan's default is AI moderation; the human queue stays as the review surface). Note the change on ship-d02e82.\n2. Item comments: after the one-Message-model task and the backfill (run by Ryan, dry-run count first), `hooks.py` `_item_comments_html` mounts the forum island (`forum-thread`, subject `story`/item) instead of the reader `Comments` island; the Comments island stays available for one release.\n3. `web/pages/conversations.md` is NOT needed: the forum index is generated at `/<threadBase>/`; add it to Shipped's nav (`homePage.forum.navLabel: \"Conversations\"`) and to `web/pages/newsroom.md`.\n4. Verify live after deploy with a real Google account of Ryan's choosing: sign in, pick a handle, post on an item, see it at once, see it on the static page after the debounce window; an admin removes it from the console; the page shows \"Message removed\". This is the first-use evidence ship-378fcc / ship-b35fa2 / ship-d02e82 have been waiting for; record it on those Shipped stories and close them if their criteria are met. Depends on bug PPY-05cf41 (reader sign-in failing after the code exchange) being fixed first.\n\n## Gherkin (Shipped-web tests + the Papyrus features already written by the forum tasks)\n  Scenario: Shipped's item page mounts the forum island with the item as subject\n  Scenario: The Conversations entry appears in Shipped's nav\n\n## Acceptance\nLive post by a reader on shipped.anth.us; moderation path exercised; Shipped board stories updated. Blocked by: forum posting task, forum island task, one-Message-model task, PPY-05cf41, and the Shipped public-pages task.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

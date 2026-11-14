@@ -12,6 +12,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
+  FULL_SCREEN_SHEET,
+  FULL_SCREEN_SHEET_HEADER,
   Sheet,
   SheetContent,
   SheetHeader,
@@ -635,12 +637,12 @@ export function NewsroomAssignmentsView({
         if (!open) closeDetail();
         else setMobileDetailOpen(true);
       }} open={mobileDetailOpen && Boolean(selectedAssignment) && viewMode === "queue"}>
-        <SheetContent className="gap-0 p-0 md:hidden" side="bottom">
-          <SheetHeader className="border-b border-border px-4 py-3">
+        <SheetContent className={`${FULL_SCREEN_SHEET} md:hidden`} data-detail-sheet="fullscreen" side="bottom">
+          <SheetHeader className={FULL_SCREEN_SHEET_HEADER}>
             <SheetTitle className="text-left text-base">Assignment</SheetTitle>
           </SheetHeader>
           {selectedAssignment ? (
-            <ScrollArea className="max-h-[75dvh]">
+            <ScrollArea className="h-full min-h-0">
               <AssignmentDetailPanel
                 assignment={selectedAssignment}
                 detailExtras={renderAssignmentDetailExtras?.(selectedAssignment)}

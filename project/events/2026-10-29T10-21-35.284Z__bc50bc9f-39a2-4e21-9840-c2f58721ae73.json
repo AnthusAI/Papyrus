@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bc50bc9f-39a2-4e21-9840-c2f58721ae73",
+  "issue_id": "PPY-bedb2c18-39a3-4556-a51e-e08185136591",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T10:21:35.284Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom shows what editors' votes did",
+    "description": "Per publication, show votes sent, votes recorded by Cyclotron, the last retraining round, held-out agreement before and after, and which version is live. If Cyclotron asks for a human to promote a candidate, show it as a review request using the standard Accept/Reject vocabulary. Read from the router's FB# receipts and Cyclotron's round status. Gherkin specs required. Lucide icons only, no borders, and never colour alone.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
+    "labels": []
+  }
+}

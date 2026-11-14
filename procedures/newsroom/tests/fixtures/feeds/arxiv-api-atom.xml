@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/D0PMqGiSMdHL8yEx+J3af8Qb2UA</id>
+  <title>arXiv Query: search_query=cat:cs.CR&amp;id_list=&amp;start=0&amp;max_results=2</title>
+  <updated>2026-11-03T18:53:49Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=cat:cs.CR&amp;start=0&amp;max_results=2&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>2</opensearch:itemsPerPage>
+  <opensearch:totalResults>54109</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2611.03558v1</id>
+    <title>Quantum Private Information Retrieval on Forests</title>
+    <updated>2026-11-02T18:19:25Z</updated>
+    <link href="https://arxiv.org/abs/2611.03558v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2611.03558v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We consider the problem of graph private information retrieval (PIR) in the quantum setting. We focus on a specific type of graphs, namely the forest graphs. A forest graph is a union of disjoint trees. We consider the quantum setting where all the servers share an entangled state. Each server is allowed to send only one qudit per retrieval round. We design a scheme for the forest graphs that achieves the rate of $\frac{3}{N}$. The scheme uses a GHZ state as the initial entangled state between the servers prior to the scheme initiation. We compare our scheme with the only work done in the literature that considered the quantum setting of graph PIR. We show that our scheme is more efficient in this setting. We derive the quantum capacity for the case of $G=3K_2$, which is equal to $4/6$. $G=3K_2$ is a special case of the forest graph. We design a scheme that is specialized for this graph, achieving a rate equal to $4/6$ and provide the corresponding matching upper bound, establishing it as the capacity.</summary>
+    <category term="cs.IT" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.NI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="eess.SP" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="quant-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-11-02T18:19:25Z</published>
+    <arxiv:primary_category term="cs.IT"/>
+    <author>
+      <name>Mohamed Nomeir</name>
+    </author>
+    <author>
+      <name>Sennur Ulukus</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2611.03555v1</id>
+    <title>MCP Tool Poisoning in Agentic AI Frameworks: A Cross-Framework Measurement Study</title>
+    <updated>2026-11-02T18:17:08Z</updated>
+    <link href="https://arxiv.org/abs/2611.03555v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2611.03555v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The Model Context Protocol (MCP) lets agentic AI frameworks connect language models to external tool providers, but it carries attacker-controlled content (tool descriptions, schema fields, and response data) into model context without validation. Prior benchmarks measure model compliance with poisoned instructions without confirming real execution. We present the first cross-framework measurement of MCP tool poisoning with real tool execution. A 25-class root-cause taxonomy unifies prior classifications, and the open-source tool mcpvenom drives a 9,720-cell susceptibility matrix across 12 frameworks, 18 models, and 45 attack scenarios, with a dual oracle that confirms exfiltration via canary HTTP receipt. The overall attack success rate is 22.9% (2,113 vulnerable cells). Of these, 64.9% dispatch an attacker tool call, 23.0% contact the attacker endpoint, and 12.1% verifiably exfiltrate a secret. Resistance is model-level: nine core frameworks cluster within 23 to 26% (chi-squared = 3.30, p = 0.91), and no framework implements intentional defense. Incidental framework properties mitigate in specific cases, and a regex description scanner rejects 20 of 45 scenarios at a 7.2% false-positive rate, so metadata scanning alone is a partial control. Model ASR ranges from 0.4% to 49.7%. Claude Opus 4.8 is vulnerable in 8 of 530 cells while issuing 223 explicit refusals. A code-level audit finds no intentional defense across twelve frameworks, and all five coordinated disclosures across four vendors were rejected.</summary>
+    <category term="cs.CR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-11-02T18:17:08Z</published>
+    <arxiv:comment>Accepted at the 19th Workshop on Artificial Intelligence and Security (AISec '26), co-located with ACM CCS 2026, The Hague, Netherlands. 12 pages, 3 figures, 9 tables; 4-page supplement included as ancillary file</arxiv:comment>
+    <arxiv:primary_category term="cs.CR"/>
+    <author>
+      <name>Farooq Shaikh</name>
+    </author>
+    <author>
+      <name>Biagio Montaruli</name>
+    </author>
+  </entry>
+</feed>

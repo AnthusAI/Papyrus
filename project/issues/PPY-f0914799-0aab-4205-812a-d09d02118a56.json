@@ -25,9 +25,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7f5cca21-e5d7-49c6-9021-1bcb4c4f8d7d",
+      "author": "home",
+      "text": "First version landed on develop in PR 674 (merged, CI green; nothing deployed, not promoted). Event automation story.stage_entered with onStage/nextStage/limits.maxHops (stored in trigger.config and limits, no schema change); CLI: papyrus automations create --on-stage S --next-stage T --monitor M --publication P --max-hops N. Contract: input {story, version, versionNumber, stage, runKey, automationId, hop} over static input; output {version} or {hold, reason}; same version back = no changes and still advances; extra keys kept on the run record. Engine (runner) moves the story to nextStage as automation:<id>, labels the version botAction, and fires the next stage (chain). Failure/timeout/hold/no version: story stays, flag review request. One run per story/stage/version via conditional put of STAGE# row. Hop limit default 5 (record maxHops): hard-gate review request 'bot hop limit reached'. Fires from stories move, save-version --stage/--advance, stories create, engine moves; papyrus stories fire-triggers for console moves and retries. Remaining: per-story budget cap (botChain.costUsd reserved, not written), group lock, firing from console board moves, sweeper for deferred starts, runner IAM (list/get Automation, write Items/Messages/ReviewRequest, invoke itself) plus runner image deploy, Tactus editorial-check tool (other agent).",
+      "created_at": "2026-10-24T17:32:22.716566Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T06:21:22.277954Z",
-  "updated_at": "2026-10-23T06:22:04.063486Z",
+  "updated_at": "2026-10-24T17:32:22.716601Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -118,9 +118,8 @@ poetry run papyrus references decide-relevance --apply --doctrine <path>    # de
 ```
 
 > **Always name the doctrine with `--apply`.** `--doctrine` defaults to
-> `corpora/papyrus-publication-doctrine.yml`, which in this repository is the
-> Threat Intelligence doctrine. A sweep for any other site that fell back to it
-> would seed that site's new cyclotron store with Threat Intelligence's mission
+> `corpora/example-publication-doctrine.yml`, which is a neutral placeholder. A sweep for any other site that fell back to it
+> would seed that site's new cyclotron store with a placeholder mission
 > (this happened to p.apyr.us). So `--apply` refuses to run without an explicit
 > `--doctrine <path>` and exits non-zero before any GraphQL write or model call.
 > The dry run keeps the default but prints which doctrine file it would use and
@@ -140,7 +139,7 @@ a schedule. Each run:
    follows the existing scope-training rule: accepted is `include`; rejected as
    `out_of_scope` or `policy_exclusion` is `exclude`; other outcomes close the
    decision without a label. The editor's note is the explanation and the
-   curation Message id is the review id, so a rerun records nothing twice.
+   vote id (derived from the Reference and its `curationStatusUpdatedAt`) is the review id, so a rerun records nothing twice.
 4. Decides every current pending reference of the relevance corpus
    (`relevanceCyclotron.corpusKey`, else the canonical corpus) and records
    each new decision as a `relevance_decision_is` relation. An unchanged
@@ -394,6 +393,45 @@ The pinned public Cyclotron `ui-v0.2.1` artifact does not expose the new panel.
 Do not deploy this Papyrus change with that old UI artifact; updating the
 source pin follows publication approval.
 
+## Exporting a publication's labels for a new Cyclotron
+
+`papyrus cyclotron export-priming --publication <id> --corpus-key <key> [--include-unlabeled] [--out FILE]` writes a
+publication's editor decisions as JSON Lines, one item per line, in the shape the lab's priming import takes. It only
+reads: use `PAPYRUS_GRAPHQL_AUTH=iam` and `PAPYRUS_GRAPHQL_ENDPOINT` for the site's backend (any credentials that can
+read it). The code is `papyrus_content.priming_export`; the behaviour is specified in
+`features_backend/cyclotron-priming-export.feature`.
+
+```json
+{"id": "ref-<lineageId> | ttab-<proceeding>-<date>", "occurred_at": "<ISO 8601 source date>",
+ "values": {"title": "", "url": "", "summary": "", "body": "", "text": ""},
+ "labels": {"<classifier>": {"label": "include|exclude", "explanation": ""}},
+ "provenance": {"source": "corpus|ttab-automation", "state": "", "labeledBy": "editor|automation", "labeledAt": "", "modelMade": false}}
+```
+
+* `text` is `title`, a newline, `url`, a blank line, `summary`, a blank line, then the full `body`, untrimmed.
+  Summary and body come from the Reference's curation card and `curation-text` body, else its `extracted_text`
+  attachment, else they are empty.
+* **Corpus References** (`source: corpus`, id `ref-<lineageId>`): accepted is `include` and rejected is `exclude` for the
+  classifier `distinctive-relevance`; the explanation is the curation reason. A pending Reference has no label and is
+  exported (with empty `labels`) only with `--include-unlabeled`.
+* **TTAB drafts** (`source: ttab-automation`, id `ttab-<proceeding>-<opinion date>`): the publication's monitor
+  automations on the `ttab` monitor name the procedure; each completed ProcedureRun of it names a story. The story's
+  stage is the editor's verdict for the classifier `distinctive-draft-accept`: `published` is `include`; `held` and
+  `spiked` are `exclude`; any earlier stage is pending (no label unless `--include-unlabeled`). The explanation is the
+  change reason of the version that entered the stage. The item text is the decision's own (title, opinion URL, and the
+  Reference's summary and body when the corpus has the Reference).
+* A TTAB item never gets `distinctive-relevance` from its draft. Only a curation decision on its Reference is a
+  judgement of relevance, and that decision comes out as its own `ref-` row.
+* `modelMade` is true when the actor that set the state is a machine and no editor confirmed it. For curation the test is
+  the monitoring router's `human_actor` (a `user:` subject, an editor's sign-in or a Cognito identity are people; the
+  monitoring worker, `agent:*`, `system:*`, `*-import`, "Papyrus content CLI" and an empty actor are not). For a story
+  stage, `automation:*`, `agent:*`, `system:*`, `worker:*` and `(Tactus)` bots are machines; the operator's CLI and any
+  person are editors. A machine-set state keeps its label, with `modelMade: true` and an empty explanation, so the lab
+  can weigh it apart from an editor.
+* `labeledBy` is a role (`editor` or `automation`), never a name, address or account subject. Any address found in an
+  explanation is replaced before it is written.
+* A story that no longer exists is skipped (the summary line on standard error counts them).
+
 ## 3. The proof number
 
 "The classifier uses the editor's labels" is a claim until there is a number.
@@ -551,11 +589,18 @@ and the chosen storage authority (PPY-58f107).
 ## Self-training from human decisions, in shadow mode
 
 A cyclotron learns only from References a person explicitly accepted or
-rejected. The Newsroom's curation Lambda records `actorKind: "human"` on the
-curation Message only when AppSync supplied a user-pool subject claim for the
-caller; request arguments cannot claim it, and IAM-signed service callers and
-agents record `service`. A curation with no recorded actor kind, from before
-this rule, never teaches.
+rejected. Messages come only from people, so a vote is recorded on the
+Reference itself (`curationActorKind`, `curationReasonCode`, `curationSectionId`,
+`curationShareable`, `curationDelegation`, `curationDecisionRelationId`, beside
+`curationStatus`, `curationStatusUpdatedBy`, `curationStatusUpdatedAt` and
+`curationStatusReason`). The Newsroom's curation Lambda records
+`curationActorKind: "human"` only when AppSync supplied a user-pool subject claim
+for the caller; request arguments cannot claim it, and IAM-signed service callers
+and agents record `agent`. The Cyclotron's own accept or reject records `cyclotron`,
+a monitor rule `rule`, and a catalog registration `catalog`. A Reference keeps only
+its latest vote; the history of earlier votes lives in the Cyclotron's feedback.
+A Reference with no recorded actor kind never teaches. The helpers are in
+`src/papyrus_content/reference_vote.py` (`vote_fields`, `latest_vote`).
 
 Each decide-relevance sweep:
 
@@ -587,16 +632,16 @@ the proof above teaches through priming, where every example reaches the prompt.
 
 Section labels follow the same rule. A human or delegated accept can carry a
 `sectionId` (an enabled `NewsroomSection`, validated when recorded and stored in
-the curation Message metadata beside `actorKind`). `human_section_for_review(reference,
-messages, section_ids)` in `relevance_decisions.py` returns that id only when the
-latest curation is an explicit human accept carrying a section id in the given
+`curationSectionId` beside `curationActorKind`). `human_section_for_review(reference,
+section_ids)` in `relevance_decisions.py` returns that id only when the
+latest vote is an explicit human accept carrying a section id in the given
 set, and `None` otherwise. Agent or unknown actors, rejections and unrecognised
 ids never produce a section label.
 
-Historic curation has no `actorKind`. `papyrus references stamp-curation-actor-kind
---human-authors <label,label>` stamps `human` only on curation whose author label
-a person names, and is a dry run (it also lists every other author label) until
-`--apply`.
+Votes recorded before the rule lived in `reference_curation` Messages. `papyrus references
+backfill-vote-details [--human-authors <label,label>] [--dry-run]` copies each Reference's
+newest old vote onto the Reference (old `service` and unknown actors become `agent`; only an
+author label a person names becomes `human`) and prints the counts; `--dry-run` writes nothing.
 
 Not yet built: retiring a taught label when a human changes it to no label
 (the engine corrects a flipped label, but cannot remove a primed example), and
@@ -636,15 +681,16 @@ least `minimumRejectProbability`; the Reference has no curation history at all
 (a person who reviewed, or reopened, a Reference is never overruled); and the
 sweep is under `maxRejectsPerSweep` and the daily decision cap. It never accepts.
 
-Each rejection writes the usual `reference_curation` Message with
-`actorKind: "cyclotron"`, reason code `out_of_scope`, and the cyclotron id,
-probability, proof id and decision id in its metadata and reason, so the
-Newsroom can show it was automatic and a person can reopen it. Because the actor
+Each rejection is recorded on the Reference (no Message) with
+`curationActorKind: "cyclotron"`, reason code `out_of_scope`, and the cyclotron id,
+probability and proof id in its `curationStatusReason` (the decision is the Reference's
+`relevance_decision_is` relation), so the Newsroom can show it was automatic and a person can reopen it. Because the actor
 kind is not `human`, an auto-rejection is never a training label and never counts
 toward the gate's human label count. The result and `--json` output list them as
 `autoRejected` (`lineageId`, `probability`, `proofId`). A dry run lists what
 would be rejected from decisions already recorded, and writes nothing. The Site
-(Section) cyclotron stays shadow-only.
+(Section) cyclotron never accepts or rejects; its only automatic action is the Section of an accepted Reference
+([automatic Section](reference-auto-section.md)).
 
 ### Withdrawn labels
 
@@ -689,7 +735,7 @@ relevance sweep (see "Run the sweep"); the dry run prints the doctrine it would 
 
 `--sections-file` defaults to `corpora/<publication>-newsroom-sections.yml`, the
 publication named by the `--config` file (`papyrus-steering.yml` gives
-`papyrus-newsroom-sections.yml`).
+`example-newsroom-sections.yml`).
 
 ### Per tenant
 
@@ -720,7 +766,7 @@ shared. A tenant with no Sections is refused with the command that seeds them:
   single Section. Agents, unknown actors, rejections and accepts without a
   Section never teach. A Reference the cyclotron never decided teaches as a
   priming example for each classifier; a decided one teaches through one
-  checklist review, with the curation Message id as the review id, so a repeat
+  checklist review, with the vote id as the review id, so a repeat
   sweep changes nothing.
 - The `cyclotron-shadow-agreement/v1` payload for the site cyclotron holds, per
   classifier under `classifiers`, the agreement metrics of suggestions against
@@ -747,6 +793,10 @@ shared. A tenant with no Sections is refused with the command that seeds them:
   shared decision request, so decisions nobody has reviewed yet are decided again
   and the other classifiers' ML heads refit on the next decision; their labels and
   rubrics are untouched. Withdrawn Section labels are not yet retracted.
+
+The sweep then gives a Section automatically to each Reference accepted since its last pass, when the selector is at least as sure as the
+threshold learned from the approved Section proof's held-out decisions, and never over a person's Section or clear:
+[automatic Section of accepted References](reference-auto-section.md).
 
 ### The Section proof: `references prove-site-sections`
 
@@ -776,5 +826,7 @@ poetry run papyrus references prove-site-sections --proof-id sections-1 --apply 
   classifier lists its own sample-size caveat, such as how many percentage points
   one more correct answer moves recall; under 10 positives (or 30 placed
   References for the selector) the report calls the numbers a rough indication.
+- The selector's report also carries `calibration` (`cyclotron-section-calibration/v1`): one `[confidence, agreed]` pair per held-out
+  Reference, decided with the other folds' teaching. The automatic Section learns its threshold from it ([reference-auto-section.md](reference-auto-section.md)).
 - `--apply` calls the configured decision model once per placed Reference per
   classifier, twice (without and with teaching). Tests use the scripted model.

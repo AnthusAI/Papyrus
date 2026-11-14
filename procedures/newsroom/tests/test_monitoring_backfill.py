@@ -59,7 +59,7 @@ def test_a_reference_that_already_has_a_current_relation_is_skipped(lab):
 
 def test_an_exclude_was_never_delivered_so_nothing_is_planned_or_read(lab):
     lab.cyclotron.labels = {("hn-101", p): "exclude" for p in ("anth-us", "p-apyr-us", "threat-intelligence")}
-    lab.run()
+    lab.run(task="route")
     result, _ = run_backfill(lab, apply=True)
     assert all(not counts for counts in result["counts"].values()) and not result["writes"]
     assert not lab.clients                                 # no Reference, so no AppSync client was opened

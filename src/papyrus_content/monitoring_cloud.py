@@ -10,22 +10,69 @@ and `papyrus_content.monitoring`.
 """
 from __future__ import annotations
 
+from datetime import datetime, time as clock_time, timedelta, timezone
 from decimal import Decimal
 import json
 import os
 import time
 import uuid
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Callable
 from urllib.parse import urlsplit
 
-from .monitoring import (SOURCE_TYPES, _digest, _iso, fetch_hn_feed, fetch_ttab_decisions, merge_source_items,
-                         parse_hn_feed, parse_ttab_decisions, ttab_search_body)
+from .monitoring import (SOURCE_TYPES, _digest, _iso, fetch_hn_feed, fetch_ttab_decisions, parse_hn_feed,
+                         parse_ttab_page, ttab_search_body)
+from .monitoring_feed import feed_source, validate_feed_config
+from .monitoring_hf_papers import papers_feed, validate_papers_config
+from .monitoring_huggingface import Reading, hf_feeds, hf_window_start, validate_hf_config
+from .monitoring_paging import READ_BUDGET_SECONDS, Page, read_feed
+from .monitoring_candidates import candidate_key, collected_elsewhere, record_candidate
+from .monitoring_web import (WEB_SEARCH, DEFAULT_INTERVAL_SECONDS as WEB_INTERVAL_SECONDS, TAVILY_SOURCE_URL, finished_query_ids,
+                             pass_started_at, searchable, validate_web_config, web_feed)
 
-LEASE_SECONDS = 150          # longer than the 120 s Lambda timeout; a crashed run's lease expires
+LEASE_SECONDS = 150          # longer than the 120 s Lambda timeout (LAMBDA_TIMEOUT_SECONDS); a crashed run's lease expires
 DUE_SLACK_SECONDS = 60       # scheduler jitter must not skip a whole interval
 RECEIPT_TTL_SECONDS = 30 * 86400
 MAX_ERRORS_RECORDED = 10
 ROUTING_COLLECTED = "collected"
+TTAB_PAGE_SIZE = 100         # the Reading Room API's page size when the config names none; not a total
+#: Config fields that capped how much a pass read. The collector pages until it meets items it has collected or the
+#: source has no more, so a stored config that still has them loads and they are ignored (one log line).
+RETIRED_CONFIG_FIELDS = ("limit", "maxItems", "pagesPerQuery")
+
+
+SEARCH_FAILURE_ALARM_KINDS = ("auth", "plan_exhausted")   # a provider refusing the key or out of plan: the alarm's log line
+
+
+def validate_run_at(value) -> dict | None:
+    """`runAt`: {"time": "HH:MM", "timeZone": "America/New_York"}, the wall-clock time a monitor's pass starts each day."""
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) - {"time", "timeZone"}:
+        raise ValueError('Config runAt must be {"time": "HH:MM", "timeZone": "<IANA zone>"}')
+    try:
+        hour, minute = (int(part) for part in str(value.get("time")).split(":"))
+        clock_time(hour, minute)
+        ZoneInfo(str(value.get("timeZone")))
+    except (ValueError, TypeError, ZoneInfoNotFoundError, KeyError) as error:
+        raise ValueError('Config runAt must be {"time": "HH:MM", "timeZone": "<IANA zone>"}') from error
+    return {"time": f"{hour:02d}:{minute:02d}", "timeZone": str(value["timeZone"])}
+
+
+def next_run_at(run_at: dict, after: float) -> int:
+    """The first instant after `after` (epoch seconds) at which the wall clock in `run_at["timeZone"]` reads `run_at["time"]`.
+    Computed from the local date each time, so daylight saving moves the UTC instant and never the local time. A time that does
+    not exist on a spring-forward day (02:00 in New York) is the first moment after the gap (03:00); one that happens twice on a
+    fall-back day is taken at its first occurrence."""
+    zone = ZoneInfo(run_at["timeZone"])
+    hour, minute = (int(part) for part in run_at["time"].split(":"))
+    local_day = datetime.fromtimestamp(after, zone).date()
+    for offset in range(3):
+        wall = datetime.combine(local_day + timedelta(days=offset), clock_time(hour, minute), tzinfo=zone)
+        instant = wall.astimezone(timezone.utc).timestamp()
+        if instant > after:
+            return int(instant)
+    raise ValueError("No run time found")   # pragma: no cover - three days always hold one
 
 
 class ConditionFailed(Exception):
@@ -116,11 +163,51 @@ class DynamoStore:
     def put_item(self, monitor_id, record):
         self.table.put_item(Item=record)
 
-    def put_receipt(self, monitor_id, record):
+    def get_raw(self, pk_, sk):
+        item = self.table.get_item(Key={"pk": pk_, "sk": sk}, ConsistentRead=True).get("Item")
+        return self._clean(item) if item else None
+
+    def put_raw(self, record):
         self.table.put_item(Item=record)
 
+    def query_prefix(self, pk_, prefix) -> list[dict]:
+        """Every record of a partition whose sort key starts with `prefix`, all pages."""
+        rows, start = [], None
+        while True:
+            kwargs = {"ExclusiveStartKey": start} if start else {}
+            page = self.table.query(KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+                                    ExpressionAttributeValues={":pk": pk_, ":prefix": prefix}, **kwargs)
+            rows += [self._clean(row) for row in page.get("Items", [])]
+            start = page.get("LastEvaluatedKey")
+            if not start:
+                return rows
+
+    def list_queries(self, monitor_id) -> list[dict]:
+        return self.query_prefix(pk(monitor_id), "QUERY#")
+
+    def put_receipt(self, monitor_id, record):
+        self.table.put_item(Item=_storable(record))
+
     def put_state(self, monitor_id, record):
-        self.table.put_item(Item=record)
+        self.table.put_item(Item=_storable(record))
+
+
+TINY_NUMBER = Decimal("1e-100")   # DynamoDB stores numbers from 1E-130 up, with 38 digits; anything smaller is a rounding artefact of a statistic
+
+
+def _storable(value):
+    """The record with every number made one DynamoDB will store. boto3 refuses a Decimal that is too small or has more than 38 digits (``Underflow`` /
+    ``Inexact``) and that refusal fails the whole write, so a receipt carrying one odd statistic was lost. A number below 1e-100 is stored as 0 and the rest
+    keep 15 significant digits; everything else is unchanged."""
+    if isinstance(value, dict):
+        return {key: _storable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_storable(item) for item in value]
+    if isinstance(value, float):
+        value = Decimal(repr(value))
+    if isinstance(value, Decimal) and value.is_finite() and value != 0:
+        return Decimal(0) if abs(value) < TINY_NUMBER else Decimal(f"{value:.15g}")
+    return value
 
 
 def _validate_config(raw: dict) -> dict:
@@ -128,18 +215,24 @@ def _validate_config(raw: dict) -> dict:
     if source_type not in SOURCE_TYPES:
         raise ValueError(f"Config sourceType must be one of {', '.join(sorted(SOURCE_TYPES))}")
     host = SOURCE_TYPES[source_type]["host"]
+    if source_type == WEB_SEARCH:
+        raw = {"sourceUrl": TAVILY_SOURCE_URL, "intervalSeconds": WEB_INTERVAL_SECONDS, **raw}
     source = urlsplit(str(raw.get("sourceUrl") or ""))
-    interval, limit = raw.get("intervalSeconds"), raw.get("limit")
-    if (source.scheme != "https" or source.hostname != host or source.username
+    feed_part = {}
+    if source_type == "feed":
+        feed_part = validate_feed_config(raw)   # a built-in host (monitoring_feed.FEED_HOSTS) or any public host the config names with sourceName; a feed address may carry a query
+    elif (source.scheme != "https" or source.hostname != host or source.username
             or source.password or source.query or source.fragment):
         raise ValueError(f"Config sourceUrl must be an https://{host} URL for a {source_type} monitor")
-    interval, limit = int(interval), int(limit)
+    interval = int(raw.get("intervalSeconds"))
     if interval < 60:
         raise ValueError("Config intervalSeconds must be at least 60")
-    if not 1 <= limit <= 100:
-        raise ValueError("Config limit must be between 1 and 100")
-    config = {"sourceType": source_type, "sourceUrl": raw["sourceUrl"], "intervalSeconds": interval, "limit": limit,
-              "enabled": raw.get("enabled", True) is not False}
+    run_at = validate_run_at(raw.get("runAt"))
+    retired = sorted(key for key in RETIRED_CONFIG_FIELDS if key in raw)
+    if retired:   # an old stored config still loads, so deploy and seed order do not matter
+        print(json.dumps({"monitor": "ignored_retired_config", "fields": retired}))
+    config = {"sourceType": source_type, "sourceUrl": raw["sourceUrl"], "intervalSeconds": interval,
+              "enabled": raw.get("enabled", True) is not False, **({"runAt": run_at} if run_at else {}), **feed_part}
     if source_type == "ttab-decisions":
         lookback = int(raw.get("lookbackDays", 30))
         if not 1 <= lookback <= 180:
@@ -147,33 +240,229 @@ def _validate_config(raw: dict) -> dict:
         recheck = int(raw.get("precedentialLookbackDays", 0))
         if recheck and not lookback < recheck <= 365:
             raise ValueError("Config precedentialLookbackDays must be 0 (off) or longer than lookbackDays, up to 365")
+        page_size = int(raw.get("pageSize", TTAB_PAGE_SIZE))
+        if not 1 <= page_size <= 1000:
+            raise ValueError("Config pageSize must be between 1 and 1000")
         config.update(lookbackDays=lookback, finalDecisionsOnly=raw.get("finalDecisionsOnly", True) is not False,
-                      precedentialLookbackDays=recheck)
-    config["maxItems"] = limit * (2 if config.get("precedentialLookbackDays") else 1)
+                      precedentialLookbackDays=recheck, pageSize=page_size)
+    if source_type == "huggingface-models":
+        config.update(validate_hf_config(raw))
+    if source_type == "huggingface-papers":
+        config.update(validate_papers_config(raw))
+    if source_type == WEB_SEARCH:
+        config.update(validate_web_config(raw))
     return config
 
 
-def read_source(config: dict, now: float, fetch: Callable[..., bytes] | None = None) -> list:
-    """Fetch and parse one source. `fetch` replaces the network call in tests."""
+def source_feeds(config: dict, now: float, fetch: Callable[..., bytes] | None, reading: Reading, *,
+                 known: Callable | None = None, queries: list[dict] | None = None, stats: dict | None = None) -> list[dict]:
+    """The feeds one source is read through (see `monitoring_paging.read_feed`). Each is a dict with a `key`,
+    `fetch_page(cursor) -> (rows, next_cursor)`, `items(rows) -> (SourceItem list, over)` and `stop_at_seen`
+    (true when the feed is newest first, so a page of collected items is its high-water mark).
+    `fetch` replaces the network call in tests. A feed may also carry `known(item)`: an item it returns True for
+    was collected before (by this monitor or, for web search, another) and is skipped."""
+    if config["sourceType"] == WEB_SEARCH:
+        return [web_feed(config, queries or [], now, fetch, known or (lambda item: False), stats if stats is not None else {})]
+    if config["sourceType"] == "huggingface-models":
+        return hf_feeds(config, now, fetch, reading)
+    if config["sourceType"] == "huggingface-papers":
+        return [papers_feed(config, now, fetch)]
+    if config["sourceType"] == "feed":
+        return [feed_source(config, fetch)]
     if config["sourceType"] == "ttab-decisions":
         fetch = fetch or fetch_ttab_decisions
-        recent = parse_ttab_decisions(fetch(config["sourceUrl"], ttab_search_body(now, config["lookbackDays"], config["limit"])),
-                                      final_decisions_only=config["finalDecisionsOnly"])
-        if not config["precedentialLookbackDays"]:
-            return recent
+        feeds = [("recent", config["lookbackDays"], config["finalDecisionsOnly"], False)]
         # Precedential designations can come months after a decision issues. Every decision type
         # counts here: a precedential order on a motion matters as much as a final decision.
-        body = ttab_search_body(now, config["precedentialLookbackDays"], config["limit"], precedential_only=True)
-        return merge_source_items(recent, parse_ttab_decisions(fetch(config["sourceUrl"], body), final_decisions_only=False))
-    return parse_hn_feed((fetch or fetch_hn_feed)(config["sourceUrl"]))
+        if config["precedentialLookbackDays"]:
+            feeds.append(("precedential", config["precedentialLookbackDays"], False, True))
+        return [ttab_feed(config, now, fetch, *spec) for spec in feeds]
+
+    def fetch_page(cursor):
+        return parse_hn_feed((fetch or fetch_hn_feed)(config["sourceUrl"])), None   # an RSS feed is one page
+
+    return [{"key": "feed", "fetch_page": fetch_page, "items": lambda rows: (rows, True), "stop_at_seen": True}]
+
+
+def ttab_feed(config: dict, now: float, fetch: Callable, key: str, lookback_days: int, final_only: bool,
+              precedential_only: bool) -> dict:
+    """One Reading Room search, paged by result number until a page comes back empty (or repeats itself)."""
+    seen_here: set[str] = set()
+
+    def fetch_page(start):
+        start = start or 0
+        body = ttab_search_body(now, lookback_days, config["pageSize"], precedential_only=precedential_only, offset=start)
+        items, results = parse_ttab_page(fetch(config["sourceUrl"], body), final_decisions_only=final_only)
+        return (items, results), (start + results if results else None)
+
+    def items(rows):
+        page, results = rows
+        fresh = [item for item in page if item.source_id not in seen_here]
+        seen_here.update(item.source_id for item in page)
+        # An empty page is the end of the search. A page that adds nothing is a server ignoring the offset.
+        return page, results == 0 or (bool(page) and not fresh)
+
+    return {"key": key, "fetch_page": fetch_page, "items": items, "stop_at_seen": True}
+
+
+def record_found(store, monitor_id: str, config: dict, item, *, observed: str, run_id: str, collected: bool) -> None:
+    """Note on the shared candidate (by canonical URL) that this monitor found the item: provenance always, and `collectedBy` when
+    it made a discovery. Best effort: a failed write only means a later source may collect the story again."""
+    details = item.details or {}
+    try:
+        record_candidate(store, url=item.canonical_url, title=item.title, published_at=item.published_at, monitor_id=monitor_id,
+                         source_type=config["sourceType"], group=config.get("candidateGroup") or monitor_id,
+                         source_id=item.source_id, found_at=observed, run_id=run_id, collected=collected,
+                         query_id=details.get("queryId"), score_bp=details.get("tavilyScoreBp"))
+    except Exception as error:   # noqa: BLE001
+        print(json.dumps({"monitor": "candidate_failed", "monitorId": monitor_id, "error": str(error)[:200]}))
+
+
+def known_in_other_sources(store, monitor_id: str, config: dict):
+    """The `known` test of a web-search feed: the URL is already an item of this monitor, or its shared candidate says some other
+    source collected it, or another web monitor of the same `candidateGroup` did."""
+    group = config.get("candidateGroup") or monitor_id
+
+    def known(item) -> bool:
+        if store.get_item(monitor_id, item.source_id):
+            return True
+        key = candidate_key(item.canonical_url)
+        return collected_elsewhere(store.get_raw(key["pk"], key["sk"]), monitor_id, WEB_SEARCH, group)
+    return known
+
+
+def commit_item(store, monitor_id: str, config: dict, item, *, now: float, run_id: str) -> str:
+    """Dedupe one source item against its current record and, when new or changed, write its discovery and
+    current-item record (in that order, so a crash between them is repaired by the next run).
+    Returns `new`, `revised` or `unchanged`. Shared by the collector and the Hugging Face backfill."""
+    old = store.get_item(monitor_id, item.source_id)
+    if old and old["fingerprint"] == item.fingerprint:
+        return "unchanged"
+    revision = old["revision"] + 1 if old else 1
+    observed = _iso(now)
+    binding = {"monitorId": monitor_id, "sourceUrl": config["sourceUrl"]}
+    event_id = _digest([binding, item.source_id, item.fingerprint])
+    fields = {"sourceId": item.source_id, "title": item.title, "canonicalUrl": item.canonical_url,
+              "sourceItemUrl": item.source_item_url, "sourcePublishedAt": item.published_at,
+              "fingerprint": item.fingerprint, "revision": revision, "eventId": event_id,
+              "observedAt": observed, "monitorId": monitor_id, "sourceUrl": config["sourceUrl"],
+              "mediaType": item.media_type if item.media_type != "text/html" else None,
+              "aliases": list(item.aliases) or None, "details": item.details or None,
+              "sourceType": config["sourceType"] if item.details else None, "sourceName": config.get("sourceName")}
+    discovery = {k: v for k, v in fields.items() if v is not None}
+    discovery.update(pk=pk(monitor_id), sk=f"DISC#{item.source_id}#{revision:06d}",
+                     routing=ROUTING_COLLECTED, runId=run_id,
+                     gsi1pk=f"ROUTING#{monitor_id}#{ROUTING_COLLECTED}",
+                     gsi1sk=f"{observed}#{item.source_id}#{revision:06d}")
+    store.put_discovery(monitor_id, discovery)  # already present after a crash: fine
+    store.put_item(monitor_id, {"pk": pk(monitor_id), "sk": f"ITEM#{item.source_id}",
+                                "sourceId": item.source_id, "fingerprint": item.fingerprint,
+                                "revision": revision, "eventId": event_id,
+                                "firstObservedAt": old.get("firstObservedAt", observed) if old else observed,
+                                "lastChangedAt": observed})
+    record_found(store, monitor_id, config, item, observed=observed, run_id=run_id, collected=True)
+    return "revised" if old else "new"
+
+
+def collect_source(store, monitor_id: str, config: dict, *, fetch, now: float, run_id: str, result: dict,
+                   reading: Reading, resume: dict) -> dict:
+    """Read every feed of the source, page by page, committing each page's items before asking for the next, so a
+    stop (time, rate limit, a crash) loses nothing. Returns the resume cursors per feed key (empty: all read)."""
+    web = config["sourceType"] == WEB_SEARCH
+    known = known_in_other_sources(store, monitor_id, config) if web else None
+    queries = [r for r in store.list_queries(monitor_id) if searchable(r)] if web else []
+    stats: dict = {}
+    feeds = source_feeds(config, now, fetch, reading, known=known, queries=queries, stats=stats)
+    changed_now: set[str] = set()      # committed by this pass (an item two feeds both list is not "already seen")
+    carry, failed = {}, 0
+    for feed in feeds:
+        def process(rows, feed=feed):
+            items, over = feed["items"](rows)
+            page = Page(end=over)
+            for item in items:
+                if not reading.may_write():
+                    page.retry = True      # the Lambda is out of time: this page is read again next pass
+                    break
+                result["itemCount"] += 1
+                try:
+                    query_id = (item.details or {}).get("queryId")
+                    if feed.get("known") and feed["known"](item):
+                        result["unchanged"] += 1
+                        page.seen += 1
+                        stats.setdefault(query_id, {}).setdefault("duplicateCount", 0)
+                        stats[query_id]["duplicateCount"] += 1
+                        record_found(store, monitor_id, config, item, observed=_iso(now), run_id=run_id, collected=False)
+                        continue
+                    outcome = commit_item(store, monitor_id, config, item, now=now, run_id=run_id)
+                    if web and outcome == "new":
+                        stats.setdefault(query_id, {}).setdefault("newCount", 0)
+                        stats[query_id]["newCount"] += 1
+                except Exception as error:
+                    result["errors"].append({"stage": "store", "sourceId": item.source_id, "message": str(error)[:300]})
+                    page.unseen += 1
+                    continue
+                result[outcome] += 1
+                if outcome == "unchanged" and item.source_id not in changed_now:
+                    page.seen += 1
+                else:
+                    changed_now.add(item.source_id)
+                    page.unseen += 1
+            return page
+
+        try:
+            left = read_feed(feed["fetch_page"], process, reading, resume.get(feed["key"]) or (),
+                             stop_at_seen=feed["stop_at_seen"], keep=feed.get("keep"))
+        except Exception as error:
+            failed += 1
+            left = resume.get(feed["key"]) or []      # an unreadable feed keeps its place for the next pass
+            reading.errors.append({"stage": "fetch", **({"query": feed["key"]} if feed.get("labelled") else {}),
+                                   "message": str(error)[:300]})
+        if left:
+            carry[feed["key"]] = left
+        if feed.get("spent"):
+            result["searches"] = feed["spent"]()
+    if web:
+        record_query_runs(store, monitor_id, config, queries, stats, carry=carry.get("web", []), resume=resume.get("web", []),
+                          now=now, run_id=run_id, reading=reading)
+    if failed == len(feeds):
+        raise ValueError(reading.errors[0]["message"])
+    return carry
+
+
+def record_query_runs(store, monitor_id: str, config: dict, queries: list[dict], stats: dict, *, carry: list, resume: list,
+                      now: float, run_id: str, reading: Reading) -> None:
+    """One `QRUN#` record per query this pass asked Tavily, and each query read to its end gets its new high-water mark: the
+    start of the pass. A pass that met an error moves no mark (the next pass asks again from the old one; collected URLs are
+    skipped)."""
+    started = pass_started_at(resume, now)
+    for query_id, used in sorted((k, v) for k, v in stats.items() if k):
+        store.put_raw({"pk": pk(monitor_id), "sk": f"QRUN#{_iso(now)}#{run_id}#{query_id}", "monitorId": monitor_id,
+                       "queryId": query_id, "runId": run_id, "startedAt": _iso(now), "finishedAt": _iso(now),
+                       "params": {"topic": config["topic"], "searchDepth": "basic", "windows": used.get("windows", [])},
+                       "requests": used.get("requests", 0), "resultsReturned": used.get("resultsReturned", 0),
+                       "newCount": used.get("newCount", 0), "duplicateCount": used.get("duplicateCount", 0),
+                       "credits": used.get("credits", 0),
+                       **({"providers": used["providers"]} if used.get("providers") else {}),
+                       **({"skipped": used["skipped"]} if used.get("skipped") else {}),
+                       "stoppedBy": reading.stopped_by if carry else None})
+    if reading.errors:
+        return
+    done = set(finished_query_ids(queries, carry, resume))
+    for record in queries:
+        if record["id"] in done:
+            store.put_raw({**record, "highWater": started})
 
 
 def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes] | None = None,
                    now: float | None = None, force: bool = False, owner: str | None = None,
-                   run_id: str | None = None) -> dict:
+                   run_id: str | None = None, budget_seconds: float | None = READ_BUDGET_SECONDS,
+                   clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep) -> dict:
     """Run one collection when due. Mirrors `monitoring.collect` without an intake step.
 
-    Each item is committed on its own, so a later failure cannot erase earlier progress.
+    The source is paged until the pass reaches items it already collected or the source has no more. It is bound
+    only by the Lambda's time (`budget_seconds`, with the rest of the 120 s kept to finish) and the source's rate
+    limit. A pass that stops early records where it stopped (`resume` in STATE) and is due again at once, so the
+    next scheduled pass continues. Each item is committed on its own, so a later failure cannot erase earlier progress.
     """
     injected_clock, now = now is not None, time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
@@ -190,49 +479,42 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
         if state and state["nextDueAt"] - DUE_SLACK_SECONDS > now and not force:
             return {"monitorId": monitor_id, "runId": run_id, "status": "not_due",
                     "nextDueAt": _iso(state["nextDueAt"])}
-        binding = {"monitorId": monitor_id, "sourceUrl": config["sourceUrl"]}
         result = {"monitorId": monitor_id, "runId": run_id, "startedAt": _iso(now), "status": "complete",
-                  "new": 0, "revised": 0, "unchanged": 0, "errors": []}
+                  "new": 0, "revised": 0, "unchanged": 0, "errors": [], "itemCount": 0}
+        reading = Reading(budget_seconds, clock=clock, sleep=sleep)
+        resume = (state or {}).get("resume") or {}
+        carry = resume
         try:
-            items = read_source(config, now, fetch)
+            carry = collect_source(store, monitor_id, config, fetch=fetch, now=now, run_id=run_id, result=result,
+                                   reading=reading, resume=resume)
         except Exception as error:
             result["status"] = "failed"
             result["errors"].append({"stage": "fetch", "message": str(error)[:300]})
-            items = []
-        result["itemCount"] = len(items)
-        for item in items[:config["maxItems"]]:
-            try:
-                old = store.get_item(monitor_id, item.source_id)
-                if old and old["fingerprint"] == item.fingerprint:
-                    result["unchanged"] += 1
-                    continue
-                revision = old["revision"] + 1 if old else 1
-                observed = _iso(now)
-                event_id = _digest([binding, item.source_id, item.fingerprint])
-                fields = {"sourceId": item.source_id, "title": item.title, "canonicalUrl": item.canonical_url,
-                          "sourceItemUrl": item.source_item_url, "sourcePublishedAt": item.published_at,
-                          "fingerprint": item.fingerprint, "revision": revision, "eventId": event_id,
-                          "observedAt": observed, "monitorId": monitor_id, "sourceUrl": config["sourceUrl"],
-                          "mediaType": item.media_type if item.media_type != "text/html" else None,
-                          "aliases": list(item.aliases) or None}
-                discovery = {k: v for k, v in fields.items() if v is not None}
-                discovery.update(pk=pk(monitor_id), sk=f"DISC#{item.source_id}#{revision:06d}",
-                                 routing=ROUTING_COLLECTED, runId=run_id,
-                                 gsi1pk=f"ROUTING#{monitor_id}#{ROUTING_COLLECTED}",
-                                 gsi1sk=f"{observed}#{item.source_id}#{revision:06d}")
-                store.put_discovery(monitor_id, discovery)  # already present after a crash: fine
-                store.put_item(monitor_id, {"pk": pk(monitor_id), "sk": f"ITEM#{item.source_id}",
-                                            "sourceId": item.source_id, "fingerprint": item.fingerprint,
-                                            "revision": revision, "eventId": event_id,
-                                            "firstObservedAt": old.get("firstObservedAt", observed) if old else observed,
-                                            "lastChangedAt": observed})
-                result["revised" if old else "new"] += 1
-            except Exception as error:
-                result["errors"].append({"stage": "store", "sourceId": item.source_id, "message": str(error)[:300]})
+        for error in reading.errors:   # a feed that failed while others succeeded
+            if error["message"] not in {e["message"] for e in result["errors"]}:
+                result["errors"].append(error)
+        if reading.stopped_by and result["status"] != "failed":   # not read to its end; the receipt says so and the next pass continues
+            result["errors"].append({"stage": "fetch", "message": f"stopped early: {reading.stopped_by}"})
+        if config["sourceType"] == "huggingface-models" or reading.stopped_by:
+            result["read"] = {"requests": reading.requests, "stoppedBy": reading.stopped_by}
+            if config["sourceType"] == "huggingface-models":
+                result["read"]["window"] = _iso(hf_window_start(config, now).timestamp())
+                if reading.excluded:
+                    result["read"]["skipped"] = reading.skipped()
         if result["errors"] and result["status"] != "failed":
             result["status"] = "partial"
         finished = now if injected_clock else time.time()
-        next_due = now + config["intervalSeconds"]
+        if carry and result["status"] != "failed":
+            next_due = now      # stopped early: the next scheduled wake resumes reading (a stored search answer is never asked twice)
+        elif config.get("runAt"):   # the next occurrence of the wall-clock time; DUE_SLACK keeps an early wake from running twice
+            next_due = next_run_at(config["runAt"], now + DUE_SLACK_SECONDS)
+        else:
+            next_due = now + config["intervalSeconds"]
+        for label in sorted((result.get("searches") or {}).get("run", {}).get("failures", {})):
+            provider, kind, *status = label.split(":")
+            if kind in SEARCH_FAILURE_ALARM_KINDS:   # the CloudWatch metric filter of SearchProviderFailingAlarm counts these lines
+                print(json.dumps({"monitor": "search_provider_failing", "monitorId": monitor_id, "provider": provider, "kind": kind,
+                                  **({"status": int(status[0])} if status else {})}))
         result.update(finishedAt=_iso(finished), nextDueAt=_iso(next_due), errorCount=len(result["errors"]))
         store.put_receipt(monitor_id, {
             "pk": pk(monitor_id), "sk": f"RUN#{result['startedAt']}#{run_id}", "runId": run_id,
@@ -240,13 +522,45 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
             "new": result["new"], "revised": result["revised"], "unchanged": result["unchanged"],
             "itemCount": result["itemCount"], "errorCount": result["errorCount"],
             "errors": result["errors"][:MAX_ERRORS_RECORDED], "nextDueAt": result["nextDueAt"],
-            "ttl": int(now + RECEIPT_TTL_SECONDS)})
+            "ttl": int(now + RECEIPT_TTL_SECONDS), **({"read": result["read"]} if "read" in result else {}),
+            **({"searches": result["searches"]} if "searches" in result else {})})
         store.put_state(monitor_id, {"pk": pk(monitor_id), "sk": "STATE", "nextDueAt": int(next_due),
                                      "lastRunId": run_id, "lastStatus": result["status"],
-                                     "lastFinishedAt": result["finishedAt"]})
+                                     "lastFinishedAt": result["finishedAt"], **({"resume": carry} if carry else {})})
         return result
     finally:
         store.release_lock(monitor_id, owner)
+
+
+def run_web_collections(store, monitor_ids, *, now: float | None = None, force: bool = False,
+                        budget_seconds: float = READ_BUDGET_SECONDS, clock: Callable[[], float] = time.monotonic,
+                        sleep: Callable[[float], None] = time.sleep, fetch=None) -> list[dict]:
+    """Collect every web-search monitor in `monitor_ids` whose next-due time has passed, the longest-overdue first.
+
+    One scheduled invocation serves all of them, so the pass's read time is shared: each monitor gets an equal share of
+    what is left (a monitor that stops early is due again at once, and the next invocation continues it). Monitors that
+    are not configured, disabled, of another source type or not yet due are left alone."""
+    now = time.time() if now is None else now
+    due = []
+    for monitor_id in monitor_ids:
+        raw = store.get_config(monitor_id)
+        if raw is None or raw.get("sourceType") != WEB_SEARCH or raw.get("enabled") is False:
+            continue
+        state = store.get_state(monitor_id)
+        next_due = (state or {}).get("nextDueAt", 0)
+        if force or next_due - DUE_SLACK_SECONDS <= now:
+            due.append((next_due, monitor_id))
+    started, results = clock(), []
+    for index, (_, monitor_id) in enumerate(sorted(due)):
+        left = budget_seconds - (clock() - started)
+        if left <= 0:
+            break
+        try:
+            results.append(run_collection(store, monitor_id, now=now, force=force, budget_seconds=left / (len(due) - index),
+                                          clock=clock, sleep=sleep, fetch=fetch))
+        except Exception as error:   # one monitor's bad config must not stop the others
+            results.append({"monitorId": monitor_id, "status": "failed", "errors": [{"stage": "config", "message": str(error)[:300]}]})
+    return results
 
 
 def handler(event, context):
@@ -255,6 +569,12 @@ def handler(event, context):
 
     event = event if isinstance(event, dict) else {}
     store = DynamoStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
+    if event.get("sourceType") == WEB_SEARCH:   # {"sourceType": "web-search", "monitorIds": [...]}: every due web monitor
+        results = run_web_collections(store, [str(m) for m in event.get("monitorIds") or []], force=event.get("force") is True)
+        print(json.dumps([{k: v for k, v in r.items() if k != "errors"} | {"errors": r.get("errors", [])[:3]} for r in results]))
+        if any(r["status"] == "failed" for r in results):
+            raise RuntimeError("Web monitor collection failed; see the run receipts")
+        return [{k: r.get(k) for k in ("monitorId", "runId", "status", "new", "unchanged", "errorCount", "nextDueAt")} for r in results]
     result = run_collection(store, str(event.get("monitorId") or "hn"), force=event.get("force") is True)
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     if result["status"] == "failed":

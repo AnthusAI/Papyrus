@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b25876b8-15c3-413e-8e47-021c8f7be3e0",
+  "title": "Sites never get the alexa-sync build step: the build spec is not regenerated on a version bump",
+  "description": "The Pilobolus deploy of #144 (Papyrus 5.65.0, build 89) ran the old build spec, with no `papyrus-app alexa-sync` line after `ampx pipeline-deploy`, so no skill was created and it had to be done by hand. Find where the Amplify build spec is generated (infra/amplify-app-shell/lib/build-specs.ts) and why a version bump does not apply it (does `papyrus-infra deploy` run in the build, and does it update the app's buildSpec?). Make it apply on the next deploy, and add a check that a deployed site's spec matches the generated one.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a541d0a9-3452-4f4c-8f08-6ff659ec3f43",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:07.340146Z",
+  "updated_at": "2026-10-31T19:52:07.340186Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

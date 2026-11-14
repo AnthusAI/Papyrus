@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4d9d9071-2ed0-4984-8485-ab31574d9f8c",
+  "issue_id": "PPY-606e370b-ae1b-49e7-851f-cab55bf5585b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T10:21:35.364Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document the learning loop on p.apyr.us",
+    "description": "A p.apyr.us feature page: editors' votes train the site's Cyclotron, how a candidate version is checked against held-out votes, and what an editor sees.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
+    "labels": []
+  }
+}

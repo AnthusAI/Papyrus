@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "1b2e08e4-b8c6-4a9d-a7a6-ee6a519c175f",
+  "issue_id": "PPY-5a3624d4-4f1a-4eee-9bb6-12e575ec3cad",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-30T09:28:51.580Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Approve Papyrus cloud CLI login from another device without secret handoff",
+    "description": "Requested by Ryan for Claude through Kanbus (2026-10-30). This filing authorizes issue records only; implementation and any live identity/backend changes are subsequent work. No production login, deployment, IAM changes, secrets in chat, or direct message to Claude. Dot must operate from cloud/headless Linux without a Mac or AWS CLI. Optional shared auth libraries must not combine the two CLI products. Write executable behavioral specifications before implementation; use fake providers/stores in automated tests, and separately record any approved live evidence.\n\nAs an authorized newsroom user, I want to open a URL on another device and approve a waiting cloud CLI, so dot can access my authorized publications securely.\n\nAcceptance criteria:\n- Explicit remote login produces a clean HTTPS approval-page URL and waits with bounded polling; no browser or loopback connection to the cloud host is required. No authorization codes, refresh tokens, client secrets or bearer credentials pass through chat or manual copy/paste.\n- Do not assume Cognito User Pools implement RFC 8628. Evaluate and document a secured broker or equivalent supported handoff, provider constraints, threat model and deployment prerequisites before implementation. Reuse Google/Cognito identity and existing server authorization; never scrape a browser session or silently use AWS/IAM.\n- Bind each transaction to the initiating CLI proof/secret, approved identity, issuer/client, exact publication endpoint and requested account/scope. Single-use redemption, short expiry, denial/cancel states, replay protection, CSRF/state protections, rate limits and bounded backoff are required. Approval must clearly show the requester, target and privileges. Another CLI or altered target cannot redeem approval. The displayed URL is not sufficient to redeem credentials.\n- Save the resulting renewable session only in an available approved secure store; preserve current per-site registry and endpoint matching. Test two simultaneous publication logins with separate grants. Reauthorize protected operations server-side.\n- Preserve local browser/PKCE login and existing multi-site commands. Pending/denied/expired/network failures are bounded, secret-safe and leave no half-authenticated session. Document cleanup and recovery.\n\nFeature: Remote publication login\n  Scenario: Approve from another device\n    Given a headless Linux CLI requests login for an authorized publication\n    When the user opens the URL on their phone and approves\n    Then only the initiating CLI receives a securely stored renewable session for that publication\n    And no secret or authorization code passes through chat\n  Scenario: Refuse replay and substituted targets\n    Given an expired, denied, redeemed or differently bound transaction\n    When a CLI attempts redemption\n    Then no usable session is issued\n  Scenario: Multiple sites stay isolated\n    Given two independently approved publication sessions\n    When one expires or is revoked\n    Then the other remains usable and no request uses the wrong endpoint or account\n\nReferences: docs/cli-login.md; docs/operator-cli.md; src/papyrus_content/cli_user_auth.py; src/papyrus_content/macos_keychain.py; features_backend/cli-user-auth.feature; existing PPY-236bee (login), PPY-109943 (storage), PPY-829904 (renewal), PPY-3ba3d9 (device delegation, a different grant type). Coordinate with that delegation work rather than treating its human-decision grant as a general login credential.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7c458d71-3ea8-4c39-8a6c-d2d2ab903df7",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "Cloud CLI issue filing"
+    }
+  }
+}

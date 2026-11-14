@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
   delegationExpiry, delegationIdFromToken, delegationVerdict, hashDelegationToken, newDelegationToken, type CurationDelegation,
 } from "../amplify/functions/shared/curation-delegation";
-import { referenceCurationMetadata } from "../amplify/functions/shared/reference-curation-metadata";
+import { referenceVoteFields } from "../amplify/functions/shared/reference-curation-metadata";
 
 const { token, tokenHash } = newDelegationToken("curation-delegation-1");
 assert.equal(delegationIdFromToken(token), "curation-delegation-1");
@@ -25,14 +25,12 @@ assert.deepEqual(delegationVerdict(delegation, { token, agentLabel: "ChatGPT", n
 assert.throws(() => delegationExpiry(now, 0));
 assert.throws(() => delegationExpiry(now, 500));
 
-const metadata = referenceCurationMetadata({
-  action: "accept", curationStatus: "accepted", reasonCode: null, referenceId: "r-v1", referenceLineageId: "r",
+const vote = referenceVoteFields({
   actorKind: "human", delegation: { delegationId: "d1", relayedBy: "ChatGPT", instruction: "Yes, approve the Anthropic advisory." },
 });
-assert.equal(metadata.actorKind, "human");
-assert.equal(metadata.attestation, "delegated");
-assert.equal(metadata.relayedBy, "ChatGPT");
-assert.equal(metadata.delegationId, "d1");
-assert.equal(metadata.instruction, "Yes, approve the Anthropic advisory.");
+assert.equal(vote.curationActorKind, "human");
+assert.deepEqual(JSON.parse(vote.curationDelegation as string), {
+  delegationId: "d1", relayedBy: "ChatGPT", instruction: "Yes, approve the Anthropic advisory.",
+});
 
 console.log("curation delegation: ok");

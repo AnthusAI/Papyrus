@@ -22,5 +22,11 @@
     "owner": "AnthusAI",
     "repo": "Example-Pretext-Site",
     "ciCanDeployInfra": true
+  },
+  "email": {
+    "mode": "existing",
+    "sendingDomain": "mail.example.test",
+    "configurationSet": "existing-site-email",
+    "eventTopicName": "existing-site-email-events"
   }
 }

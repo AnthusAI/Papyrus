@@ -1,0 +1,888 @@
+[
+ {
+  "_id": "6addf8f4f90654ac2bcb9ccf",
+  "id": "HimanshuPathak/omnivoice-hindi-incremental-expanded-20261025-gated",
+  "author": "HimanshuPathak",
+  "cardData": {
+   "language": "hi",
+   "pipeline_tag": "text-to-speech",
+   "extra_gated_prompt": "Experimental checkpoint archive. Downloads require manual owner approval."
+  },
+  "gated": "manual",
+  "lastModified": "2026-10-25T12:41:27.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "ff4fd2f21675247ca85b8150faad2e5d171e6dca",
+  "downloads": 0,
+  "tags": [
+   "text-to-speech",
+   "hi",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "createdAt": "2026-10-25T12:41:24.000Z"
+ },
+ {
+  "_id": "6addf76e6936002b6c3fb744",
+  "id": "HimanshuPathak/omnivoice-hindi-incremental-number-focus-20261024-gated",
+  "author": "HimanshuPathak",
+  "cardData": {
+   "language": "hi",
+   "pipeline_tag": "text-to-speech",
+   "extra_gated_prompt": "Experimental checkpoint archive. Downloads require manual owner approval."
+  },
+  "gated": "manual",
+  "lastModified": "2026-10-25T12:35:09.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "c7652dd2c767b5afc1ea6288046cb06ed5263c61",
+  "downloads": 0,
+  "tags": [
+   "safetensors",
+   "text-to-speech",
+   "hi",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "createdAt": "2026-10-25T12:34:54.000Z"
+ },
+ {
+  "_id": "6adde8d2eb1f2ac4e498ca7a",
+  "id": "sw-voice-ai/voxcpm2-telugu-stage1b-english-sidon-dedup-refclone-lr1e-4-10ep",
+  "author": "sw-voice-ai",
+  "cardData": {
+   "language": [
+    "te",
+    "en"
+   ],
+   "license": "apache-2.0",
+   "base_model": "sw-voice-ai/voxcpm2-telugu-indictts2x-syspin-multisent-lr1e-4-1ep",
+   "pipeline_tag": "text-to-speech"
+  },
+  "gated": false,
+  "lastModified": "2026-10-25T11:33:58.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "f5c73558830677fcf38bac288127bfea51a842a2",
+  "downloads": 0,
+  "tags": [
+   "safetensors",
+   "text-to-speech",
+   "te",
+   "en",
+   "base_model:sw-voice-ai/voxcpm2-telugu-indictts2x-syspin-multisent-lr1e-4-1ep",
+   "base_model:finetune:sw-voice-ai/voxcpm2-telugu-indictts2x-syspin-multisent-lr1e-4-1ep",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "createdAt": "2026-10-25T11:32:34.000Z"
+ },
+ {
+  "_id": "6adddb1fbd16b1c4053cb2b2",
+  "id": "Infinix-io/FishAudio-Drama3-TTS-83Lang-Qwen3.5-35B-A3B-FP8-BF16-GGUF",
+  "author": "Infinix-io",
+  "cardData": {
+   "language": [
+    "zh",
+    "en",
+    "ja",
+    "ko",
+    "es",
+    "pt",
+    "ar",
+    "ru",
+    "fr",
+    "de",
+    "sv",
+    "it",
+    "tr",
+    "no",
+    "nl",
+    "cy",
+    "eu",
+    "ca",
+    "da",
+    "gl",
+    "ta",
+    "hu",
+    "fi",
+    "pl",
+    "et",
+    "hi",
+    "la",
+    "ur",
+    "th",
+    "vi",
+    "jw",
+    "bn",
+    "yo",
+    "sl",
+    "cs",
+    "sw",
+    "nn",
+    "he",
+    "ms",
+    "uk",
+    "id",
+    "kk",
+    "bg",
+    "lv",
+    "my",
+    "tl",
+    "sk",
+    "ne",
+    "fa",
+    "af",
+    "el",
+    "bo",
+    "hr",
+    "ro",
+    "sn",
+    "mi",
+    "yi",
+    "am",
+    "be",
+    "km",
+    "is",
+    "az",
+    "sd",
+    "br",
+    "sq",
+    "ps",
+    "mn",
+    "ht",
+    "ml",
+    "sr",
+    "sa",
+    "te",
+    "ka",
+    "bs",
+    "pa",
+    "lt",
+    "kn",
+    "si",
+    "hy",
+    "mr",
+    "as",
+    "gu",
+    "fo"
+   ],
+   "license": "apache-2.0",
+   "license_name": "fish-audio-research-license",
+   "license_link": "LICENSE.md",
+   "pipeline_tag": "text-to-speech",
+   "tags": [
+    "fish-audio",
+    "text-to-speech",
+    "multi-speaker",
+    "audio-editing",
+    "emotional-speech-generation"
+   ],
+   "base_model": [
+    "fishaudio/drama-3"
+   ]
+  },
+  "gated": false,
+  "lastModified": "2026-10-25T10:34:07.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "149752891b4b40719d44b03b41f405813ea389d7",
+  "downloads": 0,
+  "tags": [
+   "safetensors",
+   "gguf",
+   "fish_omni",
+   "fish-audio",
+   "text-to-speech",
+   "multi-speaker",
+   "audio-editing",
+   "emotional-speech-generation",
+   "zh",
+   "en",
+   "ja",
+   "ko",
+   "es",
+   "pt",
+   "ar",
+   "ru",
+   "fr",
+   "de",
+   "sv",
+   "it",
+   "tr",
+   "no",
+   "nl",
+   "cy",
+   "eu",
+   "ca",
+   "da",
+   "gl",
+   "ta",
+   "hu",
+   "fi",
+   "pl",
+   "et",
+   "hi",
+   "la",
+   "ur",
+   "th",
+   "vi",
+   "jw",
+   "bn",
+   "yo",
+   "sl",
+   "cs",
+   "sw",
+   "nn",
+   "he",
+   "ms",
+   "uk",
+   "id",
+   "kk",
+   "bg",
+   "lv",
+   "my",
+   "tl",
+   "sk",
+   "ne",
+   "fa",
+   "af",
+   "el",
+   "bo",
+   "hr",
+   "ro",
+   "sn",
+   "mi",
+   "yi",
+   "am",
+   "be",
+   "km",
+   "is",
+   "az",
+   "sd",
+   "br",
+   "sq",
+   "ps",
+   "mn",
+   "ht",
+   "ml",
+   "sr",
+   "sa",
+   "te",
+   "ka",
+   "bs",
+   "pa",
+   "lt",
+   "kn",
+   "si",
+   "hy",
+   "mr",
+   "as",
+   "gu",
+   "fo",
+   "arxiv:2610.18010",
+   "base_model:fishaudio/drama-3",
+   "base_model:quantized:fishaudio/drama-3",
+   "license:apache-2.0",
+   "bsgemm-moe",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "createdAt": "2026-10-25T10:34:07.000Z"
+ },
+ {
+  "_id": "6addd853b04b81f86ac3b0ba",
+  "id": "anyantudre/moore-tts-kokoro",
+  "author": "anyantudre",
+  "cardData": {
+   "license": "apache-2.0",
+   "language": [
+    "mos"
+   ],
+   "base_model": "hexgrad/Kokoro-82M",
+   "pipeline_tag": "text-to-speech",
+   "tags": [
+    "text-to-speech",
+    "moore",
+    "mos",
+    "burkina-faso",
+    "low-resource",
+    "kokoro",
+    "voice-cloning"
+   ],
+   "extra_gated_heading": "Request access to moore-tts-kokoro",
+   "extra_gated_prompt": "This model is part of a research benchmark on text-to-speech for Moor\u00e9. Requests are reviewed by hand, usually within a few days. Generated speech can imitate real voices, so access comes with a few conditions: respect the license (Apache 2.0), do not clone or imitate a real person's voice without their consent, say clearly that the audio is synthetic when you share it, and do not use the model for fraud, harassment, impersonation or political misinformation.",
+   "extra_gated_fields": {
+    "First name(s)": "text",
+    "Last name": "text",
+    "Email address where we can reach you (work or academic if possible)": "text",
+    "Affiliation (university, institution or company)": "text",
+    "Country": "country",
+    "Role": {
+     "type": "select",
+     "options": [
+      "Student",
+      "Researcher or academic staff",
+      "Engineer or developer",
+      "Journalist or media",
+      "Independent",
+      "Other"
+     ]
+    },
+    "Intended use": {
+     "type": "select",
+     "options": [
+      "Academic research",
+      "Teaching",
+      "Non-profit or community project",
+      "Commercial product or service",
+      "Industrial R&D",
+      "Personal project",
+      "Other"
+     ]
+    },
+    "Describe your project and how you will use the model (2-3 sentences)": "text",
+    "Will you use the model or the audio it generates commercially?": {
+     "type": "select",
+     "options": [
+      "Yes",
+      "No",
+      "Not sure"
+     ]
+    },
+    "Do you agree to comply with the license stated above?": {
+     "type": "select",
+     "options": [
+      "Yes",
+      "No",
+      "Not sure"
+     ]
+    },
+    "Will you clone or imitate the voice of a real, identifiable person?": {
+     "type": "select",
+     "options": [
+      "No",
+      "Yes, with their written consent",
+      "Yes, other"
+     ]
+    },
+    "Do you speak Moor\u00e9?": {
+     "type": "select",
+     "options": [
+      "Native speaker",
+      "Second language",
+      "No"
+     ]
+    },
+    "May we contact you about listening tests or collaborations on Moor\u00e9 speech technology?": {
+     "type": "select",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    "I will disclose that audio generated with this model is synthetic when I publish or share it": "checkbox",
+    "I will not use this model for fraud, harassment, impersonation, or political misinformation": "checkbox",
+    "I will not redistribute the weights; others should request access on this page": "checkbox",
+    "I will cite this work if I use it in a publication": "checkbox"
+   },
+   "extra_gated_button_content": "Submit request"
+  },
+  "gated": "manual",
+  "lastModified": "2026-10-25T10:23:16.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "950516ffa27d5fe37ebd241bd8444ab10fceecec",
+  "downloads": 0,
+  "tags": [
+   "text-to-speech",
+   "moore",
+   "mos",
+   "burkina-faso",
+   "low-resource",
+   "kokoro",
+   "voice-cloning",
+   "base_model:hexgrad/Kokoro-82M",
+   "base_model:finetune:hexgrad/Kokoro-82M",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "createdAt": "2026-10-25T10:22:11.000Z"
+ },
+ {
+  "_id": "6addcf0369feab6d8995537f",
+  "id": "mradermacher/Lure-TTS-0.6B-GGUF",
+  "author": "mradermacher",
+  "cardData": {
+   "base_model": "Tesslate/Lure-TTS-0.6B",
+   "language": [
+    "en"
+   ],
+   "library_name": "transformers",
+   "license": "apache-2.0",
+   "mradermacher": {
+    "readme_rev": 1
+   },
+   "quantized_by": "mradermacher",
+   "tags": [
+    "text-to-speech",
+    "tts",
+    "speech",
+    "audio",
+    "speech-synthesis",
+    "speech-generation",
+    "voice-cloning",
+    "voice-clone",
+    "zero-shot",
+    "expressive-speech",
+    "emotional-speech",
+    "streaming",
+    "english",
+    "safetensors",
+    "preview"
+   ]
+  },
+  "gated": false,
+  "lastModified": "2026-10-25T09:53:12.000Z",
+  "likes": 1,
+  "trendingScore": 1,
+  "sha": "5566fd66053506e1edffd4352c3705acab7a3b26",
+  "downloads": 0,
+  "tags": [
+   "transformers",
+   "gguf",
+   "text-to-speech",
+   "tts",
+   "speech",
+   "audio",
+   "speech-synthesis",
+   "speech-generation",
+   "voice-cloning",
+   "voice-clone",
+   "zero-shot",
+   "expressive-speech",
+   "emotional-speech",
+   "streaming",
+   "english",
+   "safetensors",
+   "preview",
+   "en",
+   "base_model:Tesslate/Lure-TTS-0.6B",
+   "base_model:quantized:Tesslate/Lure-TTS-0.6B",
+   "license:apache-2.0",
+   "endpoints_compatible",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "library_name": "transformers",
+  "createdAt": "2026-10-25T09:42:27.000Z"
+ },
+ {
+  "_id": "6addceef130a725e85d86219",
+  "id": "dmytro-m/ua-serhiy-0p58m",
+  "author": "dmytro-m",
+  "cardData": {
+   "language": [
+    "uk"
+   ],
+   "license": "gpl-3.0",
+   "pipeline_tag": "text-to-speech",
+   "base_model": [
+    "dmytro-m/uk_UA-serhiy-high"
+   ],
+   "datasets": [
+    "dmytro-m/uk-tts-stressed-serhiy"
+   ],
+   "tags": [
+    "sanotts",
+    "ukrainian",
+    "lexical-stress",
+    "distillation",
+    "fp16"
+   ],
+   "widget": [
+    {
+     "text": "\u0414\u043e\u0301\u0431\u0440\u043e\u0433\u043e \u0440\u0430\u0301\u043d\u043a\u0443! \u041c\u0435\u043d\u0435\u0301 \u0437\u0432\u0430\u0301\u0442\u0438 \u0421\u0435\u0440\u0433\u0456\u0301\u0439, \u0456 \u044f \u0440\u043e\u0437\u043c\u043e\u0432\u043b\u044f\u0301\u044e \u0443\u043a\u0440\u0430\u0457\u0301\u043d\u0441\u044c\u043a\u043e\u044e.",
+     "example_title": "01-greeting",
+     "output": {
+      "url": "https://huggingface.co/dmytro-m/ua-serhiy-0p58m/resolve/main/samples/01-greeting.wav"
+     }
+    },
+    {
+     "text": "\u0417\u0430\u0301\u043c\u043e\u043a \u0441\u0442\u043e\u0457\u0301\u0442\u044c \u043d\u0430 \u0433\u043e\u0440\u0456\u0301, \u0430 \u0437\u0430\u043c\u043e\u0301\u043a \u0432\u0438\u0441\u0438\u0301\u0442\u044c \u043d\u0430 \u0434\u0432\u0435\u0301\u0440\u044f\u0445.",
+     "example_title": "02-stress-pair",
+     "output": {
+      "url": "https://huggingface.co/dmytro-m/ua-serhiy-0p58m/resolve/main/samples/02-stress-pair.wav"
+     }
+    },
+    {
+     "text": "\u0417\u0430\u0301\u0440\u0430\u0437 \u0440\u0456\u0301\u0432\u043d\u043e \u043e\u0434\u0438\u0301\u043d\u0430\u0434\u0446\u044f\u0442\u0430 \u0433\u043e\u0434\u0438\u0301\u043d\u0430. \u0417\u0430\u0440\u044f\u0301\u0434 \u0431\u0430\u0442\u0430\u0440\u0435\u0301\u0457 \u0441\u0442\u0430\u043d\u043e\u0301\u0432\u0438\u0442\u044c \u0434\u0435\u0432'\u044f\u043d\u043e\u0301\u0441\u0442\u043e \u0432\u0456\u0301\u0441\u0456\u043c \u0432\u0456\u0434\u0441\u043e\u0301\u0442\u043a\u0456\u0432.",
+     "example_title": "03-clock",
+     "output": {
+      "url": "https://huggingface.co/dmytro-m/ua-serhiy-0p58m/resolve/main/samples/03-clock.wav"
+     }
+    },
+    {
+     "text": "\u041d\u0456. \u041d\u0430\u0439\u0432\u0430\u0436\u043b\u0438\u0432\u0456\u0301\u0448\u0435 \u2014 \u0446\u0435 \u0415\u0301\u043b\u0435\u043d. \u0415\u0301\u043b\u0435\u043d \u0456 \u0434\u0438\u0442\u0438\u0301\u043d\u0430.",
+     "example_title": "04-heldout-chunk",
+     "output": {
+      "url": "https://huggingface.co/dmytro-m/ua-serhiy-0p58m/resolve/main/samples/04-heldout-chunk.wav"
+     }
+    },
+    {
+     "text": "\u0406 \u043a\u043e\u043b\u0438\u0301, \u0434\u043e\u043f\u0438\u0442\u0430\u0301\u0432\u0448\u0438 \u0420\u0430\u0301\u043b\u044c\u0444\u0430 \u044f\u043a \u0441\u0432\u0456\u0301\u0434\u043a\u0430 \u0443 \u0441\u043f\u0440\u0430\u0301\u0432\u0456 \u0414\u0456\u0301\u043f\u043d\u043e, \u0434\u0435\u0442\u0435\u043a\u0442\u0438\u0301\u0432 \u041b\u0435\u0301\u0439\u0434\u0435\u043a\u0435\u0440",
+     "example_title": "05-heldout-chunk",
+     "output": {
+      "url": "https://huggingface.co/dmytro-m/ua-serhiy-0p58m/resolve/main/samples/05-heldout-chunk.wav"
+     }
+    },
+    {
+     "text": "\u0412\u0456\u0301\u0442\u0435\u0440 \u043d\u0435 \u0432\u0433\u0430\u043c\u043e\u0301\u0432\u0443\u0432\u0430\u0432\u0441\u044f, \u0442\u0435\u043f\u0435\u0301\u0440 \u0432\u0456\u043d \u043d\u0430\u043b\u0456\u0442\u0430\u0301\u0432 \u0437\u0456 \u0441\u0445\u043e\u0301\u0434\u0443 \u0433\u043e\u0301\u0441\u0442\u0440\u0438\u043c\u0438, \u0440\u0456\u0301\u0436\u0443\u0447\u0438\u043c\u0438 \u043f\u043e\u0440\u0438\u0301\u0432\u0430\u043c\u0438.",
+     "example_title": "06-heldout-chunk",
+     "output": {
+      "url": "https://huggingface.co/dmytro-m/ua-serhiy-0p58m/resolve/main/samples/06-heldout-chunk.wav"
+     }
+    }
+   ]
+  },
+  "gated": false,
+  "lastModified": "2026-10-25T09:55:15.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "1abd585d725a787b405c28a59ce1cbdfd34780bb",
+  "downloads": 0,
+  "tags": [
+   "sanotts",
+   "ukrainian",
+   "lexical-stress",
+   "distillation",
+   "fp16",
+   "text-to-speech",
+   "uk",
+   "dataset:dmytro-m/uk-tts-stressed-serhiy",
+   "base_model:dmytro-m/uk_UA-serhiy-high",
+   "base_model:finetune:dmytro-m/uk_UA-serhiy-high",
+   "license:gpl-3.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "createdAt": "2026-10-25T09:42:07.000Z"
+ },
+ {
+  "_id": "6addc4aee273bf4e026b4485",
+  "id": "anyantudre/moore-tts-f5",
+  "author": "anyantudre",
+  "cardData": {
+   "license": "cc-by-nc-4.0",
+   "language": [
+    "mos"
+   ],
+   "base_model": "SWivid/F5-TTS",
+   "pipeline_tag": "text-to-speech",
+   "tags": [
+    "text-to-speech",
+    "moore",
+    "mos",
+    "burkina-faso",
+    "low-resource",
+    "f5",
+    "voice-cloning"
+   ],
+   "extra_gated_heading": "Request access to moore-tts-f5",
+   "extra_gated_prompt": "This model is part of a research benchmark on text-to-speech for Moor\u00e9. Requests are reviewed by hand, usually within a few days. Generated speech can imitate real voices, so access comes with a few conditions: respect the license (CC BY-NC 4.0), do not clone or imitate a real person's voice without their consent, say clearly that the audio is synthetic when you share it, and do not use the model for fraud, harassment, impersonation or political misinformation.",
+   "extra_gated_fields": {
+    "First name(s)": "text",
+    "Last name": "text",
+    "Email address where we can reach you (work or academic if possible)": "text",
+    "Affiliation (university, institution or company)": "text",
+    "Country": "country",
+    "Role": {
+     "type": "select",
+     "options": [
+      "Student",
+      "Researcher or academic staff",
+      "Engineer or developer",
+      "Journalist or media",
+      "Independent",
+      "Other"
+     ]
+    },
+    "Intended use": {
+     "type": "select",
+     "options": [
+      "Academic research",
+      "Teaching",
+      "Non-profit or community project",
+      "Commercial product or service",
+      "Industrial R&D",
+      "Personal project",
+      "Other"
+     ]
+    },
+    "Describe your project and how you will use the model (2-3 sentences)": "text",
+    "Will you use the model or the audio it generates commercially?": {
+     "type": "select",
+     "options": [
+      "Yes",
+      "No",
+      "Not sure"
+     ]
+    },
+    "Do you agree to comply with the license stated above?": {
+     "type": "select",
+     "options": [
+      "Yes",
+      "No",
+      "Not sure"
+     ]
+    },
+    "Will you clone or imitate the voice of a real, identifiable person?": {
+     "type": "select",
+     "options": [
+      "No",
+      "Yes, with their written consent",
+      "Yes, other"
+     ]
+    },
+    "Do you speak Moor\u00e9?": {
+     "type": "select",
+     "options": [
+      "Native speaker",
+      "Second language",
+      "No"
+     ]
+    },
+    "May we contact you about listening tests or collaborations on Moor\u00e9 speech technology?": {
+     "type": "select",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    "I will disclose that audio generated with this model is synthetic when I publish or share it": "checkbox",
+    "I will not use this model for fraud, harassment, impersonation, or political misinformation": "checkbox",
+    "I will not redistribute the weights; others should request access on this page": "checkbox",
+    "I will cite this work if I use it in a publication": "checkbox"
+   },
+   "extra_gated_button_content": "Submit request"
+  },
+  "gated": "manual",
+  "lastModified": "2026-10-25T09:22:43.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "c1866aac316251544d138860adb878c293fcdbcc",
+  "downloads": 0,
+  "tags": [
+   "safetensors",
+   "text-to-speech",
+   "moore",
+   "mos",
+   "burkina-faso",
+   "low-resource",
+   "f5",
+   "voice-cloning",
+   "base_model:SWivid/F5-TTS",
+   "base_model:finetune:SWivid/F5-TTS",
+   "license:cc-by-nc-4.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "createdAt": "2026-10-25T08:58:22.000Z"
+ },
+ {
+  "_id": "6addc11769feab6d89934352",
+  "id": "mradermacher/Lure-TTS-Turbo-GGUF",
+  "author": "mradermacher",
+  "cardData": {
+   "base_model": "Tesslate/Lure-TTS-Turbo",
+   "language": [
+    "en"
+   ],
+   "library_name": "transformers",
+   "license": "apache-2.0",
+   "mradermacher": {
+    "readme_rev": 1
+   },
+   "quantized_by": "mradermacher",
+   "tags": [
+    "text-to-speech",
+    "tts",
+    "speech",
+    "audio",
+    "speech-synthesis",
+    "speech-generation",
+    "voice-cloning",
+    "voice-clone",
+    "zero-shot",
+    "expressive-speech",
+    "emotional-speech",
+    "streaming",
+    "english",
+    "safetensors",
+    "preview"
+   ]
+  },
+  "gated": false,
+  "lastModified": "2026-10-25T08:47:22.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "06d57bd344ea0546ffe39750c94d7c4273f4dc20",
+  "downloads": 0,
+  "tags": [
+   "transformers",
+   "gguf",
+   "text-to-speech",
+   "tts",
+   "speech",
+   "audio",
+   "speech-synthesis",
+   "speech-generation",
+   "voice-cloning",
+   "voice-clone",
+   "zero-shot",
+   "expressive-speech",
+   "emotional-speech",
+   "streaming",
+   "english",
+   "safetensors",
+   "preview",
+   "en",
+   "base_model:Tesslate/Lure-TTS-Turbo",
+   "base_model:quantized:Tesslate/Lure-TTS-Turbo",
+   "license:apache-2.0",
+   "endpoints_compatible",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "library_name": "transformers",
+  "createdAt": "2026-10-25T08:43:03.000Z"
+ },
+ {
+  "_id": "6addbb8f52c4f6180e1af865",
+  "id": "pythainlp/MakHamTTS",
+  "author": "pythainlp",
+  "cardData": {
+   "license": "apache-2.0",
+   "language": [
+    "th"
+   ],
+   "pipeline_tag": "text-to-speech"
+  },
+  "gated": false,
+  "lastModified": "2026-10-25T09:02:15.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "b20472a0df73ac02cd0f548f6f712a53dc2cb118",
+  "downloads": 0,
+  "tags": [
+   "onnx",
+   "text-to-speech",
+   "th",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "createdAt": "2026-10-25T08:19:27.000Z"
+ },
+ {
+  "_id": "6addb8e1ee0f5545fa2e9857",
+  "id": "theoracleguy/Chatterbox-Multilingual-pt-br-MLX",
+  "author": "theoracleguy",
+  "cardData": {
+   "library_name": "mlx-audio",
+   "license": "mit",
+   "language": [
+    "pt"
+   ],
+   "base_model": "ResembleAI/Chatterbox-Multilingual-pt-br",
+   "pipeline_tag": "text-to-speech",
+   "tags": [
+    "mlx",
+    "chatterbox",
+    "chatterbox-v3",
+    "voice-cloning"
+   ]
+  },
+  "gated": false,
+  "lastModified": "2026-10-25T09:52:48.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "7e819419d176166101d76b9bfb2205991bdae062",
+  "downloads": 0,
+  "tags": [
+   "mlx-audio",
+   "safetensors",
+   "chatterbox",
+   "mlx",
+   "chatterbox-v3",
+   "voice-cloning",
+   "text-to-speech",
+   "pt",
+   "base_model:ResembleAI/Chatterbox-Multilingual-pt-br",
+   "base_model:finetune:ResembleAI/Chatterbox-Multilingual-pt-br",
+   "license:mit",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "library_name": "mlx-audio",
+  "createdAt": "2026-10-25T08:08:01.000Z"
+ },
+ {
+  "_id": "6addb58585ec237bfb0b8b6f",
+  "id": "theoracleguy/VoxCPM2-bf16",
+  "author": "theoracleguy",
+  "cardData": {
+   "license": "apache-2.0",
+   "base_model": "openbmb/VoxCPM2",
+   "tags": [
+    "mlx",
+    "tts",
+    "text-to-speech",
+    "voice-cloning",
+    "voice-design",
+    "multilingual"
+   ],
+   "library_name": "mlx-audio",
+   "pipeline_tag": "text-to-speech",
+   "language": [
+    "en",
+    "zh",
+    "id",
+    "ja",
+    "ko",
+    "multilingual"
+   ]
+  },
+  "gated": false,
+  "lastModified": "2026-10-25T07:53:56.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "3b59fa2912e37fb77b47ff8cd0aa69a00c724444",
+  "downloads": 0,
+  "tags": [
+   "mlx-audio",
+   "safetensors",
+   "voxcpm2",
+   "mlx",
+   "tts",
+   "text-to-speech",
+   "voice-cloning",
+   "voice-design",
+   "multilingual",
+   "en",
+   "zh",
+   "id",
+   "ja",
+   "ko",
+   "base_model:openbmb/VoxCPM2",
+   "base_model:finetune:openbmb/VoxCPM2",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "library_name": "mlx-audio",
+  "createdAt": "2026-10-25T07:53:41.000Z"
+ }
+]

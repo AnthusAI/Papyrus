@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "2ea65658-1e7b-4d59-93bf-67f229c3e6bc",
+  "issue_id": "PPY-05cf41fe-78cc-4c6b-a775-974ab9feff11",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-24T17:04:53.651Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reader sign-in on Shipped fails after the code exchange (sign_in_error unknown)",
+    "description": "Ryan, 2026-10-24 around 16:30 UTC: the public reader Sign in on https://shipped.anth.us shows 'Sign-in did not complete. Try again.'\n\nDiagnosis so far (read-only):\n- Sign-in start works. The 303 goes to Cognito (pool us-east-1_t5Rk1NdU7, client 4fefkac5sepfm8cbdogeo898lv) and sets the pending cookie.\n- The cookie survives the round trip: a wrong-state probe gives state_mismatch.\n- The code exchange is reached: a bogus code gives code_exchange_failed.\n- The Prospectus resource policy, registration and challenge calls all work.\n- Nothing changed in the callback code between 5.31.0 and 5.33.1.\n- The failure is therefore after the code exchange. Likely nonce_mismatch or token_pair_mismatch, or a rejection before the Prospectus resolve Lambda runs.\n- Every named failure branch in handleProspectusSignInCallback (lib/prospectus-sign-in-routes.ts) is silent, so the logs can't tell.\n\nNext:\n(1) An observability PR: log a structured prospectus_sign_in_failed line for every branch, and show the code in the reader UI (in progress).\n(2) After release and the Shipped bump, Ryan retries and reports the shown code; or, before that, he reads the callback response's Location header (?sign_in_error=CODE) in DevTools.\n(3) Fix the root cause. If it's on the Prospectus side, hand the evidence to the Prospectus session.\n\nBlocks: the Shipped reader stories b3b934, 378fcc, d02e82 and b35fa2 (end-to-end sign-in, vote, rate, used-it, submit, comment).",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-S"
+    ]
+  }
+}

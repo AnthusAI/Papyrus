@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "85b4a95e-c98b-4af6-919c-f04aaf75bd51",
+  "issue_id": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T18:22:36.380Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Rebuild the Machines on Machines wiki from accepted References",
+    "description": "Ryan 2026-11-04: rebuild from what remains that is higher quality, and improve extraction, ontology, taxonomy and the wiki along the way. After the May delete: 52 accepted References (49 with curation-text, median 10 KB; 41 monitor-delivered), 302 concepts of which 293 rejected. Public wiki reads 'Nothing has been published here yet': its pages were retired 11-02.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-17d05702-569a-41fd-bfc8-4e11eca9792e",
+    "labels": []
+  }
+}

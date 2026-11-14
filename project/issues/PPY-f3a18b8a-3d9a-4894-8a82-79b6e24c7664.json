@@ -1,0 +1,31 @@
+{
+  "id": "PPY-f3a18b8a-3d9a-4894-8a82-79b6e24c7664",
+  "title": "Hugging Face Hub monitor source for Shipped (huggingface-models)",
+  "description": "Source type huggingface-models for monitors: public Hub model list with per-author, search and pipeline-tag queries, minimum likes/downloads and a watchlist, structured details (license, tags, library, likes, downloads, sha, baseModels relations), dedupe on the model's sha, direct routing with an optional rule, and papyrus monitors backfill (bounded, resumable). Feeds Shipped's knowledge map and the weekly trend-story step (5a8661). Code: PR 704 (merged to develop). Not deployed: change set, seed and backfill commands are in docs/monitoring-cloud.md, Starting Shipped. Open: deploy and seed (Ryan), Shipped corpus check before going live, Cyclotron acceptance of source huggingface if cyclotron routing is ever used.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "9e2768cb-3147-4c1f-b18a-55baf09a4935",
+      "author": "home",
+      "text": "PR 704 merged to develop (not released, not deployed). Collector, router rule, backfill CLI (papyrus monitors backfill), template schedules and docs are in. Next, for Ryan: build and upload both zips, change set on papyrus-monitoring, seed the huggingface collector and router configs (dry-run first), then backfill; commands and the recommended Shipped CONFIG are in docs/monitoring-cloud.md under Starting Shipped. Check before going live: the Shipped publication's canonical corpus (knowledge-corpus-shipped) and that ShippedApiId 6sw6454pozbgvdgm233gqkxsxu is the live Shipped API.",
+      "created_at": "2026-10-25T13:40:30.522893Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-25T13:25:49.969181Z",
+  "updated_at": "2026-10-25T13:40:36.857152Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

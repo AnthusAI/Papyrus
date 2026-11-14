@@ -8,10 +8,26 @@ release number. Publishing uses npm and PyPI trusted publishing (OIDC); there is
 ## How releases are cut
 
 - Commit with conventional commits (`feat:`, `fix:`, `feat!:` or `BREAKING CHANGE` for real breaks).
+- A squash merge takes the pull request's title as its commit message, so the title must start with `feat:` or `fix:` (a title like "Hooks: ..." releases nothing).
+- A push that changes only files under `project/**` (the Kanbus board) never starts the Release workflow, so a release pull request must carry at least one change outside it. An empty commit or a board-only difference between `develop` and `main` publishes nothing (2026-11-09, #1317 and #1318).
 - A push to `develop` publishes a prerelease `X.Y.Z-next.N` (npm dist-tag `next`; PyPI `X.Y.Z.devN`).
-- A push to `main` publishes the stable version. `main` only changes by a `develop` to `main` pull request with a merge commit. Under the standing instruction in `AGENTS.md` (Git workflow), agents may promote `develop` to `main` once CI is green and let the release publish; without that instruction, or a human asking, they do not.
+- A push to `main` publishes the stable version. `main` only changes by a release: a `develop` to `main` pull request with a merge commit, once or twice a day. Agents release only when told to, and an extra release needs Ryan's say-so (`AGENTS.md`, Git workflow, policy of 2026-11-04). Site bumps go to each site's `develop` and ship in that site's release.
 - Versions are stamped into the staged copies only; nothing is committed back.
 - Do not hand-tag. Semantic Release picks the first version (`1.0.0-next.1`).
+
+## One new index per table per release
+
+DynamoDB creates or deletes one global secondary index per table in one update, and a table holds at most 20. The GSI ledger check (`scripts/check-gsi-ledger.ts`, run by the `ts-misc` job and by `npm run test:gsi-ledger`) compares the indexes in every schema source (`amplify/data/schema.ts` and each plugin's and function's `schema.ts`) with the last stable release tag (the `ts-misc` job checks out the full history so tags exist; with no tag the check fails and says so) and fails when:
+
+- a table gains more than one index since that tag (it names the table and every new index);
+- an index keeps its name but changes its keys (add a new index and remove the old one in a later release);
+- a table has more than 20 indexes, the DynamoDB limit per table.
+
+It reports how many index slots each changed table has left, and prints the release order the pending indexes need: release 1 takes the first new index of each table, release 2 the second, and so on. A renamed index counts as a removal plus an addition. Rules and examples: `features_backend/gsi-ledger.feature`.
+
+## Shared AWS stacks: pipeline roles
+
+A release to `main` also deploys the shared AWS stacks (`.github/workflows/stack-deploy.yml`). That needs the pipeline's IAM roles. They are changed by the `role-stack-deploy` workflow when a change to `infra/pipeline/papyrus-stack-pipeline.yaml` is merged to `develop` or `main`: it plans in the job summary and the reviewer approves in GitHub, so the roles can be updated before the release that needs them. On a new AWS account a person runs the one-time setup (`infra/pipeline/bootstrap.sh --approver-only`, `infra/pipeline/create-environment.sh`). A release whose summary says "The pipeline roles are out of date" has an approval waiting. Details: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
 
 ## The publish switch
 
@@ -21,9 +37,19 @@ default, so pushes run only the package smoke checks and publish nothing. Set it
 after the registry setup below is done. Local check: `npm run release:dry-run` with
 `GITHUB_TOKEN` set publishes nothing.
 
+- After a stable release the `back-merge` job merges `main` back into `develop` (Git Flow). The stable tag sits on main's merge
+  commit, so without it semantic-release on develop cannot see the tag and keeps numbering prereleases from an old version.
+
 ## Trying a prerelease in a publication
 
+Every merge to `develop` that carries a `feat:` or `fix:` publishes `X.Y.Z-next.N` (npm dist-tag `next`, PyPI `X.Y.Z.devN`),
+built from develop exactly as a release is built from main. To develop a site feature without releasing to `main` each time,
+pin the site to that exact prerelease, the same way it pins a release (the site's `package.json`, `infra/package.json` and
+`infra/site.json` `papyrusVersion`), and put the site change in the same pull request to the site's `develop`, so it ships in one release. Go back to a stable
+version once the feature is released.
+
 ```
+npm view @anthusai/papyrus dist-tags.next      # the newest develop prerelease
 npm i @anthusai/papyrus@next
 pip install --pre papyrus-newsroom
 ```

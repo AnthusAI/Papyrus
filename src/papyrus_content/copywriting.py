@@ -7,7 +7,9 @@ from typing import Any
 
 from .catalog import semantic_relation_record
 from .content_item_lifecycle import require_assignment_content_item_lineage_id
+from .story_types import type_for_new_story
 from .ids import hash_short, hash_stable, safe_id
+from .item_stars import carry_item_stars
 from .model_attachments import attachment_record, build_json_model_payload_attachment
 from .reporting_packet_review import REPORTING_PACKET_KIND
 
@@ -125,8 +127,16 @@ def build_copywriting_run_plan(
             },
         }
     )
+    # The new draft is the head of its lineage; the version it follows is superseded in the same plan, so the story has one row in the head stage
+    # index (docs/plans/story-head-stage-index.md). The superseded row keeps its own updatedAt (the full row is written back).
+    superseded_versions = [
+        {"modelName": "Item", "expected": {**item, "versionState": "superseded"}}
+        for item in existing_items or []
+        if item.get("lineageId") == item_version["lineageId"] and item.get("id") != item_version["id"] and item.get("versionState") != "superseded"
+    ]
     records = [
         {"modelName": "Item", "expected": item_version},
+        *superseded_versions,
         produces_relation,
         {"modelName": "AssignmentEvent", "expected": event},
         metadata_attachment,
@@ -152,6 +162,7 @@ def build_copywriting_run_plan(
             "versionNumber": item_version["versionNumber"],
             "previousVersionId": item_version.get("previousVersionId"),
             "createsDraftItem": True,
+            "basedOnReferenceIds": list(private_editorial_metadata.get("acceptedReferenceIds") or []),
             "createsEditionItem": False,
             "recordCount": len(records),
         },
@@ -182,7 +193,7 @@ def _draft_item_for_copywriting(
         or assignment.get("sectionKey")
         or assignment.get("sectionId")
         or packet.get("sectionKey")
-        or "unsectioned"
+        or None
     )
     headline = (
         _clean_string(packet.get("recommendedAngle"))
@@ -213,14 +224,14 @@ def _draft_item_for_copywriting(
         "versionCreatedBy": actor_label,
         "changeReason": "copywriting-assignment-run",
         "contentHash": "",
-        "type": target_item_type,
+        "type": type_for_new_story(),
         "status": "draft",
-        "typeStatus": f"{target_item_type}#draft",
+        "typeStatus": f"{type_for_new_story()}#draft",
         "stage": "copywriting",
-        "slug": f"draft-{safe_id(section)}-{hash_short([lineage_id, version_number, title])}",
+        "slug": f"draft-{safe_id(section or 'unsectioned')}-{hash_short([lineage_id, version_number, title])}",
         "shortSlug": None,
         "section": section,
-        "sectionStatus": f"{section}#draft",
+        "sectionStatus": f"{section or ''}#draft",
         "title": title,
         "headline": headline,
         "deck": deck,
@@ -245,7 +256,7 @@ def _draft_item_for_copywriting(
             "body": record["body"],
         }
     )
-    return record
+    return carry_item_stars(previous, record)   # a new version keeps the editors' rating of the Story
 
 
 def _private_editorial_metadata_for_copywriting(

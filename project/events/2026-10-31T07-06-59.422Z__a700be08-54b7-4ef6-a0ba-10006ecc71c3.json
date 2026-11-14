@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "a700be08-54b7-4ef6-a0ba-10006ecc71c3",
+  "issue_id": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T07:06:59.422Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Later: public conversation on Papyrus sites: forum-style thread pages, posting by signed-in visitors, interactive publications",
+    "description": "Deferred direction recorded from Ryan (2026-10-31) while planning the `wire` epic (public pages that show accepted References, recommended References and Message threads mixed with Stories). NOT in scope now; this stub exists so the seams built there are kept.\n\nDirection:\n1. An old-web-forum style public view of Message threads that anyone can read, where signed-in visitors can post. Seams left by the wire epic: `_data/wire/threads/<key>.json` per thread (messages in sequence), a reserved thread page base (`urls.wire.threadBase`, default `conversations`), the export's single author-display policy (`wire.threads.authors`), Messages stay people-only (no machine Messages), moderation through the existing `moderateMessage` mutation.\n2. Interactive \"Web 2.0\" publications for sites that opt in: the published `_data/wire/*.json` files plus the islands runtime (`papyrus-islands.js`, `::island{}`) are the mount points; a client component that refreshes the grids from the JSON without a page rebuild is the first step.\n3. This extends the public Reference curation on Shipped (reader-steering plugin): visitors help curate References. The `recommended` selection is where reader votes would surface; reader subjects can gain `reference:<key>` keys; reader identity stays the readerId/handle policy already enforced by the reader-privacy scan.\n\nDecisions needed before this starts: identity for public posters (reader accounts epic PPY-1546fc), moderation defaults (AI moderation per the LLM-and-moderation defaults), and which sites opt in. Gherkin specs required for every behaviour change.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "PPY-1d5b1a2d-d811-469b-b58e-af590c391d79",
+  "title": "Fair projection part 1: the projection lease is keyed per tenant",
+  "description": "Outcome: Key the lease by '<bucket>#<tenant>' when a tenant is set and by the bucket alone otherwise (dedicated unchanged). The queue is part 2. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) tenant-lease-key, branch feature/<this issue id>-tenant-lease-key from origin/develop (spikes: branch spike/<this issue id>-tenant-lease-key, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/projection/lease.py and lease_test.py.\n\nAcceptance (Gherkin feature file: features_backend/tenant-fair-projection.feature):\nScenario: Two tenants project at the same time\n    Given alpha holds its projection lease\n    When beta starts a projection in the same bucket\n    Then beta does not wait\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: poetry run pytest src/papyrus_content/projection/lease_test.py.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-994bd093-b3f2-442c-9711-0ac8e5819220",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T21:32:23.390967Z",
+  "updated_at": "2026-11-08T21:32:24.733151Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

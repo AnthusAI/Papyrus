@@ -380,11 +380,10 @@ def _add_signals_parser(subparsers: argparse._SubParsersAction[argparse.Argument
     concept_parser.add_argument("--run-id", default="")
     concept_parser.add_argument("--now", default="", help="Optional ISO timestamp for deterministic report generation")
     concept_parser.add_argument("--input", default="", help="Optional fixture JSON with references, semanticNodes, and semanticRelations")
-    concept_parser.add_argument("--apply", action="store_true")
     concept_parser.add_argument("--json", action="store_true")
     trend_parser = signal_subparsers.add_parser(
         "trend-report",
-        help="Build a private edition signal report from recent accepted knowledge-base references",
+        help="Print an edition signal report (writes nothing) from recent accepted knowledge-base references",
     )
     trend_parser.add_argument("--corpus-key", required=True)
     trend_parser.add_argument("--date", default="")
@@ -396,7 +395,6 @@ def _add_signals_parser(subparsers: argparse._SubParsersAction[argparse.Argument
     trend_parser.add_argument("--limit", type=int, default=10)
     trend_parser.add_argument("--run-id", default="")
     trend_parser.add_argument("--input", default="", help="Optional fixture JSON with references and semanticNodes")
-    trend_parser.add_argument("--dry-run", action="store_true")
     trend_parser.add_argument("--json", action="store_true")
 
 
@@ -513,7 +511,6 @@ def _run_signals_command(args: argparse.Namespace) -> dict:
             references=fixture.get("references") if fixture else None,
             semantic_nodes=(fixture.get("semanticNodes") or fixture.get("semantic_nodes")) if fixture else None,
             semantic_relations=(fixture.get("semanticRelations") or fixture.get("semantic_relations")) if fixture else None,
-            apply=args.apply,
             now=args.now,
         )
     if args.signals_command == "trend-report":
@@ -531,7 +528,6 @@ def _run_signals_command(args: argparse.Namespace) -> dict:
             references=fixture.get("references") if fixture else None,
             semantic_nodes=(fixture.get("semanticNodes") or fixture.get("semantic_nodes")) if fixture else None,
             newsroom_sections=fixture.get("newsroomSections") if fixture else None,
-            apply=not args.dry_run,
         )
     raise SystemExit("Missing or unsupported signals subcommand.")
 

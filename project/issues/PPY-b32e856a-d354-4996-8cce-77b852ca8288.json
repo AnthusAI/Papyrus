@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b32e856a-d354-4996-8cce-77b852ca8288",
+  "title": "Fact-checking and hallucination defense at every level",
+  "description": "Ryan 2026-11-03: standardize fact-checking and hallucination defense at various levels, with different safeguards. Everything a model writes that a person or another agent will rely on goes through one shared check, in layers from cheap and certain to costly and judged. Live evidence: research packet 3 on Machines on Machines wrote \"Rodney Reid\" (source says only \"Reid\"; he is Randal Quran Reid) and \"Tennessee resident Christopher Gatlin\" (St. Louis), despite the prompt rule against adding facts. Prompt rules are not a safeguard by themselves.\n\nLAYERS\n1. Instructions to the writer: exists, necessary, not sufficient.\n2. Citations exist: every claim cites a real source (exists for research and ideas).\n3. Literal check (code, free, certain): each name, number, date, place and quotation in a claim must appear in the sources it cites.\n4. Independent judge (separate model call, told nothing about how the text was written): does the cited text support this claim? It must give a verbatim supporting quote, and code verifies the quote. Fails closed.\n5. Source strength: how many independent sources, whether a claim rests on one, and whether a party's allegation stays attributed as an allegation.\n6. Consequences: a failed claim is never silently deleted and never passed on as fact. It is held in an unverified list with the reason, and later agents see it labelled.\n7. People: the editor sees each claim's status; a hard gate before publishing through `review_requests`.\n\nWHERE: research packets (first), Reference summaries, idea drafts, Story drafts before publishing, then agent conversations on Chatticus.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T13:41:36.903257Z",
+  "updated_at": "2026-11-03T13:41:36.903333Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

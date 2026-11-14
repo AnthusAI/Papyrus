@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "61828692-c0db-459c-870b-85608184793e",
+  "issue_id": "PPY-ae5ec459-8592-4eee-9bac-fb25b4e94bf7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:48.553Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Better concept suggestions while curating a Reference",
+    "description": "Show on a Reference card which of its concepts the section tracks, and rank the typed `#` box and suggestions by rank and section. A tracked concept mention is a curation signal for an editor, and can later be a feature for the Cyclotron (request to the Cyclotron sessions). Screenshot review.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d0b97eb6-f948-465d-bdb4-03f7a577f6b1",
+    "labels": []
+  }
+}

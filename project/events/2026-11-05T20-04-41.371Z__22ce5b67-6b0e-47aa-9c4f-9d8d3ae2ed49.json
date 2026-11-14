@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "event_id": "22ce5b67-6b0e-47aa-9c4f-9d8d3ae2ed49",
+  "issue_id": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-05T20:04:41.371Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Agent tools for Papyrus sites: remote MCP and WebMCP",
+        "to": "Hosted MCP server for staff and readers"
+      },
+      "description": {
+        "from": "Follow-up to agent-readable pages (PPY-f172d7): expose search/read (and later authorized actions) to external agents via a remote MCP server per site, and evaluate WebMCP for in-browser agents. Builds on the newsroom CLI/GraphQL surface. Not started.",
+        "to": "Authenticated Streamable HTTP with site-bound rotating OAuth grants, typed staff tools and existing reader actions. Public discovery stays on HTTP. Verify with the seeded protocol harness before host trials."
+      },
+      "parent": {
+        "from": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+        "to": "PPY-e7ad4f9f-7a57-415d-8ff3-cba9d40f5207"
+      }
+    }
+  }
+}

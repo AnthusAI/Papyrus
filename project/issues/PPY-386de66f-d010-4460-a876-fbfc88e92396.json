@@ -1,0 +1,20 @@
+{
+  "id": "PPY-386de66f-d010-4460-a876-fbfc88e92396",
+  "title": "Generated wiki pages stop overwriting a person's edit",
+  "description": "Finding: `knowledge_wiki/sync.py` `_plan_page` UPDATE rewrites a draft page's front matter and body in place, so a person's draft edit is lost. REVISE only writes beside a live page. Decision proposed: the node is the source of truth for name, description and aliases, and the page has an optional person-written section the sync never touches. A page a person edited is reported and left alone otherwise. Spec the rule in `docs/public-wiki.md`.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-46d70d7c-891b-4332-8819-012cf0b24628",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:46.642934Z",
+  "updated_at": "2026-11-04T02:52:46.642974Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

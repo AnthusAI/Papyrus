@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "adc5ead6-9164-4ba6-acef-bd76ef61edaa",
+  "issue_id": "PPY-7d2945cc-6b1d-4798-ad83-cf17765da63e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T13:41:30.553Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "StoryVariation data model",
+    "description": "Model, index, Python offer/list/decide, Gherkin, docs. Branch feat/story-variation-model. Nothing writes or shows variations yet.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+    "labels": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8dab5a4b-3db5-454f-8d34-2d8d2c7ee2d5",
+  "issue_id": "PPY-04bc99dd-6a8c-4536-9046-f635d3736ccc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-30T15:44:00.778Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The open thread's title on the Messages page shows a bar on its left edge",
+    "description": "",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+    "labels": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "ba4af4d4-e1a9-402b-bcff-72b6122857b3",
+  "issue_id": "PPY-e7a0c267-4496-499c-a5a4-dac2da868d90",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:49.132Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Resolvers: create, decide and suggest links",
+    "description": "amplify/data/reference-link-actions.ts in the pattern of amplify/data/message-actions.ts:\n- createReferenceLink(subjectLineageId, objectKind, objectLineageId, predicate) -> current, provenance human, addedBy from the caller's identity.\n- decideReferenceLink(relationId, decision accept|reject, reasonCode?, note?) -> stamps decidedBy/At from identity.\n- suggestReferenceLinks(referenceId) -> runs suggest_for on demand (Lambda or the procedure runner; decide which in the PR and say why).\nAuth: editors of the site only. Lint with APPSYNC_JS rules and evaluate-code before release (resolver deploy lessons: no relative resolver entry).\nGherkin: features/reference-related-ui.feature backend scenarios.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

@@ -43,3 +43,28 @@ Feature: Current editorial context for newsroom agents
     And the publication policy belongs to a tenant outside the configured scope
     When the agent resolves editorial context for assignment "a1"
     Then editorial context fails with "tenant"
+
+  # Editorial checks ask for optional doctrine, so odd records never stop an editor's checks (the resolver logs a warning that names the publication).
+  Scenario: Editorial checks run without a mission when two current missions disagree
+    Given editorial records with two current missions
+    When editorial checks resolve context optionally
+    Then the editorial context is resolved without the "mission" and a warning names the publication
+
+  Scenario: Strict callers still refuse two current missions
+    Given editorial records with two current missions
+    When the agent resolves editorial context for assignment "a1"
+    Then editorial context fails with "found 2"
+
+  Scenario: Editorial checks run without section guidance when two sections share a name
+    Given editorial records with two sections called "Culture Desk"
+    When editorial checks resolve context optionally for section "Culture Desk"
+    Then the editorial context is resolved without section guidance and a warning names the publication
+
+  Scenario: Editorial context lists writing and image guidelines with their versions and hashes
+    Given editorial records with current publication and section policies
+    And the site has writing guidelines for the publication and the section "science" and image guidelines for the section "science"
+    When the agent resolves editorial context for assignment "a1" including the guidelines
+    Then the editorial context lists the writing guidelines at the publication and at the section and the image guidelines at the section
+    And each guidelines entry names its lineage, its version and a sha256 of its text, and the text names the command that reads them resolved
+    And the editorial context asked for without the guidelines lists none of them
+

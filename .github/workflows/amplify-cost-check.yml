@@ -1,0 +1,31 @@
+# Monthly Amplify cost check (PPY-95602e). Read-only: Cost Explorer plus Amplify list calls, through a read-only
+# GitHub OIDC role. It stays inert until the repository variable AMPLIFY_COST_CHECK_ROLE_ARN names that role
+# (see docs/amplify-cost-check.md). The table lands in the job summary.
+name: Amplify cost check
+
+on:
+  schedule:
+    - cron: "0 14 2 * *"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  cost-check:
+    if: vars.AMPLIFY_COST_CHECK_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AMPLIFY_COST_CHECK_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Check last month's Amplify cost
+        run: |
+          previous_month="$(date -u -d "$(date -u +%Y-%m-01) -1 month" +%Y-%m)"
+          { echo '```'; node packages/papyrus/bin/papyrus-infra.mjs cost amplify --months 3 --through "$previous_month"; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"

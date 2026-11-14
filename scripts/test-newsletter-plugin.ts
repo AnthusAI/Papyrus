@@ -40,7 +40,7 @@ const base = {
   lists: [
     {
       id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup",
-      schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, archivePath: "/roundup/",
+      schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "post", archivePath: "/roundup/",
     },
     { id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert", rule: { sections: ["Security"], tags: ["breaking"] } },
   ],
@@ -48,6 +48,26 @@ const base = {
 const with_ = (changes: Record<string, unknown>) => ({ ...base, ...changes });
 const refuses = (request: Record<string, unknown>, pattern: RegExp, message?: string) =>
   assert.throws(() => resolveNewsletterConfig(request as never), pattern, message);
+
+// PAPYRUS_COMPUTE_ROLE_ARN (set on the Amplify branch by the app-shell stack) supplies or replaces computeRoleArn, so the ARN need not be in Git.
+{
+  const exampleRole = "arn:aws:iam::111122223333:role/ExampleComputeRole";
+  const previous = process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+  try {
+    delete process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+    const { computeRoleArn: _omitted, ...withoutRole } = base;
+    assert.throws(() => resolveNewsletterConfig(withoutRole as never), /computeRoleArn.*PAPYRUS_COMPUTE_ROLE_ARN/, "neither the setting nor the variable: a clear error naming both");
+    assert.equal(resolveNewsletterConfig(base as never).computeRoleArn, computeRoleArn, "the written value still works");
+    process.env.PAPYRUS_COMPUTE_ROLE_ARN = exampleRole;
+    assert.equal(resolveNewsletterConfig(withoutRole as never).computeRoleArn, exampleRole, "the variable supplies the role");
+    assert.equal(resolveNewsletterConfig(base as never).computeRoleArn, exampleRole, "the variable wins over the written value");
+    process.env.PAPYRUS_COMPUTE_ROLE_ARN = "not-an-arn";
+    assert.throws(() => resolveNewsletterConfig(base as never), /computeRoleArn/, "a malformed variable is rejected");
+  } finally {
+    if (previous === undefined) delete process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+    else process.env.PAPYRUS_COMPUTE_ROLE_ARN = previous;
+  }
+}
 
 // The manifest, the registry and the schema agree; the plugin opens nothing to guests and adds no model to the content API.
 assert.equal(KNOWN_PLUGINS.newsletter, newsletterPlugin);
@@ -106,7 +126,7 @@ assert.equal(resolveNewsletterConfig(with_({ basePath: "/posts" })).basePath, "p
 assert.equal(resolveNewsletterConfig(with_({ basePath: "posts/" })).basePath, "posts");
 assert.equal(resolveNewsletterConfig(with_({ basePath: "/" })).basePath, "");
 assert.equal(resolveNewsletterConfig(with_({ itemUrlStyle: "directory" })).itemUrlStyle, "directory");
-assert.equal(config.lists[0].kind === "roundup" && config.lists[0].issueType, "newsletter_issue");
+assert.equal(config.lists[0].kind === "roundup" && config.lists[0].issueType, "post", "the issue type is whatever the site configures");
 assert.deepEqual(config.lists[1].kind === "alert" && config.lists[1].approval, "admin");
 assert.equal(resolveNewsletterConfig(with_({ configurationSet: "custom-set", eventTopicName: "custom-topic" })).configurationSet, "custom-set");
 assert.equal(resolveNewsletterConfig(with_({ configurationSet: "custom-set", eventTopicName: "custom-topic" })).eventTopicName, "custom-topic");
@@ -180,6 +200,7 @@ refuses(with_({ basePath: 7 }), /basePath/);
 refuses(with_({ itemUrlStyle: "flat" }), /itemUrlStyle must be one of html, directory, clean/);
 refuses(with_({ lists: [{ ...base.lists[0], archivePath: undefined }] }), /archivePath/);
 refuses(with_({ lists: [{ ...base.lists[0], issueType: "Not Valid" }] }), /issueType/);
+refuses(with_({ lists: [{ ...base.lists[0], issueType: undefined }] }), /issueType must be the lowercase Item type the site gives its issues/);
 refuses(with_({ lists: [{ ...base.lists[0], rule: {} }] }), /unknown settings: rule/);
 refuses(with_({ lists: [{ ...base.lists[1], schedule: {} }] }), /unknown settings: schedule/);
 refuses(with_({ lists: [base.lists[0], { ...base.lists[0], id: "other" }] }), /different archivePath/);
@@ -202,7 +223,7 @@ assert.deepEqual(published, {
   fromName: "Example News",
   basePath: "",
   lists: [
-    { id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup", issueType: "newsletter_issue", archivePath: "/roundup/" },
+    { id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup", issueType: "post", archivePath: "/roundup/" },
     { id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert" },
   ],
   theme: base.theme,
@@ -225,7 +246,7 @@ assert.equal(environment.ITEM_URL_STYLE, "html");
 assert.deepEqual(JSON.parse(environment.LISTS_JSON), [
   {
     id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup",
-    issueType: "newsletter_issue", archivePath: "/roundup/", timezone: "America/New_York",
+    issueType: "post", archivePath: "/roundup/", timezone: "America/New_York",
   },
   {
     id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert",
@@ -443,9 +464,9 @@ assert.ok(
   "the function and the worker can queue",
 );
 assert.ok(statements.some((statement) => actionsOf(statement).includes("sqs:ReceiveMessage")), "the worker consumes the queue");
-const getAccount = statements.filter((statement) => actionsOf(statement).includes("sesv2:GetAccount"));
+const getAccount = statements.filter((statement) => actionsOf(statement).includes("ses:GetAccount"));
 assert.equal(getAccount.length, 1);
-assert.deepEqual(getAccount[0].Action, "sesv2:GetAccount");
+assert.deepEqual(getAccount[0].Action, "ses:GetAccount");
 assert.ok(
   statements.some((statement) => actionsOf(statement).some((action) => action.startsWith("kms:Decrypt")) && JSON.stringify(statement.Resource).includes("Key")),
   "the function can decrypt the table key",
@@ -453,7 +474,7 @@ assert.ok(
 const wildcards = statements.filter((statement) => statement.Resource === "*");
 assert.deepEqual(
   wildcards.map((statement) => statement.Action).sort(),
-  ["ses:DeleteSuppressedDestination", "sesv2:GetAccount"],
+  ["ses:DeleteSuppressedDestination", "ses:GetAccount"],
   "the two actions IAM cannot scope to a resource: lifting a suppression and reading the send rate",
 );
 const sending = statements.filter((statement) => actionsOf(statement).includes("ses:PutConfigurationSetSendingOptions"));

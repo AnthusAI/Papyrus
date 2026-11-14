@@ -1,0 +1,27 @@
+{
+  "id": "PPY-bbc8e5be-9f9f-4374-a187-960a67623125",
+  "title": "Replace newsletter alert lists; keep old links working",
+  "description": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M3, public email and new stories\n\n**Goal.** Settled: new-story replaces alert lists; subscribers move without re-confirming. Roundups stay in the plugin until the digest epic. As an existing subscriber, nothing changes for me but the machinery, and my old links still work.\n\n**Build.**\n- One-off job per site, using both tables in the same account: profiles, `LIST#` rows of alert lists only, `SUPP#` rows; writes subscription and consent rows, with consent evidence copied and marked `migrated`. Idempotent; dry run first. The SES account suppression list is already shared, so no import.\n- Unsubscribe and preferences routes keep working and forward alert-list changes, since manage tokens in sent mail never expire. `announce_published` stops raising alert issues once a site has moved. Panel stops listing alert issues there. `docs/newsletter.md` updated. Sites with alert lists today: Shipped and Distinctive.\n\n**Acceptance.**\nCounts match per list; a migrated site sends one message per publish, not two; an old link unsubscribes; a suppressed address stays suppressed.\n\n**Depends on:** PPY-38be08\n**Related:** kanbus-b47fad\n\n**Specification.**\n```gherkin\nFeature: Migration\n  Scenario: Moved without re-confirming\n    Given a confirmed subscriber on an alert list\n    When the migration runs\n    Then they are subscribed with their original consent evidence\n    And they receive no confirmation mail\n\n  Scenario: An old unsubscribe link\n    Given a subscriber migrated\n    When they use the unsubscribe link in an old email\n    Then they are unsubscribed in the new system\n```",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m3"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-38be082c-b736-46a0-89a5-9ca1c3233fd2",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-04T13:14:30.980196Z",
+  "updated_at": "2026-11-04T17:10:48.702968Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

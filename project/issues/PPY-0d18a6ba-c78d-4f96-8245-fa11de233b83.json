@@ -1,0 +1,230 @@
+{
+  "id": "PPY-0d18a6ba-c78d-4f96-8245-fa11de233b83",
+  "title": "Define Papyrus shared chat trust boundary contract",
+  "description": "Add a code-local reusable admission contract for site-hosted shared chat. Inject a verified Papyrus principal and membership resolver; derive Account/site/editor on the server; enforce private per-editor transcript ownership and operation-scoped idempotency with payload-reuse rejection. Cover rejection and replay behavior in tests and Gherkin. Document that JWT audience, client_id and token_use are distinct and that the production token type and verifier configuration must be verified before wiring. No exposed endpoint, live AppSync changes, live IAM/OIDC, or deployment.",
+  "type": "task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-839cf737-d3e6-46de-bb24-911bde8d11d4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "1d2a4bcc-1270-48a9-8be4-06fb8417f656",
+      "author": "home",
+      "text": "2026-10-23: Added code-local site-hosted admission contract and Gherkin/test wiring. Branch feature/PPY-0d18a6-chat-trust-contract, head 93cf3f6cba2a095065e6218718042913d67fdef7 (pushed). Local PASS: npm run test:shared-chat-admission; both new Gherkin scenarios; npm run typecheck; npm run lint; git diff --check. Full shared-chat Gherkin run could not run its existing browser fixture because sandbox denied listening on 127.0.0.1 (EPERM); new contract scenarios pass individually. Exact-head GitHub status/workflow queries returned no checks/runs because no PR was created. Draft PR creation attempt via GitHub integration was rejected HTTP 403 Resource not accessible by integration; PR remains pending, no merge/deploy attempted. The production token profile and verifier/atomic idempotency-store wiring remain unimplemented by design.",
+      "created_at": "2026-10-23T20:18:55.463207Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "76793fe1-793d-4328-a419-3ed69a2edb3c",
+      "author": "home",
+      "text": "2026-10-23 follow-up: tightened membership to require active membership plus host-derived editorial-chat authorization (editor/admin mapping), and reran checks after the fix. Code head ebebefa976a511e19a15611748330c9e6b09eb88 is pushed on feature/PPY-0d18a6-chat-trust-contract. Typecheck, lint, admission script, both added Gherkin scenarios and diff check pass. Exact-head status and workflow lookups remain empty; the draft PR attempt remains denied (403 from GitHub integration).",
+      "created_at": "2026-10-23T20:20:12.062064Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b154a262-b4ff-45f1-8432-3f2b88991cb9",
+      "author": "home",
+      "text": "2026-10-24 code-local consumer increment: Papyrus now pins exact Chatticus #637 head b332fb88e194f0fd100d449765e1e851d4c538f3 and adds an injectable admission sender. It requires Authorization headers from a fresh host provider; a retry reuses the immutable attempt and key while fetching headers again; no implicit retry/fallback; AppSync/UI send path stays untouched. Production token semantics, endpoint and author mapping are intentionally not guessed. Branch feature/PPY-0d18a6-chat-client-adapter, code commit a4eac1d9db3e8fedca0761a97a6639451e118d70. PASS: Papyrus typecheck/lint, admission contract tests, adapter transport test, new Gherkin scenarios, diff check. Full pre-existing browser Gherkin fixture previously hit sandbox EPERM on 127.0.0.1. Do not retry PR creation; prior GitHub integration returned 403. No PR/hosted CI/deploy/merge.",
+      "created_at": "2026-10-24T18:34:37.957110Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "412d761d-8c23-4693-8f78-bd89cf5e9992",
+      "author": "home",
+      "text": "2026-10-25: Combined Papyrus release candidate is in draft PR https://github.com/AnthusAI/Papyrus/pull/697 at exact head fdc118698b63fe33c883e339d72a090fd2870390. It includes the tested private-chat client/runtime integration, PR662 shared UI commit, and PR667 final email-auth head 303169f3f30704dfa698ccaf7951283561fc04f9. Exact-head smoke, TypeScript (including shared-chat browser acceptance and full npm test), and Python CI all pass (runs 40145034476 / 40145034464). Fixed the TSX CJS/ESM test boundary by running the worker integration test as .mts and updated its Gherkin wrapper; targeted worker/hosted tests, typecheck, lint pass. The Papyrus private-chat feature remains default-off and AppSync is unchanged. No IAM, deployment, merge or publish has been applied. Read-only production account check confirmed CDKToolkit asset bucket cdk-hnb659fds-assets-712236451410-us-east-1; existing CDK execution role is account-wide (CloudFormation Resource * and AdministratorAccess), while p-apyr-us-github-deploy remains Amplify-only. PR697 is clean against current develop but remains a draft because automatic review rejected marking it ready; release merge is blocked pending that review/authorization. Local full suite/build hit sandbox EPERM/DNS limitations; hosted exact-head CI passed.",
+      "created_at": "2026-10-25T00:13:50.708946Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b46c824c-00b4-4f89-8ed2-07650dc5248a",
+      "author": "home",
+      "text": "2026-10-26 chat setup: read-only AWS checks confirmed account 712236451410/us-east-1, the existing p-apyr CMS compute role, no PapyrusChatDataCandidate stack, no private-chat flag on main, and no dedicated model key. User approved indefinite private-history retention and the exact chat resources/access. Existing CDK execution uses an AdministratorAccess role; the p-apyr GitHub role is Amplify-only. Follow-up is preparing the approved resource change set through the existing SSO operator session, keeping chat/model execution off; the worker key path is being corrected to /papyrus/p-apyr-us/openai-api-key.",
+      "created_at": "2026-10-26T04:13:18.902250Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Codex"
+      }
+    },
+    {
+      "id": "a8c12c16-044d-43e1-8483-09a8bbddba1e",
+      "author": "home",
+      "text": "2026-10-26 chat setup receipt: deployed PapyrusChatDataCandidate in 712236451410/us-east-1; stack arn:aws:cloudformation:us-east-1:712236451410:stack/PapyrusChatDataCandidate/26f60110-d0f4-11f1-a5d2-0affe23ffc23 reached CREATE_COMPLETE at 04:19 UTC from reviewed change set arn:aws:cloudformation:us-east-1:712236451410:changeSet/papyrus-chat-20261026/7c4f75c7-84ef-4c7c-ab7c-3ae620c9fc3d. Exact change set: 24 adds, no modifies/removes/replacements. It created two DynamoDB tables, private versioned S3, four queues, two Node22 workers, scoped gateway policy on the existing CMS role. Both mappings are false in the deployed template; run mapping readback was Disabled. User-approved no-expiry retention remains. Dedicated key path is /papyrus/p-apyr-us/openai-api-key; it is absent, value not read/created. Site flag absent and AppSync remains live. No model invocation. Exact-lockfile CDK synthesis and both template validators pass. AWS SSO session expired during probe mapping postcheck; no reauth attempt. Full hosted UI/model reply/editor-isolation acceptance remains pending code release and secure key configuration.",
+      "created_at": "2026-10-26T04:21:40.701037Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6d789e74-774c-4d63-89b5-d528cb0da80a",
+      "author": "home",
+      "text": "2026-10-26: commit f2dba39ce87170a226ee793bf798ec206be5e097 separates runtime and synthetic Lambda build directories, enforces exact bundle contents, and pins the run-worker SSM read to /papyrus/p-apyr-us/openai-api-key. Runtime and synthetic template validators plus git diff --check pass. The deployed stack is unchanged by this code-only commit; the refreshed runtime Lambda update still needs an authenticated AWS SSO session. No mappings or site flag enabled.",
+      "created_at": "2026-10-26T04:24:37.728294Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "f0ea95f6-e712-412a-80c1-ab0e71776618",
+      "author": "home",
+      "text": "2026-10-26 PR #720 CI found the pilot-identifier guard flagging the site-specific model-key path in CDK source/generated templates. Moved the path into config/papyrus-chat-candidate.json, kept the template validator tied to that config, generalized the stack description, and documented generated chat templates as deployment configuration in the guard. Local identifier guard, both template validators, fresh runtime/synthetic synths, and diff checks now pass. PR CI rerun will validate the exact updated head.",
+      "created_at": "2026-10-26T04:36:45.028522Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "885d8dc8-1181-49f6-afe5-abd0f15aab96",
+      "author": "home",
+      "text": "Prepared narrow main-based release candidate for newsroom chat authentication fix from PR #732. This excludes unrelated develop changes. Awaiting release-path decision before any main merge. Identity binding, validated Account selection, and private transcript isolation remain mandatory.",
+      "created_at": "2026-10-26T13:15:13.867778Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "chat-runtime-continuation"
+      }
+    },
+    {
+      "id": "9fd942dd-2713-43f6-8653-310a1cd987c7",
+      "author": "home",
+      "text": "Investigating mobile private chat entry visibility on released 5.41.2; isolated maintenance-base worktree. Entitlement administration remains untouched.",
+      "created_at": "2026-10-27T05:17:16.356186Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile continuation"
+      }
+    },
+    {
+      "id": "5847aa2a-96ed-487e-9e7f-285566b63d53",
+      "author": "home",
+      "text": "Mobile fix on fix/PPY-0d18a6-mobile-chat, based on exact 5.41.2 maintenance commit 8943e364. Root cause: chat toggle is last in a horizontally clipped header action row. Added visible mobile Chat entry and viewport-aware accessible panel without changing authorization. Production build, typecheck, lint and shared-chat BDD passed (20 scenarios, 65 steps), including phone connection/Account-selection fixtures. Tested 320–430px portrait and 844px landscape, focus/close/return, transcript scrolling and simulated keyboard visual viewport. Real iOS keyboard and live reply remain unverified. Preparing PR against 5.41.x only; no entitlement, IAM, credential or backend changes.",
+      "created_at": "2026-10-27T05:27:16.463610Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile continuation"
+      }
+    },
+    {
+      "id": "876d1fa3-0bc4-491e-9a6b-53c8ccfe9f0d",
+      "author": "home",
+      "text": "Prepared mobile chat PR https://github.com/AnthusAI/Papyrus/pull/741 targeting 5.41.x, branch fix/PPY-0d18a6-mobile-chat. Implementation commit e8abbc0f. Build, typecheck, lint, and 20 shared-chat scenarios passed locally. Not merged or deployed; no develop/main promotion. Live device/model acceptance still pending. Entitlement and administration work untouched.",
+      "created_at": "2026-10-27T05:28:00.763829Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile continuation"
+      }
+    },
+    {
+      "id": "346050f8-e403-4fc9-90d5-9323742ef06b",
+      "author": "home",
+      "text": "User rejected floating mobile Chat control. Screenshot inspected locally: panel opened and reports no publishing Account; no evidence of a failed tap. Correcting navigation integration and the misleading, low-contrast access state; provisioning remains separate and unchanged. Will test real navigation component, touch hit targets, Back/close, resize, recovery, and empty eligible-Account response. Narrow maintenance branch only.",
+      "created_at": "2026-10-27T06:32:56.250045Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile correction"
+      }
+    },
+    {
+      "id": "649aa685-0668-4309-a7d9-019a80933bb9",
+      "author": "home",
+      "text": "Correction PR https://github.com/AnthusAI/Papyrus/pull/748 at f4e26679. Replaces floating control with existing navigation slot, preserves Messages in More, adds mobile Back and accurate readable eligibility recovery. Typecheck, lint, production build and 21 shared-chat scenarios / 70 steps pass; responsive touch and dark render checks pass. Real iOS and real model reply remain unverified; product eligibility is a separate blocker. Maintenance 5.41.x only.",
+      "created_at": "2026-10-27T06:51:10.961075Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile correction"
+      }
+    },
+    {
+      "id": "90cdb233-d5ab-4056-a474-abfe477fe1aa",
+      "author": "home",
+      "text": "PR748 smoke blocked by fresh lucide-react registry resolution exposing ./src/*.ts. Existing range unchanged. Add existing icon dependency to default consumer transpilation and regression coverage as minimal package compatibility prerequisite; no new package, backend, or permissions.",
+      "created_at": "2026-10-27T06:59:40.287095Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile correction"
+      }
+    },
+    {
+      "id": "634bcc5d-5826-4272-8f93-b7885bd19964",
+      "author": "home",
+      "text": "Independent PR review found hidden public-route and duplicate reload history entries. Correction gates restoration/history on actual console availability and adopts an existing marker after reload. Added browser regressions for reload while open, public/unavailable route with persisted state, and normal Back. Release remains gated on final-head tests.",
+      "created_at": "2026-10-27T07:08:29.856015Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile correction"
+      }
+    },
+    {
+      "id": "b05dc4cd-5409-4f02-9245-27bf16145b3e",
+      "author": "home",
+      "text": "Approved newsroom-session contract: verified configured Cognito editor JWT; server publication namespace; new isolated issuer/sub private history; no Prospectus data/tools or grants. Implement with denial, persistence and mobile regression coverage, then narrow maintenance release and live acceptance.",
+      "created_at": "2026-10-27T11:26:51.957404Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6"
+      }
+    },
+    {
+      "id": "222b3d15-1df7-4272-ab26-c2f5b34c8aa9",
+      "author": "home",
+      "text": "Newsroom-only adapter implemented: configured pool/client JWT, isolated storage/client/issuer namespace and issuer/sub editor; no Prospectus lookup. Gateway and scripted shared-worker persistence tests pass; 19-scenario browser suite passed before additional auth-change case. Typecheck, lint and production build passed. Added expiry-capped streams and reviewed computerless tools. Final browser run underway; real model reply remains a live acceptance requirement.",
+      "created_at": "2026-10-27T11:34:53.153409Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "chat-owner"
+      }
+    },
+    {
+      "id": "51d34991-5517-4577-bb48-30bcf060b8d2",
+      "author": "home",
+      "text": "Approved exact-table ConditionCheckItem additions deployed through reviewed change set chat-condition-check-20261027; UPDATE_COMPLETE,24resources unchanged. Existing newsroom login produced real model reply at10:11AM EDT; reply survives reload. Old failed test retained. Adding source/template regression to preserve permissions. No other grants.",
+      "created_at": "2026-10-27T14:12:47.905474Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "chat-owner"
+      }
+    },
+    {
+      "id": "6e7d011d-8984-4306-8963-2d6a359b78ba",
+      "author": "home",
+      "text": "CLOSEOUT 2026-10-27: approved publication-local newsroom JWT model is deployed and verified. Existing authorized editor session -> one separately labelled acceptance test -> real production model reply -> reload/history passed at10:11AM America/New_York. User independently confirmed production response at11:19AM (parent report). PR754 delivered auth isolation; PR748 mobile navigation; PR774 merged21969547b145803f5fc9058ecf6e978b1ead46a5 after CI40519581045 python/ts success. Exact gateway/messaging and run-worker/conversation ConditionCheckItem additions applied via reviewed change set chat-condition-check-20261027;24resources, unchanged worker hashes/mappings, grants reverified after5.41.8 Amplify87. Anonymous transcript401. Old test turn failed recovery-exhausted and was preserved, not replayed; new test completed attempt1/recovery0. Limits: Chrome390x844 mobile only, no physical iPhone keyboard test; cross-editor/publication isolation is controlled regression coverage, not a live second-editor test. No Prospectus grants, legacy-history migration, broader editorial tools or Slack migration. Engineering ownership ended at user request; see docs/handoffs/2026-10-27-private-newsroom-chat.md on board/PPY-0d18a6-chat-closeout.",
+      "created_at": "2026-10-27T15:47:34.172740Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "chat-closeout"
+      }
+    }
+  ],
+  "created_at": "2026-10-23T20:13:27.231123Z",
+  "updated_at": "2026-10-27T15:47:42.360562Z",
+  "closed_at": "2026-10-27T15:47:42.360236Z",
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6-luna",
+    "name": "shared-chat-contract"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

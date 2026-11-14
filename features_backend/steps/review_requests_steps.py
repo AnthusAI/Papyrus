@@ -170,13 +170,13 @@ def no_unapplied(context, procedure):
 @when('the idea pipeline raises a batch review for run "{run}" with {count:d} proposals')
 def raise_batch(context, run, count):
     created = rr.raise_batch_review(context.client, raised_by="idea-pipeline", batch_id=run,
-                                    proposal_ids=[f"proposal-{n}" for n in range(count)], now=context.clock.now)
+                                    idea_ids=[f"idea-{n}" for n in range(count)], now=context.clock.now)
     context.request_id = created["id"]
 
 
 @when('the idea pipeline raises the batch review for run "{run}" again')
 def raise_batch_again(context, run):
-    rr.raise_batch_review(context.client, raised_by="idea-pipeline", batch_id=run, proposal_ids=["proposal-0", "proposal-1", "proposal-2"],
+    rr.raise_batch_review(context.client, raised_by="idea-pipeline", batch_id=run, idea_ids=["idea-0", "idea-1", "idea-2"],
                           now=context.clock.now)
 
 
@@ -186,9 +186,25 @@ def one_open_soft(context, reason):
     assert len(found) == 1 and found[0]["mode"] == "soft_review" and found[0]["reason"] == reason
 
 
-@then("its deadline is {days:d} days away")
-def deadline_days(context, days):
-    assert request(context)["deadline"] == rr.now_iso(T0 + timedelta(days=days))
+@then("it has no deadline")
+def has_no_deadline(context):
+    assert request(context)["deadline"] is None
+
+
+@when('the procedure "{procedure}" raises a soft review on story "{story}" with no deadline')
+def raise_soft_open_ended(context, procedure, story):
+    raise_review(context, "soft_review", procedure, "Please review")
+
+
+@when("ten years go by with nobody answering")
+def ten_years(context):
+    context.clock.now += timedelta(days=3650)
+    context.expired = rr.expire_due(context.client, now=context.clock.now)
+
+
+@then("the request was not timed out")
+def not_timed_out(context):
+    assert context.expired == [] and request(context)["state"] == "open"
 
 
 @then("there is still one review request")

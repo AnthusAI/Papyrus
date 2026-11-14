@@ -1,0 +1,28 @@
+{
+  "id": "PPY-7fe0ddfd-e0ad-4c8b-a366-e8703a6e74e0",
+  "title": "Staging branches build on demand, not on every push (TI, Pilobol.us, Anth.us, p.apyr.us)",
+  "description": "Facts: `staging` (BETA) branches have auto-build ON for threat-intelligence-cms, pilobol-us-cms, anth-us-cms, p-apyr-us-cms. Unknown share of the 542 builds: measure first.\nSteps:\n1. Measure: `aws amplify list-jobs --app-id <id> --branch-name staging` for the last 30 days per app; sum minutes; post the numbers on this story (read-only).\n2. Decide with the data (no fixed cap): if staging builds are a material share (expected 10–20%), set `enableAutoBuild: false` for the staging branch in `amplify-app-shell.ts` (line ~262 today hard-codes `true`) behind `cms.staging.buildOnPush: false` in site-config, and add a way to start one: `workflow_dispatch` input `branch-name: staging` on the site's deploy workflow (the reusable `amplify-deploy.yml` already takes `branch-name`), plus the GithubDeployRole allowing StartJob on the staging branch too.\n3. Redeploy affected app-shell stacks (CDK write, Ryan's approval; pre-prod sites move fast).\nAcceptance: pushing to `staging` no longer starts a job; `gh workflow run deploy.yml -f branch-name=staging` does; Gherkin in Papyrus features: \"staging builds start only on request\". Record the before/after minutes.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+  "labels": [
+    "ci",
+    "cost"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T18:09:36.453289Z",
+  "updated_at": "2026-10-31T18:09:36.453340Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-fable-5-1",
+    "name": "plan-ci-cost"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

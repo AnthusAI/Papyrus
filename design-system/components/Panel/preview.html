@@ -1,0 +1,29 @@
+<!-- @dsCard group="Surfaces" height=300 subtitle="Paper, chrome, quiet, lifted" -->
+<div id="root" style="padding:20px;background:var(--substrate)"></div>
+<script>
+  const { Panel, Eyebrow, Button, Rule } = window.Papyrus;
+  const React = window.React;
+  const h = React.createElement;
+  const copy = { margin: 0, fontSize: "14px", lineHeight: "20px", color: "var(--ink)" };
+
+  function Demo() {
+    return h("div", { style: { display: "grid", gap: "16px", gridTemplateColumns: "1fr 1fr" } }, [
+      h(Panel, { register: "paper", title: "Solver owns the page", key: 1 }, [
+        h(Eyebrow, { role: "byline", key: "b" }, "By a staff writer"),
+        h("p", { style: { margin: "8px 0 0", fontSize: "18px", lineHeight: "28px", color: "var(--ink)" }, key: "p" },
+          "Reader copy sits on paper with square corners and a section rule above it.")
+      ]),
+      h(Panel, { register: "chrome", title: "Assignment", key: 2 }, [
+        h("p", { style: copy, key: "p" }, "Chrome panels carry console work: titles, meta and actions."),
+        h(Rule, { key: "r", className: "ppy-rule--soft", style: { margin: "12px 0" } }),
+        h(Button, { size: "sm", key: "b" }, "Claim")
+      ]),
+      h(Panel, { register: "quiet", pad: "tight", key: 3 },
+        h("p", { style: copy }, "Quiet: a nested group or an empty state.")),
+      h(Panel, { register: "lifted", pad: "loose", title: "Confirm kill", key: 4 },
+        h("p", { style: copy }, "Lifted: dialogs only, one at a time."))
+    ]);
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(h(Demo));
+</script>

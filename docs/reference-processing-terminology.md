@@ -34,3 +34,10 @@ Use this vocabulary contract for Papyrus reference workflows.
 - "Reprocess this reference" means rerun processing steps without changing
   curation semantics.
 - "Curate this reference" means editorial status decision, not extraction work.
+
+## Curation before review
+
+`curate before review` is the machine stage that runs on a monitored Reference while it is still pending:
+capture the text, record completeness signals, summarize, and extract paper structure with GROBID. It makes
+no editorial decision, so it is not `curate reference` in the sense above. See
+`docs/reference-curation-pipeline.md`.

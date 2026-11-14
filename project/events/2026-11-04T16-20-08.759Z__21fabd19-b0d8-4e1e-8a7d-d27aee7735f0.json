@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "21fabd19-b0d8-4e1e-8a7d-d27aee7735f0",
+  "issue_id": "PPY-b5068822-19f6-480f-aa78-65d12ec79fa3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T16:20:08.759Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Leave aggregations out of knowledge searches by default",
+    "description": "Ryan, 2026-11-04: tag aggregations so they are generally ignored in knowledge searches and the like; their text is mostly a list of titles and crowds out the real articles. Name every search, context pack and retrieval path this applies to, and say how a caller asks to include them. The aggregation stays visible in the References list and on the card, with its children. Screenshot review for any UI. Test: searching a term from the series on Machines on Machines returns the articles, not the hub.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f8ff4916-268e-45a3-97a6-d6f2d5d780f6",
+    "labels": []
+  }
+}

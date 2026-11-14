@@ -270,6 +270,7 @@ def run_the_snapshot(context, base_path: str = "", scheduled: bool = False) -> N
         hype_gap=getattr(context, "reader_hype_gap", None),
         subject_types=context.reader_options.get("subject_types"),
         ranking=getattr(context, "reader_ranking", None),
+        extraction=getattr(context, "reader_extraction", None),
     )
 
 

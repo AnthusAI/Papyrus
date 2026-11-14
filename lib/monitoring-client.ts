@@ -1,29 +1,131 @@
 "use client";
 
 import { generateClient } from "aws-amplify/data";
-import type { MonitoringResult } from "./monitoring-overview";
+import { emailReferenceBatches } from "./monitoring-overview";
+import { homeCyclotronStateFrom, type HomeCyclotronState } from "./hosted-cyclotron-status";
+import type {
+  EmailDecisionResult,
+  MonitoringListName,
+  MonitoringPage,
+  EmailReferenceImportItem,
+  EmailReferenceImportOutcome,
+  MonitoringEmailArticleResolution,
+  MonitoringEmailDetails,
+  MonitoringResult,
+} from "./monitoring-overview";
 
-type GraphQLResult = { data?: { monitoringOverview?: unknown }; errors?: { message?: string; errorType?: string }[] };
+type QueryField = "monitoringOverview" | "monitoringPage" | "monitoringEmailSubmission" | "monitoringDecideEmailSubmission" | "monitoringResolveEmailArticleLink" | "intakeEmailSubmissionReferences" | "monitoringQueueEmailReference";
+type GraphQLResult = { data?: Partial<Record<QueryField, unknown>>; errors?: { message?: string; errorType?: string }[] };
 
-/**
- * Reads the monitoring overview through the site's own authenticated API (user pool, editor or admin).
- * The browser holds no table name, key or secret: the function behind the query does the read.
- */
-export async function loadMonitoringOverview(scope: "publication" | "all"): Promise<MonitoringResult> {
+async function query<T>(field: QueryField, queryText: string, variables: Record<string, string | number | null>): Promise<T | { error: "forbidden" } | { state: "unavailable" }> {
   const client = generateClient({ authMode: "userPool" });
   let result: GraphQLResult;
   try {
-    result = (await client.graphql({
-      query: `query MonitoringOverview($scope: String) { monitoringOverview(scope: $scope) }`,
-      variables: { scope },
-    })) as GraphQLResult;
+    result = (await client.graphql({ query: queryText, variables })) as GraphQLResult;
   } catch (error) {
-    // Amplify throws the response when AppSync returns errors.
     result = (error && typeof error === "object" && "errors" in error ? error : { errors: [{ message: "failed" }] }) as GraphQLResult;
   }
   const refused = result.errors?.some((entry) => /unauthorized|not authorized|forbidden/i.test(`${entry.errorType ?? ""} ${entry.message ?? ""}`));
   if (refused) return { error: "forbidden" };
-  if (result.errors?.length || result.data?.monitoringOverview === undefined || result.data.monitoringOverview === null) return { state: "unavailable" };
-  const raw = result.data.monitoringOverview;
-  return (typeof raw === "string" ? JSON.parse(raw) : raw) as MonitoringResult;
+  const raw = result.data?.[field];
+  if (result.errors?.length || raw === undefined || raw === null) return { state: "unavailable" };
+  return (typeof raw === "string" ? JSON.parse(raw) : raw) as T;
+}
+
+/** Reads monitoring data only through the site's authenticated editor/admin API. */
+export async function loadMonitoringOverview(scope: "publication" | "all"): Promise<MonitoringResult> {
+  return query<MonitoringResult>("monitoringOverview",
+    `query MonitoringOverview($scope: String) { monitoringOverview(scope: $scope) }`, { scope });
+}
+
+/**
+ * One more page of one list after `cursor` (null starts the list from its newest row). `heldOnly` lists only held
+ * email submissions, so a held message is findable however old it is.
+ */
+export async function loadMonitoringPage(
+  list: MonitoringListName, cursor: string | null, scope: "publication" | "all", heldOnly = false,
+): Promise<MonitoringPage> {
+  return query<MonitoringPage>("monitoringPage",
+    `query MonitoringPage($list: String!, $cursor: String, $filter: String, $scope: String) { monitoringPage(list: $list, cursor: $cursor, filter: $filter, scope: $scope) }`,
+    { list, cursor, filter: heldOnly ? "held" : null, scope });
+}
+
+/**
+ * The Cyclotron classifier status of this site's own publication: one small read through the same signed-in Monitoring API, never the
+ * overview. The server returns only the snapshot rows that belong to the site's publication.
+ */
+export async function loadCyclotronStatusRows(): Promise<HomeCyclotronState> {
+  const result = await query<unknown>("monitoringPage",
+    `query MonitoringPage($list: String!, $cursor: String, $filter: String, $scope: String) { monitoringPage(list: $list, cursor: $cursor, filter: $filter, scope: $scope) }`,
+    { list: "cyclotronStatus", cursor: null, filter: null, scope: "publication" });
+  return homeCyclotronStateFrom(result);
+}
+
+/** Loads one receipt's safe plain-text rendering and its already extracted candidate links. */
+export async function loadMonitoringEmailSubmission(receiptId: string): Promise<MonitoringEmailDetails> {
+  return query<MonitoringEmailDetails>("monitoringEmailSubmission",
+    `query MonitoringEmailSubmission($receiptId: String!) { monitoringEmailSubmission(receiptId: $receiptId) }`, { receiptId });
+}
+
+/**
+ * Accept or Reject one held email submission. "Accept" releases it into the normal intake and
+ * "Reject" discards it; the editor and the optional reason are recorded server-side.
+ */
+export async function decideMonitoringEmailSubmission(
+  receiptId: string, decision: "accept" | "reject", reason: string,
+): Promise<EmailDecisionResult> {
+  return query<EmailDecisionResult>("monitoringDecideEmailSubmission",
+    `mutation MonitoringDecideEmailSubmission($receiptId: String!, $decision: String!, $reason: String) { monitoringDecideEmailSubmission(receiptId: $receiptId, decision: $decision, reason: $reason) }`,
+    { receiptId, decision: decision === "accept" ? "release" : "discard", reason });
+}
+
+/** Resolve one explicitly selected Beehiiv article redirect; this may register a click with the sender. */
+export async function resolveMonitoringEmailArticleLink(receiptId: string, candidateIndex: number): Promise<MonitoringEmailArticleResolution> {
+  return query<MonitoringEmailArticleResolution>("monitoringResolveEmailArticleLink",
+    `mutation MonitoringResolveEmailArticleLink($receiptId: String!, $candidateIndex: Int!) { monitoringResolveEmailArticleLink(receiptId: $receiptId, candidateIndex: $candidateIndex) }`,
+    { receiptId, candidateIndex });
+}
+
+/** Use the existing editor-authorized Reference intake; 20 is its request batch size, not a total limit. */
+export async function importMonitoringEmailCandidates(
+  receiptId: string,
+  items: EmailReferenceImportItem[],
+): Promise<EmailReferenceImportOutcome> {
+  const client = generateClient({ authMode: "userPool" });
+  const references: EmailReferenceImportOutcome["references"] = [];
+  for (const batch of emailReferenceBatches(items)) {
+    let result: GraphQLResult;
+    try {
+      result = (await client.graphql({
+        query: `mutation IntakeEmailSubmissionReferences($input: AWSJSON!) { intakeEmailSubmissionReferences(input: $input) }`,
+        variables: { input: JSON.stringify({ receiptId, items: batch }) },
+      })) as GraphQLResult;
+    } catch {
+      return { imported: references.length, references, error: "The import stopped. Completed links are safe to retry." };
+    }
+    if (result.errors?.length) {
+      return { imported: references.length, references, error: "The import stopped. Completed links are safe to retry." };
+    }
+    const raw = result.data?.intakeEmailSubmissionReferences;
+    let response: { ok?: boolean; references?: EmailReferenceImportOutcome["references"] } | null | undefined;
+    try {
+      response = (typeof raw === "string" ? JSON.parse(raw) : raw) as typeof response;
+    } catch {
+      return { imported: references.length, references, error: "The import response could not be read. Completed links are safe to retry." };
+    }
+    if (!response?.ok || !Array.isArray(response.references) || response.references.length !== batch.length) {
+      return { imported: references.length, references, error: "The import was not accepted. Check your editor access and retry." };
+    }
+    references.push(...response.references);
+    for (const [index, reference] of response.references.entries()) {
+      const queued = await query<{ queued: boolean }>("monitoringQueueEmailReference",
+        `mutation MonitoringQueueEmailReference($input: AWSJSON!) { monitoringQueueEmailReference(input: $input) }`,
+        { input: JSON.stringify({ receiptId, ...batch[index], referenceId: reference.id }) });
+      if (!("queued" in queued) || !queued.queued) {
+        return { imported: references.length, references,
+          error: "References were registered, but predictions could not be queued. Retry these selected links safely." };
+      }
+    }
+  }
+  return { imported: references.length, references };
 }

@@ -13,10 +13,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .tenant_knowledge_keys import SEMANTIC_RELATION_FEED_KEY, global_key
+from .concept_link_predicates import MENTIONS, is_reference_concept_link
 from .env import PAPYRUS_ROOT
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from .ids import hash_short, hash_stable, safe_id
-from .message_contract import build_canonical_message_expected
 from .model_attachments import (
     attachment_record,
     build_json_model_payload_attachment,
@@ -26,6 +27,7 @@ from .model_attachments import (
 from .options import parse_options, resolve_mutation_apply
 from .records import apply_record_changes, build_record_changes
 from .relation_types import semantic_relation_type_fields_for_predicate
+from .semantic_node_writes import derived_fields_patch_change
 from .relations_commands import print_category_import_summary
 
 RELATION_EXPLANATION_ROLE = "ontology_relation_explanation"
@@ -34,7 +36,6 @@ RELATION_EXPLANATION_PROMPT_VERSION = "ontology-relation-explanation-v1"
 CONCEPT_PROFILE_PROMPT_VERSION = "ontology-concept-profile-v1"
 RELATION_EXPLAINER_PROCEDURE = "procedures/newsroom/ontology_relationship_explainer.tac"
 CONCEPT_PROFILER_PROCEDURE = "procedures/newsroom/ontology_concept_profiler.tac"
-ONTOLOGY_MESSAGE_SOURCE = "papyrus-ontology-enrichment"
 OPERATIONAL_RELATION_TYPES = {
     "comment",
     "ingestion_rationale",
@@ -56,6 +57,7 @@ RELATION_WEIGHTS = {
     "supports": 1.0,
     "contradicts": 1.0,
     "related_to": 0.35,
+    "tagged_with": 0.35,   # a story's or Reference's concept tag weighs what it did under its old name, related_to
 }
 DEDUP_RELATION_KEYS = {"same_as", "alias_of"}
 ASSOCIATION_CONFIDENCE_THRESHOLD = 0.86
@@ -144,8 +146,8 @@ def ontology_recompute_authority(flags: list[str]) -> None:
     )
     scoped = scoped_ranked_concepts(state, ranked, options)
     apply = resolve_mutation_apply(options, "knowledge ontology recompute-authority")
-    records = build_concept_authority_records(state, scoped)
-    result = apply_or_report(client, "ontology-recompute-authority", records, apply=apply)
+    records = build_concept_authority_changes(state, scoped, now=_utc_now())
+    result = apply_changes_or_report(client, records, apply=apply)
     limit = _int_option(options, "limit", 25)
     top = scoped[:limit] if limit else scoped
     payload = {
@@ -501,13 +503,15 @@ def rank_concepts(
         graph_nodes.add(subject_ref)
         graph_nodes.add(object_ref)
         weight = relation_weight(relation_key)
+        if is_reference_concept_link(relation_key, subject_kind, object_kind):
+            weight = max(weight, RELATION_WEIGHTS[MENTIONS])
         weighted_edges[subject_ref][object_ref] += weight
-        if relation_key in {"related_to", "same_as"}:
+        if relation_key in {"related_to", "same_as", "tagged_with"}:
             weighted_edges[object_ref][subject_ref] += weight
         if object_kind == "semanticNode" and object_lineage in node_lineages:
             relation_count_by_node[object_lineage] += 1
             source_kinds_by_node[object_lineage].add(subject_kind)
-            if relation_key == "mentions" and subject_kind == "reference":
+            if is_reference_concept_link(relation_key, subject_kind, object_kind):
                 mentions_by_node[object_lineage].add(subject_lineage)
         if subject_kind == "semanticNode" and subject_lineage in node_lineages:
             relation_count_by_node[subject_lineage] += 1
@@ -587,22 +591,25 @@ def scoped_ranked_concepts(
     return sorted(scoped, key=lambda row: int(row.get("authorityRank") or 0))
 
 
-def build_concept_authority_records(state: dict[str, Any], ranked: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_concept_authority_changes(state: dict[str, Any], ranked: list[dict[str, Any]], *, now: str) -> list[dict[str, Any]]:
+    """Partial updates of the derived authority numbers only; a concept that already has them is left alone."""
     nodes_by_id = {str(node.get("id")): node for node in current_semantic_nodes(state) if node.get("id")}
-    records: list[dict[str, Any]] = []
+    changes: list[dict[str, Any]] = []
     for row in ranked:
-        node_id = str(row.get("id") or "")
-        node = nodes_by_id.get(node_id)
+        node = nodes_by_id.get(str(row.get("id") or ""))
         if not node:
             continue
-        expected = dict(node)
-        expected["authorityScore"] = float(row.get("score") or 0.0)
-        expected["authorityRank"] = int(row.get("authorityRank") or 0)
-        expected["acceptedReferenceMentionCount"] = int(row.get("acceptedReferenceMentions") or 0)
-        expected["distinctSourceKindCount"] = int(row.get("distinctSourceKinds") or 0)
-        expected["relationCount"] = int(row.get("relationCount") or 0)
-        records.append({"modelName": "SemanticNode", "expected": expected})
-    return records
+        wanted = {
+            "authorityScore": float(row.get("score") or 0.0),
+            "authorityRank": int(row.get("authorityRank") or 0),
+            "acceptedReferenceMentionCount": int(row.get("acceptedReferenceMentions") or 0),
+            "distinctSourceKindCount": int(row.get("distinctSourceKinds") or 0),
+            "relationCount": int(row.get("relationCount") or 0),
+        }
+        change = derived_fields_patch_change(node, wanted, now=now)
+        if change is not None:
+            changes.append(change)
+    return changes
 
 
 def compute_pagerank(nodes: set[str], edges: dict[str, dict[str, float]], *, damping: float = 0.85, iterations: int = 32) -> dict[str, float]:
@@ -1147,7 +1154,6 @@ def deterministic_concept_profile(context: dict[str, Any]) -> dict[str, Any]:
 
 def build_relation_explanation_records(relation: dict[str, Any], context: dict[str, Any], output: dict[str, Any], *, now: str) -> list[dict[str, Any]]:
     relation_id = str(relation.get("id") or "")
-    message_id = f"message-ontology-relation-{safe_id(relation_id)}-{hash_short(context['inputFingerprint'])}"
     payload = {
         "schemaVersion": 1,
         "artifactKind": RELATION_EXPLANATION_ROLE,
@@ -1159,28 +1165,6 @@ def build_relation_explanation_records(relation: dict[str, Any], context: dict[s
         "generatedAt": now,
         "output": output,
     }
-    message = build_canonical_message_expected(
-        {
-            "id": message_id,
-            "messageKind": "ontology_relation_explanation",
-            "messageDomain": "ontology",
-            "status": "active",
-            "summary": str(output.get("meaning") or "Ontology relation explanation")[:200],
-            "source": ONTOLOGY_MESSAGE_SOURCE,
-            "body": json.dumps(payload, indent=2, sort_keys=True),
-            "semanticLayer": "ontology",
-            "searchVisibility": "private",
-            "responseTarget": "semanticRelation",
-            "responseStatus": "COMPLETED",
-            "responseOwner": "ontology.relationship-explainer",
-            "createdAt": now,
-            "updatedAt": now,
-            "metadata": {"relationId": relation_id, "inputFingerprint": context["inputFingerprint"]},
-        },
-        default_source=ONTOLOGY_MESSAGE_SOURCE,
-        default_author_label="ontology.relationship-explainer",
-        default_response_owner="ontology.relationship-explainer",
-    )
     attachment = attachment_record(
         build_json_model_payload_attachment(
             {
@@ -1196,32 +1180,12 @@ def build_relation_explanation_records(relation: dict[str, Any], context: dict[s
             }
         )
     )
-    link = semantic_relation_record(
-        predicate="explains_relation",
-        subject_kind="message",
-        subject_id=message_id,
-        subject_lineage_id=message_id,
-        subject_version_number=1,
-        object_kind="semanticRelation",
-        object_id=relation_id,
-        object_lineage_id=relation_id,
-        object_version_number=None,
-        confidence=_number_or_none(output.get("confidence")),
-        score=_number_or_none(output.get("confidence")),
-        classifier_id="ontology.relationship-explainer",
-        model_version=str(output.get("model") or ""),
-        source_snapshot_id=relation.get("sourceSnapshotId"),
-        import_run_id=relation.get("importRunId"),
-        imported_at=now,
-        metadata={"inputFingerprint": context["inputFingerprint"], "artifactRole": RELATION_EXPLANATION_ROLE},
-    )
-    return [{"modelName": "Message", "expected": message}, attachment, link]
+    return [attachment]
 
 
 def build_concept_profile_records(concept: dict[str, Any], context: dict[str, Any], output: dict[str, Any], *, now: str) -> list[dict[str, Any]]:
     concept_id = str(concept.get("id") or "")
     concept_lineage = str(concept.get("lineageId") or concept_id)
-    message_id = f"message-ontology-concept-{safe_id(concept_id)}-{hash_short(context['inputFingerprint'])}"
     payload = {
         "schemaVersion": 1,
         "artifactKind": CONCEPT_PROFILE_ROLE,
@@ -1233,28 +1197,6 @@ def build_concept_profile_records(concept: dict[str, Any], context: dict[str, An
         "generatedAt": now,
         "output": output,
     }
-    message = build_canonical_message_expected(
-        {
-            "id": message_id,
-            "messageKind": "ontology_concept_profile",
-            "messageDomain": "ontology",
-            "status": "active",
-            "summary": str(output.get("meaning") or "Ontology concept profile")[:200],
-            "source": ONTOLOGY_MESSAGE_SOURCE,
-            "body": json.dumps(payload, indent=2, sort_keys=True),
-            "semanticLayer": "ontology",
-            "searchVisibility": "private",
-            "responseTarget": "semanticNode",
-            "responseStatus": "COMPLETED",
-            "responseOwner": "ontology.concept-profiler",
-            "createdAt": now,
-            "updatedAt": now,
-            "metadata": {"conceptId": concept_id, "inputFingerprint": context["inputFingerprint"]},
-        },
-        default_source=ONTOLOGY_MESSAGE_SOURCE,
-        default_author_label="ontology.concept-profiler",
-        default_response_owner="ontology.concept-profiler",
-    )
     attachment = attachment_record(
         build_json_model_payload_attachment(
             {
@@ -1272,26 +1214,7 @@ def build_concept_profile_records(concept: dict[str, Any], context: dict[str, An
             }
         )
     )
-    link = semantic_relation_record(
-        predicate="note_about",
-        subject_kind="message",
-        subject_id=message_id,
-        subject_lineage_id=message_id,
-        subject_version_number=1,
-        object_kind="semanticNode",
-        object_id=concept_id,
-        object_lineage_id=concept_lineage,
-        object_version_number=concept.get("versionNumber"),
-        confidence=_number_or_none(output.get("confidence")),
-        score=_number_or_none(output.get("confidence")),
-        classifier_id="ontology.concept-profiler",
-        model_version=str(output.get("model") or ""),
-        source_snapshot_id=concept.get("sourceSnapshotId"),
-        import_run_id=concept.get("importRunId"),
-        imported_at=now,
-        metadata={"inputFingerprint": context["inputFingerprint"], "artifactRole": CONCEPT_PROFILE_ROLE},
-    )
-    return [{"modelName": "Message", "expected": message}, attachment, link]
+    return [attachment]
 
 
 def build_association_relation_records(state: dict[str, Any], concepts: list[dict[str, Any]], *, threshold: float) -> list[dict[str, Any]]:
@@ -1446,7 +1369,7 @@ def semantic_relation_record(
         "importedAt": imported_at,
         "createdAt": imported_at,
         "updatedAt": imported_at,
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": json.dumps(metadata, sort_keys=True),
     }
     return {"modelName": "SemanticRelation", "expected": expected}
@@ -1480,6 +1403,12 @@ def relation_identity_key(subject_kind: str, subject: dict[str, Any], predicate:
 def normalize_predicate(value: str, state: dict[str, Any]) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_") or "related_to"
     return normalized if normalized in state.get("relationTypes", {}) else "related_to"
+
+
+def apply_changes_or_report(client: PapyrusGraphQLAuthoringClient, changes: list[dict[str, Any]], *, apply: bool) -> dict[str, Any]:
+    if apply and changes:
+        apply_record_changes(client, changes)
+    return {"changedRecords": len(changes), "changes": changes}
 
 
 def apply_or_report(client: PapyrusGraphQLAuthoringClient, label: str, records: list[dict[str, Any]], *, apply: bool) -> dict[str, Any]:

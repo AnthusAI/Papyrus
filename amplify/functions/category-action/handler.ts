@@ -1,13 +1,12 @@
+import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import { createHash, randomUUID } from "node:crypto";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { putJsonModelPayload, putTextModelPayload, readJsonModelPayload } from "../shared/model-payloads";
-import { curationActorKind, referenceCurationMetadata, validatedCurationSectionId } from "../shared/reference-curation-metadata";
+import { curationActorKind, referenceStarFields, referenceVoteFields, validatedCurationSectionId } from "../shared/reference-curation-metadata";
 import {
-  CURATION_DELEGATION_OWNER_TYPE,
-  CURATION_DELEGATION_PAYLOAD_KIND,
   delegationExpiry,
   delegationRefusalMessage,
   delegationVerdict,
@@ -24,6 +23,24 @@ import {
   requestDelegation,
   type DelegationStore,
 } from "../shared/curation-delegation-flow";
+import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
+import { referenceContentNeededKey, referenceFeedArrivalAt, referenceFeedKeys, referenceFeedStateKey, referenceMediumFeedKey, referenceMediumKeyPatch, referencePublicFeedKeys, referencePublicKeyPatch, starFeedKeyFor } from "../../../lib/reference-feed-keys";
+import { claimGroups, hasEditorRights } from "../../../lib/staff-groups";
+import {
+  classifyCurationCaller,
+  cliClientIdFromEnvironment,
+  requireDelegationAgent,
+  requireDelegationApprover,
+  requireDelegationWithdrawer,
+  type CurationCaller,
+} from "../shared/curation-caller";
+import { isStoryItemType } from "../../../lib/content-item-lifecycle";
+import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
+import { createConceptLink, createReferenceLink, decideReferenceLink, describeEditorConcept, ensureEditorConcept, type ReferenceLinkStore } from "./reference-links";
+import { applyKnowledgeReview, type KnowledgeReviewStore } from "./knowledge-review";
+import { setStoryReferenceRole } from "./story-reference-role";
+import { editOriginOfIdentity } from "../shared/edit-origin";
+import { REFERENCE_FEED_KEY, REFERENCE_REVIEWED_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, globalKey } from "../../../lib/tenant-knowledge-keys";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -35,6 +52,10 @@ type ApproveCurationDelegationHandler = Schema["approveCurationDelegation"]["fun
 type DenyCurationDelegationHandler = Schema["denyCurationDelegation"]["functionHandler"];
 type GetCurationDelegationStatusHandler = Schema["getCurationDelegationStatus"]["functionHandler"];
 type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functionHandler"];
+type ReferenceStarsHandler = Schema["setReferenceStars"]["functionHandler"];
+type ReferenceSectionHandler = Schema["setReferenceSection"]["functionHandler"];
+type RecordDelegatedStarsHandler = Schema["recordDelegatedStars"]["functionHandler"];
+type ItemStarsHandler = Schema["setItemStars"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
 type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
 type MoveReferenceCorpusHandler = Schema["moveReferenceCorpus"]["functionHandler"];
@@ -47,7 +68,23 @@ type CreateDraftCategoryHandler = Schema["createDraftCategory"]["functionHandler
 type UpdateDraftCategoryHandler = Schema["updateDraftCategory"]["functionHandler"];
 type ArchiveDraftCategoryHandler = Schema["archiveDraftCategory"]["functionHandler"];
 type ReviewReferenceTopicLabelHandler = Schema["reviewReferenceTopicLabel"]["functionHandler"];
+type LinkMessageHashtagsHandler = Schema["linkMessageHashtags"]["functionHandler"];
+type CreateReferenceLinkHandler = Schema["createReferenceLink"]["functionHandler"];
+type DescribeConceptHandler = Schema["describeConcept"]["functionHandler"];
+type CreateEditorConceptHandler = Schema["createEditorConcept"]["functionHandler"];
+type DecideReferenceLinkHandler = Schema["decideReferenceLink"]["functionHandler"];
+type SetStoryReferenceRoleHandler = Schema["setStoryReferenceRole"]["functionHandler"];
+type CreateConceptLinkHandler = Schema["createConceptLink"]["functionHandler"];
+type ApplyKnowledgeReviewHandler = Schema["applyKnowledgeReview"]["functionHandler"];
 type CategoryActionEvent =
+  | Parameters<LinkMessageHashtagsHandler>[0]
+  | Parameters<CreateReferenceLinkHandler>[0]
+  | Parameters<DecideReferenceLinkHandler>[0]
+  | Parameters<SetStoryReferenceRoleHandler>[0]
+  | Parameters<CreateConceptLinkHandler>[0]
+  | Parameters<ApplyKnowledgeReviewHandler>[0]
+  | Parameters<DescribeConceptHandler>[0]
+  | Parameters<CreateEditorConceptHandler>[0]
   | Parameters<ReviewHandler>[0]
   | Parameters<ReferenceCurationHandler>[0]
   | Parameters<CreateCurationDelegationHandler>[0]
@@ -58,6 +95,9 @@ type CategoryActionEvent =
   | Parameters<DenyCurationDelegationHandler>[0]
   | Parameters<GetCurationDelegationStatusHandler>[0]
   | Parameters<RecordDelegatedCurationHandler>[0]
+  | Parameters<RecordDelegatedStarsHandler>[0]
+  | Parameters<ReferenceStarsHandler>[0]
+  | Parameters<ItemStarsHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
   | Parameters<ReferenceNoteHandler>[0]
   | Parameters<MoveReferenceCorpusHandler>[0]
@@ -112,7 +152,6 @@ const DEFAULT_REFERENCE_CURATION_POLICY = {
   recomputeQuality: false,
   recomputeCorpus: false,
 };
-const REFERENCE_REVIEWED_FEED_KEY = "references#reviewed";
 
 let clientPromise: Promise<DataClient> | null = null;
 
@@ -121,6 +160,14 @@ export const handler = async (event: CategoryActionEvent) => {
   if (!fieldName) {
     throw new Error("Unsupported steering action: missing GraphQL field name.");
   }
+  if (fieldName === "createReferenceLink") return createReferenceLinkAction(event as Parameters<CreateReferenceLinkHandler>[0]);
+  if (fieldName === "createEditorConcept") return createEditorConceptAction(event as Parameters<CreateEditorConceptHandler>[0]);
+  if (fieldName === "describeConcept") return describeConceptAction(event as Parameters<DescribeConceptHandler>[0]);
+  if (fieldName === "createConceptLink") return createConceptLinkAction(event as Parameters<CreateConceptLinkHandler>[0]);
+  if (fieldName === "applyKnowledgeReview") return applyKnowledgeReviewAction(event as Parameters<ApplyKnowledgeReviewHandler>[0]);
+  if (fieldName === "decideReferenceLink") return decideReferenceLinkAction(event as Parameters<DecideReferenceLinkHandler>[0]);
+  if (fieldName === "setStoryReferenceRole") return setStoryReferenceRoleAction(event as Parameters<SetStoryReferenceRoleHandler>[0]);
+  if (fieldName === "linkMessageHashtags") return linkMessageHashtagsAction(event as Parameters<LinkMessageHashtagsHandler>[0]);
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
   if (fieldName === "createCurationDelegation") return createCurationDelegation(event as Parameters<CreateCurationDelegationHandler>[0]);
@@ -131,6 +178,10 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "denyCurationDelegation") return denyCurationDelegationAction(event as Parameters<DenyCurationDelegationHandler>[0]);
   if (fieldName === "getCurationDelegationStatus") return getCurationDelegationStatusAction(event as Parameters<GetCurationDelegationStatusHandler>[0]);
   if (fieldName === "recordDelegatedCuration") return recordDelegatedCuration(event as Parameters<RecordDelegatedCurationHandler>[0]);
+  if (fieldName === "recordDelegatedStars") return recordDelegatedStars(event as Parameters<RecordDelegatedStarsHandler>[0]);
+  if (fieldName === "setReferenceSection") return setReferenceSection(event as Parameters<ReferenceSectionHandler>[0]);
+  if (fieldName === "setReferenceStars") return setReferenceStars(event as Parameters<ReferenceStarsHandler>[0]);
+  if (fieldName === "setItemStars") return setItemStars(event as Parameters<ItemStarsHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
   if (fieldName === "createReferenceNote") return createReferenceNote(event as Parameters<ReferenceNoteHandler>[0]);
   if (fieldName === "moveReferenceCorpus") return moveReferenceCorpus(event as Parameters<MoveReferenceCorpusHandler>[0]);
@@ -209,11 +260,20 @@ async function reviewReferenceCuration(
   event: Parameters<ReferenceCurationHandler>[0],
   delegation: { delegationId: string; relayedBy: string; instruction: string } | null = null,
 ) {
+  if (!delegation && getIdentitySub(event)) requireEditorGroups(event, "accept, reject or rate");   // a person's session, CLI or Newsroom; operators on AWS credentials have no sub
   const client = await getDataClient();
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
   const action = normalizeReferenceCurationAction(event.arguments.action);
   const nextStatus = referenceCurationStatusForAction(action);
-  const reasonCode = normalizeReferenceRejectionReasonCode(event.arguments.reasonCode, action === "reject");
+  const writtenReason = normalizeOptionalString(event.arguments.note);
+  // A rejection needs a reason, and the editor's own sentence is one: with no reason code sent, the
+  // words are read for the code they name, so the scope-training negatives keep arriving from the
+  // surfaces that ask for words instead of a chip. Words that name no code are filed under "other".
+  const reasonCode = normalizeReferenceRejectionReasonCode(event.arguments.reasonCode)
+    ?? (action === "reject" ? rejectionReasonCodeForWrittenReason(writtenReason) : null);
+  if (action === "reject" && !reasonCode) {
+    throw new Error("A rejection needs a reason: say why in your own words, or send a reasonCode.");
+  }
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
   const requestedSectionId = normalizeOptionalString(event.arguments.sectionId);
   const sectionRecord = requestedSectionId
@@ -223,19 +283,14 @@ async function reviewReferenceCuration(
   const now = new Date().toISOString();
   const actorSub = normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event);
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event);
-  const actor = actorLabel ?? actorSub ?? "Papyrus newsroom";
-  const note = normalizeOptionalString(event.arguments.note);
-  const referenceLineageId = normalizeOptionalString(reference.lineageId) ?? referenceId;
-  const referenceVersionNumber = typeof reference.versionNumber === "number" ? reference.versionNumber : null;
-  const referenceTitle = normalizeOptionalString(reference.title) ?? normalizeOptionalString(reference.externalItemId) ?? referenceId;
-  const messageId = `message-reference-curation-${safeId(referenceLineageId)}-${safeId(action)}-${now.replace(/[^0-9TZ]/g, "")}-${randomUUID().slice(0, 8)}`;
-  const relationId = `semantic-relation-${hashStable([
-    `message#${messageId}`,
-    "comment",
-    `reference#${referenceId}`,
-    action,
-  ]).slice(0, 16)}`;
+  const person = actorLabel ?? actorSub ?? "Papyrus newsroom";
+  // A delegated vote already names the agent and the delegation; a direct one gets the plain `via` note.
+  const actor = delegation ? person : withViaNote(person, event, normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel));
+  const note = writtenReason;
+  const decisionRelationId = normalizeOptionalString(event.arguments.decisionRelationId);
 
+  // The vote is recorded on the Reference itself: its status, who set it and the note, plus the details of the vote.
+  // Messages come only from people, so a vote writes no Message and no comment relation.
   await requireDataResult(
     client.models.Reference.update({
       id: referenceId,
@@ -244,96 +299,26 @@ async function reviewReferenceCuration(
       curationStatusUpdatedAt: now,
       curationStatusUpdatedBy: actor,
       curationStatusReason: note,
-      newsroomFeedKey: reference.newsroomFeedKey ?? "references",
+      // An accept that names a section is that person's section choice, recorded like `setReferenceSection` records one (docs/reference-auto-section.md).
+      ...(sectionId ? { curationSectionUpdatedAt: now, curationSectionUpdatedBy: actor, ...personSectionProvenance(delegation ? "human" : curationActorKind(event.identity)) } : {}),
+      ...referenceVoteFields({
+        // A signed-in editor or admin session votes as that person, from the CLI or the Newsroom: an agent acting through the session acts for them.
+        actorKind: delegation ? "human" : curationActorKind(event.identity),
+        reasonCode,
+        sectionId,
+        shareable: event.arguments.shareable ?? null,
+        delegation,
+        decisionRelationId,
+      }),
+      newsroomFeedKey: reference.newsroomFeedKey ?? globalKey(REFERENCE_FEED_KEY),
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
+      // A vote moves the Reference between the unrated and rated feeds; its original prediction and arrival stay as they were.
+      feedStateKey: referenceFeedStateKey({ ...reference, curationStatus: nextStatus }),
+      ...referenceMediumKeyPatch(reference, { curationStatus: nextStatus }),
+      ...referencePublicKeyPatch(reference, { curationStatus: nextStatus }),   // a vote moves the row into or out of the public index; names nothing for an ordinary row
       updatedAt: now,
     }),
     "update Reference curation status",
-  );
-
-  await requireDataResult(
-    client.models.Message.create(buildCanonicalMessageInput({
-      id: messageId,
-      messageKind: "reference_curation",
-      messageDomain: "commentary",
-      summary: `${referenceTitle}: ${nextStatus}`,
-      source: "newsroom",
-      authorSub: actorSub,
-      authorLabel: actor,
-      now,
-    })),
-    "create Message",
-  );
-  await putTextModelPayload(
-    client as any,
-    { ownerKind: "message", ownerId: messageId, ownerLineageId: messageId },
-    "message_body",
-    "message",
-    note ?? `${actor} marked this reference ${nextStatus}.`,
-    { filename: "message.txt", now },
-  );
-  await putJsonModelPayload(
-    client as any,
-    { ownerKind: "message", ownerId: messageId, ownerLineageId: messageId },
-    "metadata",
-    "metadata",
-    referenceCurationMetadata({
-      action,
-      curationStatus: nextStatus,
-      reasonCode,
-      referenceId,
-      referenceLineageId,
-      decisionRelationId: normalizeOptionalString(event.arguments.decisionRelationId),
-      shareable: event.arguments.shareable ?? null,
-      actorKind: delegation ? "human" : curationActorKind(event.identity),
-      sectionId,
-      delegation,
-    }),
-    { filename: "metadata.json", now },
-  );
-
-  await requireDataResult(
-    client.models.SemanticRelation.create({
-      id: relationId,
-      relationState: "current",
-      predicate: "comment",
-      relationTypeId: "semantic-relation-type-comment",
-      relationTypeKey: "comment",
-      relationDomain: "commentary",
-      subjectKind: "message",
-      subjectId: messageId,
-      subjectLineageId: messageId,
-      subjectVersionNumber: 1,
-      objectKind: "reference",
-      objectId: referenceId,
-      objectLineageId: referenceLineageId,
-      objectVersionNumber: referenceVersionNumber,
-      subjectStateKey: semanticStateKey("message", messageId),
-      objectStateKey: semanticStateKey("reference", referenceLineageId),
-      objectSubjectStateKey: `${semanticStateKey("reference", referenceLineageId)}#message`,
-      predicateObjectStateKey: `comment#${semanticStateKey("reference", referenceLineageId)}`,
-      subjectVersionKey: semanticVersionKey("message", messageId),
-      objectVersionKey: semanticVersionKey("reference", referenceId),
-      score: 1,
-      confidence: null,
-      rank: 1,
-      classifierId: null,
-      modelVersion: null,
-      reviewRecommended: false,
-      sourceSnapshotId: null,
-      importRunId: null,
-      importedAt: now,
-      createdAt: now,
-      updatedAt: now,
-      newsroomFeedKey: "semanticRelations",
-      metadata: JSON.stringify({
-        action,
-        curationStatus: nextStatus,
-        reasonCode,
-        messageKind: "reference_curation",
-      }),
-    }),
-    "create Message SemanticRelation",
   );
 
   await updateNewsroomSummaryForReferenceCuration(client, {
@@ -349,52 +334,95 @@ async function reviewReferenceCuration(
     referenceId,
     status: nextStatus,
     reasonCode,
-    messageId,
-    relationId,
   };
 }
 
-function requireSignedInPerson(event: { identity?: unknown }): { sub: string; label: string; isAdmin: boolean } {
-  if (curationActorKind(event.identity) !== "human") {
-    throw new Error("Only a person signed in to the Newsroom can manage curation delegations.");
-  }
-  const identity = event.identity as { sub?: unknown; claims?: Record<string, unknown> };
-  const claims = identity.claims ?? {};
-  const groups = Array.isArray(claims["cognito:groups"]) ? (claims["cognito:groups"] as unknown[]) : [];
+function curationCaller(event: { identity?: unknown }): CurationCaller {
+  return classifyCurationCaller(event.identity, cliClientIdFromEnvironment());
+}
+
+/**
+ * Where a direct decision came from, as a plain note after the person's name ("Ryan via cli (Claude)"). It never gates anything: a signed-in
+ * editor or admin session decides as that person whichever client it came from. The Newsroom and operator sessions get no note.
+ */
+function withViaNote(actor: string, event: { identity?: unknown }, agentLabel: string | null | undefined): string {
+  const lane = curationCaller(event).lane;
+  const via = lane === "cli-session" ? "cli" : lane === "unseparated-session" || lane === "unreadable-client-session" ? "signed-in" : null;
+  if (!via) return actor;
+  return `${actor} via ${via}${agentLabel ? ` (${agentLabel})` : ""}`;
+}
+
+/**
+ * The person behind a delegation route that belongs to the Newsroom. Approving, creating and listing refuse the CLI client's sessions, so an
+ * agent working in an editor's own session cannot approve its own request; denying and revoking only reduce what an agent may do, so the
+ * session that asked may do them. Both check the editor and admin groups here as well as in the schema.
+ */
+function requireSignedInPerson(event: { identity?: unknown }, route: "approver" | "withdrawer" = "approver"): { sub: string; label: string; isAdmin: boolean } {
+  const caller = curationCaller(event);
+  const person = route === "approver" ? requireDelegationApprover(caller) : requireDelegationWithdrawer(caller);
+  const claims = (event.identity as { claims?: Record<string, unknown> }).claims ?? {};
   return {
-    sub: normalizeRequiredString(claims.sub ?? identity.sub, "identity.sub"),
+    sub: normalizeRequiredString(person.sub, "identity.sub"),
     label: normalizeOptionalString(claims.email) ?? normalizeOptionalString(claims.name) ?? "Newsroom editor",
-    isAdmin: groups.includes("admin"),
+    isAdmin: person.groups.includes("admin"),
   };
+}
+
+/**
+ * Delegations live in `CurationDelegationRecord`, a model that no signed-in session, group or identity-pool role can read or write: only this
+ * Lambda (and the other `allow.resource` Lambdas) can. They used to be a JSON attachment on a `KnowledgeRawPayload`, which the editor groups
+ * can write directly and attach files to, so a session could forge an approved delegation. Records from that old place are never read, so
+ * every delegation made before this change is simply unknown and an agent asks again.
+ */
+function parseDelegationRow(row: { id?: string | null; grantorSub?: string | null; recordJson?: string | null } | null | undefined): CurationDelegation | null {
+  if (!row?.recordJson) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(row.recordJson);
+  } catch {
+    return null;
+  }
+  const record = parsed as Partial<CurationDelegation> | null;
+  // A row whose record names another id or grantor than the row itself is not one this Lambda wrote.
+  if (!record || typeof record !== "object" || record.delegationId !== row.id || record.grantorSub !== row.grantorSub) return null;
+  return record as CurationDelegation;
 }
 
 async function readCurationDelegation(client: DataClient, delegationId: string): Promise<CurationDelegation | null> {
-  const stored = await readJsonModelPayload(client as any, "knowledgeRawPayload", delegationId, "raw_payload", CURATION_DELEGATION_PAYLOAD_KIND);
-  return stored ? (stored as unknown as CurationDelegation) : null;
+  const result = await (client.models as any).CurationDelegationRecord.get({ id: delegationId });
+  assertNoDataErrors(result.errors, "get curation delegation");
+  return parseDelegationRow(result.data);
 }
 
 async function writeCurationDelegation(client: DataClient, delegation: CurationDelegation, now: string, created: boolean) {
   const input = {
     id: delegation.delegationId,
-    ownerType: CURATION_DELEGATION_OWNER_TYPE,
-    ownerId: delegation.grantorSub,
-    payloadKind: CURATION_DELEGATION_PAYLOAD_KIND,
+    grantorSub: delegation.grantorSub,
+    recordJson: JSON.stringify(delegation),
     createdAt: delegation.createdAt,
     updatedAt: now,
   };
+  const model = (client.models as any).CurationDelegationRecord;
   if (created) {
-    await requireDataResult(client.models.KnowledgeRawPayload.create(input), "create curation delegation");
+    await requireDataResult(model.create(input), "create curation delegation");
   } else {
-    await requireDataResult(client.models.KnowledgeRawPayload.update(input), "update curation delegation");
+    await requireDataResult(model.update(input), "update curation delegation");
   }
-  await putJsonModelPayload(
-    client as any,
-    { ownerKind: "knowledgeRawPayload", ownerId: delegation.delegationId },
-    "raw_payload",
-    CURATION_DELEGATION_PAYLOAD_KIND,
-    delegation as unknown as Record<string, unknown>,
-    { filename: "curation-delegation.json", now },
-  );
+}
+
+async function listDelegationsByGrantor(client: DataClient, grantorSub: string): Promise<CurationDelegation[]> {
+  const found: CurationDelegation[] = [];
+  let nextToken: string | null | undefined;
+  do {
+    const page: any = await (client.models as any).CurationDelegationRecord.listCurationDelegationRecordsByGrantor({ grantorSub }, { nextToken });
+    assertNoDataErrors(page.errors, "list curation delegations");
+    for (const row of page.data ?? []) {
+      const delegation = parseDelegationRow(row);
+      if (delegation) found.push(delegation);
+    }
+    nextToken = page.nextToken;
+  } while (nextToken);
+  return found;
 }
 
 function delegationResult(delegation: CurationDelegation, token: string | null) {
@@ -402,21 +430,7 @@ function delegationResult(delegation: CurationDelegation, token: string | null) 
 }
 
 async function listPendingCurationDelegations(client: DataClient): Promise<CurationDelegation[]> {
-  const pending: CurationDelegation[] = [];
-  let nextToken: string | null | undefined;
-  do {
-    const page: any = await (client.models.KnowledgeRawPayload as any).listKnowledgeRawPayloadsByOwnerAndKind(
-      { ownerId: PENDING_REQUEST_GRANTOR_SUB, payloadKind: { eq: CURATION_DELEGATION_PAYLOAD_KIND } },
-      { nextToken },
-    );
-    assertNoDataErrors(page.errors, "list pending curation delegations");
-    for (const payload of page.data ?? []) {
-      const delegation = await readCurationDelegation(client, payload.id);
-      if (delegation) pending.push(delegation);
-    }
-    nextToken = page.nextToken;
-  } while (nextToken);
-  return pending;
+  return listDelegationsByGrantor(client, PENDING_REQUEST_GRANTOR_SUB);
 }
 
 function curationDelegationStore(client: DataClient): DelegationStore {
@@ -428,6 +442,8 @@ function curationDelegationStore(client: DataClient): DelegationStore {
 }
 
 async function requestCurationDelegationAction(event: Parameters<RequestCurationDelegationHandler>[0]) {
+  const caller = curationCaller(event);
+  requireDelegationAgent(caller);
   const client = await getDataClient();
   return requestDelegation(
     curationDelegationStore(client),
@@ -436,6 +452,7 @@ async function requestCurationDelegationAction(event: Parameters<RequestCuration
       tokenHash: normalizeRequiredString(event.arguments.tokenHash, "tokenHash"),
       agentLabel: normalizeRequiredString(event.arguments.agentLabel, "agentLabel"),
       hours: event.arguments.hours,
+      requestedBySub: caller.lane === "cli-session" ? caller.sub : null,
     },
     new Date().toISOString(),
   );
@@ -449,13 +466,14 @@ async function approveCurationDelegationAction(event: Parameters<ApproveCuration
 }
 
 async function denyCurationDelegationAction(event: Parameters<DenyCurationDelegationHandler>[0]) {
-  const person = requireSignedInPerson(event);
+  const person = requireSignedInPerson(event, "withdrawer");
   const client = await getDataClient();
   const now = new Date().toISOString();
   return { ...(await denyDelegation(curationDelegationStore(client), person, normalizeRequiredString(event.arguments.userCode, "userCode"), now)), token: null };
 }
 
 async function getCurationDelegationStatusAction(event: Parameters<GetCurationDelegationStatusHandler>[0]) {
+  requireDelegationAgent(curationCaller(event));
   const client = await getDataClient();
   return delegationStatus(curationDelegationStore(client), normalizeRequiredString(event.arguments.delegationId, "delegationId"), new Date().toISOString());
 }
@@ -481,7 +499,7 @@ async function createCurationDelegation(event: Parameters<CreateCurationDelegati
 }
 
 async function revokeCurationDelegation(event: Parameters<RevokeCurationDelegationHandler>[0]) {
-  const person = requireSignedInPerson(event);
+  const person = requireSignedInPerson(event, "withdrawer");
   const client = await getDataClient();
   const delegation = await readCurationDelegation(client, normalizeRequiredString(event.arguments.delegationId, "delegationId"));
   if (!delegation) throw new Error("That delegation was not found.");
@@ -495,20 +513,7 @@ async function revokeCurationDelegation(event: Parameters<RevokeCurationDelegati
 async function listCurationDelegations(event: Parameters<ListCurationDelegationsHandler>[0]) {
   const person = requireSignedInPerson(event);
   const client = await getDataClient();
-  const delegations: CurationDelegation[] = [];
-  let nextToken: string | null | undefined;
-  do {
-    const page: any = await (client.models.KnowledgeRawPayload as any).listKnowledgeRawPayloadsByOwnerAndKind(
-      { ownerId: person.sub, payloadKind: { eq: CURATION_DELEGATION_PAYLOAD_KIND } },
-      { nextToken },
-    );
-    assertNoDataErrors(page.errors, "list curation delegations");
-    for (const payload of page.data ?? []) {
-      const delegation = await readCurationDelegation(client, payload.id);
-      if (delegation) delegations.push(delegation);
-    }
-    nextToken = page.nextToken;
-  } while (nextToken);
+  const delegations = await listDelegationsByGrantor(client, person.sub);
   const now = new Date().toISOString();
   delegations.push(...(await livePendingRequests(curationDelegationStore(client), now)));
   return delegations
@@ -516,9 +521,17 @@ async function listCurationDelegations(event: Parameters<ListCurationDelegations
     .map((delegation) => delegationResult(delegation, null));
 }
 
-async function recordDelegatedCuration(event: Parameters<RecordDelegatedCurationHandler>[0]) {
-  const client = await getDataClient();
-  const now = new Date().toISOString();
+/**
+ * The checks every relayed decision passes before anything is written, whatever it records: the caller is on an agent route (the CLI client's
+ * editor session, or an operator on AWS credentials), and the token belongs to an approved, unexpired, unrevoked delegation granted to this agent
+ * by the person named. A delegation lives in this site's backend only, so another site's token is unknown here.
+ */
+async function verifiedDelegation(
+  event: { identity?: unknown; arguments: { delegationId: string; delegationToken: string; agentLabel: string; onBehalfOf: string; instruction: string } },
+  client: DataClient,
+  now: string,
+) {
+  requireDelegationAgent(curationCaller(event));
   const delegationId = normalizeRequiredString(event.arguments.delegationId, "delegationId");
   const agentLabel = normalizeRequiredString(event.arguments.agentLabel, "agentLabel");
   const delegation = await readCurationDelegation(client, delegationId);
@@ -535,6 +548,34 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
   if (namedPerson.toLowerCase() !== delegation.grantorLabel.toLowerCase()) {
     throw new Error(`That delegation was granted by ${delegation.grantorLabel}, not ${namedPerson}.`);
   }
+  return { delegation, delegationId, agentLabel, instruction };
+}
+
+/**
+ * A star rating the person gave, relayed by an agent under the delegation they approved. The rules are `setReferenceStars` (a whole number from
+ * 1 to 5, or none to clear; the star partition and the arrival time are kept with it). Like a relayed vote it is the person's decision carried by
+ * an agent, so it is filed as "<person> via <agent> (delegation <id>)", never as the person's own direct rating.
+ */
+async function recordDelegatedStars(event: Parameters<RecordDelegatedStarsHandler>[0]) {
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  const { delegation, delegationId, agentLabel } = await verifiedDelegation(event, client, now);
+  return writeReferenceStars(client, {
+    referenceId: normalizeRequiredString(event.arguments.referenceId, "referenceId"),
+    stars: normalizeReferenceStars(event.arguments.stars),
+    actor: `${delegation.grantorLabel} via ${agentLabel} (delegation ${delegationId})`,
+    now,
+    acceptOnRating: (referenceId, stars) => reviewReferenceCuration({
+      ...event,
+      arguments: { referenceId, action: "accept", note: starsAcceptNote(stars), actorSub: delegation.grantorSub, actorLabel: delegation.grantorLabel },
+    } as unknown as Parameters<ReferenceCurationHandler>[0], { delegationId, relayedBy: agentLabel, instruction: normalizeRequiredString(event.arguments.instruction, "instruction").slice(0, 2000) }),
+  });
+}
+
+async function recordDelegatedCuration(event: Parameters<RecordDelegatedCurationHandler>[0]) {
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  const { delegation, delegationId, agentLabel, instruction } = await verifiedDelegation(event, client, now);
   const onBehalfOfPerson = {
     ...event,
     arguments: {
@@ -550,6 +591,238 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
     },
   } as unknown as Parameters<ReferenceCurationHandler>[0];
   return reviewReferenceCuration(onBehalfOfPerson, { delegationId, relayedBy: agentLabel, instruction });
+}
+
+/**
+ * An editor's optional 1-5 star interest in a Reference. The rating sits on the Reference beside the latest vote (who, when), the newest rating
+ * wins, and `stars: null` clears it. It never touches the curation status and is never a Cyclotron label: stars are editorial interest, not relevance.
+ * It also keeps the Reference in the right star partition (`starFeedKey`, docs/reference-feed-indexes.md): cleared with the rating, and a Reference with
+ * no `feedArrivalAt` gets one, because the star index sorts by it and a row without it is not in the index.
+ */
+async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
+  if (getIdentitySub(event)) requireEditorGroups(event, "accept, reject or rate");
+  const client = await getDataClient();
+  const actor = withViaNote(
+    normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom",
+    event,
+    normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel),
+  );
+  return writeReferenceStars(client, {
+    referenceId: normalizeRequiredString(event.arguments.referenceId, "referenceId"),
+    stars: normalizeReferenceStars(event.arguments.stars),
+    actor,
+    now: new Date().toISOString(),
+    // Rating a pending Reference is also accepting it, by the same person and session, through the ordinary accept path.
+    acceptOnRating: (referenceId, stars) => reviewReferenceCuration({
+      ...event,
+      arguments: { referenceId, action: "accept", note: starsAcceptNote(stars), actorSub: event.arguments.actorSub, actorLabel: event.arguments.actorLabel },
+    } as unknown as Parameters<ReferenceCurationHandler>[0]),
+  });
+}
+
+/**
+ * Changes only a Reference's Section (`curationSectionId`) and records who and when (`curationSectionUpdatedBy`, `curationSectionUpdatedAt`) and what kind of
+ * actor it was (`curationSectionActorKind`). It leaves the vote alone: the status, who voted and when, the note, the vote's actor kind, the feedback and the
+ * star rating are not written, so the Cyclotron's vote id is unchanged and nothing is re-handed-off. The home page's Reference stream already watches
+ * `curationSectionId`, so the snapshot is re-triggered the way an accept does it (docs/home-page.md, Freshness). A Section can be set only on an accepted
+ * Reference and must be an enabled `NewsroomSection`; an empty `sectionId` clears it. A signed-in session must be an editor or admin; an operator on AWS
+ * credentials (the IAM lane, decided by IAM policy) is recorded by role session, never by a name it sends.
+ *
+ * Two lanes (docs/reference-auto-section.md):
+ * - A person (or an operator): actor kind `human` (a signed-in session) or `agent` (AWS credentials). A person's choice, including a clear, owns the section
+ *   from then on: the automatic lane never changes it. Setting the section the machine already chose makes it the person's.
+ * - The machine (`decisionRelationId` given): the site cyclotron's current section-selector decision for this Reference names the section. Recorded as
+ *   `auto:cyclotron`, actor kind `cyclotron`, with the calibration evidence as the reason and the decision as the relation id. It is refused quietly
+ *   (`changed: false`, `skipped` says why) when a person set or cleared the section, and refused loudly when the decision does not name that section.
+ */
+async function setReferenceSection(event: Parameters<ReferenceSectionHandler>[0]) {
+  if (getIdentitySub(event)) requireEditorGroups(event, "set a section");
+  const client = await getDataClient();
+  const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
+  const requestedSectionId = normalizeOptionalString(event.arguments.sectionId);
+  const decisionRelationId = normalizeOptionalString((event.arguments as { decisionRelationId?: string | null }).decisionRelationId);
+  const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
+  const status = normalizeOptionalString(reference.curationStatus) ?? "pending";
+  const previousSectionId = normalizeOptionalString(reference.curationSectionId);
+  const previousKind = normalizeOptionalString((reference as { curationSectionActorKind?: string | null }).curationSectionActorKind);
+  if (requestedSectionId && status !== "accepted") {
+    throw new Error(`A section can be set only on an accepted Reference; this one is ${status}.`);
+  }
+  const sectionRecord = requestedSectionId
+    ? (await client.models.NewsroomSection.get({ id: requestedSectionId })).data ?? null
+    : null;
+  const sectionId = validatedCurationSectionId(requestedSectionId, "accept", sectionRecord);
+  const unchanged = { ok: true, referenceId, sectionId: previousSectionId, previousSectionId, changed: false, status, actorKind: previousKind };
+  const now = new Date().toISOString();
+  if (decisionRelationId) {
+    // The automatic lane. A person who set or cleared the section owns it: never overwritten, never re-tagged.
+    if (personOwnsSection(reference)) return { ...unchanged, skipped: "a person set or cleared this section" };
+    if (!sectionId && previousKind !== "cyclotron") return { ...unchanged, skipped: "nothing to clear" };
+    await requireSectionDecision(client, decisionRelationId, reference, sectionId);
+    if (sectionId === previousSectionId && normalizeOptionalString((reference as { curationSectionDecisionRelationId?: string | null }).curationSectionDecisionRelationId) === decisionRelationId) {
+      return unchanged;
+    }
+    await requireDataResult(
+      client.models.Reference.update({
+        id: referenceId, curationSectionId: sectionId, curationSectionUpdatedAt: now, curationSectionUpdatedBy: AUTO_SECTION_ACTOR,
+        curationSectionActorKind: "cyclotron", curationSectionReason: normalizeOptionalString((event.arguments as { machineReason?: string | null }).machineReason)?.slice(0, 2000) ?? null,
+        curationSectionDecisionRelationId: decisionRelationId,
+      } as Parameters<typeof client.models.Reference.update>[0]),
+      "update Reference section",
+    );
+    return { ok: true, referenceId, sectionId, previousSectionId, changed: true, status, actorKind: "cyclotron" };
+  }
+  const actorKind = curationActorKind(event.identity);
+  if (sectionId === previousSectionId && previousKind !== "cyclotron" && (sectionId || previousKind)) return unchanged;
+  const person = getIdentitySub(event)
+    ? (getIdentityLabel(event) ?? getIdentitySub(event) ?? "Papyrus newsroom")
+    : `Papyrus operator (${normalizeOptionalString(String((event.identity as { userArn?: unknown } | null | undefined)?.userArn ?? "").split("/").pop()) ?? "AWS credentials"})`;
+  const actor = withViaNote(person, event, normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel));
+  await requireDataResult(
+    client.models.Reference.update({
+      id: referenceId, curationSectionId: sectionId, curationSectionUpdatedAt: now, curationSectionUpdatedBy: actor, ...personSectionProvenance(actorKind),
+    } as Parameters<typeof client.models.Reference.update>[0]),
+    "update Reference section",
+  );
+  return { ok: true, referenceId, sectionId, previousSectionId, changed: true, status, actorKind };
+}
+
+/** The signature of the automatic section lane, the same shape as the automatic accept's `auto:cyclotron`. */
+const AUTO_SECTION_ACTOR = "auto:cyclotron";
+
+/** The section provenance a person's (or operator's) choice leaves: their kind, and no machine reason or decision. */
+function personSectionProvenance(actorKind: string): Record<string, unknown> {
+  return { curationSectionActorKind: actorKind, curationSectionReason: null, curationSectionDecisionRelationId: null };
+}
+
+/**
+ * True when a person (or an operator) set or cleared the section: someone other than the machine wrote it. A section recorded with an accept before the
+ * actor kind existed has no kind and a section id, and is a person's too.
+ */
+function personOwnsSection(reference: Record<string, unknown>): boolean {
+  const kind = normalizeOptionalString(reference.curationSectionActorKind as string | null | undefined);
+  if (kind === "cyclotron") return false;
+  return Boolean(kind || normalizeOptionalString(reference.curationSectionId as string | null | undefined) || normalizeOptionalString(reference.curationSectionUpdatedBy as string | null | undefined));
+}
+
+/** The automatic lane acts only on the site cyclotron's current section-selector decision for this Reference, and only for the section it chose. */
+async function requireSectionDecision(client: DataClient, relationId: string, reference: Record<string, unknown>, sectionId: string | null) {
+  const relation = (await client.models.SemanticRelation.get({ id: relationId })).data as Record<string, unknown> | null;
+  const metadata = parseJsonObject(relation?.metadata);
+  const classifierId = normalizeOptionalString(relation?.classifierId as string | null | undefined) ?? "";
+  if (!relation || relation.predicate !== "site_decision_is" || relation.relationState !== "current"
+      || relation.subjectLineageId !== (reference.lineageId ?? reference.id) || !classifierId.split("/").pop()?.startsWith("section-selector-")) {
+    throw new Error(`Decision ${relationId} is not this Reference's current section-selector decision.`);
+  }
+  if (sectionId && metadata.label !== sectionId) {
+    throw new Error(`Decision ${relationId} chose ${String(metadata.label)}, not ${sectionId}.`);
+  }
+}
+
+function starsAcceptNote(stars: number): string {
+  return `Accepted by rating it ${stars} of 5 stars.`;
+}
+
+async function writeReferenceStars(
+  client: DataClient,
+  input: {
+    referenceId: string; stars: number | null; actor: string; now: string;
+    acceptOnRating: (referenceId: string, stars: number) => Promise<{ status: string }>;
+  },
+) {
+  const { referenceId, stars, actor, now } = input;
+  const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
+  await requireDataResult(
+    client.models.Reference.update({
+      id: referenceId,
+      ...referenceStarFields(stars, actor, now),
+      starFeedKey: starFeedKeyFor(normalizeOptionalString(reference.corpusId), stars),
+      ...(normalizeOptionalString(reference.feedArrivalAt) ? {} : { feedArrivalAt: referenceFeedArrivalAt(reference as Parameters<typeof referenceFeedArrivalAt>[0]) }),
+    }),
+    "update Reference stars",
+  );
+  const status = normalizeOptionalString(reference.curationStatus) ?? "pending";
+  // Any star on a pending Reference accepts it. An accepted or rejected one keeps its status, and clearing stars never changes it.
+  if (stars !== null && status === "pending") {
+    const accepted = await input.acceptOnRating(referenceId, stars);
+    return { ok: true, referenceId, stars, status: accepted.status };
+  }
+  return { ok: true, referenceId, stars, status };
+}
+
+/**
+ * An editor's optional 1-5 star rating of a Story (an Item lineage): what to publish, and later how to rank and feature it. Same rules as
+ * `setReferenceStars`: separate from stage changes, the newest rating wins, `stars: null` clears it (and who and when), no reason needed.
+ *
+ * The rating sits on the lineage's newest version, because every new version is copied from it (`src/papyrus_content/item_stars.py`). It is a plain
+ * update of that one row: it creates no version, never touches `stage`, `status`, `updatedAt` or the published copy, so rating a published Story
+ * does not republish it. Stars are private editorial signals and are never copied to `PublishedItem` or any projection.
+ */
+async function setItemStars(event: Parameters<ItemStarsHandler>[0]) {
+  if (getIdentitySub(event)) requireEditorGroups(event, "accept, reject or rate");
+  const client = await getDataClient();
+  const itemId = normalizeRequiredString(event.arguments.itemId, "itemId");
+  const stars = normalizeReferenceStars(event.arguments.stars);
+  const item = await getRequiredRecord(client.models.Item, itemId, "Item");
+  if (!isStoryItemType(normalizeOptionalString(item.type) ?? "")) throw new Error("Only Stories can be rated.");
+  const lineageId = normalizeOptionalString(item.lineageId) ?? itemId;
+  const versions: Array<{ id: string; versionNumber?: number | null; versionState?: string | null; versionCreatedAt?: string | null }> = [];
+  let nextToken: string | null | undefined;
+  do {
+    const page = await client.models.Item.listItemsByLineageAndVersion({ lineageId }, { limit: 200, nextToken });
+    if (page.errors?.length) throw new Error(page.errors[0]?.message ?? "Could not read the Story's versions.");
+    versions.push(...(page.data ?? []).filter(Boolean));
+    nextToken = page.nextToken;
+  } while (nextToken);
+  // The working record, as `current_story_version` reads it: the row marked current (the most recently created if there are several), else the highest version.
+  const marked = versions.filter((row) => row.versionState === "current");
+  const pool = marked.length ? marked : versions;
+  const newest = pool.length
+    ? pool.reduce((best, row) => (`${row.versionCreatedAt ?? ""}|${String(row.versionNumber ?? 0).padStart(9, "0")}` > `${best.versionCreatedAt ?? ""}|${String(best.versionNumber ?? 0).padStart(9, "0")}` ? row : best))
+    : { id: itemId };
+  const now = new Date().toISOString();
+  const actor = withViaNote(
+    normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom",
+    event,
+    normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel),
+  );
+  await requireDataResult(
+    client.models.Item.update({ id: newest.id, ...referenceStarFields(stars, actor, now) }),
+    "update Story stars",
+  );
+  await requestStoryStarsProjection(newest.id);
+  return { ok: true, itemId: newest.id, lineageId, stars };
+}
+
+const STORY_STARS_PROJECTION_TASK = "story-stars";
+
+/**
+ * Tells the site's content-actions function that a Story's rating changed (one asynchronous invocation per rating, the Item version as the
+ * only argument). It records the rating in the private rating store and re-renders the listing pages whose order the rating changed
+ * (`src/papyrus_content/projection/story_stars_task.py`). Best effort: the rating is already saved, and a site with no projection (the
+ * variable is unset) has no pages to refresh. A failed invocation is logged and the pages catch up the next time the Story is rated.
+ */
+async function requestStoryStarsProjection(itemId: string) {
+  const functionName = (process.env.PAPYRUS_CONTENT_ACTIONS_FUNCTION ?? "").trim();
+  if (!functionName) return;
+  try {
+    await new LambdaClient({}).send(
+      new InvokeCommand({
+        FunctionName: functionName,
+        InvocationType: "Event",
+        Payload: new TextEncoder().encode(JSON.stringify({ projectionTask: { task: STORY_STARS_PROJECTION_TASK, itemId } })),
+      }),
+    );
+  } catch (error) {
+    console.error("Could not ask the site to refresh its listings after a Story rating", error);
+  }
+}
+
+function normalizeReferenceStars(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 5) return numeric;
+  throw new Error("stars must be an integer from 1 to 5, or empty to clear the rating.");
 }
 
 async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandler>[0]) {
@@ -630,8 +903,12 @@ async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandl
       curationStatusUpdatedAt: now,
       curationStatusUpdatedBy: actor,
       curationStatusReason: note,
-      newsroomFeedKey: reference.newsroomFeedKey ?? "references",
+      newsroomFeedKey: reference.newsroomFeedKey ?? globalKey(REFERENCE_FEED_KEY),
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
+      // A vote moves the Reference between the unrated and rated feeds; its original prediction and arrival stay as they were.
+      feedStateKey: referenceFeedStateKey({ ...reference, curationStatus: nextStatus }),
+      ...referenceMediumKeyPatch(reference, { curationStatus: nextStatus }),
+      ...referencePublicKeyPatch(reference, { curationStatus: nextStatus }),
       updatedAt: now,
     }),
     "update Reference quality status",
@@ -653,6 +930,221 @@ async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandl
     status: nextStatus,
     relationId,
   };
+}
+
+async function linkMessageHashtagsAction(event: Parameters<LinkMessageHashtagsHandler>[0]) {
+  const client = await getDataClient();
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to link a message's hashtags.");
+  const messageId = normalizeRequiredString(event.arguments.messageId, "messageId");
+  const store: MessageHashtagStore = {
+    getMessage: async (id) => {
+      const response = await client.models.Message.get({ id });
+      assertNoDataErrors(response.errors, "get Message");
+      return response.data ?? null;
+    },
+    listAcceptedConceptNodes: async () => {
+      const nodes: Array<{ id: string; lineageId?: string | null; versionNumber?: number | null; nodeKey: string }> = [];
+      let nextToken: string | null | undefined;
+      do {
+        const page = await (client.models.SemanticNode as any).listSemanticNodesByVersionStateAndUpdatedAt({ versionState: "current" }, { limit: 500, nextToken });
+        assertNoDataErrors(page.errors, "list SemanticNodes");
+        for (const node of page.data ?? []) if (node.status === "accepted") nodes.push(node);
+        nextToken = page.nextToken;
+      } while (nextToken);
+      return nodes;
+    },
+    getRelation: async (id) => {
+      const response = await client.models.SemanticRelation.get({ id });
+      assertNoDataErrors(response.errors, "get SemanticRelation");
+      return response.data ?? null;
+    },
+    putRelation: async (relation, existing) => {
+      const write = existing ? client.models.SemanticRelation.update(relation as any) : client.models.SemanticRelation.create({ ...relation, createdAt: relation.updatedAt } as any);
+      await requireDataResult(write, "write message concept SemanticRelation");
+    },
+    setMessageMetadata: async (id, metadata) => {
+      await requireDataResult(client.models.Message.update({ id, metadata: JSON.stringify(metadata) }), "update Message metadata");
+    },
+  };
+  return linkMessageHashtags(store, { messageId, callerSub, now: new Date().toISOString() });
+}
+
+async function referenceLinkStore(): Promise<ReferenceLinkStore & { updateSemanticNode(node: Record<string, unknown>): Promise<void> }> {
+  const client = await getDataClient();
+  return {
+    getCurrentReference: async (idOrLineageId) => {
+      const direct = await client.models.Reference.get({ id: idOrLineageId });
+      assertNoDataErrors(direct.errors, "get Reference");
+      if (direct.data) return direct.data;
+      const versions: Array<{ id: string; lineageId?: string | null; versionNumber?: number | null; versionState?: string | null }> = [];
+      let nextToken: string | null | undefined;
+      do {
+        const page = await (client.models.Reference as any).listReferencesByLineageAndVersion({ lineageId: idOrLineageId }, { limit: 100, nextToken });
+        assertNoDataErrors(page.errors, "list Reference versions");
+        versions.push(...(page.data ?? []));
+        nextToken = page.nextToken;
+      } while (nextToken);
+      const current = versions.filter((version) => version.versionState === "current");
+      const candidates = current.length ? current : versions;
+      return candidates.reduce<(typeof versions)[number] | null>((best, version) => (best === null || (version.versionNumber ?? 0) > (best.versionNumber ?? 0) ? version : best), null);
+    },
+    getSemanticNode: async (lineageId) => {
+      const direct = await client.models.SemanticNode.get({ id: lineageId });
+      assertNoDataErrors(direct.errors, "get SemanticNode");
+      if (direct.data) return direct.data;
+      const page = await (client.models.SemanticNode as any).listSemanticNodesByLineageAndVersion({ lineageId }, { limit: 100 });
+      assertNoDataErrors(page.errors, "list SemanticNode versions");
+      const versions: Array<{ id: string; lineageId?: string | null; versionNumber?: number | null; versionState?: string | null }> = page.data ?? [];
+      const current = versions.filter((version) => version.versionState === "current");
+      const candidates = current.length ? current : versions;
+      return candidates.reduce<(typeof versions)[number] | null>((best, version) => (best === null || (version.versionNumber ?? 0) > (best.versionNumber ?? 0) ? version : best), null);
+    },
+    getRelation: async (id) => {
+      const response = await client.models.SemanticRelation.get({ id });
+      assertNoDataErrors(response.errors, "get SemanticRelation");
+      return response.data ?? null;
+    },
+    createSemanticNode: async (node) => {
+      const response = await client.models.SemanticNode.create(node as any);
+      if (response.errors?.length) return false;   // the id exists (a second tap): the caller reads it back
+      return true;
+    },
+    updateSemanticNode: async (node: Record<string, unknown>) => {
+      await requireDataResult(client.models.SemanticNode.update(node as any), "update SemanticNode description");
+    },
+    putRelation: async (relation, existing) => {
+      const write = existing ? client.models.SemanticRelation.update(relation as any) : client.models.SemanticRelation.create({ ...relation, createdAt: relation.updatedAt } as any);
+      await requireDataResult(write, "write reference link SemanticRelation");
+    },
+  };
+}
+
+async function createReferenceLinkAction(event: Parameters<CreateReferenceLinkHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to link References.");
+  return createReferenceLink(await referenceLinkStore(), {
+    subjectLineageId: normalizeRequiredString(event.arguments.subjectLineageId, "subjectLineageId"),
+    objectKind: normalizeRequiredString(event.arguments.objectKind, "objectKind"),
+    objectLineageId: normalizeRequiredString(event.arguments.objectLineageId, "objectLineageId"),
+    predicate: normalizeRequiredString(event.arguments.predicate, "predicate"),
+    note: normalizeOptionalString(event.arguments.note),
+    newConceptName: normalizeOptionalString(event.arguments.newConceptName),
+    callerSub,
+    now: new Date().toISOString(),
+    origin: editOriginOfIdentity(event.identity),
+  });
+}
+
+async function createEditorConceptAction(event: Parameters<CreateEditorConceptHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to create a concept.");
+  const node = await ensureEditorConcept((await referenceLinkStore()) as any, normalizeRequiredString(event.arguments.name, "name"), callerSub, new Date().toISOString(), {
+    displayName: normalizeOptionalString(event.arguments.displayName),
+    origin: editOriginOfIdentity(event.identity),
+  });
+  return { ok: true, lineageId: node.lineageId ?? node.id, nodeKey: node.nodeKey ?? null, displayName: (node as { displayName?: string | null }).displayName ?? null, nodeKind: node.nodeKind ?? null };
+}
+
+async function describeConceptAction(event: Parameters<DescribeConceptHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to describe a concept.");
+  return describeEditorConcept((await referenceLinkStore()) as any, {
+    lineageId: normalizeRequiredString(event.arguments.lineageId, "lineageId"),
+    description: normalizeOptionalString(event.arguments.description),
+    callerSub,
+    now: new Date().toISOString(),
+    origin: editOriginOfIdentity(event.identity),
+  });
+}
+
+async function decideReferenceLinkAction(event: Parameters<DecideReferenceLinkHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to decide on a link.");
+  return decideReferenceLink(await referenceLinkStore(), {
+    relationId: normalizeRequiredString(event.arguments.relationId, "relationId"),
+    decision: normalizeRequiredString(event.arguments.decision, "decision"),
+    reasonCode: normalizeOptionalString(event.arguments.reasonCode),
+    note: normalizeOptionalString(event.arguments.note),
+    callerSub,
+    now: new Date().toISOString(),
+    origin: editOriginOfIdentity(event.identity),
+  });
+}
+
+/** An editor changes a Story source's role (consulted to cited) on a model their token may not update: see story-reference-role.ts. */
+async function setStoryReferenceRoleAction(event: Parameters<SetStoryReferenceRoleHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to change a Story's source.");
+  const claims = (event.identity as { claims?: Record<string, unknown> } | null | undefined)?.claims ?? {};
+  const client = await getDataClient();
+  return setStoryReferenceRole(
+    {
+      getRelation: async (id) => {
+        const response = await client.models.SemanticRelation.get({ id });
+        assertNoDataErrors(response.errors, "get SemanticRelation");
+        return (response.data as any) ?? null;
+      },
+      updateRelation: async (patch) => {
+        await requireDataResult(client.models.SemanticRelation.update(patch as any), "update Story source SemanticRelation");
+      },
+    },
+    {
+      relationId: normalizeRequiredString(event.arguments.relationId, "relationId"),
+      role: normalizeRequiredString(event.arguments.role, "role"),
+      callerGroups: claimGroups(claims["cognito:groups"]),
+      citationKey: normalizeOptionalString(event.arguments.citationKey),
+      note: normalizeOptionalString(event.arguments.note),
+      actor: getIdentityLabel(event) ?? callerSub,
+      now: new Date().toISOString(),
+      origin: editOriginOfIdentity(event.identity),
+    },
+  );
+}
+
+async function createConceptLinkAction(event: Parameters<CreateConceptLinkHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to link concepts.");
+  requireEditorGroups(event, "link concepts");
+  return createConceptLink(await referenceLinkStore(), {
+    subjectLineageId: normalizeRequiredString(event.arguments.subjectLineageId, "subjectLineageId"),
+    objectLineageId: normalizeRequiredString(event.arguments.objectLineageId, "objectLineageId"),
+    note: normalizeOptionalString(event.arguments.note),
+    callerSub,
+    now: new Date().toISOString(),
+    origin: editOriginOfIdentity(event.identity),
+  });
+}
+
+/** The schema lets only the editor and admin groups call these routes; this repeats the check, so a rule loosened by mistake still does not open them. */
+function requireEditorGroups(event: { identity?: unknown }, doing: string) {
+  const claims = (event.identity as { claims?: Record<string, unknown> } | null | undefined)?.claims ?? {};
+  if (!hasEditorRights(claimGroups(claims["cognito:groups"]))) throw new Error(`Only an editor or administrator can ${doing}.`);
+}
+
+async function applyKnowledgeReviewAction(event: Parameters<ApplyKnowledgeReviewHandler>[0]) {
+  if (!getIdentitySub(event)) throw new Error("Sign in to review knowledge.");
+  requireEditorGroups(event, "review knowledge");
+  const client = await getDataClient();
+  const store: KnowledgeReviewStore = {
+    getNode: async (id) => {
+      const response = await client.models.SemanticNode.get({ id });
+      assertNoDataErrors(response.errors, "get SemanticNode");
+      return (response.data as any) ?? null;
+    },
+    updateNode: async (patch) => {
+      await requireDataResult(client.models.SemanticNode.update(patch as any), "update SemanticNode");
+    },
+    getRelation: async (id) => {
+      const response = await client.models.SemanticRelation.get({ id });
+      assertNoDataErrors(response.errors, "get SemanticRelation");
+      return (response.data as any) ?? null;
+    },
+    updateRelation: async (patch) => {
+      await requireDataResult(client.models.SemanticRelation.update(patch as any), "update SemanticRelation");
+    },
+  };
+  return applyKnowledgeReview(store, { patches: event.arguments.patches, origin: editOriginOfIdentity(event.identity) });
 }
 
 async function createReferenceNote(event: Parameters<ReferenceNoteHandler>[0]) {
@@ -742,7 +1234,7 @@ async function createReferenceNote(event: Parameters<ReferenceNoteHandler>[0]) {
       importedAt: now,
       createdAt: now,
       updatedAt: now,
-      newsroomFeedKey: "semanticRelations",
+      newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
       metadata: JSON.stringify({
         kind: "reference.note",
         summary,
@@ -808,11 +1300,30 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       client.models.Reference.update({
         id: normalizeRequiredString(current.id, "reference.id"),
         versionState: "superseded",
+        feedStateKey: null,   // a superseded version is in no feed
+        ...(current.mediumFeedKey ? { mediumFeedKey: null } : {}),   // nor in a medium list
+        ...(current.contentNeededKey ? { contentNeededKey: null } : {}),   // nor in the list of videos waiting for content
+        ...(current.publicFeedKey ? { publicFeedKey: null, publicOrderKey: null } : {}),   // nor in the public index
         updatedAt: now,
       }),
       "supersede current Reference version",
     );
   }
+
+  const movedPublicKeys = referencePublicFeedKeys({
+    id: nextReferenceId,
+    corpusId: targetCorpusId,
+    curationStatus,
+    versionState: "current",
+    predictedAcceptProbability: typeof current.predictedAcceptProbability === "number" ? current.predictedAcceptProbability : null,
+    createdAt: normalizeOptionalString(current.createdAt) ?? now,
+    importedAt: normalizeOptionalString(current.importedAt),
+    retrievedAt: normalizeOptionalString(current.retrievedAt),
+    sourcePublishedAt: normalizeOptionalString(current.sourcePublishedAt),
+  });
+  const movedContentKey = current.medium
+    ? referenceContentNeededKey({ id: nextReferenceId, corpusId: targetCorpusId, curationStatus, versionState: "current", medium: current.medium, captureState: current.captureState, captureReason: current.captureReason })
+    : null;
 
   await requireDataResult(
     client.models.Reference.create({
@@ -840,13 +1351,51 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       importRunId: normalizeOptionalString(current.importRunId),
       importedAt: normalizeOptionalString(current.importedAt),
       createdAt: normalizeOptionalString(current.createdAt) ?? now,
+      ...(current.starRating ? { starRating: current.starRating, starRatedAt: current.starRatedAt, starRatedBy: current.starRatedBy, starFeedKey: starFeedKeyFor(targetCorpusId, current.starRating) } : {}),
+      ...(current.captureState ? { captureState: current.captureState } : {}),
+      ...(current.captureReason ? { captureReason: current.captureReason } : {}),
+      ...(current.thumbnailPath ? { thumbnailPath: current.thumbnailPath } : {}),
+      ...(current.medium ? { medium: current.medium } : {}),
+      ...(current.evidenceLevel ? { evidenceLevel: current.evidenceLevel } : {}),
+      ...(current.playlistUrl ? { playlistUrl: current.playlistUrl } : {}),
+      ...(current.cardImage ? { cardImage: current.cardImage } : {}),   // the card copies come from the preview, which is read by lineage, so they move with the Reference
+      ...(current.cardSummary ? { cardSummary: current.cardSummary } : {}),
+      ...(current.cardSiteName ? { cardSiteName: current.cardSiteName } : {}),
+      ...(current.cardPageTitle ? { cardPageTitle: current.cardPageTitle } : {}),
       curationStatus,
       curationStatusKey: `${targetCorpusId}#${curationStatus}`,
       curationStatusUpdatedAt: normalizeOptionalString(current.curationStatusUpdatedAt) ?? now,
       curationStatusUpdatedBy: normalizeOptionalString(current.curationStatusUpdatedBy) ?? actor,
       curationStatusReason: normalizeOptionalString(current.curationStatusReason),
-      newsroomFeedKey: normalizeOptionalString(current.newsroomFeedKey) ?? "references",
+      curationReasonCode: normalizeOptionalString(current.curationReasonCode),
+      curationActorKind: normalizeOptionalString(current.curationActorKind),
+      curationSectionId: normalizeOptionalString(current.curationSectionId),
+      curationSectionUpdatedAt: normalizeOptionalString(current.curationSectionUpdatedAt),
+      curationSectionUpdatedBy: normalizeOptionalString(current.curationSectionUpdatedBy),
+      curationSectionActorKind: normalizeOptionalString((current as { curationSectionActorKind?: string | null }).curationSectionActorKind),
+      curationSectionReason: normalizeOptionalString((current as { curationSectionReason?: string | null }).curationSectionReason),
+      curationSectionDecisionRelationId: normalizeOptionalString((current as { curationSectionDecisionRelationId?: string | null }).curationSectionDecisionRelationId),
+      curationShareable: typeof current.curationShareable === "boolean" ? current.curationShareable : null,
+      curationDelegation: current.curationDelegation ?? null,
+      curationDecisionRelationId: normalizeOptionalString(current.curationDecisionRelationId),
+      newsroomFeedKey: normalizeOptionalString(current.newsroomFeedKey) ?? globalKey(REFERENCE_FEED_KEY),
       reviewedFeedKey: normalizeOptionalString(current.reviewedFeedKey) ?? reviewedFeedKeyForStatus(curationStatus),
+      predictedAcceptProbability: typeof current.predictedAcceptProbability === "number" ? current.predictedAcceptProbability : null,
+      predictionDecidedAt: normalizeOptionalString(current.predictionDecidedAt),
+      ...referenceFeedKeys({
+        id: nextReferenceId,
+        corpusId: targetCorpusId,
+        curationStatus,
+        versionState: "current",
+        predictedAcceptProbability: typeof current.predictedAcceptProbability === "number" ? current.predictedAcceptProbability : null,
+        createdAt: normalizeOptionalString(current.createdAt) ?? now,
+        importedAt: normalizeOptionalString(current.importedAt),
+        retrievedAt: normalizeOptionalString(current.retrievedAt),
+        sourcePublishedAt: normalizeOptionalString(current.sourcePublishedAt),
+      }),
+      ...(current.medium ? { mediumFeedKey: referenceMediumFeedKey({ id: nextReferenceId, corpusId: targetCorpusId, curationStatus, versionState: "current", medium: current.medium }) } : {}),
+      ...(movedPublicKeys.publicFeedKey ? movedPublicKeys : {}),   // sparse too: no explicit null on a new row
+      ...(movedContentKey ? { contentNeededKey: movedContentKey } : {}),   // never an explicit null on a new row: that is not a missing index key attribute
       updatedAt: now,
     }),
     "create moved Reference version",
@@ -980,7 +1529,7 @@ async function startReferenceCuration(event: Parameters<StartReferenceCurationHa
       importedAt: now,
       createdAt: now,
       updatedAt: now,
-      newsroomFeedKey: "semanticRelations",
+      newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
       metadata: JSON.stringify({
         kind: "reference.curation.assignment",
         runId,
@@ -1925,7 +2474,7 @@ function buildAuthoritativeLabelRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: JSON.stringify({
       kind: sourceMode === "accepted_prediction"
         ? "classification.authoritative_label.accepted_from_prediction"
@@ -1991,7 +2540,7 @@ function buildReferenceQualityRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: JSON.stringify({
       kind: "reference.quality-rating.manual",
       actor,
@@ -2074,7 +2623,7 @@ function normalizeReferenceCurationAction(value: unknown): "accept" | "reject" |
 }
 
 function reviewedFeedKeyForStatus(status: string): string | null {
-  return status === "pending" ? null : REFERENCE_REVIEWED_FEED_KEY;
+  return status === "pending" ? null : globalKey(REFERENCE_REVIEWED_FEED_KEY);
 }
 
 function referenceCurationStatusForAction(action: "accept" | "reject" | "reopen" | "archive"): "accepted" | "rejected" | "pending" | "archived" {
@@ -2094,12 +2643,10 @@ const REFERENCE_REJECTION_REASON_CODES = new Set([
   "other",
 ]);
 
-function normalizeReferenceRejectionReasonCode(value: unknown, required: boolean): string | null {
+/** A supplied reason code, validated. Whether a rejection has a reason at all is the caller's rule. */
+function normalizeReferenceRejectionReasonCode(value: unknown): string | null {
   const normalized = normalizePolicyToken(value);
-  if (!normalized) {
-    if (required) throw new Error("reasonCode is required when rejecting a reference.");
-    return null;
-  }
+  if (!normalized) return null;
   if (!REFERENCE_REJECTION_REASON_CODES.has(normalized)) {
     throw new Error(`Unsupported reference rejection reason code ${normalized}.`);
   }
@@ -2161,9 +2708,6 @@ async function updateNewsroomSummaryForReferenceCuration(
   payload.generatedAt = input.now;
   payload.staleAt = new Date(Date.parse(input.now) + SUMMARY_STALE_AFTER_MS).toISOString();
   payload.source = "incremental";
-  payload.counts.messages = Math.max(0, (payload.counts.messages ?? 0) + 1);
-  payload.counts.modelAttachments = Math.max(0, (payload.counts.modelAttachments ?? 0) + 2);
-  payload.counts.semanticRelations = Math.max(0, (payload.counts.semanticRelations ?? 0) + 1);
   if (input.previousStatus !== input.nextStatus) {
     increment(payload.referenceStatusCounts, input.previousStatus, -1);
     increment(payload.referenceStatusCounts, input.nextStatus, 1);
@@ -2175,23 +2719,6 @@ async function updateNewsroomSummaryForReferenceCuration(
       increment(payload.facets.references.statusByCorpus[input.corpusId], input.nextStatus, 1);
     }
   }
-  increment(payload.messageKindCounts, "reference_curation", 1);
-  increment(payload.messageDomainCounts, "commentary", 1);
-  increment(payload.facets.messages.byKind, "reference_curation", 1);
-  increment(payload.facets.messages.byDomain, "commentary", 1);
-  increment(payload.facets.messages.byStatus, "active", 1);
-  if (!payload.facets.messages.domainByKind.reference_curation) payload.facets.messages.domainByKind.reference_curation = {};
-  increment(payload.facets.messages.domainByKind.reference_curation, "commentary", 1);
-  increment(payload.facets.modelAttachments.byOwnerKind, "message", 2);
-  increment(payload.facets.modelAttachments.byRole, "message_body", 1);
-  increment(payload.facets.modelAttachments.byRole, "metadata", 1);
-  increment(payload.facets.modelAttachments.byMediaType, "text/plain", 1);
-  increment(payload.facets.modelAttachments.byMediaType, "application/json", 1);
-  increment(payload.facets.modelAttachments.byStatus, "active", 2);
-  increment(payload.facets.semanticRelations.byRelationTypeKey, "comment", 1);
-  increment(payload.facets.semanticRelations.byRelationDomain, "workflow", 1);
-  increment(payload.facets.semanticRelations.bySubjectKind, "message", 1);
-  increment(payload.facets.semanticRelations.byObjectKind, "reference", 1);
   await upsertNewsroomSummaryPayload(client, payload, response.data, input.now);
 }
 

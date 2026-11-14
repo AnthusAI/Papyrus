@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d8295ea1-31f5-4ee0-b591-31dec1194974",
+  "issue_id": "PPY-d9ecc5f3-9613-49b6-8187-ccdfbd3766f1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T05:28:00.844Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Explanations on accepted links are searchable in the knowledge base",
+    "description": "",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-41134cac-0ca4-4ba0-9ad2-67a7a22aa859",
+    "labels": []
+  }
+}

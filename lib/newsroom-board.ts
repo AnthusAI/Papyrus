@@ -1,4 +1,4 @@
-import type { KanbanConfig, KanbanIssue } from "@kanbus/ui";
+import type { KanbanConfig, KanbanIssue, KanbanSortFieldRule } from "@kanbus/ui";
 import type { AssignmentRecord } from "./category-repository";
 import {
   ASSIGNMENT_PHASE_STAGE_KEYS,
@@ -6,11 +6,14 @@ import {
   canonicalContentItemStage,
   contentItemStageKeys,
   contentItemStageLabel,
+  isStoryItemType,
   latestVersionPerContentItem,
   type ContentItemVersionRecord,
 } from "./content-item-lifecycle";
 import { contentItemExcerpt } from "./front-matter-fields";
 import { assignmentStatusLabel } from "./newsroom-assignments";
+import { scheduleFromFields, type StorySchedule } from "./story-schedule";
+import { storyChecklistSummary, type StoryChecklistSummary } from "./story-checklist";
 import { getContentItemName, getContentItemStageDefinitions } from "./site-brand";
 
 export type NativeBoardKind = "contentItem" | "assignment";
@@ -23,6 +26,12 @@ export interface NativeBoardIssue extends KanbanIssue {
   excerpt?: string;
   /** The quiet path shown where a board would print the ID, e.g. `articles/my-slug` or `assignments/write-it`. */
   displayId: string;
+  /** A Story's private 1-5 rating (null unrated); undefined when the card was not read from an Item row, so it cannot be rated here. */
+  starRating?: number | null;
+  /** The Story's checklist counts, read from its version's metadata; undefined for a Story with no checklist yet. */
+  checklist?: StoryChecklistSummary;
+  /** When the Story's version goes live, if it is scheduled (lib/story-schedule.ts). */
+  schedule?: StorySchedule;
 }
 
 function slugify(text: string): string {
@@ -58,8 +67,35 @@ export function contentItemBoardType(): string {
 
 export const ASSIGNMENT_BOARD_TYPE = "assignment";
 
+/** Where an Idea came from, shown as a labelled marker on its card (priority slot: the card prints the name and CSS adds the icon). */
+export const IDEA_ORIGIN_PRIORITIES = { generated: 3, person: 4 } as const;
+export const IDEA_ORIGIN_LABELS = { generated: "Generated", person: "Started by a person" } as const;
+const GENERATED_METADATA_ORIGINS = ["monitor", "idea_pipeline", "generated"];
+
+/** A story is generated when it was recorded by "AI" (the attribution label) or its metadata names a machine origin; otherwise a person started it. */
+export function ideaOrigin(version: Pick<ContentItemVersionRecord, "versionCreatedBy" | "metadata">): "generated" | "person" {
+  const metadata = typeof version.metadata === "string" ? safeJson(version.metadata) : version.metadata;
+  const origin = (metadata as { origin?: unknown } | null | undefined)?.origin;
+  if (typeof origin === "string" && GENERATED_METADATA_ORIGINS.includes(origin)) return "generated";
+  return (version.versionCreatedBy ?? "").trim().toLowerCase() === "ai" ? "generated" : "person";
+}
+
+function safeJson(text: string): unknown {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
 const ASSIGNMENT_STATUSES_BEFORE_OTHERS = ["open", "claimed"];
 const ASSIGNMENT_STATUSES_AFTER_OTHERS = ["completed", "canceled"];
+
+function scheduleOf(version: ContentItemVersionRecord): { schedule?: StorySchedule } {
+  const schedule = scheduleFromFields(version);
+  return schedule ? { schedule } : {};
+}
+
+function checklistOf(version: ContentItemVersionRecord): { checklist?: StoryChecklistSummary } {
+  const checklist = storyChecklistSummary(version.metadata);
+  return checklist ? { checklist } : {};
+}
 
 /** One card per content item, in the column for its lifecycle stage; its assignments are counted on the card. */
 export function projectContentItemBoard(records: {
@@ -75,7 +111,8 @@ export function projectContentItemBoard(records: {
   const contentItemType = contentItemBoardType();
   const stageDefinitions = getContentItemStageDefinitions();
   const stageKeys = contentItemStageKeys(stageDefinitions);
-  const contentItemVersionsOnBoard = latestVersionPerContentItem(records.contentItemVersions)
+  // The loaders already ask for story types only; this keeps a non-story Item out of the cards and the counts whatever fed it in.
+  const contentItemVersionsOnBoard = latestVersionPerContentItem(records.contentItemVersions.filter(version => isStoryItemType(version.type)))
     .map(version => ({ version, stage: canonicalContentItemStage(version.stage ?? "idea", stageDefinitions) }))
     .filter(({ stage }) => stageKeys.includes(stage) || !ASSIGNMENT_PHASE_STAGE_KEYS.includes(stage));
   return contentItemVersionsOnBoard.map(({ version, stage }) => {
@@ -83,9 +120,10 @@ export function projectContentItemBoard(records: {
     return {
       id: `contentItem:${version.lineageId}`, nativeId: version.lineageId, kind: "contentItem" as const, type: contentItemType,
       title: version.headline || version.title || version.slug, nativeStatus: stage, status: `${contentItemType}/${stage}`,
-      priority: 2, description: workCount ? `${workCount} assignment${workCount === 1 ? "" : "s"} on this ${contentItemType}.` : undefined,
+      priority: stage === "idea" ? IDEA_ORIGIN_PRIORITIES[ideaOrigin(version)] : 2, description: workCount ? `${workCount} assignment${workCount === 1 ? "" : "s"} on this ${contentItemType}.` : undefined,
       updated_at: version.updatedAt ?? undefined, href: `/newsroom/articles/${encodeURIComponent(version.id)}`,
-      excerpt: contentItemExcerpt(version), displayId: contentItemDisplayId(version),
+      excerpt: contentItemExcerpt(version), displayId: contentItemDisplayId(version), starRating: version.starRating,
+      ...checklistOf(version), ...scheduleOf(version),
     };
   });
 }
@@ -118,11 +156,20 @@ export function assignmentColumnOrder(statusesPresentOnBoard: readonly string[])
   return [...ASSIGNMENT_STATUSES_BEFORE_OTHERS, ...otherStatuses, ...ASSIGNMENT_STATUSES_AFTER_OTHERS];
 }
 
+/**
+ * Kanbus's default column order is oldest-created first, and our content items carry no `created_at`, so without this every
+ * column listed its cards by id. Newest first by `updated_at`: it is the order the stage pages load in, and the only time a
+ * paged content item has (each save is a new version, so `createdAt` is the last edit, not the story's start).
+ */
+export const NEWEST_FIRST: KanbanSortFieldRule[] = [{ field: "updated_at", direction: "desc" }];
+
 function boardConfigForType(type: string, columns: readonly { key: string; name: string; collapsed?: boolean }[]): KanbanConfig {
   const statuses = columns.map(column => ({ ...column, category: "native" }));
   return {
     hierarchy: [], types: [type], statuses,
-    categories: [{ name: "native" }], priorities: {}, type_colors: {},
+    categories: [{ name: "native" }],
+    priorities: { [IDEA_ORIGIN_PRIORITIES.generated]: { name: IDEA_ORIGIN_LABELS.generated }, [IDEA_ORIGIN_PRIORITIES.person]: { name: IDEA_ORIGIN_LABELS.person } }, type_colors: {},
+    sort_order: Object.fromEntries(statuses.map(status => [status.key, [...NEWEST_FIRST]])),
     workflows: { [type]: Object.fromEntries(statuses.map(status => [status.key, []])) },
   };
 }
@@ -165,6 +212,7 @@ export function deskBoardConfig(issues: readonly NativeBoardIssue[]): KanbanConf
     statuses: [...storiesConfig.statuses, ...assignmentsConfig.statuses],
     categories: storiesConfig.categories,
     workflows: { ...storiesConfig.workflows, ...assignmentsConfig.workflows },
+    sort_order: { ...assignmentsConfig.sort_order, ...storiesConfig.sort_order },
   };
 }
 

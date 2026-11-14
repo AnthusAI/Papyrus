@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Mapping
 
 from . import addresses
+from ..staff_groups import STAFF_GROUPS
 from .compose import ItemMissing, content_hash, load_source
 from .store import Store, _de, _ser, iso
 
@@ -30,7 +31,7 @@ ISSUE_INDEX_PARTITION = "#issues"
 COUNT_KEYS = ("queued", "sent", "failed", "suppressed", "skipped", "delivered", "bounced", "complained")
 TERMINAL_COUNTS = ("sent", "failed", "suppressed", "skipped")
 APPROVABLE = ("draft", "awaiting_approval", "scheduled", "blocked")  # blocked: fixed at its cause, then approved again
-EDITORS = frozenset({"editor", "admin"})
+EDITORS = STAFF_GROUPS
 ADMINS = frozenset({"admin"})
 EDITED_NOTE = "edited after approval; approve again"
 SUMMARY_FIELDS = (
@@ -104,7 +105,7 @@ def summary(issue: Mapping[str, Any], settings: Any = None) -> dict[str, Any]:
 
 
 def groups_of(event: Mapping[str, Any]) -> set[str]:
-    groups = (event.get("identity") or {}).get("groups")
+    groups = (event.get("identity") or {}).get("groups")  # AppSync's verified list; a bare string is malformed, not a group
     return {group for group in groups if isinstance(group, str)} if isinstance(groups, list) else set()
 
 

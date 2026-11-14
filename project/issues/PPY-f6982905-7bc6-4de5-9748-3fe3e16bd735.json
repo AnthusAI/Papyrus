@@ -1,0 +1,28 @@
+{
+  "id": "PPY-f6982905-7bc6-4de5-9748-3fe3e16bd735",
+  "title": "Move people's conversations onto Chatticus channels",
+  "description": "Ryan 11-02: conversations between people and bots, forum threads included, use the Chatticus message and channel model and one store. Machine records do not move; they stay on the 10-29 removal plan. Today across 7 sites: 6 Reference threads, 13 Story reporting threads, 98 console threads, 1 forum thread, no story_conversation threads. A person's message reaches the bot only when it addresses the bot; otherwise no agent response. Readers to change: Messages page, Story and Reference detail, home page threads. Waits on Chatticus epic chatticus-4b2417. Done: Gherkin scenarios, existing threads migrated site by site after a dry-run count, p.apyr.us docs task updated.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "cce3a460-5585-498a-869e-fdf255df2c65",
+      "author": "home",
+      "text": "Consultation and Ryan 11-02: no silent bot; forums are channels with no bot needed, on the Chatticus channel record (chatticus-e4f1f2). Do not start until that settles. Deletion is real (chatticus-c02220). Open chat is live (chatticus-02299d); forum lists, Messages page and home page may poll or lag. Needs an identity mapping for existing threads' authorSub, forum search, and author names and handles for the public home page.",
+      "created_at": "2026-11-02T16:32:18.576238Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-02T16:03:29.048160Z",
+  "updated_at": "2026-11-02T16:32:18.576499Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

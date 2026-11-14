@@ -3,22 +3,28 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
 from ..graphql_authoring import create_authoring_client
+from ..machine_writes import RETIRED_STAGE
 from ..knowledge_snapshot.commands import announce_backend, load_knowledge_data, select_backend
 from ..knowledge_snapshot.keys import slug
 from ..knowledge_snapshot.loaders import CURRENT, beats_from_categories
+from ..tenancy import require_tenant_for_tenanted_rows, tenant_id_from_options
 from ..options import normalize_string, parse_comma_list, parse_options
+from ..projection_trigger import retry_command
 from ..publish_commands import DEFAULT_ACTOR, run_site_triggers
 from ..publishing import ItemFields, PublishError, _parse_json_object, publish_item, published_item_id_for, save_item
 from ..wiki_stamp import ACTORS, REVIEW_KEY, UPDATED_KEY, WIKI_PAGE_ITEM_TYPE, review_mapping, stamp_problems
+from .kinds import public_kinds_of
 from .pages import KIND_BEAT, KIND_ENTITY, KIND_SUBTOPIC, front_matter_yaml
 from .sync import (
     DEFAULT_ITEMS_PER_TOPIC,
     DEFAULT_MINIMUM_SUBTOPIC_ITEMS,
+    RETIRED_KEY,
     UNCHANGED,
     TopicOptions,
     apply_plan,
@@ -31,7 +37,7 @@ from .sync import (
     working_version,
 )
 
-DEFAULT_WIKI_SECTION = "wiki"
+from ..projection.standard.wiki import DEFAULT_WIKI_SECTION  # noqa: E402 - one name for the wiki section, shared with the projection
 DEFAULT_TOPICS_SECTION = "topics"
 SYNC_ACTOR = "papyrus-wiki-sync"
 
@@ -80,15 +86,19 @@ def _category_context(client: Any, options: dict[str, Any], data) -> tuple[list[
     return rows, {key: text for key, text in descriptions.items() if text}, children
 
 
-def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int]) -> None:
+def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int], run_id: str | None = None) -> None:
     if as_json:
         print(
             json.dumps(
                 {
                     "mode": "apply" if apply else "dry-run",
+                    "runId": run_id if apply else None,
                     "counts": plan.counts,
                     "pages": [
-                        {"action": page.action, "section": page.section, "slug": page.spec.slug, "kind": page.spec.kind, "note": page.note}
+                        {
+                            "action": page.action, "section": page.section, "slug": page.spec.slug, "kind": page.spec.kind, "note": page.note,
+                            "entityKind": page.spec.front_matter.get("kind"), "title": page.spec.front_matter.get("title"),
+                        }
                         for page in plan.pages
                     ],
                     "warnings": list(plan.warnings),
@@ -115,6 +125,7 @@ def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int]) -> No
 
 def knowledge_wiki_sync(flags: list[str]) -> None:
     options = parse_options(flags)
+    public_kinds = public_kinds_of(options)
     apply = options.get("apply") is True
     section = normalize_string(options.get("section")) or DEFAULT_WIKI_SECTION
     topics_section = normalize_string(options.get("topics-section")) or DEFAULT_TOPICS_SECTION
@@ -125,12 +136,16 @@ def knowledge_wiki_sync(flags: list[str]) -> None:
         url_template=normalize_string(options.get("topics-url")) or f"/{topics_section}/{{slug}}/",
         sections=tuple(parse_comma_list(options.get("topic-sections")) or ()),
     )
+    run_id = normalize_string(options.get("run-id")) or (f"wiki-sync-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}" if apply else None)
     select_backend(options)
-    client, claims = create_authoring_client()
+    client, claims = create_authoring_client(tenant_id_from_options(options))
     announce_backend()
+    if apply:
+        print(f"knowledge\twiki-sync\trun\t{run_id}\tundo with `papyrus knowledge run undo --run-id {run_id}`", file=sys.stderr)
     data = load_knowledge_data(client, _NoPages(), options)
     rows = client.list_records("Item")
-    specs = entity_specs(data, wiki_lineages(rows, section))
+    require_tenant_for_tenanted_rows(client.tenant_id, rows)
+    specs = entity_specs(data, wiki_lineages(rows, section), public_kinds)
     section_of = {KIND_ENTITY: section}
     if with_topics:
         _rows, descriptions, children = _category_context(client, options, data)
@@ -140,8 +155,8 @@ def knowledge_wiki_sync(flags: list[str]) -> None:
     plan = plan_sync(specs, section_of, rows, live_sources(client, lineages))
     written: dict[str, int] = {}
     if apply:
-        written = apply_plan(client, plan, actor=normalize_string((claims or {}).get("sub")) or SYNC_ACTOR)
-    _print_plan(plan, apply, bool(options.get("json")), written)
+        written = apply_plan(client, plan, actor=normalize_string((claims or {}).get("sub")) or SYNC_ACTOR, run_id=run_id)
+    _print_plan(plan, apply, bool(options.get("json")), written, run_id)
 
 
 def _split_positional(flags: list[str]) -> tuple[str | None, list[str]]:
@@ -185,10 +200,11 @@ def knowledge_wiki_publish(flags: list[str]) -> None:
     review = review_mapping(actor, name, on)
     section = normalize_string(options.get("section"))
     select_backend(options)
-    client, claims = create_authoring_client()
+    client, claims = create_authoring_client(tenant_id_from_options(options))
     announce_backend()
     who = normalize_string((claims or {}).get("sub")) or DEFAULT_ACTOR
     rows = client.list_records("Item")
+    require_tenant_for_tenanted_rows(client.tenant_id, rows)
     if identifier:
         targets = [_find_target(rows, identifier, section)]
     else:
@@ -196,7 +212,11 @@ def knowledge_wiki_publish(flags: list[str]) -> None:
         lineages: dict[str, list[dict]] = {}
         for row in wiki:
             lineages.setdefault(str(row.get("lineageId") or row["id"]), []).append(row)
-        targets = [working for working in (working_version(group) for _lineage, group in sorted(lineages.items())) if _needs_publishing(client, working)]
+        current = (working_version(group) for _lineage, group in sorted(lineages.items()))
+        targets = [
+            working for working in current
+            if front_matter_of(working).get(RETIRED_KEY) is not True and working.get("stage") != RETIRED_STAGE and _needs_publishing(client, working)
+        ]
     outcomes: Counter = Counter()
     report: list[dict[str, Any]] = []
     failed = False
@@ -235,6 +255,11 @@ def knowledge_wiki_publish(flags: list[str]) -> None:
         outcomes[state] += 1
         report.append({"item": working["id"], "page": label, "result": state, "version": result.version_number, **({"triggers": triggers} if triggers else {})})
         print(f"knowledge\twiki-publish\t{state}\t{label}\tversion {result.version_number}")
+        projection = triggers.get("projection") or {}
+        if projection.get("ok") is False:
+            # The records are written, but the site has not projected the page: say so and how to repeat only the projection.
+            print(f"knowledge\twiki-publish\tprojection-failed\t{label}\titem {working['id']} is published but its page was not projected: {projection.get('error')}; retry: {projection.get('retry') or retry_command(working['id'], unpublished=False)}")
+            failed = True
     if options.get("json"):
         print(json.dumps({"mode": "apply" if apply else "dry-run", "review": review, "pages": report, "counts": dict(outcomes)}, indent=2, sort_keys=True))
     else:

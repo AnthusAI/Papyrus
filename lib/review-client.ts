@@ -97,3 +97,60 @@ export async function markReviewRead(userKey: string, requestId: string, now: Da
     await run(`mutation Mark($input: UpdateReviewReadMarkInput!) { updateReviewReadMark(input: $input) { id } }`, { input });
   }
 }
+
+const LOOKUPS_AT_A_TIME = 8;
+/** The opening of a story, for a reviewer who has not opened it: the deck, then the first paragraphs of the body. */
+const EXCERPT_CHARACTERS = 900;
+
+export function storyExcerpt(deck: string | null | undefined, body: readonly (string | null)[] | null | undefined): string | null {
+  const text = [deck, ...(body ?? [])].map((part) => (part ?? "").trim()).filter(Boolean).join("\n\n");
+  if (!text) return null;
+  if (text.length <= EXCERPT_CHARACTERS) return text;
+  const cut = text.slice(0, EXCERPT_CHARACTERS);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), EXCERPT_CHARACTERS - 80))}…`;
+}
+
+/**
+ * Titles of the stories that review requests are about (and of the ideas a batch names), by lineage id, their current stage, and the ids of stories
+ * that no longer exist (no version of the lineage remains). A story that cannot be read simply has no entry (the card falls back to the id).
+ * One read per story, a few at a time: a batch can name any number of ideas.
+ */
+export async function loadStoryTitles(ids: string[]): Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string>; stages?: Record<string, string> }> {
+  const titles: Record<string, string> = {};
+  const excerpts: Record<string, string> = {};
+  const stages: Record<string, string> = {};
+  const deleted: string[] = [];
+  const unique = [...new Set(ids)];
+  for (let start = 0; start < unique.length; start += LOOKUPS_AT_A_TIME) await Promise.all(unique.slice(start, start + LOOKUPS_AT_A_TIME).map(async (id) => {
+    const result = await run(
+      `query StoryTitle($lineageId: ID!) { listItemsByLineageAndVersion(lineageId: $lineageId, limit: 50) { items { versionNumber headline title deck body stage } } }`,
+      { lineageId: id },
+    );
+    // Only a clean, empty answer means the story is gone; a failed lookup says nothing.
+    if (!result.errors?.length && result.data?.listItemsByLineageAndVersion && !(result.data.listItemsByLineageAndVersion.items ?? []).filter(Boolean).length) deleted.push(id);
+    const items = (result.data?.listItemsByLineageAndVersion?.items ?? []).filter(Boolean) as { versionNumber?: number; headline?: string; title?: string; deck?: string | null; body?: (string | null)[] | null; stage?: string | null }[];
+    const newest = items.sort((a, b) => (b.versionNumber ?? 0) - (a.versionNumber ?? 0))[0];
+    const title = newest?.headline || newest?.title;
+    if (title) titles[id] = title;
+    const excerpt = storyExcerpt(newest?.deck, newest?.body);
+    if (excerpt) excerpts[id] = excerpt;
+    if (newest?.stage) stages[id] = newest.stage;
+  }));
+  return { titles, deleted, excerpts, stages };
+}
+
+/**
+ * Changes only the note of an answered request (see `answerReasonUpdate`). The condition is that the
+ * request is still in the state it was read in, so a change cannot overwrite a request that closed or timed out meanwhile.
+ */
+export async function saveReviewReason(request: ReviewRequest, update: Record<string, unknown>): Promise<ReviewRequest> {
+  const result = await run(
+    `mutation Reason($input: UpdateReviewRequestInput!, $condition: ModelReviewRequestConditionInput) { updateReviewRequest(input: $input, condition: $condition) { ${FIELDS} } }`,
+    { input: update, condition: { state: { eq: request.state } } },
+  );
+  if (result.errors?.some((entry) => /conditional/i.test(`${entry.errorType ?? ""} ${entry.message ?? ""}`))) {
+    throw new Error("This request changed while you were writing. Your note is kept here; refresh, then save it again.");
+  }
+  if (result.errors?.length || !result.data?.updateReviewRequest) throw new Error("Your note could not be saved. It is kept here; keep typing or tap away to try again.");
+  return normalizeReviewRow(result.data.updateReviewRequest);
+}

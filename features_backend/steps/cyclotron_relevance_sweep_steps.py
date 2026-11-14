@@ -16,6 +16,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 
 from papyrus_content.graphql_authoring import INDEX_DEFINITIONS  # noqa: E402
+from papyrus_content.reference_vote import vote_fields  # noqa: E402
 from papyrus_content.relevance_decisions import current_relevance_decision  # noqa: E402
 from papyrus_content.relevance_sweep import CyclotronClaimed, run_decide_relevance, sweep_assignment_id  # noqa: E402
 from papyrus_content.steering import load_steering_config  # noqa: E402
@@ -250,17 +251,12 @@ def step_calls(context):
 
 
 def curate(context, item, *, status, action, reason, note, shareable):
+    """An editor's vote is recorded on the Reference itself (no Message, no comment relation)."""
     row = context.client.tables["Reference"][item["id"]]
     row.update({"curationStatus": status, "curationStatusKey": f"{CORPUS_ID}#{status}",
-                "curationStatusReason": note, "curationStatusUpdatedAt": "2026-10-09T12:00:00Z"})
-    message_id = f"message-reference-curation-{item['lineageId']}-{action}"
-    metadata = {"action": action, "reasonCode": reason, "actorKind": "human", **({"shareable": shareable} if shareable is not None else {})}
-    context.client.upsert("Message", {"id": message_id, "messageKind": "reference_curation", "authorLabel": "editor-7",
-                                      "createdAt": "2026-10-09T12:00:00Z", "metadata": json.dumps(metadata)})
-    context.client.upsert("SemanticRelation", {
-        "id": f"relation-{message_id}", "relationState": "current", "predicate": "comment", "subjectKind": "message",
-        "subjectId": message_id, "objectKind": "reference", "objectLineageId": item["lineageId"],
-        "objectStateKey": f"reference#{item['lineageId']}#current", "subjectStateKey": f"message#{message_id}#current"})
+                "curationStatusReason": note, "curationStatusUpdatedAt": "2026-10-09T12:00:00Z",
+                "curationStatusUpdatedBy": "editor-7",
+                **vote_fields("human", reason_code=reason, shareable=shareable)})
 
 
 @given('an editor rejected the first pending reference as "{reason}" saying "{note}" and allowed quoting')
@@ -275,18 +271,7 @@ def step_editor_accepts(context, note):
 
 @given('an editor rejected the first pending reference as "{reason}" saying "{note}"')
 def step_editor_rejects(context, reason, note):
-    item = context.pending[0]
-    row = context.client.tables["Reference"][item["id"]]
-    row.update({"curationStatus": "rejected", "curationStatusKey": f"{CORPUS_ID}#rejected",
-                "curationStatusReason": note, "curationStatusUpdatedAt": "2026-10-09T12:00:00Z"})
-    message_id = f"message-reference-curation-{item['lineageId']}-reject"
-    context.client.upsert("Message", {"id": message_id, "messageKind": "reference_curation", "authorLabel": "editor-7",
-                                      "createdAt": "2026-10-09T12:00:00Z",
-                                      "metadata": json.dumps({"action": "reject", "reasonCode": reason, "actorKind": "human"})})
-    context.client.upsert("SemanticRelation", {
-        "id": f"relation-{message_id}", "relationState": "current", "predicate": "comment", "subjectKind": "message",
-        "subjectId": message_id, "objectKind": "reference", "objectLineageId": item["lineageId"],
-        "objectStateKey": f"reference#{item['lineageId']}#current", "subjectStateKey": f"message#{message_id}#current"})
+    curate(context, context.pending[0], status="rejected", action="reject", reason=reason, note=note, shareable=None)
 
 
 def open_store(context):

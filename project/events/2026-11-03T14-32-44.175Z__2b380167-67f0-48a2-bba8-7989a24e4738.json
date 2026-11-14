@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2b380167-67f0-48a2-bba8-7989a24e4738",
+  "issue_id": "PPY-f1c1fd02-ee4f-42e7-86f3-cc42e7888d86",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T14:32:44.175Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Stories get star ratings",
+    "description": "Add starRating, starRatedAt and starRatedBy on Item, and a setItemStars mutation for editor groups, using the same rules as setReferenceStars: separate from stage changes, newest wins, tapping the same star clears it. Item is versioned, so every new version must carry the rating (write this test first; Reference lost its stars this way in 5.78). Reuse components/star-rating.tsx on the Stories board card, story drawer and editor. Rating works at every stage, including the Idea stage and after publication. Never exported to published pages; add to the home-page and projection exclusion guards. Schema change, so it needs the site backend deployed.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-97e016ea-6af5-49f6-978a-f9bbd46c68f7",
+    "labels": []
+  }
+}

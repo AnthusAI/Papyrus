@@ -41,6 +41,8 @@ export default async function NewsDeskNestedSectionPage({ params, searchParams }
   if (section === "users") redirect(toPublicNewsroomPath("/newsroom/administration/users"));
   if (section === "doctrine") redirect(toPublicNewsroomPath("/newsroom/administration/policies"));
   if (section === "administration" && selection[0] === "analysis") redirect(toPublicNewsroomPath("/newsroom/assignments"));
+  // A Notification Center deep link (`/needs-me/<item id>`): the console home, which opens that item from the address.
+  if (section === "needs-me") return <NewsDeskPage searchParams={searchParams} />;
   if (!NEWS_DESK_ROUTE_SECTIONS.has(section as NewsDeskTab)) notFound();
   return <NewsDeskPage section={section} selectionPath={selection} searchParams={searchParams} />;
 }

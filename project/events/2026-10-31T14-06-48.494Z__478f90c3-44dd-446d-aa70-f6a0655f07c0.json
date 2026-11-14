@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "478f90c3-44dd-446d-aa70-f6a0655f07c0",
+  "issue_id": "PPY-81e6f9da-6c5d-4ce8-ada2-26246ac50e95",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:48.494Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Generate the account-linking config in the skill manifest and deploy it via ASK CLI",
+    "description": "The generator adds accountLinkingRequest (AUTH_CODE, authorizationUrl, accessTokenUrl, clientId, scopes, PKCE, domains) to the deploy. The client secret goes through `ask smapi update-account-linking-info` in CI. Linking is optional.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-ef1e52d9-dc78-4c85-9c03-5d7c70d3aff8",
+    "labels": []
+  }
+}

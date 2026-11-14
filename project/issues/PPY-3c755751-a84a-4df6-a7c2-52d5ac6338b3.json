@@ -1,0 +1,25 @@
+{
+  "id": "PPY-3c755751-a84a-4df6-a7c2-52d5ac6338b3",
+  "title": "CLI on the registered federation client behind a per-site flag: fixed loopback callback, /cli/callback, discovery and broker client",
+  "description": "Repo: **Papyrus**. Ryan approved (2026-10-31) moving the CLI to the registered federation client. Code is ready to write now; the PRODUCTION flip per site waits for the approved review (kanbus-b91466) and, for the four unregistered sites, their entries (kanbus-275596).\n\n## Today\n`lib/cli-login-discovery.ts` `cliLoginDocumentFromOutputs()` returns the main web client (`outputs.auth.user_pool_client_id`) and `CLI_CALLBACK_URI = \"http://localhost:3001/\"`; `site-backend.ts:180` gives the broker `backend.auth.resources.userPoolClient.userPoolClientId`; `extraCallbackUrls` adds `<origin>/cli/callback` to the MAIN client; the Prospectus client is built by `addProspectusGoogleOnlyClient(authStack, userPool, redirectUrls)` with callback `<origin>/api/auth/prospectus/callback` only, outputs `ProspectusGoogleOnlyClientId`, published as `custom.prospectusSignIn {clientId, callbackPath}`.\n\n## Change\n1. Site flag `featureFlags.cliOnFederationClient` (default false) in the site config shape (`infra/amplify-app-shell/lib/site-config.ts`, `PapyrusConfig`), documented in `papyrus-config.example.yaml`.\n2. With the flag on: `addProspectusGoogleOnlyClient` gets `extraCallbackUrls` = `[CLI_LOOPBACK_CALLBACK, \"<consoleOrigin>/cli/callback\"]` and matching logout URLs; the discovery document returns `client_id = custom.prospectusSignIn.clientId` and `callback_uri = CLI_LOOPBACK_CALLBACK`; the broker (`addCliRemoteLogin`) gets that client id. The main client no longer receives `/cli/callback` (one PR after the flip, so nothing breaks mid-way).\n3. Fixed loopback: `CLI_LOOPBACK_CALLBACK = \"http://127.0.0.1:38947/cli/callback\"` (a fixed, unassigned port; Cognito matches exactly, so the CLI binds exactly this port and path and fails with a clear message if it is taken; `cli_login` 0.3.0 local flow is given the port). Document it in `docs/cli-login.md`; the packet task cites it.\n4. The CLI (`src/papyrus_content/cli_user_auth.py` `discover()` ~199, `SiteSession.login()` ~311) reads `client_id` and `callback_uri` from discovery as it does; no CLI change beyond honouring a fixed callback path. Add `papyrus login --print-client` (read-only) that shows which client discovery named, so the flip is verifiable from a terminal without ids leaking into logs (print the last 4 characters only).\n5. Flip order per site (site PRs, after kanbus-b91466 approval for that site): set the flag -> app-shell deploy -> `papyrus login --print-client` shows the federation client -> `papyrus login` and `--remote` complete -> remove `/cli/callback` from the main client. Record each site on this task.\n\n## Gherkin (`features_backend/cli-login-client.feature`, `features/cli-login-discovery.feature` extend)\n  Scenario: With the flag off, discovery names the main client and the broker uses it (today's behaviour, byte-identical outputs)\n  Scenario: With the flag on, discovery names the federation client and the fixed loopback callback\n  Scenario: The federation client's callback list contains exactly the Prospectus callback, the loopback and /cli/callback\n  Scenario: The CLI refuses to start a login when the fixed loopback port is taken, with a clear message\n  Scenario: Sign-in on the federation client is Google-only (no password flow is reachable)\n\n## Acceptance\nSynth tests for both flag states; `docs/cli-login.md` \"Which client\" section; no ids in the repo. Code: ready now. Production flips: WAIT kanbus-b91466 (and kanbus-275596 for Anth.us, TI, Distinctive Mark, Data Parade).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e2a0b8d7-5783-441f-b8e5-0b1c76b8688f",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T12:42:38.566458Z",
+  "updated_at": "2026-10-31T12:42:38.566495Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

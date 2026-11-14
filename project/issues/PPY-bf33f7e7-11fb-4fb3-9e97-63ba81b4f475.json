@@ -1,0 +1,20 @@
+{
+  "id": "PPY-bf33f7e7-11fb-4fb3-9e97-63ba81b4f475",
+  "title": "p.apyr.us docs page: shared article page actions (icons, post links, share popup, article_actions)",
+  "description": "Write the p.apyr.us documentation page for the shared article page actions. Source material: docs/building-a-papyrus-static-site.md section 'Icons, post links and the share popup' and 'Placing the actions on a custom article template', and docs/agent-readable-sites.md. Cover pageActions.display and actions (x, reddit, share), the no-JavaScript behaviour, what the post links carry (title and address only), and page.article_actions() for custom templates. Do not mention speed. Screenshots at phone and desktop width from the PPY-77df35 review.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-77df353c-488d-4d8d-9955-ee960e5efdcf",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T00:30:06.501034Z",
+  "updated_at": "2026-11-05T00:30:06.501098Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "31e845b9-d27f-4bc2-9ada-0f39be81b1b9",
+  "issue_id": "PPY-a73cd8c3-c4fc-4983-8048-f7d90b3fa183",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T20:36:49.353Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A deployment in another organisation needs nothing from ours",
+    "description": "Folds in PPY-1a6aa6's bootstrap complaint: bootstrap.sh defaulted to this repository and wrote its AWS_ACCOUNT_ID variable.\n\n```gherkin\nFeature: A second organisation bootstraps without touching ours\n\n  Scenario: Bootstrapping touches only the new deployment\n    Given an account in another AWS organisation and its own repository\n    When the account is seeded\n    Then the roles trust only that repository\n    And no variable, domain or account of the Anthus deployments is read or written\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+    "labels": []
+  }
+}

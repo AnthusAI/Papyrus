@@ -6,6 +6,10 @@ export type SiteBackendFeatureFlags = {
   inboundEmail: boolean;
   slack: boolean;
   storageBackups: boolean;
+  /** `papyrus login --remote`: a cli-login broker and approval pages for this site. Off unless a site turns it on. */
+  cliRemoteLogin: boolean;
+  /** The CLI signs in on the site's registered Prospectus federation client instead of the main web client. */
+  cliOnFederationClient: boolean;
 };
 
 export type SiteBackendFeatureInput = Partial<SiteBackendFeatureFlags> | undefined;
@@ -79,6 +83,9 @@ export function resolveSiteBackendFeatureFlags(
     slack: features?.slack ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_SLACK", false),
     storageBackups:
       features?.storageBackups ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_STORAGE_BACKUPS", legacyPipeline),
+    // Off for every site, the legacy production pipeline included: it adds a public function URL and a Cognito callback.
+    cliRemoteLogin: features?.cliRemoteLogin ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN", false),
+    cliOnFederationClient: features?.cliOnFederationClient ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT", false),
   };
 }
 
@@ -109,8 +116,10 @@ export function deriveStorageBackupVaultName(identity: SiteBackendIdentity, expl
 /**
  * The `papyrus-site-inbound-` prefix keeps a brand named `p-apyr-us` from
  * colliding with the legacy `papyrus-inbound-p-apyr-us` set.
- * SES allows one ACTIVE receipt rule set per region. A non-legacy site creates
- * its own brand-named rule set and never activates it from CloudFormation.
+ * SES allows one ACTIVE receipt rule set per account and region. A non-legacy
+ * site creates its own brand-named rule set and never activates it from
+ * CloudFormation. SES accounts that receive the same domain process their
+ * matching rules independently; the limit does not span accounts.
  */
 export function deriveReceiptRuleSetName(identity: SiteBackendIdentity, inboundEmailDomain: string): string {
   const name = isLegacyProductionApp(identity)

@@ -1,0 +1,49 @@
+<!-- @dsCard height=288 -->
+<div id="cover">
+  <!--
+    Blocks: ink-strong 152x240, ink-muted 152x112, rule 96x112, surface-accent 152x112
+            (bleeding off the right edge), danger 40x40 — all multiples of space-2/space-4.
+    Arrangement: one tall ink slab with satellites stepping right and bleeding off the
+            edge, the way a broadsheet folds; nothing crosses the name's zone (x < 480).
+    Pattern: a few hairline rules — the editorial row. Papyrus separates with rules and
+            never with shadows, so the baseline grid itself is the motif: three rules
+            across the light blocks, two cut out of the ink slab in paper.
+    Scales: pitch 28px (rhythm-line), 1px (stroke-hairline), radius-none on every block —
+            paper does not have rounded corners.
+  -->
+  <svg viewBox="0 0 960 288" width="960" height="288" aria-label="Papyrus design system cover">
+    <style>
+      .ground { fill: var(--paper); }
+      .ink { fill: var(--ink-strong); }
+      .muted { fill: var(--ink-muted); }
+      .rule-block { fill: var(--rule); }
+      .accent { fill: var(--surface-accent); }
+      .signal { fill: var(--danger); }
+      .hairline-ink { stroke: var(--ink-strong); stroke-width: 1; }
+      .hairline-paper { stroke: var(--paper); stroke-width: 1; }
+      .name { fill: var(--ink-strong); font-family: var(--font-display); font-size: 96px; font-weight: 700; }
+      .tagline { fill: var(--ink-muted); font-family: var(--font-label); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+      .block { rx: 0; }
+    </style>
+
+    <rect class="ground" x="0" y="0" width="960" height="288" />
+
+    <rect class="ink block" x="504" y="24" width="152" height="240" />
+    <rect class="muted block" x="672" y="24" width="152" height="112" />
+    <rect class="rule-block block" x="672" y="152" width="96" height="112" />
+    <rect class="accent block" x="840" y="152" width="152" height="112" />
+    <rect class="signal block" x="784" y="152" width="40" height="40" />
+
+    <line class="hairline-ink" x1="672" y1="80.5" x2="992" y2="80.5" />
+    <line class="hairline-ink" x1="672" y1="136.5" x2="992" y2="136.5" />
+    <line class="hairline-ink" x1="672" y1="220.5" x2="992" y2="220.5" />
+    <line class="hairline-paper" x1="504" y1="108.5" x2="656" y2="108.5" />
+    <line class="hairline-paper" x1="504" y1="192.5" x2="656" y2="192.5" />
+
+    <text class="name" x="56" y="196">Papyrus</text>
+    <text class="tagline" x="58" y="230">One language, many publications</text>
+  </svg>
+</div>
+<script>
+  document.getElementById("cover").style.background = "var(--paper)";
+</script>

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { App, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { AttributeType, Table } from "aws-cdk-lib/aws-dynamodb";
@@ -24,6 +26,26 @@ assert.throws(() => resolvePlugins(["reader-steering"]), /computeRoleArn/, "the 
 assert.throws(() => resolveReaderSteeringConfig({ ...base, computeRoleArn: "arn:aws:iam::123:role/x" }), /computeRoleArn/);
 assert.throws(() => resolveReaderSteeringConfig({ ...base, computeRoleArn: "*" }), /computeRoleArn/);
 
+// PAPYRUS_COMPUTE_ROLE_ARN (set on the Amplify branch by the app-shell stack) supplies or replaces computeRoleArn, so the ARN need not be in Git.
+{
+  const exampleRole = "arn:aws:iam::111122223333:role/ExampleComputeRole";
+  const previous = process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+  try {
+    delete process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+    const { computeRoleArn: _omitted, ...withoutRole } = base;
+    assert.throws(() => resolveReaderSteeringConfig(withoutRole as never), /computeRoleArn.*PAPYRUS_COMPUTE_ROLE_ARN/, "neither the setting nor the variable: a clear error naming both");
+    assert.equal(resolveReaderSteeringConfig(base as never).computeRoleArn, computeRoleArn, "the written value still works");
+    process.env.PAPYRUS_COMPUTE_ROLE_ARN = exampleRole;
+    assert.equal(resolveReaderSteeringConfig(withoutRole as never).computeRoleArn, exampleRole, "the variable supplies the role");
+    assert.equal(resolveReaderSteeringConfig(base as never).computeRoleArn, exampleRole, "the variable wins over the written value");
+    process.env.PAPYRUS_COMPUTE_ROLE_ARN = "not-an-arn";
+    assert.throws(() => resolveReaderSteeringConfig(base as never), /computeRoleArn/, "a malformed variable is rejected");
+  } finally {
+    if (previous === undefined) delete process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+    else process.env.PAPYRUS_COMPUTE_ROLE_ARN = previous;
+  }
+}
+
 const defaults = resolvePlugins([base])[0].config;
 assert.deepEqual(defaults, {
   computeRoleArn,
@@ -36,7 +58,7 @@ assert.deepEqual(defaults, {
     combination: "blend", shrinkageK: 20, readerShareCap: 0.4, newAccountWeight: 1, risingMinimumAccountHours: 0,
   },
   snapshot: { schedule: false, intervalHours: 6, hypeMinimum: 5 },
-  submissions: { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "brief", section: "unsectioned" },
+  submissions: { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "untyped", section: "unsectioned" },
   subjects: { types: ["item", "submission"] },
   moderation: { mode: "human", preModeration: false, reportsPerDay: 20 },
   comments: { perHour: 30, editWindowMinutes: 10, maximumLength: 2000, maximumLinks: 3 },
@@ -61,7 +83,7 @@ const tuned = resolveReaderSteeringConfig({ ...base, comments: { perHour: 5, edi
 assert.deepEqual(tuned.comments, { perHour: 5, editWindowMinutes: 0, maximumLength: 2000, maximumLinks: 0 });
 
 const withKinds = resolveReaderSteeringConfig({ ...base, submissions: { perDay: 20, kinds: ["article", "tool", "article"] } });
-assert.deepEqual(withKinds.submissions, { perDay: 20, similarHours: 48, kinds: ["article", "tool"], itemType: "brief", section: "unsectioned" });
+assert.deepEqual(withKinds.submissions, { perDay: 20, similarHours: 48, kinds: ["article", "tool"], itemType: "untyped", section: "unsectioned" });
 assert.deepEqual(resolveReaderSteeringConfig({ ...base, submissions: { itemType: "link", section: "tools" } }).submissions, { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "link", section: "tools" });
 
 assert.deepEqual(resolveReaderSteeringConfig({ ...base, moderation: { mode: "off" } }).moderation, { mode: "off", preModeration: false, reportsPerDay: 20 });
@@ -169,11 +191,16 @@ for (const bad of [
 const definitions = readerSteeringSchemaDefinitions() as Record<string, unknown>;
 assert.deepEqual(
   Object.keys(definitions).sort(),
-  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, "ModerationReceipt", "ProposalReceipt"].sort(),
-  "the schema defines exactly the manifest's models and mutations, plus the receipt types",
+  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, ...(readerSteeringManifest.queries ?? []), "ModerationReceipt"].sort(),
+  "the schema defines exactly the manifest's models, mutations and queries, plus the receipt and list types",
 );
 assert.deepEqual(readerSteeringManifest.guest.mutations, [], "a guest can call nothing");
-assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader", "fileProposal", "transitionProposal"]);
+assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader"], "the Proposals queue is core: this plugin defines only the reader mutation");
+assert.equal(readerSteeringManifest.models.includes("Proposal"), false, "the Proposal model is core, not the plugin's");
+assert.equal(readerSteeringManifest.queries, undefined);
+for (const name of ["Proposal", "ProposalReceipt", "StoryDraftSummary", "StoryDraftList", "fileProposal", "transitionProposal", "editProposal", "listStoryDrafts"]) {
+  assert.equal(name in definitions, false, `${name} is defined by the core schema, not by reader-steering`);
+}
 assert.deepEqual(readerSteeringManifest.newsroomPanels, [{ id: "moderation", label: "Moderation" }]);
 
 const schemaSource = JSON.stringify(
@@ -380,8 +407,38 @@ assert.equal(humanRun.some((statement) => ([] as string[]).concat(statement.Acti
 assert.equal(readerSteeringPlugin.publicSettings(aiConfig).moderation && (readerSteeringPlugin.publicSettings(aiConfig).moderation as { mode: string }).mode, "ai");
 assert.equal(JSON.stringify(readerSteeringPlugin.publicSettings(aiConfig)).includes("openai-api-key"), false, "the parameter name is not published to the browser");
 
+// Submission extraction: off unless `submissions.extraction` is set. When set, the snapshot worker (content-actions) may read one SSM
+// SecureString, learns its name, and gets more time. A site that does not set it synthesizes exactly what it did before.
+assert.equal("extraction" in resolveReaderSteeringConfig(base).submissions, false, "extraction is absent from the resolved defaults");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, submissions: { extraction: {} } }), /submissions\.extraction\.apiKeyParameter/, "a key parameter is required");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, submissions: { extraction: { apiKeyParameter: "/other/key" } } }), /apiKeyParameter/, "only the site's openai-api-key parameter");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, submissions: { extraction: { apiKeyParameter: KEY_PARAMETER, model: "x" } } }), /Unknown reader-steering plugin submissions\.extraction settings/, "the model is the repository default, not a setting");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, submissions: { extraction: { apiKeyParameter: KEY_PARAMETER, seconds: 30 } } }), /seconds must be an integer from 60 to 840/);
+assert.deepEqual(resolveReaderSteeringConfig({ ...base, submissions: { extraction: { apiKeyParameter: KEY_PARAMETER } } }).submissions.extraction, { apiKeyParameter: KEY_PARAMETER, seconds: 240 });
+const extractionConfig = resolveReaderSteeringConfig({ ...base, dimensions: ["real"], submissions: { extraction: { apiKeyParameter: KEY_PARAMETER, seconds: 120 } } });
+const extractionRun = synthesize(extractionConfig, { SITE_ENV: "production" });
+const contentStatements = statementsOf(extractionRun.template, "ContentActions");
+const contentKeyReads = contentStatements.filter((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("ssm:")));
+assert.equal(contentKeyReads.length, 1, "content-actions reads exactly one parameter");
+assert.deepEqual(([] as string[]).concat(contentKeyReads[0].Action), ["ssm:GetParameter"]);
+assert.match(JSON.stringify(contentKeyReads[0].Resource), /parameter\/papyrus\/shipped\/openai-api-key"/);
+assert.equal(JSON.stringify(contentKeyReads[0].Resource).includes("*"), false);
+const contentFunction = (result: ReturnType<typeof synthesize>) => Object.entries(result.template.findResources("AWS::Lambda::Function")).find(([id]) => id.startsWith("ContentActions"))?.[1] as { Properties: { Timeout?: number; Environment?: { Variables: Record<string, string> } } };
+assert.equal(contentFunction(extractionRun).Properties.Timeout, 180, "the worker gets the extraction time plus a minute");
+assert.equal(contentFunction(extractionRun).Properties.Environment?.Variables.PAPYRUS_READER_EXTRACTION_KEY_PARAMETER, KEY_PARAMETER);
+assert.equal(contentFunction(extractionRun).Properties.Environment?.Variables.PAPYRUS_READER_EXTRACTION_SECONDS, "120");
+const withoutExtraction = synthesize(shipped, { SITE_ENV: "production" });
+assert.equal(contentFunction(withoutExtraction).Properties.Timeout, undefined, "no timeout override without extraction");
+assert.equal(Object.keys(contentFunction(withoutExtraction).Properties.Environment?.Variables ?? {}).some((name) => name.startsWith("PAPYRUS_READER_EXTRACTION")), false, "no extraction variables without it");
+assert.equal(statementsOf(withoutExtraction.template, "ContentActions").some((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("ssm:"))), false, "no key access without extraction");
+assert.equal(JSON.stringify(extractionRun.template.toJSON()).includes("sk-"), false);
+assert.equal(JSON.stringify(readerSteeringPlugin.publicSettings(extractionConfig)).includes("openai-api-key"), false, "the parameter name is not published to the browser");
+
+const withoutPlugin = schemaWithPlugins({}).transform().schema;
+for (const name of ["ReaderSubmission", "extractionConfirmation", "extraction"]) assert.equal(withoutPlugin.includes(name), false, `a site without the plugin has no ${name} in its schema`);
 const transformed = schemaWithPlugins(readerSteeringSchemaDefinitions()).transform().schema;
-for (const model of readerSteeringManifest.models) {
+const coreModels = [...readerSteeringManifest.models, "Proposal"];
+for (const model of coreModels) {
   const declaration = new RegExp(`type ${model} @model[^\\n]*`).exec(transformed);
   assert.ok(declaration, `${model} is a model in the deployed schema`);
   assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)/.test(declaration[0]), false, `${model} has no guest, API key or IAM rule: ${declaration[0]}`);
@@ -394,7 +451,7 @@ assert.match(mutation, /@function/);
 assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(mutation), false, `moderateReader is open to groups only: ${mutation}`);
 assert.match(mutation, /groups: \["editor"\]/);
 assert.match(mutation, /groups: \["admin"\]/);
-for (const name of ["fileProposal", "transitionProposal"]) {
+for (const name of ["fileProposal", "transitionProposal", "editProposal"]) {
   const start = transformed.indexOf(`${name}(`);
   assert.ok(start > 0, `${name} is in the deployed schema`);
   const proposalMutation = transformed.slice(start, start + 400).split("\n\n")[0];
@@ -403,4 +460,30 @@ for (const name of ["fileProposal", "transitionProposal"]) {
   assert.match(proposalMutation, /groups: \["editor"\]/);
   assert.match(proposalMutation, /groups: \["admin"\]/);
 }
+
+{
+  // The one operator read: open to groups in the schema like the proposal mutations, a function resolver, and nothing but six fields.
+  const start = transformed.indexOf("listStoryDrafts");
+  assert.ok(start > 0, "listStoryDrafts is in the deployed schema");
+  const query = transformed.slice(start, start + 400).split("\n\n")[0];
+  assert.match(query, /@function/);
+  assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(query), false, `listStoryDrafts is open to groups only: ${query}`);
+  assert.match(query, /groups: \["editor"\]/);
+  const summaryStart = transformed.indexOf("type StoryDraftSummary");
+  assert.ok(summaryStart > 0, "StoryDraftSummary is in the deployed schema");
+  const summaryFields = [...transformed.slice(summaryStart, transformed.indexOf("}", summaryStart)).matchAll(/^\s+(\w+):/gm)].map((match) => match[1]);
+  assert.deepEqual(summaryFields, ["id", "title", "summary", "targets", "state", "createdAt"], "an operator reads six fields of a draft and no body, evidence, history, proposer or vote");
+}
+
+// The operator (IAM) path lives in the function, not in the schema: no IAM rule is declared above, and the function
+// admits an operator only for filing and for draft -> in_steering / declined, in its own account.
+const proposalRules = readFileSync(join(process.cwd(), "amplify/functions/proposal-actions/proposals.py"), "utf8");
+assert.match(proposalRules, /OPERATOR_TRANSITIONS = frozenset\(\{\(DRAFT, IN_STEERING\), \(DRAFT, DECLINED\)\}\)/, "an operator may only send a draft to steering or decline it");
+assert.match(proposalRules, /if staff is None:\n\s+return refused\("operator_not_allowed"/, "an operator is refused every editProposal action");
+assert.match(proposalRules, /parts\[4\] != account_id/, "an operator must belong to the function's own account");
+assert.match(proposalRules, /"cognitoIdentityId"/, "an identity-pool user is not an operator");
+const proposalHandler = readFileSync(join(process.cwd(), "amplify/functions/proposal-actions/handler.py"), "utf8");
+assert.match(proposalHandler, /account_id=function_account\(_context\)/, "the account comes from the function's own ARN");
+const readerHandler = readFileSync(join(process.cwd(), "amplify/plugins/reader-steering/function/handler.py"), "utf8");
+assert.equal(/proposals as proposal_rules|fileProposal|listStoryDrafts/.test(readerHandler), false, "reader-actions no longer handles the Proposals queue");
 console.log("reader steering schema ok");

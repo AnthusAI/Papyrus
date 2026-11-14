@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8ff12480-f26d-4c84-a5d3-2b9017f8985f",
+  "issue_id": "PPY-30eb691c-4848-4888-8f1c-e6896f899a09",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T23:51:32.348Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Stage 3: delete existing machine Messages after readers move",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+    "labels": []
+  }
+}

@@ -29,6 +29,7 @@ ALLOWED_PATH_PATTERNS = tuple(
         r"^src/papyrus_content/data/corpora/",  # the shipped copy of the corpora/ defaults
         r"^publications/",
         r"^config/",
+        r"^infra/shared-chat-runtime/cdk/[^/]+\.template\.json$",  # synthesized deployment configuration, not application logic
         r"^docs/",
         r"^project/",
         r"^pods/",
@@ -43,6 +44,7 @@ ALLOWED_PATH_PATTERNS = tuple(
         r"^package-lock\.json$",
         r"^poetry\.lock$",
         r"^\.env\.example$",
+        r"^\.leftblock-allow\.yml$",  # override entries name the files they approve, which include the pilot sites' example configs
         r"-bdd-harness\.ts$",  # test harnesses pin fixture identifiers like tests do
         r"(^|/)anthus_sites\.json$",  # the Anthus site registry is configuration data (site addresses), mirrored from anthus-footer
     )

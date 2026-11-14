@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "4b88d87c-65a8-42c0-9c51-3a99746c2969",
+  "issue_id": "PPY-65de7500-afcd-43fe-afbf-7d301d433fd1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:53.190Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "reference-link-fit classifier",
+    "description": "Derived member of siteCyclotron (pattern: site_cyclotron.py derives Section classifiers). Labels: suggestions a person decided (S2.1 metadata.decision, reasonCode, note), person-decided only. Features: similarity, shared concepts, shared host, publication-date gap, both human-accepted. Promote to rank suggestions only when it beats the S2.11 Wilson rule on held-out decisions.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-b322345d-523c-45e9-8888-5d0c6a2f9391",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

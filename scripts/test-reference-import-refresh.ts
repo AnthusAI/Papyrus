@@ -39,7 +39,7 @@ test("References reloads suggestions by itself after an import is saved", async 
     await page.setContent('<div id="root"></div>');
     await page.addScriptTag({ content: script });
 
-    await page.getByText("Add a reference and prediction activity", { exact: true }).click();
+    await page.getByRole("button", { name: "Add a reference and prediction activity" }).click();
     await page.getByText("Suggestions for this publication").waitFor();
     assert.equal(await page.getByText("Newly added reference").count(), 0, "nothing imported yet");
     const before = await page.evaluate(() => (window as any).__fixture.snapshots);
@@ -67,7 +67,7 @@ test("Leaving an import before saving does not reload suggestions", async () => 
     const page = await browser.newPage();
     await page.setContent('<div id="root"></div>');
     await page.addScriptTag({ content: script });
-    await page.getByText("Add a reference and prediction activity", { exact: true }).click();
+    await page.getByRole("button", { name: "Add a reference and prediction activity" }).click();
     await page.getByText("Suggestions for this publication").waitFor();
     const before = await page.evaluate(() => (window as any).__fixture.snapshots);
     await page.getByRole("button", { name: "Import a file" }).click();

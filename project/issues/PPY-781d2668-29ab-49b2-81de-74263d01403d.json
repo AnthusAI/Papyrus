@@ -1,0 +1,20 @@
+{
+  "id": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+  "title": "Messages come only from people",
+  "description": "",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T23:51:23.749388Z",
+  "updated_at": "2026-10-29T23:51:23.749428Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

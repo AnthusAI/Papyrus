@@ -1,7 +1,7 @@
 @import "./papyrus-theme.css";
 
-@import "tailwindcss";
-@import "tw-animate-css";
+/* Tailwind (import, @source globs, @theme tokens) lives only in ./tailwind.css. Importing it again here
+   emitted a second full Tailwind build that loaded later and whose `.hidden` overrode `md:flex`. */
 @import "@radix-ui/colors/slate.css";
 @import "@radix-ui/colors/slate-alpha.css";
 @import "@radix-ui/colors/slate-dark.css";
@@ -14,39 +14,6 @@
 @import "@radix-ui/colors/tomato-alpha.css";
 @import "@radix-ui/colors/tomato-dark.css";
 @import "@radix-ui/colors/tomato-dark-alpha.css";
-
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-danger: var(--danger);
-  --color-danger-foreground: var(--danger-foreground);
-  --color-surface: var(--surface);
-  --color-surface-foreground: var(--surface-foreground);
-  --color-foreground-strong: var(--foreground-strong);
-  --color-foreground-muted: var(--foreground-muted);
-  --color-foreground-subtle: var(--foreground-subtle);
-}
 
 :root {
   --radius: 0.875rem;
@@ -10170,3 +10137,161 @@ img {
   }
 }
 
+
+@media (max-width: 900px) {
+  .edition-progress__button--console { display: none; }
+  .papyrus-console--open {
+    --papyrus-console-width: 100vw;
+    background: rgb(var(--paper-rgb));
+    height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+    box-sizing: border-box;
+  }
+}
+
+.papyrus-console__access {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 24px 18px;
+  overflow-y: auto;
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.papyrus-console__access strong { font-size: 1.15rem; }
+.papyrus-console__access button { min-height: 44px; padding: 10px 14px; font: inherit; text-transform: none; letter-spacing: normal; }
+
+@media (max-width: 900px) {
+  .papyrus-console__header button { min-width: 44px; min-height: 44px; }
+}
+
+.public-handle__heading {
+  align-items: baseline;
+  display: flex;
+  font-family: Arial, Helvetica, sans-serif;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.public-handle__heading p {
+  font-weight: 800;
+  margin: 0;
+}
+
+.public-handle__heading span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.public-handle__form {
+  align-items: stretch;
+  display: flex;
+  gap: 10px;
+}
+
+.public-handle__field {
+  align-items: center;
+  background: rgb(var(--rule-rgb) / 0.12);
+  border-radius: 12px;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  min-height: 48px;
+  min-width: 0;
+  padding: 0 14px;
+}
+
+.public-handle__field:focus-within {
+  background: rgb(var(--rule-rgb) / 0.2);
+}
+
+.public-handle__icon {
+  color: var(--muted-strong);
+  flex: none;
+}
+
+.public-handle__label {
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.public-handle__input {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  flex: 1 1 auto;
+  font: 700 1rem/1.2 Arial, Helvetica, sans-serif;
+  min-width: 0;
+  padding: 0;
+}
+
+.public-handle__input:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 6px;
+}
+
+.public-handle__save {
+  appearance: none;
+  background: rgb(var(--rule-rgb) / 0.2);
+  border: 0;
+  border-radius: 12px;
+  color: var(--ink);
+  cursor: pointer;
+  font: 800 0.78rem/1 Arial, Helvetica, sans-serif;
+  letter-spacing: 0.08em;
+  min-height: 48px;
+  padding: 0 20px;
+  text-transform: uppercase;
+}
+
+.public-handle__save:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.public-handle__help {
+  color: var(--muted-strong);
+  font: 400 0.86rem/1.4 Arial, Helvetica, sans-serif;
+  margin: 12px 0 0;
+}
+
+.public-handle__status {
+  align-items: center;
+  display: flex;
+  font: 700 0.86rem/1.3 Arial, Helvetica, sans-serif;
+  gap: 8px;
+  margin: 8px 0 0;
+  min-height: 22px;
+}
+
+.public-handle__status[data-public-handle-state="error"] {
+  background: rgb(var(--rule-rgb) / 0.12);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+/* Core concepts: flat tiles and rounded rectangles, no outlines or hairlines, sentence case. The section card's generic button and field styling does not apply here. */
+[data-section-concepts] button,
+[data-section-concepts] textarea,
+[data-wiki-section="core-concept-of"] button {
+  border: 0;
+  box-shadow: none;
+  border-radius: 1rem;
+  text-transform: none;
+  letter-spacing: normal;
+  background-color: color-mix(in oklab, currentColor 10%, transparent);
+  color: inherit;
+}
+[data-section-concepts] button:hover:not(:disabled),
+[data-wiki-section="core-concept-of"] button:hover:not(:disabled) {
+  background-color: color-mix(in oklab, currentColor 18%, transparent);
+}
+[data-section-concepts] textarea {
+  background-color: color-mix(in oklab, currentColor 7%, transparent);
+}

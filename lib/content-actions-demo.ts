@@ -1,4 +1,5 @@
 import { ContentActionFailure } from "./content-actions-client";
+import { typeForNewStory } from "./site-story-types";
 import { isLocalPreviewEnabled } from "./local-preview";
 import type {
   DeriveMarkusInput,
@@ -7,13 +8,23 @@ import type {
   SaveItemDraftInput,
   SaveItemDraftResult,
   UnpublishItemResult,
+  MoveStoryStageInput,
+  MoveStoryStageResult,
+  ScheduleStoryInput,
+  ScheduleListResult,
+  ScheduleStoryResult,
+  CreateStoryFromReferenceInput,
+  CreateStoryFromReferenceResult,
 } from "./content-actions-client";
+import { SEEDED_FROM_KEY, SEEDED_IMAGE_KEY, seededImageLine, sourceAttribution, startBody } from "./story-from-reference";
 import {
   createDemoArticleRecords,
   demoContentHash,
   type DemoArticleRecord,
 } from "./newsroom-demo-articles";
-import { createLocalPreviewEditableArticle, lineageForPreviewVersion, recordLocalPreviewDesk, recordLocalPreviewVersion } from "./local-preview-seed";
+import { createLocalPreviewEditableArticle, lineageForPreviewVersion, localPreviewScheduleFields, recordLocalPreviewDesk, recordLocalPreviewVersion, setLocalPreviewSchedule } from "./local-preview-seed";
+import { scheduleFromFields } from "./story-schedule";
+import { LOCAL_PREVIEW_TIME_ZONE } from "./schedule-zone";
 import { sourceLineOffset, type ArticlesBackend, type EditableArticle, type NewsroomArticleRow } from "./newsroom-articles";
 
 function titleFromYaml(frontMatterYaml: string | null, fallback: string): string {
@@ -77,6 +88,22 @@ function demoEnvelope(bodyMarkus: string) {
 export function createDemoArticlesBackend(): ArticlesBackend {
   const records = new Map<string, DemoArticleRecord>(createDemoArticleRecords().map((record) => [record.id, record]));
   let created = 0;
+  const storiesFromReference = new Map<string, string[]>();
+
+  /** A local-preview Story is added to the demo records the first time something reads or changes it. */
+  const loadPreviewRecord = (id: string): void => {
+    if (records.has(id)) return;
+    const previewRecord = createLocalPreviewEditableArticle(id);
+    if (!previewRecord) return;
+    records.set(id, {
+      ...previewRecord,
+      title: titleFromYaml(previewRecord.frontMatterYaml, previewRecord.slug),
+      status: previewRecord.status === "published" ? "published" : "draft",
+      contentHash: demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus),
+      publishedContentHash: previewRecord.status === "published" ? demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus) : null,
+      updatedAt: new Date().toISOString(),
+    });
+  };
 
   const requireRecord = (id: string): DemoArticleRecord => {
     const record = records.get(id);
@@ -116,6 +143,8 @@ export function createDemoArticlesBackend(): ArticlesBackend {
           const record: DemoArticleRecord = {
             ...existing,
             id,
+            type: input.type,
+            publishedType: existing.publishedType ?? (existing.everPublished ? existing.type : null),
             slug: existing.slug,
             section: input.section,
             title: titleFromYaml(input.frontMatterYaml, existing.slug),
@@ -133,6 +162,11 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         if (existing && input.expectedContentHash !== null && input.expectedContentHash !== existing.contentHash) {
           throw new ContentActionFailure([
             { code: "conflict", message: "The item changed since it was loaded.", line: null },
+          ]);
+        }
+        if (existing && existing.status === "published" && existing.type !== input.type) {
+          throw new ContentActionFailure([
+            { code: "type-locked", message: `This story is live as the type ${existing.type}. Save it as a new version to change its type: the live address moves only when that version is published.`, line: null },
           ]);
         }
         if (existing && existing.everPublished && existing.slug !== input.slug) {
@@ -173,17 +207,76 @@ export function createDemoArticlesBackend(): ArticlesBackend {
       },
       async publishItem(id: string): Promise<PublishItemResult> {
         const record = requireRecord(id);
+        if (record.type === "untyped") {
+          throw new ContentActionFailure([{ code: "type-required", message: "This story has no type yet. Choose its type, then publish: the site decides where a page lives from it.", line: null }]);
+        }
         const changed = record.status !== "published" || record.publishedContentHash !== record.contentHash;
+        const publishedLineage = createLocalPreviewEditableArticle(id)?.lineageId ?? lineageForPreviewVersion(id);
+        if (publishedLineage) setLocalPreviewSchedule(publishedLineage, null);   // publishing now ends the schedule
         const versionNumber = changed ? (record.versionNumber ?? 0) + 1 : record.versionNumber;
+        const typeChangedFrom = changed && record.publishedType && record.publishedType !== record.type ? record.publishedType : undefined;
         records.set(id, {
           ...record,
           status: "published",
+          publishedType: null,
           everPublished: true,
           publishedContentHash: record.contentHash,
           versionNumber,
           updatedAt: new Date().toISOString(),
         });
-        return { ok: true, changed, publishedId: `published-${id}`, versionNumber };
+        return { ok: true, changed, publishedId: `published-${id}`, versionNumber, ...(typeChangedFrom ? { typeChangedFrom } : {}) };
+      },
+      async setItemStars(itemId: string, stars: number | null): Promise<void> {
+        // A plain update of the record: no new version, and a published Story stays as published as it was.
+        loadPreviewRecord(itemId);
+        records.set(itemId, { ...requireRecord(itemId), starRating: stars });
+      },
+      async scheduleStory(input: ScheduleStoryInput): Promise<ScheduleStoryResult> {
+        try {
+          const fields = setLocalPreviewSchedule(input.lineageId, input.scheduledPublishAt);
+          return { ok: true, scheduledPublishAt: fields.scheduledPublishAt ?? null, scheduledBy: fields.scheduledBy ?? null };
+        } catch (error) {
+          throw new ContentActionFailure([{ code: "schedule-refused", message: error instanceof Error ? error.message : String(error), line: null }]);
+        }
+      },
+      async scheduleList(input: { storyLineageId: string }): Promise<ScheduleListResult> {
+        const fields = localPreviewScheduleFields(input.storyLineageId);
+        const schedule = scheduleFromFields(fields);
+        return {
+          ok: true, timeZone: LOCAL_PREVIEW_TIME_ZONE,
+          schedules: schedule ? [{
+            itemId: input.storyLineageId, lineageId: input.storyLineageId, versionNumber: null, title: "", state: schedule.state, storedState: schedule.state,
+            scheduledPublishAt: schedule.at, scheduledBy: schedule.by, scheduledAt: schedule.scheduledAt,
+          }] : [],
+        };
+      },
+      async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
+        return { ok: true, changed: true, stage: input.stage };
+      },
+      async createStoryFromReference(input: CreateStoryFromReferenceInput): Promise<CreateStoryFromReferenceResult> {
+        // The preview has no backend to look the Reference up in, so it is given the same facts the real action reads.
+        const hint = input.preview;
+        if (!hint) throw new ContentActionFailure([{ code: "story-not-created", message: "The preview was not given the Reference.", line: null }]);
+        const already = storiesFromReference.get(input.referenceId) ?? [];
+        if (already.length && !input.again) {
+          return { ok: true, created: false, referenceLineageId: input.referenceId, existing: already.map((id) => ({ itemId: id, lineageId: id, title: records.get(id)?.title ?? hint.title, stage: "copywriting" })) };
+        }
+        const site = hint.site ?? (hint.url ? new URL(hint.url).hostname.replace(/^www\./, "") : null);
+        const image = hint.imageUrl ? `${seededImageLine(hint.imageUrl, hint.title, hint.site)}\n\n` : "";
+        const bodyMarkus = image + startBody(hint.summary, sourceAttribution(hint.title, hint.url, site));
+        const summaryState = hint.summary?.trim() ? "included" : "none";
+        const frontMatterYaml = [
+          `title: ${JSON.stringify(hint.title)}`,
+          `${SEEDED_FROM_KEY}:\n  kind: reference\n  referenceLineageId: ${JSON.stringify(input.referenceId)}\n  summary: ${summaryState}`,
+          ...(hint.imageUrl ? [`${SEEDED_IMAGE_KEY}:\n  url: ${JSON.stringify(hint.imageUrl)}\n  hosted: false${hint.site ? `\n  credit: ${JSON.stringify(`Image: ${hint.site}`)}` : ""}`] : []),
+        ].join("\n") + "\n";
+        const id = `demo-article-new-${(created += 1)}`;
+        records.set(id, {
+          id, type: input.itemType ?? typeForNewStory(), slug: `from-reference-${created}`, section: null, title: hint.title, status: "draft", frontMatterYaml, bodyMarkus,
+          contentHash: demoContentHash(frontMatterYaml, bodyMarkus), publishedContentHash: null, versionNumber: null, everPublished: false, updatedAt: new Date().toISOString(),
+        });
+        storiesFromReference.set(input.referenceId, [...already, id]);
+        return { ok: true, created: true, itemId: id, lineageId: id, title: hint.title, itemType: input.itemType ?? typeForNewStory(), stage: "copywriting", summary: summaryState, image: hint.imageUrl ? "seeded" : "none", imageCredit: hint.imageUrl && hint.site ? `Image: ${hint.site}` : null };
       },
       async unpublishItem(id: string): Promise<UnpublishItemResult> {
         const record = requireRecord(id);
@@ -212,19 +305,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     },
     async loadArticle(id: string): Promise<EditableArticle> {
-      if (!records.has(id)) {
-        const previewRecord = createLocalPreviewEditableArticle(id);
-        if (previewRecord) {
-          records.set(id, {
-            ...previewRecord,
-            title: titleFromYaml(previewRecord.frontMatterYaml, previewRecord.slug),
-            status: previewRecord.status === "published" ? "published" : "draft",
-            contentHash: demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus),
-            publishedContentHash: previewRecord.status === "published" ? demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus) : null,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      }
+      loadPreviewRecord(id);
       const record = requireRecord(id);
       return {
         id: record.id,
@@ -239,6 +320,8 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         versionNumber: record.versionNumber,
         aliases: [],
         everPublished: record.everPublished,
+        publishedType: record.publishedType ?? (record.everPublished ? record.type : null),
+        starRating: record.starRating ?? null,
       };
     },
   };

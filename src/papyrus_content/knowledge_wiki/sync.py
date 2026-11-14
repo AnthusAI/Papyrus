@@ -10,19 +10,21 @@ puts live.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
 import yaml
 
-from ..knowledge_snapshot.builder import _aliases, _public_keys
-from ..knowledge_snapshot.keys import contains_email, slug
-from ..knowledge_snapshot.model import Beat, KnowledgeData
+from ..knowledge_snapshot.builder import PLAIN_KEY_KINDS, _aliases, _public_keys
+from ..knowledge_snapshot.keys import contains_email, entity_key, kind_key, slug
+from ..knowledge_snapshot.model import LINK_MONITOR, Beat, KnowledgeData
 from ..knowledge_snapshot.publish_run import json_object
+from ..machine_writes import RETIRED_STAGE, machine_write
 from ..publishing import ItemFields, item_id_for, published_item_id_for, save_item
 from ..story_reporting import save_story_version
 from ..wiki_stamp import WIKI_PAGE_ITEM_TYPE
+from .kinds import display_name, is_public_kind
 from .pages import KIND_BEAT, KIND_ENTITY, KIND_SUBTOPIC, PageSpec, comparable, entity_page, front_matter_yaml, topic_page
 
 ACCEPTED = "accepted"
@@ -31,6 +33,8 @@ CREATE = "create"
 UPDATE = "update"
 REVISE = "revise"
 UNCHANGED = "unchanged"
+RETIRED_KEY = "retired"
+CLASH_NOTE = "address taken by another page; nothing written"
 DEFAULT_MINIMUM_SUBTOPIC_ITEMS = 30
 DEFAULT_ITEMS_PER_TOPIC = 20
 KEY_FIELDS = {KIND_ENTITY: "entityKey", KIND_BEAT: "topicKey", KIND_SUBTOPIC: "topicKey"}
@@ -111,7 +115,13 @@ def _plan_page(
     text = front_matter_yaml(spec.front_matter)
     if not rows:
         return PagePlan(CREATE, section, spec, lineage_id, None, text)
+    if spec.key not in lineage_for_key and front_matter_of(working_version(rows)).get(KEY_FIELDS[spec.kind]) != spec.key:
+        # The address is taken by a page this subject does not own (written by hand, or generated for another subject). Plain addresses make this
+        # possible, so the sync leaves that page alone and writes nothing for this subject until one of the two is renamed.
+        return PagePlan(UNCHANGED, section, spec, lineage_id, working_version(rows)["id"], text, CLASH_NOTE)
     working = working_version(rows)
+    if working.get("stage") == RETIRED_STAGE:  # an undo (or a person) retired it: the sync does not bring it back
+        return PagePlan(UNCHANGED, section, spec, lineage_id, working["id"], text, "retired; left down")
     same = comparable(front_matter_of(working)) == comparable(spec.front_matter) and (working.get("bodyMarkus") or "") == spec.body
     if same:
         return PagePlan(UNCHANGED, section, spec, lineage_id, working["id"], text)
@@ -126,20 +136,40 @@ def _carry(lineage_for_key: Mapping[str, str], lineages: Mapping[str, list[dict[
     return front_matter_of(working_version(rows)) if rows else None
 
 
-def entity_specs(data: KnowledgeData, lineages: Mapping[str, list[dict[str, Any]]]) -> list[PageSpec]:
-    """A page per accepted entity that has a public name."""
-    neighbours = related_keys(data)
-    eligible = [node for node in data.nodes if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name)]
+def data_only_lineages(data: KnowledgeData) -> set[str]:
+    """Entities only monitor records mention. They count in the Knowledge Map as data and have no wiki page."""
+    site = {link.node_lineage_id for link in data.links if link.confirmed and link.source != LINK_MONITOR}
+    return {link.node_lineage_id for link in data.links if link.confirmed and link.source == LINK_MONITOR} - site
+
+
+def eligible_nodes(data: KnowledgeData, public_kinds: Collection[str] | None = None) -> list:
+    """The accepted entities that may have a public page: a public name, a kind the wiki publishes (see ``kinds``), and a page answer that is not
+    no. The answer is an editor's decision, else the extractor's (``knowledge_snapshot/page_answer.py``); a concept it has not answered for keeps its page.
+    A concept with no page stays accepted, filed and linkable; a page it already has stays as it is: the sync never takes a page down."""
+    return [
+        node
+        for node in data.nodes
+        if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name) and is_public_kind(node.kind, public_kinds) and node.has_page
+    ]
+
+
+def entity_specs(data: KnowledgeData, lineages: Mapping[str, list[dict[str, Any]]], public_kinds: Collection[str] | None = None) -> list[PageSpec]:
+    """A page per accepted entity of a public kind that has a public name. ``public_kinds`` is the kinds of the site's vocabulary."""
+    neighbours = related_keys(data, public_kinds)
+    eligible = eligible_nodes(data, public_kinds)
     keys = _public_keys(eligible)
     items_by_node: dict[str, set[str]] = defaultdict(set)
     for link in data.links:
         if link.confirmed:
             items_by_node[link.node_lineage_id].add(link.item_key)
+    data_only = data_only_lineages(data)
     lineage_for_key = _lineage_by_key(lineages, KIND_ENTITY)
     specs = []
     for node in sorted(eligible, key=lambda candidate: keys.get(candidate.lineage_id, "")):
         key = keys.get(node.lineage_id)
         if not key:
+            continue
+        if node.lineage_id in data_only:
             continue
         usable = node.description_state in PUBLISHABLE_DESCRIPTIONS and not contains_email(node.description)
         draft = node.description_state == "draft" and bool((node.description or "").strip())
@@ -147,7 +177,7 @@ def entity_specs(data: KnowledgeData, lineages: Mapping[str, list[dict[str, Any]
             entity_page(
                 key=key,
                 kind=slug(node.kind) or "entity",
-                name=" ".join(node.name.split()),
+                name=display_name(node.name, node.kind),
                 aliases=_aliases(node),
                 description=node.description if usable else None,
                 related=sorted(neighbours.get(key, ())),
@@ -157,6 +187,12 @@ def entity_specs(data: KnowledgeData, lineages: Mapping[str, list[dict[str, Any]
         )
         if draft:
             spec = replace(spec, notes=(f"{key}: the description is a draft nobody has accepted; the page uses the factual line until it is reviewed",))
+        legacy = entity_key(node.kind, node.name) if kind_key(node.kind) in PLAIN_KEY_KINDS else ""
+        if legacy and legacy != key and legacy in lineage_for_key:
+            spec = replace(spec, notes=(*spec.notes, (
+                f"{key}: an older page for this concept sits at {slug(legacy)} (kind in its address). The new page is written beside it. "
+                f"If the old page was ever published, add its old address to the new page's aliases so readers are sent on, then retire it."
+            )))
         specs.append(spec)
     return specs
 
@@ -171,13 +207,16 @@ def _beat_of(item_keys: set[str], beats: Sequence[Beat]) -> str | None:
     return best
 
 
-def related_keys(data: KnowledgeData) -> dict[str, list[str]]:
+def related_keys(data: KnowledgeData, public_kinds: Collection[str] | None = None) -> dict[str, list[str]]:
     """Entity key -> keys of the accepted entities it is related to by a relation an editor confirmed."""
-    eligible = [node for node in data.nodes if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name)]
+    eligible = eligible_nodes(data, public_kinds)
     keys = _public_keys(eligible)
     related: dict[str, set[str]] = defaultdict(set)
+    data_only = data_only_lineages(data)
     for relation in data.relations:
         first, second = keys.get(relation.subject_lineage_id), keys.get(relation.object_lineage_id)
+        if relation.subject_lineage_id in data_only or relation.object_lineage_id in data_only:
+            continue
         if relation.confirmed and first and second and first != second:
             related[first].add(second)
             related[second].add(first)
@@ -230,7 +269,8 @@ def plan_sync(
     published_sources: Mapping[str, str],
 ) -> SyncPlan:
     """``section_of`` maps a page kind to the section it lives in; ``published_sources`` maps a lineage to the id of the
-    Item row its live PublishedItem was made from."""
+    Item row its live PublishedItem was made from. A generated page nothing generates any more is only reported: a page that
+    was ever published may be indexed, so the sync never takes one down."""
     rows = list(item_rows)
     pages: list[PagePlan] = []
     warnings: list[str] = [note for spec in specs for note in spec.notes]
@@ -243,19 +283,33 @@ def plan_sync(
             lineage_for_key = _lineage_by_key(lineages, spec.kind)
             plan = _plan_page(spec, section, lineages, lineage_for_key, published_sources)
             pages.append(plan)
+            if plan.note == CLASH_NOTE:
+                warnings.append(
+                    f"{section}/{spec.slug}: {spec.key} was not written because a page that is not {spec.key}'s already has this address; "
+                    "that page was left as it is. Move or rename one of the two pages, then run the sync again."
+                )
+                continue
             seen[section].add(plan.lineage_id)
         wanted_fields = {KEY_FIELDS[kind] for kind, name in section_of.items() if name == section}
         for lineage_id, lineage_rows in sorted(lineages.items()):
             front = front_matter_of(working_version(lineage_rows))
-            if lineage_id not in seen[section] and any(field in front for field in wanted_fields):
-                warnings.append(f"{section}/{working_version(lineage_rows).get('slug')}: no longer generated; left as it is (unpublish by hand if it should go)")
+            if lineage_id in seen[section] or not any(field in front for field in wanted_fields):
+                continue
+            working = working_version(lineage_rows)
+            if front.get(RETIRED_KEY) is True or working.get("stage") == RETIRED_STAGE:
+                continue  # retired by an undo, and still down
+            warnings.append(f"{section}/{working.get('slug')}: no longer generated; left as it is")
     return SyncPlan(tuple(pages), tuple(warnings))
 
 
-def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = None) -> dict[str, int]:
+WRITER = "knowledge-wiki-sync"
+
+
+def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = None, run_id: str | None = None) -> dict[str, int]:
     """Write the plan. Creates and updates save drafts; a revision is a new draft version beside the live page.
-    Nothing is published."""
+    Nothing is published. With a ``run_id`` every Item written records the run (``machine_writes.py``), so the run can be undone."""
     written: dict[str, int] = defaultdict(int)
+    stamp = machine_write(run_id, WRITER)
     for page in plan.pages:
         if page.action == UNCHANGED:
             continue
@@ -263,7 +317,7 @@ def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = Non
         if page.action == REVISE:
             save_story_version(
                 client, page.lineage_id, front_matter_yaml=page.front_matter_yaml, body_markus=spec.body, actor=actor,
-                change_reason=f"wiki-sync: {spec.kind} text changed", now=now,
+                change_reason=f"wiki-sync: {spec.kind} text changed", now=now, machine_write=stamp,
             )
         else:
             existing = client.get_record("Item", page.item_id) if page.item_id else None
@@ -272,7 +326,7 @@ def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = Non
                 ItemFields(
                     type=WIKI_PAGE_ITEM_TYPE, slug=(existing or {}).get("slug") or spec.slug, section=page.section,
                     front_matter_yaml=page.front_matter_yaml, body_markus=spec.body,
-                    aliases=list((existing or {}).get("aliases") or []), id=page.item_id or page.lineage_id,
+                    aliases=list((existing or {}).get("aliases") or []), id=page.item_id or page.lineage_id, machine_write=stamp,
                 ),
                 actor=actor, now=now,
             )

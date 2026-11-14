@@ -1,0 +1,59 @@
+{
+  "id": "PPY-d84529bf-b9d7-4c2b-b73e-3f3ac39c7a40",
+  "title": "Remove arbitrary standing Cyclotron request and item ceilings",
+  "description": "As an editor of a publication with a standing Monitor, I want the shared Cyclotron to process all eligible items without arbitrary lifetime, daily-request, or total-item ceilings, so that curation is not silently bounded by operator-set quotas. Preserve metered usage reporting and bounded resumable work batches; remove the misleading cap meter from Monitoring while continuing to show actual usage. This does not authorize changing billing, provider credentials, access grants, or triggering bulk classification.\n\nFeature: Standing Cyclotron processing has no arbitrary request or item quota\n  Scenario: A standing Monitor continues beyond prior configured ceilings\n    Given a configured standing publication target with no total request, per-day request, or total item cap\n    And requests and items are persisted with usage accounting and normal technical storage protections\n    When the run receives more decisions and unique items than the former configured ceilings\n    Then it accepts and processes them in bounded resumable batches without quota refusals\n    And the Monitoring page reports observed decisions without implying a ceiling\n  Scenario: Physical usage and safety controls remain effective\n    Given a standing run approaching a real configured storage or request-shape limit\n    When a request is processed\n    Then normal payload, concurrency, retry, backpressure, and storage protections still apply\n    And measured model and infrastructure usage remains available for future cost metering.\n\nDefinition of Done: remove only trusted standing-target lifetime/per-day request and total-item quota semantics and their production configuration; keep bounded per-run work batches, idempotency, provider retry/concurrency rules, payload validation and physical storage protection. Papyrus Monitoring displays actual counts, not quota fractions. Add focused Cyclotron unit/API tests and Papyrus Gherkin/UI tests. No live config changes or classification calls in this task. Coordinate the Cyclotron upstream change with its active repository owner; do not touch overlapping lab I9 budget/alarms work.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+  "labels": [
+    "monitoring",
+    "cyclotron"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "70a66bab-c4a0-4a5f-9a86-49e656a5b1fa",
+      "author": "home",
+      "text": "Papyrus cap display/configuration work is in draft PR https://github.com/AnthusAI/Papyrus/pull/706 at 1f9f0fff0f422c970b83e75bf2f5bbe69c9c7ba7. It removes quota fractions, labels incomplete history as lower bounds, strips legacy ceilings, and preserves bounded maxItemsPerRun. Local checks pass: 94 Python tests, 6 BDD scenarios / 26 steps, UI test, ESLint, typecheck, diff check. No production changes or classification. Runtime enforcement is separately active in Cyclotron issue decision-flywheel-1318264f-6baf-4c9e-bd9d-e71c6d584a77 on feature/decision-flywheel-uncapped-standing-targets; coordinate that release. Existing Ruff F841 at monitoring_router.py:1184 is unchanged from the Papyrus base commit.,--agent-platform codex",
+      "created_at": "2026-10-25T14:12:21.565922Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "638f40ad-cbf2-4f73-8981-e258f146a237",
+      "author": "home",
+      "text": "Exact-head validation for [PR #706](https://github.com/AnthusAI/Papyrus/pull/706) is green at `1f9f0fff0f422c970b83e75bf2f5bbe69c9c7ba7`: Python/TypeScript run `40201071685` and package smoke `40201071692` passed. Local focused checks also pass (94 Python tests, 6 BDD scenarios / 26 steps, monitoring-page UI test, targeted ESLint, TypeScript typecheck, and diff check). No production change or classification was run.\n\nThis PR covers only Papyrus Monitoring/configuration. Runtime enforcement removal is separately active in Cyclotron issue `decision-flywheel-1318264f-6baf-4c9e-bd9d-e71c6d584a77` on `feature/decision-flywheel-uncapped-standing-targets`; coordinate that release. Existing Ruff F841 at `monitoring_router.py:1184` is unchanged from Papyrus base.\n",
+      "created_at": "2026-10-25T14:22:48.115687Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ],
+  "created_at": "2026-10-25T12:43:09.385551Z",
+  "updated_at": "2026-10-25T14:22:48.115733Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6 Luna",
+    "name": "email-intake"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

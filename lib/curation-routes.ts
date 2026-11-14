@@ -8,6 +8,7 @@ import {
   type ProspectusSignInRouteOptions,
 } from "./prospectus-sign-in-routes";
 import { resolveProspectusSignInRuntime } from "./prospectus-session";
+import { isAllowedOrigin } from "./allowed-origins";
 import { SiteOriginNotConfiguredError, publicSiteOrigin } from "./site-origin";
 
 /**
@@ -272,7 +273,7 @@ export async function handleCurationRoute(request: NextRequest, route: CurationR
 
     const origin = request.headers.get("origin");
     const siteOrigin = publicSiteOrigin(request, options.environment);
-    if (route !== "context" ? origin !== siteOrigin : origin !== null && origin !== siteOrigin) {
+    if (route !== "context" ? !isAllowedOrigin(origin, siteOrigin, options.environment) : origin !== null && !isAllowedOrigin(origin, siteOrigin, options.environment)) {
       throw refusal(403, "cross_origin", "Curation requests must come from this site.");
     }
     let text: string | null = null;

@@ -1,0 +1,310 @@
+from __future__ import annotations
+
+import json
+import sys
+import tempfile
+from pathlib import Path
+from unittest import mock
+
+import yaml
+from behave import given, then, when
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+for entry in (REPO_ROOT / "src", REPO_ROOT):
+    if str(entry) not in sys.path:
+        sys.path.insert(0, str(entry))
+
+from papyrus_content.knowledge_snapshot import commands as snapshot_commands  # noqa: E402
+from papyrus_content.knowledge_snapshot.keys import slug  # noqa: E402
+from papyrus_content.knowledge_wiki import commands as wiki_commands  # noqa: E402
+from papyrus_content.knowledge_wiki.sync import front_matter_of  # noqa: E402
+from papyrus_content.publishing import ItemFields, published_item_id_for, save_item, unpublish_item  # noqa: E402
+from papyrus_content.wiki_stamp import WIKI_PAGE_ITEM_TYPE  # noqa: E402
+from procedures.newsroom.tests.test_knowledge_wiki import WikiClient, publish_article  # noqa: E402
+
+DAY = "2026-10-22"
+VOCABULARY = "version: 1\npublication: example\nentity_kinds:\n{kinds}relation_types:\n  - {{key: made_by, label: made by}}\n"
+
+
+def _scene(context):
+    if not hasattr(context, "scene"):
+        directory = tempfile.TemporaryDirectory()
+        context.add_cleanup(directory.cleanup)
+        client = WikiClient()
+        for module in (snapshot_commands, wiki_commands):
+            patcher = mock.patch.object(module, "create_authoring_client", lambda *args, **kwargs: (client, {}))
+            patcher.start()
+            context.add_cleanup(patcher.stop)
+        context.scene = {"client": client, "dir": Path(directory.name), "entities": [], "out": "", "error": None}
+    return context.scene
+
+
+def _add(context, entities):
+    scene = _scene(context)
+    scene["entities"].extend(entities)
+    publish_article(scene["client"], f"story-{len(scene['entities'])}", entities=entities)
+    snapshot_commands.knowledge_publish_run(["--apply"])
+
+
+def _parse_list(text):
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
+def _vocabulary(scene, kinds):
+    body = "".join(f"  - {{key: {kind}, label: {kind.lower()}}}\n" for kind in _parse_list(kinds))
+    path = scene["dir"] / f"vocabulary-{abs(hash(kinds))}.yml"
+    path.write_text(VOCABULARY.format(kinds=body), encoding="utf-8")
+    return str(path)
+
+
+def _pages(scene):
+    rows = scene["client"].tables.get("Item", {}).values()
+    return {row["slug"]: row for row in rows if row.get("type") == WIKI_PAGE_ITEM_TYPE and row.get("section") == "wiki"}
+
+
+def _page_titled(scene, title):
+    found = [row for row in _pages(scene).values() if front_matter_of(row).get("title") == title]
+    assert len(found) == 1, f"no single page titled {title!r}: {sorted(front_matter_of(row).get('title') for row in _pages(scene).values())}"
+    return found[0]
+
+
+def _live(scene, title):
+    page = _page_titled(scene, title)
+    return scene["client"].get_record("PublishedItem", published_item_id_for(page["lineageId"])) is not None
+
+
+def _sync(context, kinds, *flags, apply=True):
+    scene = _scene(context)
+    arguments = list(flags)
+    if kinds is not None:
+        arguments += ["--vocabulary", _vocabulary(scene, kinds)]
+    if apply:
+        arguments.append("--apply")
+    import contextlib
+    import io
+
+    buffer = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buffer):
+            wiki_commands.knowledge_wiki_sync(arguments)
+    except ValueError as error:
+        scene["error"] = str(error)
+    scene["out"] = buffer.getvalue()
+
+
+def _publish_all(scene):
+    wiki_commands.knowledge_wiki_publish(["--all-drafts", "--actor", "ai", "--apply", "--no-trigger", "--on", DAY])
+
+
+@given('a graph with accepted entities "{a}" ({ak}), "{b}" ({bk}), "{c}" ({ck}), "{d}" ({dk}) and "{e}" ({ek})')
+def step_graph(context, a, ak, b, bk, c, ck, d, dk, e, ek):
+    _add(context, [(ak, a), (bk, b), (ck, c), (dk, d), (ek, e)])
+
+
+@given('an accepted entity "{name}" ({kind})')
+def step_one_entity(context, name, kind):
+    _add(context, [(kind, name), *_scene(context)["entities"]])
+
+
+@when("the wiki sync runs with no vocabulary")
+def step_no_vocabulary(context):
+    _sync(context, None)
+
+
+@when('the wiki sync runs with a vocabulary of the kinds "{kinds}"')
+def step_vocabulary(context, kinds):
+    _sync(context, kinds)
+
+
+@given('the wiki was synced and published with a vocabulary of the kinds "{kinds}"')
+def step_synced_and_published(context, kinds):
+    _sync(context, kinds)
+    _publish_all(_scene(context))
+
+
+@given('the wiki sync ran with a vocabulary of the kinds "{kinds}"')
+def step_ran(context, kinds):
+    _sync(context, kinds)
+
+
+@when('the wiki sync dry run is made with a vocabulary of the kinds "{kinds}"')
+def step_dry_run(context, kinds):
+    scene = _scene(context)
+    scene["writes_before"] = len(scene["client"].write_calls())
+    _sync(context, kinds, apply=False)
+
+
+@given('the page for "{title}" was taken down and marked retired by an earlier version of the sync')
+def step_marked_retired(context, title):
+    scene = _scene(context)
+    page = _page_titled(scene, title)
+    unpublish_item(scene["client"], page["id"], actor="earlier-sync")
+    marked = {**front_matter_of(page), "retired": True}
+    save_item(
+        scene["client"],
+        ItemFields(type=WIKI_PAGE_ITEM_TYPE, slug=page["slug"], section="wiki", front_matter_yaml=yaml.safe_dump(marked, sort_keys=False), body_markus=page["bodyMarkus"], aliases=[], id=page["id"]),
+        actor="earlier-sync",
+    )
+
+
+@when("the wiki sync runs with a vocabulary that declares no kinds")
+def step_empty_vocabulary(context):
+    scene = _scene(context)
+    path = scene["dir"] / "empty.yml"
+    path.write_text("version: 1\npublication: example\n", encoding="utf-8")
+    try:
+        wiki_commands.knowledge_wiki_sync(["--vocabulary", str(path), "--apply"])
+    except ValueError as error:
+        scene["error"] = str(error)
+
+
+@when("every draft is published")
+def step_publish(context):
+    _publish_all(_scene(context))
+
+
+@when('the knowledge snapshot is built with a vocabulary of the kinds "{kinds}"')
+def step_snapshot(context, kinds):
+    scene = _scene(context)
+    out = scene["dir"] / "snapshot"
+    snapshot_commands.knowledge_snapshot(
+        ["--out", str(out), "--as-of", "2026-10-19", "--entity-href", "/wiki/{slug}/", "--vocabulary", _vocabulary(scene, kinds)]
+    )
+    index = json.loads((out / "_data" / "knowledge" / "index.json").read_text())
+    scene["snapshot"] = {entity["name"]: entity for entity in index["entities"]}
+
+
+@then("the wiki has pages for {names} only")
+def step_pages(context, names):
+    wanted = sorted(part.strip().strip('"') for part in names.replace(" and ", ",").split(",") if part.strip())
+    found = sorted(front_matter_of(row)["title"] for row in _pages(_scene(context)).values())
+    assert found == wanted, (found, wanted)
+
+
+@then('the page for "{title}" keeps the entity key "{key}"')
+def step_key(context, title, key):
+    assert front_matter_of(_page_titled(_scene(context), title))["entityKey"] == key
+
+
+@then('"{name}" links to its wiki page')
+def step_links(context, name):
+    assert _scene(context)["snapshot"][name]["href"] == f"/wiki/{slug(_scene(context)['snapshot'][name]['key'])}/"
+
+
+@then('"{name}" has no link')
+def step_no_link(context, name):
+    assert _scene(context)["snapshot"][name]["href"] is None
+
+
+@then('the snapshot has no entity "{name}"')
+def step_no_entity(context, name):
+    assert name not in _scene(context)["snapshot"]
+
+
+@then('the pages for "{a}" and "{b}" are still live')
+def step_others_live(context, a, b):
+    assert _live(_scene(context), a) and _live(_scene(context), b)
+
+
+@then("the sync reports no page to take down")
+def step_reports(context):
+    out = _scene(context)["out"]
+    assert "retire" not in out and "taken down" not in out, out
+
+
+@then('the page for "{title}" is not live')
+def step_not_live(context, title):
+    assert not _live(_scene(context), title)
+
+
+@then('the page for "{title}" is still live')
+def step_still_live(context, title):
+    assert _live(_scene(context), title)
+
+
+@then('the sync warns that "{title}" is no longer generated')
+def step_warns(context, title):
+    slug_text = slug(f"personauthor--{title.replace(' ', '')}")
+    assert f"warning\twiki/{slug_text}: no longer generated" in _scene(context)["out"], _scene(context)["out"]
+
+
+@then("the dry run changes nothing and lists no page to retire")
+def step_dry_changes_nothing(context):
+    scene = _scene(context)
+    assert "mode\tdry-run" in scene["out"] and "retire" not in scene["out"], scene["out"]
+    assert len(scene["client"].write_calls()) == scene["writes_before"]
+
+
+@then('the page for "{title}" is still live and not marked retired')
+def step_still_live_unmarked(context, title):
+    assert _live(_scene(context), title) and "retired" not in front_matter_of(_page_titled(_scene(context), title))
+
+
+@then('the page for "{title}" is live and not marked retired')
+def step_back(context, title):
+    assert _live(_scene(context), title) and "retired" not in front_matter_of(_page_titled(_scene(context), title))
+
+
+def _check(context, title):
+    from procedures.newsroom.tests.test_knowledge_wiki import run_preflight
+
+    scene = _scene(context)
+    run_preflight(scene["client"], _page_titled(scene, title)["id"], scene["dir"])
+
+
+@given('the wiki was synced with a vocabulary of the kinds "{kinds}"')
+def step_synced_only(context, kinds):
+    _sync(context, kinds)
+
+
+@when('the page "{title}" places an include the site does not know')
+def step_unknown_include(context, title):
+    _page_titled(_scene(context), title)["bodyMarkus"] += '\n::include{kind="nonsense" name="nothing"}\n'
+
+
+@when("every draft is published and the site fails to project the pages")
+def step_publish_failing(context):
+    import contextlib
+    import io
+
+    failing = {"projection": {"ok": False, "error": "the site could not render the page", "retry": "papyrus ops content publish --id ITEM"}}
+    buffer = io.StringIO()
+    with mock.patch.object(wiki_commands, "run_site_triggers", lambda *args, **kwargs: failing), contextlib.redirect_stdout(buffer):
+        try:
+            wiki_commands.knowledge_wiki_publish(["--all-drafts", "--actor", "ai", "--apply", "--on", DAY])
+        except SystemExit:
+            pass
+    _scene(context)["out"] = buffer.getvalue()
+
+
+@then('the publish check passes for the page "{title}"')
+def step_check_passes(context, title):
+    _check(context, title)
+
+
+@then('the publish check refuses the page "{title}" by name and says nothing was published')
+def step_check_refuses(context, title):
+    from papyrus_content.publishing import PublishError
+
+    try:
+        _check(context, title)
+    except PublishError as error:
+        assert error.code == "page-not-renderable" and _page_titled(_scene(context), title)["slug"] in error.message and "Nothing was published" in error.message
+    else:
+        raise AssertionError("the publish check did not refuse the page")
+
+
+@then("the publish report names the unprojected page and gives the retry command")
+def step_report_unprojected(context):
+    out = _scene(context)["out"]
+    assert "is published but its page was not projected" in out and "retry: papyrus ops content publish --id" in out, out
+
+
+@then('the page "{title}" is live')
+def step_page_live(context, title):
+    assert _live(_scene(context), title)
+
+
+@then("the sync is refused because the vocabulary declares no entity kinds")
+def step_refused(context):
+    assert "declares no entity kinds" in (_scene(context)["error"] or "")

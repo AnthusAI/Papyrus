@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SITE_BRAND, getForcedPresentation } from "../lib/site-brand";
 import { configureAmplifyClient } from "./amplify-client-provider";
+import { PublicHandleField } from "./public-handle-field";
 import { loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
 import {
   DEFAULT_READER_SETTINGS,
@@ -16,6 +17,7 @@ import {
   readLocalReaderSettings,
   resolveReaderSettings,
   saveReaderSettings,
+  savePublicHandle,
   type ReaderSettings,
   type ReaderSettingsSource,
 } from "./reader-settings";
@@ -31,6 +33,8 @@ export function SettingsPage() {
   const [source, setSource] = useState<ReaderSettingsSource>("local");
   const [status, setStatus] = useState<SaveStatus>({ state: "loading", message: "Loading settings" });
   const [pending, setPending] = useState(false);
+  const [publicHandle, setPublicHandle] = useState<string | null>(null);
+  const [canSetPublicHandle, setCanSetPublicHandle] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const userEditedRef = useRef(false);
@@ -46,6 +50,7 @@ export function SettingsPage() {
     try {
       const session = await loadReaderSessionSnapshot();
       setAuthState(session.auth);
+      setCanSetPublicHandle(session.groups.includes("editor") || session.groups.includes("admin"));
       setAuthError(null);
     } catch {
       // Keep current auth display if session refresh fails.
@@ -55,6 +60,7 @@ export function SettingsPage() {
       if (userEditedRef.current) return;
       setSettings(resolution.settings);
       setSource(resolution.source);
+      setPublicHandle(resolution.publicHandle ?? null);
       applyReaderTheme(resolution.settings.theme);
       setStatus({
         state: "saved",
@@ -234,6 +240,8 @@ export function SettingsPage() {
             })}
           </div>
         </section>
+
+        {canSetPublicHandle ? <PublicHandleField save={savePublicHandle} storedHandle={publicHandle} /> : null}
       </section>
     </main>
   );

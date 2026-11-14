@@ -15,6 +15,7 @@ import {
   statusText,
   storyHref,
   triggerText,
+  toolsText,
   whoText,
   type AutomationOutsideRun,
   type AutomationRecord,
@@ -46,8 +47,10 @@ function RunLine({ run, demo }: { run: AutomationRun; demo: boolean }) {
         {run.runRecord === "unavailable" ? " (the run record could not be read)" : ""}
       </span>
       <span>
-        {run.storyId ? <>Story: <Link href={storyHref(run.storyId, demo)} data-automation-story-link>{run.storyTitle ?? run.storyId}</Link></> : "Story: none recorded"}
+        {run.storyId && run.storyExists === false ? <>Story: {run.storyTitle ?? run.storyId} (story deleted)</>
+          : run.storyId ? <>Story: <Link href={storyHref(run.storyId, demo)} data-automation-story-link>{run.storyTitle ?? run.storyId}</Link></> : "Story: none recorded"}
       </span>
+      <span data-automation-run-tools>{toolsText(run)}</span>
       <span data-automation-run-cost data-over-budget={run.overBudget || undefined}>
         <span aria-hidden="true">{run.overBudget ? "! " : ""}</span>{costText(run)}
       </span>

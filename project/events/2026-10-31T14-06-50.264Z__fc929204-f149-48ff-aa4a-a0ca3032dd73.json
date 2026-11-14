@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fc929204-f149-48ff-aa4a-a0ca3032dd73",
+  "issue_id": "PPY-c13e1c79-a998-42b0-9f8a-6d37327a376c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:50.264Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Story audio source: reuse site narration or generate and store per story",
+    "description": "Decide the source per site, then generate, store and serve the audio. Gherkin covers it.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-00ac19f5-01e2-4c83-9e1a-3a04d8e4b5cc",
+    "labels": []
+  }
+}

@@ -101,6 +101,9 @@ class FakeClient:
         self.calls.append(("relations", key))
         return self.relations.get(key.split("#")[1], [])
 
+    def list_semantic_relations_by_object_state(self, key: str) -> list[dict[str, Any]]:
+        return []
+
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         self.calls.append(("graphql", query.strip().split("(")[0]))
         if "listItems" in query:
@@ -110,7 +113,14 @@ class FakeClient:
             return {"fileProposal": {"status": "ok", "id": "prop-" + "a" * 32}}
         if "listProposals" in query:
             return {"listProposals": {"items": [], "nextToken": None}}
+        if "listStoryDrafts" in query:
+            return {"listStoryDrafts": {"status": "ok", "error": None, "message": None, "drafts": []}}
         raise AssertionError(f"unexpected request: {query[:60]}")
+
+
+def operator_view(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """What ``listStoryDrafts`` answers for Proposal rows: six fields of each story draft, never a body, evidence, history or vote."""
+    return [{field: row.get(field) for field in ("id", "title", "summary", "targets", "state", "createdAt")} for row in rows if row.get("kind") == "story_draft"]
 
 
 class FakeModel:
@@ -139,3 +149,183 @@ def idea(title: str, handles: list[str], *, section: str = "Analysis", angle: st
         "claims": [{"claim": f"The references both bear on {title.lower()}.", "references": handles}],
         "novelty_note": note,
     }
+
+
+# --- trend stories (docs/idea-pipeline.md#trend-stories) ---------------------------------------------------------------------
+
+AS_OF = "2026-10-19"
+
+
+def snapshot_files() -> dict[str, object]:
+    """A small weekly knowledge snapshot: two named clusters, two makers and a concept that gained share, one new concept and a broad task that only fell, as the site publishes them."""
+
+    def entity(key, name, kind, series, last4, prior4, percent, new=False):
+        history = [0] * (26 - len(series)) + series if len(series) < 26 else series  # the snapshot publishes 26 weeks and its last 8
+        return {"acceptedBy": {"actor": "ai", "name": None, "on": "2026-10-22"}, "aliases": [], "change": {"last4": last4, "percent": percent, "prior4": prior4},
+                "href": f"/wiki/{key.replace('--', '-')}/", "isNew": new, "itemCount": sum(history), "key": key, "kind": kind, "name": name, "series8": history[-8:],
+                "series26": history, "weeksOfHistory": 3 if new else 52}
+
+    index = {
+        "asOf": AS_OF, "beats": [], "conceptOfTheWeek": None, "entityCount": 5, "kinds": [], "schemaVersion": 1, "topicCount": 2,
+        "trending": ["maker--hugging-face", "maker--zed", "concept--routing"],
+        "entities": [
+            # a spike: a quiet entity jumps for a week (the week before the last, so the window is two weeks)
+            entity("maker--hugging-face", "Hugging Face", "maker", [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 30, 2], 34, 3, 1033),
+            # a rise over a few weeks
+            entity("maker--zed", "Zed", "maker", [0] * 22 + [3, 4, 4, 5], 16, 0, None),
+            # a slow build: a little more every week for a quarter
+            entity("concept--routing", "routing", "concept", [0] * 8 + [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4], 13, 8, None),
+            entity("concept--typed-decisions", "typed decisions", "concept", [0, 0, 0, 0, 2, 3, 3, 4], 12, 5, None, new=True),
+            # The biggest count in the corpus and falling: a task everything mentions is not news, whatever its count.
+            entity("task--text-generation", "text-generation", "task", [30] * 18 + [30, 30, 30, 30, 10, 10, 10, 10], 40, 120, -67),
+        ],
+    }
+    clusters = {
+        "asOf": AS_OF, "runId": "run-1", "schemaVersion": 1, "unacceptedClusters": 0,
+        "clusters": [
+            {"acceptedBy": {"actor": "ai", "name": None, "on": "2026-10-22"}, "beats": ["decision-models"], "href": None, "itemCount": 21, "name": "Decision models",
+             "series8": [0, 0, 3, 3, 4, 4, 2, 4], "state": "growing", "topTerms": ["decision", "public", "jev"], "uid": "cl-fb1252e1da52", "weeksOfData": 69},
+            {"acceptedBy": {"actor": "ai", "name": None, "on": "2026-10-22"}, "beats": [], "href": None, "itemCount": 22, "name": "Open-weights language models",
+             "series8": [1, 2, 1, 1, 2, 1, 1, 1], "state": None, "topTerms": ["licence", "apache"], "uid": "cl-aaaa00000001", "weeksOfData": 69},
+        ],
+    }
+    entities = {
+        "maker--hugging-face": {"key": "maker--hugging-face", "neighbours": [{"key": "maker--zed", "kind": "maker", "name": "Zed", "relation": "mentioned_with", "weight": 5}],
+                                   "relatedItems": [{"title": "A model card worth reading", "url": "/posts/a-model-card/", "publishedAt": "2026-10-14", "reason": "maker--hugging-face"},
+                                                    {"title": "Zed releases Zed-7B, a small coding model under Apache-2.0", "url": "/posts/zed-7b/", "publishedAt": "2026-10-17T00:00:00Z", "reason": "maker--hugging-face"}]},
+        "maker--zed": {"key": "maker--zed",
+                                "relatedItems": [{"title": "Zed releases Zed-7B, a small coding model under Apache-2.0", "url": "/posts/zed-7b/", "publishedAt": "2026-10-17T00:00:00Z", "reason": "maker--zed"},
+                                                 {"title": "An older release outside the window", "url": "/posts/older/", "publishedAt": "2026-08-01T00:00:00Z", "reason": "maker--zed"}]},
+    }
+    return {"index": index, "clusters": clusters, "entities": entities}
+
+
+def _summary(name, likes, downloads, day=14):
+    return f"{name} is a text-generation model by org, released 2026-10-{day}. License mit. {likes} likes, {downloads} downloads."
+
+def _record(name, likes, downloads, day=14):
+    return {"title": name, "url": f"https://huggingface.co/{name}", "publishedAt": f"2026-10-{day}T08:00:00Z", "summary": _summary(name, likes, downloads, day), "source": "huggingface", "provenance": "from the Hugging Face Hub"}
+
+
+def selection_snapshot(extra=None):
+    """The shape of the Shipped snapshot of 2026-10-26: broad kinds carry the biggest counts, one individual filed five small fine-tunes, and a few
+    organisations released real models. ``extra`` replaces or adds entity files."""
+    def entity(key, kind, name, series):
+        history = [series[0]] * (26 - len(series)) + series if len(series) < 26 else series  # 26 weeks, as the index publishes them
+        return {"key": key, "kind": kind, "name": name, "series8": history[-8:], "series26": history, "itemCount": sum(history), "weeksOfHistory": 40, "isNew": False,
+                "change": {"last4": sum(history[-4:]), "prior4": sum(history[-8:-4]), "percent": None}, "href": None}
+
+    entities = [
+        # the broad kinds rise with the corpus: the biggest counts, and no news
+        entity("licence--mit", "licence", "MIT", [10, 12, 20, 22, 30, 32, 34, 36]),
+        entity("task--text-generation", "task", "text-generation", [40, 44, 60, 66, 90, 96, 100, 110]),
+        entity("platform--hugging-face", "platform", "Hugging Face", [4, 5, 7, 8, 9, 10, 12, 12]),
+        # a notable organisation: four models, 640 likes
+        entity("maker--nvidia", "maker", "NVIDIA", [0] * 22 + [1, 2, 3, 4]),
+        # one individual, five small fine-tunes, 30 likes: the largest surprise of the week and still not an anchor
+        entity("maker--emonhasan01", "maker", "emonHasan01", [0] * 22 + [0, 7, 0, 0]),
+        entity("model_family--olmo", "model_family", "Olmo", [0] * 14 + [0, 0, 0, 1, 1, 2, 2, 3, 3, 3, 3, 3]),
+        # filler that keeps a stable share
+        entity("maker--steady", "maker", "Steady", [6, 6, 6, 6, 6, 6, 6, 6]),
+    ]
+    records = {
+        "maker--nvidia": [_record(f"nvidia/model-{n}", 160, 4000, 10 + n) for n in range(4)],
+        "maker--emonhasan01": [_record(f"emonHasan01/m{n}", 6, 400, 13 + n) for n in range(5)],
+    }
+    files = {
+        "maker--nvidia": {"relatedItems": [], "relatedRecords": records["maker--nvidia"], "neighbours": [{"key": "licence--mit", "kind": "licence", "name": "MIT", "relation": "mentioned_with", "weight": 3}, {"key": "task--text-generation", "kind": "task", "name": "text-generation", "relation": "mentioned_with", "weight": 4}]},
+        "maker--emonhasan01": {"relatedItems": [], "relatedRecords": records["maker--emonhasan01"], "neighbours": [{"key": "platform--hugging-face", "kind": "platform", "name": "Hugging Face", "relation": "mentioned_with", "weight": 5}]},
+        "model_family--olmo": {"relatedItems": [], "relatedRecords": []},
+        **(extra or {}),
+    }
+    return {"asOf": AS_OF, "siteBase": SITE_BASE, "clusters": [], "previous": None, "entityFile": lambda key: files.get(key), "index": {"entities": entities, "trending": ["licence--mit", "task--text-generation", "platform--hugging-face"]}}
+
+
+def history_entry() -> dict[str, object]:
+    files = snapshot_files()
+    return {"schemaVersion": 1, "asOf": AS_OF, "runId": "run-1", "runAsOf": "2026-10-22", "archivedAt": "2026-10-22T16:59:53Z", "counts": {"clusters": 2, "entities": 5, "topics": 2},
+            "clusters": [], "snapshot": files}
+
+
+def sentence(text: str, *cites: str) -> dict[str, object]:
+    return {"text": text, "cites": list(cites)}
+
+
+def trend_draft(headline: str = "Hugging Face and Zed climb together", *, section: str = "Analysis", body=None, figure=("S3",), cites=("S3", "S4")) -> dict[str, object]:
+    """A draft that passes the citation check against ``snapshot_files``: S1 and S2 are the clusters, S3 to S5 the entities that gained share, S6 the new one."""
+    first, second = cites[0], cites[-1]
+    return {
+        "headline": sentence(headline, first, second),
+        "dek": sentence("Both rose in the four weeks to 2026-10-19.", first, second),
+        "section": section,
+        "paragraphs": body or [
+            {"sentences": [
+                sentence("Hugging Face appeared in 32 items over the last 2 weeks, against 12 in the 24 weeks before.", "S3"),
+                sentence("Zed appeared in 16 items over the last 4 weeks, against 0 before.", "S4"),
+            ]},
+            {"sentences": [sentence("The two are mentioned together in 5 items.", "S3", "S4")]},
+        ],
+        "figure_signals": list(figure),
+        "figure_title": "Items per week",
+        "figure_caption": "Hugging Face peaked at 30 items in one week.",
+    }
+
+
+def cluster_draft(headline: str = "Decision models and open-weights models both stay in view") -> dict[str, object]:
+    """A draft that rests only on the two clusters of ``snapshot_files`` (S1 and S2): no entity anchors it, so only the same-targets check guards a repeat."""
+    return {
+        "headline": sentence(headline, "S1", "S2"),
+        "dek": sentence("Two clusters hold most of the weekly coverage.", "S1", "S2"),
+        "section": "Analysis",
+        "paragraphs": [
+            {"sentences": [
+                sentence("Decision models holds 21 items.", "S1"),
+                sentence("Open-weights language models holds 22 items.", "S2"),
+            ]},
+            {"sentences": [sentence("Together the two clusters hold 21 and 22 items.", "S1", "S2")]},
+        ],
+        "figure_signals": ["S1"],
+        "figure_title": "Items per week",
+        "figure_caption": "Decision models in the weeks to 2026-10-19.",
+    }
+
+
+SITE_BASE = "https://site.example"
+ITEM_PAGES = {
+    f"{SITE_BASE}/posts/zed-7b.md": "# Zed releases Zed-7B\n\n> A 7B coding model with 32k context, trained on permissively licensed code.\n\nPublished 2026-10-17\n\nBody text.\n",
+    f"{SITE_BASE}/posts/a-model-card.md": "# A model card worth reading\n\n> The card lists its evaluation limits.\n\nBody text.\n",
+}
+
+
+def read_item_page(url: str) -> str:
+    """Stands in for reading the published ``.md`` of an item."""
+    if url not in ITEM_PAGES:
+        raise OSError(f"no page at {url}")
+    return ITEM_PAGES[url]
+
+
+def release_draft(headline: str = "Zed-7B brings an Apache-2.0 coding model to Hugging Face") -> dict[str, object]:
+    """A draft about the releases that passes the check once the items are read: S3 is Hugging Face, S4 Zed, I1 the Zed-7B release, I2 the model card."""
+    return {
+        "headline": sentence(headline, "I1"),
+        "dek": sentence("Zed's release on 2026-10-17 is one of 32 Hugging Face items in two weeks.", "I1", "S3"),
+        "section": "Analysis",
+        "paragraphs": [
+            {"sentences": [
+                sentence("Zed released Zed-7B, a 7B coding model with 32k context, under Apache-2.0.", "I1"),
+                sentence("Zed appeared in 16 items over the last 4 weeks.", "S4"),
+            ]},
+            {"sentences": [sentence("Another release on Hugging Face ships a model card that lists its evaluation limits, which suggests documentation is part of the pattern.", "I2", "S3")]},
+        ],
+        "figure_signals": ["S3"],
+        "figure_title": "Items per week",
+        "figure_caption": "Hugging Face peaked at 30 items in one week.",
+    }
+
+
+class FakeTrendModel(FakeModel):
+    """Like ``FakeModel`` but answers in the trend drafts format."""
+
+    def __call__(self, url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
+        self.requests.append(payload)
+        return {"status": "completed", "output_text": json.dumps({"drafts": self.ideas}), "usage": self.usage}

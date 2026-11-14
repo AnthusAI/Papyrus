@@ -588,7 +588,7 @@ function identifierFromSourceUri(type, sourceUri) {
 async function adjudicateWithOpenAi(reference, type, scoredCandidates, options = {}) {
   const apiKey = normalizeText(options.openaiApiKey ?? process.env.OPENAI_API_KEY);
   if (!apiKey || !scoredCandidates.length) return null;
-  const model = normalizeText(options.model) || "gpt-5.4-mini";
+  const model = normalizeText(options.model) || "gpt-6-luna";
   const effort = normalizeText(options.reasoningEffort) || "low";
   const response = await defaultFetcher("https://api.openai.com/v1/responses", {
     method: "POST",

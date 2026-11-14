@@ -161,13 +161,6 @@ export function applyPilobolusDemoDashboardContent(
   }));
 
   localized.messages = localized.messages.map((message) => {
-    if (message.messageKind === "ingestion_rationale") {
-      return {
-        ...message,
-        body: "Imported as a useful holdout against generic platform demo intake.",
-        summary: "Pilobolus intake rationale",
-      };
-    }
     if (message.messageKind === "reporting_context_packet") {
       const metadata = message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
         ? message.metadata as Record<string, unknown>
@@ -237,7 +230,7 @@ export function applyPilobolusDemoDashboardContent(
         ...record,
         title: "Pilobolus Editorial Policy",
         body: [
-          "Publication doctrine is the global inclusion standard for Pilobol.us; desk doctrine sets local intake priorities for field notes and source intake.",
+          "Publication doctrine is the global inclusion standard for Pilobol.us; section doctrine sets local intake priorities for field notes and source intake.",
           "Field-notes reporting should prioritize accepted Pilobolus references and annotated intake artifacts—not the Papyrus platform knowledge base.",
           "High-risk claims about host takeover or network control require explicit uncertainty handling and accepted source linkage.",
         ],

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "e45051d4-3e9e-4864-9a7b-cd82b770feb5",
+  "issue_id": "PPY-f0508e58-5142-4378-80b5-f4a0ba718563",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:26.388Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M0 Decisions and spikes",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

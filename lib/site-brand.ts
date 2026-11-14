@@ -26,6 +26,8 @@ export type SiteBrandId = string;
 export type SiteBrandComponents = {
   /** The mark shown at the top of the newsroom CMS sidebar in place of the app title. */
   NewsroomLogo?: ComponentType<{ className?: string }>;
+  /** A compact mark for the mobile newsroom top bar. Without it the bar scales down `NewsroomLogo`. */
+  NewsroomLogoCompact?: ComponentType<{ className?: string }>;
   PictogramFigure?: ComponentType<PictogramFigureProps>;
   BlogPageBackground?: ComponentType<BlogPageBackgroundProps>;
 };
@@ -106,6 +108,13 @@ export type SiteBrand = {
   contentItemName?: ContentItemName;
   /** The lifecycle stages in board order, last one being publication. Defaults to the standard newsroom lifecycle. */
   contentItemStages?: readonly ContentItemStageDefinition[];
+  /**
+   * The board reads one row per story from the head stage index (listItemsByHeadStageAndUpdatedAt) instead of every saved version from
+   * the stage index. Set it once the site's backend has the index and `papyrus stories head-index` (its dry run) has nothing left to
+   * write; a column would otherwise miss the stories nobody has saved since the deploy. Leave it unset on a shared (multi-tenant) stack:
+   * the head key is tenant-prefixed there and the console does not read with a tenant prefix yet. docs/plans/console-loading-audit.md.
+   */
+  storyHeadStageIndex?: boolean;
   placeholderByline: string;
   defaultPresentation: EditionPresentationFormat;
   forcedPresentation?: EditionPresentationFormat;
@@ -199,7 +208,7 @@ const REFERENCE_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     opsChrome: "app",
     corpusKey: "threat-intelligence",
     steeringConfigPath: "corpora/papyrus-steering.yml",
-    newsroomSectionsConfigPath: "corpora/papyrus-newsroom-sections.yml",
+    newsroomSectionsConfigPath: "corpora/example-newsroom-sections.yml",
     analysisProfilesPath: "corpora/papyrus-analysis-profiles.yml",
     publicationName: "Anthus Threat Intelligence",
   },

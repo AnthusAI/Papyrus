@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "f47da512-07be-4a16-81f8-2d48a81b63c5",
+  "issue_id": "PPY-c26b78d0-4687-46b1-8cbf-3ef42cda73f4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:46.742Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Concept page history, and a list of concepts that need work",
+    "description": "History: who changed what on a concept, from versions and link records. Work list in the newsroom: concepts with the most evidence and no description, thin pages, suggested links waiting, sorted by a rank. This is how fast mining stays manageable. Screenshot review.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-46d70d7c-891b-4332-8819-012cf0b24628",
+    "labels": []
+  }
+}

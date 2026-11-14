@@ -1,0 +1,20 @@
+{
+  "id": "PPY-13fe06ef-01a3-450e-a587-20385a051e08",
+  "title": "Use Story stars in decisions about what to publish",
+  "description": "Surface stars where editors and the automation choose what moves forward: the Stories board sort and a minimum-stars filter, the Notification Center, and the signals the idea pipeline reads (src/papyrus_content/ideas/signal_inputs.py reads Reference stars today). Coordinate with the automation session's work. Stars inform and order; they do not publish or reject anything on their own unless Ryan decides that.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-97e016ea-6af5-49f6-978a-f9bbd46c68f7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T14:32:44.351966Z",
+  "updated_at": "2026-11-03T14:32:44.351994Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

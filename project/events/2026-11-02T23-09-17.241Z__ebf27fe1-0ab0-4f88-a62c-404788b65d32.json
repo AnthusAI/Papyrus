@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ebf27fe1-0ab0-4f88-a62c-404788b65d32",
+  "issue_id": "PPY-9f17ef6b-b919-4034-b29c-b67d39db73ef",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T23:09:17.241Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Invent a concept by typing a hashtag while curating",
+    "description": "Ryan 11-02: typing a new hashtag such as #fake-website-networks creates the concept and tags the Reference in one tap, with no setup UI. Add a description later on its page. Human concepts appear in suggestions and idea packs and are never retired by the knowledge run. Not published on the public wiki until an editor chooses.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2e906437-368b-49fa-b003-1369f1f7cae7",
+    "labels": []
+  }
+}

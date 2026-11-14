@@ -294,7 +294,7 @@ export class SemanticGraphSnapshot {
   messagesFor(kind: string, lineageId: string): MessageRecord[] {
     const incomingCommentMessages = this.incoming(kind, lineageId)
       .filter((relation) => relation.subjectKind === "message")
-      .filter((relation) => ["comment", "ingestion_rationale"].includes(relationTypeKey(relation)) || ["comment", "ingestion_rationale"].includes(relation.predicate))
+      .filter((relation) => relationTypeKey(relation) === "comment" || relation.predicate === "comment")
       .map((relation) => this.messagesById.get(relation.subjectId))
       .filter((message): message is MessageRecord => Boolean(message));
     const producedMessages = this.outgoing(kind, lineageId)

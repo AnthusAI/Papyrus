@@ -1,5 +1,8 @@
 """The Monitoring page's read path: scoping, permissions, usage, empty and error states, read-only access."""
 import json
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -8,8 +11,9 @@ from papyrus_content import monitoring_view as mv
 from papyrus_content.monitoring_view import Forbidden, monitoring_overview
 
 
-def overview(groups=("editor",), endpoint=fx.APP_ANTH, scope="publication", store=None):
-    return monitoring_overview(store or fx.FakeViewStore(), groups=list(groups), site_endpoint=endpoint, scope=scope, now=fx.NOW)
+def overview(groups=("editor",), endpoint=fx.APP_ANTH, scope="publication", store=None, email_store=None):
+    return monitoring_overview(store or fx.FakeViewStore(), groups=list(groups), site_endpoint=endpoint,
+                               scope=scope, now=fx.NOW, email_store=email_store)
 
 
 def test_editor_overview_is_scoped_to_the_viewing_publication():
@@ -62,18 +66,18 @@ def test_unknown_scope_is_refused_as_bad_request():
         overview(scope="everything")
 
 
-def test_usage_counts_decisions_by_utc_day_against_configured_ceilings():
+def test_usage_counts_decisions_by_utc_day_without_showing_retired_ceilings():
     usage = overview()["usage"]
     assert (usage["decisionsToday"], usage["decisionsTotal"], usage["day"]) == (2, 3, "2026-10-21")
-    assert usage["ceilings"] == {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}
+    assert "ceilings" not in usage
 
 
-def test_no_ceilings_configured_still_reports_usage():
+def test_legacy_ceilings_are_ignored_and_usage_is_still_reported():
     table = [r for r in fx.rows() if r["sk"] != "CONFIG#router"]
     router = next(r for r in fx.rows() if r["sk"] == "CONFIG#router")
-    router.pop("ceilings")
+    router["ceilings"] = {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}
     result = overview(store=fx.FakeViewStore(table + [router]))
-    assert result["usage"]["ceilings"] is None and result["usage"]["decisionsTotal"] == 3
+    assert "ceilings" not in result["usage"] and result["usage"]["decisionsTotal"] == 3
 
 
 def test_publication_outside_the_router_gets_a_notice_not_data_about_others():
@@ -92,7 +96,7 @@ def test_router_runs_and_dry_run_modes_are_reported():
     result = overview()
     run = result["routerRuns"][0]
     assert run["status"] == "stopped" and run["counts"]["decided"] == 1 and run["feedback"]["sent"] == 1
-    assert result["router"] == {"mode": "live", "feedback": True, "enabled": True, "maxItemsPerRun": 5}
+    assert result["router"] == {"mode": "live", "feedback": True, "enabled": True}
 
 
 def test_response_is_json_and_leaks_nothing_private():
@@ -129,19 +133,39 @@ def test_table_store_uses_only_get_item_and_query():
     assert len(result["items"]) == 5 and set(table.calls) == {"get_item", "query"}
 
 
-def event(groups, scope="publication"):
-    return {"info": {"fieldName": "monitoringOverview"}, "arguments": {"scope": scope},
+def test_bounded_decision_history_marks_truncated_counts_as_lower_bounds():
+    class PagedTable:
+        def __init__(self, pages):
+            self.pages, self.calls = pages, 0
+
+        def query(self, **_kwargs):
+            index = self.calls
+            self.calls += 1
+            response = {"Items": [{"decision": {"decidedAt": "2026-10-21T12:00:00Z"}}]}
+            if index < self.pages - 1:
+                response["LastEvaluatedKey"] = {"pk": "MONITOR#hn", "sk": f"ROUTE#{index:06d}"}
+            return response
+
+    times, complete = mv.TableViewStore(PagedTable(mv.MAX_DECISION_PAGES + 1)).decision_times()
+    assert len(times) == mv.MAX_DECISION_PAGES and not complete
+
+    times, complete = mv.TableViewStore(PagedTable(3)).decision_times()
+    assert len(times) == 3 and complete
+
+
+def event(groups, scope="publication", field="monitoringOverview", **arguments):
+    return {"fieldName": field, "arguments": {"scope": scope, **arguments},
             "identity": {"groups": groups, "sub": "u1"}}
 
 
 def test_handler_refuses_non_editors_before_touching_the_table():
     opened = []
-    out = mv.handle(event(["reader"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: opened.append(1))
+    out = mv.handle(event(["reader"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda *_: opened.append(1))
     assert out["error"] == "forbidden" and opened == []
 
 
 def test_handler_reports_not_configured_when_the_table_is_unknown():
-    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: None)
+    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda *_: None)
     assert out == {"state": "not_configured"}
 
 
@@ -149,17 +173,17 @@ def test_handler_returns_unavailable_when_the_read_fails():
     class Broken:
         def get(self, sk):
             raise RuntimeError("AccessDeniedException secret-table-detail")
-    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: Broken())
+    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda *_: Broken())
     assert out == {"state": "unavailable"}
 
 
 def test_handler_serves_an_editor_from_the_site_endpoint():
-    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: fx.FakeViewStore())
+    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(fx.FakeViewStore()))
     assert out["state"] == "ready" and out["scope"]["publicationId"] == "anth-us"
 
 
 def test_handler_accepts_cognito_group_claims_as_a_list_only():
-    out = mv.handle({**event(["editor"]), "identity": {"groups": None}}, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: fx.FakeViewStore())
+    out = mv.handle({**event(["editor"]), "identity": {"groups": None}}, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(fx.FakeViewStore()))
     assert out["error"] == "forbidden"
 
 
@@ -168,3 +192,635 @@ def test_router_run_reports_publications_waiting_for_classifier():
     run = _router_run({"runId": "r", "status": "complete", "waitingForClassifier": ["data-parade"]})
     assert run["waitingForClassifier"] == ["data-parade"]
     assert _router_run({"runId": "r"})["waitingForClassifier"] == []
+
+
+def email_rows(destination=("anth-us",)):
+    receipt_id = "EMAIL#" + "a" * 64
+    return [
+        {"pk": fx.PK, "sk": "EMAILINDEX#2026-10-21T02:30:00Z#" + "a" * 64,
+         "receiptId": receipt_id, "destinationPublicationIds": list(destination)},
+        {"pk": fx.PK, "sk": receipt_id, "status": "queued", "emailTrustMode": "data-only",
+         "emailDestinationPublicationIds": list(destination), "observedAt": "2026-10-21T02:30:00Z",
+         "subject": "Newsletter", "sender": "envelope@example.net", "headerFrom": "forged@example.net",
+         "warnings": ["ses_authentication_unverified"], "linkCount": 2, "processedCount": 2,
+         "sesDiagnostics": {"verdicts": {"spf": "FAIL", "dkim": "PASS", "dmarc": "FAIL", "spam": "PASS", "virus": "PASS"}}},
+        {"pk": fx.PK, "sk": "EMAILDETAIL#" + "a" * 64 + "#BODY#0000", "text": "Read as plain text\n", "ttl": 123},
+        {"pk": fx.PK, "sk": "EMAILDETAIL#" + "a" * 64 + "#LINKS#0000",
+         "json": '[{"url":"https://example.org/article","title":"Article"}]', "ttl": 123},
+    ]
+
+
+def test_email_submission_list_is_scoped_to_this_publication_and_contains_signals():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    result = overview(store=store)
+    assert len(result["emailSubmissions"]) == 1
+    item = result["emailSubmissions"][0]
+    assert item["subject"] == "Newsletter" and item["linkCount"] == 2
+    assert item["verdicts"]["spf"] == "FAIL" and item["warnings"] == ["ses_authentication_unverified"]
+    assert "https://example.org/article" not in json.dumps(result)
+
+
+def test_email_submissions_can_use_the_receiver_partition_without_switching_the_main_monitor():
+    email_pk = "MONITOR#p-apyr-us-email"
+    main_store = fx.FakeViewStore(fx.rows())
+    email_router = next(row for row in fx.rows() if row["sk"] == "CONFIG#router").copy()
+    email_router["pk"] = email_pk
+    email_table = [email_router, *email_rows(("p-apyr-us",))]
+    for row in email_table:
+        row["pk"] = email_pk
+    email_store = fx.FakeViewStore(email_table)
+
+    result = overview(endpoint=fx.APP_PAPYRUS, store=main_store, email_store=email_store)
+
+    assert [item["subject"] for item in result["emailSubmissions"]] == ["Newsletter"]
+    assert result["router"]["mode"] == "live"
+    assert main_store.page("EMAILINDEX#", 10)[0] == []
+
+
+def test_email_detail_uses_configured_receiver_partition_and_keeps_auth_checks():
+    email_pk = "MONITOR#p-apyr-us-email"
+    main_store = fx.FakeViewStore(fx.rows())
+    email_router = next(row for row in fx.rows() if row["sk"] == "CONFIG#router").copy()
+    email_router["pk"] = email_pk
+    email_table = [email_router, *email_rows(("p-apyr-us",))]
+    for row in email_table:
+        row["pk"] = email_pk
+    email_store = fx.FakeViewStore(email_table)
+    receipt_id = "EMAIL#" + "a" * 64
+    detail_event = event(["editor"], field="monitoringEmailSubmission", receiptId=receipt_id)
+    env = {"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS, "PAPYRUS_EMAIL_MONITOR_ID": "p-apyr-us-email"}
+
+    result = mv.handle(detail_event, env=env, store_factory=lambda: main_store,
+                       email_store_factory=lambda: email_store)
+
+    assert result["safeBodyText"] == "Read as plain text\n"
+    assert result["candidateLinks"] == [{"url": "https://example.org/article", "title": "Article"}]
+    assert mv.configured_email_monitor_id(env) == "p-apyr-us-email"
+    with pytest.raises(ValueError, match="invalid configured email monitor id"):
+        mv.configured_email_monitor_id({"PAPYRUS_EMAIL_MONITOR_ID": "MONITOR#hn"})
+
+
+def test_default_email_store_factory_uses_the_server_configured_partition(monkeypatch):
+    class FakeSSM:
+        class exceptions:
+            class ParameterNotFound(Exception):
+                pass
+
+        def get_parameter(self, *, Name):
+            assert Name == mv.TABLE_PARAMETER
+            return {"Parameter": {"Value": "monitoring-table"}}
+
+    table = object()
+    fake_boto3 = SimpleNamespace(
+        client=lambda service, **_kwargs: FakeSSM() if service == "ssm" else None,
+        resource=lambda service, **_kwargs: SimpleNamespace(Table=lambda name: table if name == "monitoring-table" else None)
+        if service == "dynamodb" else None,
+    )
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+    mv._table_name_cache.clear()
+    try:
+        store = mv.default_email_store_factory({"PAPYRUS_EMAIL_MONITOR_ID": "p-apyr-us-email"})()
+    finally:
+        mv._table_name_cache.clear()
+    assert isinstance(store, mv.TableViewStore)
+    assert store.pk == "MONITOR#p-apyr-us-email"
+
+
+def test_email_submission_details_are_editor_only_and_publication_scoped():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    event = {"info": {"fieldName": "monitoringEmailSubmission"}, "arguments": {"receiptId": receipt_id},
+             "identity": {"groups": ["editor"]}}
+    result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
+    assert result["safeBodyText"] == "Read as plain text\n"
+    assert result["candidateLinks"] == [{"url": "https://example.org/article", "title": "Article"}]
+    assert result["sourceMaterialIsUntrusted"] is True
+
+
+def test_email_article_redirect_resolution_is_an_explicit_scoped_editor_action():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    receipt = store.get(receipt_id)
+    receipt["status"] = "queued"
+    store.table[receipt_id] = receipt
+    details_key = "EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"
+    store.table[details_key]["json"] = (
+        '[{"url":"https://link.mail.beehiiv.com/ss/c/article-token",'
+        '"title":"Story","resolutionStatus":"unresolved"}]'
+    )
+    calls = []
+    event = {"info": {"fieldName": "monitoringResolveEmailArticleLink"},
+             "arguments": {"receiptId": receipt_id, "candidateIndex": 0},
+             "identity": {"groups": ["editor"]}}
+    with patch.object(mv, "monitoring_email_resolve_article_link", return_value={"resolved": True}) as dispatched:
+        result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
+    assert result == {"resolved": True} and dispatched.call_args.kwargs["candidate_index"] == 0
+
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append(url) or "https://news.example.org/story",
+    )
+    assert result == {"url": "https://news.example.org/story", "title": "Story", "resolved": True}
+    assert calls == ["https://link.mail.beehiiv.com/ss/c/article-token"]
+    assert store.get(f"EMAILRESOLVED#{'a' * 64}#000000")["sourceUri"] == "https://news.example.org/story"
+    repeated = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append("duplicate:" + url) or "https://wrong.example/",
+    )
+    assert repeated == result and calls == ["https://link.mail.beehiiv.com/ss/c/article-token"]
+
+
+def test_email_redirect_resolver_never_follows_actions_or_out_of_scope_receipts():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table[receipt_id]["status"] = "queued"
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = (
+        '[{"url":"https://link.mail.beehiiv.com/ss/c/unsubscribe?unsubscribe=true",'
+        '"title":"Unsubscribe","resolutionStatus":"unresolved"}]'
+    )
+    calls = []
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append(url) or "https://news.example.org/story",
+    )
+    assert result == {"error": "not_resolvable"} and calls == []
+    with pytest.raises(Forbidden):
+        mv.monitoring_email_resolve_article_link(
+            store, groups=["editor"], site_endpoint=fx.APP_PAPYRUS, receipt_id=receipt_id,
+            candidate_index=0, resolver=lambda url: calls.append(url),
+        )
+    assert calls == []
+
+
+def test_email_redirect_and_persistence_failures_remain_fail_closed():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table[receipt_id]["status"] = "queued"
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = (
+        '[{"url":"https://link.mail.beehiiv.com/ss/c/article-token",'
+        '"title":"Story","resolutionStatus":"unresolved"}]'
+    )
+
+    def failed_request(_url):
+        raise OSError("network unavailable")
+
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=failed_request,
+    )
+    assert result == {"error": "resolution_failed", "reason": "redirect_request_failed"}
+
+    with patch.object(store, "record_email_resolution", side_effect=ValueError("write conflict")):
+        result = mv.monitoring_email_resolve_article_link(
+            store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+            candidate_index=0, resolver=lambda _url: "https://news.example.org/story",
+        )
+    assert result == {"error": "resolution_failed", "reason": "resolution_not_recorded"}
+    assert store.get(f"EMAILRESOLVED#{'a' * 64}#000000") is None
+
+
+# --- the page shows only monitors routed to this site -----------------------------------------------
+
+APP_DISTINCTIVE = "https://dist9.appsync-api.us-east-1.amazonaws.com/graphql"
+
+
+def stores():
+    return {"hn": fx.FakeViewStore(), "ttab": fx.FakeViewStore(fx.ttab_rows(APP_DISTINCTIVE)),
+            "huggingface": fx.FakeViewStore(fx.ttab_rows(fx.APP_PAPYRUS, monitor="huggingface")),
+            "p-apyr-us-email": fx.FakeViewStore([]),
+            **{paper: fx.FakeViewStore([]) for paper in ("papers-arxiv-ai", "papers-arxiv-security", "papers-huggingface", "feed-metr")}}
+
+
+def site_overview(endpoint, groups=("editor",), scope="publication"):
+    return mv.monitoring_site_overview(stores(), groups=list(groups), site_endpoint=endpoint, scope=scope, now=fx.NOW)
+
+
+def test_a_site_sees_only_the_monitors_routed_to_it():
+    result = site_overview(APP_DISTINCTIVE)
+    assert {i["monitorId"] for i in result["items"]} == {"ttab"}
+    titles = [i["title"] for i in result["items"]]
+    assert titles == ["Decision on a mark"] and "Fresh Show HN" not in titles
+    assert [f["id"] for f in result["feeds"]] == ["ttab"]
+    assert all(r["monitorId"] == "ttab" for r in result["runs"])
+    assert result["scope"]["publicationId"] == "distinctive"
+    assert result["items"][0]["routing"] == "collected"
+
+
+def test_other_monitors_are_named_but_their_items_are_not_returned():
+    result = site_overview(APP_DISTINCTIVE)
+    assert sorted(result["otherMonitors"]) == ["hn", "huggingface"]
+    payload = json.dumps(result)
+    assert "Fresh Show HN" not in payload and "Quantum paper" not in payload and "Model release" not in payload
+
+
+def test_a_site_routed_by_two_monitors_sees_both():
+    result = site_overview(fx.APP_PAPYRUS)
+    assert {i["monitorId"] for i in result["items"]} == {"hn", "huggingface"}
+    assert result["otherMonitors"] == ["ttab"]
+    observed = [i["observedAt"] for i in result["items"]]
+    assert observed == sorted(observed, reverse=True)
+
+
+def test_a_site_no_monitor_routes_to_gets_the_notice_and_no_items():
+    result = site_overview("https://nobody.appsync-api.us-east-1.amazonaws.com/graphql")
+    assert result["items"] == [] and result["notice"] == "publication_not_routed"
+    assert sorted(result["otherMonitors"]) == ["hn", "huggingface", "ttab"]
+
+
+def test_an_admin_may_still_read_every_monitor():
+    result = site_overview(APP_DISTINCTIVE, groups=("admin",), scope="all")
+    assert {i["monitorId"] for i in result["items"]} == {"hn", "ttab", "huggingface"}
+    assert result["otherMonitors"] == []
+
+
+def test_handler_reads_each_listed_monitor_through_the_same_read_only_store():
+    asked = []
+
+    def factory(monitor_id="hn"):
+        asked.append(monitor_id)
+        return stores()[monitor_id]
+    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": APP_DISTINCTIVE}, store_factory=factory)
+    assert asked == list(mv.MONITOR_IDS) and "papers-huggingface" in asked and [i["monitorId"] for i in out["items"]] == ["ttab"]
+    asked.clear()
+    mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": APP_DISTINCTIVE, "PAPYRUS_MONITORING_MONITOR_IDS": "ttab, hn"},
+              store_factory=factory)
+    assert asked == ["ttab", "hn"]
+
+
+@pytest.mark.parametrize("field", ["monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference"])
+def test_appsync_dispatch_uses_deployed_top_level_field_without_overview(field):
+    shared, email = object(), object()
+    env = {"PAPYRUS_EMAIL_MONITOR_ID": "p-apyr-us-email", "PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}
+    args = {"receiptId": "EMAIL#" + "a" * 64, "candidateIndex": 0, "input": "{}"}
+    identity = {"groups": ["editor"], "sub": "editor-1"}
+    request = {"typeName": "Query" if field == "monitoringEmailSubmission" else "Mutation",
+               "fieldName": field, "arguments": args, "identity": identity,
+               "source": None, "request": {"headers": {}}, "prev": None}
+    with patch.object(mv, "monitoring_overview", side_effect=AssertionError("overview must not run")), \
+         patch.object(mv, "monitoring_email_submission", return_value={"exact": "receipt"}) as detail, \
+         patch.object(mv, "monitoring_email_resolve_article_link", return_value={"exact": "redirect"}) as redirect, \
+         patch("papyrus_content.email_reference_handoff.queue_email_reference", return_value={"exact": "queue"}) as queue:
+        result = mv.handle(request, env=env, store_factory=lambda: shared, email_store_factory=lambda: email)
+    expected = {"monitoringEmailSubmission": "receipt", "monitoringResolveEmailArticleLink": "redirect", "monitoringQueueEmailReference": "queue"}[field]
+    assert result == {"exact": expected}
+    called = {"receipt": detail, "redirect": redirect, "queue": queue}[expected]
+    assert called.call_count == 1 and called.call_args.args[0] is email
+    assert sum(mock.call_count for mock in (detail, redirect, queue)) == 1
+
+
+@pytest.mark.parametrize("dispatch", [{}, {"fieldName": "unknown"}, {"fieldName": ""}, {"fieldName": []},
+    {"info": {"fieldName": "unknown"}},
+    {"fieldName": "monitoringEmailSubmission", "info": {"fieldName": "monitoringOverview"}}])
+def test_appsync_dispatch_missing_unknown_or_conflicting_field_reads_nothing(dispatch):
+    request = {"identity": {"groups": ["editor"]}, **dispatch}
+    with patch.object(mv, "default_store_factory", side_effect=AssertionError("must not open storage")), \
+         patch.object(mv, "monitoring_overview", side_effect=AssertionError("must not read overview")):
+        assert mv.handle(request, env={}) == {"error": "bad_request"}
+
+
+def test_branded_tracking_legacy_receipt_is_unresolved_without_mutating_storage():
+    import json
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table[receipt_id]["status"] = "queued"
+    details_key = "EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"
+    link = {"url": "https://news.example.org/ss/c/u001.synthetic-Recipient.Route", "title": "Article"}
+    original = json.dumps([link])
+    store.table[details_key]["json"] = original
+    result = mv.monitoring_email_submission(store, groups=["editor"], site_endpoint=fx.APP_ANTH,
+                                           receipt_id=receipt_id)
+    assert result["candidateLinks"] == [{**link, "resolutionStatus": "unresolved"}]
+    assert store.table[details_key]["json"] == original
+    calls = []
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append(url) or "https://news.example.org/article")
+    assert calls == [link["url"]]
+    assert result["url"] == "https://news.example.org/article"
+
+
+def test_tracking_failure_logs_only_safe_reason_without_recipient_url(caplog):
+    from papyrus_content.email_submission import RedirectResolutionError
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = json.dumps([
+        {"url": "https://link.mail.beehiiv.com/ss/c/private-recipient", "title": "Article"}])
+    def reject(_url):
+        raise RedirectResolutionError("redirect_target_unsafe")
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=reject)
+    assert result == {"error": "resolution_failed", "reason": "redirect_target_unsafe"}
+    assert "redirect_target_unsafe" in caplog.text
+    assert "private-recipient" not in caplog.text and "https://" not in caplog.text
+
+
+def explored_store():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = json.dumps([
+        {"url": "https://link.mail.beehiiv.com/ss/c/private-recipient", "title": "Regulators approve cross-border licensing scheme for open models",
+         "resolutionStatus": "unresolved"}])
+    return store, receipt_id
+
+
+def resolve_with(store, receipt_id, transport, search):
+    from papyrus_content import link_exploration
+    with patch.object(link_exploration, "http_transport", transport), patch.object(link_exploration, "default_search_provider", lambda: search):
+        return mv.monitoring_email_resolve_article_link(store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id, candidate_index=0)
+
+
+def test_the_default_resolver_explores_the_wrapper_and_records_the_canonical_destination():
+    from papyrus_content.link_exploration import Response
+    store, receipt_id = explored_store()
+    pages = {"https://link.mail.beehiiv.com/ss/c/private-recipient": Response(302, {"location": "https://news.example.org/story?utm_source=beehiiv"}),
+             "https://news.example.org/story?utm_source=beehiiv": Response(200, {"content-type": "text/html"}, b"<html></html>")}
+    result = resolve_with(store, receipt_id, lambda url: pages[url], None)
+    assert result == {"url": "https://news.example.org/story", "title": "Regulators approve cross-border licensing scheme for open models", "resolved": True}
+    saved = store.get(f"EMAILRESOLVED#{'a' * 64}#000000")
+    assert saved["sourceUri"] == "https://news.example.org/story" and "foundViaSearch" not in saved
+    assert "private-recipient" not in json.dumps(saved)
+
+
+def test_a_dead_wrapper_is_resolved_by_searching_the_headline_and_marked_found_via_search():
+    from papyrus_content.link_exploration import Response
+    from papyrus_content.link_search import SearchHit
+    store, receipt_id = explored_store()
+
+    class Search:
+        name = "fake"
+        def search(self, query, *, limit=8):
+            return [SearchHit("https://news.example.org/story?utm_source=x", "Regulators approve cross-border licensing scheme for open models", "", 0.9)]
+
+    result = resolve_with(store, receipt_id, lambda url: Response(404, {}), Search())
+    assert result["url"] == "https://news.example.org/story" and result["foundVia"] == "search"
+    assert result["search"]["query"].startswith("Regulators approve") and result["search"]["matchScore"] >= 0.9
+    saved = store.get(f"EMAILRESOLVED#{'a' * 64}#000000")
+    assert saved["foundViaSearch"]["provider"] == "fake" and "private-recipient" not in json.dumps(saved)
+    again = mv.monitoring_email_resolve_article_link(store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id, candidate_index=0)
+    assert again["foundVia"] == "search" and again["url"] == result["url"]
+
+
+def test_a_failed_exploration_reports_its_typed_reason_without_the_address(caplog):
+    from papyrus_content.link_exploration import Response
+    from papyrus_content.link_search import SearchUnavailable
+
+    class NoKey:
+        name = "tavily"
+        def search(self, query, *, limit=8):
+            raise SearchUnavailable()
+
+    store, receipt_id = explored_store()
+    result = resolve_with(store, receipt_id, lambda url: Response(404, {}), NoKey())
+    assert result == {"error": "resolution_failed", "reason": "search_unavailable"}
+    assert "private-recipient" not in caplog.text and "https://" not in caplog.text
+
+
+# --- paging: page sizes are not totals ---------------------------------------------------------
+
+def page_all(store, name, **options):
+    """Follow cursors to the end of one list; returns every row and the number of pages read."""
+    stores = fx.only_hn(store)
+    kwargs = dict(groups=["editor"], site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW, **options)
+    first = mv.monitoring_site_overview({"hn": store}, groups=["editor"], site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+    rows, cursor, pages = list(first[name]), first["cursors"][name], 1
+    while cursor:
+        page = mv.monitoring_list_page({"hn": stores("hn")}, list_name=name, cursor=cursor, **kwargs)
+        rows += page["rows"]
+        cursor, pages = page["cursor"], pages + 1
+    return rows, pages
+
+
+def test_more_receipts_than_a_page_are_all_reachable_newest_first():
+    store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(45))
+    first = overview(store=store)
+    assert len(first["emailSubmissions"]) == mv.EMAIL_PAGE_SIZE
+    assert first["emailSubmissions"][0]["subject"] == "Mail 44"
+    assert first["cursors"]["emailSubmissions"]
+    rows, pages = page_all(store, "emailSubmissions")
+    assert pages == 3 and [r["subject"] for r in rows] == [f"Mail {n}" for n in range(44, -1, -1)]
+
+
+def test_a_list_that_ends_exactly_on_a_page_has_no_cursor():
+    store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(mv.EMAIL_PAGE_SIZE))
+    assert overview(store=store)["cursors"]["emailSubmissions"] is None
+
+
+def test_an_old_held_message_is_found_by_the_held_filter_without_paging_through_everything():
+    store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(70, held={0, 3}))
+    assert "Mail 0" not in [r["subject"] for r in overview(store=store)["emailSubmissions"]]
+    page = mv.monitoring_list_page({"hn": store}, list_name="emailSubmissions", cursor=None, held_only=True, groups=["editor"],
+                                   site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+    assert [r["subject"] for r in page["rows"]] == ["Mail 3", "Mail 0"]
+    assert all(r["quarantine"]["state"] == "quarantined" for r in page["rows"]) and page["cursor"] is None
+
+
+def test_the_held_filter_pages_when_more_messages_are_held_than_fit_a_page():
+    held = set(range(0, 50, 2))   # 25 held messages interleaved with accepted ones
+    store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(50, held=held))
+    stores = {"hn": store}
+    options = dict(list_name="emailSubmissions", held_only=True, groups=["editor"], site_endpoint=fx.APP_ANTH,
+                   scope="publication", now=fx.NOW)
+    first = mv.monitoring_list_page(stores, cursor=None, **options)
+    assert len(first["rows"]) == mv.EMAIL_PAGE_SIZE and first["cursor"]
+    second = mv.monitoring_list_page(stores, cursor=first["cursor"], **options)
+    assert len(second["rows"]) == 5 and second["cursor"] is None
+    assert sorted(r["subject"] for r in first["rows"] + second["rows"]) == sorted(f"Mail {n}" for n in held)
+
+
+def test_runs_router_runs_and_items_are_paged_not_truncated():
+    table = fx.rows()
+    for n in range(40):
+        stamp = f"2026-10-19T00:{n:02d}:00.000000Z"
+        table.append({"pk": fx.PK, "sk": f"RUN#{stamp}#x{n}", "runId": f"x{n}", "startedAt": stamp, "status": "complete"})
+        table.append({"pk": fx.PK, "sk": f"ROUTERUN#{stamp}#y{n}", "runId": f"y{n}", "startedAt": stamp, "status": "complete"})
+    for n in range(150):
+        table.append(fx.disc(f"{2000 + n}", f"Story {n}", "collected", f"2026-10-19T01:00:{n % 60:02d}.000000Z"))
+    store = fx.FakeViewStore(table)
+    runs, _ = page_all(store, "runs")
+    assert len(runs) == 43 and len({r["runId"] for r in runs}) == 43
+    router_runs, _ = page_all(store, "routerRuns")
+    assert len(router_runs) == 41
+    items, _ = page_all(store, "items")
+    assert len(items) == 155 - 1 and len({i["sourceId"] for i in items}) == len(items)   # one item is judged not relevant and hidden
+
+
+def test_item_routing_is_found_for_old_discoveries_beyond_one_page():
+    table = fx.rows() + [fx.disc(f"{3000 + n}", f"Later {n}", "collected") for n in range(130)]
+    items, _ = page_all(fx.FakeViewStore(table), "items")
+    quantum = next(i for i in items if i["title"] == "Quantum paper on arXiv")
+    assert quantum["relevance"][0]["delivery"]["state"] == "delivered"
+
+
+@pytest.mark.parametrize("cursor", ["!!!", "bnVsbA==", "eyJobiI6IDF9"])
+def test_a_forged_cursor_is_a_bad_request(cursor):
+    result = mv.handle(
+        {"fieldName": "monitoringPage", "identity": {"groups": ["editor"]},
+         "arguments": {"list": "runs", "cursor": cursor}},
+        env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(fx.FakeViewStore()), now=fx.NOW)
+    assert result == {"error": "bad_request"}
+
+
+def test_a_cursor_for_another_key_range_or_partition_is_refused():
+    stores = {"hn": fx.FakeViewStore()}
+    forged = mv.encode_cursor({"hn": {"pk": fx.PK, "sk": "CONFIG#router"}})
+    other = mv.encode_cursor({"hn": {"pk": "MONITOR#someone-else", "sk": "RUN#2026"}})
+    for cursor in (forged, other):
+        with pytest.raises((ValueError, AssertionError)):
+            mv.monitoring_list_page(stores, list_name="runs", cursor=cursor, groups=["editor"],
+                                    site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+    with pytest.raises(ValueError):
+        mv.monitoring_list_page(stores, list_name="runs", cursor=mv.encode_cursor({"elsewhere": {"pk": "p", "sk": "RUN#"}}),
+                                groups=["editor"], site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+
+
+def test_paging_keeps_the_scope_rules():
+    stores = {"hn": fx.FakeViewStore()}
+    with pytest.raises(Forbidden):
+        mv.monitoring_list_page(stores, list_name="items", cursor=None, groups=["reader"], site_endpoint=fx.APP_ANTH,
+                                scope="publication", now=fx.NOW)
+    with pytest.raises(Forbidden):
+        mv.monitoring_list_page(stores, list_name="items", cursor=None, groups=["editor"], site_endpoint=fx.APP_ANTH,
+                                scope="all", now=fx.NOW)
+    with pytest.raises(ValueError):
+        mv.monitoring_list_page(stores, list_name="runs", cursor=None, held_only=True, groups=["editor"],
+                                site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+
+
+def test_the_page_query_goes_through_the_handler_with_the_same_gate():
+    event = {"fieldName": "monitoringPage", "identity": {"groups": ["editor"]},
+             "arguments": {"list": "emailSubmissions", "filter": "held"}}
+    env = {"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}
+    store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(30, held={1}))
+    result = mv.handle(event, env=env, store_factory=fx.only_hn(store), now=fx.NOW)
+    assert [r["subject"] for r in result["rows"]] == ["Mail 1"] and result["cursor"] is None
+    assert mv.handle({**event, "identity": {"groups": ["reader"]}}, env=env, store_factory=fx.only_hn(store), now=fx.NOW) == {"error": "forbidden"}
+    assert mv.handle({**event, "arguments": {"list": "nope"}}, env=env, store_factory=fx.only_hn(store), now=fx.NOW) == {"error": "bad_request"}
+
+
+# --- the Cyclotron classifier status of this site's own publication --------------------------------------------
+
+def status_row(publication, as_of="2026-11-02T10:00:00.000Z", monitor="hn", refits=0):
+    return {"pk": f"MONITOR#{monitor}", "sk": f"CYCLOTRONSTATUS#{publication}", "publicationId": publication,
+            "output": f"{publication}-relevance", "asOf": as_of, "checkedAt": "2026-11-02T10:30:00Z",
+            "status": {"schema": "cyclotron-status/v1", "asOf": as_of,
+                       "cyclotron": {"id": f"{publication}-relevance", "classifier": "relevant", "version": 3, "refits": refits,
+                                     "fingerprint": "fp"}}}
+
+
+def report_of(publication, accuracy=None):
+    """One output's stored report, in the Cyclotron's real shape (src/decision_flywheel/classifier_report.py) plus the schema and read time the router adds."""
+    return {"schema": "cyclotron-classifier-report/v1", "generatedAt": "2026-11-03T18:00:00.000000+00:00",
+            "classifier": {"id": f"{publication}-relevance", "revision": 2, "question": "Would a security engineer want to read this?",
+                           "criteriaFingerprint": "cfp", "rubric": "Include practical security news.", "classes": ["include", "exclude"]},
+            "learning": {"state": "not_active", "reason": "standing runs do not train on votes yet; votes are stored and change no classifier", "version": 3,
+                         "refits": 0, "lastChange": None, "asOf": "2026-11-03T17:00:00.000Z", "unavailableReason": None},
+            "agreementWithEditors": {"votes": 5, "compared": 0, "agreed": 0, "byClassifierRevision": [{"classifierRevision": "2", "votes": 5, "compared": 0, "agreed": 0}],
+                                     "byDay": [{"day": "2026-11-03", "votes": 5, "compared": 0, "agreed": 0}]},
+            "heldOut": {"accuracy": accuracy, "reason": None if accuracy else "standing runs do not produce held-out evaluations yet"},
+            "counts": {"labels": {"include": 3, "exclude": 2}, "reviewedDecisions": None, "primedExamples": 30, "decisionsAwaitingReview": 1},
+            "model": {"features": None, "weights": None, "reason": "no machine-learning model has been fitted for this classifier"}}
+
+
+def with_report(row, publication=None):
+    return {**row, "report": report_of(publication or row["publicationId"]), "reportCheckedAt": "2026-11-03T18:05:00Z"}
+
+
+def report_only_row(publication, monitor="hn"):
+    row = status_row(publication, monitor=monitor)
+    for key in ("status", "asOf", "checkedAt"):
+        del row[key]
+    return with_report(row)
+
+
+def status_store(*extra):
+    return fx.FakeViewStore([*fx.rows(), *extra])
+
+
+def status_event(groups=("editor",), endpoint=fx.APP_ANTH):
+    return {"fieldName": "monitoringPage", "arguments": {"list": "cyclotronStatus", "scope": "publication"},
+            "identity": {"groups": list(groups), "sub": "u1"}}
+
+
+def test_the_status_list_returns_only_the_viewing_sites_publication_even_when_the_run_is_shared():
+    store = status_store(status_row("anth-us"), status_row("p-apyr-us"), status_row("threat-intelligence"))
+    out = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
+    assert [r["publicationId"] for r in out["rows"]] == ["anth-us"]
+    assert out["rows"][0]["status"]["cyclotron"]["id"] == "anth-us-relevance" and out["cursor"] is None
+    other = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}, store_factory=fx.only_hn(store))
+    assert [r["publicationId"] for r in other["rows"]] == ["p-apyr-us"]
+
+
+def test_the_status_list_is_empty_when_no_snapshot_has_been_stored_yet():
+    out = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store()))
+    assert out == {"list": "cyclotronStatus", "rows": [], "cursor": None}
+
+
+def test_the_status_list_lists_each_monitor_that_routes_to_the_site_newest_first_and_ignores_a_row_for_another_publication():
+    stray = status_row("anth-us")
+    stray["publicationId"] = "threat-intelligence"   # a row under this site's key that names another publication is never shown
+    stores = {"hn": fx.FakeViewStore([*fx.rows(), stray]),
+              "web-anth-us": fx.FakeViewStore([*fx.ttab_rows(fx.APP_ANTH, "web-anth-us"),
+                                               status_row("distinctive", as_of="2026-11-02T11:00:00.000Z", monitor="web-anth-us")])}
+    out = mv.cyclotron_status_rows(stores, groups=["editor"], site_endpoint=fx.APP_ANTH)
+    assert [(r["monitorId"], r["publicationId"]) for r in out["rows"]] == [("web-anth-us", "distinctive")]
+
+
+def test_the_status_list_refuses_non_editors_and_the_whole_pipeline_scope():
+    refused = mv.handle(status_event(["reader"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store(status_row("anth-us"))))
+    assert refused["error"] == "forbidden"
+    wide = {**status_event(["admin"]), "arguments": {"list": "cyclotronStatus", "scope": "all"}}
+    assert mv.handle(wide, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store(status_row("anth-us"))))["error"] == "bad_request"
+
+
+def test_the_status_list_reads_one_row_per_monitor_and_nothing_secret_leaves():
+    store = status_store(status_row("anth-us"))
+    out = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
+    blob = json.dumps(out)
+    assert not any(marker in blob for marker in fx.SECRET_MARKERS)
+
+
+def serve(*rows, endpoint=fx.APP_ANTH):
+    return mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": endpoint}, store_factory=fx.only_hn(status_store(*rows)))
+
+
+def test_the_status_list_serves_the_report_beside_the_status_for_this_sites_publication_only():
+    out = serve(with_report(status_row("anth-us")), with_report(status_row("p-apyr-us")), with_report(status_row("threat-intelligence")))
+    assert [r["publicationId"] for r in out["rows"]] == ["anth-us"]
+    row = out["rows"][0]
+    assert row["status"]["cyclotron"]["id"] == "anth-us-relevance" and row["reportCheckedAt"] == "2026-11-03T18:05:00Z"
+    assert row["report"]["classifier"]["id"] == "anth-us-relevance" and row["report"]["schema"] == "cyclotron-classifier-report/v1"
+    assert row["report"]["agreementWithEditors"]["compared"] == 0 and row["report"]["model"]["weights"] is None
+    assert [r["publicationId"] for r in serve(with_report(status_row("anth-us")), with_report(status_row("p-apyr-us")), endpoint=fx.APP_PAPYRUS)["rows"]] == ["p-apyr-us"]
+
+
+def test_a_row_with_a_report_and_no_status_is_still_served_with_a_null_status():
+    out = serve(report_only_row("anth-us"))
+    assert len(out["rows"]) == 1
+    row = out["rows"][0]
+    assert row["status"] is None and row["asOf"] is None and row["report"]["learning"]["state"] == "not_active"
+
+
+def test_a_status_only_row_written_before_the_report_existed_is_served_with_a_null_report():
+    out = serve(status_row("anth-us"))
+    row = out["rows"][0]
+    assert row["report"] is None and row["reportCheckedAt"] is None and row["status"]["cyclotron"]["id"] == "anth-us-relevance"
+
+
+def test_a_row_with_neither_a_status_nor_a_report_object_is_not_served():
+    bare = status_row("anth-us")
+    bare["status"] = "nope"
+    assert serve({**bare, "report": "nope"})["rows"] == [] and serve({**bare, "report": None})["rows"] == []
+
+
+def test_the_report_of_another_publication_under_this_sites_key_is_not_served():
+    stray = with_report(status_row("anth-us"))
+    stray["publicationId"] = "threat-intelligence"
+    assert serve(stray)["rows"] == []
+
+
+def test_the_report_list_is_for_editors_and_leaks_no_marker():
+    out = serve(with_report(status_row("anth-us")))
+    assert not any(marker in json.dumps(out) for marker in fx.SECRET_MARKERS)
+    refused = mv.handle(status_event(["reader"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store(with_report(status_row("anth-us")))))
+    assert refused["error"] == "forbidden"

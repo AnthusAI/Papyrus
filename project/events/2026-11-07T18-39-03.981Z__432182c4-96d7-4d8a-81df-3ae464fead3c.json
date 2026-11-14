@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "432182c4-96d7-4d8a-81df-3ae464fead3c",
+  "issue_id": "PPY-c7a61692-e340-49ed-8fe5-401a9ea5df55",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T18:39:03.981Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Image toolchain step 9: Gemini adapter",
+    "description": "Build step 9 of the image toolchain (design: project/wiki/image-toolchain.md, section 9).\n\nSame contract, its capabilities read from Google's docs at that time, recorded fixtures. Off until approved.\n\nSpecs: `image-provider-gemini.feature`.\n\nWhat deploys: Lambda code, off.\n\nFulfils or changes: c101a6.\n\nGherkin specs are required, and every PR merges to develop. Spending is only approved for step 6 (OpenAI gpt-image-2.5-flare, Machines on Machines trial; Batch where nobody waits). Style guidance is data, never code.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": []
+  }
+}

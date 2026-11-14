@@ -1,0 +1,25 @@
+{
+  "id": "PPY-cda732d0-b820-4777-8833-96408a62cf27",
+  "title": "Posts seed their image from the Reference preview",
+  "description": "",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d9090fa8-2170-48d7-84c5-4aff10126b06",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T10:51:11.578040Z",
+  "updated_at": "2026-10-29T10:51:11.578077Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude Code"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

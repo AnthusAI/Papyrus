@@ -1,9 +1,9 @@
 """Where ideas go. Private by default: nothing here writes to a site's public data or asks a site to publish.
 
 ``JsonStore`` keeps digests, ideas and run ledgers as JSON files under a directory on this machine (default
-``~/.papyrus/ideas/<publication>``), and refuses a directory that looks like a site's public output. ``ProposalStore`` files an
-idea as a draft ``story_draft`` Proposal on a site that has the reader-steering proposals model; the site publishes proposals
-only if it sets ``proposals.publish`` (default off).
+``~/.papyrus/ideas/<publication>``), and refuses a directory that looks like a site's public output. Generated ideas on a site are Items at
+the ``idea`` stage (``ideas/items.py``); ``legacy_story_drafts`` only *reads* the ``story_draft`` Proposals that were filed before ideas became
+Items, so a site that has not run ``papyrus ideas migrate-proposals`` yet still dedupes against them.
 """
 
 from __future__ import annotations
@@ -13,12 +13,12 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..proposals_commands import FILE_MUTATION, LIST_QUERY, list_proposals, receipt
+from ..proposals_commands import LIST_QUERY, list_proposals, operator_story_drafts, using_iam
 
 STORE_DIRECTORY_ENVIRONMENT = "PAPYRUS_IDEAS_DIR"
 PUBLIC_DIRECTORY_NAMES = {"_data", "public", "static-root"}
-JSON, PROPOSALS = "json", "proposals"
-STORES = (JSON, PROPOSALS)
+JSON, ITEMS = "json", "items"
+STORES = (ITEMS, JSON)   # items is the default and the only store a site uses; json is for local runs and tests
 
 
 class StoreRefused(ValueError):
@@ -84,24 +84,12 @@ class JsonStore:
         return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(directory.glob("*.json"))]
 
 
-class ProposalStore:
-    """Files ideas as draft story_draft Proposals. It needs an editor or admin session (`papyrus login`): the mutation is not open to IAM."""
-
-    def __init__(self, client: Any) -> None:
-        self.client = client
-
-    def file_idea(self, idea: dict[str, Any], body: str, digest_id: str) -> str:
-        variables = {
-            "kind": "story_draft",
-            "title": idea["title"][:200],
-            "summary": idea["angle"][:300],
-            "body": body,
-            "evidence": json.dumps({"signals": len(idea["citedReferenceIds"]), "source": f"ideas digest {digest_id}"}),
-        }
-        return receipt(self.client.graphql(FILE_MUTATION, variables), "fileProposal")
-
-    def story_drafts(self) -> list[dict[str, Any]]:
-        return [row for row in list_proposals(self.client) if row.get("kind") == "story_draft"]
+def legacy_story_drafts(client: Any) -> list[dict[str, Any]]:
+    """The ``story_draft`` Proposals filed before ideas became Items (read only). An editor reads them in full; an IAM operator reads the
+    summary ``listStoryDrafts`` gives (id, title, summary, targets, state, createdAt), which is all a run needs to dedupe."""
+    if using_iam():
+        return operator_story_drafts(client)
+    return [row for row in list_proposals(client) if row.get("kind") == "story_draft"]
 
 
-__all__ = ["JSON", "PROPOSALS", "STORES", "JsonStore", "ProposalStore", "StoreRefused", "LIST_QUERY", "assert_private", "default_root"]
+__all__ = ["JSON", "ITEMS", "STORES", "JsonStore", "StoreRefused", "LIST_QUERY", "assert_private", "default_root", "legacy_story_drafts"]

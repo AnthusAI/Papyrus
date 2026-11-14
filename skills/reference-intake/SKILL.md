@@ -98,8 +98,9 @@ stores strict private metadata and relationships only:
   normalized S3/corpus path, media type, checksums, dates, sanitized metadata.
 - `ReferenceAttachment`: private file-path metadata for source PDFs, text,
   transcripts, extraction JSON, and auxiliary corpus files.
-- `Message`: append-only private commentary such as ingestion rationale and
-  reference-curation notes.
+- `Message`: append-only private commentary written by people (notes). Machine
+  records are never Messages: the ingestion rationale is the Reference's own
+  `curationStatusReason`, and a monitor delivery sets `discoveredByMonitorId`.
 - `Assignment`: private work item such as `curation.reference-intake`.
 - `SemanticRelation`: typed links from assignments/messages/references to exact
   target lineages such as `Reference`, `Category`, or `SemanticNode`.

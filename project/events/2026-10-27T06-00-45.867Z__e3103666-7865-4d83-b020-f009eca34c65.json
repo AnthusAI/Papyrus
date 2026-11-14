@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e3103666-7865-4d83-b020-f009eca34c65",
+  "issue_id": "PPY-4ba68a71-ec85-4e8c-a9f5-a5c2e6eef47f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-27T06:00:45.867Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Router: post all lab jobs first, then collect (and a short collector task)",
+    "description": "Step 1 of route each story as soon as the lab answers. Cyclotron epic decision-flywheel-c8c8cac6-fc12-422b-9d2b-b6210675b81c. Router.sweep posts every candidate job without waiting, collects during the remaining run time, and a collect task on a short schedule delivers finished jobs.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

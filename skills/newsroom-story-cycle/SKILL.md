@@ -5,6 +5,8 @@ description: Use this skill when running or inspecting Papyrus story-cycle workf
 
 # Newsroom Story Cycle Skill
 
+For a single Story, the sequence of steps is in [docs/story-procedure.md](../../docs/story-procedure.md); this skill describes the older edition flow.
+
 Use this skill when a coding agent needs a repeatable operator path for:
 
 - researching one topic through several `NewsroomSection` lenses;

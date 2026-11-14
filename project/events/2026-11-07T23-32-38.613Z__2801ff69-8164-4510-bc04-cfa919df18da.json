@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "2801ff69-8164-4510-bc04-cfa919df18da",
+  "issue_id": "PPY-9c4af538-e31e-48f7-aff6-ac57f17f3a7f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T23:32:38.613Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Still pictograms through the image-style slot",
+    "description": "Replace the animated pictogram plates (publication/redesign/figures, video-motion) with still pictograms delivered by the brand pack's image-style slot; the animated code is not carried forward.\nScenario: A story shows a still pictogram\n  Given an item with a pictogram assignment\n  When its card and page render\n  Then a still image of the correct size shows from the image-style slot and no animation code loads\n\nDepends on: PPY-88a883, PPY-1f68bf.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-fe8bc69c-453f-45f8-938d-eaabb8a366a8",
+    "labels": [
+      "standard-frontend-plan",
+      "threat-intelligence"
+    ]
+  }
+}

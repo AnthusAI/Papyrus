@@ -16,7 +16,10 @@ never exported.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from typing import Any, Mapping, Sequence
+
+from .reference_vote import latest_vote
 
 # List prices, USD per million tokens. Jev's is TypeSafe's published price; any
 # other model's price must be given with its source and the date it was read.
@@ -186,13 +189,18 @@ def _windows(cycles, labels, usage, routing, Decision) -> list[dict[str, Any]]:
     return windows
 
 
-def shareable_reviews(client, review_ids: Sequence[str], read_metadata) -> dict[str, bool]:
-    """Whether each review's curation Message was marked shareable by its editor."""
-    shared = {}
-    for review_id in review_ids:
-        message = client.get_record("Message", review_id)
-        shared[review_id] = bool(message) and read_metadata(client, message).get("shareable") is True
-    return shared
+def shareable_reviews(references: Iterable[Mapping[str, Any]], review_ids: Sequence[str]) -> dict[str, bool]:
+    """Whether each review's vote was marked shareable by its editor, read from the vote the Reference holds.
+
+    A Reference keeps only its latest vote, so a review the Cyclotron received earlier and a later vote replaced
+    is not shareable here: the export errs on the side of not quoting.
+    """
+    shared_by_vote = {}
+    for reference in references:
+        vote = latest_vote(reference)
+        if vote is not None:
+            shared_by_vote[vote["id"]] = vote["shareable"] is True
+    return {review_id: shared_by_vote.get(review_id, False) for review_id in review_ids}
 
 
 def references_export_relevance_recording(flags: list[str]) -> None:
@@ -211,7 +219,7 @@ def references_export_relevance_recording(flags: list[str]) -> None:
     from .newsroom_doctrine import load_publication_doctrine_seed
     from .options import parse_options
     from .relevance_cyclotron import build_relevance_cyclotron, decision_model_identity
-    from .relevance_sweep import SNAPSHOT_NAME, S3SnapshotStore, _HeldLease, _owner_metadata
+    from .relevance_sweep import SNAPSHOT_NAME, S3SnapshotStore, _HeldLease
     from .steering import require_steering_config
 
     options = parse_options(flags)
@@ -247,12 +255,24 @@ def references_export_relevance_recording(flags: list[str]) -> None:
             events = _all_events(cyclotron)
     review_ids = [review["reviewId"] for row in log for review in row["reviews"].values() if review.get("reviewId")]
     recording = build_recording(plan=plan, publication=steering["publication"]["name"], log=log, usage=usage,
-                                events=events, shareable=shareable_reviews(client, review_ids, _owner_metadata),
+                                events=events, shareable=shareable_reviews(_relevance_corpus_references(client, steering), review_ids),
                                 prices=prices, include_explanations=not options.get("no-explanations"))
     Path(options["output"]).write_text(json.dumps(recording, separators=(",", ":"), ensure_ascii=False) + "\n",
                                        encoding="utf-8")
     print(f"references\texport-relevance-recording\t{options['output']}\t{len(log)} decisions\t"
           f"{usage['total']['usd']} USD")
+
+
+def _relevance_corpus_references(client, steering_config) -> list[dict[str, Any]]:
+    """Every current Reference of the relevance corpus, whatever its status: the votes the export may quote sit on them."""
+    from .ids import knowledge_corpus_id
+    from .steering import relevance_corpus_key, require_corpus_config
+
+    corpus = require_corpus_config(dict(steering_config), relevance_corpus_key(steering_config), "relevanceCyclotron.corpusKey")
+    corpus_id = knowledge_corpus_id(corpus)
+    return [reference for status in ("pending", "accepted", "rejected", "archived")
+            for reference in client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")
+            if reference.get("versionState") == "current"]
 
 
 class _NoModel:

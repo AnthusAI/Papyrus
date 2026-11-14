@@ -189,7 +189,7 @@ def reviewed_references_with_editor_labels(client, steering_config: Mapping[str,
     """Every current reviewed Reference of the canonical corpus that the scope-training rule labels."""
     from .ids import knowledge_corpus_id
     from .relevance_decisions import relevance_label_for_review
-    from .relevance_sweep import REVIEWED_STATUSES, _curation_messages, _current
+    from .relevance_sweep import REVIEWED_STATUSES, _current
     from .steering import require_corpus_config
 
     corpus = require_corpus_config(dict(steering_config), steering_config["canonicalTopicSet"]["corpusKey"],
@@ -199,8 +199,7 @@ def reviewed_references_with_editor_labels(client, steering_config: Mapping[str,
     labeled_references = []
     for status in REVIEWED_STATUSES:
         for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
-            label = relevance_label_for_review(reference, _curation_messages(client, reference["lineageId"]),
-                                               labels=labels)
+            label = relevance_label_for_review(reference, labels=labels)
             if label is not None:
                 labeled_references.append((reference, label))
     return labeled_references
@@ -239,12 +238,15 @@ def run_priming_proof(held_out_set: Mapping[str, Any], *, plan, priming_examples
                       teaching_source: str = "accepted priming examples",
                       ran_at: str | None = None,
                       on_point: Callable[[dict[str, Any]], None] | None = None,
-                      outcome_sink: list[tuple[int, list[tuple[str, str]]]] | None = None) -> dict[str, Any]:
+                      outcome_sink: list[tuple[int, list[tuple[str, str]]]] | None = None,
+                      confidence_sink: list[tuple[int, list[tuple[str, str, float | None]]]] | None = None) -> dict[str, Any]:
     """Decide the held-out set once per scheduled N in a fresh store primed with the first N examples.
 
     When an outcome sink is given, each point also appends its label count and
     its (editor label, classifier label) pairs, for callers that need more than
-    the binary agreement metrics.
+    the binary agreement metrics. A confidence sink gets the same with the
+    classifier's confidence in its label, for calibrating a confidence threshold
+    on held-out examples (docs/reference-auto-section.md).
     """
     from decision_flywheel import Cyclotron, Item
 
@@ -270,8 +272,8 @@ def run_priming_proof(held_out_set: Mapping[str, Any], *, plan, priming_examples
             with Cyclotron.open(Path(scratch_store) / "proof-store", plan.definition, model, None,
                                 lease=_HeldLease(), max_requests=len(held_out_items) + 1, review_program=None,
                                 seed_rubrics=plan.seed_rubrics, **priming_options) as cyclotron:
-                outcomes = [(editor_label, asyncio.run(cyclotron.decide(item)).label)
-                            for item, editor_label in held_out_items]
+                decided = [(editor_label, asyncio.run(cyclotron.decide(item))) for item, editor_label in held_out_items]
+                outcomes = [(editor_label, decision.label) for editor_label, decision in decided]
         point = {"labels": label_count,
                  "labelsByClass": {label: sum(1 for example in examples_in_context if example.label == label)
                                    for label in classifier.labels},
@@ -279,6 +281,8 @@ def run_priming_proof(held_out_set: Mapping[str, Any], *, plan, priming_examples
         points.append(point)
         if outcome_sink is not None:
             outcome_sink.append((label_count, list(outcomes)))
+        if confidence_sink is not None:
+            confidence_sink.append((label_count, [(editor_label, decision.label, decision.confidence) for editor_label, decision in decided]))
         if on_point:
             on_point(point)
     return {

@@ -11,8 +11,10 @@ registerTypeScriptRequire();
 const {
   beginAccessCheck,
   beginDeskLoad,
+  resolveAccessFailure,
   createInitialNewsDeskShellState,
   patchDashboard,
+  resolveDashboardFailure,
   resolveDashboardReady,
   resolveSignedOut,
 } = require("../lib/news-desk-session.ts");
@@ -38,6 +40,10 @@ const readyAuth = { status: "signedIn", label: "editor@example.com" };
 const loadingDesk = beginDeskLoad(initial, readyAuth);
 assert.equal(loadingDesk.phase, "loadingDesk");
 assert.equal(loadingDesk.auth.label, "editor@example.com");
+assert.equal(loadingDesk.dashboard, null, "pending records must not appear as an empty dashboard");
+const failedLoad = resolveDashboardFailure(loadingDesk, readyAuth, "Network unavailable");
+assert.equal(failedLoad.phase, "error");
+assert.equal(failedLoad.dashboard, null);
 
 const dashboard = createDashboard();
 const ready = resolveDashboardReady(loadingDesk, dashboard, readyAuth, "2026-05-17T21:00:00.000Z");
@@ -65,6 +71,10 @@ assert.equal(patched.lastRefreshedAt, "2026-05-17T21:05:00.000Z");
 const invalidated = resolveSignedOut(ready, { status: "signedOut", label: "Signed out" });
 assert.equal(invalidated.phase, "signedOut");
 assert.equal(invalidated.dashboard, null);
+const failedAccess = resolveAccessFailure(ready, "Session verification failed");
+assert.equal(failedAccess.phase, "error");
+assert.equal(failedAccess.dashboard, null, "access errors must clear private records");
+assert.equal(failedAccess.error, "Session verification failed");
 
 const drilldownCategories = [
   { id: "flat-root", lineageId: "flat-root-lineage", categoryKey: "topic.root", displayName: "Root", categorySetId: "set", corpusId: "corpus", status: "accepted", parentCategoryKey: null },

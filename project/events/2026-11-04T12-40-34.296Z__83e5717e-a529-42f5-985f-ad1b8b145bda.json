@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "83e5717e-a529-42f5-985f-ad1b8b145bda",
+  "issue_id": "PPY-b531d386-70a3-4a82-a7cf-854229a22146",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T12:40:34.296Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Discord connector and console setup",
+    "description": "Outbound Discord delivery, plus console UI for an admin to connect a site to a Discord server. Depends on open questions 3 and 4. Creating the Discord app itself is Ryan's step.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7d8a36a2-ce77-450a-bf0a-03c9798a1102",
+    "labels": []
+  }
+}

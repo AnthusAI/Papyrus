@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "5a15e615-a78d-4b83-9e45-6e0c8bd6040a",
+  "issue_id": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:09.325Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Dedicated tier: the same artefact with one fixed tenant, hooks as tracked gaps, managed upgrades",
+    "description": "Why: dedicated customers and our own flagship sites run the shared artefact with a fixed tenant in their own AWS account. Hooks exist only here, and each one in use is a gap to promote into core. Papyrus manages upgrades for dedicated customers (stepwise, one index per deploy); people who clone and run it themselves are on their own. Our own sites stay dedicated for now; moving them onto the standard system is hoped for soon and is a later story. Ends with a p.apyr.us page.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

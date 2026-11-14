@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b66424b2-99c3-45df-8798-7d868e6e7c5b",
+  "issue_id": "PPY-caa222aa-81d1-4837-a831-17c89b8bc211",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T19:18:11.075Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Captured Reference text is unavailable to knowledge queries",
+    "description": "Observed on Machines on Machines, 2026-11-06: ten accepted References had no captureState after `references create-from-catalog`. Their source texts were captured through the signed-in `correctReferenceCapture` action, and all ten now have `captureState=full`. The active `curation-edit-...-text` ModelAttachment for each was found by the owner index and successfully downloaded. The source text was captured by an AI agent and labeled as not independently completeness-checked.\n\nA subsequent `papyrus --site newsroom.machines-on-machines.anth.us knowledge query --query \"How can humans oversee increasingly capable AI agents and verify their actions?\" --profile researcher --format both --max-tokens 600 --top-k 10 --depth 1` returns ten matches but zero evidence passages, `sourceTextMode=metadata` and warnings that no extracted text attachment exists for the first five. The knowledge engine currently selects `ReferenceAttachment` role `extracted_text`; `correctReferenceCapture` stores text as a `ModelAttachment` instead. See docs/reference-curation-pipeline.md “Not done here.” Investigate using the current curated text in knowledge queries and indexing, respecting correction precedence and authorization; don't claim this is an indexing delay without evidence. It should work for signed-in operators and the shared MCP interface.\n\nAdditional reproducible symptom: `AttachmentStore.read_text` on a captured Reference returned no text when it constructed a ModelAttachment ID locally, but finding the active attachment through `listModelAttachmentsByOwnerRoleAndSortKey` and passing that record to `download_attachment_buffer` returned the full text. Check canonical attachment ID generation between deployed writer and client; no root cause has been proven.\n\nFeature: Captured Reference text can be used for research\n  Scenario: A captured Reference supplies evidence to knowledge search\n    Given an accepted Reference has captured source text and captureState full\n    When a researcher queries the relevant topic\n    Then the knowledge query can read evidence passages from that current captured text\n    And reports any extraction or permission problem honestly\n\n  Scenario: A corrected capture supersedes an older one\n    Given an editor replaces an earlier captured text\n    When a researcher queries that Reference\n    Then the current correction takes precedence and remains attributed\n\n  Scenario: The CLI can read the current captured attachment\n    Given a captured Reference with an active text attachment\n    When the signed-in CLI reads the current text\n    Then the content is retrieved using the same identifier or lookup as the writer.\n",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

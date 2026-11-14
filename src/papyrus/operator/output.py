@@ -62,6 +62,8 @@ def print_reference_detail(row: OperatorRow) -> None:
   print("reference")
   print(f"kind: {row.kind}")
   print(f"id: {row.identifier}")
+  if row.extra.get("lineageId"):
+    print(f"lineage: {row.extra['lineageId']}")
   print(f"status: {row.status}")
   print(f"title: {row.title}")
   if row.extra.get("corpus"):

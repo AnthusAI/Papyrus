@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "14203902-a12b-4c8e-a34d-2f45d4ba6b51",
+  "issue_id": "PPY-38be082c-b736-46a0-89a5-9ca1c3233fd2",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-04T17:10:48.307Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "**Milestone:** M3, public email and new stories\n\n**Goal.** `src/papyrus_content/publish_alerts.py` is the only place a publish announces. Add `PutEvents` beside the newsletter invoke.\n\n**Build.**\nSame rules and the same swallow-errors stance: only a real publish, after the page is live, never fails or slows a publish, no-op when the plugin is off. `eventId` from lineage, so dedupe holds. Known gaps in `docs/newsletter.md` still apply on purpose: a bulk import must not alert.\n\n**Acceptance.**\n`features_backend` scenario for each of: real publish, republish, projection failure then retry, plugin off.\n\n**Related:** kanbus-b47fad",
+        "to": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M3, public email and new stories\n\n**Goal.** `src/papyrus_content/publish_alerts.py` is the only place a publish announces. Beside the newsletter invoke, asynchronously invoke the site's notifications function.\n\n**Build.**\nSame rules and the same swallow-errors stance: only a real publish, after the page is live, never fails or slows a publish, no-op when the plugin is off. `eventId` from lineage, so dedupe holds. Known gaps in `docs/newsletter.md` still apply on purpose: a bulk import must not alert.\n\n**Acceptance.**\n`features_backend` scenario for each of: real publish, republish, projection failure then retry, plugin off.\n\n**Depends on:** PPY-44721a\n**Related:** kanbus-b47fad"
+      }
+    }
+  }
+}

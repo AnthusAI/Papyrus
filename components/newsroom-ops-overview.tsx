@@ -1,30 +1,12 @@
 "use client";
 
-import {
-  BookOpenIcon,
-  ClipboardListIcon,
-  FileTextIcon,
-  LayersIcon,
-  MessageSquareIcon,
-  NetworkIcon,
-  SearchIcon,
-  SettingsIcon,
-} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
+import { useCallback, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AssignmentRecord, MessageRecord, NewsroomSectionRecord, ReferenceRecord } from "../lib/category-repository";
-import { getNewsroomNavHref, NEWSROOM_OPS_NAV, type NewsroomNavTabId } from "../lib/newsroom-nav";
-import {
-  countReferencesByStatus,
-  filterReferencesByStatus,
-  formatReferenceListDate,
-  referenceDisplayTitle,
-  referenceLineageId,
-  selectCanonicalReferenceRecords,
-} from "../lib/newsroom-references";
+import type { AssignmentRecord, NewsroomSectionRecord, ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category-repository";
+import { getNewsroomNavHref } from "../lib/newsroom-nav";
+import { referenceLineageId, selectCanonicalReferenceRecords, type ReferenceCurationAction } from "../lib/newsroom-references";
 import {
   buildNewsroomSectionHref,
   displayNewsroomSectionShortTitle,
@@ -32,9 +14,15 @@ import {
   newsroomDeskKind,
   sortNewsroomSections,
 } from "../lib/newsroom-sections";
-import { newsroomInboxRowClassName } from "../lib/newsroom-list-selection";
+import { cn } from "@/lib/utils";
+import { FEED_SURFACE_PROPS } from "./reference-feed";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
+import type { ReferenceRejectionReasonCode } from "../lib/reference-policy";
+import { referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
+import type { NotificationFixture } from "./notification-center";
 import { NotificationCenter } from "./notification-center";
+import type { CorrectCaptureAction } from "./reference-capture-client";
+import type { ReviewChoice } from "./reference-review-card";
 
 type NewsroomOpsOverviewProps = {
   assignments: AssignmentRecord[];
@@ -42,63 +30,61 @@ type NewsroomOpsOverviewProps = {
   decisions?: ReadonlyMap<string, RelevanceDecisionView>;
   demo?: boolean;
   humanCuratedReferenceLineageIds?: ReadonlySet<string>;
-  messages: MessageRecord[];
   newsroomSections: NewsroomSectionRecord[];
   references: ReferenceRecord[];
+  referenceAttachments?: ReferenceAttachmentRecord[];
+  /** True until the References have been read; a saved copy of the last view fills the page meanwhile. */
+  loading?: boolean;
+  savedCopy?: { references: ReferenceRecord[]; previews: Array<[string, ReferencePreview]>; decisions: Array<[string, RelevanceDecisionView]> } | null;
+  predictionState?: "loading" | "ready" | "error";
+  /** Words for why a rating cannot be saved right now, or null. */
+  disabledReason?: string | null;
+  onSetStars?: (reference: ReferenceRecord, stars: number | null) => Promise<void> | void;
+  onReview?: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: { reasonCode?: ReferenceRejectionReasonCode | null; note?: string; decisionRelationId?: string; shareable?: boolean }) => Promise<void> | void;
+  /** Saves a pasted or corrected capture (the `correctReferenceCapture` action). Without it the capture panel has no edit action. */
+  onCorrectCapture?: CorrectCaptureAction;
+  /** Local real-data preview of the Notification Center (scripts/export-notification-center-fixture.py). */
+  notificationFixture?: NotificationFixture | null;
 };
 
 const NO_DECISIONS: ReadonlyMap<string, RelevanceDecisionView> = new Map();
-const NO_IDS: ReadonlySet<string> = new Set();
-
-type DestinationKey = Exclude<NewsroomNavTabId, "overview" | "desks">;
-
-const DESTINATION_ICONS: Record<DestinationKey, typeof BookOpenIcon> = {
-  articles: FileTextIcon,
-  assignments: ClipboardListIcon,
-  references: BookOpenIcon,
-  messages: MessageSquareIcon,
-  topics: LayersIcon,
-  concepts: NetworkIcon,
-  administration: SettingsIcon,
-  search: SearchIcon,
-};
-
-const DESTINATIONS = NEWSROOM_OPS_NAV.filter((item) => item.id !== "overview").map((item) => ({
-  key: item.id as DestinationKey,
-  label: item.label,
-  detail: item.detail,
-  href: item.href,
-  icon: DESTINATION_ICONS[item.id as DestinationKey],
-}));
-
-function openAssignmentCount(assignments: AssignmentRecord[]): number {
-  return assignments.filter((assignment) => {
-    const status = assignment.status?.trim().toLowerCase() ?? "";
-    return status === "open" || status === "claimed" || status === "pending";
-  }).length;
-}
-
-function recentMessageCount(messages: MessageRecord[]): number {
-  return messages.filter((message) => message.status !== "archived").length;
-}
 
 export function NewsroomOpsOverview({
   actorLabel = "",
   assignments,
   decisions = NO_DECISIONS,
   demo = false,
-  humanCuratedReferenceLineageIds = NO_IDS,
-  messages,
+  humanCuratedReferenceLineageIds,
+  disabledReason = null,
+  loading = false,
   newsroomSections,
+  notificationFixture = null,
+  onCorrectCapture,
+  onReview,
+  onSetStars,
+  predictionState = "ready",
+  referenceAttachments = [],
   references,
+  savedCopy = null,
 }: NewsroomOpsOverviewProps) {
   const pathname = usePathname();
-  const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
-  const referenceCounts = useMemo(() => countReferencesByStatus(canonicalReferences), [canonicalReferences]);
-  const pendingReferences = useMemo(
-    () => filterReferencesByStatus(canonicalReferences, "pending").slice(0, 5),
-    [canonicalReferences],
-  );
+  const liveReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
+  // Until the live read arrives, a saved copy of the last view fills the page. It is display only.
+  const showingSavedCopy = loading && !liveReferences.length && Boolean(savedCopy?.references.length);
+  const canonicalReferences = showingSavedCopy ? savedCopy!.references : liveReferences;
+  const shownDecisions = useMemo(() => (showingSavedCopy && !decisions.size ? new Map(savedCopy!.decisions) : decisions), [decisions, savedCopy, showingSavedCopy]);
+  const previews = useMemo(() => {
+    const live = referencePreviewsByLineage(referenceAttachments);
+    return showingSavedCopy && !live.size ? new Map(savedCopy!.previews) : live;
+  }, [referenceAttachments, savedCopy, showingSavedCopy]);
+  const rateReference = useCallback(async (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null, note?: string) => {
+    const decision = shownDecisions.get(referenceLineageId(reference));
+    await onReview?.(reference, choice, {
+      reasonCode: choice === "reject" ? reasonCode : null,
+      ...(note ? { note } : {}),
+      ...(decision ? { decisionRelationId: decision.decisionRelationId, shareable: false } : {}),
+    });
+  }, [onReview, shownDecisions]);
   const attentionAssignments = useMemo(
     () => assignments
       .filter((assignment) => {
@@ -114,100 +100,21 @@ export function NewsroomOpsOverview({
   );
   const coreDesks = useMemo(() => desks.filter(desk => newsroomDeskKind(desk) === "core"), [desks]);
   const rotatingDesks = useMemo(() => desks.filter(desk => newsroomDeskKind(desk) === "rotating"), [desks]);
+  const rateDisabled = disabledReason ?? (showingSavedCopy ? "Confirming your sign-in. You can answer in a moment." : null);
 
-  const destinationCounts: Partial<Record<DestinationKey, number | null>> = {
-    references: referenceCounts.pending ?? 0,
-    assignments: openAssignmentCount(assignments),
-    messages: recentMessageCount(messages),
-  };
-
-  return (
-    <div
-      className="space-y-8 font-sans"
-      data-news-desk-section="overview"
-      data-newsroom-ops-home="true"
-    >
-      <div className="space-y-8" data-newsroom-overview-feeds>
-        <NotificationCenter
-          actorLabel={actorLabel}
-          decisions={decisions}
-          demo={demo}
-          humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
-          references={canonicalReferences}
-        />
-        <section aria-label="Destinations" className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Go to</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {DESTINATIONS.map((meta) => {
-              const key = meta.key;
-              const Icon = meta.icon;
-              const count = destinationCounts[key];
-              const href = getNewsroomNavHref(meta.href, demo);
-              return (
-                <Link
-                  className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  data-newsroom-ops-destination={key}
-                  data-newsroom-overview-section={key}
-                  href={href}
-                  key={key}
-                >
-                  <Card className="h-full transition-colors group-hover:border-primary/40">
-                    <CardHeader className="space-y-3 p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <Icon className="size-4" aria-hidden="true" />
-                        </span>
-                        {count != null && count > 0 ? (
-                          <Badge variant="default">{count}</Badge>
-                        ) : null}
-                      </div>
-                      <div className="space-y-0.5">
-                        <CardTitle className="text-base font-semibold">{meta.label}</CardTitle>
-                        <CardDescription>{meta.detail}</CardDescription>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-
-        <section aria-label="Needs attention" className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Needs attention</h2>
-          {pendingReferences.length || attentionAssignments.length ? (
+  const below = (
+    <div className="space-y-12 pt-6" data-newsroom-overview-below {...FEED_SURFACE_PROPS}>
+        {attentionAssignments.length ? (
+          <section aria-label="Open assignments" className="space-y-3">
+            <h2 className="text-sm font-medium text-muted-foreground">Open assignments</h2>
             <div className="space-y-2">
-              {pendingReferences.map((reference) => {
-                const lineageId = referenceLineageId(reference);
-                const href = getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, demo);
-                const active = pathname === href || pathname.startsWith(`${href}/`);
-                return (
-                  <Link
-                    aria-current={active ? "true" : undefined}
-                    className={newsroomInboxRowClassName(active)}
-                    data-newsroom-inbox-item="reference"
-                    data-newsroom-list-row
-                    data-selected={active || undefined}
-                    data-newsroom-card
-                    data-newsroom-card-id={lineageId}
-                    href={href}
-                    key={lineageId}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{referenceDisplayTitle(reference)}</p>
-                      <p className="text-xs text-muted-foreground">Review source intake · {formatReferenceListDate(reference)}</p>
-                    </div>
-                    <Badge className="mt-0.5 shrink-0" variant="outline">Pending</Badge>
-                  </Link>
-                );
-              })}
               {attentionAssignments.map((assignment) => {
                 const href = getNewsroomNavHref(`/newsroom/assignments/${encodeURIComponent(assignment.id)}`, demo);
                 const active = pathname === href || pathname.startsWith(`${href}/`);
                 return (
                   <Link
                     aria-current={active ? "true" : undefined}
-                    className={newsroomInboxRowClassName(active)}
+                    className={cn("flex items-start gap-3 rounded-[16px] bg-[var(--feed-card)] p-3 text-foreground outline-none transition-colors hover:bg-[var(--feed-control)] focus-visible:ring-2 focus-visible:ring-ring", active && "bg-[var(--feed-control)]")}
                     data-newsroom-inbox-item="assignment"
                     data-newsroom-list-row
                     data-selected={active || undefined}
@@ -218,24 +125,18 @@ export function NewsroomOpsOverview({
                       <p className="truncate text-sm font-medium text-foreground">{assignment.title}</p>
                       <p className="text-xs text-muted-foreground">Assignment · {assignment.assignmentTypeKey}</p>
                     </div>
-                    <Badge className="mt-0.5 shrink-0" variant="secondary">{assignment.status}</Badge>
+                    <span className="mt-0.5 shrink-0 rounded-full bg-[var(--feed-control)] px-2 py-0.5 text-xs font-medium">{assignment.status}</span>
                   </Link>
                 );
               })}
             </div>
-          ) : (
-            <Card>
-              <CardContent className="p-4 text-sm text-muted-foreground">
-                Nothing needs attention right now. Check References for new intake or open Assignments from the destinations above.
-              </CardContent>
-            </Card>
-          )}
-        </section>
+          </section>
+        ) : null}
 
         {desks.length ? (
-          <section aria-label="Desks" className="space-y-3" data-newsroom-ops-desks>
-            <h2 className="text-sm font-medium text-muted-foreground">Desks</h2>
-            {coreDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="core">Core desks</h3> : null}
+          <section aria-label="Sections" className="space-y-3" data-newsroom-ops-desks>
+            <h2 className="text-sm font-medium text-muted-foreground">Sections</h2>
+            {coreDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="core">Core sections</h3> : null}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {coreDesks.map((section) => (
                 <Link
@@ -244,7 +145,7 @@ export function NewsroomOpsOverview({
                   href={buildNewsroomSectionHref(section.id, demo)}
                   key={section.id}
                 >
-                  <Card className="h-full transition-colors hover:border-primary/30">
+                  <Card className="h-full rounded-[20px] border-0 bg-[var(--feed-card)] shadow-none ring-0 transition-colors hover:bg-[var(--feed-control)]">
                     <CardHeader className="p-4">
                       <CardTitle className="text-base font-semibold">{section.title}</CardTitle>
                       <CardDescription className="uppercase tracking-wide text-[0.65rem]">
@@ -255,7 +156,7 @@ export function NewsroomOpsOverview({
                 </Link>
               ))}
             </div>
-            {rotatingDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="rotating">Rotating desks <small>appear for a while, then rotate out</small></h3> : null}
+            {rotatingDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="rotating">Rotating sections <small>appear for a while, then rotate out</small></h3> : null}
             {rotatingDesks.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {rotatingDesks.map((section) => (
                 <Link
@@ -264,7 +165,7 @@ export function NewsroomOpsOverview({
                   href={buildNewsroomSectionHref(section.id, demo)}
                   key={section.id}
                 >
-                  <Card className="h-full transition-colors hover:border-primary/30">
+                  <Card className="h-full rounded-[20px] border-0 bg-[var(--feed-card)] shadow-none ring-0 transition-colors hover:bg-[var(--feed-control)]">
                     <CardHeader className="p-4">
                       <CardTitle className="text-base font-semibold">{section.title}</CardTitle>
                       <CardDescription className="uppercase tracking-wide text-[0.65rem]">
@@ -277,6 +178,35 @@ export function NewsroomOpsOverview({
             </div> : null}
           </section>
         ) : null}
+    </div>
+  );
+
+  return (
+    <div
+      className="h-full font-sans"
+      data-news-desk-section="overview"
+      data-newsroom-ops-home="true"
+    >
+      <div className="h-full" data-newsroom-overview-feeds>
+        <div className="h-full" data-newsroom-overview-notifications>
+          <NotificationCenter
+            below={below}
+            actorLabel={actorLabel}
+            decisions={shownDecisions}
+            demo={demo}
+            fixture={notificationFixture}
+            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
+            onCorrectCapture={onCorrectCapture}
+            onRateReference={rateReference}
+            onSetReferenceStars={onSetStars}
+            referenceAttachments={referenceAttachments}
+            predictionLoading={predictionState === "loading"}
+            previews={previews}
+            referenceDisabledReason={rateDisabled}
+            references={canonicalReferences}
+            referencesLoading={loading && !canonicalReferences.length}
+          />
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cbb2a9bd-b2f0-4e1d-b68b-ef060898594f",
+  "issue_id": "PPY-4142e8d1-ec6e-4eef-abad-f4f0220ed639",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T19:34:49.399Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us docs: key URLs on the Item type (urls.types), sections as topics, and the section migration (follow-up of PPY-a6acd2)",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}

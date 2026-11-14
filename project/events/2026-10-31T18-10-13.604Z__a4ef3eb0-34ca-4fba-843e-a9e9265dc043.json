@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "a4ef3eb0-34ca-4fba-843e-a9e9265dc043",
+  "issue_id": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-31T18:10:13.604Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "52f2a3c1-517b-4909-bd96-d76b650267ed",
+    "comment_author": "home",
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-fable-5-1",
+      "name": "plan-ci-cost"
+    }
+  }
+}

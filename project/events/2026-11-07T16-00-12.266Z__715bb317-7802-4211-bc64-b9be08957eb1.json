@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "715bb317-7802-4211-bc64-b9be08957eb1",
+  "issue_id": "PPY-25115792-da24-43d7-993a-ffec69adff32",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T16:00:12.266Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M2: Generate and synchronize translations in the background",
+    "description": "As an editor, I want published or accepted changes to queue language work automatically, so every supported rendition eventually catches up without delaying the original.\n\nCreate durable desired-state work keyed by item identity, source revision and target locale. Cover reference display metadata, accepted wiki concepts, stories, sections and public prose. Coalesce rapid edits; support Batch or Flex processing where appropriate, retries, idempotency, budgets and limits. Send each job directly from the authoritative source language, with publication voice, glossary, section guidance and protected markup. Add scheduled reconciliation for missed events, failures and newly enabled languages. Ensure translation writes do not recursively enqueue themselves.\n\nAcceptance: create, update and new-language events produce missing or stale work; out-of-order jobs cannot replace newer or human-edited renditions; incomplete and expired batches are retried; unpublish or retraction removes all public renditions promptly. Expose job status, age and cost. Gherkin scenarios and tests cover these behaviors.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-82f150e8-9010-4a9f-949e-71168ffdbdc0",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6-sol"
+    }
+  }
+}

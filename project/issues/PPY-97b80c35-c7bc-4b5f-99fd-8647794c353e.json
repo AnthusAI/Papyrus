@@ -1,0 +1,20 @@
+{
+  "id": "PPY-97b80c35-c7bc-4b5f-99fd-8647794c353e",
+  "title": "Gaps, bridges and tensions for editors",
+  "description": "Coverage gaps: concepts strong in a section's accepted References with no Story, or only old ones. Bridges: References or concepts connecting two tracked concepts, a source of story ideas. Tensions: `contradicts` links on a concept's References. Cooling: tracked concepts with no new evidence. Each is a list with its evidence.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-ee757023-8014-4c31-8397-e55566c7ab80",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:47.382519Z",
+  "updated_at": "2026-11-04T02:52:47.382541Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

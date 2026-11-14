@@ -1,0 +1,20 @@
+{
+  "id": "PPY-6a4b183a-90ec-4b72-9d5d-14b2614c80e6",
+  "title": "De-duplication agent with a generated context pack, reversible grouping relations",
+  "description": "Candidates come from code: identity keys, title similarity (`ideas/dedupe.py` scorer), `related_to` edges by score, nearest neighbours from summary vectors. A generated context pack per candidate group gives the agent each item's title, host, date, summary and first text, plus nearby items. The agent answers per group: same document, same story, related, or different, with a reason and quotes; code verifies quotes (fact-check/v1 rules). Stored as reversible relations `same_document_as` and `same_story_as`. No fixed thresholds where a learned cut can be used (`duplicate_cut`, Wilson bound), adaptive per site. Runs after suggestions in the hourly pass, or nightly, bounded by real time and spend. Also fix URL-only titles, which hide most same-story coverage.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-24fdf421-e5cb-4b83-856c-92a8ac73fd22",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T17:06:55.771456Z",
+  "updated_at": "2026-11-03T17:06:55.771479Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,24 @@
+/* Section fronts: a section's index page and the home of sections. Works with no script.
+   Flat tones and rounded rectangles; nothing here draws a border or a line. The current section tab is bold and filled (and marked
+   aria-current), never told apart by colour alone. Theme with the custom properties below; every one has a fallback. */
+.markus-section-tabs ul { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1.5rem; padding: 0; list-style: none; }
+.markus-section-tabs a { display: inline-block; padding: .375rem .875rem; border-radius: 999px; background: var(--section-fronts-tab-bg, color-mix(in srgb, currentColor 7%, transparent)); color: inherit; font-weight: 500; text-decoration: none; }
+.markus-section-tabs a:hover, .markus-section-tabs a:focus-visible { background: var(--section-fronts-tab-hover-bg, color-mix(in srgb, currentColor 14%, transparent)); }
+.markus-section-tabs a[data-current="true"] { background: var(--section-fronts-tab-current-bg, CanvasText); color: var(--section-fronts-tab-current-ink, Canvas); font-weight: 700; }
+.markus-section-description { margin: 0 0 1.5rem; max-width: 42rem; color: var(--section-fronts-muted, color-mix(in srgb, currentColor 75%, transparent)); }
+.markus-section-lead { margin: 0 0 1.5rem; padding: 1.25rem; border-radius: var(--section-fronts-radius, 1rem); background: var(--section-fronts-lead-bg, color-mix(in srgb, currentColor 7%, transparent)); }
+.markus-section-lead .markus-card-title { font-size: 1.5rem; line-height: 1.25; }
+.markus-card-grid > .markus-section-lead { grid-column: 1 / -1; margin: 0; }
+.markus-section-index .markus-card-grid { margin-bottom: 2rem; }
+.markus-section-block { margin: 0 0 2.5rem; padding: 1.25rem; border-radius: var(--section-fronts-radius, 1rem); background: var(--section-fronts-block-bg, color-mix(in srgb, currentColor 4%, transparent)); }
+.markus-section-block > h2 { margin: 0 0 .5rem; }
+.markus-section-block > h2 a { color: inherit; text-decoration: none; }
+.markus-section-block > h2 a:hover, .markus-section-block > h2 a:focus-visible { text-decoration: underline; }
+.markus-section-more { margin: 1rem 0 0; font-weight: 600; }
+.markus-section-more a { display: inline-flex; align-items: center; gap: .375rem; }
+.markus-section-icon { flex: none; }
+.markus-section-empty { margin: 0 0 1rem; padding: 1rem; border-radius: var(--section-fronts-radius, 1rem); background: var(--section-fronts-lead-bg, color-mix(in srgb, currentColor 7%, transparent)); }
+@media (max-width: 40rem) {
+  .markus-section-block, .markus-section-lead { padding: 1rem; }
+  .markus-section-lead .markus-card-title { font-size: 1.25rem; }
+}

@@ -62,11 +62,16 @@ Feature: The idea pipeline turns a site's recent references into private story i
     Then 0 ideas are created
     And the model was shown the reviewer feedback
 
-  Scenario: A site with the proposals model files each idea as a draft Proposal
+  Scenario: A site with the proposals model files each idea as an idea
     When the model proposes the ideas "Cloud key rotation" and "Model checkpoint signing" citing different references
-    And the operator synthesizes ideas from the digest into the site's proposals
-    Then 2 draft story proposals are filed
-    And no request to publish proposals is made
+    And the operator synthesizes ideas from the digest into the site's ideas
+    Then 2 ideas are filed
+    And no request to publish ideas is made
+
+  Scenario: The References an idea cites are the targets of its idea, so no later run drafts them again
+    When the model proposes the idea "Agents and keys" citing the first two references
+    And the operator synthesizes ideas from the digest into the site's ideas
+    Then the idea targets the first two references
 
   Scenario: The run records what it read and what the model call cost
     When the model proposes the idea "Agents and keys" citing the first two references
@@ -82,7 +87,7 @@ Feature: The idea pipeline turns a site's recent references into private story i
   Scenario: A run that creates ideas raises one soft review for the batch
     When the model proposes the idea "Agents and keys" citing the first two references
     And the operator synthesizes ideas from the digest with review requests
-    Then one soft review "1 new story idea to review" is open with a 7-day deadline
+    Then one soft review "1 new story idea to review" is open with no deadline
     And the review is about this run's batch and links the idea
     And asking again for the same run raises no second review
 

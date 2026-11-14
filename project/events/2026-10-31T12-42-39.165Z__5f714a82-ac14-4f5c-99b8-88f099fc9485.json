@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "5f714a82-ac14-4f5c-99b8-88f099fc9485",
+  "issue_id": "PPY-06d69241-010d-46d2-8001-a6694eb177ad",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:42:39.165Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document sign-in, Accounts and enrollment on p.apyr.us; consolidate docs/cli-login.md",
+    "description": "Repo: **Papyrus-web** (p.apyr.us) and Papyrus `docs/`. Closing task of the enrollment epic.\n\n## Deliverables\n1. p.apyr.us feature page \"Sign in and Accounts\": Google sign-in only (no passwords, ever), what an Account is (\"Account\", never \"Organization\"), one Account or several, how the console and the CLI choose one, what enrollment means for a person (one Google identity across Anthus products through Prospectus), what the site may and may not do with Prospectus (no account creation until kanbus-dbc30a, no memberships until kanbus-2823b5; update as they land).\n2. How-To items: `howto-sign-in-from-the-cli` (`papyrus login`, `--remote`, `whoami`, `account use`), `howto-choose-an-account-in-the-console`, `howto-fix-run-papyrus-login-again` (reenrollment_required explained).\n3. Papyrus `docs/cli-login.md` consolidated (which client, enrollment, accounts, authorization, whoami, alarms from PPY-45efff); `docs/site-hosting.md` gains the `consoleOrigin` and the `/cli/*` routes on the console host (from PPY-d8b616).\n4. Published through the CMS publish path; URLs recorded here. No ids or emails. Blocked by every ready-now task of the epic (the WAIT parts are documented as \"coming\" with their Prospectus ids).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e2a0b8d7-5783-441f-b8e5-0b1c76b8688f",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

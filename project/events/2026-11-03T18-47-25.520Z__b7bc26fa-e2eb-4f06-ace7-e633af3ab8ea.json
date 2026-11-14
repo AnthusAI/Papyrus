@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b7bc26fa-e2eb-4f06-ace7-e633af3ab8ea",
+  "issue_id": "PPY-fe494409-a67e-4f05-bc75-3bee39417483",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T18:47:25.520Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "General RSS and Atom monitor source type",
+    "description": "hn-rss is hard-coded to Hacker News. Add a source type whose feeds are configuration, with allowed hosts, starting with arXiv: skip announce_type replace and replace-cross, keep new and cross, one source id per paper, abstract carried as the item's text so a decision does not fetch the PDF.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-dd6c50f1-9918-46d6-8148-f1f759d14aea",
+    "labels": []
+  }
+}

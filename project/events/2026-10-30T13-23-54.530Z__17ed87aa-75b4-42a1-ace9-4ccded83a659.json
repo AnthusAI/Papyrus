@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "17ed87aa-75b4-42a1-ace9-4ccded83a659",
+  "issue_id": "PPY-44b7e30d-32f4-4ab7-9a8d-22a6ffb69674",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-30T13:23:54.530Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Sites cannot deploy 5.59.0: message resolver entries are relative paths",
+    "description": "",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+    "labels": []
+  }
+}

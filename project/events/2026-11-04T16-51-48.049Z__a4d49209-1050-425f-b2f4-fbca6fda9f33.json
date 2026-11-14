@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "event_id": "a4d49209-1050-425f-b2f4-fbca6fda9f33",
+  "issue_id": "PPY-74ef89b9-b85e-4bfa-b174-34d812df9bfe",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-04T16:51:48.049Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "A general figure skill in Papyrus, with each site's design system served as backend data",
+        "to": "Figures in Papyrus: a general diagram and illustration skill, hosted rendering, and site design systems as backend data"
+      },
+      "description": {
+        "from": "Ryan, 2026-11-04: avoid site-specific skills. Papyrus should have one general skill for diagrams and illustrations, which uses the design system of the site it is working on if one exists. An agent with access to a site's backend (for example through a future MCP server, PPY-2bc3e8) but no access to the site's code must still be able to use it.\n\nToday the figure system is in the Machines on Machines repository (design/figures): rules.md, primitives.svg, mapping.json, tools/render_figures.py and a gallery. Its rules and mapping are already separate, which makes this move practical.\n\nProposed split:\n- In Papyrus: the skill (.agents/skills), the rules, the primitives and the checker and renderer, as a CLI command such as papyrus figures render, so no site checkout is needed.\n- In each site's backend data, like mission and policy: the tokens, the mapping and the worked examples, readable through the signed-in CLI and the context pack. A site's repository may stay the place they are edited, with publication into the backend as part of its deploy.\n- If a site has no design system, the skill says so and falls back to a stated default, or stops and asks. It never invents a brand.\n\nLight and dark: make both mandatory. The rules must say so outright, not only under Output. The renderer always produces both from one source. Today stories save-version treats the dark file as optional, so a figure can be saved with only a light picture; add a warning or a site setting that refuses it.\n\nAlso needed: how an agent with no browser renders (a server-side render, or a hosted tool), since the renderer needs Chromium. Needs Gherkin specs and a p.apyr.us docs task.",
+        "to": "Ryan, 2026-11-04: this is a decided general Papyrus feature. Avoid site-specific skills. An agent with access to a site's backend (for example through a future MCP server, PPY-2bc3e8) but no access to the site's code must be able to make figures for that site.\n\nToday the system is in the Machines on Machines repository under design/figures: rules.md, primitives.svg, mapping.json, a gallery, and tools/render_figures.py. Its rules and mapping are already separate. Start from it; don't redesign it.\n\nBuild:\n1. A skill in Papyrus at .agents/skills, alongside copywriting, reporting and editorial-copyedit-cycle, covering diagrams and illustrations: deciding whether to draw, choosing a form, writing acceptance criteria, drawing, checking, getting a person's approval, and saving into a Story. It reads the design system of the site it is working on. If the site has none, it says so and uses a stated default or asks. It never invents a brand. The copywriting skill and the story procedure's illustration step point to it (see PPY-46f122).\n2. The general rules, shape library, checker and renderer move into Papyrus, as a CLI command such as papyrus figures render.\n3. Hosted rendering: an agent with no browser submits the figure source and gets back both PNGs and any problems. One renderer and one set of checks for everyone. The renderer writes SVG through headless Chromium to PNG at twice the canvas size, with fonts embedded, and measures real layout for its checks.\n4. Each site's tokens, fonts, mapping and worked examples become backend data, like mission and policy, readable through the signed-in CLI and the context pack. A site's repository may stay where they are edited, publishing into the backend as part of its deploy.\n\nLight and dark: both are mandatory. The rules must say so outright, not only under Output. The renderer always produces both from one source. stories save-version treats the dark file as optional today, so a figure can be saved with only a light picture; add a warning or a site setting that refuses it.\n\nThen move Machines on Machines onto it, and remove its copies of what moved. Needs Gherkin specs and a p.apyr.us docs task."
+      },
+      "priority": {
+        "from": 2,
+        "to": 1
+      }
+    }
+  }
+}

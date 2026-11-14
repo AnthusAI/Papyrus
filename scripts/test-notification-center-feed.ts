@@ -1,0 +1,640 @@
+/** Fixture-only browser acceptance for the Notification Center feed: idea batches that point at the Stories board, hard gates, flags, held email and References. No production calls. */
+import assert from "node:assert/strict";
+import { build } from "esbuild";
+import { chromium, type Page } from "playwright";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+const origin = "http://notification-center.test";
+let bundle: Promise<string> | undefined;
+let tailwindCss: Promise<string> | undefined;
+
+/** The real Tailwind build of app/tailwind.css, so sizes and breakpoints are the shipped ones. */
+function compiledTailwind(): Promise<string> {
+  tailwindCss ??= (async () => {
+    const file = `${root}app/tailwind.css`;
+    const { default: postcss } = await import("postcss");
+    const { default: tailwind } = await import("@tailwindcss/postcss");
+    return (await postcss([tailwind() as never]).process(fs.readFileSync(file, "utf8"), { from: file })).css;
+  })();
+  return tailwindCss;
+}
+
+function browserBundle(): Promise<string> {
+  bundle ??= build({
+    absWorkingDir: root, bundle: true, write: false, platform: "browser", jsx: "automatic",
+    define: { "process.env.NODE_ENV": '"development"' }, logLevel: "silent",
+    banner: { js: 'window.process = { env: { NODE_ENV: "development" } };' },
+    plugins: [{ name: "fixture-boundaries", setup(builder) {
+      builder.onResolve({ filter: /(review-client)$/ }, () => ({ path: "network", namespace: "fixture" }));
+      builder.onResolve({ filter: /monitoring-client$/ }, () => ({ path: "monitoring", namespace: "fixture" }));
+      builder.onResolve({ filter: /news-desk-taxonomy-client$/ }, () => ({ path: "taxonomy", namespace: "fixture" }));
+      builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
+      builder.onResolve({ filter: /^next\/link$/ }, () => ({ path: "link", namespace: "fixture" }));
+      builder.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path }) => ({
+        contents: path === "monitoring"
+          ? "export const loadMonitoringPage = async () => ({ state: 'unavailable' }); export const loadMonitoringEmailSubmission = async () => ({ state: 'unavailable' }); export const decideMonitoringEmailSubmission = async () => ({ state: 'unavailable' });"
+          : path === "taxonomy"
+          ? "export const loadModelPayloadsForOwner = async () => []; export const loadStoragePathText = async () => ''; export const loadReferenceAttachmentsForLineageId = async () => []; export const loadStoragePathUrl = async () => ({ url: null }); export const uploadModelPayloadForOwner = async () => ({ id: 'upload' });"
+          : path === "navigation"
+          ? "export const usePathname = () => window.location.pathname; export const useRouter = () => ({ push(href) { window.pushed = href; } });"
+          : path === "link"
+            ? "import {createElement} from 'react'; export default function Link({href, children, prefetch, ...rest}) { return createElement('a', {href, ...rest}, children); }"
+            : path === "network"
+              ? "export const loadReviews = async () => ({ state: 'ready', requests: [], readIds: [], userKey: 'u1' }); export const loadStoryTitles = async () => ({ titles: {}, deleted: [] }); export const markReviewRead = async () => {};"
+              : "export {};",
+        loader: "js", resolveDir: root,
+      }));
+    } }],
+    stdin: { resolveDir: root, loader: "tsx", sourcefile: "notification-center-fixture.tsx", contents: `
+import { useState } from "react";
+import { createRoot } from "react-dom/client";
+import { NotificationCenter } from "./components/notification-center";
+import { NewsroomOpsOverview } from "./components/newsroom-ops-overview";
+import { FIXTURE_IDEAS, FIXTURE_EMAIL_DETAILS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "./lib/review-fixture";
+import { answerUpdate, applyReviewUpdate } from "./lib/review-requests";
+import { homeCyclotronStateFrom } from "./lib/hosted-cyclotron-status";
+import { captureNeededSourceFromRecords, readCaptureNeeded } from "./lib/capture-needed";
+
+const params = new URLSearchParams(location.search);
+const clone = (value) => JSON.parse(JSON.stringify(value));
+const batch = clone(FIXTURE_REVIEW_REQUESTS.find((request) => request.id === "rr-soft-2"));
+if (params.has("no-deadline")) batch.deadline = null;
+const hard = clone(FIXTURE_REVIEW_REQUESTS.find((request) => request.id === "rr-hard-1"));
+const flag = clone(FIXTURE_REVIEW_REQUESTS.find((request) => request.id === "rr-flag-1"));
+let requests = params.has("only-batch") ? [batch] : params.has("flag") ? [flag] : [hard, batch];
+const stages = Object.fromEntries(FIXTURE_IDEAS.map((idea) => [idea.id, idea.stage]));
+if (params.has("one-left")) { stages["idea-2"] = "writing"; }
+if (params.has("all-moved")) { stages["idea-1"] = "writing"; stages["idea-2"] = "spiked"; }
+if (params.has("legacy")) batch.links = [{ type: "proposal", id: "legacy-idea-1", label: "story idea 1" }, { type: "proposal", id: "legacy-idea-2", label: "story idea 2" }];
+window.calls = [];
+let failReasons = params.has("fail-reason") ? 1 : 0;
+const api = {
+  loadReviews: async () => ({ state: "ready", requests: clone(requests), readIds: [], userKey: "u1" }),
+  loadStoryTitles: async (ids) => ({ titles: Object.fromEntries(FIXTURE_IDEAS.filter((idea) => ids.includes(idea.id)).map((idea) => [idea.id, idea.title])), deleted: [], stages: Object.fromEntries(Object.entries(stages).filter(([id]) => ids.includes(id))) }),
+  answerReviewRequest: async (request, input, by) => {
+    const update = answerUpdate(request, input, by, new Date("2026-10-24T09:00:00Z"));
+    window.calls.push({ type: "answer", requestId: request.id, by, answer: JSON.parse(update.answer) });
+    const saved = { ...request, state: "answered", answer: JSON.parse(update.answer), updatedAt: update.updatedAt };
+    requests = requests.map((entry) => entry.id === saved.id ? saved : entry);
+    return saved;
+  },
+  saveReviewReason: async (request, update) => {
+    window.calls.push({ type: "reason", requestId: request.id, update: clone(update) });
+    if (failReasons > 0) { failReasons -= 1; throw new Error("Your note could not be saved. It is kept here; keep typing or tap away to try again."); }
+    const saved = applyReviewUpdate(request, update);
+    requests = requests.map((entry) => entry.id === saved.id ? saved : entry);
+    return saved;
+  },
+  markReviewRead: async () => {},
+  loadHeldEmails: async () => params.has("mixed") ? clone(FIXTURE_HELD_EMAILS) : [],
+  loadEmail: async (receiptId) => clone(FIXTURE_EMAIL_DETAILS[receiptId]),
+  decideEmail: async (receiptId, decision, reason) => { window.calls.push({ type: "email", receiptId, decision, reason }); return { ok: true, already: false, quarantine: { state: decision === "accept" ? "released" : "discarded", decision: null, failure: null } }; },
+};
+
+// ?cyclotron=snapshot|never|none|unavailable|loading|report|report-long|report-zero|report-model: the classifier panel's synthetic snapshots (no network). Without the parameter the page has no panel.
+function cyclotronStatus(kind) {
+  const base = {
+    schema: "cyclotron-status/v1",
+    cyclotron: { id: "synthetic-relevance", classifier: "relevant", version: 4, refits: 2, fingerprint: "fp" },
+    asOf: "2026-11-02T10:00:00.000Z",
+    alignment: { window: 200, labels: 41, accuracy: 0.83, precision: 0.8, recall: 0.9, positiveLabel: "include", measuredOn: "reviews selected by the cyclotron" },
+    calibration: { saysSure: 0.8, isRight: 0.83, gapPoints: 3, curve: [] },
+    reviewRate: { state: "tapering", rate: 0.5, reason: "Tapering", auditFloor: 0.05, confidenceThreshold: 0.7, override: null, nextCheckAfterDecisions: 40, nextStep: null, expectedReviewsPerWeek: 12 },
+    lastChange: { kind: "refit", fromVersion: 3, toVersion: 4, at: "2026-10-30T14:05:00.000Z", summary: "refit on 41 reviews", labels: 41 },
+    pending: { decisionsAwaitingReview: 3, staleSince: null },
+  };
+  if (kind === "never") {
+    return { ...base, cyclotron: { ...base.cyclotron, refits: 0, version: 1 }, alignment: { ...base.alignment, labels: 0, accuracy: null, precision: null, recall: null },
+      calibration: { saysSure: null, isRight: null, gapPoints: null, curve: [] }, lastChange: null, pending: { decisionsAwaitingReview: 12, staleSince: null },
+      reviewRate: { ...base.reviewRate, state: "onboarding", rate: 1 } };
+  }
+  return base;
+}
+// The classifier report in the Cyclotron's real shape (src/decision_flywheel/classifier_report.py output_report), as the router stores it: it adds schema and generatedAt.
+function cyclotronReport(kind) {
+  const longRubric = "Include a reference when it reports a new attack technique, vulnerability or defence that a security team could act on this month. ".repeat(6).trim();
+  const base = {
+    schema: "cyclotron-classifier-report/v1", generatedAt: "2026-11-03T18:00:00.000000+00:00",
+    classifier: { id: "synthetic-relevance", revision: 2, question: "Would a security engineer at a mid-sized company want to read this?", criteriaFingerprint: "cfp-1",
+      rubric: kind === "report-long" ? longRubric : "Include practical security news. Exclude marketing.", classes: ["include", "exclude"] },
+    learning: { state: "not_active", reason: "standing runs do not train on votes yet; votes are stored and change no classifier", version: 4, refits: 2,
+      lastChange: { kind: "refit", fromVersion: 3, toVersion: 4, at: "2026-10-30T14:05:00.000Z", summary: "refit on 41 reviews", labels: 41 }, asOf: "2026-11-03T17:00:00.000Z", unavailableReason: null },
+    agreementWithEditors: { votes: 14, compared: 9, agreed: 7,
+      byClassifierRevision: [{ classifierRevision: "1", votes: 3, compared: 0, agreed: 0 }, { classifierRevision: "2", votes: 11, compared: 9, agreed: 7 }],
+      byDay: [{ day: "2026-11-01", votes: 3, compared: 0, agreed: 0 }, { day: "2026-11-02", votes: 3, compared: 3, agreed: 3 }, { day: "2026-11-03", votes: 8, compared: 6, agreed: 4 }] },
+    heldOut: { accuracy: null, reason: "standing runs do not produce held-out evaluations yet" },
+    counts: { labels: { include: 9, exclude: 5 }, reviewedDecisions: 12, primedExamples: 30, decisionsAwaitingReview: 4 },
+    model: { features: null, weights: null, reason: "no machine-learning model has been fitted for this classifier" },
+  };
+  if (kind === "report-zero") {
+    return { ...base, learning: { ...base.learning, version: null, refits: null, lastChange: null, asOf: null, unavailableReason: "no decision has completed for this binding yet" },
+      agreementWithEditors: { votes: 0, compared: 0, agreed: 0, byClassifierRevision: [], byDay: [] }, counts: { labels: {}, reviewedDecisions: null, primedExamples: null, decisionsAwaitingReview: null } };
+  }
+  if (kind === "report-model") {
+    return { ...base, heldOut: { accuracy: 0.8125, reason: null }, model: { features: ["mentions a vulnerability", "names a vendor"], weights: [1.25, -0.5], reason: null } };
+  }
+  return base;
+}
+const cyclotronParam = params.get("cyclotron");
+const cyclotronApi = cyclotronParam ? { loadCyclotronStatus: async () => {
+  if (cyclotronParam === "loading") return new Promise(() => {});
+  if (cyclotronParam === "unavailable") return { state: "unavailable" };
+  if (cyclotronParam === "none") return { state: "none" };
+  if (cyclotronParam.startsWith("report")) {
+    const reportOnly = cyclotronParam === "report-zero";
+    const status = reportOnly ? null : cyclotronStatus("snapshot");
+    // Through the same parser the live page uses, so the report is read in the shape the Monitoring view serves it.
+    return homeCyclotronStateFrom({ rows: [{ monitorId: "hn", publicationId: "synthetic", output: "synthetic-relevance", asOf: status ? status.asOf : null, checkedAt: status ? "2026-11-02T10:30:00.000Z" : null,
+      status, report: cyclotronReport(cyclotronParam), reportCheckedAt: "2026-11-03T18:05:00.000Z" }] });
+  }
+  const status = cyclotronStatus(cyclotronParam);
+  return { state: "ready", rows: [{ monitorId: "hn", publicationId: "synthetic", output: "synthetic-relevance", asOf: status.asOf, checkedAt: "2026-11-02T10:30:00.000Z", status }] };
+} } : {};
+Object.assign(api, cyclotronApi);
+
+const decision = { decisionRelationId: "d1", decisionId: "p1", label: "include", confidence: 0.82, version: null, reviewRecommended: false, reviewReason: "program", reviewDetail: null, classes: ["include", "exclude"], positiveLabel: "include", question: null, reviewControl: "thumbs", cyclotronId: "c", decidedAt: null, provenance: null };
+const references = [
+  { id: "reference-a-v1", lineageId: "reference-a", versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: "a", title: "ReadyArt: text-generation model", sourceUri: "https://example.org/a", curationStatus: "pending", importedAt: "2026-10-26T10:00:00Z" },
+  { id: "reference-b-v1", lineageId: "reference-b", versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: "b", title: "Another pending source", sourceUri: "https://example.org/b", curationStatus: "pending", importedAt: "2026-10-25T10:00:00Z" },
+];
+const recently = new Date(Date.now() - 5000).toISOString();
+const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString();
+const confirmed = Array.from({ length: 10 }, (_, index) => ({ id: "done-" + index + "-v1", lineageId: "done-" + index, versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: "done" + index, title: "Confirmed " + index, sourceUri: "https://example.org/done" + index, curationStatus: "accepted", createdAt: threeDaysAgo, importedAt: threeDaysAgo, curationStatusUpdatedAt: recently }));
+const sure = { id: "reference-sure-v1", lineageId: "reference-sure", versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: "sure", title: "A source the Cyclotron is sure about", sourceUri: "https://example.org/sure", curationStatus: "pending", createdAt: recently, importedAt: recently };
+const mixedReferences = [...references, sure, ...confirmed];
+const mixedDecisions = new Map([["reference-a", decision], ["reference-sure", { ...decision, confidence: 0.99 }], ...confirmed.map((reference) => [reference.lineageId, { ...decision, confidence: 0.9 }])]);
+// Accepted References whose content we could not collect (?capture=1): the real reader over records held in memory, so what is excluded (running, rejected, captured) is the real rule.
+const heldRecord = (id, fields) => ({ id: id + "-v1", lineageId: id, versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: id, title: fields.title, sourceUri: "https://example.org/" + id, curationStatus: "accepted", importedAt: fields.arrived, ...fields });
+const captureRecords = [
+  heldRecord("s5-new", { title: "Five stars, newest", arrived: "2026-10-26T10:00:00Z", starRating: 5, captureState: "none" }),
+  heldRecord("s5-old", { title: "Five stars, older", arrived: "2026-10-20T10:00:00Z", starRating: 5, captureState: "thin" }),
+  heldRecord("s5-running", { title: "Five stars, still capturing", arrived: "2026-10-27T10:00:00Z", starRating: 5, captureState: "running" }),
+  heldRecord("s5-rejected", { title: "Five stars, rejected", arrived: "2026-10-27T11:00:00Z", starRating: 5, captureState: "none", curationStatus: "rejected" }),
+  heldRecord("s4", { title: "Four stars", arrived: "2026-10-25T10:00:00Z", starRating: 4, captureState: "none" }),
+  heldRecord("s2", { title: "Two stars", arrived: "2026-10-24T10:00:00Z", starRating: 2 }),
+  heldRecord("plain-new", { title: "No stars, newest", arrived: "2026-10-27T12:00:00Z", captureState: "none" }),
+  heldRecord("plain-captured", { title: "No stars, captured", arrived: "2026-10-27T13:00:00Z", captureState: "full" }),
+];
+const blockedCard = { id: "card-s5-new", referenceId: "s5-new-v1", referenceLineageId: "s5-new", role: "curation", sortKey: "003-curation", importedAt: "2026-10-26T11:00:00Z", metadata: JSON.stringify({ kind: "reference-curation", status: "capture_failed", capture: { status: "failed", reason: "blocked" }, signals: {}, labels: [], current: {} }) };
+if (params.has("capture")) {
+  Object.assign(api, {
+    loadCaptureNeeded: async () => {
+      if (params.get("capture") === "fail") throw new Error("The star index is not deployed.");
+      const references = await readCaptureNeeded(captureNeededSourceFromRecords(captureRecords.map((record) => ({ ...record, feedStateKey: undefined }))));
+      return { references, attachments: references.some((reference) => reference.lineageId === "s5-new") ? [blockedCard] : [] };
+    },
+  });
+}
+function Fixture() {
+  const [rated, setRated] = useState(mixedReferences);
+  if (params.has("capture")) {
+    const onCorrectCapture = async (input) => {
+      window.calls.push({ type: "capture", referenceId: input.referenceId, text: input.text, assessment: input.assessment });
+      const record = captureRecords.find((entry) => entry.id === input.referenceId);
+      if (record && (input.text !== undefined || input.pdfAttachmentId !== undefined)) record.captureState = "full";
+      return { ok: true };
+    };
+    return <NotificationCenter actorLabel="Ed Itor" api={api} decisions={new Map()} demo={false} humanCuratedReferenceLineageIds={new Set()} onCorrectCapture={onCorrectCapture} references={references} />;
+  }
+  if (params.has("mixed")) {
+    // A rating is saved onto the Reference, as the live page does, so a reopened Reference shows its answer and reason.
+    const onRateReference = async (reference, choice, reasonCode, note) => {
+      window.calls.push({ type: "rate", id: reference.lineageId, action: choice, reasonCode, note });
+      setRated((current) => current.map((row) => row.lineageId === reference.lineageId ? { ...row, curationStatus: choice === "accept" ? "accepted" : "rejected", curationStatusReason: note || null } : row));
+    };
+    return <NotificationCenter actorLabel="Ed Itor" api={api} decisions={mixedDecisions} demo={false} humanCuratedReferenceLineageIds={new Set()} onRateReference={onRateReference} references={rated} />;
+  }
+  if (params.has("overview")) {
+    return <NewsroomOpsOverview assignments={[]} decisions={new Map([["reference-a", decision]])} newsroomSections={[]} references={references} onReview={async (reference, action, options) => { window.calls.push({ type: "rate", id: reference.lineageId, action, options }); }} />;
+  }
+  return <NotificationCenter actorLabel="Ed Itor" api={api} below={params.has("tall") ? <div data-below style={{ height: 1500 }}>Other sections of the page</div> : null} decisions={new Map()} demo={false} humanCuratedReferenceLineageIds={new Set()} references={[]} />;
+}
+createRoot(document.getElementById("root")).render(<Fixture />);
+` },
+  }).then((result) => result.outputFiles[0].text);
+  return bundle;
+}
+
+const fixtureCss = "body{margin:0;font:16px sans-serif}button,textarea{font:inherit}" + fs.readFileSync(`${root}node_modules/cyclotron/trace-ui/src/styles/components.css`, "utf8");
+
+export async function setup(options = "", width = 1440, height = 900) {
+  const script = await browserBundle();
+  const tailwind = await compiledTailwind();
+  const browser = await chromium.launch({ args: ["--no-proxy-server"], executablePath: process.env.PAPYRUS_CHROMIUM_PATH || undefined });
+  const page = await browser.newPage({ viewport: { width, height } });
+  page.setDefaultTimeout(4000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin !== origin) return route.abort();
+    if (url.pathname === "/fixture.js") return route.fulfill({ contentType: "text/javascript", body: script });
+    return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style><style>${fixtureCss}</style></head><body><div id="root" class="p-4"></div><script src="/fixture.js"></script></body></html>` });
+  });
+  await page.goto(`${origin}/newsroom${options}`);
+  return { browser, page, errors };
+}
+
+const card = (page: Page, id: string) => page.locator(`[data-feed-card="${id}"]`);
+const WORDS_GONE = ["Approve", "Steer with this note", "Steering note", "Agree", "Proceeds automatically", "unless you steer", "draft batches", "Mark all read", "Proposed Stor"];
+/** The detail pane for whichever item was opened: the aside on a wide screen, the sheet on a phone. */
+const detail = (page: Page) => page.locator("[data-needs-me-detail]");
+const openDetail = async (page: Page, cardLocator: ReturnType<Page["locator"]>) => {
+  await cardLocator.locator("[data-feed-open]").click();
+  await detail(page).first().waitFor();
+  return detail(page).first();
+};
+const answered = (page: Page) => page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "answer"));
+const noHorizontalScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+async function run(options: string, widths: number[], body: (page: Page, width: number) => Promise<void>) {
+  for (const width of widths) {
+    const { browser, page, errors } = await setup(options, width);
+    try {
+      await body(page, width);
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  }
+}
+
+const scenarios: Record<string, () => Promise<void>> = {
+  /** A batch of ideas is ONE card in the feed's shape, with no Accept or Reject: it links to the Idea column, where the ideas are decided. */
+  async content() {
+    await run("?only-batch=1", [375, 1440], async (page, width) => {
+      const batch = card(page, "rr-soft-2");
+      await batch.waitFor();
+      const text = await batch.innerText();
+      for (const expected of ["Ideas to review", "3 new story ideas to review", "They wait in the Idea column of the Stories board.", "Open the Idea column", "2 of 3 still in the Idea column", "Move an idea forward to accept it"]) {
+        assert.ok(text.includes(expected), `the batch card shows: ${expected}`);
+      }
+      assert.equal(await page.locator('[data-needs-me-card="idea_batch"]').count(), 1, "a run of three ideas is one card, not three");
+      assert.equal(await batch.locator("[data-review-choice]").count(), 0, "ideas are decided on the board, so the card has no Accept or Reject");
+      assert.equal(await batch.locator("[data-idea-batch-open]").getAttribute("href"), "/newsroom/work", "the card links to the Stories board");
+      const body = await page.locator("body").innerText();
+      assert.ok(body.includes("What needs me?") && body.includes("1 idea batch"), "the header counts the batch");
+      for (const word of WORDS_GONE) assert.ok(!body.includes(word), `retired wording gone: ${word}`);
+      assert.ok((await noHorizontalScroll(page)) <= 0, `no horizontal scroll at ${width}px`);
+      assert.equal(await page.evaluate(() => [...document.querySelectorAll('[data-needs-me-card="idea_batch"], [data-needs-me-card="idea_batch"] *')].filter((node) => parseFloat(getComputedStyle(node).borderTopWidth) > 0 && getComputedStyle(node).borderTopStyle !== "none").length), 0, "no borders");
+      for (const svg of await page.locator("#root svg").all()) assert.ok(await svg.evaluate((node) => [...node.classList].some((name) => name.startsWith("lucide"))), "every icon is a Lucide icon");
+      assert.equal(await page.locator("#root select").count(), 0, "no dropdowns");
+
+      // The detail pane lists the ideas of the batch with the stage each is in, and links to each story and to the column.
+      const pane = await openDetail(page, batch);
+      const read = await pane.innerText();
+      for (const expected of ["Sparse attention goes open", "A new quantisation paper challenges 4-bit defaults", "Eight new models this week", "2 of 3 still in the Idea column", "Declined: spiked", "from Idea pipeline"]) assert.ok(read.includes(expected), `detail shows: ${expected}`);
+      assert.equal(await pane.locator("[data-idea-batch-idea]").count(), 3);
+      assert.equal(await pane.locator('[data-idea-batch-idea="idea-1"] a').getAttribute("href"), "/newsroom/articles/idea-1", "each idea opens its story");
+      assert.equal(await pane.locator("[data-idea-batch-open]").getAttribute("href"), "/newsroom/work");
+      assert.equal(await pane.locator("[data-needs-me-decision]").count(), 0, "no decision panel: the board decides");
+      assert.equal(await pane.getByLabel("Why? (optional)").count(), 0, "and no Why box");
+    });
+  },
+
+  /** Accepting is moving an idea forward and declining is spiking it, both on the board; the batch's count follows, and a finished batch leaves the feed. */
+  async ideaBoard() {
+    await run("?only-batch=1&one-left=1", [1440], async (page) => {
+      const batch = card(page, "rr-soft-2");
+      await batch.waitFor();
+      assert.ok((await batch.innerText()).includes("1 of 3 still in the Idea column"), "one idea moved forward and one was spiked earlier, so one still waits");
+      assert.deepEqual((await calls(page)).filter((call) => ["answer", "transition"].includes(call.type)), [], "looking decides nothing");
+    });
+    await run("?only-batch=1&all-moved=1", [375, 1440], async (page) => {
+      await page.locator("[data-notification-caught-up]").waitFor();
+      assert.equal(await page.locator('[data-needs-me-card="idea_batch"]').count(), 0, "a batch whose ideas all left the Idea column has no card");
+    });
+    await run("?only-batch=1&legacy=1", [1440], async (page) => {
+      await page.locator("[data-notification-caught-up]").waitFor();
+      assert.equal(await page.locator('[data-needs-me-card="idea_batch"]').count(), 0, "a batch raised when ideas were Proposals names no story, so it has no card; migrate-proposals turns those into ideas");
+    });
+  },
+
+  /** References are the feed's own cards with the Cyclotron row, rated in place or in the detail pane, and the pills narrow the page. */
+  async references() {
+    await run("?overview=1", [375, 1440], async (page, width) => {
+      const refCard = page.locator('[data-feed-card="reference-a"]');
+      await refCard.waitFor();
+      assert.equal(await refCard.locator('[data-review-choice="accept"][data-predicted]').count(), 1, "the suggestion highlights Accept");
+      assert.ok((await refCard.innerText()).includes("82%"), "with its confidence");
+      assert.match(await page.locator("[data-notification-summary]").innerText(), /\b2 references\b.*waiting for you/, "the header counts References");
+      assert.equal(await page.locator('[data-feed-card="reference-b"] [data-prediction-state="none"]').count(), 1, "no invented suggestion");
+      const pane = await openDetail(page, refCard);
+      assert.ok((await pane.innerText()).includes("ReadyArt: text-generation model"), "a card opens the same detail the References page has");
+      assert.equal(await pane.locator("[data-capture-panel]").count(), 1, "with our captured record");
+      await page.keyboard.press("Escape");
+      if (width > 700) {
+        await refCard.locator('[data-review-choice="accept"]').click();
+        await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "rate"));
+        assert.deepEqual((await calls(page)).filter((call) => call.type === "rate").map((call) => [call.id, (call as { action?: string }).action]), [["reference-a", "accept"]]);
+      }
+      await page.locator('[data-notification-filter="ideas"]').click();
+      assert.equal(await page.locator('[data-needs-me-card="reference"]').count(), 0, "the Ideas filter hides References");
+      assert.ok((await page.locator("[data-filter-empty]").innerText()).includes("Nothing in Ideas"), "an empty filter says so");
+      await page.locator('[data-notification-filter="references"]').click();
+      assert.equal(await page.locator('[data-needs-me-card="reference"]').count(), 2);
+      assert.equal(await page.locator('[data-notification-filter="references"]').getAttribute("aria-pressed"), "true");
+      assert.ok((await noHorizontalScroll(page)) <= 0, `no horizontal scroll at ${width}px`);
+    });
+  },
+
+  /**
+   * Accepted References we could not collect: three listed, best first (stars, then newest), with the words and the reason, a See all, a pill, the
+   * order explained, a direct way to paste or upload, and a captured one leaving the list at once. A failed read leaves the rest of the page alone.
+   */
+  async captureNeeded() {
+    await run("?capture=1", [375, 1440], async (page, width) => {
+      const needs = page.locator('[data-needs-me-card="capture_needed"]');
+      await needs.first().waitFor();
+      assert.equal(await needs.count(), 3, "a few by default");
+      const titles = () => needs.evaluateAll((nodes) => nodes.map((node) => node.querySelector("[data-feed-title]")?.textContent));
+      assert.deepEqual(await titles(), ["Five stars, newest", "Five stars, older", "Four stars"], "most stars first, then newest; running, rejected and captured ones are left out");
+      const first = needs.first();
+      assert.ok((await first.innerText()).includes("We could not collect this. Upload a PDF or paste the text. The site refused our request."), "plain words, and why when it is known");
+      assert.ok((await needs.nth(1).innerText()).includes("We could not collect this. Upload a PDF or paste the text."));
+      assert.match(await page.locator("[data-notification-summary]").innerText(), /\b3 references to capture\b.*waiting for you/);
+      const see = page.locator("[data-capture-needed-see-all]");
+      assert.match((await see.getAttribute("href")) ?? "", /\/newsroom\/references\?reviewed=accepted&captured=no&sort=newest&minStars=0/, "See all opens Reviewed Accepted, Captured No, Sort Newest");
+      assert.equal(await page.locator("[data-capture-needed-strip] svg").count() >= 1, true, "a Lucide icon");
+      const borders = await page.locator("[data-capture-needed-strip], [data-capture-needed-strip] *, [data-capture-needed-open]").evaluateAll((elements) => elements.filter((element) => parseFloat(getComputedStyle(element).borderTopWidth) > 0 && getComputedStyle(element).borderTopStyle !== "none").length);
+      assert.equal(borders, 0, "no borders");
+      await page.locator('[data-notification-filter="tocapture"]').click();
+      assert.equal(await page.locator("[data-notification-filter=tocapture] [data-notification-filter-count]").innerText(), "3");
+      assert.equal(await page.locator('[data-needs-me-card]:not([data-needs-me-card="capture_needed"])').count(), 0, "the pill narrows to this type");
+      await page.locator("[data-needs-me-recipe-toggle]").click();
+      assert.ok((await page.locator("[data-needs-me-recipe]").innerText()).includes("Accepted but not collected"), "How this is ordered says it");
+      await page.locator("[data-needs-me-recipe-toggle]").click();
+      assert.ok((await noHorizontalScroll(page)) <= 0, "no horizontal scroll at " + width + "px");
+
+      // Opening one opens the capture controls; saving pasted text sets the capture and the Reference leaves the list without a reload.
+      await first.locator("[data-capture-needed-open]").click();
+      const pane = await detail(page).first().waitFor().then(() => detail(page).first());
+      assert.ok((await pane.innerText()).includes("We could not collect this."), "the detail says what is wanted");
+      assert.equal(await pane.locator('[data-capture-panel="none"]').count(), 1, "our captured record says nothing was captured");
+      await pane.locator("[data-capture-correct]").click();
+      assert.equal(await pane.locator("[data-capture-none-hint]").count(), 1, "with nothing captured the form says Incomplete is the usual verdict");
+      await pane.locator('[data-capture-assessment="incomplete"]').click();
+      await pane.locator("[data-capture-correction-text]").fill("The whole article, pasted by a person.");
+      await pane.locator("[data-capture-correction-save]").click();
+      await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "capture"));
+      assert.deepEqual((await calls(page)).filter((call) => call.type === "capture").map((call) => [(call as { referenceId?: string }).referenceId, (call as { text?: string }).text, (call as { assessment?: string }).assessment]), [["s5-new-v1", "The whole article, pasted by a person.", "incomplete"]]);
+      await page.waitForFunction(() => !document.querySelector('[data-feed-card="capture#s5-new"]'));
+      assert.deepEqual(await titles(), ["Five stars, older", "Four stars"], "it left the list");
+      // The next one is read in, and joins behind the page's usual "new item" button, so nothing moves under the editor's hand.
+      await page.locator("[data-feed-new-items]").click();
+      assert.deepEqual(await titles(), ["Five stars, older", "Four stars", "Two stars"], "and the next one took its place");
+    });
+
+    // A site whose read fails (no star index, say) lists none, and the rest of the page is untouched.
+    await run("?capture=fail", [375, 1440], async (page) => {
+      await page.locator('[data-feed-card="reference-a"]').waitFor();
+      assert.equal(await page.locator('[data-needs-me-card="capture_needed"]').count(), 0);
+      assert.equal(await page.locator("[data-capture-needed-strip]").count(), 0);
+    });
+  },
+
+  /** Hard gates lead, types are mixed, a pill narrows to one type, confident items wait under Decided automatically. */
+  async mixed() {
+    await run("?mixed=1", [375, 1440], async (page, width) => {
+      await page.locator('[data-needs-me-card="held_email"]').waitFor();
+      await page.locator('[data-feed-card="reference-a"]').waitFor();
+      const kinds = await page.locator("[data-needs-me-card]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-needs-me-card")));
+      assert.equal(kinds[0], "stage_review", "the hard gate is first");
+      assert.ok((await page.locator("[data-needs-me-card]").first().innerText()).includes("Hard gate"), "and says so in words");
+      for (let index = 2; index < kinds.length; index += 1) {
+        if (kinds[index] === kinds[index - 1] && kinds[index] === kinds[index - 2]) assert.ok(!kinds.slice(index).some((kind) => kind !== kinds[index]), `no third ${kinds[index]} in a row while another type waits (${kinds.join(", ")})`);
+      }
+      assert.deepEqual(new Set(kinds), new Set(["stage_review", "idea_batch", "reference", "held_email"]), "four types in one feed");
+      const count = async (filter: string) => Number(await page.locator(`[data-notification-filter="${filter}"] [data-notification-filter-count]`).innerText());
+      assert.deepEqual([await count("ideas"), await count("references"), await count("email"), await count("stories"), await count("captures")], [1, 2, 1, 1, 0], "the pills count what waits");
+      const strip = (await page.locator("[data-shaping-strip]").innerText()).replace(/\s+/g, " ");
+      assert.ok(strip.includes("You\u2019re shaping this") && strip.includes("10 decisions") && strip.includes("10 agreed with the Cyclotron") && strip.includes("0 overruled it"), `the shaping strip: ${strip}`);
+
+      // Confident items do not ask for you; they wait under Decided automatically, where they can be overruled.
+      assert.equal(await page.locator('[data-feed-card="reference-sure"]').count(), 0, "a confident item is not in the feed");
+      const auto = page.locator('[data-notification-section="auto-decided"]');
+      assert.match(await auto.locator("summary").innerText(), /Decided automatically \(\d+\)/);
+      assert.equal(await auto.locator("[data-auto-decided]").count(), 1, "the one confident item, with Overrule");
+      await auto.locator("summary").click();
+      assert.ok((await auto.innerText()).includes("A source the Cyclotron is sure about"));
+
+      // One type at a time.
+      await page.locator('[data-notification-filter="email"]').click();
+      assert.deepEqual(await page.locator("[data-needs-me-card]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-needs-me-card"))), ["held_email"]);
+      await page.locator('[data-notification-filter="all"]').click();
+      assert.ok((await page.locator("[data-needs-me-card]").count()) >= 5);
+
+      // The same detail pane opens for every type, with a body that fits it. Until something is selected there is no pane at all.
+      const shell = page.locator("[data-needs-me-detail-shell]");
+      assert.equal(await shell.isVisible(), false, `no empty Detail pane before a selection at ${width}px`);
+      for (const [selector, type, expected] of [
+        ['[data-needs-me-card="stage_review"]', "stage_review", ["Hard gate", "Accept this ruling summary"]],
+        ['[data-needs-me-card="idea_batch"]', "idea_batch", ["3 new story ideas to review", "Sparse attention goes open", "Open the Idea column"]],
+        ['[data-needs-me-card="held_email"]', "held_email", ["inert text", "DKIM FAIL", "retrieval-augmented"]],
+        ['[data-feed-card="reference-a"]', "reference", ["ReadyArt: text-generation model", "Our captured record"]],
+      ] as const) {
+        const pane = await openDetail(page, page.locator(selector).first());
+        assert.equal(await pane.getAttribute("data-needs-me-detail-type"), type);
+        const read = await pane.innerText();
+        for (const word of expected) assert.ok(read.includes(word), `${type} detail shows: ${word}`);
+        if (width > 700) assert.equal(await shell.count(), 1, "one shared pane");
+        if (type === "held_email") assert.equal(await pane.locator("[data-email-links] a").count(), 0, "a held email's links are text, never anchors");
+        await page.keyboard.press("Escape");
+      }
+
+      // Ignoring changes nothing: opening and reading decided nothing, and every card says what happens if you leave it.
+      assert.deepEqual((await calls(page)).filter((call) => ["transition", "answer", "rate", "email"].includes(call.type)), [], "nothing was decided by looking");
+      assert.ok((await page.locator('[data-needs-me-card="held_email"] [data-needs-me-default]').innerText()).includes("stays held privately"));
+      assert.ok((await page.locator('[data-needs-me-card="idea_batch"] [data-needs-me-default]').innerText()).includes("Move an idea forward to accept it"));
+      assert.ok((await noHorizontalScroll(page)) <= 0, `no horizontal scroll at ${width}px`);
+    });
+  },
+
+  /** The open item is in the address: selecting one shows /needs-me/<id>, a link to it opens it, closing returns to the overview. */
+  async deepLink() {
+    await run("?mixed=1", [1440, 375], async (page, width) => {
+      const card = page.locator('[data-feed-card="reference-a"]');
+      await card.waitFor();
+      assert.ok(!page.url().includes("/needs-me/"), "the overview address names no item");
+      await openDetail(page, card);
+      assert.ok(new URL(page.url()).pathname.endsWith("/needs-me/reference-a"), `selecting shows the item in the address at ${width}px: ${page.url()}`);
+      if (width < 768) {   // the phone sheet closes, and the address goes back to the overview
+        await page.keyboard.press("Escape");
+        await page.waitForFunction(() => !location.pathname.includes("/needs-me/"));
+      }
+    });
+    await run("/needs-me/reference-a?mixed=1", [1440, 375], async (page, width) => {
+      const pane = page.locator('[data-needs-me-detail-type="reference"]').last();
+      await pane.waitFor({ timeout: 15_000 });
+      assert.ok((await pane.innerText()).includes("ReadyArt"), `a link opens that item at ${width}px`);
+      assert.equal(await page.locator("[data-needs-me-link-gone]").count(), 0);
+    });
+    await run("/needs-me/no-such-item?mixed=1", [1440], async (page) => {
+      await page.locator("[data-needs-me-link-gone]").waitFor({ timeout: 15_000 });
+      assert.equal(await page.locator("[data-needs-me-detail-shell]").isVisible(), false, "no empty pane for a link to an item that is not waiting");
+    });
+  },
+
+  /** A held email is decided with the same Accept and Reject, and the reason travels with it. */
+  async email() {
+    await run("?mixed=1", [1440], async (page) => {
+      const mail = page.locator('[data-needs-me-card="held_email"]');
+      await mail.waitFor();
+      const pane = await openDetail(page, mail);
+      await pane.getByLabel("Why? (optional)").fill("Not from a source we know.");
+      await pane.locator('[data-review-choice="reject"]').click();
+      await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "email"));
+      assert.deepEqual((await calls(page)).filter((call) => call.type === "email"), [{ type: "email", receiptId: "receipt-held-1", decision: "reject", reason: "Not from a source we know." }]);
+      await mail.locator("[data-review-saved]").waitFor();
+      assert.equal(await mail.getAttribute("data-needs-me-state"), "rejected");
+    });
+  },
+
+  /** A reason that cannot be saved is said in words and never lost; the next try saves it. */
+  async reasonFailure() {
+    await run("?fail-reason=1", [375, 1440], async (page) => {
+      const gate = page.locator('[data-needs-me-card="stage_review"]');
+      await gate.locator('[data-review-choice="accept"]').click();
+      await gate.locator("[data-review-saved]").waitFor();
+      const pane = await openDetail(page, gate);
+      const why = pane.getByLabel("Why? (optional)");
+      await why.fill("A reason that fails once.");
+      await why.blur();
+      await pane.getByRole("alert").waitFor();
+      assert.match(await pane.getByRole("alert").innerText(), /could not be saved\. It is kept here/);
+      assert.equal(await why.inputValue(), "A reason that fails once.", "typed text is never lost");
+      await why.focus();
+      await why.blur();
+      await pane.locator("[data-reason-saved]").waitFor();
+      assert.equal((await calls(page)).filter((call) => call.type === "reason").length, 2, "tapping away tries again");
+      assert.equal(await why.inputValue(), "A reason that fails once.");
+    });
+  },
+
+  /** A stage review or hard gate and a flag take their note in either order, and it can be changed after the answer. */
+  async reasonRequest() {
+    await run("", [1440], async (page) => {
+      const card1 = page.locator('[data-needs-me-card="stage_review"]');
+      await card1.locator('[data-review-choice="accept"]').click();
+      await card1.locator("[data-review-saved]").waitFor();
+      const pane = await openDetail(page, card1);
+      await pane.getByLabel("Why? (optional)").fill("Safe to proceed.");
+      await pane.getByLabel("Why? (optional)").blur();
+      await pane.locator("[data-reason-saved]").waitFor();
+      const saved = (await calls(page)).filter((call) => call.type === "reason").at(-1)!;
+      const answer = JSON.parse(String(saved.update!.answer)) as { decision: string; feedback: string; by: string };
+      assert.deepEqual([answer.decision, answer.feedback, answer.by], ["approve", "Safe to proceed.", "Ed Itor"], "onto the existing answer");
+      await page.keyboard.press("Escape");
+      assert.ok((await card1.innerText()).includes("Why: Safe to proceed."));
+    });
+    await run("?flag=1", [1440], async (page) => {
+      const flagCard = page.locator('[data-needs-me-card="flag"]');
+      const pane = await openDetail(page, flagCard);
+      await pane.getByLabel("Why? (optional)").fill("Checked the filing.");
+      await pane.locator("[data-flag-acknowledge]").click();
+      await pane.locator("[data-flag-acknowledged]").waitFor();
+      assert.equal((await calls(page)).find((call) => call.type === "answer")!.answer!.feedback, "Checked the filing.", "reason, then acknowledge: the note goes with it");
+      await pane.getByLabel("Why? (optional)").fill("Checked the filing; the later date is right.");
+      await pane.getByLabel("Why? (optional)").blur();
+      await pane.locator("[data-reason-saved]").waitFor();
+      assert.equal(JSON.parse(String((await calls(page)).filter((call) => call.type === "reason").at(-1)!.update!.answer)).feedback, "Checked the filing; the later date is right.", "acknowledge, then note");
+    });
+  },
+
+  /** A held email and a Reference take their reason in either order, and a reason added later reaches the existing decision. */
+  async reasonOthers() {
+    await run("?mixed=1", [1440], async (page) => {
+      const mail = page.locator('[data-needs-me-card="held_email"]');
+      await mail.waitFor();
+      let pane = await openDetail(page, mail);
+      await pane.locator('[data-review-choice="reject"]').click();
+      await mail.locator("[data-review-saved]").waitFor();
+      await pane.getByLabel("Why? (optional)").fill("Not from a source we know.");
+      await pane.getByLabel("Why? (optional)").blur();
+      await pane.locator("[data-reason-saved]").waitFor();
+      assert.deepEqual((await calls(page)).filter((call) => call.type === "email"), [
+        { type: "email", receiptId: "receipt-held-1", decision: "reject", reason: "" },
+        { type: "email", receiptId: "receipt-held-1", decision: "reject", reason: "Not from a source we know." },
+      ], "the same decision again, with the reason");
+      await page.keyboard.press("Escape");
+      pane = await openDetail(page, mail);
+      assert.equal(await pane.getByLabel("Why? (optional)").inputValue(), "Not from a source we know.");
+
+      // A Reference: vote, then reason, saved onto the existing rating.
+      const reference = page.locator('[data-feed-card="reference-a"]');
+      pane = await openDetail(page, reference);
+      await pane.locator('[data-review-choice="accept"]').click();
+      await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "rate"));
+      // A Reference's reason lives in the decision control, not in the card's own labelled box.
+      await pane.locator("[data-review-reason] textarea").fill("Exactly on topic.");
+      await pane.locator("[data-review-reason] textarea").blur();
+      await page.waitForFunction(() => (window as unknown as { calls: { type: string; note?: string }[] }).calls.filter((call) => call.type === "rate").length === 2);
+      assert.deepEqual((await calls(page)).filter((call) => call.type === "rate").map((call) => [call.action, call.note ?? ""]), [["accept", ""], ["accept", "Exactly on topic."]]);
+    });
+  },
+
+  /** Previous / Next sits in the bottom-right corner of the viewport and stays there: whatever the page or the feed has scrolled, and whatever sits below the feed. */
+  async queueBar() {
+    const corner = async (page: Page) => page.evaluate(() => {
+      const rect = ([...document.querySelectorAll("[data-review-queue-bar]")].find((entry) => entry.getBoundingClientRect().width > 0) as HTMLElement).getBoundingClientRect();
+      return { right: rect.right, bottom: rect.bottom, innerWidth: window.innerWidth, innerHeight: window.innerHeight, height: rect.height };
+    });
+    for (const [width, height] of [[1440, 900], [1440, 1300], [1024, 768]] as const) {
+      const { browser, page, errors } = await setup("?tall=1", width, height);
+      try {
+        await card(page, "rr-hard-1").waitFor();
+        await openDetail(page, card(page, "rr-hard-1"));
+        const check = async (when: string) => {
+          const now = await corner(page);
+          assert.ok(Math.abs(now.right - now.innerWidth) <= 2, `${width}x${height} ${when}: bar right ${now.right} equals viewport right ${now.innerWidth}`);
+          assert.ok(Math.abs(now.bottom - now.innerHeight) <= 2, `${width}x${height} ${when}: bar bottom ${now.bottom} equals viewport bottom ${now.innerHeight}`);
+        };
+        await check("at rest");
+        await page.evaluate(() => { window.scrollTo(0, 99999); for (const node of document.querySelectorAll("[data-needs-me-scroll]")) node.scrollTop = 99999; });
+        await page.waitForTimeout(200);
+        await check("after scrolling the page and the feed");
+        assert.equal(await page.locator("[data-review-queue-bar]").locator("visible=true").count(), 1, "one bar");
+        assert.equal(await page.locator('[data-review-queue-bar] [aria-label="Next"]').isVisible(), true, "Next is reachable");
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+    // Phone: the bar is the fixed bottom of the sheet, flush with the bottom of the viewport.
+    const { browser, page, errors } = await setup("?tall=1", 390, 844);
+    try {
+      await card(page, "rr-hard-1").waitFor();
+      await openDetail(page, card(page, "rr-hard-1"));
+      const bar = () => page.evaluate(() => {
+        const node = [...document.querySelectorAll("[data-review-queue-bar]")].find((entry) => entry.getBoundingClientRect().width > 0) as HTMLElement;
+        const rect = node.getBoundingClientRect();
+        let fixed = false;
+        for (let element: HTMLElement | null = node; element; element = element.parentElement) if (getComputedStyle(element).position === "fixed") fixed = true;
+        return { bottom: rect.bottom, right: rect.right, fixed, innerHeight: window.innerHeight, innerWidth: window.innerWidth };
+      });
+      await page.waitForTimeout(800); // the sheet slides up
+      for (const when of ["at rest", "after scrolling"]) {
+        const now = await bar();
+        assert.ok(now.fixed, `${when}: the phone bar is fixed`);
+        assert.ok(Math.abs(now.bottom - now.innerHeight) <= 2, `${when}: phone bar bottom ${now.bottom} equals ${now.innerHeight}`);
+        assert.ok(Math.abs(now.right - now.innerWidth) <= 2, `${when}: spans to the right edge`);
+        await page.evaluate(() => window.scrollTo(0, 99999));
+      }
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+};
+
+type Call = { type: string; action?: string; update?: Record<string, unknown>; note?: string; by?: string; id?: string; path?: string[]; requestId?: string; answer?: Record<string, unknown>; draftId?: string; decision?: Record<string, unknown>; receiptId?: string; reason?: string };
+const calls = (page: Page) => page.evaluate(() => (window as unknown as { calls: Call[] }).calls);
+
+export async function runNotificationCenterScenario(name: string) {
+  assert.ok(scenarios[name], `Unknown Notification Center scenario: ${name}`);
+  await scenarios[name]();
+  console.log(`Notification Center scenario passed: ${name}`);
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === fileURLToPath(new URL(process.argv[1], "file://"))) {
+  const requested = process.argv[2];
+  void (async () => {
+    for (const name of requested ? [requested] : Object.keys(scenarios)) await runNotificationCenterScenario(name);
+  })().catch((error) => { console.error(error); process.exitCode = 1; });
+}

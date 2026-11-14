@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1a1c2b3c-ba0a-4d2a-aa32-85a92eab18d6",
+  "issue_id": "PPY-11a4d39e-5110-42be-8780-f85529535bd1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:49.627Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Certification test account and submission",
+    "description": "Ryan creates a dedicated Google test account. Grant it the pilot site's group. Write the testing instructions, submit, track reviewer feedback as bugs under this epic, and publish when certified.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1b7f66d4-dbb9-4728-ba02-51868f05edd9",
+    "labels": []
+  }
+}

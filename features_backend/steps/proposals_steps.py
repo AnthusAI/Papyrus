@@ -13,7 +13,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from reader_fixtures import ReaderBackend, run_snapshot  # noqa: E402
+from reader_fixtures import OPERATOR_ACCOUNT, OPERATOR_ARN, ReaderBackend, operator_identity, run_snapshot  # noqa: E402
 from papyrus_content.projection.plugins import is_plugin_runtime_key  # noqa: E402
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 from papyrus_content.reader_steering.proposals import proposal_subject_key  # noqa: E402
@@ -130,6 +130,29 @@ def editor_files_titled(context, kind: str, title: str) -> None:
     file_proposal(context, arguments_for(kind, title))
 
 
+FIGURE = {
+    "type": "line", "title": "Items per week", "caption": "Two weeks of counts.", "unit": "items per week", "source": "knowledge snapshot 2026-10-19",
+    "x": ["2026-10-12", "2026-10-19"], "series": [{"signal": "entity:platform--hugging-face", "label": "Hugging Face", "values": [3, 2]}],
+}
+
+
+@when('the editor files a "story_draft" proposal with a chart spec in its evidence')
+def editor_files_figure(context) -> None:
+    file_proposal(context, arguments_for("story_draft", evidence=json.dumps({"signals": 1, "source": "knowledge snapshot", "figure": FIGURE})))
+
+
+@when('the editor files a "story_draft" proposal whose chart has a value for only one of its two weeks')
+def editor_files_broken_figure(context) -> None:
+    broken = {**FIGURE, "series": [{**FIGURE["series"][0], "values": [3]}]}
+    file_proposal(context, arguments_for("story_draft", evidence=json.dumps({"signals": 1, "source": "knowledge snapshot", "figure": broken})))
+
+
+@then("the stored evidence holds the chart spec as filed")
+def stored_figure(context) -> None:
+    (row,) = backend_of(context).proposals()
+    assert json.loads(row["evidence"])["figure"] == FIGURE, row
+
+
 @when("the editor files proposals of every kind")
 def editor_files_every_kind(context) -> None:
     for kind in TARGETS:
@@ -174,15 +197,15 @@ def override_declining(context, reason: str) -> None:
 
 @when('a second editor moves it to "{state}" from the old view')
 def second_editor_stale(context, state: str) -> None:
-    from reader_fixtures import reader_handler
+    from reader_fixtures import proposal_handler
 
     backend = backend_of(context)
-    row = backend.store.get_proposal(context.proposal_id)
+    row = backend.proposal_store.get_proposal(context.proposal_id)
     # The second editor loaded the proposal while it was still a draft, so their move expects that state.
     row = {**row, "state": "draft"}
-    plan = reader_handler.proposal_rules.transition_plan(row, state, "Not now.", actor_sub="staff-sub-2", now_iso="2026-10-22T00:00:00Z")
-    assert not isinstance(plan, reader_handler.proposal_rules.Outcome), plan
-    accepted = backend.store.change_proposal(context.proposal_id, plan, "draft", "2026-10-22T00:00:00Z")
+    plan = proposal_handler.proposal_rules.transition_plan(row, state, "Not now.", actor_sub="staff-sub-2", now_iso="2026-10-22T00:00:00Z")
+    assert not isinstance(plan, proposal_handler.proposal_rules.Outcome), plan
+    accepted = backend.proposal_store.change_proposal(context.proposal_id, plan, "draft", "2026-10-22T00:00:00Z")
     context.proposal_answer = {"status": "ok" if accepted else "refused", "error": None if accepted else "target_changed"}
 
 
@@ -240,6 +263,16 @@ def reader_told(context, error: str) -> None:
 @then("no proposal is stored")
 def none_stored(context) -> None:
     assert backend_of(context).proposals() == []
+
+
+@then("the editor is told it is filed")
+def editor_told_filed(context) -> None:
+    assert context.proposal_answer["status"] == "ok", context.proposal_answer
+
+
+@then("{count:d} proposal is stored as a draft")
+def one_stored_as_draft(context, count: int) -> None:
+    stored_as_drafts(context, count)
 
 
 @then("{count:d} proposals are stored as drafts")
@@ -328,3 +361,155 @@ def runtime_file(context, key: str) -> None:
 @then('the second editor is told "{error}"')
 def second_editor_told(context, error: str) -> None:
     editor_told(context, error)
+
+
+# Operators: IAM callers of the function's own account (features_backend/proposals_operator.feature)
+
+def operator_file(context, arguments: dict, **call) -> dict:
+    answer = backend_of(context).operator_proposal_call("fileProposal", arguments, **call)
+    context.proposal_answer = answer
+    if answer["status"] == "ok":
+        context.proposal_id = answer["id"]
+    return answer
+
+
+def operator_move(context, state: str, **extra) -> dict:
+    answer = backend_of(context).operator_proposal_call("transitionProposal", {"proposalId": context.proposal_id, "state": state, **extra})
+    context.proposal_answer = answer
+    return answer
+
+
+def stored(context) -> dict:
+    return backend_of(context).table("proposal").get_item(Key={"id": context.proposal_id})["Item"]
+
+
+@given("an operator role in the site's own account")
+def operator_role(context) -> None:
+    context.operator_arn = OPERATOR_ARN
+
+
+@given('the operator filed a "{kind}" proposal')
+def operator_filed(context, kind: str) -> None:
+    assert operator_file(context, arguments_for(kind))["status"] == "ok"
+
+
+@given('the operator moves it to "{state}"')
+@when('the operator moves it to "{state}"')
+def operator_moves(context, state: str) -> None:
+    operator_move(context, state)
+
+
+@when('the operator sends it to "{state}" because "{reason}"')
+def operator_moves_saying(context, state: str, reason: str) -> None:
+    operator_move(context, state, reason=reason)
+
+
+@when('the operator files a "{kind}" proposal titled "{title}"')
+def operator_files_titled(context, kind: str, title: str) -> None:
+    operator_file(context, arguments_for(kind, title))
+
+
+@when('the operator files a "{kind}" proposal naming a reader as the proposer')
+def operator_files_as_reader(context, kind: str) -> None:
+    operator_file(context, arguments_for(kind, proposer="reader-subject-1"))
+
+
+@when('an identity-pool user tries to file a "{kind}" proposal')
+def pooled_files(context, kind: str) -> None:
+    identity = operator_identity(cognitoIdentityId="eu-west-1:1111", cognitoIdentityPoolId="eu-west-1_pool", cognitoIdentityAuthType="authenticated")
+    operator_file(context, arguments_for(kind), identity=identity)
+
+
+@when('a principal of another account tries to file a "{kind}" proposal')
+def foreign_files(context, kind: str) -> None:
+    identity = operator_identity(accountId="999999999999", userArn="arn:aws:sts::999999999999:assumed-role/ideas-pipeline/run-1")
+    operator_file(context, arguments_for(kind), identity=identity)
+
+
+@then('the operator is told "{error}"')
+def operator_told(context, error: str) -> None:
+    answer = context.proposal_answer
+    assert (answer["status"] if error == "ok" else answer["error"]) == error, answer
+
+
+@then('the stored proposal is a draft proposed by "{proposer}"')
+def stored_draft(context, proposer: str) -> None:
+    row = stored(context)
+    assert (row["state"], row["proposer"]) == ("draft", proposer), row
+
+
+@then("the stored history records the filing by the operator's principal")
+def history_filing(context) -> None:
+    first = json.loads(stored(context)["history"])[0]
+    assert first["actor"] == f"operator:{context.operator_arn}" and first["by"] == "ai", first
+
+
+@then("the stored history records the move by the operator's principal")
+def history_move(context) -> None:
+    last = json.loads(stored(context)["history"])[-1]
+    assert last["actor"] == f"operator:{context.operator_arn}" and last["by"] == "operator", last
+
+
+@then("no public proposal file names the operator")
+def no_operator_named(context) -> None:
+    text = "".join(entry.key + (context.proposal_site.get(entry.key) or b"").decode() for entry in context.proposal_site.list() if "proposals" in entry.key)
+    assert text, "no proposal files were written"
+    for private in ("operator", OPERATOR_ACCOUNT, "ideas-pipeline"):
+        assert private not in text, private
+
+
+# The operator read: listStoryDrafts
+
+def list_story_drafts(context, **call) -> dict:
+    answer = backend_of(context).operator_proposal_call("listStoryDrafts", {}, **call)
+    context.proposal_answer = answer
+    context.story_draft_list = answer
+    return answer
+
+
+@given('the operator filed a "{kind}" proposal titled "{title}" with a one-line summary')
+def operator_filed_with_summary(context, kind: str, title: str) -> None:
+    assert operator_file(context, arguments_for(kind, title, summary="A one-line summary."))["status"] == "ok"
+
+
+@when("the operator lists the story drafts")
+def operator_lists(context) -> None:
+    list_story_drafts(context)
+
+
+@when("an identity-pool user tries to list the story drafts")
+def pooled_lists(context) -> None:
+    list_story_drafts(context, identity=operator_identity(cognitoIdentityId="eu-west-1:1111", cognitoIdentityPoolId="eu-west-1_pool", cognitoIdentityAuthType="authenticated"))
+
+
+@when("a principal of another account tries to list the story drafts")
+def foreign_lists(context) -> None:
+    list_story_drafts(context, identity=operator_identity(accountId="999999999999", userArn="arn:aws:sts::999999999999:assumed-role/ideas-pipeline/run-1"))
+
+
+@then('the list holds only the story draft "{title}"')
+def list_holds_only(context, title: str) -> None:
+    assert [draft["title"] for draft in context.story_draft_list["drafts"]] == [title], context.story_draft_list
+
+
+@then("each listed draft has exactly its id, title, summary, targets, state and createdAt")
+def list_fields(context) -> None:
+    for draft in context.story_draft_list["drafts"]:
+        assert set(draft) == {"id", "title", "summary", "targets", "state", "createdAt"}, draft
+
+
+@then("the list holds no body, evidence, history, proposer or vote")
+def list_private(context) -> None:
+    text = json.dumps(context.story_draft_list)
+    for private in ("Why this matters.", "history", "proposer", "evidence", "votes", "operator:"):
+        assert private not in text, private
+
+
+@then('the listed draft is in state "{state}"')
+def list_state(context, state: str) -> None:
+    assert [draft["state"] for draft in context.story_draft_list["drafts"]] == [state], context.story_draft_list
+
+
+@then("the list is empty")
+def list_empty(context) -> None:
+    assert context.story_draft_list["drafts"] == [], context.story_draft_list

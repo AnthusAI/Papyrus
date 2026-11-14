@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9cdcf53b-34d3-4592-ade9-d5092aea7362",
+  "issue_id": "PPY-413f94e6-4caf-4f48-bc7f-0790ca69a90e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T12:09:46.079Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Remove Proposed Stories; use the idea stage for generated story ideas",
+    "description": "Ryan 2026-11-01: the Proposed Stories feature duplicates the idea stage. Remove the story_draft Proposal surface from the console (page, board link, cards), make items the only store for generated ideas (ideas monitor-stories/trends/synthesize, router monitorStories.store), idea-pipeline review requests link to the Idea column, replace Proposed Story wording in console/docs/skills, keep Proposal model + reader steering + migrate-proposals. Router IAM template change written, no change set run.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+    "labels": []
+  }
+}

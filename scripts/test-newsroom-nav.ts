@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { getNewsroomNavHref, NEWSROOM_OPS_NAV } from "../lib/newsroom-nav";
-import { ORGANIZER_NAV_GROUPS, ORGANIZER_SETTINGS_DESTINATION } from "../lib/newsroom-organizer-nav";
+import { ORGANIZER_NAV_GROUPS, ORGANIZER_SETTINGS_DESTINATION, SCHEDULE_DESTINATION } from "../lib/newsroom-organizer-nav";
 import { getContentItemName } from "../lib/site-brand";
 
 const NEWSROOM_APP_DIRECTORY = path.join(__dirname, "..", "app", "newsroom");
@@ -10,7 +10,6 @@ const OVERVIEW_SOURCE = readFileSync(path.join(__dirname, "..", "components", "n
 const SHELL_SOURCE = readFileSync(path.join(__dirname, "..", "components", "newsroom-ops-shell.tsx"), "utf8");
 
 const EXPECTED_SECTION_IDS = [
-  "overview",
   "articles",
   "assignments",
   "references",
@@ -46,13 +45,19 @@ function run() {
 
   for (const routeDirectory of staticRouteDirectories()) {
     assert.ok(
-      navigationIds().includes(routeDirectory) || ORGANIZER_SETTINGS_DESTINATION.path === `/newsroom/${routeDirectory}` || ORGANIZER_NAV_GROUPS.some(group => group.items.some(item => item.path === `/newsroom/${routeDirectory}`)),
+      navigationIds().includes(routeDirectory) || ORGANIZER_SETTINGS_DESTINATION.path === `/newsroom/${routeDirectory}` || SCHEDULE_DESTINATION.path === `/newsroom/${routeDirectory}` || ORGANIZER_NAV_GROUPS.some(group => group.items.some(item => item.path === `/newsroom/${routeDirectory}`)),
       `app/newsroom/${routeDirectory} has no newsroom navigation entry`,
     );
   }
 
-  assert.match(OVERVIEW_SOURCE, /NEWSROOM_OPS_NAV\.filter/, "landing page destinations must derive from the shared navigation");
+  assert.match(OVERVIEW_SOURCE, /<NotificationCenter/, "the overview leads with the Notification Center");
+  assert.doesNotMatch(OVERVIEW_SOURCE, /Go to|data-newsroom-ops-destination/, "the overview must not repeat navigation cards");
   assert.match(SHELL_SOURCE, /ORGANIZER_NAV_GROUPS\.(flatMap|map)/, "shell sidebar must render the organizer navigation");
+
+  assert.ok(!NEWSROOM_OPS_NAV.some((item) => item.label === "Needs me"), "the home page is not a navigation entry");
+  assert.ok(!ORGANIZER_NAV_GROUPS.flatMap((group) => group.items).some((item) => item.label === "Needs me" || item.path === "/newsroom"), "the organizer navigation has no Needs me entry and no entry for the home page");
+  assert.match(SHELL_SOURCE, /className="organizer-brand" href=\{getNewsroomNavHref\("\/newsroom", demo\)\}/, "the sidebar wordmark returns to the newsroom home");
+  assert.match(SHELL_SOURCE, /className="organizer-masthead" href=\{showNavigation \? getNewsroomNavHref\("\/newsroom", demo\)/, "the top bar wordmark, the only one on a phone, returns to the newsroom home");
 
   console.log("newsroom navigation ok");
 }

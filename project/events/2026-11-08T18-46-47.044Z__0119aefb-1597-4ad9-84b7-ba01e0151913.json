@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "0119aefb-1597-4ad9-84b7-ba01e0151913",
+  "issue_id": "PPY-3fd9519a-4f79-4772-be6a-57208051148d",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:47.044Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: One reviewed list, in code and docs, of every metering event, using Prospectus's namespaced item kinds (docs/QUOTA.md, docs/COST_ACCOUNTING.md). Model calls, reported per call batch with the Account and the deployment (site): openai.tokens.input / .cached / .output per model, jev.tokens, image generation per image and model, web search calls. Work Papyrus runs: aws.lambda.gb_seconds for content-actions and the other functions (measured per invocation, attributed to the tenant in the TenantContext), aws.batch.vcpu_seconds for cloud knowledge and Cyclotron runs (reserve, then settle), aws.appsync.requests (request meter, per tenant), aws.dynamodb.write_units and read_units (estimated from the request meter), aws.s3.put_requests per projection, aws.cloudfront.invalidation_paths per purge, aws.ses.emails per newsletter recipient. Daily: aws.s3.storage_gb_days per tenant prefix (S3 Inventory), aws.cloudfront.requests and bytes per host (logs or per-tenant metrics). Each event carries an operation id so a retry never double counts. Shared resources are tagged anthus:account=shared and split by these reported usages (Prospectus cost accounting).\n\nTouches (verified at origin/develop 23fabe1d): new src/papyrus_content/metering.py (catalogue + batching client for the quota routes), lib/metering.ts twin, src/papyrus_content/request_meter.py (tenant dimension), src/papyrus_content/model_cost.py (prices stay a local estimate; Prospectus prices for billing), docs/metering.md.\n\nAcceptance (Gherkin feature file: features_backend/metering-events.feature):\nScenario: A model call is reported once to the tenant's Account\n    Given an \"alpha\" editor runs an editorial check that makes two model calls\n    When the batch is sent and then retried\n    Then Prospectus records the token items once, for alpha's Account and deployment \"alpha\"\n\nScenario: An unknown item kind is noticed, not free\n    Given Papyrus sends an item kind Prospectus does not know\n    When the usage call returns 422 unknown_item_kind\n    Then Papyrus logs an operator alert and the work is not marked free\n\nDependencies: blocked by PPY-6d9a6d, PPY-9f929e. Blocks PPY-889ab5, PPY-49d059. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-ea3f08.\n\nTesting: Unit tests of batching and retry; a fake quota server in Behave (no network in specs).\nRollout: Report-only first (dry run to a log), then live once Prospectus has the kinds in its rate table.\nRisk and mitigation: Risk: metering adds latency to requests. Mitigation: batched off the request path (Prospectus 'never slow an app down' rule); flushed at invocation end.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

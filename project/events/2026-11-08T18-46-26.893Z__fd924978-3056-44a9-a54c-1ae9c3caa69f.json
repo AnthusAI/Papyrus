@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "fd924978-3056-44a9-a54c-1ae9c3caa69f",
+  "issue_id": "PPY-667a23a1-e29f-4d96-a9e8-3964dc6d1bdb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:26.893Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M4 Shared serving and site as data",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

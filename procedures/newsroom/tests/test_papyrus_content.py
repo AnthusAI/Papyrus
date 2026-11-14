@@ -121,7 +121,7 @@ class PapyrusContentTests(unittest.TestCase):
         metadata = json.loads(reference["metadata"])
         self.assertEqual(metadata["ingestion_rationale"], "Prospect for the pilot corpus.")
 
-    def test_build_reference_catalog_registration_records_can_create_ingestion_rationale_message(self) -> None:
+    def test_build_reference_catalog_registration_records_never_create_a_message(self) -> None:
         config = load_steering_config(str(REPO_ROOT / "corpora" / "papyrus-steering.yml"))
         assert config is not None
         corpus = require_corpus_config(config, config["canonicalTopicSet"]["corpusKey"])
@@ -143,11 +143,12 @@ class PapyrusContentTests(unittest.TestCase):
                 "classifierId": config["canonicalTopicSet"]["classifierId"],
                 "status": "pending",
                 "actor": "test",
-                "createIngestionRationaleMessage": True,
             },
         )
         models = {entry["modelName"] for entry in plan["records"]}
-        self.assertIn("Message", models)
+        self.assertNotIn("Message", models)
+        reference = next(entry["expected"] for entry in plan["records"] if entry["modelName"] == "Reference")
+        self.assertEqual(reference["curationStatusReason"], "Prospect for the pilot corpus.")
 
     def test_prepare_catalog_adds_missing_rationale(self) -> None:
         prepared = build_prepared_reference_catalog(

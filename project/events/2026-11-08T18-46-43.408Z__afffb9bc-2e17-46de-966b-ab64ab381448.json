@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "afffb9bc-2e17-46de-966b-ab64ab381448",
+  "issue_id": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:43.408Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "The order in which the initiative PPY-25ffa3 ships, as releasable milestones. Each child task is one milestone with entry and exit criteria, what is customer-visible, and the index deploys it contains. The full table is in the comment on PPY-25ffa3 and in docs/plans/multi-tenant-architecture.md.\n\nEarliest milestone at which Threat Intelligence can run on the shared stack: M5 (needs M3 isolation enforced, M4 shared serving and site as data, and the brand-neutral acceptance test PPY-7e396d).\nFirst outside paying tenant: M8."
+      }
+    }
+  }
+}

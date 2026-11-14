@@ -10,24 +10,43 @@ dependencies = [
     "citeproc-py >=0.8.2,<1.0.0",
     # The `papyrus` CLI imports humanus at import time, and Papyrus is
     # integrating it more deeply, so it is a base dependency (Ryan, 2026-10-05).
-    "humanus >=0.33,<0.34",
+    "humanus >=0.36,<0.37",
     "biblicus >=1.15.0,<2",
+    # `papyrus stories save-version` (and every save that derives bodyIr) imports markusmd, so a plain
+    # `pipx install papyrus-newsroom` needs it (PPY-a4ae21).
+    "anthus-markus >=0.7.0,<1.0.0",
+    # Pictures: `stories save-version --images`, `stories repair-image-paths` and `ops content renditions` reach S3 through boto3
+    # (the signed-in lane trades the sign-in for temporary credentials with it) and read image sizes with Pillow, so a plain
+    # install needs both (PPY-a89c4d). About 27 MB for boto3 and botocore and 13 MB for Pillow, against 21 MB for numpy and
+    # 19 MB for lxml that base already pulls in.
+    "Pillow >=10,<12",
+    "boto3[crt] >=1.34.0,<2.0.0",
+    # TeX to MathML for equations in Stories, run while a page is built (pure Python, MIT; PPY-e1de14).
+    "latex2mathml >=3.78,<4",
+    # The Jev client (`papyrus knowledge extract-entities`) calls the TypeSafe API with it; the knowledge-run image had no copy, so the
+    # typed-extraction stage failed on `import requests` (2026-11-08).
+    "requests >=2.32.3,<3",
+    # SiteConfig (the shared tier's settings) is validated against its JSON schema (PPY-ee1e02).
+    "jsonschema >=4.23,<5",
+    # The shared CLI login library: `papyrus login` stores sessions in the platform's secure store
+    # (macOS Keychain, Linux Secret Service/kernel keyring/memory agent, Windows Credential Manager).
+    "cli-login ==0.4.1 ; sys_platform != 'linux'",
+    "cli-login[linux] ==0.4.1 ; sys_platform == 'linux'",
 ]
 
 [project.optional-dependencies]
 priming = ["fastapi >=0.115,<1", "uvicorn >=0.30,<1", "strawberry-graphql[fastapi] >=0.280,<1"]
-markus = [
-    "anthus-markus >=0.7.0,<1.0.0",
-    "Pillow >=10,<12",
-    "boto3 >=1.34.0,<2.0.0",
-]
+# Kept so `papyrus-newsroom[markus]` pins in site repos still install; everything it used to add is in base now (PPY-a89c4d).
+markus = []
 newsroom = [
     "biblicus[dspy,markitdown,neo4j,ner,openai,topic-modeling,web] >=1.15.0,<2",
-    "boto3 >=1.34.0,<2.0.0",
+    "boto3[crt] >=1.34.0,<2.0.0",
     "markitdown[all] >=0.1.0,<1.0.0",
     "tiktoken >=0.12.0,<0.13.0",
     "tactus >=0.53.4,<1",
 ]
+# The worker command `papyrus references capture-transcripts` (run on a non-cloud connection; YouTube refuses cloud addresses). No Lambda needs it.
+transcripts = ["youtube-transcript-api >=1.2.4,<2"]
 
 [project.urls]
 Homepage = "https://github.com/AnthusAI/Papyrus"
@@ -41,6 +60,7 @@ packages = [
     { include = "papyrus", from = "src" },
     { include = "papyrus_newsroom", from = "src" },
     { include = "papyrus_knowledge_query", from = "src" },
+    { include = "papyrus_cost_usage", from = "src" },
     { include = "papyrus_content", from = "src" },
     { include = "papyrus_web", from = "src" },
 ]
@@ -58,14 +78,17 @@ decision-flywheel = { git = "https://github.com/AnthusAI/Cyclotron.git", rev = "
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"
+pytest-xdist = "^3.8.0"
 behave = "^1.2.6"
 requests = "^2.32.3"
 kanbus = ">=0.18.3"
 moto = {version = ">=5,<6", extras = ["dynamodb"]}
+# The notifications plugin's Lambdas install this exact version (amplify/plugins/notifications/function/requirements.txt); tests run against the same one.
+caducus = {version = "==0.3.0", extras = ["notify"]}
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
-testpaths = ["procedures/newsroom/tests", "publications/threat_intelligence/tests", "src"]
+testpaths = ["procedures/newsroom/tests", "publications/threat_intelligence/tests", "src", "infra/knowledge-run", "amplify/plugins/home-page"]
 python_files = ["test_*.py", "*_test.py"]
 
 [build-system]

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "5a9ba09a-8df9-493f-9523-3e6ce9bd7c24",
+  "issue_id": "PPY-d9342fcc-777d-4cad-b748-72b876a85c7c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-26T11:41:16.133Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Knowledge run and Cited Trends: safe and fast daily or on demand",
+    "description": "Weekly is too slow while iterating. Three changes: (1) trend-drafts freshness accepts a daily or manual run (snapshot asOf = start date, within TREND_DRAFTS_MAX_AGE_DAYS, or the Monday the snapshot stage writes), plus configurable trend windows in days (default 28); (2) operator IAM read of story_draft Proposals (id, title, summary, targets, state, createdAt) so ideas trends dedupes under IAM, plus an anchor-entity cooldown (default 7 days); (3) incremental, idempotent monitor-record import (content-hash ledger in the run state bucket, parallel writes), target: minutes with no new records. Shipped's schedule is not changed here.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5",
+      "name": "knowledge-run-daily"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e1d484ef-2c1b-48e2-802c-6fbb730da55b",
+  "issue_id": "PPY-881582bf-3968-463f-be4e-4e0b2f746650",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T19:52:08.163Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Review intents: start a queue, accept, reject with reason, skip, repeat, stop",
+    "description": "Intents:\n- StartReviewIntent with a queue slot (best bets / needs my help) and many samples, for example 'what needs my help', 'review references', 'best bets'.\n- AcceptIntent ('accept', 'yes keep it', 'approve').\n- RejectIntent with an optional free-text reason slot (AMAZON.SearchQuery). A reject without a reason asks 'why?' once and maps the answer with `rejectionReasonCodeForWrittenReason`.\n- SkipIntent, plus the existing repeat, help and stop.\n\nBehaviour:\n- Each reference is one short spoken part (title, subtitle, summary), then 'accept, reject, or skip?'.\n- After a vote: a short confirmation, then the next reference.\n- An empty queue says so and offers the other queue.\n\nGherkin covers every turn.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+    "labels": []
+  }
+}

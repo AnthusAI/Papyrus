@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "98a27542-020a-450b-8333-486982b49151",
+  "issue_id": "PPY-f4d8923d-82da-40d0-8359-112c5c394e6b",
+  "event_type": "issue_deleted",
+  "occurred_at": "2026-11-08T21:32:07.485Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Auth spike part 2: index list pages, subscriptions, tenantId immutability, and which token and Cognito plan the claims need",
+    "issue_type": "sub-task",
+    "status": "open"
+  }
+}

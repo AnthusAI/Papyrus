@@ -31,12 +31,12 @@ OVERLAND = decision("/legal-proceeding/92082396/decision/CAN_53.pdf", 92082396,
 RECONSIDERATION = decision("/legal-proceeding/99176400/decision/EXA_15.pdf", 99176400, "Learn 2 Read Read 2 Learn LLC",
                            "Request for Reconsideration of Final Decision Denied", category="Request for Reconsideration", kind="EXA")
 TTAB_CONFIG = {"pk": "MONITOR#ttab", "sk": "CONFIG", "sourceType": "ttab-decisions", "sourceUrl": TTAB_DECISIONS_URL,
-               "intervalSeconds": DAY, "limit": 100, "lookbackDays": 30, "enabled": True}
+               "intervalSeconds": DAY, "lookbackDays": 30, "enabled": True}
 DISTINCTIVE = {"publicationId": "distinctive", "site": "distinctive-mark.com", "appsyncEndpoint": ENDPOINT}
 
 
 def direct_router_config(mode="live", **overrides):
-    return {"pk": "MONITOR#ttab", "sk": "CONFIG#router", "mode": mode, "decisions": "direct", "maxItemsPerRun": 25,
+    return {"pk": "MONITOR#ttab", "sk": "CONFIG#router", "mode": mode, "decisions": "direct",
             "publications": [DISTINCTIVE], **overrides}
 
 
@@ -137,11 +137,12 @@ def test_the_recheck_brings_in_older_precedential_decisions_and_orders_on_motion
     def fetch(url, body):
         payload = json.loads(body)
         requests.append(payload["parameterData"])
-        return search_response(older, motion, motion) if payload["parameterData"] else search_response(OVERLAND, RECONSIDERATION)
+        rows = [older, motion, motion] if payload["parameterData"] else [OVERLAND, RECONSIDERATION]
+        return search_response(*rows[payload["recordStartNumber"]:])      # a search that honours the offset
 
     result = run_collection(DynamoStore(table), "ttab", fetch=fetch, now=NOW)
 
-    assert requests == [{}, {"precedentCitableIndicator": "Y"}]
+    assert list(dict.fromkeys(json.dumps(r) for r in requests)) == [json.dumps({}), json.dumps({"precedentCitableIndicator": "Y"})]
     assert result["new"] == 3
     assert table.by_prefix("DISC#92063134-CAN_107#")[0]["title"].endswith("[precedential]")
     assert table.by_prefix("DISC#97752244-EXA_26#")[0]["aliases"][1] == "https://ttabvue.uspto.gov/ttabvue/ttabvue-97752244-EXA-26.pdf"
@@ -167,11 +168,10 @@ def collected_table():
     return table
 
 
-def test_direct_config_needs_no_cyclotron_and_refuses_feedback():
+def test_direct_config_needs_no_cyclotron_and_has_no_feedback():
     config = validate_router_config(direct_router_config())
     assert config["decisions"] == "direct" and config["cyclotron"] is None and config["feedback"] is False
-    with pytest.raises(ValueError, match="feedback"):
-        validate_router_config(direct_router_config(feedback=True))
+    assert validate_router_config(direct_router_config(feedback=True))["feedback"] is False   # a stored switch is ignored
     with pytest.raises(ValueError, match="decisions"):
         validate_router_config(direct_router_config(decisions="coin-flip"))
 
@@ -211,12 +211,12 @@ def test_direct_delivery_records_the_monitor_rule_and_the_pdf(monkeypatch):
     captured, real_intake = {}, monitoring_intake.ReferenceIntake
 
     class RecordingIntake:
-        def __init__(self, client, monitor, *, auth_mode):
+        def __init__(self, client, monitor, *, auth_mode, **options):
             captured["monitor"] = monitor
 
         def __call__(self, item, provenance):
             captured.update(item=item, provenance=provenance)
-            return {"referenceId": "reference-1", "referenceLineageId": "reference", "provenanceMessageId": "m"}
+            return {"referenceId": "reference-1", "referenceLineageId": "reference"}
 
     monkeypatch.setattr(monitoring_intake, "ReferenceIntake", RecordingIntake)
     table = collected_table()

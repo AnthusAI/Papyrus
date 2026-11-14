@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "18cc1b9e-23d0-4d2c-aee9-a52a6061db4e",
+  "issue_id": "PPY-77df353c-488d-4d8d-9955-ee960e5efdcf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T00:16:12.207Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Article page actions: Markdown, X, Reddit and share, one shared component for every site",
+    "description": "Requested by the Machines on Machines session, 2026-11-04, under Ryan's rule that anything DRY across sites belongs in Papyrus. That site built its own in web/mom_components.py article_actions: a View as Markdown icon, X and Reddit post links, and a share popup for the web page or its Markdown. Papyrus already has page actions in src/papyrus_content/projection/standard/page_actions.py (Copy Markdown, View as Markdown, Open in an AI assistant), but they do not appear on that site's article template. Extend the shared component so any site can turn these on by configuration and place them on its article template, then the site deletes its own. Lucide icons only where Lucide has one; X and Reddit marks need a decision because Lucide has no brand set. Works without JavaScript, like the existing actions. The links carry only the title and URL. Screenshots at phone and desktop width for Ryan before release. Ends with a p.apyr.us docs task.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

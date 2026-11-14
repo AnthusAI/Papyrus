@@ -36,6 +36,8 @@ except ModuleNotFoundError:  # pragma: no cover - PyYAML is a project dependency
 
 from .semantic import PapyrusSemanticClient, semantic_state_key, semantic_version_key
 from . import web_search_providers
+from papyrus_content.tenant_knowledge_keys import corpus_id_for_key, tenant_unique_id
+from papyrus_content.tenant_knowledge_keys import REFERENCE_FEED_KEY, SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.biblicus_runner import BiblicusCommandError, BiblicusOutputError, BiblicusRunner, resolve_biblicus_workdir
 from papyrus_content.biblicus_runtime import biblicus_corpus_catalog_path
@@ -48,6 +50,7 @@ SUMMARY_MESSAGE_KIND = "reference_summary"
 SUMMARY_MESSAGE_DOMAIN = "summarization"
 SUMMARY_SOURCE = "papyrus-summary-generator"
 SUMMARY_PROMPT_VERSION = "reference-summary-v3-source-voice"
+SUMMARY_DIRECTED_PROMPT_VERSION = "reference-summary-v3-source-voice-directed"
 SUMMARY_PROCEDURE_ALIAS_SUMMARIZE = "references.summarize"
 SUMMARY_PROCEDURE_ALIAS_SUMMARIZE_BATCH = "references.summarize-batch"
 SUMMARY_PROCEDURE_ALIAS_TITLE_SUBTITLE_RESOLVE = "references.title-subtitle.resolve"
@@ -125,7 +128,7 @@ ISBN10_TEXT_RE = re.compile(r"\b[0-9][0-9\-\s]{8,16}[0-9Xx]\b")
 REFERENCE_FIELDS = """
 id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash
 corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt
-retrievedAt importRunId importedAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason updatedAt
+retrievedAt importRunId importedAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy updatedAt
 """
 
 LIST_REFERENCES_BY_CORPUS_QUERY = f"""
@@ -318,7 +321,7 @@ def quality_node_key(rating: int) -> str:
 
 
 def quality_node_lineage_id(rating: int) -> str:
-    return f"semantic-node-{_safe_id(quality_node_key(rating))}"
+    return tenant_unique_id(f"semantic-node-{_safe_id(quality_node_key(rating))}")
 
 
 def quality_node_id(rating: int) -> str:
@@ -444,6 +447,7 @@ def build_reference_summary_plan(
     identifier_prepass: dict[str, Any] | None = None,
     now: str | None = None,
     semantic_client: PapyrusSemanticClient | None = None,
+    purpose: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     now = now or _now()
     max_tokens = normalize_summary_budget(max_tokens)
@@ -502,6 +506,10 @@ def build_reference_summary_plan(
     next_metadata = dict(metadata_payload) if isinstance(metadata_payload, dict) else {}
     next_metadata["summary"] = summary_text
     next_metadata["summary_resolution"] = summary_resolution
+    if purpose:
+        next_metadata["summary_purpose"] = {key: purpose[key] for key in ("assignmentId", "storyLineageIds", "contextHash")}
+    else:
+        next_metadata.pop("summary_purpose", None)
     if identifier_prepass:
         next_metadata.update(
             _identifier_metadata_update(
@@ -2536,6 +2544,7 @@ def reference_summarize(
         else ""
     )
     doctrine_context = manual_summary_doctrine_context() if summary_text else load_publication_doctrine_context()
+    purpose = None if summary_text else _reference_purpose_context(reference)
     generated_result = (
         {
             "summary_text": summary_text,
@@ -2549,6 +2558,7 @@ def reference_summarize(
             model=model,
             reference=reference,
             doctrine_context=doctrine_context,
+            purpose_context_text=(purpose or {}).get("text") or "",
         )
     )
     generated = generated_result.get("summary_text") or ""
@@ -2563,6 +2573,7 @@ def reference_summarize(
         refresh=refresh,
         identifier_prepass=identifier_prepass,
         semantic_client=semantic,
+        purpose=purpose,
     )
     result = _apply_plan_if_requested(plan, apply=apply, actor_label=SUMMARY_SOURCE, reason="references summarize")
     result["identifierPrepass"] = identifier_prepass
@@ -2722,32 +2733,23 @@ def list_references_by_newsroom_feed_imported(
     }
     if corpus_id:
         filter_input["corpusId"] = {"eq": corpus_id}
-    try:
-        while True:
-            data = execute_graphql(
-                LIST_REFERENCES_BY_NEWSROOM_FEED_IMPORTED_QUERY,
-                {
-                    "newsroomFeedKey": "references",
-                    "sortDirection": "DESC",
-                    "limit": _page_size(limit, len(records)),
-                    "nextToken": next_token,
-                    "filter": filter_input,
-                },
-            )
-            connection = data.get("listReferencesByNewsroomFeedAndImportedAt") or {}
-            records.extend(connection.get("items") or [])
-            next_token = connection.get("nextToken")
-            if not next_token or (limit is not None and len(records) >= limit):
-                break
-    except Exception as exc:
-        message = str(exc)
-        if "FieldUndefined" not in message or "listReferencesByNewsroomFeedAndImportedAt" not in message:
-            raise
-    if records:
-        return [record for record in records if record.get("versionState") == "current"]
-    if not corpus_id:
-        return []
-    return list_references_by_corpus(corpus_id, limit=limit)
+    while True:
+        data = execute_graphql(
+            LIST_REFERENCES_BY_NEWSROOM_FEED_IMPORTED_QUERY,
+            {
+                "newsroomFeedKey": global_key(REFERENCE_FEED_KEY),
+                "sortDirection": "DESC",
+                "limit": _page_size(limit, len(records)),
+                "nextToken": next_token,
+                "filter": filter_input,
+            },
+        )
+        connection = data.get("listReferencesByNewsroomFeedAndImportedAt") or {}
+        records.extend(connection.get("items") or [])
+        next_token = connection.get("nextToken")
+        if not next_token or (limit is not None and len(records) >= limit):
+            break
+    return [record for record in records if record.get("versionState") == "current"]
 
 
 def load_publication_doctrine_context(*, graphql_func: Any | None = None) -> dict[str, Any]:
@@ -2887,6 +2889,7 @@ def _reference_summarization_cloud_input(
     subtitle: str = "",
     doctrine_context: dict[str, Any] | None = None,
     prompt_version: str = "",
+    purpose_context_text: str = "",
 ) -> dict[str, Any]:
     sanitized_source_text = str(source_text or "").replace("\x00", "")
     return _compact_dict({
@@ -2899,6 +2902,7 @@ def _reference_summarization_cloud_input(
         "known_subtitle": _clean_text(subtitle),
         "media_type": _clean_text(reference.get("mediaType")),
         "doctrine_context_text": _format_publication_doctrine_prompt_block(doctrine_context or {}),
+        "purpose_context_text": purpose_context_text,
         "model": model,
         "prompt_version": prompt_version,
     })
@@ -2916,6 +2920,7 @@ def _run_reference_summarization_cloud_procedure(
     subtitle: str = "",
     doctrine_context: dict[str, Any] | None = None,
     prompt_version: str = "",
+    purpose_context_text: str = "",
 ) -> dict[str, str]:
     from papyrus_content.cloud_procedures import start_cloud_procedure_run
     from papyrus_content.graphql_authoring import create_authoring_client
@@ -2945,6 +2950,7 @@ def _run_reference_summarization_cloud_procedure(
             subtitle=subtitle,
             doctrine_context=doctrine_context,
             prompt_version=prompt_version,
+            purpose_context_text=purpose_context_text,
         ),
         run_dir=run_dir,
         source_path=source_path,
@@ -3220,6 +3226,7 @@ def generate_summary(
     reference: dict[str, Any],
     doctrine_context: dict[str, Any] | None = None,
     procedure_alias: str = SUMMARY_PROCEDURE_ALIAS_SUMMARIZE,
+    purpose_context_text: str = "",
 ) -> dict[str, str]:
     source_text = _required(source_text, "source_text").replace("\x00", "")
     budget = normalize_summary_budget(max_tokens)
@@ -3231,7 +3238,8 @@ def generate_summary(
         model=model,
         reference=reference,
         doctrine_context=doctrine_context,
-        prompt_version=SUMMARY_PROMPT_VERSION,
+        prompt_version=SUMMARY_DIRECTED_PROMPT_VERSION if purpose_context_text else SUMMARY_PROMPT_VERSION,
+        purpose_context_text=purpose_context_text,
     )
 
 
@@ -3572,6 +3580,14 @@ def estimate_tokens(text: str, *, model: str = "") -> int:
             encoding = tiktoken.get_encoding("cl100k_base")
         return len(encoding.encode(text))
     return max(1, round(len(text.split()) * 1.33))
+
+
+def _reference_purpose_context(reference: dict[str, Any]) -> dict[str, Any] | None:
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.reference_curation import reference_purpose_context
+
+    client, _ = create_authoring_client()
+    return reference_purpose_context(client, reference)
 
 
 def _semantic_client() -> PapyrusSemanticClient:
@@ -4093,7 +4109,7 @@ def _semantic_relation(
         "importedAt": imported_at,
         "createdAt": imported_at,
         "updatedAt": imported_at,
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": metadata,
     }
     return {key: value for key, value in relation.items() if value is not None}
@@ -4131,7 +4147,7 @@ def _quality_semantic_node_record(rating: int, now: str) -> dict[str, Any]:
         "aliases": [f"{rating} star", f"{rating} stars"],
         "status": "accepted",
         "createdAt": now,
-        "newsroomFeedKey": "semanticNodes",
+        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
         "updatedAt": now,
     }
     return {key: value for key, value in record.items() if value is not None}
@@ -5522,7 +5538,7 @@ def _require_reference(reference: dict[str, Any]) -> dict[str, Any]:
 
 
 def _knowledge_corpus_id(corpus_key: str) -> str:
-    return f"knowledge-corpus-{_safe_id(corpus_key)}"
+    return corpus_id_for_key(_safe_id(corpus_key))
 
 
 def _normalize_relation_type_key(value: Any) -> str:

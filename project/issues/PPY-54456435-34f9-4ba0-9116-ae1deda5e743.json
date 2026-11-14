@@ -1,0 +1,28 @@
+{
+  "id": "PPY-54456435-34f9-4ba0-9116-ae1deda5e743",
+  "title": "Move automations and knowledge query onto the signed-in lane",
+  "description": "papyrus automations run/list/runs invoke Lambda and read the monitoring table although runAutomation and automationOverview exist server-side (automation_view.py): switch the CLI to them. papyrus knowledge query calls iam_signed_graphql_headers directly: use the user session. No new server API expected.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "53a88c13-8a07-4d0a-b503-724a5a0f2944",
+      "author": "home",
+      "text": "Signed-in lane implemented on feature/PPY-544564-automations-knowledge-login. automations list|show|runs|run now ask automationOverview and runAutomation when a papyrus login session applies (IAM lane kept for PAPYRUS_GRAPHQL_AUTH=iam). Refused on the signed-in lane because the server has no equivalent: run --dry-run, and runs --limit above the site default (5). knowledge query remote uses the session (new --site option); --execution local still needs AWS (S3, S3 Vectors). Shared helper factored into signed_in_lane.py; graphql_request_headers untouched (PPY-5f119a).",
+      "created_at": "2026-11-02T16:54:25.583766Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-02T16:43:33.026746Z",
+  "updated_at": "2026-11-02T16:54:25.584307Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

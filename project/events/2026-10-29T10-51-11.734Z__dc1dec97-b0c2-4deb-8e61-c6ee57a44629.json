@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "dc1dec97-b0c2-4deb-8e61-c6ee57a44629",
+  "issue_id": "PPY-b90c1763-b234-4813-a12f-55dca524d7f3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T10:51:11.734Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Story view shows the Reference; Reference view shows its stories",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d9090fa8-2170-48d7-84c5-4aff10126b06",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Sonnet 5.5",
+      "name": "Claude Code"
+    }
+  }
+}

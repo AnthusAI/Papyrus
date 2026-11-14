@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f4029ea0-26f0-4722-86c0-439d758fa3a5",
+  "title": "Real Alexa store icons per site (108 and 512 PNG)",
+  "description": "Pilobolus has placeholder icons (a pale green 'P' on the dark theme), uploaded by Ryan on 2026-10-31 to s3://…sitebucket…/alexa/. Each site needs real 108x108 and 512x512 icons, chosen by Ryan, shipped in the site repository so the projection serves them at /alexa/icon-108.png and /alexa/icon-512.png. Amazon refuses to create a skill until both URLs resolve.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1b7f66d4-dbb9-4728-ba02-51868f05edd9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:07.427955Z",
+  "updated_at": "2026-10-31T19:52:07.427989Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

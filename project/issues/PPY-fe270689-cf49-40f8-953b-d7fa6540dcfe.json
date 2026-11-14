@@ -1,0 +1,20 @@
+{
+  "id": "PPY-fe270689-cf49-40f8-953b-d7fa6540dcfe",
+  "title": "Prove the linked user's access token works on AppSync, and document the token-relay exception",
+  "description": "Spike, done before anything else in M4. In development, with Ryan's linked account on Pilobolus:\n- does AppSync accept the Alexa client's access token (scopes openid/email/profile) for a userPool read (`getReference`) and for `reviewReferenceCuration`?\n- is `cognito:groups` present, and is `curationActorKind` recorded as human?\n\nIf the scopes are refused, add `aws.cognito.signin.user.admin` to the Alexa client (one CDK line) and say why. Then document the exception in docs/agent-rules-detail.md and docs/alexa.md: the skill relays only the end user's own token; IAM-only stays the rule for everything else. Ryan decided this on 2026-10-31.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:07.978538Z",
+  "updated_at": "2026-10-31T19:52:07.978571Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

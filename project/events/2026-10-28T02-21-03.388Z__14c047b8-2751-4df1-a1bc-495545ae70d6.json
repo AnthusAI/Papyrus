@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "14c047b8-2751-4df1-a1bc-495545ae70d6",
+  "issue_id": "PPY-8b85a812-6664-4ee4-8fd6-ac835ea6f8c4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-28T02:21:03.388Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Backend: monitor and query records, QueryRun records, every-page collection",
+    "description": "Query records (id, text, rationale, origin, createdBy, approvedBy/At, status, highWater, history) seeded from drafted queries; QueryRun per query per pass; no caps. See docs/search-monitors.md.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2069646f-2bd9-4471-8d91-9908015e9419",
+    "labels": []
+  }
+}

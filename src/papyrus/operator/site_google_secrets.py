@@ -42,7 +42,7 @@ Run from a site repository. Reads infra/site.json for the CMS app, branch secret
 Options:
   --site PATH        Site config (default infra/site.json)
   --profile NAME     AWS profile (default: site.json aws.profile, then AWS_PROFILE)
-  --account ID       Expected AWS account, asserted with STS before anything else (default: site.json aws.accountId)
+  --account ID       Expected AWS account, asserted with STS before anything else (default: PAPYRUS_AWS_ACCOUNT_ID, then site.json aws.accountId)
   --region NAME      AWS region (default: site.json aws.region, then AWS_REGION, then us-east-1)
   --app-id ID        Amplify CMS app id (default: the stack's CmsAppId output, then lookup by app name)
   --branch NAME      Amplify branch whose secrets are used (default main)
@@ -205,10 +205,10 @@ def _resolve_app_id(site: Site, session: Any, override: str | None) -> str:
 
 def _build_context(options: argparse.Namespace, env: dict[str, str], cwd: Path, session_factory: Callable[[str | None, str], Any]) -> Context:
     site = load_site((cwd / options.site) if not Path(options.site).is_absolute() else Path(options.site))
-    expected = options.account or site.aws_account
+    expected = options.account or (env.get("PAPYRUS_AWS_ACCOUNT_ID") or "").strip() or site.aws_account
     if not expected:
         raise OperatorError(
-            "No expected AWS account to assert. Pass --account <12-digit id> or set aws.accountId in infra/site.json. "
+            "No expected AWS account to assert. Pass --account <12-digit id>, set PAPYRUS_AWS_ACCOUNT_ID, or set aws.accountId in infra/site.json. "
             "Nothing was read or written."
         )
     profile = options.profile or site.aws_profile or env.get("AWS_PROFILE") or None

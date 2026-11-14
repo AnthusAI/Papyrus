@@ -1,0 +1,30 @@
+{
+  "id": "PPY-90e3a40f-cf9c-46a0-a970-09ce83517666",
+  "title": "Forum index: <threadBase>/ lists public threads one line each, paged, with a forum layout for the threads include",
+  "description": "Repo: **Papyrus**. Phase 2 of PPY-452419: the forum front, `<threadBase>/` (default `/conversations/`), one line per thread, old-web-forum style.\n\n## Files\n- `src/papyrus_content/projection/standard/forum_pages.py` (from the thread-pages task): `forum_index_pages(context)`: reads `_data/home-page/threads.json` (`{generatedAt, threads:[{key,title,anchor,messages:<count>,lastAt,latest:<message>}]}`), sorts by `lastAt` descending, pages by `homePage.forum.index.pageSize` (default 50; a page size is a layout choice, not a cap), paths `<threadBase>/`, `<threadBase>/page/2/` following the listing pager (`projector.py` listing pages; reuse `pageSuffix`).\n- Row layout (`assets/papyrus-home-page.css`, class prefix `papyrus-forum-`): Lucide `message-square` icon; title linking to the thread page; the anchor as a second line (\"about: <Reference title>\" with `link` icon, or \"story: <title>\" with `newspaper` icon); reply count as \"12 messages\" text; last activity `<time>` with the latest author's handle or label. Flat rows separated by background alternation (`:nth-child(even)` tone), no hairlines. Never colour alone: an unanswered thread (1 message) gets a `circle-dashed` icon and the text \"no replies yet\".\n- A `::include{kind=\"threads\" layout=\"forum\"}` variant renders the same rows on an authored page (so a site can put the forum under its own hero), sharing the row renderer.\n- `.md` twin: a Markdown table (title, about, messages, last activity) through `add()`.\n- Nav: `homePage.forum.navLabel` (optional, default none) adds the forum to the standard nav the way sections do (`urls.sections.<name>.label`); read how #908 added section fronts to the nav.\n\n## Gherkin (`features_backend/forum-index.feature`)\nFeature: The forum index lists public threads\n  Scenario: Threads are listed newest activity first with their message counts\n  Scenario: The index pages at the configured page size\n  Scenario: A thread with one message is marked \"no replies yet\" with an icon, not colour\n  Scenario: The forum layout of the threads include renders the same rows on an authored page\n  Scenario: The index has a Markdown twin\n\n## Acceptance\n- Fixture renders `conversations/index.html`, `conversations/page/2/index.html` (with page size 1 in the fixture) and the twins; reader-privacy scan clean; `docs/home-page.md` \"Forum index\" section.\n- Blocked by the thread-pages task (shared module and settings).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-8f05cc63-a0de-4b41-840c-65311d80c1f7",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T12:37:54.866886Z",
+  "updated_at": "2026-10-31T12:38:33.783764Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

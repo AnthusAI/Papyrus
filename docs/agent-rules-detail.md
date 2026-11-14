@@ -90,7 +90,7 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
 - **GraphQL auth split (do not mix):**
   - **Editorial CLI users** may use the configured native Google/Cognito login
     in [CLI login](cli-login.md), under the same server-checked user permissions
-    as the newsroom. Renewable session material belongs only in macOS Keychain;
+    as the newsroom. Renewable session material belongs only in the platform secure store (macOS Keychain, Linux keyring or memory agent, Windows Credential Manager);
     public publication/client selection metadata may be persisted separately.
     Never scrape browser cookies, log tokens, invent grants, use API-key/guest
     authoring, or fall back to a broader IAM identity when user auth fails.
@@ -105,6 +105,13 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
     not add alternate GraphQL auth paths inside Lambda code. Grant access with
     `allow.resource(<function>)` on the data schema and `appsync:GraphQL` on the
     function role.
+    **One exception (Ryan, 2026-10-31):** the `alexa` plugin's skill relays the
+    linked editor's **own** Cognito access token to AppSync, as the web newsroom
+    does from the browser, so AppSync enforces their groups and records a vote as
+    their human vote (an IAM vote is recorded as `agent` and never trains the
+    Cyclotron). The skill has no AppSync grant of its own and never calls AppSync
+    with its role. See `docs/alexa.md`, "Reviewing references". No other Lambda
+    may do this without the same explicit decision.
 - Production authoring uses the deployed production AppSync endpoint, not the
   sandbox. Authenticate with an AWS profile for the production account's
   authoring role; do not write credentials into `.env`. Follow
@@ -122,7 +129,7 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
   reference intake, not accepted evidence. Register them through
   `references register-catalog` or the repeatable Biblicus corpus path before
   curation or evidence use. Only current accepted `Reference` rows may be used
-  for evidence sets, topic modeling, graph analysis, desk memory, context
+  for evidence sets, topic modeling, graph analysis, section memory, context
   packs, assignment evidence, or edition planning.
 - For **internal knowledge base search** (accepted references, semantic + graph
   context packs), read `docs/internal-knowledge-research.md` first, then
@@ -144,14 +151,14 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
   accepted-only Biblicus manifests, and create `analysis.reindex` assignments
   instead of hard-coding topic lists or running mixed-status corpora through
   analysis.
-- The Newsroom is the newsroom operations surface. `Topics` is one desk tab,
+- The Newsroom is the newsroom operations surface. `Topics` is one tab,
   not the whole product concept. Use `/newsroom` and Newsroom naming in UI,
-  docs, and tests. Future assignment and research queues should become desk tabs
+  docs, and tests. Future assignment and research queues should become tabs
   instead of separate one-off management pages.
 - `/newsroom/doctrine` manages publication-wide mission and policies.
-  `/newsroom/sections` manages the operational desk surface through
+  `/newsroom/sections` manages the operational section surface through
   `NewsroomSection` mission, policies, assignment guidance, kill criteria, and
-  budgets. Legacy category-tied desk doctrine may still exist for migration, but
+  budgets. Legacy category-tied section doctrine may still exist for migration, but
   new assignment context should prefer section doctrine.
 - Assignments are first-class private `Assignment` work records, not cloud
   `Item` rows with `type: "assignment"`. Do not create assignment Items or
@@ -219,7 +226,7 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
     slot winner state and queue copywriting assignments only.
 - Edition forum-thread guardrails:
   - Coverage Theme planning posts **three messages** on `edition_forum` in order:
-    theme (phase 1), optional desk (phase 2), reporting dispatch (phase 3);
+    theme (phase 1), optional section (phase 2), reporting dispatch (phase 3);
     see `skills/edition-planning/SKILL.md` and
     `docs/automated-publication-research-workflow.md`;
   - use `MessageThread` forum kinds `edition_forum` and `section_forum`;
@@ -240,7 +247,7 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
   In live apply smoke tests, require agent success unless fallback/degraded
   packets are explicitly being tested.
 - Use `papyrus knowledge signals trend-report` and `papyrus editions
-  plan` as the Python assignment-desk layer when an edition should be planned
+  plan` as the Python assignment-section layer when an edition should be planned
   from recent accepted knowledge-base trends, section slots, and Coverage Theme
   candidates.
 - Style the Newsroom as a newspaper section or editorial insert, not as an app

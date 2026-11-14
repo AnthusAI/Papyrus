@@ -38,7 +38,7 @@ async function main() {
     const geometry = await measureList();
     assert.ok(geometry.scrollHeight > 0 && geometry.visibleHeight > 0,
       `The first reference must be visible inside its scroll viewport at 1280x720: ${JSON.stringify(geometry)}`);
-    const secondaryControls = page.getByText("Add a reference and prediction activity", { exact: true });
+    const secondaryControls = page.getByRole("button", { name: "Add a reference and prediction activity" });
     await secondaryControls.click();
     const expandedGeometry = await measureList();
     assert.ok(expandedGeometry.scrollHeight > 0 && expandedGeometry.visibleHeight > 0,

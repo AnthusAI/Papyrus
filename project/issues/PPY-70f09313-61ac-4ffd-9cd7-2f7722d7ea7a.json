@@ -1,0 +1,20 @@
+{
+  "id": "PPY-70f09313-61ac-4ffd-9cd7-2f7722d7ea7a",
+  "title": "Router: recover stories after an operator retry of provider_failed decisions",
+  "description": "Needed before Cyclotron PR 193 and its retry command deploy. Cyclotron has promised to warn first; both wait on Ryan approving the change set.\n\nBehaviour reported by the Cyclotron session, not yet run against Papyrus:\n- provider_failed arrives as a top-level 409 on GET /machine/decisions/{jobId}. monitoring_router classify makes that ItemRetryLater, so the route keeps polling the same job with backoff.\n- That receipt never changes, so polling never produces a decision. The router must drop the job and re-post.\n- command_recovery retry-failed --run ... --apply authorizes the retry and makes no provider call. After that, the same item under a new request ID gets a real decision.\n- A re-post before the authorization gets source_refused, which the router treats as final. So never re-post automatically.\n- Papyrus cannot see the authorization, so the trigger must come from the operator: for example a reopen of those routes after the retry, on the signed-in CLI path.\n\nAlso report these routes as waiting on an operator rather than as ordinary backoff. Gherkin required.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T05:12:36.161121Z",
+  "updated_at": "2026-11-03T05:12:36.161205Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

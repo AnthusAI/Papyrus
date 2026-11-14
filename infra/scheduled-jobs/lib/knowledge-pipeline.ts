@@ -1,11 +1,26 @@
-import { Stack, StackProps, Tags } from "aws-cdk-lib";
+import { CfnParameter, Stack, StackProps, Tags } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as s3assets from "aws-cdk-lib/aws-s3-assets";
 import { Construct } from "constructs";
+import { siteCostTags } from "../../amplify-app-shell/lib/cost-attribution";
 import { KNOWLEDGE_STAGE_NAMES, DEFAULT_STAGE_TIMEOUT_SECONDS, type KnowledgeRunConfig } from "./knowledge-run-config";
 import { PROJECTION_LOCK_PARAMETER_NAME, PROJECTION_LOCK_TABLE_NAME } from "./projection-lock-stack";
 import { ScheduledContainerJob, type PipelineDefinition } from "./scheduled-container-job";
 
 export const KNOWLEDGE_JOB_ID = "knowledge-run";
+
+export const TREND_DRAFTS_STAGE = "trend-drafts";
+/** The job script baked into the image (infra/knowledge-run/trend_drafts.py). It never exits non-zero. */
+export const TREND_DRAFTS_COMMAND = ["python", "/opt/papyrus-jobs/trend_drafts.py"];
+
+export const MONITOR_STORIES_STAGE = "monitor-stories";
+/** The job script baked into the image (infra/knowledge-run/monitor_stories.py). It never exits non-zero and writes its own ledger row. */
+export const MONITOR_STORIES_COMMAND = ["python", "/opt/papyrus-jobs/monitor_stories.py"];
+
+/** CloudFormation parameter values (tokens) that switch on and aim the optional trend-drafts step. */
+export type TrendDraftsOptions = { enabled: string; endpoint: string; snapshotUrl: string };
+/** CloudFormation parameter values (tokens) that switch on and aim the optional monitor-stories step. */
+export type MonitorStoriesOptions = { enabled: string; endpoint: string };
 
 export function knowledgeRunStackName(publication: string): string {
   return `papyrus-scheduled-job-${KNOWLEDGE_JOB_ID}-${publication}`;
@@ -16,14 +31,36 @@ export function knowledgeRunStackName(publication: string): string {
  * `papyrus knowledge cloud-run --stage <name>`, with the execution input read as
  * `{"publication": "<id>", "failStage": "<stage>"}` (both optional).
  */
-export function knowledgePipeline(config: KnowledgeRunConfig): PipelineDefinition {
+export function knowledgePipeline(config: KnowledgeRunConfig, trendDrafts?: TrendDraftsOptions, monitorStories?: MonitorStoriesOptions): PipelineDefinition {
   const input = "$states.context.Execution.Input";
   return {
-    stages: KNOWLEDGE_STAGE_NAMES.map((name) => ({
-      name,
-      command: ["papyrus", "knowledge", "cloud-run", "--stage", name],
-      timeoutSeconds: config.stageTimeouts[name] ?? DEFAULT_STAGE_TIMEOUT_SECONDS,
-    })),
+    stages: [
+      ...KNOWLEDGE_STAGE_NAMES.map((name) => ({
+        name,
+        command: ["papyrus", "knowledge", "cloud-run", "--stage", name],
+        timeoutSeconds: config.stageTimeouts[name] ?? DEFAULT_STAGE_TIMEOUT_SECONDS,
+      })),
+      // Optional and last: after projection has published the snapshot. A failure here never fails the run.
+      ...(trendDrafts ? [{
+        name: TREND_DRAFTS_STAGE,
+        command: TREND_DRAFTS_COMMAND,
+        timeoutSeconds: 1800,
+        retry: { maxAttempts: 0 },
+        bestEffort: true,
+        runIf: `'${trendDrafts.enabled}' = 'true'`,
+        environment: { TREND_DRAFTS_ENDPOINT: trendDrafts.endpoint, TREND_DRAFTS_SNAPSHOT_URL: trendDrafts.snapshotUrl },
+      }] : []),
+      // Optional, after trend-drafts, and only for a site that opted in with `knowledgeRun.monitorStories`. A failure here never fails the run.
+      ...(monitorStories && config.monitorStories ? [{
+        name: MONITOR_STORIES_STAGE,
+        command: MONITOR_STORIES_COMMAND,
+        timeoutSeconds: 1800,
+        retry: { maxAttempts: 0 },
+        bestEffort: true,
+        runIf: `'${monitorStories.enabled}' = 'true'`,
+        environment: { MONITOR_STORIES_ENDPOINT: monitorStories.endpoint },
+      }] : []),
+    ],
     executionEnvironment: {
       KNOWLEDGE_PUBLICATION: `$exists(${input}.publication) ? ${input}.publication : '${config.publication}'`,
       KNOWLEDGE_EXECUTION_NAME: "$states.context.Execution.Name",
@@ -34,16 +71,30 @@ export function knowledgePipeline(config: KnowledgeRunConfig): PipelineDefinitio
 }
 
 /** Container environment from config. Computed variables win over the free-form `environment` map. */
-export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string, string> {
+export function knowledgeEnvironment(config: KnowledgeRunConfig, settingsArchive?: string): Record<string, string> {
   return {
     ...config.environment,
     PAPYRUS_PROJECTION_LOCK_TABLE: PROJECTION_LOCK_TABLE_NAME,
     PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS: String(config.lockWaitSeconds),
     KNOWLEDGE_PUBLICATION: config.publication,
+    // Only a site whose corpus key is not its siteId sets it; every other task finds the corpus by the siteId, as before.
+    ...(config.corpusKey ? { KNOWLEDGE_CORPUS_KEY: config.corpusKey } : {}),
+    // The zip of the site's committed settings (vocabulary, stop words, review guidance), shipped with this deploy; the run reads them from it and from nowhere else.
+    ...(settingsArchive ? { KNOWLEDGE_SETTINGS_ARCHIVE: settingsArchive } : {}),
+    // Lets every stage ask AppSync for the GraphQL endpoint it writes to config/amplify_outputs.json (the run only reads the endpoint from it).
+    KNOWLEDGE_APPSYNC_API_ID: config.appSyncApiId,
     KNOWLEDGE_SITE_REPO: config.siteRepo,
     KNOWLEDGE_SITE_BRANCH: config.siteBranch,
     KNOWLEDGE_STATIC_SUBDIR: config.staticSubdir,
     KNOWLEDGE_OPENAI_KEY_PARAMETER: config.openAiKeyParameter,
+    // Read by the typed-extraction stage, which hands the key to `papyrus knowledge extract-entities` as TYPESAFE_API_KEY.
+    KNOWLEDGE_DECISION_KEY_PARAMETER: config.decisionKeyParameter,
+    // Read by the optional trend-drafts step only (infra/knowledge-run/trend_drafts.py).
+    TREND_DRAFTS_MAX_AGE_DAYS: String(config.trendSnapshotMaxAgeDays),
+    // Read by the optional monitor-stories step only (infra/knowledge-run/monitor_stories.py); set only when the site opted in.
+    ...(config.monitorStories ? { MONITOR_STORIES_LIMIT: String(config.monitorStories.limit) } : {}),
+    // Read by the trend-drafts and monitor-stories steps (infra/knowledge-run/*.py), which pass each host as --exclude-host; set only when the site lists hosts.
+    ...(config.excludedSourceHosts?.length ? { KNOWLEDGE_EXCLUDED_SOURCE_HOSTS: config.excludedSourceHosts.join(",") } : {}),
     PAPYRUS_SITE_BUCKET: config.siteBucket,
     PAPYRUS_EDGE_DISTRIBUTION_ID: config.edgeDistributionId,
     PAPYRUS_REDIRECTS_KVS_ARN: config.redirectsKvsArn,
@@ -59,6 +110,17 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     KNOWLEDGE_ALLOW_TEST_FAILURE: "true",
     ...(config.beatsConfig ? { KNOWLEDGE_BEATS_CONFIG: config.beatsConfig } : {}),
     ...(config.conceptKinds ? { KNOWLEDGE_CONCEPT_KINDS: config.conceptKinds.join(",") } : {}),
+    // Read by corpus-sync only; set only when the site opted in with `referenceDocuments`.
+    ...(config.referenceDocuments
+      ? { KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET: config.referenceDocuments.mediaBucket, KNOWLEDGE_REFERENCE_DOCUMENTS_EXTRACTOR: config.referenceDocuments.extractor }
+      : {}),
+    ...(config.monitorSources
+      ? {
+          KNOWLEDGE_MONITOR_SOURCES: config.monitorSources.join(","),
+          ...(config.monitorWeeks !== undefined ? { KNOWLEDGE_MONITOR_WEEKS: String(config.monitorWeeks) } : {}),
+          ...(config.monitorSuggestions ? { KNOWLEDGE_MONITOR_SUGGESTIONS: String(config.monitorSuggestions) } : {}),
+        }
+      : {}),
   };
 }
 
@@ -67,9 +129,13 @@ function ssmParameterArn(config: KnowledgeRunConfig, name: string): string {
 }
 
 /** Task role statements beyond the state bucket and ledger: everything is named in config, nothing is `*`. */
-export function knowledgeTaskStatements(config: KnowledgeRunConfig): iam.PolicyStatement[] {
+export function knowledgeTaskStatements(config: KnowledgeRunConfig, settings?: s3assets.Asset): iam.PolicyStatement[] {
   const siteBucketArn = `arn:aws:s3:::${config.siteBucket}`;
   return [
+    // Only a site that commits settings: read that one object of the CDK asset bucket, nothing else.
+    ...(settings
+      ? [new iam.PolicyStatement({ sid: "ReadRunSettings", actions: ["s3:GetObject"], resources: [`arn:aws:s3:::${settings.s3BucketName}/${settings.s3ObjectKey}`] })]
+      : []),
     new iam.PolicyStatement({
       sid: "ProjectionLockTable",
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
@@ -78,7 +144,7 @@ export function knowledgeTaskStatements(config: KnowledgeRunConfig): iam.PolicyS
     new iam.PolicyStatement({
       sid: "ReadParameters",
       actions: ["ssm:GetParameter"],
-      resources: [ssmParameterArn(config, PROJECTION_LOCK_PARAMETER_NAME), ssmParameterArn(config, config.openAiKeyParameter)],
+      resources: [ssmParameterArn(config, PROJECTION_LOCK_PARAMETER_NAME), ssmParameterArn(config, config.openAiKeyParameter), ssmParameterArn(config, config.decisionKeyParameter)],
     }),
     new iam.PolicyStatement({
       sid: "ReadContentActionsConfiguration",
@@ -94,6 +160,11 @@ export function knowledgeTaskStatements(config: KnowledgeRunConfig): iam.PolicyS
       sid: "SignAppSyncRequests",
       actions: ["appsync:GraphQL"],
       resources: ["Query", "Mutation"].map((type) => `arn:aws:appsync:${config.region}:${config.account}:apis/${config.appSyncApiId}/types/${type}/fields/*`),
+    }),
+    new iam.PolicyStatement({
+      sid: "ReadAppSyncEndpoint",
+      actions: ["appsync:GetGraphqlApi"],
+      resources: [`arn:aws:appsync:${config.region}:${config.account}:apis/${config.appSyncApiId}`],
     }),
     new iam.PolicyStatement({
       sid: "SiteBucketObjects",
@@ -119,6 +190,22 @@ export function knowledgeTaskStatements(config: KnowledgeRunConfig): iam.PolicyS
       ],
       resources: [config.redirectsKvsArn],
     }),
+    // Only a site that opted in with `referenceDocuments`: read the extracted texts under one prefix of the media bucket, nothing else, no writes.
+    ...(config.referenceDocuments
+      ? [
+          new iam.PolicyStatement({
+            sid: "ReferenceDocumentTexts",
+            actions: ["s3:GetObject"],
+            resources: [`arn:aws:s3:::${config.referenceDocuments.mediaBucket}/${config.referenceDocuments.prefix}*`],
+          }),
+          new iam.PolicyStatement({
+            sid: "ReferenceDocumentList",
+            actions: ["s3:ListBucket"],
+            resources: [`arn:aws:s3:::${config.referenceDocuments.mediaBucket}`],
+            conditions: { StringLike: { "s3:prefix": [`${config.referenceDocuments.prefix}*`] } },
+          }),
+        ]
+      : []),
   ];
 }
 
@@ -136,20 +223,51 @@ export class KnowledgeRunStack extends Stack {
     });
     Tags.of(this).add("Project", "Papyrus");
     Tags.of(this).add("Publication", config.publication);
+    // The knowledge run serves one site (its publication is the site ID): its owner Account pays for it.
+    for (const [key, value] of Object.entries(siteCostTags(config.publication))) Tags.of(this).add(key, value);
 
+    // Off by default. The three values are parameters so that enabling the step is a change set, not a code change.
+    const trendDrafts = {
+      enabled: new CfnParameter(this, "TrendDraftsEnabled", {
+        type: "String", default: "false", allowedValues: ["true", "false"],
+        description: "true: after a successful run, draft trend stories from the fresh snapshot (private Proposals, nothing published).",
+      }).valueAsString,
+      endpoint: new CfnParameter(this, "TrendDraftsEndpoint", {
+        type: "String", default: "", allowedPattern: "^(https://[a-z0-9]+\\.appsync-api\\.[a-z0-9-]+\\.amazonaws\\.com/graphql)?$",
+        description: "The publication's AppSync GraphQL endpoint (the step signs its requests with the task role).",
+      }).valueAsString,
+      snapshotUrl: new CfnParameter(this, "TrendDraftsSnapshotUrl", {
+        type: "String", default: "", allowedPattern: "^(https://[^ ]+/_data/knowledge/index\\.json)?$",
+        description: "The published snapshot index, such as https://shipped.anth.us/_data/knowledge/index.json.",
+      }).valueAsString,
+    };
+    // Only a site that opted in with `knowledgeRun.monitorStories` gets the step and its parameter (any other stack's template is unchanged); the
+    // step is still off until the parameter says true. It reads the same AppSync endpoint as trend-drafts, so it has no endpoint parameter of its own.
+    const monitorStories = config.monitorStories
+      ? {
+          enabled: new CfnParameter(this, "MonitorStoriesEnabled", {
+            type: "String", default: "false", allowedValues: ["true", "false"],
+            description: "true: after trend-drafts, write a cited story draft for each of the top monitored items (private Proposals, nothing published). Needs TrendDraftsEndpoint.",
+          }).valueAsString,
+          endpoint: trendDrafts.endpoint,
+        }
+      : undefined;
+    // Only a site that commits settings gets the asset (any other stack's template is unchanged). CDK zips the directory and uploads it at deploy.
+    const settings = config.settingsDirectory ? new s3assets.Asset(this, "RunSettings", { path: config.settingsDirectory }) : undefined;
     this.job = new ScheduledContainerJob(this, "Job", {
       jobId: KNOWLEDGE_JOB_ID,
       publication: config.publication,
-      pipeline: knowledgePipeline(config),
+      pipeline: knowledgePipeline(config, trendDrafts, monitorStories),
       imageTag,
+      reuseImageRepository: config.reuseImageRepository,
       defaultSize: { vCpu: config.vCpu, memoryMiB: config.memoryMiB, ephemeralStorageGiB: config.ephemeralStorageGiB },
       defaultStageTimeoutSeconds: DEFAULT_STAGE_TIMEOUT_SECONDS,
       schedule: { expression: config.schedule, state: config.scheduleState },
       scheduleInput: { publication: config.publication },
-      environment: knowledgeEnvironment(config),
+      environment: knowledgeEnvironment(config, settings ? `s3://${settings.s3BucketName}/${settings.s3ObjectKey}` : undefined),
       stateBucketEnvVar: "KNOWLEDGE_STATE_BUCKET",
       ledgerTableEnvVar: "KNOWLEDGE_LEDGER_TABLE",
-      taskPolicyStatements: knowledgeTaskStatements(config),
+      taskPolicyStatements: knowledgeTaskStatements(config, settings),
       alarmEmailParameter: config.alarmEmailParameter,
     });
     this.job.addOutputs(this);

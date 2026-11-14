@@ -17,9 +17,11 @@ from .projection.engine import (
     project_all,
     project_item_pages,
     project_listings,
+    project_removals,
     reconcile,
 )
 from .projection.runtime import (
+    OUTPUT_PREFIX_ENV,
     SITE_BUCKET_ENV,
     SITE_STATIC_DIRECTORY_ENV,
     context_from_environment,
@@ -27,6 +29,14 @@ from .projection.runtime import (
 )
 from .projection.plugins import PLUGIN_PAGE_PREFIXES, PLUGINS_ENV, plugin_names_from_environment, plugin_names_from_outputs
 from .projection.checkout import warn_if_checkout_is_behind
+from .renditions import (
+    DirectoryRenditionStore,
+    PrefixedRenditionStore,
+    base_path_from_static_directory,
+    make_directory_renditions,
+    media_originals_enabled,
+    settings_from_static_directory,
+)
 from .projection.directory_source import DirectoryContentSource
 from .projection.source import PublishedContentSource
 from .projection.writers import LocalDirectoryWriter
@@ -94,6 +104,25 @@ def _context_for(client, options: dict) -> ProjectionContext:
     return context
 
 
+def _local_renditions(environment: dict[str, str], content_directory: Path, output_directory: Path) -> DirectoryRenditionStore | None:
+    """For a content directory projected into ``--out``: the renditions of its images, made into ``--out`` (under ``urls.basePath``) before the pages are.
+
+    The cloud makes them at upload; here the images are the files of the directory, at the paths the stories use
+    (``assets/draft-unsectioned-<hash>/chart.png``). With a site bucket set (``--bucket``) its renditions are read instead.
+    """
+    if (environment.get(SITE_BUCKET_ENV) or "").strip():
+        return None
+    static = (environment.get(SITE_STATIC_DIRECTORY_ENV) or "").strip()
+    static_directory = Path(static) if static else None
+    settings = settings_from_static_directory(static_directory)
+    if settings is None:
+        return None
+    store = DirectoryRenditionStore(output_directory)
+    prefixed = PrefixedRenditionStore(store, base_path_from_static_directory(static_directory))
+    make_directory_renditions(settings, prefixed, content_directory, originals=media_originals_enabled(static_directory))
+    return store
+
+
 def _build_context(client, options: dict) -> ProjectionContext:
     environment = _projection_environment(options)
     output_directory = normalize_string(options.get("out"))
@@ -103,18 +132,28 @@ def _build_context(client, options: dict) -> ProjectionContext:
             raise ValueError("--from-dir needs --out DIR.")
         return ProjectionContext(
             source=DirectoryContentSource(Path(from_directory)),
-            projector=load_projector(environment),
-            writer=LocalDirectoryWriter(Path(output_directory)),
+            projector=load_projector(environment, renditions=_local_renditions(environment, Path(from_directory), Path(output_directory))),
+            writer=LocalDirectoryWriter(Path(output_directory), environment.get(OUTPUT_PREFIX_ENV) or ""),
             keep_state=False,
         )
     if output_directory:
         return ProjectionContext(
             source=PublishedContentSource(client),
             projector=load_projector(environment),
-            writer=LocalDirectoryWriter(Path(output_directory)),
+            writer=LocalDirectoryWriter(Path(output_directory), environment.get(OUTPUT_PREFIX_ENV) or ""),
             keep_state=False,
         )
     return context_from_environment(client, environment)
+
+
+def _item_ids_of(path: str | None) -> list[str]:
+    """The ids in a JSON file holding a list of item ids (``--unpublished-items``)."""
+    if not path:
+        raise ValueError("--unpublished-items needs a JSON file holding a list of item ids.")
+    loaded = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(loaded, list) or not all(isinstance(entry, str) and entry for entry in loaded):
+        raise ValueError(f"{path} must hold a JSON list of item ids.")
+    return loaded
 
 
 def content_project(flags: list[str]) -> None:
@@ -126,9 +165,10 @@ def content_project(flags: list[str]) -> None:
         bool(options.get("reconcile")),
         bool(options.get("item-pages")),
         bool(item_id),
+        bool(options.get("unpublished-items")),
     ]
     if sum(modes) != 1:
-        raise ValueError("Pass exactly one of --all, --listings, --reconcile, --item-pages or --item <item-id>.")
+        raise ValueError("Pass exactly one of --all, --listings, --reconcile, --item-pages, --item <item-id> or --unpublished-items FILE.")
     if options.get("from-dir"):
         if not options.get("all"):
             raise ValueError("--from-dir supports --all only.")
@@ -155,6 +195,8 @@ def content_project(flags: list[str]) -> None:
         report = project_item_pages(context)
     elif options.get("listings"):
         report = project_listings(context)
+    elif options.get("unpublished-items"):
+        report = project_removals(context, _item_ids_of(normalize_string(options.get("unpublished-items"))))
     else:
         report = project(context, item_id, unpublished=bool(options.get("unpublished")))
     payload = report.to_dict()

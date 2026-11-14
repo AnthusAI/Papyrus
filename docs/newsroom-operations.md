@@ -5,7 +5,7 @@ The `/newsroom` workspace, assignments, Coverage Themes, packets, steering and t
 ## Newsroom
 
 `/newsroom` is the Papyrus newsroom operations workspace. `Topics` is the
-taxonomy steering tab. `Sections` is the operational desk surface backed by
+taxonomy steering tab. `Sections` is the operational section surface backed by
 `NewsroomSection` doctrine and budgets. `Doctrine` is the publication-wide
 mission and policies surface. The page is driven by the configured corpora for
 the publication, not by hard-coded corpus names.
@@ -13,7 +13,7 @@ the publication, not by hard-coded corpus names.
 `/newsroom` chrome is an application shell (Shadcn tokens and sans fonts), not
 the Pretext newspaper masthead. Reader pages keep newsprint/Pretext. Before:
 ops sat inside `.paper-page` / `.masthead`. After: `[data-newsroom-chrome=app]`
-with a header and section nav. Inner desks (Topics, References, Assignments)
+with a header and section nav. Inner tabs (Topics, References, Assignments)
 are unchanged in this foundation slice.
 
 Tenant theme packs live on `SiteBrand` (`themePack`, moss/ochre/paper tokens,
@@ -65,7 +65,7 @@ The dated private `Edition` record is created or updated first; each assignment
 is then linked to that edition, its `NewsroomSection`, its accepted topic scope,
 its coverage concept, its publication lane, and accepted evidence with
 `SemanticRelation` rows. The default lanes are `reporting`, `analysis`, and
-`briefs`; `opinion` is opt-in through publication or desk policy. The default
+`briefs`; `opinion` is opt-in through publication or section policy. The default
 dispatch ratio is `3/2`: for each section/lane target, dispatch a small surplus
 of candidates so editors can select the strongest outputs without publishing
 every result.
@@ -98,7 +98,7 @@ When reporting runs multiple times for the same Assignment, each run writes a
 new immutable packet Message. The most recent successful
 `reporting_context_packet` is canonical for downstream copywriting intake by
 default.
-The editor-only `Assignments` desk tab at `/newsroom/assignments`, including the
+The editor-only `Assignments` tab at `/newsroom/assignments`, including the
 Story Budget view, is the review surface for these private queues.
 
 Assignment claiming is an execution lease, not universal identity ownership.
@@ -125,7 +125,7 @@ and import only stable steering outputs into Papyrus.
 Researcher behavior should follow
 [skills/researcher-doctrine/SKILL.md](../skills/researcher-doctrine/SKILL.md):
 publication doctrine is the global editorial constitution, section doctrine is
-the local desk standard, and the assignment brief is the immediate task.
+the local section standard, and the assignment brief is the immediate task.
 Doctrine stays private and editable in Papyrus data; the skill defines how
 agents apply it while gathering evidence and preparing research packets.
 Coding agents that need to run the same assignment workflow outside a Tactus
@@ -186,12 +186,12 @@ worker/admin S3 operation for now.
 `Reference.curationStatus` separates visibility from evidence eligibility:
 pending prospects and rejected scope memory stay visible for curation, comments,
 votes, and training exports, but only current accepted references may feed
-evidence sets, topic modeling, graph analysis, desk memory, context packs, or
+evidence sets, topic modeling, graph analysis, section memory, context packs, or
 edition planning.
 Research packets and assignment evidence should also follow
 [skills/researcher-doctrine/SKILL.md](../skills/researcher-doctrine/SKILL.md) so
 agents apply publication doctrine, section doctrine, assignment briefs, graph
-context, accepted evidence, and recent desk activity in the correct order.
+context, accepted evidence, and recent section activity in the correct order.
 
 Category proposal review writes an append-only `SteeringDecision` and creates
 new `Category` versions when accepted edits change category copy or tree state.
@@ -238,6 +238,25 @@ poetry run papyrus ops categories export-lexical-steering \
 Papyrus exports this contract now; Biblicus support for consuming it during
 taxonomy discovery or classifier train/project must be confirmed by the Biblicus
 agent before workers rely on it.
+
+### Scheduling in the newsroom (PPY-92164e, PPY-38f016)
+
+The publication's time zone is set once, in the backend's publication settings (docs/scheduled-publishing.md); the `schedule_settings` operation returns it with whether scheduling
+is on, and the console asks once per page load (`lib/schedule-zone.ts`). Everything an editor reads or types is in that zone, so the badge, the picker, the calendar and the DST
+refusals agree with how the backend reads a time. A site whose backend has scheduling off shows no badge or drawer row, and its Schedule page says so. The backend keeps one UTC
+instant on the version's Item row (`scheduledPublishAt`, `scheduledBy`, `scheduledAt`, `scheduleState`).
+
+- **Card and drawer.** A scheduled Story's board card shows an icon and words (`Scheduled: Mon 16 Nov, 4:00 AM ET`, `Overdue`, `Superseded: a newer version was saved`).
+  The Story drawer has a Schedule row (`components/story-schedule-panel.tsx`) with a date and time picker in the publication's zone, Change time, Unschedule, and the
+  editor's own zone in small type when it differs. The Publish button and the Published state are unchanged. A change shows at once and goes back to what was saved if
+  the backend refuses it, and the form keeps what was typed. A wall-clock time that does not exist (the spring-forward gap) is refused in plain words; one that happens
+  twice asks which. The console sends the UTC instant through the `schedule` operation of the `scheduleItem` mutation (`lib/content-actions-client.ts`, [scheduled publishing](scheduled-publishing.md)); the stored states are `scheduled`, `publishing` and `blocked` (shown as Superseded), and Overdue is derived from the time.
+- **Schedule page** (`/newsroom/schedule`, `components/newsroom-schedule-page.tsx`). FullCalendar 7 (`@fullcalendar/react`, MIT), loaded only on that route: week by
+  default, Day and Month, the publication's named zone, focusable events (`eventInteractive`), lists instead of the week grid on a phone, and a plain list of the same
+  items under the calendar. It reads one range of the `scheduleState` + `scheduledPublishAt` index per state (`lib/story-schedule-query.ts`), never the whole table.
+  Drag to reschedule is not built: dropping on a nonexistent local time needs its own refusal and undo.
+- **Tests.** `npm run test:story-schedule` (unit tests, browser scenarios on fake preview data with a fixed clock, and the Gherkin in
+  `features/newsroom-story-schedule.feature`).
 
 ## Current Production Edition
 

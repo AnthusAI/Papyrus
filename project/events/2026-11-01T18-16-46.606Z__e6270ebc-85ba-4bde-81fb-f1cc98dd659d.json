@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "e6270ebc-85ba-4bde-81fb-f1cc98dd659d",
+  "issue_id": "PPY-787361dc-a804-4361-9330-28701aa8b544",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:46.606Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Wire packs into the router task, config and log line",
+    "description": "- src/papyrus_content/monitoring_stories.py run_publication: build signal inputs once, then run the interleaved queue (S1.7) of packs and single items.\n- Config (validate_monitor_stories, docs/monitoring-router-config.example.json, seed_router_config.py): monitorStories.singleItem (default true), monitorStories.contextPacks {enabled (default true), signals: list from the closed set conversation|acceptance|hub|cluster|resurfaced; omitted = all that have data}. No numeric knobs.\n- Log line gains packs, ideasFromPacks, packsSkippedNoNewEvidence, and per pack {signal, anchor, correctedPValue}.\n- CLI: papyrus ideas monitor-stories gains --packs-only / --single-only and prints packs in --dry-run (dry run writes nothing).\n- Router zip: confirm infra/monitoring/build.py --router bundles the new modules (tests/test_monitoring_router zip import test).\n- infra/monitoring/papyrus-monitoring.yaml: fold into RouterIdeaPolicy the read fields the signals use (listMessagesByKindAndCreatedAt, listMessageThreadsByAnchorAndUpdatedAt, listMessagesByThreadAndCreatedAt, listReferencesByCurationStatusKeyAndUpdatedAt, listSemanticRelationsBy... used, listSemanticNodesByCorpusAndNodeKey) and createSemanticRelation for S1.5. Do NOT add a policy (router role 18/20). Update test_monitoring_stories policy test and docs/monitoring-cloud.md.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0b40ca61-d357-47cc-9d81-6627b05f6303",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5bf926e8-452c-40a1-96cd-4cc8245fa113",
+  "title": "Ship review to Pilobolus on a develop prerelease, with the invocation name 'pilobolus newsroom'",
+  "description": "One Pilobolus PR (one deploy): pin the newest `@anthusai/papyrus` develop prerelease (docs/releasing.md), set invocationName 'pilobolus newsroom', and nothing else. Then check:\n- the skill sync runs in the build;\n- a direct Lambda test passes;\n- Ryan tries it on the Show.\n\nNever two Pilobolus deploys back to back.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:08.613583Z",
+  "updated_at": "2026-10-31T19:52:08.613609Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

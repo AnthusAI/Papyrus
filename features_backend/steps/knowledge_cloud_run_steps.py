@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import importlib.metadata
 import json
 import sys
 import tempfile
@@ -103,6 +104,33 @@ def step_previous(context, previous):
 @given("the checkout comes out at a different commit")
 def step_stale(context):
     context.shell.head = "b" * 40
+
+
+@given('the site has no requirements-publication.txt and its infra/site.json says papyrusVersion "{version}"')
+def step_site_json_pin(context, version):
+    context.shell.pin_file = False
+    context.shell.site_json = json.dumps({"papyrusVersion": version})
+
+
+@given("the site has no requirements-publication.txt and no infra/site.json")
+def step_no_pin_files(context):
+    context.shell.pin_file = False
+
+
+@given('the image carries Papyrus "{version}"')
+def step_image_release(context, version):
+    context.image_release = version
+    original = importlib.metadata.version
+    importlib.metadata.version = lambda name: version
+    context.add_cleanup(setattr, importlib.metadata, "version", original)
+
+
+@then('the pinned release "{requirement}" was installed before the project command')
+def step_pinned_requirement(context, requirement):
+    install = [call for call in context.shell.calls if call[:2] == ["pip", "install"]][0]
+    assert Path(install[install.index("-r") + 1]).read_text().strip() == requirement
+    names = [" ".join(call[:2]) for call in context.shell.calls]
+    assert names.index("pip install") < names.index("papyrus ops")
 
 
 @given("the pinned release lacks the projection lease")
@@ -411,3 +439,79 @@ def step_other_week_entry(context, day):
 def step_ledger_details(context, stage, text):
     item = context.run_.ledger.table.get_item(Key={"publication": "shipped", "runKey": f"2026-W44#{context.run_.config.execution_name}#{stage}"})["Item"]
     assert item["details"]["archive"] == text, item
+
+
+@given('the site sets the monitor sources "{sources}" for all history')
+def step_monitor_sources_all(context, sources):
+    context.extra = {"KNOWLEDGE_MONITOR_SOURCES": sources}
+    start(context, context.execution, context.extra)
+
+
+@given('the site sets the monitor sources "{sources}" for {weeks:d} weeks')
+def step_monitor_sources(context, sources, weeks):
+    context.extra = {"KNOWLEDGE_MONITOR_SOURCES": sources, "KNOWLEDGE_MONITOR_WEEKS": str(weeks)}
+    start(context, context.execution, context.extra)
+
+
+@given('the site sets the Reference documents bucket "{bucket}" with the extractor "{extractor}"')
+def step_reference_documents(context, bucket, extractor):
+    context.extra = {"KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET": bucket, "KNOWLEDGE_REFERENCE_DOCUMENTS_EXTRACTOR": extractor}
+    start(context, context.execution, context.extra)
+
+
+@given("the site asks for its accepted References as the Reference documents")
+def step_accepted_reference_documents(context):
+    context.extra = {"KNOWLEDGE_REFERENCE_DOCUMENTS_ACCEPTED": "true"}
+    start(context, context.execution, context.extra)
+
+
+@given('the site sets the monitor sources "{sources}" for {weeks:d} weeks and the Reference documents bucket "{bucket}"')
+def step_both_sources(context, sources, weeks, bucket):
+    context.extra = {"KNOWLEDGE_MONITOR_SOURCES": sources, "KNOWLEDGE_MONITOR_WEEKS": str(weeks), "KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET": bucket}
+    start(context, context.execution, context.extra)
+
+
+@then('each of the commands {commands} was given "--reference-documents" with the week\'s Reference documents file')
+def step_reference_documents_file(context, commands):
+    expected = str(context.run_.work / "runs" / "2026-W44" / "reference-documents.json")
+    for text in names(commands):
+        found = [call for call in context.shell.calls if text in " ".join(call)]
+        assert found, text
+        assert all(call[call.index("--reference-documents") + 1] == expected for call in found), (text, found)
+
+
+@then('each of the commands {commands} was given "--monitor-records" with the week\'s records file')
+def step_monitor_records_file(context, commands):
+    expected = str(context.run_.work / "runs" / "2026-W44" / "monitor-records.json")
+    for text in names(commands):
+        found = [call for call in context.shell.calls if text in " ".join(call)]
+        assert found, text
+        assert all(call[call.index("--monitor-records") + 1] == expected for call in found), (text, found)
+
+
+@then('the command "{text}" was given "--monitor-ledger" with the corpus\'s import ledger')
+def step_monitor_ledger(context, text):
+    expected = str(context.run_.work / "corpus" / "monitor-import-ledger.json")
+    found = [call for call in context.shell.calls if text in " ".join(call)]
+    assert found, text
+    assert all(call[call.index("--monitor-ledger") + 1] == expected for call in found), found
+
+
+@then('no command "{text}" was given "--monitor-ledger"')
+def step_no_monitor_ledger(context, text):
+    found = [call for call in context.shell.calls if text in " ".join(call)]
+    assert found, text
+    assert not [call for call in found if "--monitor-ledger" in call], found
+
+
+@given('the site sets the tenant "{tenant}"')
+def step_tenant(context, tenant):
+    context.extra = {"PAPYRUS_TENANT_ID": tenant}
+    start(context, context.execution, context.extra)
+
+
+@then('every papyrus command ran with the tenant "{tenant}"')
+def step_every_command_tenant(context, tenant):
+    papyrus = [env for call, env in zip(context.shell.calls, context.shell.envs) if call[0] == "papyrus"]
+    assert papyrus, context.shell.calls
+    assert all(env.get("PAPYRUS_TENANT_ID") == tenant for env in papyrus), [env.get("PAPYRUS_TENANT_ID") for env in papyrus]

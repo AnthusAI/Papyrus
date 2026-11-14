@@ -1,0 +1,38 @@
+{
+  "id": "PPY-d83f329c-3138-4d34-81fd-fd4a6a9e815a",
+  "title": "Home-page Reference cards show the readers' rating beside Cyclotron confidence, labelled apart (PPY-1b83d3 cards)",
+  "description": "Repo: **Papyrus**. Files: `src/papyrus_content/projection/standard/home_page_components.py` (`tile`, `row`, `confidence_markup`, `row_confidence_markup`; new `reader_rating_markup`), `src/papyrus_content/projection/standard/home_page_blocks.py` (the `references` include: read `_data/reader/items.json` or the home-page snapshot's copy of the reader block), `src/papyrus_content/home_page/export.py` (join each exported Reference with its `reference:<id>` block from the reader snapshot into `readerRating: {mean, n}`; allowlisted fields only), the home-page stylesheet `papyrus-home-page.css`, `features/newsroom-reference-feed.feature` or the home-page feature file that covers the cards (find with `grep -rln \"confidence\" features features_backend`), `src/papyrus_content/home_page/export_test.py`.\n\n## Change\nOn Reference tiles and rows, next to Cyclotron's \"93% confidence\" (gauge icon), show the readers' rating: Lucide `star` icon + \"4.2 from 31 readers\" (tile) / \"4.2★ · 31\" with a visually hidden \"readers' rating\" (row). Two distinct labels, two distinct icons, so confidence and rating are never confused; both are icon + text, never colour alone, no borders. When n is 0 the rating line is omitted (not \"0 from 0\"). Server-rendered, no script; the live star control is the island story. The export joins reader data only when the site has `reference` voting on (`projection.json` `homePage.references.readerRating: true`, default off); otherwise the markup is byte-identical to today.\n\n## Gherkin\n  Scenario: A Reference card shows the readers' rating beside Cyclotron's confidence, labelled apart\n  Scenario: A Reference with no reader judgements shows only the confidence\n  Scenario: A site without Reference voting renders the cards exactly as before\n  Scenario: The home-page data files carry means and counts and no reader\n  Scenario: The rating is readable without colour\n\n## Acceptance\n`poetry run pytest src/papyrus_content/home_page src/papyrus_content/projection`; the front-end cucumber suite; a local projection of anth.us's `newsroom` page from a fixture shows both numbers. Blocked by the snapshot story (shape) and the Reference-subject story (data). Part of the PPY-1b83d3 card work; link it there as relates-to.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-49e9b51e-5a5e-455b-8cf2-4d7c841c0281",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-5245ede0-e586-454f-841e-e0e5ec9c29f3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-c57a4840-7817-4a2c-97a4-6a9560b2c22c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T13:21:58.774547Z",
+  "updated_at": "2026-10-31T13:22:37.978089Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

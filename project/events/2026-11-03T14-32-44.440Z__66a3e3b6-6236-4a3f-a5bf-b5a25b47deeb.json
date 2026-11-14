@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "66a3e3b6-6236-4a3f-a5bf-b5a25b47deeb",
+  "issue_id": "PPY-2bc5a6c1-276f-4e6c-be2e-9bc28e2e7822",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T14:32:44.440Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Inventory every human signal the home page could use",
+    "description": "Ryan's overall goal is to use all available human signals. Today: Accept and Reject, Reference stars, vote explanations, Messages on a Reference or Story, human relationship edges (explanations are first-class), concept steering. List what each could change on a home page and what must stay private, as a design note; build nothing beyond what Ryan picks. Stars and accepts ship first.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-97e016ea-6af5-49f6-978a-f9bbd46c68f7",
+    "labels": []
+  }
+}

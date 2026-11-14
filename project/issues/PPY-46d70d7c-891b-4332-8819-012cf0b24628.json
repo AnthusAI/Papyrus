@@ -1,0 +1,20 @@
+{
+  "id": "PPY-46d70d7c-891b-4332-8819-012cf0b24628",
+  "title": "Edit concepts in the wiki: create, rename, aliases, links, merge and undo",
+  "description": "Ryan 2026-11-03: in the newsroom wiki, create and edit concepts, link synonyms and mark things related, by hand. Create; edit name, description and aliases on any concept, protected from runs by the get-or-create rule; typed links with a relationship and a note (a fact starts as a typed link plus a note); merge into one node with the losing node retired as an alias_of pointer, moved links, and undo. Rule of thumb: same thing is one node with aliases; two nodes found to be the same get merged; related or unsure stays two nodes with a noted link. Requires the knowledge run ticket.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-17d05702-569a-41fd-bfc8-4e11eca9792e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:42:10.924906Z",
+  "updated_at": "2026-11-04T02:52:45.697903Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

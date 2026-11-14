@@ -3,8 +3,8 @@
 Registers [Chorus](https://chorus.codes) as a pending knowledge-base reference, then
 starts two `research.tavily-deep` assignments:
 
-1. **Technology desk** — open-source and local-first tools comparable to Chorus
-2. **Science desk** — academic papers on multi-model / LLM code review
+1. **Technology section** — open-source and local-first tools comparable to Chorus
+2. **Science section** — academic papers on multi-model / LLM code review
 
 ## Required automation configuration
 

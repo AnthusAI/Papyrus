@@ -1,221 +1,337 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import {
-  cyclotronAutoDecided, cyclotronHeldForReview, formatWhen, isUnread, modeLabel, modeMark, nextText, sectionReviews,
-  steeringText, subjectHref, summarize, summaryText,
-  type AnswerInput, type CyclotronEntry, type ReviewRequest,
-} from "../lib/review-requests";
-import type { ReferenceRecord } from "../lib/category-repository";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category-repository";
+import type { EmailDecisionResult, MonitoringEmailDetails, MonitoringEmailSummary } from "../lib/monitoring-overview";
+import type { ReviewLoad } from "../lib/review-client";
+import { recentDecisions } from "../lib/notification-feed";
+import { answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecided, ideaIdsOf, isIdeaBatch, type AnswerInput, type ReviewRequest } from "../lib/review-requests";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
-import { FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
+import { learnConfidenceThreshold, shapingThisWeek } from "../lib/needs-me-ranking";
+import { buildNeedsMeItems, type LinkDecision } from "../lib/needs-me-items";
+import type { LinkSuggestion, LinkSuggestionPage } from "../lib/link-suggestions";
+import { captureStatusesByLineage } from "../lib/reference-capture";
+import { captureNeededSourceFromRecords, readCaptureNeeded } from "../lib/capture-needed";
+import { normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
+import type { ReferencePreview } from "../lib/reference-preview";
+import { referenceLineageId } from "../lib/newsroom-references";
+import { referencePreviewsByLineage } from "../lib/reference-preview";
+import { loadNotificationSnapshot, saveNotificationSnapshot } from "../lib/reference-feed-cache";
+import { isLocalPreviewEnabled } from "../lib/local-preview";
+import type { HomeCyclotronState } from "../lib/hosted-cyclotron-status";
+import { SITE_BRAND } from "../lib/site-brand";
+import { FIXTURE_IDEAS, FIXTURE_EMAIL_DETAILS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
+import { useReferenceLinksStore } from "./reference-links-context";
+import { NeedsMeView, type NeedsMeDecision } from "./needs-me-feed";
+import type { NeedsMeEntry } from "../lib/needs-me-items";
+import type { CorrectCaptureAction } from "./reference-capture-client";
+import type { ReviewChoice } from "./reference-review-card";
+
+/** What the "Needs capture" list reads: the References, and their attachments (the preview picture, why the capture failed). */
+export type CaptureNeededLoad = { references: ReferenceRecord[]; attachments: ReferenceAttachmentRecord[] };
 
 export type NotificationLoadState = "loading" | "ready" | "forbidden" | "unavailable";
 
-type ViewProps = {
-  loadState: NotificationLoadState;
-  requests: ReviewRequest[];
-  readIds: ReadonlySet<string>;
-  held: CyclotronEntry[];
-  autoDecided: CyclotronEntry[];
-  demo?: boolean;
-  busyId?: string | null;
-  error?: string | null;
-  onAnswer?: (request: ReviewRequest, input: AnswerInput) => void;
-  onMarkRead?: (requestId: string) => void;
-  onMarkAllRead?: () => void;
+/** What a real-data preview shows instead of the invented sample (scripts/export-notification-center-fixture.py). */
+export type NotificationFixture = { requests: ReviewRequest[]; emails?: MonitoringEmailSummary[] };
+
+const NO_VISIT: ReadonlySet<string> = new Set();
+const NO_PREVIEWS: ReadonlyMap<string, ReferencePreview> = new Map();
+const NO_ATTACHMENTS: ReferenceAttachmentRecord[] = [];
+
+/** Everything the container reads and writes. The live one talks to the site's data API; tests pass a fake. */
+export type NotificationApi = {
+  loadReviews: () => Promise<ReviewLoad>;
+  /** Titles and current stages of the stories and ideas the requests name, by lineage id. */
+  loadStoryTitles: (ids: string[]) => Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string>; stages?: Record<string, string> }>;
+  answerReviewRequest: (request: ReviewRequest, input: AnswerInput, by: string) => Promise<ReviewRequest>;
+  /** Changes only the note of a request that is already answered (`answerReasonUpdate`). Returns the saved request. */
+  saveReviewReason: (request: ReviewRequest, update: Record<string, unknown>) => Promise<ReviewRequest>;
+  markReviewRead: (userKey: string, requestId: string) => Promise<void>;
+  /** Email submissions held for review (Monitoring's own read). Optional: a site without monitoring has none. */
+  loadHeldEmails?: () => Promise<MonitoringEmailSummary[]>;
+  loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
+  decideEmail?: (receiptId: string, decision: "accept" | "reject", reason: string) => Promise<EmailDecisionResult>;
+  /** One page of suggested links, most likely first within the page, from the cursor the last page returned (null for the first). Optional: without it the page's related-links store (the one the Related section uses) is read. */
+  loadLinkSuggestions?: (cursor: string | null) => Promise<LinkSuggestionPage>;
+  /** Decides a suggested link. Optional: without it the related-links store's decide, the Related section's own call, is used. */
+  decideLink?: (relationId: string, decision: "accept" | "reject", reason: string) => Promise<void>;
+  /** The first accepted References that need a person to capture them (best first), with their attachments. Optional: a failure leaves the rest of the page as it is. */
+  loadCaptureNeeded?: () => Promise<CaptureNeededLoad>;
+  /** The Cyclotron classifier status of this site's own publication (one small read). Optional: without it the home page shows no classifier panel. */
+  loadCyclotronStatus?: () => Promise<HomeCyclotronState>;
 };
 
-function Entry({ request, unread, demo, busy, onAnswer, onMarkRead }: {
-  request: ReviewRequest; unread: boolean; demo: boolean; busy: boolean;
-  onAnswer?: ViewProps["onAnswer"]; onMarkRead?: ViewProps["onMarkRead"];
-}) {
-  const [note, setNote] = useState("");
-  const href = subjectHref(request.subject, demo);
-  const open = request.state === "open";
-  const steering = steeringText(request);
-  const act = (input: AnswerInput) => onAnswer?.(request, { ...input, feedback: input.feedback ?? (note.trim() || null) });
-  return (
-    <li className="rounded-lg border p-3 space-y-2" data-review-request={request.id} data-review-mode={request.mode} data-review-state={request.state} data-review-unread={unread || undefined}>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline"><span aria-hidden="true">{modeMark(request.mode)} </span>{modeLabel(request.mode)}</Badge>
-        {unread ? <Badge variant="default"><span aria-hidden="true">● </span>New</Badge> : <span className="text-xs text-muted-foreground">Read</span>}
-        <strong className="text-sm">{request.reason}</strong>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Raised by {request.raisedBy} on {formatWhen(request.raisedAt)}
-        {" · "}About: {href ? <Link href={href} onClick={() => onMarkRead?.(request.id)}>{request.subject.type.replace("_", " ")} {request.subject.id}</Link> : <span>{request.subject.type} {request.subject.id}</span>}
-      </p>
-      {request.ask ? <p className="text-sm">{request.ask}</p> : null}
-      {request.links.length ? (
-        <ul className="text-xs space-y-0.5" aria-label="Items in this request">
-          {request.links.slice(0, 10).map((link, index) => {
-            const target = link.url ?? (link.type ? subjectHref({ type: link.type, id: link.id ?? "" }, demo) : null);
-            return <li key={`${link.id ?? link.url}-${index}`}>{target ? <Link href={target}>{link.label ?? link.id ?? link.url}</Link> : (link.label ?? link.id)}</li>;
-          })}
-          {request.links.length > 10 ? <li>and {request.links.length - 10} more</li> : null}
-        </ul>
-      ) : null}
-      <p className="text-sm" data-review-next>{nextText(request)}</p>
-      {steering ? <p className="text-sm" data-review-steering>{steering}</p> : null}
-      {open ? (
-        <div className="space-y-2" data-review-controls>
-          <label className="block text-xs text-muted-foreground">
-            Steering note (optional)
-            <textarea
-              className="mt-1 block w-full rounded-md border bg-background p-2 text-sm"
-              disabled={busy}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder={request.mode === "flag" ? "Tell the step what to do differently" : "What should change, or what did you want instead?"}
-              rows={2}
-              value={note}
-            />
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {request.mode === "flag" ? (
-              <Button disabled={busy} onClick={() => act({ decision: "approve" })} size="sm" variant="outline">Acknowledge</Button>
-            ) : (
-              <>
-                <Button disabled={busy} onClick={() => act({ decision: "approve" })} size="sm" variant="outline">Approve</Button>
-                <Button disabled={busy} onClick={() => act({ decision: "reject" })} size="sm" variant="outline">Reject</Button>
-              </>
-            )}
-            <Button disabled={busy || !note.trim()} onClick={() => act({ decision: "feedback", steer: "adjust" })} size="sm" variant="outline">Steer with this note</Button>
-            <Button disabled={busy} onClick={() => act({ decision: "feedback", steer: "not_this_kind" })} size="sm" variant="outline">Not this kind of thing</Button>
-            {unread ? <Button disabled={busy} onClick={() => onMarkRead?.(request.id)} size="sm" variant="ghost">Mark read</Button> : null}
-          </div>
-        </div>
-      ) : unread ? (
-        <Button disabled={busy} onClick={() => onMarkRead?.(request.id)} size="sm" variant="ghost">Mark read</Button>
-      ) : null}
-    </li>
-  );
-}
+const liveApi: NotificationApi = {
+  loadReviews: async () => (await import("../lib/review-client")).loadReviews(),
+  loadStoryTitles: async (ids) => (await import("../lib/review-client")).loadStoryTitles(ids),
+  answerReviewRequest: async (request, input, by) => (await import("../lib/review-client")).answerReviewRequest(request, input, by),
+  saveReviewReason: async (request, update) => (await import("../lib/review-client")).saveReviewReason(request, update),
+  markReviewRead: async (userKey, requestId) => (await import("../lib/review-client")).markReviewRead(userKey, requestId),
+  loadHeldEmails: async () => {
+    const { loadMonitoringPage } = await import("../lib/monitoring-client");
+    const rows: MonitoringEmailSummary[] = [];
+    let cursor: string | null = null;
+    do {
+      const page = await loadMonitoringPage("emailSubmissions", cursor, "publication", true);
+      if (!("rows" in page)) return rows;
+      rows.push(...(page.rows as MonitoringEmailSummary[]));
+      cursor = page.cursor;
+    } while (cursor);
+    return rows;
+  },
+  loadEmail: async (receiptId) => (await import("../lib/monitoring-client")).loadMonitoringEmailSubmission(receiptId),
+  decideEmail: async (receiptId, decision, reason) => (await import("../lib/monitoring-client")).decideMonitoringEmailSubmission(receiptId, decision, reason),
+  loadCyclotronStatus: async () => (await import("../lib/monitoring-client")).loadCyclotronStatusRows(),
+  // The star partitions, then the rated partition, a page at a time until enough are found. It also serves the local preview and the test mock.
+  loadCaptureNeeded: async () => {
+    const client = await import("./news-desk-taxonomy-client");
+    const corpusIds = await client.loadReferenceFeedCorpusIds();
+    const references = await readCaptureNeeded({ corpusIds, readStarStream: client.readReferenceStarStream, readStream: client.readReferenceFeedStream });
+    return { references, attachments: await client.loadReferenceAttachmentsForLineages(references.map(referenceLineageId)) };
+  },
+};
 
-function CyclotronLine({ entry, held }: { entry: CyclotronEntry; held: boolean }) {
-  const confidence = entry.confidence === null ? "confidence not recorded" : `confidence ${Math.round(entry.confidence * 100)}%`;
-  return (
-    <li className="rounded-lg border p-3 space-y-1" data-cyclotron-entry={entry.lineageId} data-cyclotron-held={held || undefined}>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline"><span aria-hidden="true">{held ? "◔" : "✓"} </span>{held ? "Held for review" : "Decided by the system"}</Badge>
-        <strong className="text-sm">{entry.title}</strong>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Classified as {entry.label} · {confidence}{entry.decidedAt ? ` · ${formatWhen(entry.decidedAt)}` : ""}
-        {entry.reviewedByPerson ? " · reviewed by a person" : ""}
-      </p>
-      {held ? <p className="text-sm">{entry.reviewDetail ? `${entry.reviewDetail}. ` : ""}Held for review: it stays pending until someone decides.</p> : null}
-      <Link className="text-sm" href={entry.href}>{held ? "Review it in References" : "Open it in References to correct it"}</Link>
-    </li>
-  );
-}
-
-function Section({ id, title, count, children, empty }: { id: string; title: string; count: number; children: React.ReactNode; empty: string }) {
-  return (
-    <section aria-labelledby={`notification-${id}`} className="space-y-2" data-notification-section={id}>
-      <h2 className="text-sm font-medium" id={`notification-${id}`}>{title} ({count})</h2>
-      {count ? children : <p className="text-sm text-muted-foreground">{empty}</p>}
-    </section>
-  );
-}
-
-/** The CMS console home: what needs a person, what will proceed on its own, and what the system decided. Ignore-safe by design. */
-export function NotificationCenterView({ loadState, requests, readIds, held, autoDecided, demo = false, busyId = null, error = null, onAnswer, onMarkRead, onMarkAllRead }: ViewProps) {
-  const sections = useMemo(() => sectionReviews(requests), [requests]);
-  const unreadCount = requests.filter((request) => isUnread(request, readIds)).length;
-  const summary = summarize(sections, held, autoDecided, unreadCount);
-  const entry = (request: ReviewRequest) => (
-    <Entry busy={busyId === request.id} demo={demo} key={request.id} onAnswer={onAnswer} onMarkRead={onMarkRead} request={request} unread={isUnread(request, readIds)} />
-  );
-  if (loadState === "loading") return <div role="status" data-notification-state="loading"><strong>Loading the Notification Center</strong></div>;
-  if (loadState === "forbidden") return <div role="alert" data-notification-state="forbidden"><strong>The Notification Center is for editors and admins</strong></div>;
-  if (loadState === "unavailable") return <div role="alert" data-notification-state="unavailable"><strong>Review requests could not be read right now</strong><p>Try again in a minute. Nothing waiting on a person has changed.</p></div>;
-  return (
-    <div className="space-y-6" data-notification-center>
-      <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Notification Center</h1>
-        <p className="text-sm" data-notification-summary>{summaryText(summary)}</p>
-        <p className="text-xs text-muted-foreground">
-          Look, or steer. Anything you ignore keeps going: soft reviews proceed at their deadline and flags never wait. Only a hard gate waits for you.
-        </p>
-        <p className="text-xs text-muted-foreground" data-notification-unread>
-          {unreadCount ? `${unreadCount} unread` : "Nothing unread"}
-          {unreadCount ? <Button className="ml-2" onClick={onMarkAllRead} size="sm" variant="ghost">Mark all read</Button> : null}
-        </p>
-        {error ? <p role="alert" className="text-sm" data-notification-error>{error}</p> : null}
-      </header>
-
-      <Section count={sections.hardGates.length} empty="No hard gates. Nothing is blocked on you." id="hard-gates" title="Waiting for you: hard gates">
-        <ul className="space-y-2">{sections.hardGates.map(entry)}</ul>
-      </Section>
-      <Section count={sections.softReviews.length} empty="No soft reviews are running." id="soft-reviews" title="Proceeding soon: soft reviews, soonest deadline first">
-        <ul className="space-y-2">{sections.softReviews.map(entry)}</ul>
-      </Section>
-      <Section count={held.length} empty="No Cyclotron items are held for review." id="cyclotron" title="Cyclotron items routed to a person (low confidence)">
-        <ul className="space-y-2">{held.slice(0, 10).map((item) => <CyclotronLine entry={item} held key={item.lineageId} />)}</ul>
-        {held.length > 10 ? <p className="text-sm">and {held.length - 10} more. <Link href={getNewsroomNavHref("/newsroom/references", demo)}>See all in References</Link></p> : null}
-      </Section>
-      <Section count={sections.flags.length} empty="No flags." id="flags" title="Flags: for your information">
-        <ul className="space-y-2">{sections.flags.map(entry)}</ul>
-      </Section>
-      <Section count={sections.decided.length} empty="Nothing answered or proceeded yet." id="decided" title="Answered, and what became of it">
-        <ul className="space-y-2">{sections.decided.slice(0, 20).map(entry)}</ul>
-      </Section>
-      <details data-notification-section="auto-decided">
-        <summary className="cursor-pointer text-sm font-medium">Recently decided by the system ({autoDecided.length})</summary>
-        <div className="mt-2 space-y-2">
-          <p className="text-xs text-muted-foreground">Read only. The Cyclotron was confident enough to decide these without you. To correct one, open it in References.</p>
-          {autoDecided.length ? <ul className="space-y-2">{autoDecided.map((item) => <CyclotronLine entry={item} held={false} key={item.lineageId} />)}</ul> : <p className="text-sm text-muted-foreground">No automatic decisions yet.</p>}
-        </div>
-      </details>
-    </div>
-  );
-}
+/** The demo and the real-data preview answer in memory with the same rules as the live data API; nothing leaves the page. */
+const demoApi: NotificationApi = {
+  loadReviews: async () => ({ state: "unavailable" }),
+  loadStoryTitles: async (ids) => ({
+    titles: Object.fromEntries(FIXTURE_IDEAS.filter((idea) => ids.includes(idea.id)).map((idea) => [idea.id, idea.title])), deleted: [],
+    stages: Object.fromEntries(FIXTURE_IDEAS.filter((idea) => ids.includes(idea.id)).map((idea) => [idea.id, idea.stage])),
+  }),
+  answerReviewRequest: async (request, input, by) => {
+    const update = answerUpdate(request, input, by, new Date());
+    return { ...request, state: "answered", answer: JSON.parse(String(update.answer)), history: JSON.parse(String(update.history)), updatedAt: String(update.updatedAt) };
+  },
+  saveReviewReason: async (request, update) => applyReviewUpdate(request, update),
+  markReviewRead: async () => undefined,
+  loadHeldEmails: async () => FIXTURE_HELD_EMAILS,
+  loadEmail: async (receiptId) => FIXTURE_EMAIL_DETAILS[receiptId] ?? { state: "unavailable" },
+  decideEmail: async (_receiptId, decision) => ({ ok: true, already: false, quarantine: { state: decision === "accept" ? "released" : "discarded", decision: null, failure: null } }),
+  // The sample is the onboarding classifier that has made one decision and has never been retrained.
+  loadCyclotronStatus: async () => {
+    const { DEMO_CYCLOTRON_STATUS } = await import("../lib/relevance-status");
+    return { state: "ready", rows: [{ monitorId: "demo", publicationId: "demo", output: "demo-relevance", asOf: DEMO_CYCLOTRON_STATUS.asOf, checkedAt: DEMO_CYCLOTRON_STATUS.asOf, status: DEMO_CYCLOTRON_STATUS }] };
+  },
+};
 
 type ContainerProps = {
   references: ReferenceRecord[];
   decisions: ReadonlyMap<string, RelevanceDecisionView>;
-  humanCuratedReferenceLineageIds: ReadonlySet<string>;
+  humanCuratedReferenceLineageIds?: ReadonlySet<string>;
+  previews?: ReadonlyMap<string, ReferencePreview>;
+  referencesLoading?: boolean;
+  predictionLoading?: boolean;
+  referenceDisabledReason?: string | null;
+  onSetReferenceStars?: (reference: ReferenceRecord, stars: number | null) => Promise<void> | void;
+  onRateReference?: (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null, note?: string) => Promise<void> | void;
+  /** The Reference attachments (previews, captured text), for the cards' pictures and the capture checks. */
+  referenceAttachments?: ReferenceAttachmentRecord[];
+  /** Saves a pasted or corrected capture. Without it the capture panel has no edit action. */
+  onCorrectCapture?: CorrectCaptureAction;
   actorLabel: string;
   demo: boolean;
+  /** A real-data preview (see scripts/export-notification-center-fixture.py); the invented sample otherwise. */
+  fixture?: NotificationFixture | null;
+  api?: NotificationApi;
+  /** Other page sections, shown at the end of the feed's own scroll. */
+  below?: ReactNode;
 };
 
 const REFRESH_MILLISECONDS = 60_000;
 
-export function NotificationCenter({ references, decisions, humanCuratedReferenceLineageIds, actorLabel, demo }: ContainerProps) {
+/** Preview only: ?ncState=loading holds the skeleton, caught-up shows the empty state, sample swaps in the invented hard gate, flags, batches and held email, mixed adds the invented hard gate, flag and held email to the real data. */
+function previewState(): "loading" | "caught-up" | "sample" | "mixed" | null {
+  if (typeof window === "undefined" || !isLocalPreviewEnabled()) return null;
+  const requested = new URLSearchParams(window.location.search).get("ncState");
+  return requested === "loading" || requested === "caught-up" || requested === "sample" || requested === "mixed" ? requested : null;
+}
+
+const EMAIL_REFUSALS: Record<string, string> = {
+  forbidden: "Your session cannot decide held email.",
+  bad_request: "That email could not be decided from here.",
+  already_applied: "This email was already queued, so its reason can no longer be changed here.",
+  already_decided: "Someone already decided this email. Refresh to see what they chose.",
+  not_quarantined: "This email is no longer held.",
+  expired: "This email expired and can no longer be accepted.",
+};
+
+export function NotificationCenter({
+  references, decisions, humanCuratedReferenceLineageIds = NO_VISIT, previews = NO_PREVIEWS, referencesLoading = false, predictionLoading = false, referenceDisabledReason = null,
+  onRateReference, onSetReferenceStars, referenceAttachments = NO_ATTACHMENTS, onCorrectCapture, actorLabel, demo, fixture = null, api: liveOverride = liveApi, below,
+}: ContainerProps) {
+  const api = demo ? demoApi : liveOverride;
+  // Suggested links are read and decided through the related-links store the Related section uses, so a decision is recorded identically.
+  const linksStore = useReferenceLinksStore();
+  const loadLinks = api.loadLinkSuggestions ?? linksStore?.listSuggested;
+  const decideLinkNow = useMemo(
+    () => api.decideLink ?? (linksStore ? async (relationId: string, decision: "accept" | "reject", reason: string) => linksStore.decide({ relationId, decision, ...(reason ? { note: reason } : {}) }) : undefined),
+    [api.decideLink, linksStore],
+  );
   const [loadState, setLoadState] = useState<NotificationLoadState>("loading");
+  const [stale, setStale] = useState(false);
   const [requests, setRequests] = useState<ReviewRequest[]>([]);
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [userKey, setUserKey] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [storyTitles, setStoryTitles] = useState<Record<string, string>>({});
+  const [storyExcerpts, setStoryExcerpts] = useState<Record<string, string>>({});
+  const [deletedStories, setDeletedStories] = useState<ReadonlySet<string>>(new Set());
+  const [ideaStages, setIdeaStages] = useState<Record<string, string>>({});
+  const [emails, setEmails] = useState<MonitoringEmailSummary[]>([]);
+  const [emailsState, setEmailsState] = useState<"loading" | "ready">("loading");
+  const [emailsDecided, setEmailsDecided] = useState<ReadonlyMap<string, "accept" | "reject">>(new Map());
+  const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
+  const [linksCursor, setLinksCursor] = useState<string | null>(null);
+  const [linksState, setLinksState] = useState<"loading" | "ready">("loading");
+  const [linksLoadingMore, setLinksLoadingMore] = useState(false);
+  const [linksDecided, setLinksDecided] = useState<ReadonlyMap<string, LinkDecision>>(new Map());
+  const linksStarted = useRef(false);
+  const [stay, setStay] = useState<ReadonlySet<string>>(new Set());
+  const [visitRated, setVisitRated] = useState<ReadonlySet<string>>(new Set());
+  const [now] = useState(() => Date.now());
+  const [captureNeeded, setCaptureNeeded] = useState<CaptureNeededLoad>({ references: [], attachments: [] });
+  const [capturedNow, setCapturedNow] = useState<ReadonlySet<string>>(new Set());
+  const demoStarted = useRef(false);
+  const preview = useMemo(() => previewState(), []);
+  const sample = useMemo(() => {
+    if (preview === "sample" || !fixture) return { requests: FIXTURE_REVIEW_REQUESTS };
+    if (preview === "mixed") {
+      const invented = FIXTURE_REVIEW_REQUESTS.filter((request) => request.id === "rr-hard-1" || request.id === "rr-flag-1");
+      return { requests: [...invented, ...fixture.requests] };
+    }
+    return { requests: preview === "caught-up" ? [] : fixture.requests };
+  }, [fixture, preview]);
+
+  // The classifier's status is one small read, once per visit (a snapshot only changes when the Cyclotron completes decisions). A failure never touches the feed.
+  const [cyclotron, setCyclotron] = useState<HomeCyclotronState | undefined>(api.loadCyclotronStatus ? { state: "loading" } : undefined);
+  useEffect(() => {
+    if (!api.loadCyclotronStatus) { setCyclotron(undefined); return; }
+    let cancelled = false;
+    api.loadCyclotronStatus()
+      .then((loaded) => { if (!cancelled) setCyclotron(loaded); })
+      .catch(() => { if (!cancelled) setCyclotron({ state: "unavailable" }); });
+    return () => { cancelled = true; };
+  }, [api]);
+
+  // Accepted References nobody could capture: one more source among the others. The demo and the local preview read the records the page holds. A site
+  // whose schema lacks the star index or the field, or any failed read, simply lists none; the rest of the page never waits for it.
+  const demoReferences = useRef({ references, referenceAttachments });
+  demoReferences.current = { references, referenceAttachments };
+  const loadCaptureNeededNow = useCallback(async () => {
+    if (preview === "caught-up") { setCaptureNeeded({ references: [], attachments: [] }); return; }
+    try {
+      if (api.loadCaptureNeeded) { setCaptureNeeded(await api.loadCaptureNeeded()); return; }
+      if (!demo) return;
+      const held = demoReferences.current;
+      // The local preview reads its own seeded References (the same ones the References page lists), as the feed's readers do.
+      const records = isLocalPreviewEnabled() ? (await import("../lib/local-preview-seed")).createLocalPreviewReferences() : held.references;
+      const found = await readCaptureNeeded(captureNeededSourceFromRecords(records));
+      const lineages = new Set(found.map(referenceLineageId));
+      setCaptureNeeded({ references: found, attachments: held.referenceAttachments.filter((attachment) => lineages.has(attachment.referenceLineageId)) });
+    } catch {
+      // The capture list is optional.
+    }
+  }, [api, demo, preview]);
+  const heldReferenceCount = references.length;
+  useEffect(() => { void loadCaptureNeededNow(); }, [loadCaptureNeededNow, heldReferenceCount]);
+  const captureNeededRef = useRef(captureNeeded);
+  captureNeededRef.current = captureNeeded;
+  /** A person pasted or uploaded the text: the Reference leaves the list at once, and the next one is read in. */
+  const correctCapture = useMemo<CorrectCaptureAction | undefined>(() => (onCorrectCapture ? async (input) => {
+    const result = await onCorrectCapture(input);
+    if (input.text !== undefined || input.pdfAttachmentId !== undefined) {
+      const held = captureNeededRef.current.references.find((reference) => reference.id === input.referenceId);
+      if (held) setCapturedNow((current) => new Set(current).add(referenceLineageId(held)));
+      void loadCaptureNeededNow();
+    }
+    return result;
+  } : undefined), [loadCaptureNeededNow, onCorrectCapture]);
+
+  const keep = useCallback((key: string) => setStay((current) => (current.has(key) ? current : new Set(current).add(key))), []);
+
+  // Email held for review is read on its own: a site without monitoring, or an editor who may not read it, simply has none.
+  const loadEmailsNow = useCallback(async () => {
+    if (preview === "caught-up") { setEmails([]); setEmailsState("ready"); return; }
+    // The real-data preview has no held email of its own; only the sample and mixed previews show the invented one.
+    if (demo && fixture && preview !== "sample" && preview !== "mixed") { setEmails(fixture.emails ?? []); setEmailsState("ready"); return; }
+    try {
+      setEmails((await api.loadHeldEmails?.()) ?? []);
+    } catch {
+      // Held email is one source among several; the others still show.
+    }
+    setEmailsState("ready");
+  }, [api, demo, fixture, preview]);
+
+  // Suggested links are read a page at a time, and only the first page on arrival: the rest waits for "Load more".
+  const addLinkPage = useCallback((page: LinkSuggestionPage) => {
+    setLinkSuggestions((current) => {
+      const known = new Set(current.map((entry) => entry.relationId));
+      return [...current, ...page.suggestions.filter((entry) => !known.has(entry.relationId))];
+    });
+    setLinksCursor(page.cursor);
+  }, []);
+  useEffect(() => {
+    if (linksStarted.current) return;
+    linksStarted.current = true;
+    if (preview === "caught-up" || !loadLinks) { setLinksState("ready"); return; }
+    void loadLinks(null).then(addLinkPage, () => undefined).finally(() => setLinksState("ready"));
+  }, [addLinkPage, loadLinks, preview]);
+  const loadMoreLinks = useCallback(async () => {
+    if (!loadLinks || !linksCursor || linksLoadingMore) return;
+    setLinksLoadingMore(true);
+    try { addLinkPage(await loadLinks(linksCursor)); } catch { setError("More link suggestions could not be read right now. Try again in a minute."); } finally { setLinksLoadingMore(false); }
+  }, [addLinkPage, linksCursor, linksLoadingMore, loadLinks]);
+
+  // A return visit paints the last view at once, marked as such, while the real reads run.
+  useEffect(() => {
+    if (demo) return;
+    const snapshot = loadNotificationSnapshot(SITE_BRAND.id);
+    if (!snapshot) return;
+    setRequests(snapshot.requests);
+    setStale(true);
+    setLoadState((current) => (current === "loading" ? "ready" : current));
+  }, [demo]);
+
+  /** The titles and stages of the stories that open requests are about, and of the ideas the open batches name. */
+  const loadStoriesFor = useCallback(async (list: ReviewRequest[]) => {
+    const open = list.filter((request) => request.state === "open");
+    const ids = [...open.filter((request) => request.subject.type === "story").map((request) => request.subject.id), ...open.filter(isIdeaBatch).flatMap(ideaIdsOf)];
+    const stories = await api.loadStoryTitles(ids).catch(() => ({ titles: {}, deleted: [] as string[], excerpts: {}, stages: {} }));
+    setStoryTitles(stories.titles);
+    setStoryExcerpts(stories.excerpts ?? {});
+    setIdeaStages(stories.stages ?? {});
+    setDeletedStories(new Set(stories.deleted));
+  }, [api]);
 
   const refresh = useCallback(async () => {
     if (demo) {
-      setRequests(FIXTURE_REVIEW_REQUESTS);
-      setReadIds(new Set(["rr-flag-1"]));
+      // The sample is read once: answering in the preview must not be undone by the next refresh.
+      if (demoStarted.current) return;
+      demoStarted.current = true;
+      setRequests(sample.requests);
       setLoadState("ready");
+      void loadEmailsNow();
+      void loadStoriesFor(sample.requests);
       return;
     }
     try {
-      const { loadReviews } = await import("../lib/review-client");
-      const loaded = await loadReviews();
+      const loaded = await api.loadReviews();
       if (loaded.state !== "ready") {
+        setStale(false);
         setLoadState(loaded.state);
         return;
       }
       setRequests(loaded.requests);
-      setReadIds(new Set(loaded.readIds));
       setUserKey(loaded.userKey);
+      setStale(false);
       setLoadState("ready");
+      void loadEmailsNow();
+      await loadStoriesFor(loaded.requests);
     } catch {
+      setStale(false);
       setLoadState("unavailable");
     }
-  }, [demo]);
+  }, [api, demo, loadEmailsNow, loadStoriesFor, sample]);
 
   useEffect(() => {
     void refresh();
@@ -223,40 +339,137 @@ export function NotificationCenter({ references, decisions, humanCuratedReferenc
     return () => window.clearInterval(timer);
   }, [refresh]);
 
-  const held = useMemo(() => cyclotronHeldForReview(references, decisions, demo), [references, decisions, demo]);
-  const autoDecided = useMemo(() => cyclotronAutoDecided(references, decisions, humanCuratedReferenceLineageIds, demo), [references, decisions, humanCuratedReferenceLineageIds, demo]);
+  // Keep a display copy for the next visit once the live read has arrived.
+  useEffect(() => {
+    if (demo || stale || loadState !== "ready") return;
+    const timer = window.setTimeout(() => saveNotificationSnapshot(SITE_BRAND.id, { requests }), 800);
+    return () => window.clearTimeout(timer);
+  }, [demo, loadState, requests, stale]);
 
   const markRead = useCallback(async (requestId: string) => {
-    setReadIds((current) => new Set(current).add(requestId));
     if (demo || !userKey) return;
-    const { markReviewRead } = await import("../lib/review-client");
-    await markReviewRead(userKey, requestId).catch(() => undefined);
-  }, [demo, userKey]);
+    await api.markReviewRead(userKey, requestId).catch(() => undefined);
+  }, [api, demo, userKey]);
 
+  /** Answers a whole request. Throws a sentence for the card when it cannot be saved. */
   const answer = useCallback(async (request: ReviewRequest, input: AnswerInput) => {
     setError(null);
-    setBusyId(request.id);
-    try {
-      if (demo) throw new Error("This is a demo: answers are not saved.");
-      const { answerReviewRequest } = await import("../lib/review-client");
-      const saved = await answerReviewRequest(request, input, actorLabel);
-      setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
-      await markRead(request.id);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not save the answer.");
-    } finally {
-      setBusyId(null);
-    }
-  }, [actorLabel, demo, markRead]);
+    const saved = await api.answerReviewRequest(request, input, actorLabel);
+    keep(request.id);
+    setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
+    await markRead(request.id);
+  }, [actorLabel, api, keep, markRead]);
 
-  const markAllRead = useCallback(() => {
-    for (const request of requests) if (isUnread(request, readIds)) void markRead(request.id);
-  }, [markRead, readIds, requests]);
+  /** Accept or Reject a held email, or (the same choice again) correct the reason it was given. The reason shown is what the server recorded. */
+  const sendEmailDecision = useCallback(async (summary: MonitoringEmailSummary, choice: "accept" | "reject", why: string, editing = false) => {
+    const result = await api.decideEmail?.(summary.receiptId, choice, why);
+    if (!result) throw new Error("Held email cannot be decided from here.");
+    if (!("ok" in result)) throw new Error("error" in result ? EMAIL_REFUSALS[result.error] ?? "The decision could not be saved." : "The decision could not be saved right now. Try again in a minute.");
+    const plain = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 500);
+    const recorded = result.quarantine?.decision;
+    // The server keeps the first reason once it has queued the email; say so in words rather than showing a reason that was not kept.
+    if (editing && recorded && plain(recorded.reason) !== plain(why)) throw new Error(EMAIL_REFUSALS.already_applied);
+    const kept = recorded?.reason ?? plain(why);
+    setEmailsDecided((current) => new Map(current).set(summary.receiptId, choice));
+    setEmails((current) => current.map((entry) => (entry.receiptId === summary.receiptId
+      ? { ...entry, quarantine: { state: entry.quarantine?.state ?? "quarantined", failure: entry.quarantine?.failure ?? null, decision: { action: choice, by: recorded?.by || actorLabel, at: recorded?.at ?? new Date().toISOString(), reason: kept, viaGroup: recorded?.viaGroup } } }
+      : entry)));
+  }, [actorLabel, api]);
+
+  /** Accept or Reject a suggested link (or, the same choice again, change its reason) through the decide-link action. */
+  const sendLinkDecision = useCallback(async (suggestion: LinkSuggestion, choice: "accept" | "reject", why: string) => {
+    if (!decideLinkNow) throw new Error("Links cannot be decided from here.");
+    await decideLinkNow(suggestion.relationId, choice, why.trim());
+    setLinksDecided((current) => new Map(current).set(suggestion.relationId, { choice, note: why.trim() }));
+  }, [decideLinkNow]);
+
+  /**
+   * Changes only the Why of an item that is already decided, onto the decision that exists:
+   *   review request    the request's answer note (a hard gate, a stage review, an acknowledged flag)
+   *   held email        the same decision again with the new reason, so the Monitoring view updates the recorded reason
+   */
+  const latest = useRef({ requests, emails, emailsDecided, linksDecided });
+  latest.current = { requests, emails, emailsDecided, linksDecided };
+  const editReason = useCallback(async (item: NeedsMeEntry, why: string) => {
+    const { payload } = item;
+    const now = new Date();
+    const store = (saved: ReviewRequest) => {
+      latest.current.requests = latest.current.requests.map((entry) => (entry.id === saved.id ? saved : entry));
+      setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
+    };
+    if (payload.kind === "request") {
+      const request = latest.current.requests.find((entry) => entry.id === payload.request.id) ?? payload.request;
+      store(await api.saveReviewReason(request, answerReasonUpdate(request, why, actorLabel, now)));
+    } else if (payload.kind === "email") {
+      const choice = latest.current.emailsDecided.get(payload.summary.receiptId) ?? payload.summary.quarantine?.decision?.action;
+      if (!choice) throw new Error("This email has not been decided yet.");
+      await sendEmailDecision(payload.summary, choice, why, true);
+    } else if (payload.kind === "link") {
+      const made = latest.current.linksDecided.get(payload.suggestion.relationId);
+      if (!made) throw new Error("This link has not been decided yet.");
+      await sendLinkDecision(payload.suggestion, made.choice, why);
+    }
+  }, [actorLabel, api, sendEmailDecision, sendLinkDecision]);
+
+  /** One decision, whatever the type: it goes to the action that already owns that kind of thing. */
+  const decide = useCallback(async (item: NeedsMeEntry, decision: NeedsMeDecision) => {
+    const { payload } = item;
+    if (payload.kind === "reference") {
+      setVisitRated((current) => (current.has(payload.lineageId) ? current : new Set(current).add(payload.lineageId)));
+      await onRateReference?.(payload.reference, decision.choice, decision.choice === "reject" ? decision.reasonCode : null, decision.why || undefined);
+    } else if (payload.kind === "request") {
+      const { request } = payload;
+      if (request.mode === "flag") await answer(request, { decision: "acknowledge", feedback: decision.why || null });
+      else if (decision.choice === "accept") await answer(request, { decision: "approve", feedback: decision.why || null });
+      else await answer(request, { decision: "reject", feedback: decision.why || null, steer: decision.notThisKind ? "not_this_kind" : null });
+    } else if (payload.kind === "email") {
+      await sendEmailDecision(payload.summary, decision.choice, decision.why);
+    } else if (payload.kind === "link") {
+      await sendLinkDecision(payload.suggestion, decision.choice, decision.why);
+    }
+  }, [answer, onRateReference, sendEmailDecision, sendLinkDecision]);
+
+  const shownReferences = preview === "caught-up" ? references.filter((reference) => normalizeReferenceCurationStatus(reference.curationStatus) !== "pending") : references;
+  const everyAttachment = useMemo(() => {
+    if (!captureNeeded.attachments.length) return referenceAttachments;
+    const known = new Set(referenceAttachments.map((attachment) => attachment.id));
+    return [...referenceAttachments, ...captureNeeded.attachments.filter((attachment) => !known.has(attachment.id))];
+  }, [captureNeeded.attachments, referenceAttachments]);
+  const lineageIds = useMemo(() => [...shownReferences.map(referenceLineageId), ...captureNeeded.references.map(referenceLineageId)], [captureNeeded.references, shownReferences]);
+  const { statuses: captures, teaserLine } = useMemo(() => captureStatusesByLineage(everyAttachment, lineageIds), [lineageIds, everyAttachment]);
+
+  const capturePreviews = useMemo(() => {
+    if (!captureNeeded.attachments.length) return previews;
+    return new Map([...referencePreviewsByLineage(captureNeeded.attachments), ...previews]);
+  }, [captureNeeded.attachments, previews]);
+  const entries = useMemo(
+    () => buildNeedsMeItems({
+      references: shownReferences, decisions, previews: capturePreviews, captures, visitRated, requests, stay, demo, ideaStages,
+      storyTitles, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided,
+      captureNeeded: captureNeeded.references, capturedNow,
+    }),
+    [shownReferences, decisions, capturePreviews, captures, visitRated, requests, stay, demo, ideaStages, storyTitles, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided, captureNeeded.references, capturedNow],
+  );
+  const threshold = useMemo(() => learnConfidenceThreshold(shownReferences, decisions, visitRated), [shownReferences, decisions, visitRated]);
+  const recent = useMemo(() => recentDecisions(requests, references, demo), [requests, references, demo]);
+  const shaping = useMemo(
+    () => shapingThisWeek({ decidedAt: recentDecisions(requests, references, demo, Number.MAX_SAFE_INTEGER).map((entry) => entry.at), references, decisions, now }),
+    [requests, references, demo, decisions, now],
+  );
+  const shownIds = useMemo(() => new Set(entries.map((item) => item.id)), [entries]);
+  const legacyAuto = useMemo(
+    () => cyclotronAutoDecided(shownReferences, decisions, humanCuratedReferenceLineageIds, demo).filter((entry) => !shownIds.has(entry.lineageId)),
+    [shownReferences, decisions, humanCuratedReferenceLineageIds, demo, shownIds],
+  );
+  const settled = !stale && loadState === "ready" && emailsState === "ready" && linksState === "ready" && !referencesLoading && !predictionLoading;
 
   return (
-    <NotificationCenterView
-      autoDecided={autoDecided} busyId={busyId} demo={demo} error={error} held={held} loadState={loadState}
-      onAnswer={answer} onMarkAllRead={markAllRead} onMarkRead={markRead} readIds={readIds} requests={requests}
+    <NeedsMeView
+      below={below} captureTeaserLine={teaserLine} cyclotron={cyclotron} demo={demo} entries={entries} error={error} legacyAuto={legacyAuto}
+      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={correctCapture} onDecide={decide} onEditReason={editReason} onSetStars={onSetReferenceStars}
+      moreLinks={linksCursor !== null} loadingMoreLinks={linksLoadingMore} onLoadMoreLinks={loadMoreLinks}
+      predictionLoading={predictionLoading} recent={recent} referenceAttachments={everyAttachment}
+      referenceDisabledReason={referenceDisabledReason} referencesLoading={referencesLoading} settled={settled} shaping={shaping} stale={stale} threshold={threshold}
     />
   );
 }

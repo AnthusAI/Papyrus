@@ -1,0 +1,56 @@
+{
+  "id": "PPY-39c0a604-3a25-4620-a055-104f110f2118",
+  "title": "Machines on Machines: the article Story type has no public address",
+  "description": "web/projection.json in AnthusAI/Machines-on-Machines declares storyTypes post and article, but urls.types has only post at /posts/. An article Story has no declared address, and listings include article. The sitemap shows no Story pages yet, so this first Story is likely to be the site's first test of the address scheme.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c2716429-8046-47cb-81e3-d9871066452f",
+      "author": "home",
+      "text": "Update 2026-11-03: the Story I created through the CLI came out as Type: article, while this site's default is post and only post has an address. A Story created this way can't be published at an address until that's resolved. Either creation should use the site's default type, or article needs an address.",
+      "created_at": "2026-11-04T03:31:39.962933Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "fb1f3b7e-c3a0-4907-80ce-952667f53d62",
+      "author": "home",
+      "text": "Update 2026-11-03: Ryan confirmed the non-interference Story is an article, so this now blocks a real Story from publishing: the Machines on Machines projection has an address only for post. Article needs a urls.types entry before that Story reaches publishing.",
+      "created_at": "2026-11-04T03:33:50.741610Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "0c411ff4-5a08-4dd1-82a2-03222dcb110a",
+      "author": "home",
+      "text": "Raised 2026-11-04: Ryan says this Story is the first article Machines on Machines will ever publish, and the article type still has no address, so this blocks the launch.",
+      "created_at": "2026-11-04T13:52:17.148181Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "2dd97075-9630-41d8-ad09-377b132953bd",
+      "author": "home",
+      "text": "Fixed: /articles/ is declared on Machines on Machines (AnthusAI/Machines-on-Machines#32), live with 5.85.0. A published article page has not been seen yet.",
+      "created_at": "2026-11-04T15:03:53.124706Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b9d79915-08ed-480b-bf9f-0b46d1e9cc82",
+      "author": "home",
+      "text": "Checked 2026-11-04: Machines on Machines origin/main web/projection.json now gives the article type the base articles (Papyrus 5.85.0 commit). Looks fixed by config; not yet seen working on a live article page.",
+      "created_at": "2026-11-04T16:06:29.488332Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T00:14:55.246390Z",
+  "updated_at": "2026-11-04T16:06:29.488591Z",
+  "closed_at": "2026-11-04T15:03:53.205907Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

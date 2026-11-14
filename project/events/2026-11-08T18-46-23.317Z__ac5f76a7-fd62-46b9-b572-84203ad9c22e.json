@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "ac5f76a7-fd62-46b9-b572-84203ad9c22e",
+  "issue_id": "PPY-994bd093-b3f2-442c-9711-0ac8e5819220",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:23.317Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Per-tenant projection lease and a fair-share queue for background projection work",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -1,5 +1,7 @@
 # Reader steering
 
+> **Reader Steering** is the name for this plugin: votes, ratings, flags and comments from signed-in readers. **Proposals** are the queue where AI proposes, readers steer and editors decide, and **Editor Override** is the editor tier on them. See [feature-names.md](feature-names.md#reader-steering-proposals-and-editor-override). Shipped (<https://shipped.anth.us/proposals/>) shows them.
+
 Readers sign in, pick a handle, upvote, mark "I used it", rate the items of a publication and submit links. Editors and
 readers steer ranking together. The `reader-steering` plugin (initiative PPY-77bb3b) builds the reader identity, the reader
 API, votes and ratings, public link submissions (see [Submissions](#submissions)), comments as a steering signal (see [Comments](#comments)), moderation after the fact (see [Moderation](#moderation)), the snapshot that puts live numbers on
@@ -20,7 +22,7 @@ export default defineSite({
     plugins: [
       {
         name: "reader-steering",
-        computeRoleArn: "arn:aws:iam::<account>:role/<the CmsComputeRoleArn output>",
+        computeRoleArn: "arn:aws:iam::<account>:role/<the CmsComputeRoleArn output>", // optional: PAPYRUS_COMPUTE_ROLE_ARN on the Amplify branch wins
         dimensions: ["real", "useful", "notable", "novel"],
       },
     ],
@@ -30,7 +32,7 @@ export default defineSite({
 
 Enabling it is a backend deploy: nine models, three staff mutations, the `reader-actions` function, a rate-window table and, when
 `snapshot.schedule` is on, one EventBridge rule are added. A site that does not list it synthesizes exactly what it did before.
-`computeRoleArn` is the `CmsComputeRoleArn` output of the app-shell stack. The plugin does not edit that role: it puts a
+`computeRoleArn` is the `CmsComputeRoleArn` output of the app-shell stack. It need not be written in the repository: the stack sets it on its Amplify branches as `PAPYRUS_COMPUTE_ROLE_ARN`, which wins over the written value, so the setting can be left out ([AWS identifiers outside Git](site-hosting.md#aws-identifiers-outside-git)). The plugin does not edit that role: it puts a
 resource policy on `reader-actions` that lets exactly that role invoke exactly that function.
 
 | Setting | Default | Meaning |
@@ -65,7 +67,9 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `comments.maximumLength` | 2000 | Characters in a comment. |
 | `comments.maximumLinks` | 3 | Links (`http://`, `https://` or `www.`) in a comment. |
 | `proposals.publish` | `false` | Publish proposals, in every state, as public `_data/proposals/` files. Off by default: proposals stay private records (AI-filed story ideas are private drafts) until a site opts in. Sets `PAPYRUS_READER_PUBLISH_PROPOSALS` (`true` or `false`) on content-actions. Turning it off stops further updates; it does not delete files already published. See [Proposals](#proposals). |
-| `submissions.itemType`, `submissions.section` | `brief`, `unsectioned` | The type and section of the draft item that promoting a submission creates. |
+| `submissions.extraction.apiKeyParameter` | unset | Turns extraction on (see [Extraction](#extraction)). The SSM SecureString that holds the model's API key, named `/papyrus/<site>/openai-api-key`. The plugin lets the snapshot worker (`content-actions`) read this one parameter and never creates it. Without it nothing is fetched and submissions stay `extractionState: "pending"`. |
+| `submissions.extraction.seconds` | 240 | 60 to 840. The time one run may spend on extraction. The worker's timeout becomes this plus 60 seconds, for this site only. |
+| `submissions.itemType`, `submissions.section` | `untyped`, `unsectioned` | The type and section of the draft item that promoting a submission creates. |
 | `moderation.mode` | `human` | `human`: new submissions and comments are public at once and wait in the Administration queue. `off`: no queue; moderators can still hide, ban and undo. `ai`: a model decides each new item, with human override. See [Moderation](#moderation). |
 | `moderation.ai.apiKeyParameter` | required in `ai` mode | The SSM SecureString that holds the model's API key, named `/papyrus/<site>/openai-api-key`. The plugin only grants read access to this one parameter; it never creates it. |
 | `moderation.ai.model` | `gpt-6-luna` | The model that judges each item. |
@@ -117,6 +121,8 @@ Next route handlers in the CMS app: `app/api/reader/*`, `Cache-Control: no-store
 | `POST /api/reader/comment/edit` | `{id, body}` | `200 {id, body, editedAt}`; `403 edit_window_closed`; `404` for a comment that is not the caller's. |
 | `POST /api/reader/comment/delete` | `{id}` | `200 {id, state: "deleted"}`; idempotent. |
 | `POST /api/reader/submit` | `{url, title, kind?, note?}` | `201 {subject, url, title, kind, state: "pending", extraction: "pending", similar: [{subject, url, title}]}`. `409 duplicate_submission` with `existing: {subject, url, title, state}`. See [Submissions](#submissions). |
+| `GET /api/reader/extraction?subject=sub-...` | | `200 {subject, url, title, state, extraction, confirmation}`: what the worker pulled out of the caller's own submission (see [Extraction](#extraction)). `404 unknown_submission` for a submission that is not the caller's, exactly as for one that does not exist. `400 invalid_subject`. |
+| `POST /api/reader/extraction/confirm` | `{subject, decision: "confirm" \| "correct", model?, maker?, task?}` | `200` with the same shape as the read, `confirmation` filled in. `409 extraction_not_ready`, `409 nothing_to_confirm`, `404 unknown_submission`, `422`. See [Extraction](#extraction). |
 
 The subject is the lineage id of a published item, or the id of a visible submission (`sub-` plus 24 hex characters). The
 function checks it against the `PublishedItem` table or the `ReaderSubmission` table (`404 unknown_subject`; a hidden
@@ -231,7 +237,7 @@ This shape is stable: fields may be added, never renamed or removed.
 |---|---|---|
 | `ReaderProfile` | the siteSubject | `siteSubject`, `readerId` (UUID, public), `handle`, `state` (`active`, `limited`, `banned`), `karma` (materialised by the snapshot), `createdAt` |
 | `ReaderHandle` | the lowercase handle | `readerId`. A claim written together with the profile's handle in one transaction, which is what makes a handle unique. |
-| `ReaderSubmission` | `sub-` + the first 24 hex characters of the SHA-256 of the canonical URL | `canonicalUrl`, `domain`, `title`, `kind`, `note`, `readerId`, `state` (`pending`, `promoted`, `hidden`), `similar` (submission ids), `signals` (JSON string), `extractionState`, `itemId`, `reviewedAt`, `createdAt`. A secondary index `submissionsByDomain` (`domain`, `createdAt`) finds recent items from one site. |
+| `ReaderSubmission` | `sub-` + the first 24 hex characters of the SHA-256 of the canonical URL | `canonicalUrl`, `domain`, `title`, `kind`, `note`, `readerId`, `state` (`pending`, `promoted`, `hidden`), `similar` (submission ids), `signals` (JSON string), `extractionState` (`pending`, `extracted`, `failed`), `extraction`, `extractedAt`, `extractionConfirmation` (see [Extraction](#extraction)), `itemId`, `reviewedAt`, `createdAt`. A secondary index `submissionsByDomain` (`domain`, `createdAt`) finds recent items from one site. |
 | `ReaderComment` | `cmt-` + 32 hex characters | `subjectKey`, `readerId`, `body` (empty once deleted), `parentId`, `ratingContext` (JSON string `{dimension, value}`), `state` (`visible`, `hidden`, `deleted`), `signals`, `reviewedAt`, `editedAt`, `deletedAt`, `createdAt` |
 | `ReaderReport` | `rep-` + 24 hex characters of the SHA-256 of `readerId#target` | `targetType`, `target`, `reporterReaderId`, `reason`, `state` (`open`, `closed`), `closedAt`, `createdAt`. An index `reportsByTarget`. |
 | `ModerationAction` | `mod-` + 32 hex characters | `by` (`human`, `ai`), `actorSub` (the staff member's Cognito subject, or `ai`), `action`, `targetType` (`submission`, `comment`, `reader`), `target`, `reason`, `fromState`, `toState`, `fromModeration`, `toModeration`, `undoOf`, `undoneBy`, `at`. An index `actionsByTarget`. |
@@ -416,7 +422,7 @@ validates a Cognito editor identity, records `user:<sub>` as the actor and write
 attachments. A reader has none of that, and a Reference carries no field for reader provenance. A submission therefore
 lives in its own table, keyed by the canonical URL, with the reader's `readerId` as provenance. The plugin
 function canonicalises with a verbatim copy of `canonical_source_url` (the function ships alone, without the package); a test
-pins the two to the same answers. A later extraction step (below) is where a submission meets References and entities.
+pins the two to the same answers. The extraction step (see [Extraction](#extraction)) is where a submission meets References and entities.
 
 **The request.** Validation, then the rate limit, then the duplicate check:
 
@@ -438,9 +444,7 @@ of `{source, policy, detector, severity, excerpt}` built from Humanus rule check
 `ai-writing-tells` pack and a small `reader-spam` pack (promotion, shouting), both on title and note, plus a URL shortener check
 (`reader_steering/signals.py`). Signals are advice for moderators; they never hide anything. Nothing runs in the request.
 
-**Extraction hook.** Entity extraction is not LLM based and runs later in the worker. For now the submit path stores the link and
-the reader's text only, and `extractionState` stays `pending`; the worker step that fills it in (owned by the knowledge-base
-work) reads `pending` rows and leaves `pending` alone until it succeeds. Nothing in the request waits for it.
+**Extraction.** The request only stores the link and the reader's text; `extractionState` starts `pending`. What the link is about is worked out later, in the worker (see [Extraction](#extraction)).
 
 **Public file.** `_data/reader/submissions.json`:
 
@@ -460,6 +464,66 @@ Newest first, at most 200, `pending` and `promoted` only: a hidden submission is
 on a submission use the existing vote route with `subject` set to its id, and appear in `items.json` under that id.
 
 A deleted reader's submissions are deleted by the retirement poll and a merged reader's move to the surviving profile.
+
+## Extraction
+
+After a reader files a link, the snapshot worker works out which **model**, which **maker** and which **task** the link is about, so the Submit page can show "Confirm what the map pulled out" and the reader can confirm it or correct it. It is off unless the site sets `submissions.extraction.apiKeyParameter` (see the settings table); nothing in the request path waits for it.
+
+**When it runs.** Last in the `reader-snapshot` run, after the public files are written and the edge is purged, so a slow link can never delay the numbers. It takes every submission that is *visible* (`pending` or `promoted`) and still `extractionState: "pending"`, oldest first. That is the moderation rule: a submission held by pre-moderation, or hidden by a moderator or the AI moderator, is never fetched; once a moderator approves or shows it again, the next run picks it up. With the default `human` mode a submission is public at once, so it is read at once. The run is bounded by the time `submissions.extraction.seconds` allows (a link needs at most 20 seconds to fetch and 30 for the model), not by a count; what does not fit waits for the next run, and every submission is also a trigger, because a submit schedules a snapshot run a minute later.
+
+**What it does** (`src/papyrus_content/reader_steering/extraction.py`):
+
+1. Reads the link with `link_exploration.explore` (public http(s) only, redirects and trackers resolved, HTML and PDF), with the search fallback off: only the page the reader gave counts.
+2. Asks the model, `DEFAULT_LLM_MODEL` from `model_defaults.py`, through the Responses API (`store: false`, JSON object output), for `{model, maker, task}`, each a short name or `null`. The reader's title and note and the page text go in as data in the request input, never in the instructions, and the instructions tell the model to ignore instructions inside them. The model never sees a `readerId`, handle or siteSubject. The API key is read from the one SSM parameter when the run starts, held only by the transport, and never logged or stored; an error is recorded by class name.
+3. Matches each name to an **accepted** knowledge entity (`SemanticNode`, current version) by name or alias, ignoring case and white space, the way the knowledge snapshot matches names. `model` also matches a model family; a `maker` matches only a maker and a `task` only a task. A name that two entities share matches nothing (a guess is worse than none), and a proposed or rejected entity is never matched. The link is matched to a current `Reference` by its canonical address (tracking parameters and fragment dropped).
+4. Stores the result on the submission and sets `extractionState: "extracted"`.
+
+**What is stored.** On `ReaderSubmission` (all private, staff-readable like the rest of the model, never in a public file):
+
+- `extraction`: a JSON string. Extracted: `{version, at, model, maker, task, reference, llm, seconds}` where each of `model`, `maker`, `task` is `null` or `{name, match: {key, name, kind} | null}`, `reference` is `null` or `{lineageId, title}` and `llm` is `{model, promptVersion}`. Failed: `{version, at, failure}` or, while it will be retried, `{version, at, lastFailure}`.
+- `extractionState`: `pending`, `extracted` or `failed`.
+- `extractedAt`: when the state last moved.
+- `extractionConfirmation`: the reader's answer, a JSON string `{status: "confirmed" | "corrected", at, model, maker, task}` (same field shape, `match` kept only where the name is unchanged).
+
+**Failures are recorded, never fatal.** A reason that will not change ends in `failed` with the typed reason of link exploration (`http_4xx`, `not_public`, `unreadable`, `dns`, `tls`, `blocked`, `too_large`, ...) or `no_text` or `empty_answer` (the model found none of the three). A reason that may pass (`timeout`, `http_5xx`, `connection`, `model_failed`, an unexpected error by class name) leaves the row `pending` with `lastFailure`, and the next run tries again. Three model failures in a row end the run (the rest wait). A knowledge base that cannot be read leaves everything pending and reports `extraction.error`. The run report carries `extraction: {enabled, extracted, failed, retry, notReached, error}`. Nothing here ever fails the snapshot run.
+
+**The read API (reader-scoped).** Two routes in the CMS app, the same session, `readerSubject`, Origin and size checks as every other reader route, both `Cache-Control: no-store`; the `reader-actions` function does the work (actions `extraction` and `extraction-confirm`).
+
+`GET /api/reader/extraction?subject=sub-<24 hex>` answers `200`:
+
+```json
+{
+  "subject": "sub-0123456789abcdef01234567",
+  "url": "https://example.com/post",
+  "title": "A small tool",
+  "state": "pending",
+  "extraction": {
+    "state": "extracted",
+    "model": { "name": "whisper", "match": { "key": "model--whisper", "name": "Whisper", "kind": "model" } },
+    "maker": { "name": "OpenAI", "match": null },
+    "task": null,
+    "knownReference": true
+  },
+  "confirmation": null
+}
+```
+
+- `state` is the submission's: `pending`, `promoted` or `held` (a hidden submission reads as held, as in the submit answer).
+- `extraction.state` is `pending` (not read yet; only `state`), `extracted` (`model`, `maker`, `task`, each `null` or `{name, match}`, and `knownReference`: whether the link is already a Reference in the newsroom, a boolean only) or `failed` (`reason`, the typed reason).
+- `confirmation` is `null` until the reader answers, then `{status: "confirmed" | "corrected", at, model, maker, task}` with the same field shape.
+
+`POST /api/reader/extraction/confirm` takes `{subject, decision, model?, maker?, task?}`:
+
+- `decision: "confirm"` sends no fields and needs `extraction.state: "extracted"` (`409 nothing_to_confirm` otherwise). It records the extracted values as the reader's answer.
+- `decision: "correct"` sends at least one of `model`, `maker`, `task`. A field sent as a string (at most 120 characters, plain text, no email address) replaces the extracted one; a field sent as `null` says there is none; a field left out keeps the extracted value. It works after a failed extraction too, so the reader can fill in what the map could not find. A corrected name keeps its entity `match` only when it is the same name in other case; otherwise `match` is `null` (the worker does not re-match corrections yet).
+- Either decision answers `409 extraction_not_ready` while `extraction.state` is `pending`. A reader may answer again; the last answer stands. Unknown fields are `422`; a `limited` reader gets `403 reader_limited`; confirmations share the hourly action allowance (`limits.actionsPerHour`).
+- Reading is allowed to a `banned` reader (it is their own record); changing is not (`403 reader_banned`).
+
+**What a confirmation changes: nothing else.** It records the reader's answer on the submission row. It creates no Reference, entity, vote or item, changes no state or moderation, and does not feed the ranking or karma. Staff can read `extractionConfirmation` on the staff-readable `ReaderSubmission` model; using it (to promote with the right entities, or to train the extractor) is a later decision.
+
+**Privacy.** The extraction and the confirmation belong to the reader who filed the submission. The function compares the submission's `readerId` with the caller's profile and answers an identical `404 unknown_submission` whether the id is someone else's or does not exist, so a reader cannot probe for other readers' submissions. The reader sees names and public entity matches only: never the Reference id or title (only that one exists), the model, the prompt version, the page text, a `readerId`, a handle or a siteSubject. `submissions.json` and every other public file never carry any of these fields, and the privacy scan test covers a submission with an extraction and a correction. There is no AppSync query or mutation for readers: readers have no Cognito identity (their identity is the Prospectus session), so, like every reader action, this goes through the CMS route and the `reader-actions` function, which only the CMS compute role may invoke.
+
+**Cost and resources.** A site that does not set `submissions.extraction` gets no new IAM statement, environment variable, timeout change or table; the only schema change is three optional fields on `ReaderSubmission`, which exists only with the plugin. `test-reader-steering-plugin.ts` pins this, and a synth of the plugin without the setting is byte-identical to the one before this change. With the setting: one `ssm:GetParameter` on the named parameter, two environment variables on `content-actions`, and its timeout becomes `seconds + 60`. Matching lists the `SemanticNode` and `Reference` models through the worker's existing authoring client, once per run and only when a submission is waiting.
 
 ## Comments
 
@@ -595,12 +659,18 @@ rendered as text and links only if they are `http` or `https`. The plugin manife
 
 ## Proposals
 
-A proposal is a change to the map written down where readers can see it: a story draft, a new concept, a rename, a merge, a
-split, a new column or an element symbol. AI files it, readers steer it with votes, an editor decides. It is part of the
-`reader-steering` plugin (a `Proposal` model, the `fileProposal` and `transitionProposal` mutations on `reader-actions`, and
-`papyrus proposals` on the CLI). The record and its rules are one stdlib module,
-`amplify/plugins/reader-steering/function/proposals.py`; the public files come from
-`src/papyrus_content/reader_steering/proposals.py`.
+A proposal is a change to the map written down where readers can see it: a new concept, a rename, a merge, a
+split, a new column or an element symbol. AI files it, readers steer it with votes, an editor decides.
+
+**The queue is core; the plugin adds readers.** Every site's backend has the `Proposal` model, the `fileProposal`,
+`transitionProposal` and `editProposal` mutations, the operator query `listStoryDrafts`, the `proposal-actions` function behind
+them (`amplify/functions/proposal-actions/`) and the Proposals panel in Administration, with or without this plugin. A site
+that never enabled `reader-steering` therefore still has the queue for AI and reader proposals (concepts, renames, merges), which its editors decide by configuration alone. Generated story ideas (monitor stories, Cited Trends, `papyrus ideas synthesize`) are not Proposals: they are Items at the `idea` stage. The plugin builds on that table: reader votes on `proposal`
+subjects, the snapshot that freezes the community result and the optional public `_data/proposals/` files
+(`proposals.publish`). The plugin defines none of the queue's schema and its `reader-actions` function no longer handles it. The
+record and its rules are one stdlib module, `amplify/functions/proposal-actions/proposals.py`; the public files come from
+`src/papyrus_content/reader_steering/proposals.py`. `SteeringProposal` (topic and category steering) is a different, older model
+and stays separate: it needs a corpus and a category set, has no body, no state machine and no operator path.
 
 **The record (`Proposal`, id `prop-` + 32 hex characters).** Staff-readable only, like the other reader models.
 
@@ -609,11 +679,16 @@ split, a new column or an element symbol. AI files it, readers steer it with vot
 | `kind` | `story_draft`, `new_concept`, `rename`, `merge`, `split`, `new_column`, `element_symbol` |
 | `title`, `summary`, `body` | Title (200 characters), an optional one-line summary (300) and the body as Markus, kept byte for byte (50,000) |
 | `targets` | JSON list of `{type, id}` with a type of `concept`, `entity`, `column`, `story` or `cluster`. A `rename`, `split` or `element_symbol` names exactly one, a `merge` two to ten, the rest none to ten |
-| `evidence` | Optional JSON `{signals, source}`: how many signals back the proposal and where they came from |
+| `evidence` | Optional JSON `{signals, source, figure?}`: how many signals back the proposal and where they came from, and optionally a `figure`: a small chart spec (`{type: line\|bar, title, caption, unit, source, x: [week labels], series: [{signal, label, values}]}`, one value per label, at most 8,000 bytes) that an editor approves with the copy. Malformed figures are refused with `invalid_evidence`; [trend stories](idea-pipeline.md#trend-stories) file them |
 | `proposer` | `ai`, or a reader's siteSubject. Stored, never published, and never a Person ID. `fileProposal` files AI proposals only; a reader route is not built |
 | `state` | `draft`, `in_steering`, `editor_review`, `approved`, `declined`, `overridden_by_editor` |
-| `history` | JSON list of `{from, to, by, actor, reason, at, result?}`, appended in the same conditional write as the state. `actor` is the staff member's Cognito subject and is never published |
-| `communityResult` | The votes (`{up, down, net, at}`) fixed by the first snapshot that sees the proposal in editor review or later. Written once, never overwritten |
+| `history` | JSON list of `{from, to, by, actor, reason, at, result?}`, appended in the same conditional write as the state. `actor` is the staff member's Cognito subject, or `operator:<principal ARN>` for an IAM operator (`by` is `operator`), and is never published |
+| `communityResult` | The votes (`{up, down, net, at}`) fixed by the first snapshot that sees the proposal in editor review or later. Fixed again, with the exclusions applied, after an editor excludes or restores votes (see [The editor tier](#the-editor-tier)) |
+| `pinned`, `held` | Editor flags (booleans). Published |
+| `override` | `{result, reason, at}` of an override: what the editor decided against the community, and the public reason. Published as `override`; the community result stays beside it |
+| `exclusions` | JSON list of `{id, rule, at, actor, undoneAt?, undoneBy?}`: the batches of votes an editor excluded. An undone one stays here. Staff-only; the public files show the active ones without `actor` |
+| `editorLog` | JSON list of `{action, by, actor, at, detail?}` for every pin, hold and exclusion (last 200). Staff-only, never published |
+| `needsLook` | `{reasons: [{code, label, detail}], at}` written by the reader snapshot while an editor should look at the proposal; removed when no reason is left. Staff-only, never published |
 
 **Transitions.** Anything not listed is refused (`transition_not_allowed`); approved, declined and overridden are final.
 
@@ -625,9 +700,10 @@ split, a new column or an element symbol. AI files it, readers steer it with vot
 
 `overridden_by_editor` needs a public `reason` (`reason_required`) and a `result` of `approved` or `declined`, the editor's decision against
 the community's view (`result_required`); no other transition takes a result. Every reason is public text of at most 500 characters. Both
-mutations are open to the `editor` and `admin` groups only (the function checks the groups again) and answer a receipt `{status, id, error,
+mutations are open to the `editor` and `admin` groups (the function checks the groups again), and, narrowly, to an IAM operator (see
+[Operator filing](#operator-filing)), and answer a receipt `{status, id, error,
 message}` that never throws. A move is conditioned on the state the caller saw: if someone else moved the proposal first the answer is
-`refused / target_changed` and nothing is written. The full editor tier (PPY-0af7db) adds what it needs beyond these.
+`refused / target_changed` and nothing is written. `transitionProposal` is also the editor's approve, decline and override. A proposal on hold (below) refuses every move with `proposal_held`. Pin, hold and vote exclusion are `editProposal` ([The editor tier](#the-editor-tier)).
 
 **The files.** Publishing is opt-in: the files below are written only when the site sets `proposals: { publish: true }` (default `false`; the snapshot task reads `PAPYRUS_READER_PUBLISH_PROPOSALS`). With it off, proposals stay private records, the snapshot still freezes the community result of a proposal that reaches editor review and still counts the stored proposals in its report, and `papyrus proposals publish` and the scheduled snapshot write no public proposal files. Turning it off later stops further updates; files already published stay until the site removes them. With it on, the snapshot reads every proposal and writes `_data/proposals/index.json` and one `_data/proposals/<id>.json` under the
 projection's URL policy (so `urls.basePath: "posts"` gives `posts/_data/proposals/index.json`). Every state is published, so a site can
@@ -646,17 +722,30 @@ change. The page reconcile never reports them as orphans.
       "createdAt": "2026-10-21T10:00:00Z", "updatedAt": "2026-10-22T09:00:00Z",
       "votes": {"up": 42, "down": 3, "net": 39}, "comments": 5,
       "communityResult": {"up": 42, "down": 3, "net": 39, "at": "2026-10-22T08:00:00Z"},
-      "decision": {"state": "overridden_by_editor", "result": "declined", "by": "Editor", "reason": "Coordinated votes from new accounts.", "at": "2026-10-22T09:00:00Z"}
+      "decision": {"state": "overridden_by_editor", "result": "declined", "by": "Editor", "reason": "Coordinated votes from new accounts.", "at": "2026-10-22T09:00:00Z"},
+      "override": {"result": "declined", "reason": "Coordinated votes from new accounts.", "by": "Editor", "at": "2026-10-22T09:00:00Z"},
+      "pinned": false, "held": false,
+      "excluded": {
+        "votes": 7,
+        "rules": [{"id": "exc-0123456789ab", "rule": "new-accounts-24h", "label": "accounts under 24 h", "votes": 7, "at": "2026-10-22T08:30:00Z"}],
+        "note": "Excluded 7 votes from accounts under 24 h"
+      }
     }
   ]
 }
 ```
 
 `_data/proposals/<id>.json` is `{generatedAt, proposal}` where `proposal` is the entry above plus `body` (the Markus as filed) and `history`
-(`{from, to, by, reason, at, result?}` with `by` of `AI`, `Staff` or `Editor`). `group` is `stories` (story drafts), `concepts` (new
+(`{from, to, by, reason, at, result?}` with `by` of `AI`, `Staff` or `Editor`). `group` is `stories` (old `story_draft` rows, which the Administration panel hides), `concepts` (new
 concepts) or `map_changes` (everything else), the tabs a site shows. `label` is `<State> · Proposed by AI` (`Reader` for a reader proposer).
 `communityResult` is `null` before editor review, live until the snapshot has fixed it, then frozen; `decision` is `null` until an editor
-decides. Sort orders (Top, New, Controversial) are the site's to compute from `votes` and `createdAt`. No file holds a siteSubject, a
+decides. The editor-tier fields are always present: `override` is `null` unless the editor overrode the community (then `decision` holds the same
+result, and `communityResult` is still the community's own); `pinned` and `held` are booleans (a site floats pinned proposals and may badge held ones); `excluded` is
+`{votes: 0, rules: [], note: null}` when nothing was left out. `votes`, `communityResult` and every other tally count only the votes that were not excluded. `excluded.rules` has
+one entry per active exclusion (`id` is what `undo-exclusion` takes; `votes` is how many of that batch's votes were counted out) and, when readers whose accounts are limited or
+banned (spam) voted, one `{id: null, rule: "limited-or-spam", label: "limited or spam accounts", votes, at: null}`. An undone exclusion is gone from the file. `note` is the
+sentence to show ("Excluded 7 votes from accounts under 24 h", `1 vote` in the singular, entries joined with " and "), or `null`. Needs-a-look reasons, the editor log and
+who acted are never in a public file. Sort orders (Top, New, Controversial) are the site's to compute from `votes` and `createdAt`. No file holds a siteSubject, a
 Cognito subject or an email.
 
 **Votes.** Votes on a proposal are keyed `{type: "proposal", id}`; the vote model (PPY-c97ce4) is the only place votes are cast or counted.
@@ -666,7 +755,35 @@ minus down), so proposals publish before votes on them do. `up` and `down` are w
 be fractional and is published unrounded; a site rounds it to one decimal for display. To take votes on proposals a publication lists `"proposal"` in its
 `subjects.types`, and the page casts them with `POST /api/reader/vote {subject: {type: "proposal", id}, value: 1 | -1 | null}`.
 
-**The CLI.** Signed in as an editor or admin (`papyrus login`):
+### The editor tier
+
+The editor tier (PPY-0af7db) is everything an editor or admin does to a proposal besides the filing and the move through the states. All of it is
+for the `editor` and `admin` groups (the function checks again). A reader, an anonymous caller and an IAM operator are refused: `not_staff`, or `operator_not_allowed`
+for an operator, whose reach stays exactly what [Operator filing](#operator-filing) says.
+
+* **Approve, decline, override** are `transitionProposal` (`approved`, `declined`, `overridden_by_editor` with a `result` and a public `reason`). An override is
+  stored on the proposal (`override`) and published as `override`; the community result is fixed when review begins and stays visible next to it.
+* **Pin, hold** are `editProposal(proposalId, action)` with `action` of `pin`, `unpin`, `hold` or `release` (`already_pinned`, `not_pinned`, `already_held`,
+  `not_held` when it would change nothing). A held proposal refuses every state change with `proposal_held` until it is released; a decided proposal cannot be put on hold
+  (`proposal_decided`). A pin changes nothing but the flag, which sites use to float the proposal.
+* **Exclude votes** is `editProposal(proposalId, "exclude_votes", rule)` with a rule from a short fixed list (`invalid_rule` otherwise); today
+  `new-accounts-24h`, the votes of accounts that were under 24 hours old when they voted. It covers the votes cast so far on that proposal (a later vote from a new account
+  counts; run it again). The receipt's `id` is the exclusion id. `undo_exclusion` with `exclusionId` puts the votes back (`unknown_exclusion`, `already_undone`). The function
+  never counts votes; the exclusion takes effect at the next reader snapshot (`papyrus proposals publish` runs one), which drops the excluded votes before any tally, so
+  `votes`, the ranking and the community result all agree. Changing an exclusion removes the stored `communityResult`, and the next snapshot fixes it again without the excluded votes.
+* **Spam and limited accounts.** `moderateReader` already marks a reader `limit` (limited) or `ban` (the spam case) and undoes it; there is no separate spam state. On a
+  proposal, votes of a reader whose account is limited or banned at snapshot time never count and are reported under `limited-or-spam`; unbanning counts them again. This is
+  for proposals only: item and submission tallies are unchanged.
+* **Needs a look.** Each reader snapshot decides, deterministically and without a model, which undecided proposals (`draft`, `in_steering`, `editor_review`) an editor should
+  open, from the counted votes: *vote spike* (at least 10 votes in the last hour and at least three times the hourly pace of the 23 hours before), *new-account surge* (at least 5
+  counted votes in the last 24 hours from accounts under 24 hours old when they voted, and at least 40% of that day's votes), and *community and AI disagree* (an AI proposal that
+  is past draft with at least 5 votes, down ahead of up by at least 3 and at least 60% down). The reasons (`{code, label, detail}`) are stored on the private proposal row as
+  `needsLook` and cleared when none is left, so excluding a batch clears the surge. Editors read them with `listProposals`/`getProposal` or `papyrus proposals needs-a-look`;
+  the thresholds are constants in `src/papyrus_content/reader_steering/proposal_votes.py`.
+
+The CMS console has a Proposals panel under Administration on every site; it does not need this plugin. Editors list proposals by where they stand, read the draft, pin and unpin, hold and release, and decide: send a draft to steering (or, on a site without this plugin, straight to editor review, which is two `transitionProposal` calls from one click), decline it, and approve or decline one in review. Without the plugin the panel says nothing of steering, votes or readers. Excluding votes and overriding the community need readers and a reason, so they stay with the CLI and the API (`papyrus proposals`); the Moderation panel, which does need the plugin, has limit and ban for readers.
+
+**The CLI.** Signed in as an editor or admin (`papyrus login`); `create`, `transition` (draft to `in_steering` or `declined`) and `publish` also work with `PAPYRUS_GRAPHQL_AUTH=iam`; the editor-tier commands (`approve`, `decline`, `override`, `pin`, `unpin`, `hold`, `release`, `exclude-votes`, `undo-exclusion`, `needs-a-look`) need an editor session ([Operator filing](#operator-filing)):
 
 ```bash
 papyrus proposals create --kind merge --title "Merge the agent clusters" --body-file draft.md \
@@ -675,11 +792,61 @@ papyrus proposals list [--state in_steering] [--json]
 papyrus proposals show prop-... [--json]
 papyrus proposals transition prop-... --to in_steering
 papyrus proposals transition prop-... --to overridden_by_editor --result declined --reason "Coordinated votes."
+papyrus proposals approve prop-... [--reason "Clear evidence."]
+papyrus proposals decline prop-... [--reason "Not now."]
+papyrus proposals override prop-... --result declined --reason "Coordinated votes."   # the reason is public
+papyrus proposals pin prop-...                  # also: unpin, hold, release
+papyrus proposals exclude-votes prop-... --rule new-accounts-24h   # prints the exclusion id
+papyrus proposals undo-exclusion prop-... --exclusion exc-0123456789ab
+papyrus proposals needs-a-look [--json]         # proposals with reasons from the last snapshot; editor-only
 papyrus proposals publish        # runs the reader snapshot, which writes _data/proposals/ only when proposals.publish is on
 ```
 
 A refusal prints `error: message` and exits 2. `create` files a private draft. It becomes public only on a site that sets `proposals.publish: true`, at the next snapshot, which every `publish` and
 every scheduled run starts.
+
+### Operator filing
+
+An unattended automation or an agent has no browser sign-in and no `editor` group, so an operator's IAM role may file AI proposals
+and send a draft on its way. The rule is deliberately narrow.
+
+| Caller | `fileProposal` | `transitionProposal` |
+|---|---|---|
+| Editor or admin (Cognito) | any valid proposal | every allowed transition |
+| IAM principal of the function's own account | yes, always as an AI proposal | only `draft` to `in_steering`, and `draft` to `declined` |
+| Cognito identity-pool user, a principal of another account, anyone else | `not_staff` | `not_staff` |
+
+* **Who counts as an operator.** The AppSync identity names an IAM `userArn` in the same account as the reader-actions function
+  (read from the function's own ARN), and carries no Cognito identity id, identity pool, or subject. This is the same check
+  `automationOverview` uses (see [automations](automations.md#who-may-read-and-who-may-write)). A Cognito identity-pool user is an IAM principal of
+  the account too, and is refused for exactly that reason.
+* **What an operator files.** The proposer is forced to `ai`; an IAM caller cannot name a reader. The history records the filing
+  as `{by: "ai", actor: "operator:<principal ARN>"}` and each later move as `{by: "operator", actor: "operator:<principal ARN>"}`.
+  Nothing in a public file shows the actor.
+* **What an operator can never do.** Approve, decline after review, override the community, or send a proposal to `editor_review`:
+  those answer `operator_not_allowed` and write nothing. `moderateReader` stays editors and admins only. Specs:
+  `features_backend/proposals_operator.feature`; tests: `procedures/newsroom/tests/test_proposals.py` (`OperatorTests`).
+* **What an operator may read.** One query, `listStoryDrafts`, read only, with the same caller check as `fileProposal` (an editor or
+  admin, or an IAM principal of the function's own account; an identity-pool user and any other account get `not_staff` and an empty
+  list). It answers the `story_draft` Proposals (filed before ideas became Items), newest first (at most 500), and **only** `id`, `title`, `summary`, `targets`, `state` and
+  `createdAt` of each: never the body, evidence, history (which names the operator), proposer, votes, exclusions or editor log. It is what
+  lets an unattended run on a site that has not run `papyrus ideas migrate-proposals` dedupe against its old story drafts and cool down an entity that already anchored one
+  ([idea pipeline](idea-pipeline.md#trend-stories)). Specs: `features_backend/proposals_operator.feature`; tests:
+  `procedures/newsroom/tests/test_proposals.py` (`OperatorStoryDraftReadTests`).
+* **What a site must deploy.** The `proposal-actions` function and the custom query `listStoryDrafts` (a function resolver open to the `editor`
+  and `admin` groups like the mutations) come with every backend that includes this release, plugin or not; deploy it before the image that uses it. The
+  operator's IAM policy must allow `appsync:GraphQL` on `Mutation/fields/fileProposal` and `Mutation/fields/transitionProposal`, and on
+  `Query/fields/listStoryDrafts` to dedupe, of the site's API. Reading proposals in full (`papyrus proposals list|show`, `listProposals`) is
+  still editors and admins only.
+
+```bash
+export PAPYRUS_GRAPHQL_AUTH=iam PAPYRUS_GRAPHQL_ENDPOINT=https://....appsync-api.eu-west-1.amazonaws.com/graphql
+papyrus proposals create --kind new_concept --title "Name the agents cluster" --body-file draft.md
+papyrus proposals transition prop-... --to in_steering
+papyrus proposals publish        # invokes the content-actions function with the operator's AWS credentials
+```
+
+The idea pipeline no longer files Proposals: it files ideas as Items ([idea pipeline](idea-pipeline.md#storage-and-privacy)), and `papyrus ideas migrate-proposals` converts old `story_draft` Proposals into idea Items.
 
 ## The page components
 
@@ -690,7 +857,7 @@ bundle) and place mount points where the site owns the HTML; they follow the isl
 
 | Island | Props | Shows |
 |---|---|---|
-| `ReaderSignIn` | none | Header control. Signed out: a "Sign in" button, a form that POSTs `returnTo=<path>` to `/api/auth/prospectus/sign-in` (a machine endpoint that answers 303 to Google, so people are never sent to an `/api` URL; a GET link with `?returnTo=` still works for the newsroom). A failed sign-in comes back to that page with `?sign_in_error=<code>`, which the control shows in words and then removes from the address; the callback never leaves the browser on `/api`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
+| `ReaderSignIn` | none | Header control. Signed out: a "Sign in" button, a form that POSTs `returnTo=<path>` to `/api/auth/prospectus/sign-in` (a machine endpoint that answers 303 to Google, so people are never sent to an `/api` URL; a GET link with `?returnTo=` still works for the newsroom). A failed sign-in comes back to that page with `?sign_in_error=<code>`, which the control shows in words, with the code in small print so a reader can report it (for example "(code: nonce_mismatch)"), and then removes from the address; the server logs each failure as one `prospectus_sign_in_failed {code, branch, httpStatus?, prospectusError?}` line with no tokens, codes or subjects; the callback never leaves the browser on `/api`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
 | `Vote` | `subject`, `up` | Upvote toggle with a count. |
 | `Vote` (any subject type) | `type`, `id`, optional `up`, `down` | Two buttons, "△ Vote up" and "▽ Vote down" ("▲ Voted up" and "▼ Voted down" once chosen, with `aria-pressed`), and "N votes up, M votes down" read from `items.json` under the subject key. Choosing the chosen button again removes the vote. Posts `{subject: {type, id}, value: 1 \| -1 \| null}`; a refused vote is rolled back and the reason shown in words. |
 | `Flag` | `type`, `id`, optional `targetTypes` (default `concept`, `story`, `proposal`, `item`) | A "⚑ Flag" button that opens a form: what is the problem (This is wrong, This belongs under…, Suggest a better name), the target type and id for "belongs under", the suggested name for "better name", and a required reason of at most 500 characters. Posts `/api/reader/flag`, then says "Flag sent. Thank you." |
@@ -728,6 +895,7 @@ handles are only ever set as text. While the API answers `503 reader_identity_un
 - `procedures/newsroom/tests/test_reader_submissions.py` and `features_backend/reader-submissions.feature`: submit, the canonical URL
   parity with reference intake, dedupe, similar, validation, the daily limit, votes and karma, the snapshot file, the review signals
   (with real Humanus rules) and retirement of submissions, against moto.
+- `procedures/newsroom/tests/test_reader_extraction.py` and `features_backend/reader-submission-extraction.feature`: the extraction step with a scripted page and model (matching, held submissions, permanent and passing failures, the time budget, no identity in the model request), the read and confirm actions (own submission only, the identical 404, corrections, limits), and that no public file carries any of it.
 - `procedures/newsroom/tests/test_reader_ai_moderation.py`: the AI step with a stubbed model and the network closed: allow and hide, human override and undo, held content, failures, deadline,
   the key (read from the one parameter, absent from every log, result and row), the prompt file, what the model sees, and the scheduling; `scripts/test-reader-steering-plugin.ts` pins the IAM.
 - `procedures/newsroom/tests/test_reader_moderation.py` and `features_backend/reader-moderation.feature`: reports, every transition, the stale-view guard,

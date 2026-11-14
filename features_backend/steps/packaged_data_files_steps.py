@@ -96,3 +96,111 @@ def step_resolves_packaged(context):
     from papyrus_content import env
 
     assert env.resolve_corpora_file("corpora/papyrus-steering.yml") == env.packaged_corpora_file("papyrus-steering.yml")
+
+
+@then("the wheel requires cli-login at exactly version 0.4.1, with the Linux extra on Linux")
+def step_requires_cli_login(context):
+    import zipfile
+
+    with zipfile.ZipFile(context.wheel) as archive:
+        name = next(member for member in archive.namelist() if member.endswith(".dist-info/METADATA"))
+        metadata = archive.read(name).decode()
+    requirements = [line.split(": ", 1)[1].replace('"', "'") for line in metadata.splitlines() if line.startswith("Requires-Dist: cli-login")]
+    assert len(requirements) == 2, requirements
+    plain = [line for line in requirements if "[linux]" not in line]
+    linux = [line for line in requirements if "[linux]" in line]
+    assert len(plain) == 1 and len(linux) == 1, requirements
+    for line in requirements:
+        assert "==0.4.1" in line.replace(" ", "").replace("(", "").replace(")", ""), line
+    assert "sys_platform == 'linux'" in linux[0] and "sys_platform != 'linux'" in plain[0], requirements
+
+
+@then("the wheel requires anthus-markus for every install, not only for an extra")
+def step_requires_markus(context):
+    import zipfile
+
+    with zipfile.ZipFile(context.wheel) as archive:
+        name = next(member for member in archive.namelist() if member.endswith(".dist-info/METADATA"))
+        metadata = archive.read(name).decode()
+    requirements = [line for line in metadata.splitlines() if line.startswith("Requires-Dist: anthus-markus")]
+    assert len(requirements) == 1, requirements
+    assert "extra" not in requirements[0], requirements
+
+
+def _wheel_requirements(context, distribution: str) -> list[str]:
+    import zipfile
+
+    with zipfile.ZipFile(context.wheel) as archive:
+        name = next(member for member in archive.namelist() if member.endswith(".dist-info/METADATA"))
+        metadata = archive.read(name).decode()
+    return [line for line in metadata.splitlines() if line.lower().startswith(f"requires-dist: {distribution.lower()}")]
+
+
+@then("the wheel requires boto3 for every install, not only for an extra")
+def step_requires_boto3(context):
+    requirements = _wheel_requirements(context, "boto3")
+    assert [line for line in requirements if "extra ==" not in line], requirements
+
+
+@then("the wheel requires Pillow for every install, not only for an extra")
+def step_requires_pillow(context):
+    requirements = _wheel_requirements(context, "pillow")
+    assert [line for line in requirements if "extra ==" not in line], requirements
+
+
+_WITHOUT_CLI_LOGIN = r'''
+import importlib.abc, importlib.util, json, sys
+class Block(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path=None, target=None):
+        if name == "cli_login" or name.startswith("cli_login."):
+            raise ModuleNotFoundError(f"No module named {name!r}")
+        return None
+sys.meta_path.insert(0, Block())
+sys.path.insert(0, sys.argv[1])
+spec = importlib.util.spec_from_file_location("content_actions_handler", sys.argv[2])
+spec.loader.exec_module(importlib.util.module_from_spec(spec))
+from papyrus_content.graphql_http import authoring_credentials_available, graphql_request_headers
+from papyrus_content.operator_errors import credential_recovery_guidance
+assert authoring_credentials_available()
+credential_recovery_guidance()
+headers = graphql_request_headers(endpoint="https://example.appsync-api.us-east-1.amazonaws.com/graphql", body=b"{}")
+print(json.dumps({"headers": sorted(headers), "imported": sorted(m for m in sys.modules if m.split(".")[0] == "cli_login")}))
+'''
+
+
+@given("a Python process that cannot import cli_login and has no signed-in user session")
+def step_without_cli_login(context):
+    state = Path(tempfile.mkdtemp(prefix="papyrus-no-session-"))
+    context.lambda_env = {
+        key: value for key, value in os.environ.items() if not key.startswith(("AWS_", "PAPYRUS_GRAPHQL_AUTH"))
+    } | {
+        "PAPYRUS_CLI_STATE_DIR": str(state),
+        "AWS_ACCESS_KEY_ID": "AKIDEXAMPLE",
+        "AWS_SECRET_ACCESS_KEY": "example-secret",
+        "AWS_REGION": "us-east-1",
+        "AWS_DEFAULT_REGION": "us-east-1",
+    }
+
+
+@when("it imports the content-actions handler and signs a GraphQL request with IAM")
+def step_sign_without_cli_login(context):
+    import json
+    import subprocess
+
+    handler = REPO_ROOT / "amplify" / "functions" / "content-actions" / "handler.py"
+    result = subprocess.run(
+        [sys.executable, "-c", _WITHOUT_CLI_LOGIN, str(REPO_ROOT / "src"), str(handler)],
+        capture_output=True, text=True, env=context.lambda_env, cwd=tempfile.gettempdir(), check=False,
+    )
+    assert result.returncode == 0, result.stderr[-3000:]
+    context.lambda_result = json.loads(result.stdout.strip().splitlines()[-1])
+
+
+@then("the request carries an IAM signature")
+def step_iam_signature(context):
+    assert "Authorization" in context.lambda_result["headers"], context.lambda_result
+
+
+@then("cli_login was never imported")
+def step_cli_login_not_imported(context):
+    assert context.lambda_result["imported"] == [], context.lambda_result

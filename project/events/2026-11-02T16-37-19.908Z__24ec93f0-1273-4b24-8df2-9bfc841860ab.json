@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "24ec93f0-1273-4b24-8df2-9bfc841860ab",
+  "issue_id": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T16:37:19.908Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Run Papyrus without an AWS login: signed-in CLI for operations, narrow server APIs behind it",
+    "description": "Ryan, 2026-11-02: Papyrus operations must not need an AWS CLI login, which is less secure. The goal is better privacy and security through minimization. Rule: an operator signs in as a user with papyrus login, and the site API, which holds narrow server-side permissions and checks staff groups, does the work. Reads come first, then narrow writes. Deploys and infrastructure stay in the pipelines. Whatever cannot move is listed as break-glass, with a reason.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

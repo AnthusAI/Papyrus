@@ -150,7 +150,14 @@ test("a failed sign-in comes back with ?sign_in_error=, says so in words once, a
   const other = await browser.newContext();
   const failed = await open(other, fake({ me: { status: 401, body: { error: "signed_out" } } }), { query: "?sign_in_error=state_mismatch" });
   await failed.locator("#signin").getByText("Sign-in did not complete. Try again.").waitFor();
+  assert.match(await failed.locator("#signin .papyrus-reader-status").innerText(), /Sign-in did not complete\. Try again\. \(code: state_mismatch\)/, "the code is shown in small print so it can be reported");
+  assert.equal(new URL(failed.url()).search, "", "the code is shown but still removed from the address");
   await other.close();
+  const hostile = await browser.newContext();
+  const odd = await open(hostile, fake({ me: { status: 401, body: { error: "signed_out" } } }), { query: "?sign_in_error=%3Cb%3Ex%3C%2Fb%3E" });
+  await odd.locator("#signin").getByText("Sign-in did not complete. Try again.").waitFor();
+  assert.doesNotMatch(await odd.locator("#signin .papyrus-reader-status").innerText(), /code:/, "an odd code is never shown");
+  await hostile.close();
 });
 
 test("the islands prerender their props before any request answers, and the page's text fallback is replaced", async () => {
@@ -439,8 +446,10 @@ test("submit: the form posts the link, the title, the kind and the note, then sa
   await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
   await fillSubmit(page, "https://example.com/post#top", "A small tool", "Worked well for me");
   await page.getByLabel("tool").check();
+  await page.evaluate(() => { const w = window as unknown as { submitted: unknown[] }; w.submitted = []; document.addEventListener("papyrus-reader:submitted", (event) => w.submitted.push((event as CustomEvent).detail)); });
   await page.getByRole("button", { name: "Submit link" }).click();
   await page.locator("#submit").getByText("Pending \u2014 we\u2019re reading the link.").waitFor();
+  assert.deepEqual(await page.evaluate(() => (window as unknown as { submitted: unknown[] }).submitted), [{ subject: "sub-abc", title: "A small tool" }], "a new submission is announced to the page");
   assert.deepEqual(state.writes, [{ path: "/api/reader/submit", body: { url: "https://example.com/post#top", title: "A small tool", kind: "tool", note: "Worked well for me" } }]);
   await page.locator("#submit .papyrus-reader-similar a").getByText("<b>Older</b> post").waitFor();
   assert.equal(await page.locator("#submit .papyrus-reader-similar b").count(), 0, "titles are text, never markup");
@@ -505,6 +514,7 @@ test("submit: the server's duplicate, rate limit and handle answers are shown in
   const page = await open(context, fake({ writeAnswer: () => answers.shift()! }), { page: SUBMIT_PAGE });
   await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
   await fillSubmit(page, "https://example.com/x", "Try");
+  await page.evaluate(() => { const w = window as unknown as { submitted: unknown[] }; w.submitted = []; document.addEventListener("papyrus-reader:submitted", (event) => w.submitted.push((event as CustomEvent).detail)); });
   const send = page.getByRole("button", { name: "Submit link" });
   await send.click();
   await page.locator("#submit .papyrus-reader-status").getByText(/Already submitted as .The first one. \(pending\)/).waitFor();
@@ -515,6 +525,7 @@ test("submit: the server's duplicate, rate limit and handle answers are shown in
   await send.click();
   await page.locator("#submit .papyrus-reader-status").getByText("Send the link as an http or https address.").waitFor();
   assert.equal(await page.getByLabel("Link").inputValue(), "https://example.com/x", "a refused submission keeps what was typed");
+  assert.deepEqual(await page.evaluate(() => (window as unknown as { submitted: unknown[] }).submitted), [], "a duplicate names a submission that may be another reader's, so nothing is announced");
   await context.close();
 });
 

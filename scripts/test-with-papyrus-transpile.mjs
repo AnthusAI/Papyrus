@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { withPapyrus, DEFAULT_TRANSPILE_PACKAGES, READER_EXPIRE_TIME_SECONDS } from "../packages/papyrus/src/with-papyrus.mjs";
+import { withPapyrus, redirectChatticusZod, DEFAULT_TRANSPILE_PACKAGES, READER_EXPIRE_TIME_SECONDS } from "../packages/papyrus/src/with-papyrus.mjs";
 import { packageShipsTypeScriptSourceEntries } from "../packages/typescript-source-entries.mjs";
 
 const defaults = withPapyrus({}).transpilePackages;
 assert.ok(defaults.includes("@anthusai/papyrus"), "the package itself is transpiled");
 assert.ok(defaults.includes("cyclotron"), "cyclotron ships TypeScript source and is transpiled by default");
+assert.ok(defaults.includes("chatticus"), "shared chat source exports are transpiled in publication consumers");
+assert.ok(defaults.includes("lucide-react"), "lucide-react 1.62+ exports ./src/*.ts, so the consumer smoke check requires it to be transpiled");
 assert.deepEqual(defaults, DEFAULT_TRANSPILE_PACKAGES);
 
 const merged = withPapyrus({ transpilePackages: ["my-ui", "cyclotron"] }).transpilePackages;
@@ -20,5 +22,15 @@ assert.equal(packageShipsTypeScriptSourceEntries({ main: "index.css", types: "in
 
 assert.equal(withPapyrus({}).expireTime, READER_EXPIRE_TIME_SECONDS, "shared caches may serve a page stale for 60 s, not a year");
 assert.equal(withPapyrus({ expireTime: 300 }).expireTime, 300, "a publication's own expireTime wins");
+
+const chatticusZod = { request: "zod", context: "/site/node_modules/chatticus/chat/runtime-dist" };
+redirectChatticusZod(chatticusZod);
+assert.equal(chatticusZod.request, "zod/v4", "chatticus's zod 4 imports resolve to zod/v4 when sites pin zod 3.25");
+const siteZod = { request: "zod", context: "/site/node_modules/@anthusai/papyrus/lib" };
+redirectChatticusZod(siteZod);
+assert.equal(siteZod.request, "zod", "other zod imports are untouched");
+const chatticusOther = { request: "zod/v4", context: "/site/node_modules/chatticus/chat" };
+redirectChatticusZod(chatticusOther);
+assert.equal(chatticusOther.request, "zod/v4");
 
 console.log("with-papyrus transpile tests passed");

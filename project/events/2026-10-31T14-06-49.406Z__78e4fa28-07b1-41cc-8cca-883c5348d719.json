@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "78e4fa28-07b1-41cc-8cca-883c5348d719",
+  "issue_id": "PPY-7ddf3785-1857-42d4-ae37-cb91075f0e73",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:49.406Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Store listing, icons, privacy policy and terms pages from site config",
+    "description": "The generator adds publishingInformation and privacyAndCompliance to skill.json. Add clean /privacy-alexa (or extend the existing privacy page) and terms pages on the site. Gherkin: the pages render and the manifest URLs resolve.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1b7f66d4-dbb9-4728-ba02-51868f05edd9",
+    "labels": []
+  }
+}

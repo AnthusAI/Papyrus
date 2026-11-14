@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "8de7585d-9a31-477e-b0ae-3a8034a56fc2",
+  "issue_id": "PPY-7a1a061d-d86e-4cc4-9cc6-b485e008c13e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:10.432Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Versioned contract tests for site config, brand pack and the dedicated hooks API",
+    "description": "Acceptance:\nScenario: A removed option warns for two minors, then errors",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

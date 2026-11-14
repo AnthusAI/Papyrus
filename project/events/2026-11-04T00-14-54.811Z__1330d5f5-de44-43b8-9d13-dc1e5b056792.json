@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1330d5f5-de44-43b8-9d13-dc1e5b056792",
+  "issue_id": "PPY-d6ce1b30-a69b-4119-b97d-303e1920b0fb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T00:14:54.811Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "research.multi cannot do what a reporter's assignment asks: snippets are its only evidence",
+    "description": "docs/automated-publication-research-workflow.md:252 says: fetching pages is not part of this mode; snippets are the evidence, so every claim is a lead to verify. stories assign-research defaults to this type, labelled research-mode source_discovery. An editor's direction can ask for primary sources to be read, as the non-interference assignment does, and nothing tells them the run cannot do that. Either add a mode that fetches and reads sources, or say plainly in the Assign research box and the CLI what the run will and will not do.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

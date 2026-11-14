@@ -1,0 +1,14 @@
+.papyrus-console-conversation {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  --chatticus-chat-surface: rgb(var(--paper-rgb));
+  --chatticus-chat-raised: color-mix(in srgb, rgb(var(--paper-rgb)) 94%, rgb(var(--ink-rgb)));
+  --chatticus-chat-foreground: var(--ink);
+  --chatticus-chat-accent: var(--ink);
+  --chatticus-chat-error: var(--ink);
+  --chatticus-chat-action: var(--ink);
+  --chatticus-chat-action-text: rgb(var(--paper-rgb));
+}
+.papyrus-console-conversation .papyrus-console__suggestions { padding: 12px 0; }

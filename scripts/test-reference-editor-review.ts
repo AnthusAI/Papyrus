@@ -2,11 +2,24 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { chromium, type Page } from "playwright";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const origin = "http://reference-review.test";
 let bundle: Promise<string> | undefined;
+let tailwindCss: Promise<string> | undefined;
+
+/** The real Tailwind build of app/tailwind.css, so sizes and breakpoints are the shipped ones. */
+function compiledTailwind(): Promise<string> {
+  tailwindCss ??= (async () => {
+    const file = `${root}app/tailwind.css`;
+    const { default: postcss } = await import("postcss");
+    const { default: tailwind } = await import("@tailwindcss/postcss");
+    return (await postcss([tailwind() as never]).process(fs.readFileSync(file, "utf8"), { from: file })).css;
+  })();
+  return tailwindCss;
+}
 
 function browserBundle(): Promise<string> {
   bundle ??= build({
@@ -18,7 +31,7 @@ function browserBundle(): Promise<string> {
       builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
       builder.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path }) => ({ contents: path === "navigation"
         ? "import {useSyncExternalStore} from 'react'; const subscribe = (notify) => {window.addEventListener('popstate',notify);return () => window.removeEventListener('popstate',notify);}; export const usePathname = () => useSyncExternalStore(subscribe,() => window.location.pathname);"
-        : "export const loadReferenceAttachmentsForLineageId = async () => []; export const loadStoragePathUrl = async () => ({url:null});", loader: "js", resolveDir: root }));
+        : "export const loadReferenceAttachmentsForLineageId = async () => []; export const loadStoragePathUrl = async () => ({url:null}); export const loadStoragePathText = async () => ({text:null,error:null}); export const loadModelPayloadsForOwner = async () => []; export const uploadModelPayloadForOwner = async () => ({ id: \"upload\" });", loader: "js", resolveDir: root }));
     } }],
     stdin: { resolveDir: root, loader: "tsx", sourcefile: "reference-review-fixture.tsx", contents: `
 import { useState } from "react";
@@ -26,7 +39,8 @@ import { createRoot } from "react-dom/client";
 import { NewsroomReferencesView } from "./components/newsroom-references-view";
 const fixture = [
   {id:'reference-a-v1',lineageId:'reference-a',versionState:'current',versionNumber:1,corpusId:'fixture-corpus',externalItemId:'source-a',title:'Pending reference A',sourceUri:'https://example.org/source-a',curationStatus:'pending',importedAt:'2026-10-22T10:00:00Z'},
-  {id:'reference-b-v1',lineageId:'reference-b',versionState:'current',versionNumber:1,corpusId:'fixture-corpus',externalItemId:'source-b',title:'Pending reference B',sourceUri:'https://example.org/source-b',curationStatus:'pending',importedAt:'2026-10-21T10:00:00Z'}
+  {id:'reference-b-v1',lineageId:'reference-b',versionState:'current',versionNumber:1,corpusId:'fixture-corpus',externalItemId:'source-b',title:'Pending reference B',sourceUri:'https://example.org/source-b',curationStatus:'pending',importedAt:'2026-10-21T10:00:00Z'},
+  {id:'reference-c-v1',lineageId:'reference-c',versionState:'current',versionNumber:1,corpusId:'fixture-corpus',externalItemId:'source-c',title:'Pending reference C',sourceUri:'https://example.org/source-c',curationStatus:'pending',importedAt:'2026-10-20T10:00:00Z'}
 ];
 const fixtureOptions = sessionStorage.getItem('fixtureOptions') ?? location.search;
 sessionStorage.setItem('fixtureOptions',fixtureOptions);
@@ -45,7 +59,7 @@ function Fixture() {
     setReferences(current => current.map(row => row.lineageId==='reference-a'?{...row,curationStatusReason:note}:row));
     setReviewReasons(current => new Map([...current,['reference-a',reason]]));
   };
-  const decision = {decisionRelationId:'decision-a',decisionId:'prediction-a',label:'include',confidence:null,version:null,reviewRecommended:true,reviewReason:'program',reviewDetail:'Fixture review request',classes:['include','exclude'],positiveLabel:'include',question:null,reviewControl:'thumbs',cyclotronId:'fixture-publication',decidedAt:null,provenance:null};
+  const decision = {decisionRelationId:'decision-a',decisionId:'prediction-a',label:'include',confidence:0.79,version:null,reviewRecommended:true,reviewReason:'program',reviewDetail:'Fixture review request',classes:['include','exclude'],positiveLabel:'include',question:null,reviewControl:'thumbs',cyclotronId:'fixture-publication',decidedAt:null,provenance:null};
   const section = {decisionRelationId:'section-a',cyclotronId:'fixture-internal',sectionId:'fixture-section',confidence:0.73,probabilities:[{sectionId:'fixture-section',probability:0.73}],decidedAt:null};
   async function save(reference,action,options={}) {
     window.fixtureRequests.push({referenceId:reference.id,action,options});
@@ -78,7 +92,7 @@ function Fixture() {
     sectionSuggestions={params.has('decision')?new Map([['reference-a',section]]):new Map()}
     predictionState={predictionState} predictionError={predictionState==='error'?'Fixture prediction service unavailable':null}
     onRetryPredictions={() => setPredictionState('ready')}
-    onReview={save} onRelevanceReview={(reference,curation) => save(reference,curation.action,curation)} />;
+    onReview={save} />;
 }
 createRoot(document.getElementById('root')).render(<Fixture/>);
 ` },
@@ -86,10 +100,11 @@ createRoot(document.getElementById('root')).render(<Fixture/>);
   return bundle;
 }
 
-const fixtureCss = `body{margin:0;font:16px sans-serif}button,textarea,select{font:inherit}button{min-height:36px}textarea{display:block;min-height:80px} [data-newsroom-list-detail-shell]{display:flex} [data-news-desk-reference-detail]{padding:8px} [data-newsroom-card-grid]{display:flex;flex-direction:column} [data-newsroom-list-row]{text-align:left;padding:12px;margin:4px} [data-radix-scroll-area-viewport]{max-height:75vh} [role=dialog]{position:fixed;inset:5vh 0 0;background:white;overflow:auto;z-index:10} @media(max-width:767px){[data-newsroom-list-detail-shell]{display:none}}`;
+const fixtureCss = `body{margin:0;font:16px sans-serif}button,textarea,select{font:inherit} [data-news-desk-reference-detail]{padding:8px} [data-newsroom-card-grid]{display:flex;flex-direction:column} [data-newsroom-list-row]{text-align:left;padding:12px;margin:4px} [data-radix-scroll-area-viewport]{max-height:75vh} [role=dialog]{position:fixed;inset:5vh 0 0;background:white;overflow:auto;z-index:60}`;
 
 async function setup(options = "", width = 1280) {
   const script = await browserBundle();
+  const tailwind = await compiledTailwind();
   const browser = await chromium.launch({ args: ["--no-proxy-server"], executablePath: process.env.PAPYRUS_CHROMIUM_PATH || undefined });
   const page = await browser.newPage({ viewport: { width, height: 900 } });
   page.setDefaultTimeout(2500);
@@ -100,9 +115,13 @@ async function setup(options = "", width = 1280) {
     if (url.origin !== origin) return route.abort();
     if (url.pathname === "/fixture.js") return route.fulfill({ contentType: "text/javascript", body: script });
     const history = url.searchParams.has("deep-link") ? `<script>history.replaceState(null,"","/newsroom/references");history.pushState(null,"","/newsroom/references/reference-a");</script>` : "";
-    return route.fulfill({ contentType: "text/html", body: `<html><head><style>${fixtureCss}</style></head><body><div id="root"></div>${history}<script src="/fixture.js"></script></body></html>` });
+    return route.fulfill({ contentType: "text/html", body: `<html><head><style>${tailwind}</style><style>${fixtureCss}</style></head><body><div id="root"></div>${history}<script src="/fixture.js"></script></body></html>` });
   });
   await page.goto(`${origin}/newsroom/references${options}`);
+  // The page opens as a feed; these scenarios are about the list and queue, one tap away.
+  const toggle = page.locator("[data-reference-view=list]");
+  await toggle.waitFor();
+  await toggle.click();
   return { browser, page, errors };
 }
 
@@ -122,6 +141,14 @@ async function settle(page: Page, fail = false) {
 async function requestCount(page: Page) {
   return page.evaluate(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length);
 }
+/** What the view last asked the curation mutation for: the action and the reason it carries. */
+async function lastRequest(page: Page) {
+  return page.evaluate(() => {
+    const requests = (window as unknown as { fixtureRequests: Array<{ action: string; options: { note?: string; reasonCode?: string | null } }> }).fixtureRequests;
+    const last = requests[requests.length - 1];
+    return { action: last.action, note: last.options.note ?? null, reasonCode: last.options.reasonCode ?? null };
+  });
+}
 async function status(page: Page, expected: string) {
   await page.waitForFunction((value) => document.querySelector('[data-news-desk-reference-detail="reference-a"] [data-reference-curation-status]')?.getAttribute("data-reference-curation-status") === value, expected);
 }
@@ -130,24 +157,40 @@ async function openSectionPlacement(page: Page) {
   if (!await summary.evaluate((element) => element.parentElement?.hasAttribute("open"))) await summary.click();
 }
 
+const WHY = /^Reason/;
+const you = (page: Page, choice: "accept" | "reject") => detail(page).locator(`[data-review-row="you"] [data-review-choice="${choice}"]`);
+const reasonChip = (page: Page, code: string) => detail(page).locator(`[data-review-reason="${code}"]`);
+async function swipe(page: Page, from: number, to: number) {
+  await page.evaluate(`(() => {
+    const target = [...document.querySelectorAll("[data-review-gestures]")].find((e) => e.offsetParent);
+    const fire = (type, x) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerType: "touch", clientX: x, clientY: 300 }));
+    fire("pointerdown", ${from}); fire("pointerup", ${to});
+  })()`);
+}
+const barText = (page: Page) => page.locator("[data-review-queue-position]:visible").innerText();
+const openId = (page: Page) => new URL(page.url()).pathname.split("/").pop();
+
 const scenarios: Record<string, () => Promise<void>> = {
   async selection() {
-    for (const width of [1280, 390]) {
+    for (const width of [1280, 375]) {
       const { browser, page, errors } = await setup("", width);
       try {
-        await page.getByRole("tab", { name: /Pending/ }).click();
         await selectA(page);
-        assert.match(await detail(page).innerText(), /No prediction recorded/i);
-        assert.ok(await detail(page).getByRole("button", { name: "Accept reference", exact: true }).isEnabled());
-        assert.ok(await detail(page).getByRole("button", { name: "Reject reference", exact: true }).isEnabled());
+        const text = await detail(page).innerText();
+        assert.match(text, /no prediction/i);
+        assert.ok(!/Agree|Overrule|agreed/i.test(text), "one vocabulary: Accept and Reject only");
+        for (const choice of ["accept", "reject"] as const) {
+          assert.equal(await you(page, choice).getAttribute("aria-disabled"), null, "controls are never silently disabled");
+          assert.ok((await you(page, choice).boundingBox())!.height >= 48, "large tap target");
+        }
+        assert.equal(await detail(page).locator("select").count(), 0, "no dropdowns");
         if (width === 1280) {
-          await detail(page).getByLabel("Review explanation (optional)", { exact: true }).fill("Keep my pending draft while filtering.");
+          await detail(page).getByLabel(WHY).fill("Keep my pending draft while filtering.");
           await page.getByRole("tab", { name: /^All/ }).click();
           await detail(page).waitFor();
-          assert.equal(await detail(page).getByLabel("Review explanation (optional)", { exact: true }).inputValue(), "Keep my pending draft while filtering.");
+          assert.equal(await detail(page).getByLabel(WHY).inputValue(), "Keep my pending draft while filtering.");
           await page.getByRole("tab", { name: /^Pending/ }).click();
           await detail(page).waitFor();
-          assert.equal(await detail(page).getByLabel("Review explanation (optional)", { exact: true }).inputValue(), "Keep my pending draft while filtering.");
           assert.ok(new URL(page.url()).pathname.endsWith("/reference-a"), "filter changes preserve the detail route");
           await page.locator('[data-newsroom-card-id="reference-b"]').click();
           await page.locator('[data-news-desk-reference-detail="reference-b"]:visible').waitFor();
@@ -177,30 +220,30 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await selectA(page);
       const panel = detail(page);
-      await panel.getByRole("button", { name: "Accept reference", exact: true }).click();
+      await you(page, "accept").click();
       assert.equal(await requestCount(page), 1);
+      await panel.locator("[data-review-choice=accept][data-state=staged]").waitFor();
       await settle(page); await status(page, "accepted");
-      assert.equal(await panel.getByRole("button", { name: "Save feedback", exact: true }).isEnabled(), false, "unchanged feedback cannot create another completed write");
-      await panel.getByLabel("Review explanation (optional)", { exact: true }).fill("A useful source for the publication.");
-      await panel.getByRole("button", { name: "Save feedback", exact: true }).click();
+      await panel.locator("[data-review-saved]").waitFor();
+      assert.equal(await you(page, "accept").getAttribute("aria-pressed"), "true");
+      await you(page, "accept").click();
+      assert.equal(await you(page, "accept").getAttribute("aria-pressed"), "true", "tapping the selected answer never unselects it");
+      assert.equal(await requestCount(page), 1, "re-tapping the selected answer sends nothing");
+      await panel.getByLabel(WHY).fill("A useful source for the publication.");
+      await panel.getByLabel(WHY).blur();
       await settle(page);
       await page.waitForFunction(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.curationStatusReason === "A useful source for the publication.");
-      assert.equal(await panel.getByRole("button", { name: "Save feedback", exact: true }).isEnabled(), false, "success marks the saved draft clean");
-      await page.reload();
-      await detail(page).waitFor();
-      assert.equal(await detail(page).getByLabel("Review explanation (optional)", { exact: true }).inputValue(), "A useful source for the publication.");
-      await detail(page).getByLabel("Rejection reason", { exact: true }).selectOption("out_of_scope");
-      await detail(page).getByLabel("Review explanation (optional)", { exact: true }).fill("");
-      await detail(page).getByRole("button", { name: "Reject reference", exact: true }).click();
+      await page.reload(); await detail(page).waitFor();
+      assert.equal(await detail(page).getByLabel(WHY).inputValue(), "A useful source for the publication.");
+      // Switching to Reject with a Why already written saves at once: a typed reason is a reason (filed as "other").
+      const before = await requestCount(page);
+      await you(page, "reject").click();
+      assert.equal(await you(page, "reject").getAttribute("aria-pressed"), "true", "the tapped answer shows as selected at once");
       await settle(page); await status(page, "rejected");
+      assert.ok(await requestCount(page) > before, "the Reject is sent without waiting for a chip");
+      assert.equal(await detail(page).getByText("Choose a reason, or say why above, to save your Reject.").count(), 0, "nothing asks for a reason");
       await page.reload(); await detail(page).waitFor(); await status(page, "rejected");
-      assert.equal(await detail(page).getByLabel("Review explanation (optional)", { exact: true }).inputValue(), "");
-      await detail(page).getByLabel("Review explanation (optional)", { exact: true }).fill("The source addresses a different audience.");
-      await detail(page).getByRole("button", { name: "Save feedback", exact: true }).click();
-      await settle(page);
-      await page.waitForFunction(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.curationStatusReason === "The source addresses a different audience.");
-      await page.reload(); await detail(page).waitFor(); await status(page, "rejected");
-      assert.equal(await detail(page).getByLabel("Review explanation (optional)", { exact: true }).inputValue(), "The source addresses a different audience.");
+      assert.equal(await you(page, "reject").getAttribute("aria-pressed"), "true");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
@@ -209,19 +252,15 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await selectA(page);
       const panel = detail(page);
-      await panel.getByRole("button", { name: "Reject reference", exact: true }).click();
-      assert.equal(await requestCount(page), 0, "rejection requires a reason before any mutation");
-      await panel.getByLabel("Review explanation (optional)", { exact: true }).fill("Keep my explanation on failure.");
-      const accept = panel.getByRole("button", { name: "Accept reference", exact: true });
-      await accept.dblclick();
+      await panel.getByLabel(WHY).fill("Keep my explanation on failure.");
+      await you(page, "accept").dblclick();
       assert.equal(await requestCount(page), 1, "a double click starts one mutation");
-      assert.equal(await accept.isEnabled(), false);
-      assert.equal(await panel.getByRole("button", { name: "Reject reference", exact: true }).isEnabled(), false);
       await settle(page, true);
       await panel.getByRole("alert").filter({ hasText: "Fixture write failed" }).waitFor();
       await status(page, "pending");
-      assert.equal(await panel.getByLabel("Review explanation (optional)", { exact: true }).inputValue(), "Keep my explanation on failure.");
-      await accept.click(); await settle(page); await status(page, "accepted");
+      assert.equal(await panel.getByLabel(WHY).inputValue(), "Keep my explanation on failure.");
+      assert.equal(await you(page, "accept").getAttribute("aria-pressed"), "false", "a failed save does not show as the answer");
+      await you(page, "accept").click(); await settle(page); await status(page, "accepted");
       assert.equal(await requestCount(page), 2);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
@@ -230,31 +269,17 @@ const scenarios: Record<string, () => Promise<void>> = {
     const { browser, page, errors } = await setup();
     try {
       await selectA(page);
-      await detail(page).getByLabel("Rejection reason", { exact: true }).selectOption("out_of_scope");
-      await detail(page).getByLabel("Review explanation (optional)", { exact: true }).fill("The source addresses a different audience.");
-      await detail(page).getByRole("button", { name: "Reject reference", exact: true }).click();
-      await settle(page); await status(page, "rejected");
-      await page.reload(); await detail(page).waitFor(); await status(page, "rejected");
-      assert.equal(await detail(page).getByLabel("Rejection reason", { exact: true }).inputValue(), "out_of_scope", "reason is loaded from the persisted curation Message");
-      assert.equal(await detail(page).getByLabel("Review explanation (optional)", { exact: true }).inputValue(), "The source addresses a different audience.");
-      assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.metadata), undefined, "Reference metadata does not supply the reason");
-      await detail(page).getByLabel("Review explanation (optional)", { exact: true }).fill("");
-      await detail(page).getByRole("button", { name: "Save feedback", exact: true }).click();
-      assert.equal(await requestCount(page), 1, "feedback can be revised without reselecting the persisted reason");
+      await detail(page).getByLabel(WHY).fill("The source addresses a different audience.");
+      await you(page, "reject").click();   // with a Why typed, this saves at once (as "other")
       await settle(page);
-      await page.waitForFunction(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.curationStatusReason === null);
+      await status(page, "rejected");
       await page.reload(); await detail(page).waitFor(); await status(page, "rejected");
-      assert.equal(await detail(page).getByLabel("Review explanation (optional)", { exact: true }).inputValue(), "", "an explicit blank clears the saved explanation");
-      assert.equal(await detail(page).getByLabel("Rejection reason", { exact: true }).inputValue(), "out_of_scope");
+      assert.equal(await detail(page).getByLabel(WHY).inputValue(), "The source addresses a different audience.");
       await page.evaluate(() => (window as unknown as {fixtureRefresh: (note: string, reason: string) => void}).fixtureRefresh("Latest saved explanation.", "policy_exclusion"));
-      await page.waitForFunction(() => (document.querySelector('textarea[aria-label="Review explanation (optional)"]') as HTMLTextAreaElement)?.value === "Latest saved explanation.");
-      assert.equal(await detail(page).getByLabel("Rejection reason", { exact: true }).inputValue(), "policy_exclusion", "untouched feedback follows live message updates");
-      assert.equal(await detail(page).getByRole("button", { name: "Save feedback", exact: true }).isEnabled(), false);
-      await detail(page).getByLabel("Review explanation (optional)", { exact: true }).fill("My unsaved draft.");
-      await detail(page).getByLabel("Rejection reason", { exact: true }).selectOption("duplicate");
+      await page.waitForFunction(() => [...document.querySelectorAll('textarea')].some((t) => (t as HTMLTextAreaElement).value === "Latest saved explanation."));
+      await detail(page).getByLabel(WHY).fill("My unsaved draft.");
       await page.evaluate(() => (window as unknown as {fixtureRefresh: (note: string, reason: string) => void}).fixtureRefresh("Another editor saved this.", "unavailable"));
-      assert.equal(await detail(page).getByLabel("Review explanation (optional)", { exact: true }).inputValue(), "My unsaved draft.");
-      assert.equal(await detail(page).getByLabel("Rejection reason", { exact: true }).inputValue(), "duplicate", "live updates preserve a dirty draft");
+      assert.equal(await detail(page).getByLabel(WHY).inputValue(), "My unsaved draft.", "live updates preserve a dirty draft");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
@@ -262,68 +287,53 @@ const scenarios: Record<string, () => Promise<void>> = {
     const { browser, page, errors } = await setup("?decision=1");
     try {
       await selectA(page);
-      await openSectionPlacement(page);
-      const text = await detail(page).innerText();
-      assert.match(text, /publication/i);
-      assert.match(text, /Section/);
-      assert.match(text, /include/);
-      assert.match(text, /73%/);
-      assert.ok(!/0%|100%|version 0/.test(text), "missing confidence and version are never fabricated");
-      await detail(page).getByText("How this suggestion was made", { exact: true }).click();
-      assert.ok(!/0 teaching|0 priming|0 training/i.test(await detail(page).innerText()), "unknown teaching counts are not reported as zero");
+      const cyclotron = detail(page).locator("[data-decision-control]");
+      assert.match(await cyclotron.locator("[data-review-choice][data-predicted]").innerText().then((t) => t.replace(/\s+/g, " ").trim()), /^accept predicted$/i);
+      assert.equal(await cyclotron.locator("[data-confidence-value]").innerText(), "79%", "the confidence is in the bar");
+      assert.equal(await cyclotron.locator("[data-prediction-mark]").count(), 0, "no verdict before the human answers");
+      await you(page, "accept").click(); await settle(page); await status(page, "accepted");
+      const match = cyclotron.locator('[data-prediction-mark][data-verdict="match"]');
+      await match.waitFor();
+      assert.ok(await match.locator("svg").count() === 1, "a match carries a marker, not colour alone");
+      assert.match(await you(page, "accept").locator("[data-choice-state]").innerText(), /confirmed/i, "and the word");
+      await you(page, "reject").click();   // a Reject waits for its written reason
+      await detail(page).getByLabel(WHY).fill("Not what we cover.");
+      await detail(page).locator("[data-review-record]").click();
+      await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2); await settle(page);
+      await status(page, "rejected");
+      const miss = cyclotron.locator('[data-prediction-mark][data-verdict="miss"]');
+      await miss.waitFor();
+      assert.ok(await miss.locator("svg").count() === 1);
+      assert.match(await you(page, "reject").locator("[data-choice-state]").innerText(), /overturned/i, "the answer says it overturned the prediction");
+      assert.ok(!/0%|100%|version 0/.test(await detail(page).innerText()), "missing confidence and version are never fabricated");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
-    for (const button of ["Accept reference", "Agree (accept)"]) {
+    for (const via of ["button", "key"]) {
       const { browser: sectionBrowser, page: sectionPage, errors: sectionErrors } = await setup("?decision=1");
       try {
         await selectA(sectionPage);
         await openSectionPlacement(sectionPage);
         await detail(sectionPage).getByRole("radio", { name: /Fixture Section/ }).check();
-        await detail(sectionPage).getByRole("button", { name: button, exact: true }).click();
+        if (via === "button") await you(sectionPage, "accept").click();
+        else { await sectionPage.locator("body").click({ position: { x: 2, y: 2 } }); await sectionPage.keyboard.press("a"); }
         const requests = await sectionPage.evaluate(() => (window as unknown as {fixtureRequests:Array<{options:{sectionId?:string}}>} ).fixtureRequests);
-        assert.equal(requests[0]?.options.sectionId, "fixture-section", `${button} keeps the editor's selected Section`);
+        assert.equal(requests[0]?.options.sectionId, "fixture-section", `${via} keeps the editor's selected Section`);
         await settle(sectionPage); await status(sectionPage, "accepted");
         await sectionPage.reload(); await detail(sectionPage).waitFor();
         await openSectionPlacement(sectionPage);
         assert.equal(await detail(sectionPage).getByRole("radio", { name: /Fixture Section/ }).isChecked(), true, "the recorded choice survives a page load");
-        await detail(sectionPage).getByLabel("Review explanation (optional)", { exact: true }).fill("Updated explanation for the accepted source.");
-        await detail(sectionPage).getByRole("button", { name: "Save feedback", exact: true }).click();
-        const revisions = await sectionPage.evaluate(() => (window as unknown as {fixtureRequests:Array<{options:{sectionId?:string}}>} ).fixtureRequests);
-        assert.equal(revisions[0]?.options.sectionId, "fixture-section", "a note-only revision retains the actual recorded Section");
-        await settle(sectionPage);
-        await sectionPage.waitForFunction(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.curationStatusReason === "Updated explanation for the accepted source.");
-        await detail(sectionPage).getByRole("radio", { name: "No Section", exact: true }).check();
-        await detail(sectionPage).getByRole("button", { name: "Save feedback", exact: true }).click();
-        await settle(sectionPage);
-        await sectionPage.waitForFunction(() => JSON.parse(localStorage.getItem("reviewSectionIds") || "[]").length === 0);
-        await sectionPage.reload(); await detail(sectionPage).waitFor();
-        await openSectionPlacement(sectionPage);
-        assert.equal(await detail(sectionPage).getByRole("radio", { name: "No Section", exact: true }).isChecked(), true, "explicitly removing the Section survives reload despite the suggestion");
         assert.deepEqual(sectionErrors, []);
       } finally { await sectionBrowser.close(); }
     }
-    const { browser: advancedBrowser, page: advancedPage, errors: advancedErrors } = await setup("?decision=1");
-    try {
-      await selectA(advancedPage);
-      await detail(advancedPage).getByText("Review with a reason", { exact: true }).click();
-      const advanced = detail(advancedPage).locator("[data-reference-relevance-review]");
-      await advanced.getByRole("button", { name: "Yes: include", exact: true }).click();
-      await advanced.getByRole("button", { name: "Submit review", exact: true }).dblclick();
-      assert.equal(await requestCount(advancedPage), 1, "advanced review also protects repeated pending clicks");
-      await settle(advancedPage); await status(advancedPage, "accepted");
-      assert.equal(await detail(advancedPage).locator("[data-reference-relevance-review]").count(), 0, "a completed advanced submission is removed");
-      assert.equal(await detail(advancedPage).getByRole("button", { name: "Submit review", exact: true }).count(), 0);
-      assert.equal(await requestCount(advancedPage), 1);
-      assert.deepEqual(advancedErrors, []);
-    } finally { await advancedBrowser.close(); }
   },
   async prediction_loading() {
     const { browser, page, errors } = await setup("?predictions=loading");
     try {
       await selectA(page);
       await page.getByText(/Loading predictions/i).waitFor();
-      assert.ok(!/No prediction recorded/i.test(await detail(page).innerText()), "unfinished reads are not reported as missing data");
-      assert.ok(await detail(page).getByRole("button", { name: "Accept reference", exact: true }).isEnabled());
+      await detail(page).locator('[data-prediction-state="loading"]').waitFor();
+      assert.match(await detail(page).locator("[data-prediction-caption]").innerText(), /reading the prediction/i);
+      assert.equal(await you(page, "accept").getAttribute("aria-disabled"), null);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
@@ -332,10 +342,9 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await selectA(page);
       await page.getByText(/Predictions unavailable/i).waitFor();
-      assert.ok(!/No prediction recorded/i.test(await detail(page).innerText()), "failed reads are not reported as missing data");
+      assert.ok(!/No prediction$/m.test(await detail(page).innerText()), "failed reads are not reported as missing data");
       await page.getByRole("button", { name: "Retry predictions", exact: true }).click();
-      await detail(page).getByText(/No prediction recorded/i).waitFor();
-      assert.ok(await detail(page).getByRole("button", { name: "Accept reference", exact: true }).isEnabled());
+      await detail(page).locator('[data-prediction-state="none"]').waitFor();
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
@@ -343,12 +352,133 @@ const scenarios: Record<string, () => Promise<void>> = {
     const { browser, page, errors } = await setup("?readonly=1");
     try {
       await selectA(page);
-      assert.equal(await detail(page).getByRole("button", { name: "Accept reference", exact: true }).isEnabled(), false);
-      assert.equal(await detail(page).getByRole("button", { name: "Reject reference", exact: true }).isEnabled(), false);
-      assert.match(await detail(page).innerText(), /editor|permission|read.only/i);
+      await detail(page).locator("[data-review-disabled-reason]").waitFor();
+      assert.match(await detail(page).innerText(), /Editor access is required/);
+      assert.equal(await you(page, "accept").getAttribute("aria-disabled"), "true");
+      await you(page, "accept").dispatchEvent("click");
+      await you(page, "reject").dispatchEvent("click");
       assert.equal(await requestCount(page), 0);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
+  },
+  async queue() {
+    for (const width of [375, 1440]) {
+      const { browser, page, errors } = await setup("", width);
+      try {
+        await selectA(page);
+        const bar = page.locator("[data-review-queue-bar]:visible");
+        await bar.waitFor();
+        assert.equal(await barText(page), "1 of 3");
+        await page.waitForFunction(`(() => { const b=[...document.querySelectorAll("[data-review-queue-bar]")].find((e)=>e.getBoundingClientRect().width>0); const r=b.getBoundingClientRect(); return r.bottom <= innerHeight + 1 && r.top > innerHeight * 0.4; })()`);
+        const box = (await bar.boundingBox())!;
+        assert.ok(box.y + box.height <= 900 + 1 && box.y > 400, `the bar sits at the bottom, within thumb reach (y=${box.y} h=${box.height})`);
+        const next = bar.getByRole("button", { name: "Next", exact: true });
+        assert.ok((await next.boundingBox())!.height >= 44, "large Next target");
+        await next.click();
+        await page.locator('[data-news-desk-reference-detail="reference-b"]:visible').waitFor();
+        assert.equal(openId(page), "reference-b", "one URL per item");
+        assert.equal(await barText(page), "2 of 3");
+        await bar.getByRole("button", { name: "Previous", exact: true }).click();
+        await detail(page).waitFor();
+        assert.equal(await barText(page), "1 of 3");
+        await swipe(page, 300, 100); // swipe left: Next
+        await page.locator('[data-news-desk-reference-detail="reference-b"]:visible').waitFor();
+        await swipe(page, 100, 300); // swipe right: Previous
+        await detail(page).waitFor();
+        if (width === 1440) {
+          await page.locator("body").click({ position: { x: 2, y: 2 } });
+          await page.keyboard.press("ArrowRight");
+          await page.locator('[data-news-desk-reference-detail="reference-b"]:visible').waitFor();
+          await page.keyboard.press("ArrowLeft");
+          await detail(page).waitFor();
+        }
+        // Decide, then move on: the decided item keeps its place until the editor moves.
+        await you(page, "accept").click(); await settle(page); await status(page, "accepted");
+        assert.equal(await barText(page), "1 of 3");
+        await bar.getByRole("button", { name: "Next", exact: true }).click();
+        await page.locator('[data-news-desk-reference-detail="reference-b"]:visible').waitFor();
+        assert.equal(await barText(page), "1 of 2", "decided items leave the pending queue");
+        await bar.getByRole("button", { name: "Next", exact: true }).click();
+        await page.locator('[data-news-desk-reference-detail="reference-c"]:visible').waitFor();
+        await bar.getByRole("button", { name: "Next", exact: true }).click();
+        await page.locator("[data-review-caught-up]:visible").waitFor();
+        assert.match(await page.locator("[data-review-caught-up]:visible").innerText(), /All caught up/);
+        await bar.getByRole("button", { name: "Previous", exact: true }).click();
+        await page.locator('[data-news-desk-reference-detail="reference-c"]:visible').waitFor();
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+  async card_layout() {
+    for (const width of [375, 1440]) {
+      const { browser, page, errors } = await setup("?decision=1", width);
+      try {
+        await selectA(page);
+        const rows = await page.evaluate(`(() => {
+          const panel = [...document.querySelectorAll("[data-review-card]")].find((e) => e.offsetParent);
+          const top = (sel) => panel.querySelector(sel).getBoundingClientRect().top;
+          return { root: panel.getBoundingClientRect().width, cyclotron: top("[data-confidence-bar]"), you: top('[data-review-row="you"]'), why: panel.querySelector("textarea").getBoundingClientRect().width, scrollX: document.documentElement.scrollWidth - innerWidth };
+        })()`) as { root: number; cyclotron: number; you: number; why: number; scrollX: number };
+        assert.ok(rows.cyclotron < rows.you, "the prediction bar sits above the buttons");
+        assert.ok(rows.why >= rows.root - 2, "the Why textarea spans the card");
+        assert.ok(rows.scrollX <= 0, "no horizontal page scroll");
+        // One control: the bar above the two buttons, and the buttons and the reason field in the same column.
+        const control = await page.evaluate(`(() => {
+          const panel = [...document.querySelectorAll("[data-review-card]")].find((e) => e.offsetParent);
+          const box = (sel) => { const r = panel.querySelector(sel).getBoundingClientRect(); return { x: r.x, w: r.width, y: r.y }; };
+          return { bar: box("[data-confidence-bar]"), accept: box('[data-review-choice="accept"]'), reject: box('[data-review-choice="reject"]'),
+            field: box("[data-review-reason] textarea") };
+        })()`) as Record<"bar" | "accept" | "reject" | "field", { x: number; w: number; y: number }>;
+        assert.ok(control.bar.y < control.accept.y, "the prediction bar sits above the buttons");
+        assert.ok(control.accept.y === control.reject.y && control.accept.x < control.reject.x, "Accept left, Reject right, on one row");
+        assert.ok(Math.abs(control.accept.w - control.reject.w) < 0.5, "the two buttons are the same width");
+        const left = control.accept.x;
+        const right = control.reject.x + control.reject.w;
+        for (const [name, part] of [["the bar", control.bar], ["the reason field", control.field]] as const) {
+          assert.ok(Math.abs(part.x - left) < 0.5 && Math.abs(part.x + part.w - right) < 0.5, `${name} spans the same column as the buttons`);
+        }
+        assert.ok(control.field.y > control.accept.y, "the reason field sits under the buttons");
+        for (const icon of await page.locator("[data-review-card] button svg, [data-review-queue-bar] svg").all()) assert.ok(await icon.evaluate((svg) => svg.classList.contains("lucide") || [...svg.classList].some((c) => c.startsWith("lucide"))), "icons are Lucide");
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+  /**
+   * The detail is full width, in the feed's place with a Back control, up to a tablet in portrait (the `lg` breakpoint, 1024px), and a
+   * pane beside the feed from a tablet in landscape up. The viewport decides, never the selection.
+   */
+  async responsive_detail() {
+    for (const width of [375, 768, 834, 1024, 1440]) {
+      const { browser, page, errors } = await setup("?decision=1", width);
+      try {
+        const split = width >= 1024;
+        await selectA(page);
+        const shell = page.locator("[data-newsroom-list-detail-shell]:visible");
+        const feed = page.locator("[data-reference-feed-column]");
+        const shellBox = (await shell.boundingBox())!;
+        const back = page.locator("[data-reference-back]");
+        assert.equal(await page.locator("[data-news-desk-section=references][data-reference-layout]").getAttribute("data-reference-layout"), "detail");
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${width}: nothing scrolls sideways`);
+        assert.equal(await page.locator('[role="dialog"]').count(), 0, `${width}: the detail is in the page, not a sheet over it`);
+        if (split) {
+          assert.equal(await feed.isVisible(), true, `${width}: the feed stays beside the detail`);
+          assert.equal(await back.isVisible(), false, `${width}: no Back control beside the feed`);
+          const feedBox = (await feed.boundingBox())!;
+          assert.ok(shellBox.x >= feedBox.x + feedBox.width - 1, `${width}: the detail sits to the right of the feed`);
+          assert.ok(shellBox.width <= 28 * 16 + 1 && shellBox.width >= 24 * 16 - 1, `${width}: the pane is 24 to 28rem wide, not the page (${shellBox.width})`);
+        } else {
+          assert.equal(await feed.isVisible(), false, `${width}: the feed gives its place to the detail`);
+          assert.ok(shellBox.width >= width - 40, `${width}: the detail is full width (${shellBox.width})`);
+          assert.equal(await back.isVisible(), true, `${width}: a clear Back control`);
+          assert.ok(await detail(page).isVisible(), `${width}: the reference's detail is shown`);
+          await back.click();
+          await feed.waitFor();
+          assert.equal(await shell.count(), 0, `${width}: Back returns to the feed alone`);
+          assert.equal(new URL(page.url()).pathname, "/newsroom/references", `${width}: Back clears the detail address`);
+        }
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
   },
   async empty() {
     const { browser, page, errors } = await setup("?empty=1");

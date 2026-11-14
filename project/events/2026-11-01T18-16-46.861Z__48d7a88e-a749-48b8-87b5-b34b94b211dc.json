@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "48d7a88e-a749-48b8-87b5-b34b94b211dc",
+  "issue_id": "PPY-022025a7-faa7-4dad-a798-b6263f02d168",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:46.861Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Gherkin: features_backend/idea-context-packs.feature",
+    "description": "Narrative, complete feature covering: a thread that lights up yields one pack and up to three ideas each citing two References; a concept whose accepts are at its own baseline yields no pack; an anchor already drafted yields nothing without new evidence; a site with no Messages still gets acceptance packs; pending References appear as context and are never cited; every idea sits in the Idea stage and passed the gate; a pack states its date basis; single-item ideas are ranked by signals. Steps in features_backend/steps/. Can be written first and drive S1.3-S1.7.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0b40ca61-d357-47cc-9d81-6627b05f6303",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

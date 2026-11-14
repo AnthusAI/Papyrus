@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "1c2912f8-f170-4fc3-b46b-772ac7f84758",
+  "issue_id": "PPY-d21c7f0c-ef67-4b7b-8248-07aadb03f38e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T17:10:44.598Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Ryan: approve the operator deploys and PyPI publishing",
+    "description": "stub",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+    "labels": [
+      "m1",
+      "ryan-step"
+    ]
+  }
+}

@@ -60,18 +60,13 @@ def is_evidence_eligible_reference(reference: dict[str, Any] | None) -> bool:
     )
 
 
-def reference_reason_code(reference: dict[str, Any] | None, messages: list[dict[str, Any]] | None = None) -> str | None:
-    metadata_reason = _reason_code_from_metadata((reference or {}).get("metadata"))
-    if metadata_reason:
-        return metadata_reason
-    for message in sorted(messages or [], key=lambda entry: str(entry.get("createdAt") or ""), reverse=True):
-        reason = _reason_code_from_metadata(message.get("metadata"))
-        if reason:
-            return reason
-    return None
+def reference_reason_code(reference: dict[str, Any] | None) -> str | None:
+    """The reason code of the Reference's latest vote (``curationReasonCode``), else one recorded in its metadata."""
+    reason = _reason_code_from_metadata({"reasonCode": (reference or {}).get("curationReasonCode")})
+    return reason or _reason_code_from_metadata((reference or {}).get("metadata"))
 
 
-def scope_training_label_for_reference(reference: dict[str, Any] | None, messages: list[dict[str, Any]] | None = None) -> str | None:
+def scope_training_label_for_reference(reference: dict[str, Any] | None) -> str | None:
     if not reference or reference.get("versionState") != "current":
         return None
     status = normalize_reference_curation_status(reference.get("curationStatus"))
@@ -79,7 +74,7 @@ def scope_training_label_for_reference(reference: dict[str, Any] | None, message
         return "positive"
     if status != "rejected":
         return None
-    reason_code = reference_reason_code(reference, messages)
+    reason_code = reference_reason_code(reference)
     return "negative" if reason_code in SCOPE_TRAINING_NEGATIVE_REASON_CODES else None
 
 

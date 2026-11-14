@@ -25,6 +25,11 @@ export function isSvgFilename(filename: string): boolean {
   return extensionOf(filename) === "svg";
 }
 
+/** `figure.dark.png`: the dark-mode picture of `figure.png`. The renderer pairs them by name. */
+export function isDarkVariantFilename(filename: string): boolean {
+  return /\.dark\.[a-z0-9]+$/i.test(filename);
+}
+
 function sanitizeSegment(value: string): string {
   return value
     .toLowerCase()
@@ -134,7 +139,8 @@ export type NewsroomMediaBackend = {
 
 export type ImageDimensionReader = (file: Blob, filename: string) => Promise<{ width: number; height: number } | null>;
 
-export type UploadedImage = { srcPath: string; directive: string; imageUrl: string };
+/** `directive` is null for a dark variant: it is uploaded next to the light file and pairs by name, so nothing is inserted. */
+export type UploadedImage = { srcPath: string; directive: string | null; imageUrl: string };
 
 export async function uploadArticleImage(
   backend: NewsroomMediaBackend,
@@ -153,6 +159,8 @@ export async function uploadArticleImage(
   const bytes = await input.file.arrayBuffer();
   const sha256 = await sha256Hex(bytes);
   const dimensions = await readDimensions(input.file, input.file.name);
+  // The key is always media/<srcPath>, on every site: the renditions are made from it and read back by srcPath
+  // (renditions.media_key_for_source in the CLI makes the same key; docs/multi-tenancy.md).
   const storagePath = `media/${srcPath}`;
   await backend.uploadImage({ storagePath, data: input.file, contentType });
   await backend.createMediaAsset({
@@ -166,7 +174,8 @@ export async function uploadArticleImage(
     ...(dimensions ?? {}),
     metadata: JSON.stringify({ srcPath, sha256, bytes: bytes.byteLength, contentType }),
   });
-  return { srcPath, directive: imageDirective(srcPath, ""), imageUrl: await backend.imageUrl(storagePath) };
+  const directive = isDarkVariantFilename(input.file.name) ? null : imageDirective(srcPath, "");
+  return { srcPath, directive, imageUrl: await backend.imageUrl(storagePath) };
 }
 
 export async function readImageDimensions(file: Blob, filename: string): Promise<{ width: number; height: number } | null> {

@@ -20,6 +20,7 @@ export type MonitoringRelevance = {
 };
 
 export type MonitoringItem = {
+  monitorId?: string;
   sourceId: string;
   revision: number;
   title: string;
@@ -31,6 +32,90 @@ export type MonitoringItem = {
   decidedAt: string | null;
   relevance: MonitoringRelevance[];
 };
+
+export type MonitoringEmailSummary = {
+  receiptId: string; observedAt: string | null; status: string; subject: string | null;
+  envelopeSender: string | null; headerFrom: string | null; warnings: string[];
+  verdicts: Record<string, string>; linkCount: number; processedCount: number; unresolvedLinkCount: number;
+  reviewRequired: boolean; errorCode: string | null; quarantine: EmailQuarantine | null;
+  /** Present when the same email was received more than once: one item, every copy listed. One decision covers all copies. */
+  group?: EmailCopyGroup;
+};
+export type EmailCopyGroup = {
+  fingerprint: string; count: number;
+  copies: { receiptId: string; observedAt: string | null; status: string; linkCount: number; processedCount: number; quarantine: EmailQuarantine | null }[];
+};
+
+/** Where a held email submission stands. `null` means it never needed review. */
+export type EmailQuarantineState =
+  | "quarantined" | "release_requested" | "released" | "discard_requested" | "discarded"
+  | "expired" | "decision_failed" | "release_failed";
+export type EmailQuarantine = {
+  state: EmailQuarantineState;
+  decision: { action: "accept" | "reject"; by: string; at: string | null; reason: string; viaGroup?: boolean } | null;
+  failure: string | null;
+};
+export type EmailDecisionResult =
+  | { ok: true; already: boolean; quarantine: EmailQuarantine }
+  | { error: "forbidden" | "bad_request" | "already_decided" | "not_quarantined" | "expired"; quarantine?: EmailQuarantine }
+  | { state: "unavailable" | "not_configured" };
+
+export const QUARANTINE_LABELS: Record<EmailQuarantineState, string> = {
+  quarantined: "Held for review",
+  release_requested: "Accepted, being queued",
+  released: "Accepted",
+  discard_requested: "Rejected, being closed",
+  discarded: "Rejected",
+  expired: "Expired",
+  decision_failed: "Decision could not be applied",
+  release_failed: "Accepted, retrying",
+};
+
+/** Links and import are available only once a message is accepted (or never needed review). */
+export function emailSubmissionAccepted(quarantine: EmailQuarantine | null): boolean {
+  return quarantine === null || quarantine.state === "released";
+}
+
+export type MonitoringEmailDetails = {
+  submission: MonitoringEmailSummary & { corpusId: string | null }; safeBodyText: string;
+  candidateLinks: { url: string; title: string; resolutionStatus?: "unresolved" }[]; sourceMaterialIsUntrusted: true;
+} | { error: "forbidden" | "bad_request" } | { state: "unavailable" | "not_configured" };
+
+export type MonitoringEmailArticleResolution = {
+  url: string; title: string; resolved: true;
+  /** Present when the original link could not be followed and the destination was found by searching the headline. */
+  foundVia?: "search"; search?: { query: string; matchScore: number; provider: string; matchedTitle?: string };
+} | { error: "forbidden" | "bad_request" | "not_resolvable" | "resolution_failed"; reason?: string } | { state: "unavailable" };
+
+export type EmailReferenceImportItem = { candidateIndex: number; source_uri: string };
+export type EmailReferenceImportOutcome = {
+  imported: number; references: { id: string; lineageId: string; curationStatus: string }[]; error?: string;
+};
+
+/** Split a complete editor selection into API work batches; the batch size is not a total link limit. */
+export function emailReferenceBatches<T>(items: T[], batchSize = 20): T[][] {
+  if (!Number.isSafeInteger(batchSize) || batchSize < 1) throw new Error("batchSize must be a positive integer");
+  const batches: T[][] = [];
+  for (let offset = 0; offset < items.length; offset += batchSize) {
+    batches.push(items.slice(offset, offset + batchSize));
+  }
+  return batches;
+}
+
+/** Async email actions may only update the receipt that is still open. */
+export function isCurrentEmailSubmissionAction(activeReceiptId: string | null, actionReceiptId: string): boolean {
+  return activeReceiptId === actionReceiptId;
+}
+
+export function beginEmailSubmissionAction(inFlight: Set<string>, actionKey: string): boolean {
+  if (inFlight.has(actionKey)) return false;
+  inFlight.add(actionKey);
+  return true;
+}
+
+export function endEmailSubmissionAction(inFlight: Set<string>, actionKey: string): void {
+  inFlight.delete(actionKey);
+}
 
 export type MonitoringRun = {
   runId: string;
@@ -59,12 +144,22 @@ export type MonitoringFeed = {
   id: string;
   sourceUrl: string | null;
   intervalSeconds: number | null;
-  limit: number | null;
   enabled: boolean;
   lastStatus: string | null;
   lastFinishedAt: string | null;
   nextDueAt: string | null;
 };
+
+/** The lists on the page that are paged. Page sizes are the server's; there is no total. */
+export type MonitoringListName = "runs" | "routerRuns" | "items" | "emailSubmissions";
+export type MonitoringCursors = Partial<Record<MonitoringListName, string | null>>;
+export type MonitoringListRows = {
+  runs: MonitoringRun; routerRuns: MonitoringRouterRun; items: MonitoringItem; emailSubmissions: MonitoringEmailSummary;
+};
+/** One more page of one list. `cursor` is null when the list has ended. */
+export type MonitoringPage<L extends MonitoringListName = MonitoringListName> =
+  | { list: L; rows: MonitoringListRows[L][]; cursor: string | null; hiddenNotRelevant?: number }
+  | { error: "forbidden" | "bad_request" } | { state: "unavailable" | "not_configured" };
 
 export type MonitoringOverview = {
   state: "ready" | "empty";
@@ -74,15 +169,20 @@ export type MonitoringOverview = {
   feeds: MonitoringFeed[];
   runs: MonitoringRun[];
   routerRuns: MonitoringRouterRun[];
-  router: { mode: string; feedback: boolean; enabled: boolean; maxItemsPerRun: number | null } | null;
+  router: { mode: string; feedback: boolean; enabled: boolean } | null;
   usage: {
     day: string;
     decisionsToday: number;
     decisionsTotal: number;
-    ceilings: { decisionsTotal?: number; decisionsPerDay?: number; items?: number } | null;
+    historyComplete: boolean;
   } | null;
   items: MonitoringItem[];
+  /** Monitors that do not route to this site: named only, with no items. */
+  otherMonitors?: string[];
+  emailSubmissions?: MonitoringEmailSummary[];
   hiddenNotRelevant: number;
+  /** Where each list continues; null or missing when it has no more rows. */
+  cursors?: MonitoringCursors;
 };
 
 export type MonitoringResult =
@@ -114,10 +214,6 @@ export function formatUtc(iso: string | null | undefined): string {
 
 export function confidenceText(confidence: number | null): string {
   return confidence === null ? "confidence not reported" : `${Math.round(confidence * 100)}% confidence`;
-}
-
-export function usageText(used: number, ceiling: number | undefined): string {
-  return ceiling === undefined ? `${used} used, no ceiling set` : `${used} of ${ceiling}`;
 }
 
 export function everyText(seconds: number | null): string {

@@ -1,0 +1,32 @@
+{
+  "id": "PPY-2321aab5-a7c7-4c55-8eef-737203f4dcf9",
+  "title": "Plan entitlements are flags on the Tenant row, read on the write path without counting",
+  "description": "Outcome: What a plan includes (custom domains, reader features, newsletters, monitors, AI moderation) is a set of flags on Tenant.entitlements, written by provisioning and by plan changes from Prospectus. A costly action checks its flag on the row it already reads; nothing counts rows to decide. Spend limits are not flags: they are the Prospectus quota check (PPY-889ab5). No seats, no per-agent limits (owner decision 10).\n\nTouches (verified at origin/develop 23fabe1d): Tenant model, src/papyrus_content tenancy helpers, the functions that start costly work (content-actions tasks, monitors, newsletter send), the newsroom feature gates.\n\nAcceptance (Gherkin feature file: features_backend/tenant-entitlements.feature):\nScenario: An action outside the plan is refused with a plain message\n    Given \"alpha\"'s plan does not include newsletters\n    When an editor sends a newsletter\n    Then it is refused with \"Your plan does not include newsletters\" and nothing is sent\n\nDependencies: blocked by PPY-31c45c, PPY-6d9a6d. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Behave.\nRollout: Shared stack; dedicated sites have every flag.\nRisk and mitigation: Low.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-31c45ce2-7681-453e-a4e1-22bccdbf9ad2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-6d9a6d92-e01e-4ea7-9ba5-8cbf2fff936c",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:22.459534Z",
+  "updated_at": "2026-11-08T18:47:02.682289Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

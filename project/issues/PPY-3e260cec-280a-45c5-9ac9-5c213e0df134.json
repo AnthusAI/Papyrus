@@ -1,0 +1,27 @@
+{
+  "id": "PPY-3e260cec-280a-45c5-9ac9-5c213e0df134",
+  "title": "Operator mute and acknowledge pages, and operator history",
+  "description": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M2, operators finished\n\n**Goal.** Operators can turn things off from the message. Operator mail belongs to no site, so it cannot use a site's pages.\n\n**Build.**\n- Papyrus-monitoring: one Lambda function URL with auth NONE, handler `caducus.notify.handlers.public`; signed tokens only, GET shows a button and changes nothing, POST acts. Link key `/papyrus/monitoring/link-key`, create-only. Throttled by reserved concurrency only if the account allows it.\n- The host name is the function URL's. A custom domain on notify.anth.us is deferred; no CloudFront now.\n- `caducus notify history` and `test` against the table with the operator's own AWS session; the `papyrus` CLI gains a thin wrapper in `PPY-d99539`.\n\n**Acceptance.**\nMute from a real message; a mail scanner's GET changes nothing.\n\n**Depends on:** PPY-e82423\n**Related:** kanbus-1c3618, kanbus-42a682, kanbus-c68e03, kanbus-b9f48f",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m2"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-e8242399-98ea-485b-b3e5-d9a57748c5b0",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-04T17:10:45.090478Z",
+  "updated_at": "2026-11-04T17:10:46.734103Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bc888023-230c-4db6-91f6-57b08774ecad",
+  "issue_id": "PPY-157215ad-b0dc-4eed-b09f-69d08540e3a3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T09:02:05.753Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A Story's research can't see a sister publication's reporting on the same subject",
+    "description": "Found 2026-11-04. Pilobolus published a piece on the OpenAI wiki and Hugging Face incidents in September. The Machines on Machines Story on the same mechanism did not find it through its research run or context pack; an editor had to point to it. Corpora are per site by design, and the direction I wrote also narrowed the search. Worth considering: letting a research run or context pack see published Stories from other sites in the same Account, marked as such and treated as leads. Related: one-corpus decision, PPY-2e9064.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

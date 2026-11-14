@@ -1,0 +1,1067 @@
+"""Web-search monitors: query records, QueryRuns, Tavily paged by date window, per-query high-water marks, shared candidates
+with provenance, dedupe across sources, per-publication routing config."""
+from datetime import datetime, timedelta, timezone
+import json
+
+import pytest
+
+from papyrus_content.monitoring_candidates import candidate_key, record_candidate
+from papyrus_content.monitoring_cloud import DynamoStore, _validate_config, run_collection, run_web_collections
+from papyrus_content.monitoring_paging import RateLimited
+from papyrus_content.monitoring_router import CyclotronClient, RouterStore, run_router, validate_router_config
+from papyrus_content.monitoring_web import (TAVILY_PAGE_LIMIT, arxiv_paper_id, canonical_url, parse_results, query_record, searchable,
+                                           with_paper_titles)
+from papyrus_content.monitoring_web_publications import (SHARED_CYCLOTRON, WEB_PUBLICATIONS, monitor_config, monitor_id,
+                                                         router_config)
+
+from test_monitoring_router import FakeCyclotron, FakeTable, router_config as hn_router_config
+
+DAY = 86400
+NOW = 1792540800   # 2026-10-21T00:00:00Z
+MONITOR = "web-anth-us"
+APPROVER = "Ryan (review delegated to Claude, 2026-10-28)"
+
+
+def day(offset: int, base: int = NOW) -> str:
+    return (datetime.fromtimestamp(base, timezone.utc) + timedelta(days=offset)).date().isoformat()
+
+
+def article(n: int, published: str, query: str = "ai agents", host: str = "example.org") -> dict:
+    return {"url": f"https://{host}/story-{n}", "title": f"Story {n}", "content": f"Snippet {n}", "score": 0.5,
+            "published_date": published, "_query": query}
+
+
+class FakeTavily:
+    """Tavily without the network: filters its corpus by the date window and answers at most max_results, newest first."""
+
+    def __init__(self, *articles):
+        self.articles, self.calls, self.fail = list(articles), [], []
+
+    def __call__(self, payload):
+        self.calls.append(payload)
+        if self.fail:
+            raise self.fail.pop(0)
+        start, end = payload.get("start_date"), payload.get("end_date")
+        rows = [a for a in self.articles if a["_query"] == payload["query"]
+                and (not start or start <= a["published_date"][:10] <= end)]
+        rows.sort(key=lambda a: a["published_date"], reverse=True)
+        return {"results": [{k: v for k, v in a.items() if k != "_query"} for a in rows[:payload["max_results"]]]}
+
+
+def add_queries(table, monitor, *texts, approved_by=APPROVER, **fields):
+    for text in texts:
+        record = query_record(monitor, text, f"why {text}", origin="drafted", created_by="gpt-6-luna",
+                              now_iso="2026-10-20T00:00:00Z", approved_by=approved_by)
+        table.put_item({**record, **fields})
+
+
+def web_table(*queries, monitor=MONITOR, **extra):
+    table = FakeTable()
+    config = monitor_config("anth-us", enabled=True)
+    table.put_item({**config, "pk": f"MONITOR#{monitor}", **extra})
+    add_queries(table, monitor, *(queries or ("ai agents",)))
+    return table
+
+
+def rows(table, prefix, monitor=MONITOR):
+    return [v for k, v in sorted(table.items.items()) if k[0] == f"MONITOR#{monitor}" and k[1].startswith(prefix)]
+
+
+def discs(table, monitor=MONITOR):
+    return rows(table, "DISC#", monitor)
+
+
+def queries_of(table, monitor=MONITOR):
+    return {r["text"]: r for r in rows(table, "QUERY#", monitor)}
+
+
+def collect(table, tavily, now=NOW, monitor=MONITOR, **kwargs):
+    return run_collection(DynamoStore(table), monitor, fetch=tavily, now=now, **kwargs)
+
+
+def state(table, monitor=MONITOR):
+    return DynamoStore(table).get_state(monitor)
+
+
+def set_high_water(table, text, when, monitor=MONITOR):
+    record = queries_of(table, monitor)[text]
+    table.put_item({**record, "highWater": when})
+
+
+def candidate(table, url):
+    key = candidate_key(url)
+    return table.items.get((key["pk"], key["sk"]))
+
+
+# --- the source -----------------------------------------------------------------------------------------------------------
+
+def test_results_become_items_with_canonical_urls_snippet_date_and_the_query_that_found_them():
+    (item,) = parse_results("ai agents", [{"url": "https://Example.org/a?utm_source=x&id=1", "title": " A   story ",
+                                           "content": "About   agents", "score": 0.91234567, "published_date": "2026-10-20"}], "q1")
+
+    assert item.canonical_url == "https://example.org/a?id=1" and item.title == "A story"
+    assert item.published_at == "2026-10-20T00:00:00Z" and item.source_id.startswith("w")
+    assert item.details == {"query": "ai agents", "queryId": "q1", "snippet": "About agents", "tavilyScoreBp": 9123}
+
+
+def test_an_arxiv_result_takes_the_papers_own_title_from_arxiv():
+    items = parse_results("ai evaluation", [{"url": "https://arxiv.org/html/2610.35725v1", "title": "1 Introduction"},
+                                            {"url": "https://example.org/a", "title": "A story"}])
+    asked = []
+
+    def lookup(ids):
+        asked.append(ids)
+        return {"2610.35725": "The Watchtower Imperative: Lifespan-Calibrated Evaluation for Frontier AI"}
+
+    titled = with_paper_titles(items, lookup)
+    assert [i.title for i in titled] == ["The Watchtower Imperative: Lifespan-Calibrated Evaluation for Frontier AI", "A story"]
+    assert asked == [["2610.35725"]], "one request for the page's arXiv papers"
+    assert titled[0].fingerprint != items[0].fingerprint, "the fingerprint follows the stored title"
+    assert [i.title for i in with_paper_titles(items, lambda ids: {})] == ["1 Introduction", "A story"], "arXiv down: the title stands"
+    assert arxiv_paper_id("https://arxiv.org/abs/1706.03762v7") == "1706.03762" and arxiv_paper_id("https://example.org/abs/1") is None
+
+
+def test_results_without_a_usable_url_or_title_and_repeats_are_dropped():
+    rows_ = [{"url": "ftp://x/y", "title": "t"}, {"url": "https://a.org/1", "title": ""}, "junk",
+             {"url": "https://a.org/2", "title": "Two"}, {"url": "https://a.org/2?utm_campaign=z", "title": "Two again"}]
+
+    assert [i.title for i in parse_results("q", rows_)] == ["Two"]
+
+
+def test_config_validation():
+    base = monitor_config("anth-us", enabled=True)
+    assert _validate_config(base)["topic"] == "news" and "queries" not in _validate_config(base)
+    assert _validate_config({k: v for k, v in base.items() if k not in ("sourceUrl", "intervalSeconds")})["intervalSeconds"] == 3600
+    assert _validate_config(base)["candidateGroup"] == "shared"
+    for bad in ({"topic": "videos"}, {"startDate": "last week"}, {"candidateGroup": " "}):
+        with pytest.raises(ValueError):
+            _validate_config({**base, **bad})
+
+
+def test_domain_filters_are_validated_as_bare_domains():
+    base = monitor_config("distinctive", enabled=True)
+    assert _validate_config({**base, "excludeDomains": ["Facebook.com", "facebook.com", "x.com"]})["excludeDomains"] == ["facebook.com", "x.com"]
+    for bad in ("facebook.com", ["https://facebook.com/page"], ["facebook"], [""]):
+        with pytest.raises(ValueError):
+            _validate_config({**base, "excludeDomains": bad})
+    with pytest.raises(ValueError):
+        query_record(MONITOR, "q", "r", origin="editor", created_by="x", now_iso="2026-10-20T00:00:00Z", exclude_domains=["a/b.com"])
+
+
+def test_a_querys_domain_filters_and_the_monitors_are_sent_with_the_search():
+    table = web_table("ai agents", "open models", excludeDomains=["facebook.com"])
+    narrow = queries_of(table)["ai agents"]
+    table.put_item({**narrow, "excludeDomains": ["linkedin.com", "facebook.com"], "includeDomains": ["law360.com"]})
+    tavily = FakeTavily(article(1, day(-1), "ai agents"), article(2, day(-1), "open models"))
+
+    collect(table, tavily)
+
+    asked = {c["query"]: c for c in tavily.calls}
+    assert asked["ai agents"]["exclude_domains"] == ["facebook.com", "linkedin.com"]
+    assert asked["ai agents"]["include_domains"] == ["law360.com"]
+    assert asked["open models"]["exclude_domains"] == ["facebook.com"] and "include_domains" not in asked["open models"]
+
+
+def test_a_query_without_domain_filters_sends_none():
+    tavily = FakeTavily(article(1, day(-1)))
+    collect(web_table(), tavily)
+    assert all("exclude_domains" not in c and "include_domains" not in c for c in tavily.calls)
+
+
+# --- provider chain ----------------------------------------------------------------------------------------------------------
+
+def _chain(**http_by_name):
+    from test_web_search import FakeHttp, make
+    from papyrus_content.web_search import OpenAIProvider, PerplexityProvider, SearchChain, TavilyProvider
+    classes = {"tavily": TavilyProvider, "openai": OpenAIProvider, "perplexity": PerplexityProvider}
+    return SearchChain(list(http_by_name), providers={name: make(classes[name], http, **{f"{name.upper()}_API_KEY": "k"})
+                                                     for name, http in http_by_name.items()}), {n: h for n, h in http_by_name.items()}
+
+
+def test_the_monitors_own_chain_is_validated_and_stored():
+    base = monitor_config("distinctive", enabled=True)
+    assert _validate_config({**base, "searchProviders": "openai, tavily"})["searchProviders"] == ["openai", "tavily"]
+    assert _validate_config({**base, "searchProviders": ["perplexity"]})["searchProviders"] == ["perplexity"]
+    assert _validate_config(base)["searchProviders"] == []
+    for bad in ("openai,bogus", ["nope"], 5):
+        with pytest.raises((ValueError, TypeError)):
+            _validate_config({**base, "searchProviders": bad})
+
+
+def test_an_exhausted_tavily_plan_falls_back_and_the_query_run_records_who_answered_and_why():
+    from test_web_search import FakeHttp
+    from papyrus_content.web_search import HttpStatusError
+    from papyrus_content.monitoring_web import search_fetch
+    tavily = FakeHttp(*[HttpStatusError(432, "{}")] * 5)
+    perplexity = FakeHttp(*[{"results": [{"url": "https://example.org/story-1", "title": "Story 1", "snippet": "S", "date": day(-1)}]}] * 5)
+    chain, _ = _chain(tavily=tavily, perplexity=perplexity)
+    table = web_table()
+
+    result = collect(table, search_fetch({}, chain))
+
+    assert result["new"] == 1 and not result.get("errors")
+    (run,) = rows(table, "QRUN#")
+    assert run["providers"] == {"perplexity": run["requests"]} and run["skipped"] == ["tavily: plan exhausted (432)"]
+
+
+def test_a_provider_that_cannot_bound_dates_is_asked_once_not_split_into_days():
+    from test_web_search import FakeHttp
+    from papyrus_content.monitoring_web import search_fetch
+    rows_ = [{"url": f"https://example.org/s-{n}", "title": f"S{n}", "snippet": ""} for n in range(25)]
+    openai = FakeHttp(*[{"output": [{"action": {"sources": [{"url": r["url"]} for r in rows_]}}]}] * 20)
+    chain, _ = _chain(openai=openai)
+    table = web_table()
+    table.put_item({**queries_of(table)["ai agents"], "highWater": NOW - 14 * DAY})
+
+    result = collect(table, search_fetch({}, chain))
+
+    assert len(openai.calls) == 1 and result["new"] == 20   # one request, the monitor's own page of twenty
+
+
+def test_all_providers_rate_limited_waits_as_a_single_provider_does():
+    from test_web_search import FakeHttp
+    from papyrus_content.web_search import HttpStatusError
+    from papyrus_content.monitoring_web import search_fetch
+    limited = HttpStatusError(429, "", {"Retry-After": "30"})
+    chain, _ = _chain(tavily=FakeHttp(limited, limited))
+    with pytest.raises(RateLimited) as caught:
+        search_fetch({}, chain)({"query": "q", "max_results": 20})
+    assert caught.value.retry_after == 30.0
+
+
+def test_all_providers_failing_names_each_failure_in_the_run_error():
+    from test_web_search import FakeHttp
+    from papyrus_content.web_search import HttpStatusError
+    from papyrus_content.monitoring_web import search_fetch
+    chain, _ = _chain(tavily=FakeHttp(HttpStatusError(432)), openai=FakeHttp(HttpStatusError(401)))
+    with pytest.raises(ValueError, match=r"tavily: plan exhausted \(432\); openai: authentication failed \(401\)"):
+        search_fetch({}, chain)({"query": "q", "max_results": 20})
+
+
+# --- query records ---------------------------------------------------------------------------------------------------------
+
+def test_a_query_record_has_a_stable_id_origin_creator_approval_status_and_history():
+    record = query_record("web-anth-us", "  ai   agents ", "finds agent work", origin="drafted", created_by="gpt-6-luna",
+                          now_iso="2026-10-28T00:00:00Z", approved_by=APPROVER)
+
+    assert record["id"] == query_record("web-anth-us", "ai agents", "other", origin="editor", created_by="x", now_iso="y")["id"]
+    assert (record["text"], record["origin"], record["createdBy"], record["status"]) == ("ai agents", "drafted", "gpt-6-luna", "active")
+    assert record["approvedBy"] == APPROVER and record["approvedAt"] == "2026-10-28T00:00:00Z"
+    assert record["history"][0]["change"] == "created" and record["sk"] == f"QUERY#{record['id']}"
+    with pytest.raises(ValueError):
+        query_record("web-anth-us", "x", "r", origin="robot", created_by="x", now_iso="y")
+
+
+def test_only_approved_active_queries_are_searched():
+    table = web_table("approved")
+    add_queries(table, MONITOR, "unapproved", approved_by=None)
+    add_queries(table, MONITOR, "paused", status="paused")
+    add_queries(table, MONITOR, "retired", status="retired")
+    tavily = FakeTavily()
+
+    collect(table, tavily)
+
+    assert [c["query"] for c in tavily.calls] == ["approved"]
+    assert not searchable(queries_of(table)["unapproved"]) and not searchable(queries_of(table)["retired"])
+
+
+# --- paging through everything Tavily returns -----------------------------------------------------------------------------
+
+def test_a_full_page_splits_the_date_window_until_every_result_is_read():
+    # Tavily answers at most 20 per request and has no offset: 70 results over 14 days can only be read by narrowing the dates.
+    tavily = FakeTavily(*[article(n, day(-(n % 14))) for n in range(70)])
+    table = web_table()
+    set_high_water(table, "ai agents", NOW - 14 * DAY)
+
+    result = collect(table, tavily)
+
+    assert result["status"] == "complete" and result["new"] == 70 == len(discs(table))
+    assert len(tavily.calls) > 1 and all(c["max_results"] == TAVILY_PAGE_LIMIT for c in tavily.calls)
+    assert all(c["start_date"] <= c["end_date"] for c in tavily.calls)
+
+
+def test_every_query_is_searched_and_each_result_records_the_query_that_found_it():
+    tavily = FakeTavily(article(1, day(-1), "ai agents"), article(2, day(-1), "open models"))
+    table = web_table("ai agents", "open models")
+
+    collect(table, tavily)
+
+    found = sorted((d["title"], d["details"]["query"]) for d in discs(table))
+    assert found == [("Story 1", "ai agents"), ("Story 2", "open models")]
+    disc = next(d for d in discs(table) if d["title"] == "Story 1")
+    assert disc["canonicalUrl"] == "https://example.org/story-1" and disc["details"]["snippet"] == "Snippet 1"
+    assert disc["details"]["queryId"] == queries_of(table)["ai agents"]["id"]
+    assert disc["sourcePublishedAt"] == day(-1) + "T00:00:00Z" and disc["sourceType"] == "web-search"
+    assert disc["routing"] == "collected" and disc["monitorId"] == MONITOR
+
+
+def test_a_saturated_single_day_is_accepted_not_split_forever():
+    tavily = FakeTavily(*[article(n, day(-1)) for n in range(30)])
+    table = web_table()
+    set_high_water(table, "ai agents", NOW - 2 * DAY)
+
+    result = collect(table, tavily)
+
+    assert result["status"] == "complete" and result["new"] == TAVILY_PAGE_LIMIT
+
+
+def test_a_rate_limit_is_waited_out_for_its_retry_after():
+    tavily = FakeTavily(article(1, day(-1)))
+    tavily.fail = [RateLimited("slow down", 7.0)]
+    slept = []
+
+    result = collect(web_table(), tavily, sleep=slept.append)
+
+    assert slept == [7.0] and result["new"] == 1 and result["status"] == "complete"
+
+
+def test_a_pass_that_runs_out_of_time_resumes_where_it_stopped_without_moving_the_high_water_mark():
+    tavily = FakeTavily(*[article(n, day(-(n % 14))) for n in range(70)])
+    table = web_table()
+    set_high_water(table, "ai agents", NOW - 14 * DAY)
+    ticks = iter(range(0, 1000))
+
+    first = collect(table, tavily, budget_seconds=3, clock=lambda: float(next(ticks)))
+
+    assert first["status"] == "partial" and "stopped early" in first["errors"][-1]["message"]
+    assert state(table)["resume"]["web"] and state(table)["nextDueAt"] == NOW
+    assert queries_of(table)["ai agents"]["highWater"] == NOW - 14 * DAY
+    asked = len(tavily.calls)
+    second = collect(table, tavily, now=NOW + 60)
+    assert second["status"] == "complete" and len(discs(table)) == 70 and len(tavily.calls) > asked
+    assert queries_of(table)["ai agents"]["highWater"] == NOW and "resume" not in state(table)
+
+
+def test_a_query_added_during_a_resumed_pass_is_not_marked_as_searched():
+    tavily = FakeTavily(*[article(n, day(-(n % 14))) for n in range(70)])
+    table = web_table()
+    set_high_water(table, "ai agents", NOW - 14 * DAY)
+    ticks = iter(range(0, 1000))
+    collect(table, tavily, budget_seconds=3, clock=lambda: float(next(ticks)))
+    add_queries(table, MONITOR, "added later")
+
+    collect(table, tavily, now=NOW + 60)
+
+    assert "highWater" not in queries_of(table)["added later"]
+
+
+# --- recency from each query's high-water mark ---------------------------------------------------------------------------
+
+def test_a_new_query_without_a_mark_or_start_date_asks_tavily_with_no_date_filter():
+    tavily = FakeTavily(article(1, day(-1)))
+
+    collect(web_table(), tavily)
+
+    assert len(tavily.calls) == 1 and "start_date" not in tavily.calls[0] and tavily.calls[0]["topic"] == "news"
+
+
+def test_the_first_pass_starts_at_the_configured_start_date():
+    tavily = FakeTavily(article(1, day(-1)))
+    table = web_table(startDate="2026-10-01")
+
+    collect(table, tavily)
+
+    assert tavily.calls[0]["start_date"] == "2026-10-01" and tavily.calls[0]["end_date"] == day(0)
+
+
+def test_later_passes_search_from_each_querys_last_complete_pass_never_a_fixed_window():
+    tavily = FakeTavily(article(1, day(-1)))
+    table = web_table()
+    collect(table, tavily, now=NOW)
+    assert queries_of(table)["ai agents"]["highWater"] == NOW
+
+    later = NOW + 5 * DAY
+    tavily.calls.clear()
+    collect(table, tavily, now=later)
+
+    assert tavily.calls[0]["start_date"] == day(-1, NOW) and tavily.calls[0]["end_date"] == day(0, later)
+    assert queries_of(table)["ai agents"]["highWater"] == later
+
+
+def test_a_failed_pass_leaves_the_mark_where_it_was():
+    tavily = FakeTavily(article(1, day(-1)))
+    table = web_table()
+    collect(table, tavily, now=NOW)
+    tavily.fail = [ValueError("Tavily search failed: HTTP 500")]
+
+    result = collect(table, tavily, now=NOW + 2 * DAY)
+
+    assert result["status"] == "failed" and queries_of(table)["ai agents"]["highWater"] == NOW
+
+
+# --- QueryRun records ----------------------------------------------------------------------------------------------------
+
+def test_each_query_of_a_pass_gets_a_query_run_with_its_counts_credits_and_parameters():
+    tavily = FakeTavily(article(1, day(-1)), article(2, day(-1)), article(3, day(-1), "open models"))
+    table = web_table("ai agents", "open models")
+    collect(table, tavily)
+    tavily.calls.clear()
+    tavily.articles.append(article(4, day(-1)))
+
+    result = collect(table, tavily, now=NOW + 2 * DAY)
+
+    runs = {r["queryId"]: r for r in rows(table, "QRUN#")}
+    first = runs[queries_of(table)["ai agents"]["id"]]
+    assert first["runId"] == result["runId"] and first["monitorId"] == MONITOR
+    assert (first["resultsReturned"], first["newCount"], first["duplicateCount"], first["credits"]) == (3, 1, 2, 1)
+    assert first["params"]["topic"] == "news" and first["params"]["windows"] and first["requests"] == 1
+    assert len(rows(table, "QRUN#")) == 4   # two passes, two queries each
+
+
+def test_credits_follow_the_provider_usage_when_it_reports_it():
+    table = web_table()
+
+    def fetch(payload):
+        return {"results": [], "usage": {"credits": 2}}
+
+    collect(table, fetch)
+
+    assert rows(table, "QRUN#")[0]["credits"] == 2
+
+
+# --- shared candidates, provenance and dedupe -------------------------------------------------------------------------------
+
+def test_a_found_story_is_a_candidate_with_provenance_naming_the_monitor_query_run_and_score():
+    table = web_table()
+    result = collect(table, FakeTavily(article(1, day(-1))))
+
+    cand = candidate(table, "https://example.org/story-1")
+
+    assert cand["canonicalUrl"] == "https://example.org/story-1" and cand["title"] == "Story 1"
+    (entry,) = cand["provenance"]
+    assert entry["monitorId"] == MONITOR and entry["runId"] == result["runId"] and entry["tavilyScoreBp"] == 5000
+    assert entry["queryId"] == queries_of(table)["ai agents"]["id"] and entry["publishedDate"] == day(-1) + "T00:00:00Z"
+    assert cand["collectedBy"][0]["monitorId"] == MONITOR and cand["collectedBy"][0]["sourceType"] == "web-search"
+
+
+def test_a_url_this_monitor_already_collected_is_not_collected_again_and_gains_provenance():
+    tavily = FakeTavily(article(1, day(-1)))
+    table = web_table()
+    collect(table, tavily, now=NOW)
+
+    again = collect(table, tavily, now=NOW + 2 * DAY)
+
+    assert again["new"] == 0 and again["unchanged"] >= 1 and len(discs(table)) == 1
+    assert len(candidate(table, "https://example.org/story-1")["provenance"]) == 2
+
+
+def test_a_story_another_source_already_found_is_not_collected_as_new_but_is_noted_on_its_candidate():
+    table = web_table()
+    store = DynamoStore(table)
+    record_candidate(store, url="https://example.org/story-1?utm_source=hn", title="Alpha", published_at=None, monitor_id="hn",
+                     source_type="hn-rss", group="hn", source_id="101", found_at="2026-10-20T00:00:00Z", run_id="r0", collected=True)
+
+    result = collect(table, FakeTavily(article(1, day(-1)), article(2, day(-1))))
+
+    assert [d["title"] for d in discs(table)] == ["Story 2"] and result["new"] == 1
+    cand = candidate(table, "https://example.org/story-1")
+    assert [p["monitorId"] for p in cand["provenance"]] == ["hn", MONITOR] and [c["monitorId"] for c in cand["collectedBy"]] == ["hn"]
+
+
+def test_collecting_through_the_hn_collector_makes_the_candidate_web_monitors_see():
+    table = web_table()
+    table.put_item({"pk": "MONITOR#hn", "sk": "CONFIG", "sourceUrl": "https://news.ycombinator.com/rss", "intervalSeconds": 900, "enabled": True})
+    feed = (b"<rss><channel><item><title>Alpha</title><link>https://example.org/story-1?utm_source=x</link>"
+            b"<comments>https://news.ycombinator.com/item?id=101</comments></item></channel></rss>")
+    run_collection(DynamoStore(table), "hn", fetch=lambda url: feed, now=NOW)
+
+    collect(table, FakeTavily(article(1, day(-1)), article(2, day(-1))))
+
+    assert [d["title"] for d in discs(table)] == ["Story 2"]
+
+
+def test_an_email_submitted_link_is_a_candidate_web_monitors_skip():
+    from papyrus_content.email_submission_intake import _note_candidate
+
+    table = web_table()
+    _note_candidate(DynamoStore(table), "p-apyr-us-email",
+                    {"canonicalUrl": "https://example.org/story-1", "title": "From email", "sourceId": "s1",
+                     "observedAt": "2026-10-20T00:00:00Z", "runId": "receipt-1"})
+
+    collect(table, FakeTavily(article(1, day(-1)), article(2, day(-1))))
+
+    assert [d["title"] for d in discs(table)] == ["Story 2"]
+
+
+def test_web_monitors_of_the_shared_group_find_a_story_once_and_distinctive_keeps_its_own():
+    table = web_table()
+    table.put_item(monitor_config("shipped", enabled=True))
+    add_queries(table, "web-shipped", "ai agents")
+    table.put_item(monitor_config("distinctive", enabled=True))
+    add_queries(table, "web-distinctive", "ai agents")
+    tavily = FakeTavily(article(1, day(-1)))
+
+    collect(table, tavily, monitor="web-shipped")
+    collect(table, tavily)
+    collect(table, tavily, monitor="web-distinctive")
+
+    assert len(discs(table, "web-shipped")) == 1 and discs(table) == [] and len(discs(table, "web-distinctive")) == 1
+    cand = candidate(table, "https://example.org/story-1")
+    assert [c["monitorId"] for c in cand["collectedBy"]] == ["web-shipped", "web-distinctive"]
+    assert [p["monitorId"] for p in cand["provenance"]] == ["web-shipped", MONITOR, "web-distinctive"]
+
+
+# --- one scheduled invocation for every web monitor ------------------------------------------------------------------------
+
+def test_one_invocation_collects_every_due_web_monitor_longest_overdue_first_and_skips_the_rest():
+    table = FakeTable()
+    for publication in ("anth-us", "shipped", "pilobol-us"):
+        table.put_item(monitor_config(publication, enabled=True))
+        add_queries(table, monitor_id(publication), "ai agents")
+    table.put_item(monitor_config("data-parade", enabled=False))
+    table.put_item({"pk": "MONITOR#hn", "sk": "CONFIG", "sourceUrl": "https://news.ycombinator.com/rss", "intervalSeconds": 900})
+    store = DynamoStore(table)
+    store.put_state("web-shipped", {"pk": "MONITOR#web-shipped", "sk": "STATE", "nextDueAt": NOW - 5000})
+    store.put_state("web-pilobol-us", {"pk": "MONITOR#web-pilobol-us", "sk": "STATE", "nextDueAt": NOW + 10 * DAY})
+
+    results = run_web_collections(store, ["web-anth-us", "web-shipped", "web-pilobol-us", "web-data-parade", "hn", "web-missing"],
+                                  now=NOW, fetch=FakeTavily(article(1, day(-1))))
+
+    assert [r["monitorId"] for r in results] == ["web-anth-us", "web-shipped"]   # never run (due since 0) is the longest overdue
+    assert all(r["status"] == "complete" for r in results)
+
+
+# --- per-publication routing config ----------------------------------------------------------------------------------------
+
+def hn_router():
+    config = hn_router_config()
+    config["publications"] += [{"publicationId": p, "site": f"{p}.example", "appsyncEndpoint": config["publications"][0]["appsyncEndpoint"]}
+                               for p in ("data-parade", "pilobol-us", "shipped")]
+    return config
+
+
+@pytest.mark.parametrize("publication", SHARED_CYCLOTRON)
+def test_each_shared_cyclotron_monitor_routes_to_all_six_publications_with_the_hn_cyclotron_block(publication):
+    hn = hn_router()
+    config = router_config(publication, hn)
+
+    parsed = validate_router_config(config)
+    assert config["pk"] == f"MONITOR#{monitor_id(publication)}" and config["sk"] == "CONFIG#router"
+    assert [p["publicationId"] for p in parsed["publications"]] == list(SHARED_CYCLOTRON)   # one combined request decides all six
+    assert parsed["cyclotron"]["runId"] == hn["cyclotron"]["runId"] and parsed["cyclotron"]["endpoint"] == hn["cyclotron"]["endpoint"]
+    assert config["cyclotron"] == hn["cyclotron"] and config["holdDecisions"] is True and parsed["mode"] == "live"
+    assert monitor_config(publication)["candidateGroup"] == "shared"
+
+
+def test_distinctive_has_no_cyclotron_and_holds_every_decision():
+    config = router_config("distinctive", hn_router())
+
+    parsed = validate_router_config(config)
+
+    assert "cyclotron" not in config and parsed["cyclotron"] is None and parsed["decisions"] == "hold" and parsed["holdDecisions"] is True
+    assert [p["publicationId"] for p in parsed["publications"]] == ["distinctive"]
+    assert "candidateGroup" not in monitor_config("distinctive")
+
+
+def test_a_publication_missing_from_the_hn_router_is_refused():
+    hn = hn_router()
+    hn["publications"] = hn["publications"][:1]
+
+    with pytest.raises(ValueError):
+        router_config("shipped", hn)
+
+
+def test_the_distinctive_router_collects_and_never_decides():
+    table = web_table(monitor="web-distinctive")
+    collect(table, FakeTavily(article(1, day(-1))), monitor="web-distinctive")
+    table.put_item(router_config("distinctive", hn_router()))
+    posted = []
+
+    result = run_router(RouterStore(table), "web-distinctive", now=NOW + 10, deliver=lambda *a: posted.append(a),
+                        appsync=lambda endpoint: object(), context_receipt=lambda c, p: {"contextHash": None, "reason": "test"})
+
+    assert result["status"] == "complete" and posted == []
+    assert [d["routing"] for d in discs(table, "web-distinctive")] == ["collected"]
+
+
+def test_a_cyclotron_bound_web_router_holds_decisions_and_posts_nothing():
+    table = web_table()
+    collect(table, FakeTavily(article(1, day(-1))))
+    config = router_config("anth-us", hn_router())
+    table.put_item(config)
+    lab = FakeCyclotron()
+    client = CyclotronClient(validate_router_config(config), sign=lambda m, u, b: {}, http=lab.http, sleep=lambda s: None, clock=lambda: 0)
+    delivered = []
+
+    result = run_router(RouterStore(table), MONITOR, now=NOW + 10, cyclotron=client, deliver=lambda *a: delivered.append(a),
+                        appsync=lambda endpoint: object(), context_receipt=lambda c, p: {"contextHash": None, "reason": "test"})
+
+    assert result["stoppedBy"] == "decisions_held" and lab.posts() == [] and delivered == []
+    assert [d["routing"] for d in discs(table)] == ["collected"]
+
+
+def test_a_released_shared_router_decides_the_find_for_all_six_publications_in_one_request():
+    table = web_table()
+    collect(table, FakeTavily(article(1, day(-1))))
+    config = {**router_config("anth-us", hn_router()), "holdDecisions": False}
+    table.put_item(config)
+    lab = FakeCyclotron()
+    lab.combined_enabled = True
+    client = CyclotronClient(validate_router_config(config), sign=lambda m, u, b: {}, http=lab.http, sleep=lambda s: None, clock=lambda: 0)
+
+    run_router(RouterStore(table), MONITOR, now=NOW + 10, cyclotron=client, deliver=lambda *a: {"referenceId": "r", "referenceLineageId": "r",
+               "referenceVersion": 1}, appsync=lambda endpoint: object(),
+               context_receipt=lambda c, p: {"contextHash": None, "reason": "test"})
+
+    (post,) = [c for c in lab.combined_calls if c[0] == "POST"]
+    assert sorted(post[2]["payload"]["bindings"]) == sorted(SHARED_CYCLOTRON)
+
+
+def test_the_monitoring_template_schedules_web_collection_and_one_router_per_publication():
+    import yaml
+    from pathlib import Path
+
+    class Loader(yaml.SafeLoader):
+        pass
+    Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+    template = yaml.load((Path(__file__).resolve().parents[3] / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text(), Loader)
+    resources = template["Resources"]
+    collect_input = json.loads(resources["WebCollectSchedule"]["Properties"]["Target"]["Input"])
+    routes = {json.loads(r["Properties"]["Target"]["Input"])["monitorId"] for n, r in resources.items()
+              if n.startswith("Web") and n.endswith("RouteSchedule")}
+
+    assert collect_input == {"sourceType": "web-search", "monitorIds": [monitor_id(p) for p in WEB_PUBLICATIONS]}
+    assert routes == {monitor_id(p) for p in WEB_PUBLICATIONS}
+
+
+# --- query drafting: one per enabled section plus one for the site ---------------------------------------------------------
+
+SECTIONS = [
+    {"id": "agent-security", "title": "Agent Security", "enabled": True, "sortOrder": 1, "editorialMission": "Show how agents get attacked.",
+     "editorialPolicy": "Primary sources.", "assignmentGuidance": "Prefer incident write-ups.", "killCriteria": "Vendor hype."},
+    {"id": "evaluation", "title": "Evaluation", "enabled": True, "sortOrder": 2, "editorialMission": "How models are measured.",
+     "editorialPolicy": "Benchmarks with methods.", "assignmentGuidance": None, "killCriteria": None},
+    {"id": "old", "title": "Old Section", "enabled": False, "sortOrder": 3, "editorialMission": "Retired topic.", "editorialPolicy": "x"},
+]
+PUBLICATIONS = {"anth-us": {"publicationId": "anth-us", "site": "anth.us", "appsyncEndpoint": "https://a.example/graphql", "corpusKey": "anth-us"},
+                "machines-on-machines": {"publicationId": "machines-on-machines", "site": "machines.example",
+                                         "appsyncEndpoint": "https://m.example/graphql", "corpusKey": "ai-ml-research"}}
+PACK = {"entries": [{"scope": "publication", "kind": "mission", "text": "Show the work."},
+                    {"scope": "publication", "kind": "policy", "text": "Cite primary sources."}], "contextHash": "h"}
+
+
+class FakeBackend:
+    def __init__(self, sections, tenants=None):
+        self.sections, self.tenants = sections, tenants if tenants is not None else []
+
+    def factory(self, endpoint, tenant=None):
+        self.tenants.append(tenant)
+        backend = self
+        return type("Client", (), {"safe_list_records": lambda self, model: backend.sections})()
+
+
+class Asker:
+    """A model that answers one query per message, naming the section it was asked about."""
+
+    def __init__(self, answers=None):
+        self.prompts, self.answers = [], list(answers or [])
+
+    def __call__(self, message):
+        self.prompts.append(message)
+        if self.answers:
+            return self.answers.pop(0)
+        subject = "site" if "whole site" in message else message.split("Section: ")[1].split("\n")[0]
+        return json.dumps({"query": f"{subject} news", "rationale": f"covers {subject}"})
+
+
+def legacy(table, *texts, monitor=MONITOR, **fields):
+    add_queries(table, monitor, *texts, **fields)
+
+
+def propose(table, ask=None, sections=SECTIONS, publication="anth-us", **kwargs):
+    from papyrus_content import monitoring_web_queries as wq
+
+    ask = ask or Asker()
+    backend = FakeBackend(sections)
+    proposal = wq.propose(publication, PUBLICATIONS, table, ask, client_factory=backend.factory, resolve=lambda client, **kw: PACK, **kwargs)
+    return proposal, ask, backend
+
+
+def test_one_query_is_drafted_per_enabled_section_and_one_for_the_site_from_that_sections_own_text():
+    proposal, ask, _ = propose(web_table("old topic"))
+
+    assert [(q["scope"], q.get("sectionId")) for q in proposal["queries"]] == [("section", "agent-security"), ("section", "evaluation"), ("site", None)]
+    assert len(proposal["queries"]) == 2 + 1                       # enabled sections + 1; the disabled one gets none
+    first = ask.prompts[0]
+    assert all(text in first for text in ("Show how agents get attacked.", "Primary sources.",
+                                         "Prefer incident write-ups.", "Vendor hype."))
+    assert "Retired topic" not in " ".join(ask.prompts) and "Cite primary sources." in ask.prompts[2] and "Show the work." in ask.prompts[2]
+    assert proposal["queries"][0]["sectionTitle"] == "Agent Security" and proposal["queries"][0]["flags"] == []
+
+
+def test_the_old_eight_to_fifteen_rule_is_gone_and_a_reply_must_be_one_query():
+    from papyrus_content import monitoring_web_queries as wq
+
+    assert wq.parse_query(json.dumps({"query": " one  two ", "rationale": "why"})) == {"text": "one two", "rationale": "why"}
+    assert wq.parse_query(json.dumps([{"query": "single", "rationale": "r"}]))["text"] == "single"
+    for bad in ("not json", json.dumps([]), json.dumps([{"query": "a"}, {"query": "b"}]), json.dumps({"query": "  "}), json.dumps(["x"])):
+        with pytest.raises(ValueError):
+            wq.parse_query(bad)
+    assert not hasattr(wq, "MIN_QUERIES") and not hasattr(wq, "MAX_QUERIES")
+
+
+def test_a_misbehaving_model_is_asked_once_more_then_the_publication_fails_naming_the_scope():
+    proposal, ask, _ = propose(web_table(), Asker(["not json", json.dumps({"query": "ok", "rationale": "r"})]))
+    assert proposal["queries"][0]["text"] == "ok" and len(ask.prompts) == 4
+
+    with pytest.raises(ValueError, match="section agent-security"):
+        propose(web_table(), Asker(["bad", "bad"]))
+
+
+def test_a_section_with_no_mission_is_drafted_from_the_rest_or_its_title_and_flagged():
+    sections = [{"id": "a", "title": "A", "enabled": True, "sortOrder": 1, "editorialMission": "", "editorialPolicy": "Policy only."},
+                {"id": "b", "title": "B", "enabled": True, "sortOrder": 2, "editorialMission": "", "editorialPolicy": ""}]
+    proposal, ask, _ = propose(web_table(), sections=sections)
+
+    assert [q["flags"] for q in proposal["queries"]] == [["no-section-mission"], ["title-only"], []]
+    assert "no written mission" in ask.prompts[0] and "no written mission or policy" in ask.prompts[1]
+
+
+def test_the_site_query_needs_a_mission_or_policy():
+    from papyrus_content import monitoring_web_queries as wq
+
+    with pytest.raises(ValueError, match="no mission or policy"):
+        wq.site_scope({})
+
+
+def test_machines_on_machines_sections_are_read_for_its_tenant_and_its_backend():
+    table = web_table(monitor="web-p-apyr-us")
+    backend_tenants = []
+    from papyrus_content import monitoring_web_queries as wq
+
+    backend = FakeBackend(SECTIONS, backend_tenants)
+    proposal = wq.propose("p-apyr-us", PUBLICATIONS, table, Asker(), client_factory=backend.factory, resolve=lambda c, **kw: PACK)
+
+    assert proposal["monitorId"] == "web-p-apyr-us" and backend_tenants == [None, "machines-on-machines"]
+
+
+def test_old_topic_queries_are_retired_with_history_and_new_ones_are_written_unapproved_until_approved():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic one", "old topic two")
+    set_high_water(table, "old topic one", NOW)
+    proposal, _, _ = propose(table)
+
+    done = wq.execute(table, proposal, now_iso="2026-11-02T00:00:00Z")
+
+    assert done == {"retired": 2, "added": 3, "approved": 0}
+    stored = queries_of(table)
+    old = stored["old topic one"]
+    assert old["status"] == "retired" and old["highWater"] == NOW and old["approvedBy"] == APPROVER      # nothing is deleted
+    assert [h["change"] for h in old["history"]] == ["created", "retired"] and "per section" in old["history"][-1]["reason"]
+    new = stored["Agent Security news"]
+    assert (new["origin"], new["createdBy"], new["scope"], new["sectionId"], new["status"]) == ("drafted", "gpt-6-luna", "section", "agent-security", "active")
+    assert "approvedBy" not in new and stored["site news"]["scope"] == "site" and "sectionId" not in stored["site news"]
+    assert [r["text"] for r in rows(table, "QUERY#") if searchable(r)] == []        # not searched until approved
+
+
+def test_approving_makes_the_new_queries_searchable_and_the_count_is_sections_plus_one():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic")
+    proposal, _, _ = propose(table)
+    wq.execute(table, proposal, approved_by="Ryan", now_iso="2026-11-02T00:00:00Z")
+
+    searched = [r["text"] for r in rows(table, "QUERY#") if searchable(r)]
+    assert sorted(searched) == ["Agent Security news", "Evaluation news", "site news"] and len(searched) == 2 + 1
+
+
+def test_a_second_run_proposes_nothing_and_a_new_section_gets_only_its_own_query():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic")
+    first, _, _ = propose(table)
+    wq.execute(table, first, approved_by="Ryan", now_iso="2026-11-02T00:00:00Z")
+
+    again, ask, _ = propose(table)
+    assert again["queries"] == [] and again["retire"] == [] and ask.prompts == []        # drafted once; no model call
+
+    renamed = [{**SECTIONS[0], "title": "Agent Safety"}, SECTIONS[1],
+               {"id": "labor", "title": "Labor", "enabled": True, "sortOrder": 4, "editorialMission": "Work and jobs.", "editorialPolicy": "x"}]
+    more, ask, _ = propose(table, sections=renamed)
+    assert [q["sectionId"] for q in more["queries"]] == ["labor"] and len(ask.prompts) == 1 and more["retire"] == []
+
+
+def test_a_drafted_query_of_a_section_that_is_no_longer_enabled_is_retired():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic")
+    first, _, _ = propose(table)
+    wq.execute(table, first, approved_by="Ryan", now_iso="2026-11-02T00:00:00Z")
+
+    later, _, _ = propose(table, sections=SECTIONS[:1])
+    assert [r["text"] for r in later["retire"]] == ["Evaluation news"] and later["queries"] == []
+
+
+def test_editor_queries_are_kept_unless_asked_and_a_dry_run_writes_nothing():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic")
+    add_queries(table, MONITOR, "my own query")
+    editor = queries_of(table)["my own query"]
+    table.put_item({**editor, "origin": "editor", "createdBy": "Ryan"})
+    before = {k: dict(v) for k, v in table.items.items()}
+
+    proposal, _, _ = propose(table)
+    assert [r["text"] for r in proposal["retire"]] == ["old topic"] and [r["text"] for r in proposal["keep"]] == ["my own query"]
+    assert table.items == before                                                      # proposing writes nothing
+
+    wq.execute(table, proposal, approved_by="Ryan", now_iso="2026-11-02T00:00:00Z")
+    assert queries_of(table)["my own query"]["status"] == "active" and searchable(queries_of(table)["my own query"])
+
+    everything, _, _ = propose(table, retire_editor=True)
+    assert "my own query" in [r["text"] for r in everything["retire"]]
+
+
+def test_the_plan_says_how_many_paid_searches_a_day_it_leaves():
+    from papyrus_content import monitoring_web_queries as wq
+
+    proposal, _, _ = propose(web_table("old topic"))
+    lines = wq.describe(proposal, executing=False, approved=True)
+
+    assert any("retire" in line and "old topic" in line for line in lines) and "3 active queries, about 3 paid searches a day" in lines[-1]
+    assert "none is searched until approved" in wq.describe(proposal, executing=False, approved=False)[-1]
+
+
+@pytest.mark.parametrize("status", ["retired", "paused"])
+def test_the_collector_searches_only_active_approved_queries(status):
+    table = web_table("kept query", "off query")
+    set_status = queries_of(table)["off query"]
+    table.put_item({**set_status, "status": status})
+    tavily = FakeTavily()
+
+    collect(table, tavily)
+
+    assert {c["query"] for c in tavily.calls} == {"kept query"}
+
+
+def test_a_new_drafted_query_has_no_high_water_so_its_first_search_is_one_request_in_the_default_window():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic")
+    proposal, _, _ = propose(table)
+    wq.execute(table, proposal, approved_by="Ryan", now_iso="2026-10-20T00:00:00Z")
+    tavily = FakeTavily(*[article(n, day(-n % 5), query="Agent Security news") for n in range(40)])
+
+    collect(table, tavily)
+
+    asked = [c for c in tavily.calls if c["query"] == "Agent Security news"]
+    assert len(asked) == 1 and "start_date" not in asked[0] and asked[0]["max_results"] == TAVILY_PAGE_LIMIT
+    assert queries_of(table)["Agent Security news"]["highWater"] == NOW
+
+
+
+# --- paid searches: never asked twice, counted, and watched (features_backend/monitoring-web-search-spend.feature) ---------------
+
+def payload_keys(tavily):
+    return [(c["query"], c.get("start_date"), c.get("end_date")) for c in tavily.calls]
+
+
+def busy_two_days():
+    return FakeTavily(*[article(n, day(-(n % 2))) for n in range(60)])
+
+
+def test_a_split_never_asks_for_the_dates_it_already_asked():
+    tavily = busy_two_days()
+    table = web_table()
+    set_high_water(table, "ai agents", NOW)
+
+    collect(table, tavily)
+
+    keys = payload_keys(tavily)
+    assert len(keys) == len(set(keys)) == 2   # the parent range, then the earlier day; the later day is the parent again
+
+
+def test_a_carried_pass_asks_exactly_what_one_uninterrupted_pass_would_ask():
+    articles = [article(n, day(-(n % 14))) for n in range(70)]
+    whole = FakeTavily(*articles)
+    table = web_table("ai agents", "open models")
+    set_high_water(table, "ai agents", NOW - 14 * DAY)
+    collect(table, whole)
+
+    split = FakeTavily(*articles)
+    table = web_table("ai agents", "open models")
+    set_high_water(table, "ai agents", NOW - 14 * DAY)
+    ticks = iter(range(0, 1000))
+    first = collect(table, split, budget_seconds=3, clock=lambda: float(next(ticks)))
+    assert first["status"] == "partial"
+    runs = 1
+    while state(table).get("resume"):
+        collect(table, split, now=NOW + 60 * runs)
+        runs += 1
+
+    assert runs > 1 and sorted(payload_keys(split)) == sorted(payload_keys(whole))
+    assert len(payload_keys(split)) == len(set(payload_keys(split)))
+
+
+def test_a_page_that_could_not_be_written_in_time_is_read_next_run_without_asking_again():
+    tavily = FakeTavily(*[article(n, day(-1)) for n in range(5)])
+    table = web_table()
+    set_high_water(table, "ai agents", NOW - DAY)
+
+    first = collect(table, tavily, budget_seconds=3, clock=lambda: 1000.0 if tavily.calls else 0.0)   # out of time once it has an answer
+
+    assert first["status"] == "partial" and len(tavily.calls) == 1 and not discs(table)
+    assert state(table)["resume"]["web"][0]["page"]
+    second = collect(table, tavily, now=NOW + 60)
+    assert second["status"] == "complete" and len(tavily.calls) == 1 and len(discs(table)) == 5   # read from the cursor, not asked
+    assert "resume" not in state(table)
+
+
+def test_the_run_and_the_receipt_count_paid_searches_by_provider_for_the_run_and_for_the_pass():
+    tavily = FakeTavily(*[article(n, day(-(n % 14))) for n in range(70)])
+    table = web_table("ai agents", "open models")
+    set_high_water(table, "ai agents", NOW - 14 * DAY)
+    ticks = iter(range(0, 1000))
+
+    first = collect(table, tavily, budget_seconds=3, clock=lambda: float(next(ticks)))
+    second = collect(table, tavily, now=NOW + 60)
+
+    assert first["searches"]["run"]["requests"] == len(tavily.calls) - second["searches"]["run"]["requests"]
+    assert second["searches"]["pass"]["requests"] == len(tavily.calls)
+    assert first["searches"]["pass"]["requests"] == first["searches"]["run"]["requests"]
+    receipt = rows(table, "RUN#")[-1]
+    assert receipt["searches"] == second["searches"]
+
+
+def test_a_provider_refusing_its_key_or_out_of_plan_is_logged_for_the_alarm_and_not_asked_again(capsys):
+    from test_web_search import FakeHttp
+    from papyrus_content.monitoring_web import search_fetch
+    from papyrus_content.web_search import HttpStatusError, PerplexityProvider, SearchChain, TavilyProvider
+    from test_web_search import make
+    tavily = FakeHttp(*[HttpStatusError(432, "{}")] * 10)
+    perplexity = FakeHttp(*[{"results": [{"url": "https://example.org/story-1", "title": "S", "snippet": "S", "date": day(-1)}]}] * 10)
+    chain = SearchChain(["tavily", "perplexity"], remember_refusals=True,
+                        providers={"tavily": make(TavilyProvider, tavily, TAVILY_API_KEY="k"),
+                                   "perplexity": make(PerplexityProvider, perplexity, PERPLEXITY_API_KEY="k")})
+    table = web_table("ai agents", "open models", "agents news")
+
+    result = collect(table, search_fetch({}, chain))
+
+    assert len(tavily.calls) == 1 and len(perplexity.calls) == 3   # Tavily was asked once, then passed over for the run
+    assert result["searches"]["run"]["providers"] == {"perplexity": 3}
+    assert result["searches"]["run"]["failures"] == {"tavily:plan_exhausted:432": 3}
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+    assert [l for l in lines if l.get("monitor") == "search_provider_failing"] == [
+        {"monitor": "search_provider_failing", "monitorId": MONITOR, "provider": "tavily", "kind": "plan_exhausted", "status": 432}]
+
+
+def test_when_every_provider_is_refused_the_run_fails_once_and_waits_for_the_next_scheduled_time(capsys):
+    from test_web_search import FakeHttp, make
+    from papyrus_content.monitoring_web import search_fetch
+    from papyrus_content.web_search import HttpStatusError, PerplexityProvider, SearchChain, TavilyProvider
+    tavily, perplexity = FakeHttp(*[HttpStatusError(432, "{}")] * 10), FakeHttp(*[HttpStatusError(401, "{}")] * 10)
+    chain = SearchChain(["tavily", "perplexity"], remember_refusals=True,
+                        providers={"tavily": make(TavilyProvider, tavily, TAVILY_API_KEY="k"),
+                                   "perplexity": make(PerplexityProvider, perplexity, PERPLEXITY_API_KEY="k")})
+    table = web_table("ai agents", "open models")
+
+    result = collect(table, search_fetch({}, chain))
+
+    assert result["status"] == "failed" and len(tavily.calls) == len(perplexity.calls) == 1
+    assert state(table)["nextDueAt"] == NOW + 3600 and "resume" not in state(table)   # not due again for the interval: no hammering
+    kinds = {(l["provider"], l["kind"]) for l in (json.loads(x) for x in capsys.readouterr().out.splitlines() if x.startswith("{"))
+             if l.get("monitor") == "search_provider_failing"}
+    assert kinds == {("tavily", "plan_exhausted"), ("perplexity", "auth")}
+
+
+# --- a fixed time of day (features_backend/monitoring-run-at.feature) --------------------------------------------------------------
+
+RUN_AT = {"time": "02:00", "timeZone": "America/New_York"}
+
+
+def instant(text: str, zone: str = "America/New_York") -> int:
+    from zoneinfo import ZoneInfo
+    return int(datetime.fromisoformat(text).replace(tzinfo=ZoneInfo(zone)).timestamp())
+
+
+def test_the_next_run_is_the_next_two_am_in_new_york():
+    from papyrus_content.monitoring_cloud import next_run_at
+    assert next_run_at(RUN_AT, instant("2026-10-28 01:30")) == instant("2026-10-28 02:00")
+    assert next_run_at(RUN_AT, instant("2026-10-28 02:00")) == instant("2026-10-29 02:00")   # strictly after
+    assert next_run_at(RUN_AT, instant("2026-10-28 02:07")) == instant("2026-10-29 02:00")
+    assert next_run_at(RUN_AT, instant("2026-10-28 23:59")) == instant("2026-10-29 02:00")
+
+
+def test_the_run_time_holds_across_both_daylight_saving_changes():
+    from papyrus_content.monitoring_cloud import next_run_at
+    hours = 3600
+    # fall back (2026-11-01): the day is 25 hours long, 02:00 is still 02:00 on the clock
+    assert next_run_at(RUN_AT, instant("2026-10-31 02:07")) == instant("2026-11-01 02:00") and \
+        instant("2026-11-01 02:00") - instant("2026-10-31 02:00") == 25 * hours
+    assert next_run_at(RUN_AT, instant("2026-11-01 02:07")) == instant("2026-11-02 02:00")
+    # spring forward (2026-03-08): 02:00 does not exist, the run is the first moment after the gap
+    spring = next_run_at(RUN_AT, instant("2026-03-07 02:07"))
+    assert datetime.fromtimestamp(spring, timezone.utc).isoformat() == "2026-03-08T07:00:00+00:00"   # 03:00 EDT
+    assert next_run_at(RUN_AT, spring + 600) == instant("2026-03-09 02:00")
+
+
+def test_run_at_is_validated():
+    base = monitor_config("anth-us", enabled=True)
+    assert _validate_config({**base, "runAt": RUN_AT})["runAt"] == RUN_AT
+    assert "runAt" not in _validate_config(base)
+    for bad in ({"time": "25:00", "timeZone": "America/New_York"}, {"time": "02:00", "timeZone": "Mars/Base"}, {"time": "2am"},
+                "02:00", {"time": "02:00", "timeZone": "America/New_York", "extra": 1}):
+        with pytest.raises(ValueError):
+            _validate_config({**base, "runAt": bad})
+
+
+def run_at_table():
+    return web_table(**{"runAt": RUN_AT, "intervalSeconds": 86400})
+
+
+def test_a_finished_pass_is_next_due_at_the_next_two_am_not_a_day_later():
+    when = instant("2026-10-28 02:03")
+    table = run_at_table()
+    result = collect(table, FakeTavily(article(1, day(-1, when))), now=when)
+    assert result["status"] == "complete" and state(table)["nextDueAt"] == instant("2026-10-29 02:00")   # not 02:03
+
+
+def test_a_wake_a_minute_early_does_not_start_a_second_pass_that_morning():
+    table = run_at_table()
+    store = DynamoStore(table)
+    early = instant("2026-10-29 01:59") + 30
+    store.put_state(MONITOR, {"pk": f"MONITOR#{MONITOR}", "sk": "STATE", "nextDueAt": instant("2026-10-29 02:00")})
+    result = collect(table, FakeTavily(), now=early)
+    assert result["status"] == "complete" and state(table)["nextDueAt"] == instant("2026-10-30 02:00")
+
+
+def test_a_pass_stopped_by_time_resumes_on_the_five_minute_wake_and_only_then_waits_for_the_next_two_am():
+    when = instant("2026-10-28 02:03")
+    tavily = FakeTavily(*[article(n, day(-(n % 14), when)) for n in range(70)])
+    table = run_at_table()
+    set_high_water(table, "ai agents", when - 14 * DAY)
+    ticks = iter(range(0, 1000))
+
+    first = collect(table, tavily, now=when, budget_seconds=3, clock=lambda: float(next(ticks)))
+    asked = len(tavily.calls)
+    assert first["status"] == "partial" and state(table)["nextDueAt"] == when   # due at once: the next 5 minute wake resumes it
+
+    second = collect(table, tavily, now=when + 300)
+
+    assert second["status"] == "complete" and state(table)["nextDueAt"] == instant("2026-10-29 02:00")
+    assert second["searches"]["pass"]["requests"] == len(tavily.calls) and len(tavily.calls) > asked
+    keys = payload_keys(tavily)
+    assert len(keys) == len(set(keys))
+
+
+def test_the_template_alarms_on_a_search_provider_refusing_its_key_and_takes_the_chain_from_one_parameter():
+    import re
+    import yaml
+    from pathlib import Path
+
+    class Loader(yaml.SafeLoader):
+        pass
+    Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+    template = yaml.load((Path(__file__).resolve().parents[3] / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text(), Loader)
+    resources = template["Resources"]
+    filter_ = resources["SearchProviderFailingMetricFilter"]["Properties"]
+    alarm = resources["SearchProviderFailingAlarm"]["Properties"]
+
+    assert filter_["FilterPattern"] == '{ $.monitor = "search_provider_failing" }'
+    metric = filter_["MetricTransformations"][0]
+    assert (alarm["Namespace"], alarm["MetricName"]) == (metric["MetricNamespace"], metric["MetricName"])
+    assert alarm["AlarmName"] == "papyrus-monitoring-search-provider-failing" and alarm["Threshold"] == 1
+    pattern = template["Parameters"]["WebSearchProviders"]["AllowedPattern"]
+    assert re.match(pattern, "tavily,perplexity") and re.match(pattern, "") and not re.match(pattern, "tavily,bogus")
+    assert "WEB_SEARCH_PROVIDERS" in resources["CollectorFunction"]["Properties"]["Environment"]["Variables"]

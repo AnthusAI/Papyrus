@@ -52,6 +52,6 @@ const request: CurationRequest = async <T,>(path: string, body: Record<string, u
 createRoot(document.getElementById("root")!).render(
   <NewsroomCurationProvider bootstrap={bootstrap} request={request}>
     <NewsroomReferencesView onReview={() => undefined} references={NONE} sections={NONE} referenceAttachments={NONE}
-      cyclotronPriming={{ labels: ["include", "exclude"], requests: [], onRequest: () => undefined }} />
+      onAddReference={async (input) => ({ referenceId: "r1", alreadyThere: false, accepted: input.accept, stars: input.stars, problems: [] })} />
   </NewsroomCurationProvider>,
 );

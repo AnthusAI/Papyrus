@@ -9,15 +9,20 @@ edited in place; each publish increments the published counter kept on the singl
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any
 
 from .authors import author_names
+from .machine_writes import apply_stamp
 from .markus_renderer.derive import BodyError, derive_body
 from .projection.stored import PROJECTION_METADATA_KEY, projection_metadata
 from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
+from .content_item_lifecycle import UNTYPED_ITEM_TYPE, head_stage_fields
+from .item_stars import assert_no_item_stars
+from .item_language import ItemLanguageMissing, item_language, item_language_group
 from .wiki_stamp import WIKI_PAGE_ITEM_TYPE, stamp_problems
 
 PUBLISHED_ID_PREFIX = "published-"
@@ -39,6 +44,8 @@ class ItemFields:
     id: str | None = None
     source_path: str | None = None
     overrides: dict | None = None
+    #: ``{"runId", "writer"}`` of a machine write: recorded in ``metadata.machineWrite`` (machine_writes.py).
+    machine_write: dict | None = None
 
 
 @dataclass
@@ -50,12 +57,16 @@ class PublishResult:
     deleted_media_ids: list[str] = field(default_factory=list)
 
 
+LOGGER = logging.getLogger(__name__)
+
+
 class PublishError(Exception):
-    def __init__(self, code: str, message: str = "", errors: list[BodyError] | None = None):
+    def __init__(self, code: str, message: str = "", errors: list[BodyError] | None = None, details: dict[str, Any] | None = None):
         super().__init__(message or code)
         self.code = code
         self.message = message or code
         self.errors = list(errors or [])
+        self.details = dict(details or {})   # machine-readable extras, e.g. {"openSteps": [{"key", "label"}]} for checklist-open
 
 
 def item_id_for(section: str | None, slug: str) -> str:
@@ -149,6 +160,8 @@ def _derive_or_raise(front_matter_yaml: str | None, body_markus: str) -> dict:
     if not derivation.ok:
         first = derivation.errors[0]
         raise PublishError(first.code, first.message, list(derivation.errors))
+    for warning in derivation.warnings:
+        LOGGER.warning("%s (line %s): %s", warning.code, warning.line, warning.message)
     return derivation.body_ir
 
 
@@ -225,6 +238,7 @@ def save_item(
     columns.update({key: value for key, value in (fields.overrides or {}).items()})
     metadata["frontMatterYaml"] = fields.front_matter_yaml
     metadata["source"] = {"path": fields.source_path}
+    apply_stamp(metadata, fields.machine_write, created=existing is None, now=now)
 
     record = {
         **base,
@@ -240,6 +254,7 @@ def save_item(
         "metadata": to_aws_json(metadata),
         "contentHash": _source_content_hash(fields),
     }
+    record.update(head_stage_fields(record))   # a save in place keeps the row in the head stage index while it is the head
     client.upsert("Item", compact_dict(record))
     return record
 
@@ -267,6 +282,8 @@ def project_item_to_published(
     media: list[dict],
     *,
     published_at: str,
+    version_published_at: str,
+    version_published_by: str,
     version_number: int,
 ) -> tuple[dict, list[dict]]:
     lineage_id = item.get("lineageId") or item["id"]
@@ -274,7 +291,7 @@ def project_item_to_published(
     section = item.get("section")
     metadata = _parse_json_object(item.get("metadata"))
     metadata["sourceContentHash"] = item.get("contentHash")
-    metadata[PROJECTION_METADATA_KEY] = projection_metadata(metadata.get("frontMatterYaml"))
+    metadata[PROJECTION_METADATA_KEY] = projection_metadata(metadata.get("frontMatterYaml"), item.get("bodyMarkus"))
     published = {
         "id": published_id,
         "sourceItemId": item["id"],
@@ -296,10 +313,16 @@ def project_item_to_published(
         "byline": item.get("byline"),
         "dateline": item.get("dateline"),
         "publishedAt": published_at,
+        "versionPublishedAt": version_published_at,
+        "versionPublishedBy": version_published_by,
         "sortTitle": item.get("sortTitle"),
         "pullQuotes": [],
         "layout": to_aws_json({"source": "cms"}),
         "editorial": to_aws_json({}),
+        # The language of the published version and its group, copied from the version (item_language.py): the projection serves each language under
+        # its URL prefix and joins the group's published languages (docs/multilingual-serving.md). A version without a language is refused, naming the backfill.
+        "language": item_language(item),
+        "languageGroupId": item_language_group(item),
     }
     published_media = [
         compact_dict(
@@ -314,6 +337,7 @@ def project_item_to_published(
         )
         for row in media
     ]
+    assert_no_item_stars(published)   # stars are private: they order the newsroom and never reach a published row
     return compact_dict(published), published_media
 
 
@@ -324,17 +348,29 @@ def _load_item(client, item_id: str) -> dict:
     return item
 
 
-def publish_item(client, item_id: str, *, actor: str, now: str | None = None) -> PublishResult:
+def publish_item(
+    client, item_id: str, *, actor: str, now: str | None = None, approved_by: str | None = None
+) -> PublishResult:
+    """Publish an item. ``approved_by`` names the signed-in person whose action this is (the console editor); a site that requires
+    approval (see ``publish_gate``) refuses every publish that has neither that nor an approved review request for this version."""
     now = now or utc_now_iso()
     item = _load_item(client, item_id)
     lineage_id = item.get("lineageId") or item_id
     published_id = published_item_id_for(lineage_id)
     metadata = _parse_json_object(item.get("metadata"))
     envelope = _derive_or_raise(metadata.get("frontMatterYaml"), item.get("bodyMarkus") or "")
+    if item.get("type") == "sub-task":
+        raise PublishError("sub-task-not-publishable", "A checklist step belongs to its Story and is never published on its own.")
+    if item.get("type") == UNTYPED_ITEM_TYPE:
+        raise PublishError("type-required", "This story has no type yet. Choose its type, then publish: the site decides where a page lives from it.")
     if item.get("type") == WIKI_PAGE_ITEM_TYPE:
         problems = stamp_problems(_load_front_matter(metadata.get("frontMatterYaml")))
         if problems:
             raise PublishError("wiki-stamp", "A wiki page needs a review stamp to be published: " + "; ".join(problems))
+    try:
+        item_language(item), item_language_group(item)
+    except ItemLanguageMissing as error:
+        raise PublishError("language-missing", str(error)) from error
     media = client.list_by_index("mediaAssetsByItemAndSortKey", item_id)
     _require_images_present(envelope, media)
 
@@ -343,6 +379,14 @@ def publish_item(client, item_id: str, *, actor: str, now: str | None = None) ->
     already_projected = existing is not None and existing_hash == item.get("contentHash")
     if already_projected and item.get("status") == "published":
         return PublishResult(False, item_id, published_id, existing.get("versionNumber"))
+    from .publish_gate import ensure_publish_approval
+    from .story_checklist import ChecklistError, require_checklist_closed
+
+    try:
+        require_checklist_closed(client, item)   # every required step done, or skipped / not applicable with a recorded reason
+    except ChecklistError as error:
+        raise PublishError("checklist-open", str(error), details={"openSteps": error.open_steps}) from error
+    ensure_publish_approval(client, item, approved_by=approved_by, actor=actor)
     if already_projected:
         version_number = existing.get("versionNumber") or 1
     elif existing is not None:
@@ -354,7 +398,9 @@ def publish_item(client, item_id: str, *, actor: str, now: str | None = None) ->
     published, published_media = project_item_to_published(
         projectable,
         media,
-        published_at=item.get("publishedAt") or now,
+        published_at=item.get("publishedAt") or now,   # the first publication: save_story_version carries it to every later version
+        version_published_at=now,
+        version_published_by=actor,
         version_number=version_number,
     )
 
@@ -375,17 +421,25 @@ def publish_item(client, item_id: str, *, actor: str, now: str | None = None) ->
             "stage": "published",
             **_status_keys(item.get("type") or "", item.get("section"), "published"),
             "publishedAt": published["publishedAt"],
+            "versionPublishedAt": now,
+            "versionPublishedBy": actor,
             "versionState": "current",
-            "versionCreatedAt": now,
-            "versionCreatedBy": actor,
-            "changeReason": "publish",
             "bodyIr": to_aws_json(envelope),
+            **head_stage_fields({"versionState": "current", "stage": "published"}),   # the published record is the head
         },
     )
-    # The published record is the one current record of its lineage.
+    # The published record is the one current record of its lineage, and the only one in the head stage index.
+    from .story_reporting import superseding_update
+
     for sibling in client.list_by_index("itemsByLineageAndVersion", lineage_id):
-        if sibling["id"] != item_id and sibling.get("versionState") == "current":
-            client.update_record("Item", {"id": sibling["id"], "versionState": "superseded"})
+        if sibling["id"] != item_id and sibling.get("versionState") in ("current", "draft"):
+            client.update_record("Item", superseding_update(sibling))
+    from .content_item_lifecycle import is_story_item_type
+
+    if is_story_item_type(item.get("type")):
+        from .story_checklist import mark_published
+
+        mark_published(client, lineage_id, actor_label=actor)
     return PublishResult(True, item_id, published_id, version_number, deleted)
 
 
@@ -412,9 +466,7 @@ def unpublish_item(client, item_id: str, *, actor: str, now: str | None = None) 
             "status": "draft",
             "stage": "copywriting",
             **_status_keys(item.get("type") or "", item.get("section"), "draft"),
-            "versionCreatedAt": now,
-            "versionCreatedBy": actor,
-            "changeReason": "unpublish",
+            **head_stage_fields({**item, "stage": "copywriting"}),
         },
     )
     return PublishResult(True, item_id, published_id, (published or {}).get("versionNumber"), deleted)
@@ -436,6 +488,12 @@ class DryRunClient:
     def upsert(self, model_name: str, payload: dict) -> str:
         self.planned.append({"operation": "upsert", "model": model_name, "id": payload["id"]})
         return "planned"
+
+    def create_record(self, model_name: str, payload: dict) -> None:
+        self.planned.append({"operation": "create", "model": model_name, "id": payload["id"]})
+
+    def list_records(self, model_name: str):
+        return self._client.list_records(model_name)
 
     def update_record(self, model_name: str, payload: dict) -> None:
         self.planned.append({"operation": "update", "model": model_name, "id": payload["id"]})

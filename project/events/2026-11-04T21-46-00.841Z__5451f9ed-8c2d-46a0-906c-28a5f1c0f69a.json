@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "5451f9ed-8c2d-46a0-906c-28a5f1c0f69a",
+  "issue_id": "PPY-b8cc799a-eee9-454b-a8be-66ac17df0f10",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T21:46:00.841Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Deploy shared stacks from the release pipeline instead of hand-run change sets",
+    "description": "Ryan, 2026-11-04, on papyrus-monitoring change sets: 'why are you manually creating change sets? Wouldn't that be a commit that we push through DevOps?' Today AGENTS.md says shared stacks are hand-run with a change set. Standing rule: public repos run Actions CI, then OIDC-triggered AWS CD, and merges to main deploy. Build it: a release to main builds and uploads the router and operator zips, then deploys papyrus-monitoring and the other shared stacks with GitHub OIDC, using a narrow role. A rollback-failed stack and an unexpected replacement must stop and alert. A dry run prints the change set on the PR.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

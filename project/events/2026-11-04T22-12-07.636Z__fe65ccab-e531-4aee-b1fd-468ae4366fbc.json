@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fe65ccab-e531-4aee-b1fd-468ae4366fbc",
+  "issue_id": "PPY-ba187f61-6b7a-4236-9bff-aeec1ef97230",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T22:12:07.636Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "CLI cannot rename a newsroom section",
+    "description": "papyrus sections update has no flag for a section's title, so renaming Security to Privacy & Security on Machines on Machines needed a direct record update. Add --title.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

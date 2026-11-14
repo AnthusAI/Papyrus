@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "bc38c407-dd79-47d9-8992-f42669e860bd",
+  "issue_id": "PPY-13fbeaed-b2c8-4831-ae0a-e394c2b4ea85",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:48.565Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: The dedicated tier is the same artefact with one fixed tenant, so every dedicated backend eventually carries tenant ids and drops the group rules (owner decision 7). Per site, in this order: Pilobolus (pre-production), DataParade, Distinctive Mark after its upgrade, Shipped, Machines on Machines, Anth.us last and only on instruction. Steps per site: deploy the release with tenant fields and rules (additive), run adopt-tenant-data dry run, Ryan approves, apply, verify zero tenant-less rows, set PAPYRUS_TENANT_ID (the existing variable) and later drop the group rules for that site. Batch rule: bump only the site under test, then roll the rest in one batch once it works.\n\nTouches (verified at origin/develop 23fabe1d): each site's infra/site.json (PAPYRUS_TENANT_ID), adopt-tenant-data (PPY-8f9462), the upgrade planner (PPY-d2cab9).\n\nAcceptance (Gherkin feature file: features_backend/dedicated-tenant-adoption.feature):\nScenario: A dedicated site keeps working after adopting its tenant\n    Given Pilobolus has adopted tenant \"pilobol-us\"\n    When an editor saves and publishes a story\n    Then it works and the adversarial checks for a single tenant pass\n\nDependencies: blocked by PPY-8f9462, PPY-06ae68. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Per-site smoke tests; parity of public URLs before and after.\nRollout: Per site, with Ryan's approval for each production backend.\nRisk and mitigation: Risk: a site's rows become invisible after its group rules go. Mitigation: group rules are dropped only after a verified zero tenant-less count.\n\nReleasable on its own: per site.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

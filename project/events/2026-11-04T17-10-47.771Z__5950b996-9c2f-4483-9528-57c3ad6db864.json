@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "5950b996-9c2f-4483-9528-57c3ad6db864",
+  "issue_id": "PPY-f66e919d-be86-411f-841e-418d8b178d75",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-04T17:10:47.771Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "**Milestone:** M2, operators finished\n\n**Goal.** Alarms stay; they reach Caducus through the forwarder already, whatever their actions. This removes the email path once Caducus has been seen to work.\n\n**Build.**\nRemove the email subscription and alarm actions in `infra/monitoring/papyrus-monitoring.yaml` (a hand-run stack), `infra/scheduled-jobs/lib/scheduled-container-job.ts` and its `alarmEmailParameter` (update `docs/knowledge-cloud-run.md`, `docs/knowledge-runs-rollout.md`), the remote-login alarms and `alarmTopicArn` (`docs/cli-login.md`, and close PPY-45efff), `amplify/publication/invalidation-alarm.ts`, `reproject-on-deploy.ts`, `infra/email/papyrus-email-submissions.yaml`. One PR. Do it after Ryan says the parallel run was good. Machine-only topics are PPY-819117. Gherkin: `infra/scheduled-jobs/features/scheduled-container-job.feature` changes with it.\n\n**Acceptance.**\nA forced alarm reaches Ryan once, through Caducus, and no SNS email comes. Site bumps batched; a release with no site effect marked so.\n\n**Related:** kanbus-6275db, kanbus-78f229",
+        "to": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M2, operators finished\n\n**Goal.** Alarms stay; the operator listener hears them whatever their actions. This removes the human email path once Caducus has been seen to work.\n\n**Build.**\nRemove the alarm actions, and the email subscription where a topic has no other use, in `infra/monitoring/papyrus-monitoring.yaml` (keep the topic and its subscription for the two last-resort alarms), `infra/scheduled-jobs/lib/scheduled-container-job.ts` and `alarmEmailParameter` (update `docs/knowledge-cloud-run.md`, `docs/knowledge-runs-rollout.md`), the remote-login `alarmTopicArn` (`docs/cli-login.md`; close PPY-45efff, since alarms reach operators without it), `infra/email/papyrus-email-submissions.yaml`. One PR, after Ryan says the parallel run was good. **Do not touch the newsletter bounce and complaint alarms' SNS action**: it is what pauses sending (`src/papyrus_content/newsletter/events.py`); that moves in PPY-819117. Gherkin: `infra/scheduled-jobs/features/scheduled-container-job.feature` changes with it.\n\n**Acceptance.**\nA forced alarm reaches Ryan once, through the operator piece, and no SNS email comes. A template test counts exactly two alarms with human SNS actions. A simulated newsletter bounce-rate alarm still pauses sending. Site bumps batched.\n\n**Depends on:** PPY-e82423\n**Related:** kanbus-78f229, PPY-dd8c18"
+      }
+    }
+  }
+}

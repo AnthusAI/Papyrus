@@ -48,6 +48,13 @@ Feature: Production newsroom organizer shell
     And Articles and Assignments lead the Editorial work group
     And bottom tabs show icons and labels without descriptions
 
+  Scenario: The brand logotype shows on the mobile newsroom bar
+    Given a publication whose brand provides a newsroom logo
+    When an editor opens the newsroom on a screen 390 pixels wide
+    Then the top bar shows the brand's compact logo, or its full logo scaled down when there is no compact one
+    And the serif publication title appears only for a brand with no logo
+    And on a desktop screen with the sidebar open the top bar shows no logo because the sidebar already does
+
   Scenario: Collapsing desktop navigation returns space to the workspace
     Given the organizer sidebar is expanded
     When I activate Collapse sidebar with the keyboard

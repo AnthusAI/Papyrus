@@ -1,0 +1,93 @@
+# Reference search
+
+The newsroom References page has one search box above Sort and Show. It runs a word search and a meaning search together over every Reference of the site, whether it is unrated, accepted or rejected, and answers with the ordinary cards the feed shows. It exists so an editor can find a Reference again. (Until the one-search change, `/newsroom/search` was a different page that searched accepted References only; see the epic PPY-5beaab.)
+
+## The Search page (top-bar box)
+
+The box at the top of every newsroom page goes to `/newsroom/search?q=...` and the page opens already showing results (`components/newsroom-search-results.tsx`); there is no second form. It asks the same `searchReferences` query as the References page, so it finds pending, accepted and rejected References, for editors and admins only. A search anchored on a record (opened from a detail page, `?anchorKind=`) still opens the older knowledge-context page.
+
+- **Order and words.** Everything the word lane found comes first, each marked **Title match** (the typed words are in the title) or **Word match** (in the author, link or id only); results found only by meaning follow under a **Related** heading, each marked **Related**. A result found both ways is a Title match and says it is close in meaning too. Every result also says **Pending**, **Accepted** or **Rejected**. Each mark is an icon beside words, never colour alone.
+- **Options.** Four buttons, **Any**, **Pending**, **Accepted**, **Rejected** (`?status=`; Any is the default and leaves the address plain), with a check mark on the chosen one. They ask for `show` of `all`, `unrated`, `accepted` and `rejected`. No dropdowns. A Medium filter is not here: it belongs to the media-filter work (PPY-ec0d0a).
+- **Paging.** 24 at a time, with a **Show more results** button; a Reference is never listed twice.
+- **Looks.** One column, at most 48 rem wide, flat tones and rounded shapes with no borders, readable at 375 pixels (`scripts/test-newsroom-search-results.ts`, `features/newsroom-search-results.feature`).
+
+## What an editor sees on the References page
+
+- Press Enter to search. The query is in the address as `?q=`, so a search can be linked and the browser's Back button follows it.
+- While a search is open, Sort reads **Relevance**, **Newest** and **Quality**. It opens on Relevance (how well each Reference matches) and is not saved; the saved Predictions or Newest comes back when the search is cleared. Reviewed opens on **Any** without changing the choice saved in this browser. Reviewed Any, **Accepted**, Yes and No still narrow the search: Yes is accepted or rejected, No is not yet answered, and Accepted keeps only the accepted ones, never a rejected one. In the request `show` takes `all`, `unrated`, `rated`, `accepted` and `rejected` (the References page sends the first four; the Search page's Rejected button sends the last); `accepted` is checked on each row's `curationStatus` (the `#rated` feed-state suffix cannot tell accepted from rejected), the meaning lane asks the vector index for status `accepted`, and `show` is in the cursor hash as before.
+- **Minimum stars** (Any, 3+, 4+, 5) applies to a search too, and is the same saved choice the feed uses: a search keeps only the matches with at least that many stars. Newest orders the matches by arrival. Quality puts the most stars first, newest first within a star level, and keeps the unstarred matches after the starred ones (a search never loses a match to Quality; only a minimum drops them). Choosing Quality or a minimum while the search's Show is Unrated moves it to All. Nothing matches under a minimum: `Nothing matches "..." with 4 or more stars.` with a **Show any stars** button.
+- **Captured** (Any, Yes, No) applies to a search too: `Yes` keeps the matches whose content we hold in full, `No` keeps the rest (thin, nothing, still being captured). It is the same choice the feed uses ([the rule](reference-curation-pipeline.md#4a-referencecapturestate-whether-a-person-is-still-needed-2026-11-03)).
+- Cards are the feed's own cards with no lead card and no new-items pill. Each says how it matched, in words: `Matched: title, author`, `Matched: meaning`, `Matched: title and meaning`. A card voted on stays where it is. Paging is the feed's infinite scroll.
+- Nothing matches: `No References match "..."`. Nothing matches within a narrowed Reviewed: `No matches with Reviewed No` (or Yes, or Accepted) with a **Show Reviewed Any** button.
+- One search could not run: the other's results stay, with `Searched by words only: meaning search is unavailable` (or the reverse) and a Retry. Both could not run: the feed's own error with its Retry.
+
+## The query
+
+`searchReferences(input: AWSJSON!): AWSJSON` is a query on the same Lambda as `knowledgeQuery` (`amplify/functions/knowledge-query`, dispatched on the AppSync `fieldName` in `src/papyrus_knowledge_query/lambda_handler.py`). It is for the `editor` and `admin` groups (`allow.groups(categoryWriteGroups)`), has no subscription, and the Lambda checks the caller's groups again. It is defined in both `amplify/data/schema.ts` and `amplify/data/resource.ts`.
+
+```
+input:  { query, show: "unrated" | "rated" | "all", limit?: 24 (1 to 100), cursor?,
+          sort?: "relevance" (default) | "newest" | "quality", minStars?: null | 3 | 4 | 5,
+          captured?: "any" (default) | "yes" | "no" }
+output: { items: [{ reference, matchedBy: ["keyword"|"meaning"], matchedFields: ["title"|"authors"|"sourceUri"|"externalItemId"] }],
+          nextCursor, lanes: { keyword: { status, message? }, meaning: { status, message? } } }
+```
+
+`sort` and `minStars` are checked: another `sort`, or a `minStars` that is not 3, 4 or 5 (never "only 3" or "only 2"), is refused with a `SearchError`. They apply after fusing: `minStars` drops the matches with fewer stars (an unstarred match has none), then a stable sort orders what is left (`newest`: `feedArrivalAt` descending; `quality`: stars descending, unstarred last, then `feedArrivalAt` descending; `relevance`: the fused order, unchanged). A stars value that is a float, null or absent never breaks the order: only a whole number from 1 to 5 counts as stars, anything else is none. Stars order and narrow; they never decide what matches and never reach the Cyclotron.
+
+`captured` is checked too (another value is refused with a `SearchError`). It narrows after fusing, with `minStars`: `yes` keeps the matches whose stored `Reference.captureState` is `full`, `no` keeps every other match, including one with no `captureState` (an empty value means nothing was captured); `any` or absent changes nothing. The cursor's hash covers it, so a cursor made under one choice is refused under another (`The cursor belongs to a different search.`); `any` adds nothing to the hash, so a cursor made before the filter existed stays valid.
+
+`reference` is the whole Reference row the feed reads, so the page draws it as any other card. `status` is `ok` or `failed`; a failure carries a sentence that is safe to show.
+
+## Word search
+
+`src/papyrus_knowledge_query/reference_search.py` ranks; `src/papyrus_knowledge_query/reference_words.py` stores and looks up. The word lane looks each typed word up in a persistent word table ([the word index](#word-index)), reads the Reference rows the hits point at, and ranks them in a small in-memory index built for that one query. The four fields indexed are title, authors, source URL and `externalItemId`. Body and summary words are not searched. **An exact word of a title is never missing:** the lookup is by key, not by a ranking that can cut it off.
+
+- **Looking up.** For each typed term, one DynamoDB Query on the word table (more only if a word has more than a page of hits). A term of three or more letters is a prefix (`sou` finds `sound`); a shorter one matches whole words only. Then one BatchGetItem per 100 matching Reference rows, and one cached DescribeTable (about how many References there are, for the rarity weight below). A cold start reads nothing. The search logs nothing per Reference.
+- **What is not searched.** Words of an address that every link has (`http`, `https`, `www`, `com`, `org`, `net`, `html`, `htm`, `php`) are not indexed. A Reference with no `feedStateKey` (archived, or not the current version) has no words.
+- **Terms.** Lower-cased, accents folded, split on anything that is not a letter or digit. Stop words are dropped unless nothing else is left; they include question words (`why`, `how`, `what`, `do`, `does` and the like), so a typed question is searched by its content words. A term of three or more letters also matches the beginning of a longer word, as one types it.
+- **Order.** Exact title phrase, every term in the title or the authors, every term across the four fields, then some terms; inside a class, the larger share of the query's distinctive weight first, then heavier fields (title and authors, then id, then link), then the most recent arrival.
+- **Rarity.** Each term is weighed by how rare it is in this site's index, `ln(1 + N / df)` where `df` is how many References hold the term (or a word it begins). "neural" in a third of the titles counts for little; "forget" in a few counts for a lot. A Reference's `coverage` is the weight of the terms it holds over the weight of the query. The count N is the Reference table's own item count (DescribeTable, refreshed by DynamoDB every few hours, so approximate; it only weighs how rare a word is).
+- **Partial matches of a long query.** For a query of three or more distinctive terms, a Reference holding only some of them is kept only if its `coverage` is at least `PARTIAL_COVERAGE_FLOOR` (one half). A title with only "neural networks training" from a seven-word question is a common-word match, and the meaning search answers such a question better. Queries of one or two terms keep every partial match (with two terms, one is already half the question), ranked by `coverage` so the rarer word comes first. Because the floor is applied in the word lane, it also holds when the meaning search is down.
+
+## Word index
+
+Why a table of its own and not rows in an existing one: the Reference model already carries fifteen indexes and its rows are read by the feed, the cards and the public pages; word rows in it would be a second kind of row in a table every other reader has to skip, and an index to find them would be a sixteenth. A new table is one resource with no GraphQL type, so no editor, reader or guest can reach it through AppSync at all; only two functions hold IAM access.
+
+- **Shape.** Partition key `shard` (the first two characters of the word), sort key `entry` (`<word>#<lineageId>`), attributes `referenceId` (the id of the current row) and `versionNumber`. One Query with `begins_with` returns every Reference holding a word, or every word beginning with the typed letters. Each indexed Reference also has one pointer row (`shard` `~` plus the first two characters of its lineage id, `entry` the lineage id) so a meaning match, which knows only its lineage, finds its current row with two BatchGetItems.
+- **Writing.** A DynamoDB Streams consumer on the Reference table (old and new images; `src/papyrus_knowledge_query/reference_words.py`, `stream_handler`, function `reference-word-index`) compares the words of the old and new image and writes only the difference, so a vote, a star, a prediction or a capture state writes nothing. A new Reference writes its words and then its pointer; a new version writes its words over the old and the old version's change to superseded deletes only what the new one does not hold; an archived Reference deletes its words. Every write and delete is conditioned on `versionNumber`, so a late message about an older version never undoes a newer one. The consumer reports a failed record alone (`ReportBatchItemFailures`), batches of 100 over a five second window. A Reference is searchable seconds after it is created or changes. Nothing is scheduled and nothing walks the corpus.
+- **Reading.** Only the `knowledgeQuery` function (the `searchReferences` field) can Query and BatchGet it; the consumer can only put and delete single rows. Neither holds Scan.
+- **Backfill, once per site.** `papyrus references backfill-word-index (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--word-table NAME] [--write]` reads each Reference by curation status (the partition read the other backfills use; pending, accepted and rejected, never a scan), and writes the word and pointer rows of those not yet indexed. It previews by default, skips a Reference whose pointer already names its current row so a second run writes nothing, and writes the pointer last so a run cut short is finished by the next. It needs AWS credentials (the operator lane). The table name is `--word-table`, `PAPYRUS_REFERENCE_WORD_TABLE`, or `custom.referenceWordIndex.tableName` in `amplify_outputs.json`.
+- **Who sees what.** Pending and rejected References are searchable by editors and admins only: the `searchReferences` field allows only `editor` and `admin` in the schema, the handler checks the groups again, and the word table has no other reader. Public pages and the reader-facing answers use `knowledgeQuery`, which still drops everything that is not accepted.
+
+## Meaning search
+
+`QueryVectors` through `S3VectorsProvider.query_by_vector` with the query embedded once by `embed_text`: `reference_summary` vectors whose `curationStatus` is in what Show asks for (unrated: `pending`; rated: `accepted`, `rejected`; all: the three), top 100 (S3 Vectors' limit), nearest first, one entry per Reference, cut at the bend of the whole similarity curve (`papyrus_knowledge_query/cuts.py`, `search_cut_count`). The list is already bounded by the 100 S3 Vectors returns, so there is no cap of our own. The result is held in the Lambda for five minutes per query so paging does not embed again. A meaning result for a Reference the word index does not hold (no `feedStateKey`) is dropped, and Show is checked again against the Reference's own feed state, not the vector's.
+
+**Why a cut for a search list is not the cut for link suggestions.** `knee_cut_count` keeps everything before the largest single drop among the first half of the scores. That suits link suggestions, which want a few sure links. On a neighbour list for a question, where one hit stands clear of a smoothly falling tail, the largest drop is between the first and second score, so the cut kept one Reference, and it was usually the one the word search had found already: the meaning lane contributed no card of its own (the live "why do neural networks forget earlier training" search showed one "title and meaning" card and no "meaning" card). `search_cut_count` scales ranks and scores to 0..1 and cuts at the point farthest from the straight line between the first and last score: a steep start that flattens keeps the steep part, a plateau that falls keeps the plateau, a flat list is kept whole. It adapts to each list and needs no constant. Its trade-off is recall over precision, which is right behind exact word matches because meaning matches rank below them. Whether the live vectors have thin coverage (the summaries of References not yet embedded) cannot be told from the code; the cut is what the code shows.
+
+**Rejected References have no vectors today**, so only the word search can find a rejected Reference. That is expected for this phase.
+
+## Merging, paging, failure
+
+One entry per lineage, in tiers, best first:
+
+1. an exact title phrase;
+2. every term in the title or the authors;
+3. every term across the four fields;
+4. a meaning match (alone, or with some of the words);
+5. a partial word match found by words alone.
+
+Inside a tier, Reciprocal Rank Fusion, `1 / (60 + rank)` summed over the lanes a Reference is in, so a Reference found both ways ranks above the same rank in one lane; then the lineage id, a fixed order. A partial word match never outranks a meaning match, and "Hinton" (one term, in the authors) behaves as before: every author match first. The cursor is opaque: an offset and a hash of the query, Show choice, sort and minimum stars, and a cursor from another search or another ordering is refused. If one search fails the other's results are returned with the failed search's status; the meaning search is given 20 seconds.
+
+## From the command line
+
+`papyrus references search "agent memory" [--site HOST] [--show unrated|rated|all] [--limit N] [--cursor C] [--json]` asks the same query with the `papyrus login` session. It is read-only: one query, no mutation, no AWS credentials. Without `--json` it lists each Reference with how it matched and the next cursor.
+
+## Deploying
+
+Order matters because the word table is empty until it is filled. (1) Deploy: it adds the word table, enables the Reference table's stream, adds the consumer function and gives `knowledgeQuery` its environment and read access. From that moment every new or changed Reference is indexed. (2) Run `papyrus references backfill-word-index --site KEY` to preview, then with `--write`, once, for the References that existed before. Until step 2 the word lane finds only References created or changed since the deploy (the meaning lane is unaffected). Enabling a stream on an existing table is an in-place update. No index is added to any existing table. The meaning search needs the site's `OPENAI_API_KEY` secret and the vector index, as `knowledgeQuery` does; without them the page still searches by words and says so. The Lambda is a Lambda-backed query, not a JavaScript resolver, so it has no resolver entry file or APPSYNC_JS lint to get wrong.
+
+## Tests
+
+`procedures/newsroom/tests/test_reference_search.py` (lookup, ranking, fusion, cursor, failure, and the counting test that a search reads only the rows its words matched, never the table), `test_reference_words.py` (stream consumer, backfill, table shape), `features_backend/reference-word-index.feature`, `scripts/test-reference-word-index.ts` (the table, the consumer and the permissions, synthesized), `test_references_search_cli.py` (the command, no mutation), `features_backend/reference-search.feature` (behave), `scripts/test-reference-feed-search.ts` and the `search` scenario of `scripts/test-reference-feed.ts` at 375 and 1440 pixels, and `features/newsroom-reference-search.feature` (Cucumber). The sort and minimum are tested in the same files (`test_reference_search.py`, `reference-search.feature`, `test-reference-feed-search.ts`) and in the `quality` scenario of `scripts/test-reference-feed.ts` (`features/newsroom-reference-quality.feature`).

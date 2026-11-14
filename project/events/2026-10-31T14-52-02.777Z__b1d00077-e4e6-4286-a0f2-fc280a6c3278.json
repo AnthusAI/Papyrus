@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b1d00077-e4e6-4286-a0f2-fc280a6c3278",
+  "issue_id": "PPY-c6aad5e2-4127-4d6e-b9fc-ea16230cb35b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:52:02.777Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Delegated publish approval: an editor agent may approve after a person's deadline passes",
+    "description": "Third publish-gate setting (after required / not_required, PPY-8c5438): a person gets first refusal for a site-configured time; if nobody answers, the editor agent may approve only when its review passes the story's acceptance criteria and the Humanus check has no error findings; otherwise keep waiting. Record the approval as delegated (agent, evidence), surface it in the Notification Center, allow pulling the story afterwards. Anth.us stays required (Ryan 2026-10-31).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+    "labels": []
+  }
+}

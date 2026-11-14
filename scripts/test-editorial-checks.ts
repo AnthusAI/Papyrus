@@ -11,7 +11,8 @@ import {
   type EditorialCheckResult,
   type EditorialFinding,
 } from "../lib/editorial-checks";
-import { DEFAULT_EDITORIAL_SETTINGS, type EditorialSettings } from "../lib/editorial-checks-settings";
+import { DEFAULT_EDITORIAL_SETTINGS, mergeEditorialSettings, type EditorialSettings } from "../lib/editorial-checks-settings";
+import { checkKey, runsAutomatically } from "../components/use-editorial-checks";
 
 function finding(overrides: Partial<EditorialFinding>): EditorialFinding {
   return {
@@ -53,6 +54,17 @@ assert.equal(body.slice(0, 19), "Huge wins 🚀 ahead.");
 assert.equal(DEFAULT_EDITORIAL_SETTINGS.enabled, true);
 assert.equal({ ...DEFAULT_EDITORIAL_SETTINGS, ...({ enabled: false } as Partial<EditorialSettings>) }.enabled, false);
 
+// Checks run by themselves unless an admin turned that off: absent, null and true are on, only false is off.
+assert.equal(runsAutomatically(DEFAULT_EDITORIAL_SETTINGS), true);
+assert.equal(runsAutomatically(mergeEditorialSettings({ checkWhileTyping: null })), true, "a stored null is the default, on");
+assert.equal(runsAutomatically(mergeEditorialSettings({})), true, "a record from before the setting existed is on");
+assert.equal(runsAutomatically(mergeEditorialSettings({ checkWhileTyping: false })), false);
+assert.equal(mergeEditorialSettings({ lanes: { rules: true, classifier: false }, guidance: null }).guidance, "");
+assert.equal(mergeEditorialSettings({ lanes: { rules: true, classifier: false } }).lanes.classifier, false);
+// A check is for a body and its section: the same text in another section is another check.
+assert.notEqual(checkKey("Text", "engineering"), checkKey("Text", "culture"));
+assert.equal(checkKey("Text", " engineering "), checkKey("Text", "engineering"));
+
 const info = finding({ id: "f-info", severity: "info", span: { start: 20, end: 24 }, excerpt: "Calm" });
 const error = finding({ id: "f-error", severity: "error", policyId: "evidence", span: { start: 5, end: 9 }, excerpt: "wins" });
 const warn = finding({ id: "f-warn" });
@@ -80,6 +92,12 @@ assert.deepEqual(feedbackFor(result, body, classifierFinding, "dismissed", null,
 });
 assert.equal(feedbackFor(result, body, warn, "fixed", "item-1").text, null, "rule findings carry no example text");
 assert.match(laneNotice(result) ?? "", /not judged: 3 segment/);
+// A failed judgment lane is said plainly next to the rule findings, never shown as an empty clean result.
+const failedLane = { ...result, lanes: { ...result.lanes, classifier: { status: "failed" as const, reason: "the provider did not respond" } } };
+assert.match(laneNotice(failedLane) ?? "", /judgment checks failed: the provider did not respond/);
+// info, warn and error all sort, group and label; an info finding is shown but never a publish warning.
+assert.deepEqual(groupByPolicy([info]).map((g) => g.severity), ["info"]);
+assert.deepEqual(publishWarnings([info], new Set()), []);
 // PPY-2c4b56: a publication without a mission gets its rule checks; the skipped judgments are explained, not a failure.
 const skipped = { ...result, lanes: { ...result.lanes, classifier: { status: "skipped" as const, reason: "this publication has no mission yet" } } };
 assert.equal(laneNotice(skipped), "Mission-based checks skipped: this publication has no mission yet.");

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ce6234bd-a381-48f6-a791-d2b5b1877cea",
+  "title": "Rebuild run: preview, Ryan approves, publish",
+  "description": "Runs after the code stories and after the state reset (delete_may_state.sh, Ryan runs). Workstation run from fresh origin/develop on the 52 accepted References, without --apply first. Show Ryan the proposed concepts by kind (PPY-84b0dd). Then apply and wiki sync, restoring any good concept whose page stayed down. Add confinement problem and containment problem to Security as core concepts with a noted link. Rebuild the search index.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T18:22:36.994146Z",
+  "updated_at": "2026-11-04T18:22:36.994169Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

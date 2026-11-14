@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "3787db8d-e2f1-4f3b-81db-ac790579b8fb",
+  "issue_id": "PPY-e24ddeb2-f7b5-4973-b891-543b61097282",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T14:32:44.529Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document human ranking and Story stars on p.apyr.us",
+    "description": "Last task of the epic. Add a docs page on the marketing site for the rating-based home page ordering, recency buckets, and Story stars, with honest limits.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-97e016ea-6af5-49f6-978a-f9bbd46c68f7",
+    "labels": []
+  }
+}

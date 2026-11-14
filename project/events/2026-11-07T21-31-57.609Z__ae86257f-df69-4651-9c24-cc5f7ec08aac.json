@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ae86257f-df69-4651-9c24-cc5f7ec08aac",
+  "issue_id": "PPY-da1ec715-1b97-4806-8ccf-b8a99c97e085",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:31:57.609Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Publish projection times out under site lease contention, leaving pages stale",
+    "description": "## Observed failure\nOn 2026-11-07, Machines on Machines (Papyrus 5.91.3, newsroom.machines-on-machines.anth.us), signed-in `papyrus ops content publish --id <item-version>` recorded published data but returned `projection: {\"ok\": false, \"error\": \"GraphQLRequestError: GraphQL request failed: The read operation timed out\"}` and said the page was not live. Repeating the containment publish produced the same result. The two new article URLs returned 404, and the existing containment URL retained its old byline. Data publication and projection are distinct; a client timeout alone does not prove the server operation ultimately failed.\n\nAffected item versions:\n- content-item-the-sound-that-can-give-away-where-you-live-5620443454fd433b-v5\n- content-item-opinion-legal-is-not-enough-when-ai-can-find-anyone-cee0ee8226508677-v4\n- content-item-can-a-system-keep-a-secret-from-its-own-agent-4683a0c3957c6d9d-v33\n\n## Evidence and investigation\nProduction Papyrus account, us-east-1; inspect the Machines on Machines CMS content-actions function and its CloudWatch log group. Lambda timeout is 900 seconds. CloudWatch from 18:35–18:40 UTC recorded repeated `ProjectionTaskFailed: Projection lease ... is held by ...; waited 120s` errors from concurrent projection tasks. The lease wait and competing jobs are confirmed; the precise relationship of any individual CLI timeout to a particular Lambda invocation remains to be correlated. A later read found no lease held. Do not delete a lease without checking its holder.\n\n`src/papyrus_content/publish_commands.py` publishes records, then `projection_trigger.trigger_projection_as_user` invokes the `publishItem` AppSync mutation synchronously. `amplify/functions/content-actions/handler.py` calls `project_item_action` synchronously, which enters the single-site lease; default lease wait is 120 seconds. The GraphQL request / AppSync integration can time out well before that, leaving publication status ambiguous to the CLI. The server only schedules a retry when it catches or receives a failed projection; a client/AppSync timeout is not proof that retry was scheduled. Parallel requests and async item-pages follow-ups can amplify lease contention and retry pressure.\n\n## Investigate and fix\nCorrelate actual invocation IDs/timestamps and lease holders, identify the cause and duration of contention (including any repeated full/site-wide follow-up work), and establish which jobs finished, failed, or reached the DLQ. Make signed-in CLI and newsroom publish robust beyond request deadlines: record/schedule projection durably without blocking on long work, avoid concurrent retry storms, make retry idempotent, and expose an accurate pending/live/failed status without declaring a page live on enqueue or assuming timeout means failure. Preserve lease mutual exclusion and publication/notification semantics. Include behavior tests for slow projection, concurrent publishes, client timeout, eventual projection and permanent failure. Confirm CLI/MCP use the shared supported behavior where applicable; MCP impact has not been tested.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-3d905dde-4a01-467b-95b8-53abe6f9e1ef",
+    "labels": []
+  }
+}

@@ -87,6 +87,31 @@ function PdfSourcePreview({ preview }: { preview: Extract<ReferenceSourcePreview
   );
 }
 
+/** Session memory of the server's answers, so reopening an item does not ask again. */
+const frameableAnswers = new Map<string, boolean>();
+
+/** Whether the page allows being shown in a frame: null while asking. A refused frame would be an empty box, so it is not shown. */
+function useFrameable(href: string | null): boolean | null {
+  const [answer, setAnswer] = useState<boolean | null>(() => (href ? frameableAnswers.get(href) ?? null : null));
+  useEffect(() => {
+    if (!href) return undefined;
+    const known = frameableAnswers.get(href);
+    if (known !== undefined) { setAnswer(known); return undefined; }
+    setAnswer(null);
+    let active = true;
+    fetch(`/api/newsroom/source-frameable?url=${encodeURIComponent(href)}`)
+      .then((response) => (response.ok ? response.json() : { frameable: false }))
+      .then((body: { frameable?: unknown }) => { frameableAnswers.set(href, body.frameable === true); if (active) setAnswer(body.frameable === true); })
+      .catch(() => { if (active) setAnswer(false); });
+    return () => { active = false; };
+  }, [href]);
+  return answer;
+}
+
+/**
+ * The live preview of the source, or nothing at all: a YouTube video or a PDF always has one; a web page only when the page allows
+ * being framed (asked of the server first). It sits under the link to the original, with no heading of its own.
+ */
 export function ReferenceSourcePreview({
   attachments = [],
   sourceUri,
@@ -95,6 +120,7 @@ export function ReferenceSourcePreview({
   sourceUri?: string | null;
 }) {
   const preview = resolveReferenceSourcePreview(sourceUri, attachments);
+  const frameable = useFrameable(preview?.kind === "html" ? preview.href : null);
   const pendingPdfPreview = !preview && attachments.some(
     (attachment) => isPdfAttachment(attachment) && Boolean(attachment.storagePath),
   );
@@ -139,6 +165,7 @@ export function ReferenceSourcePreview({
     return <PdfSourcePreview preview={preview} />;
   }
 
+  if (frameable !== true) return null;
   return (
     <div
       className="news-desk-reference-source-preview news-desk-reference-source-preview--html"
@@ -153,11 +180,6 @@ export function ReferenceSourcePreview({
           title={preview.label}
         />
       </div>
-      <p className="news-desk-reference-source-preview__actions">
-        <a href={preview.href} rel="noopener noreferrer" target="_blank">
-          {preview.label}
-        </a>
-      </p>
     </div>
   );
 }

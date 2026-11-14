@@ -17,6 +17,8 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from .proposal_votes import public_exclusions
+
 PROPOSALS_DATA_DIRECTORY = "_data/proposals"
 INDEX_FILE = f"{PROPOSALS_DATA_DIRECTORY}/index.json"
 PROPOSAL_FILE = PROPOSALS_DATA_DIRECTORY + "/{id}.json"
@@ -128,6 +130,21 @@ def decision_of(row: Mapping[str, Any]) -> dict[str, Any] | None:
     return {"state": state, "result": last.get("result", state), "by": "Editor", "reason": last["reason"], "at": last["at"]}
 
 
+def override_of(row: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The editor's override of the community: ``{result, reason, by, at}`` for a proposal that was overridden, else ``None``.
+
+    Read from the stored ``override`` and, for a proposal overridden before that field existed, from the history. The community
+    result stays beside it in ``communityResult``: readers see both.
+    """
+    if row.get("state") != OVERRIDDEN_BY_EDITOR:
+        return None
+    stored = parsed(row.get("override"), None)
+    if isinstance(stored, dict) and stored.get("result"):
+        return {"result": stored["result"], "reason": stored.get("reason"), "by": "Editor", "at": stored.get("at")}
+    decision = decision_of(row)
+    return None if decision is None else {key: decision[key] for key in ("result", "reason", "by", "at")}
+
+
 def community_result(row: Mapping[str, Any], votes: Mapping[str, int]) -> dict[str, Any] | None:
     """The votes fixed when the proposal reached editor review; live until the snapshot has fixed them; ``None`` before review."""
     if row.get("state") not in FROZEN_STATES:
@@ -138,7 +155,7 @@ def community_result(row: Mapping[str, Any], votes: Mapping[str, int]) -> dict[s
     return {**votes, "at": None}
 
 
-def public_proposal(row: Mapping[str, Any], counts: VoteCounts) -> dict[str, Any]:
+def public_proposal(row: Mapping[str, Any], counts: VoteCounts, excluded: Mapping[str, int] | None = None) -> dict[str, Any]:
     state = row["state"]
     votes = counts.votes(row["id"])
     entry: dict[str, Any] = {
@@ -158,14 +175,25 @@ def public_proposal(row: Mapping[str, Any], counts: VoteCounts) -> dict[str, Any
         "comments": counts.comments(row["id"]),
         "communityResult": community_result(row, votes),
         "decision": decision_of(row),
+        "override": override_of(row),
+        "pinned": bool(row.get("pinned")),
+        "held": bool(row.get("held")),
+        "excluded": public_exclusions(row, excluded),
     }
     return entry
 
 
-def build_proposal_files(rows: Iterable[Mapping[str, Any]], counts: VoteCounts, generated_at: str) -> dict[str, dict]:
-    """Site key to content: the index (newest first) and one file per proposal, which adds the body and the history."""
+def build_proposal_files(
+    rows: Iterable[Mapping[str, Any]], counts: VoteCounts, generated_at: str, exclusions: Mapping[str, Mapping[str, int]] | None = None
+) -> dict[str, dict]:
+    """Site key to content: the index (newest first) and one file per proposal, which adds the body and the history.
+
+    ``exclusions`` is the snapshot's count of votes left out per proposal and reason. Nothing editor-only is written: not the
+    needs-a-look reasons, not the editor log, not who excluded or pinned.
+    """
+    exclusions = exclusions or {}
     rows = [row for row in rows if row.get("kind") and row.get("state") in STATE_LABELS]
-    entries = [public_proposal(row, counts) for row in rows]
+    entries = [public_proposal(row, counts, exclusions.get(row["id"])) for row in rows]
     by_id = {row["id"]: row for row in rows}
     entries.sort(key=lambda entry: (entry["createdAt"], entry["id"]), reverse=True)
     files: dict[str, dict] = {INDEX_FILE: {"generatedAt": generated_at, "proposals": entries}}

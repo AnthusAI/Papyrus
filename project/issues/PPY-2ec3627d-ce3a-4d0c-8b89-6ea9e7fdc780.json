@@ -1,0 +1,20 @@
+{
+  "id": "PPY-2ec3627d-ce3a-4d0c-8b89-6ea9e7fdc780",
+  "title": "p.apyr.us docs page for Mermaid diagrams (and CMS newsroom preview follow-up)",
+  "description": "Document Mermaid support on the p.apyr.us product site, per the document-features rule. Also: the CMS newsroom (components/markus-body-editor.tsx) has no rendered article preview today, so there is nothing to wire; if a preview is added, load the same loader and library.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-30T20:29:00.194550Z",
+  "updated_at": "2026-10-30T20:29:00.194580Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

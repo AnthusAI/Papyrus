@@ -1,7 +1,7 @@
 import { defineAuth, secret } from "@aws-amplify/backend";
 import { manageUserRole } from "../functions/manage-user-role/resource";
 import { Stack } from "aws-cdk-lib";
-import { CfnUserPoolDomain } from "aws-cdk-lib/aws-cognito";
+import { CfnUserPoolDomain, CfnUserPoolIdentityProvider } from "aws-cdk-lib/aws-cognito";
 import type { PapyrusAuthConfig } from "../site-backend-config";
 import { expandNewsroomRedirectUrls } from "./redirect-urls";
 
@@ -41,7 +41,29 @@ export function siteAuthRedirectUrls(config: PapyrusAuthConfig): string[] {
   return config.redirectUrls ?? DEFAULT_AUTH_REDIRECT_URLS;
 }
 
-export function defineSiteAuth(config: PapyrusAuthConfig) {
+/** Keep Cognito's federated email verification state in sync with Google's verified claim. */
+export function applyGoogleEmailVerifiedMapping(authStack: Stack): void {
+  const googleProviders = authStack.node
+    .findAll()
+    .filter((construct): construct is CfnUserPoolIdentityProvider =>
+      construct instanceof CfnUserPoolIdentityProvider && construct.providerName === "Google");
+  if (googleProviders.length !== 1) {
+    throw new Error(`Expected exactly one Google identity provider to map email_verified, found ${googleProviders.length}`);
+  }
+
+  const [provider] = googleProviders;
+  const mapping = provider.attributeMapping;
+  if (mapping !== undefined && (typeof mapping !== "object" || Array.isArray(mapping))) {
+    throw new Error("Expected Google identity provider attribute mappings to be a plain object");
+  }
+  provider.attributeMapping = { ...(mapping ?? {}), email_verified: "email_verified" };
+}
+
+/**
+ * `extraCallbackUrls` are sign-in return URLs only (never logout URLs) that a feature registers on the same web client,
+ * such as the remote CLI login page. Empty (the default) leaves the client exactly as it was.
+ */
+export function defineSiteAuth(config: PapyrusAuthConfig, extraCallbackUrls: readonly string[] = []) {
   const authRedirectUrls = expandNewsroomRedirectUrls(
     siteAuthRedirectUrls(config),
     config.newsroomBasePath,
@@ -60,7 +82,7 @@ export function defineSiteAuth(config: PapyrusAuthConfig) {
                 scopes: ["email", "profile", "openid"],
               },
               scopes: ["EMAIL", "PROFILE", "OPENID"],
-              callbackUrls: authRedirectUrls,
+              callbackUrls: [...authRedirectUrls, ...extraCallbackUrls.filter((url) => !authRedirectUrls.includes(url))],
               logoutUrls: authRedirectUrls,
             },
           }),

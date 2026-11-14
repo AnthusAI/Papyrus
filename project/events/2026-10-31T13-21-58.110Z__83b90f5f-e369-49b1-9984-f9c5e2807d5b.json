@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "83b90f5f-e369-49b1-9984-f9c5e2807d5b",
+  "issue_id": "PPY-fa27d961-9013-4862-a230-a20660c3c397",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T13:21:58.110Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Write path: every ReaderVote is 1-5; thumbs store 5/1; /api/reader/vote accepts value 1/-1/null and stars 1-5",
+    "description": "Repo: **Papyrus**. Files: `amplify/plugins/reader-steering/function/handler.py` (`typed_vote_action`, `vote_action`, `rating_action`, `react`, `TOGGLE_DIMENSIONS`, `VOTE_DIMENSION`, `MINIMUM_RATING`/`MAXIMUM_RATING`, `rating_context_for`, the reader-state path ~line 384-387 that returns `held[\"up\"] in (1, -1)`), `amplify/plugins/reader-steering/function/handler_test.py` (or the plugin's existing test module), `features_backend/reader-subject-votes.feature`, `features_backend/reader-steering.feature`.\n\n## Change\nEvery write to a ReaderVote stores an integer 1-5 on every dimension, including `up`.\n- `typed_vote_action` (`{subject: {type,id}, value}`): keep accepting `1 | -1 | null`; map `1 -> 5`, `-1 -> 1` before `react`; ALSO accept `stars: 1..5` (integer, not bool) as the five-star form, exclusive with `value` (sending both is `422 invalid_vote`). Add `\"stars\"` to `VOTE_PAYLOAD_KEYS`. The 200 reply returns `{subject, value: <stored 1-5>, stars: <same>}` plus `thumb: \"up\" | \"down\" | null` (up when stored >= 4) so old clients that read `value` get a sensible number and new clients read `stars`.\n- Legacy `vote_action` (`{subject, dimension: \"up\", on: true|false}`): `on: true` stores 5, `on: false` removes (unchanged). `used-it` stays a toggle that stores 1 (its only meaning is presence; it is never averaged) and is documented as such.\n- The reader-state response: `votes[subject].up` returns the stored 1-5; add `thumb` the same way; no code path returns -1 anymore.\n- `rating_context_for` compares the stored 1-5 value (a comment explaining a thumbs down now carries `{dimension: \"up\", value: 1}`).\n- Refuse anything else with the existing `422 invalid_vote`/`invalid_rating` wording extended to name `stars`.\nNo new caps, no new tables, no new settings.\n\n## Gherkin (features_backend/reader-subject-votes.feature; rewrite the affected scenarios, add the new ones)\n  Scenario: A thumbs up is stored as five and a thumbs down as one\n  Scenario: A reader rates a subject with stars from one to five\n  Scenario: A vote must be up, down, one to five stars, or removed\n  Scenario: Sending both value and stars is refused\n  Scenario: The reader state returns the stored one-to-five value and the thumb it means\n  Scenario: A comment's rating context names the stored one-to-five value\n\n## Acceptance\n`poetry run pytest amplify/plugins/reader-steering` and the backend cucumber suite pass; `grep -rn \"in (1, -1)\" amplify/plugins/reader-steering/function/handler.py` returns nothing. PR to develop; merge is deploy (the function deploys with the next site build that pins the release).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-49e9b51e-5a5e-455b-8cf2-4d7c841c0281",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ff616824-2100-4798-8c87-8db8051e3682",
+  "issue_id": "PPY-7d34fa2b-303b-4b47-9cd2-742c363af459",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T00:59:51.041Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Story cards use the Night image when a figure has a Day and Night pair",
+    "description": "Reported by Ryan through the Machines on Machines session, 2026-11-04: story cards take one image, so a figure with a Day and Night pair shows the Day image in Night, and bright white figures appear on the dark home page. Cards should show the Night version when one exists and the reader is in Night. Shared across all sites through the listing include and card rendering. Needs screenshots in both themes.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

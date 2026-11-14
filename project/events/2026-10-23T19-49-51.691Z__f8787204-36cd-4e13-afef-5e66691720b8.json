@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "f8787204-36cd-4e13-afef-5e66691720b8",
+  "issue_id": "PPY-cb77fa57-c800-4742-8a6a-e5b5b5a4ea18",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T19:49:51.691Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Verify shared composer pending and disabled sends",
+    "description": "Add Papyrus browser/Gherkin coverage for the Chatticus-backed newsroom composer. Preserve Papyrus behavior that permits another message after the current send has completed even when its assistant reply is still running. Verify disabled sends do not call Papyrus and keyboard submission invokes the callback once. Do not change the shared dependency or Papyrus production behavior unless a scoped regression is reproduced. Acceptance: new behavior scenarios pass alongside existing shared-chat scenarios; local typecheck and lint pass.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-7962e353-86cb-4f89-abb7-48e39ed22a1c",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6-luna",
+      "name": "BlackbookM1 Luna medium integration worker",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}

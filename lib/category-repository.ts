@@ -5,6 +5,7 @@ import { createEmptyCategorySteeringDashboard } from "./category-dashboard";
 import { applyPilobolusDemoDashboardContent } from "./newsroom-demo-dashboard";
 import { getNewsroomDemoProfile, isPilobolusDemoBrand } from "./newsroom-demo-profile";
 import { resolveSiteBrandId, type SiteBrandId } from "./site-brand";
+import { corpusIdForKey } from "./tenant-knowledge-keys";
 
 export { createEmptyCategorySteeringDashboard };
 
@@ -140,6 +141,8 @@ export type NewsroomSectionRecord = {
   assignmentGuidance?: string | null;
   killCriteria?: string | null;
   visualGuidance?: string | null;
+  /** The section's core concepts, as stored (a JSON string; see lib/section-concepts.ts). */
+  coreConcepts?: unknown;
   createdAt?: string | null;
   updatedAt?: string | null;
 };
@@ -280,8 +283,51 @@ export type ReferenceRecord = {
   curationStatusUpdatedAt?: string | null;
   curationStatusUpdatedBy?: string | null;
   curationStatusReason?: string | null;
+  /** The latest vote's details; a Reference keeps only its latest vote (earlier votes live in the Cyclotron's feedback). */
+  curationReasonCode?: string | null;
+  curationActorKind?: string | null;
+  curationSectionId?: string | null;
+  curationShareable?: boolean | null;
+  curationDelegation?: unknown;
+  curationDecisionRelationId?: string | null;
+  /** An editor's optional 1-5 star interest (separate from the vote; never a Cyclotron label). */
+  starRating?: number | null;
+  starRatedAt?: string | null;
+  starRatedBy?: string | null;
   newsroomFeedKey?: string | null;
   reviewedFeedKey?: string | null;
+  /** The feed-state keys the References page reads through (docs/reference-feed-indexes.md). */
+  feedStateKey?: string | null;
+  feedArrivalAt?: string | null;
+  predictedAcceptProbability?: number | null;
+  predictionDecidedAt?: string | null;
+  predictionSortKey?: string | null;
+  /** `<corpusId>#stars#<n>` while the Reference has stars: the star index's partition (docs/reference-feed-indexes.md). */
+  starFeedKey?: string | null;
+  /** How much content is held: `full`, `thin`, `none` or `running`; empty means `none` (`storedCaptureState` in lib/reference-capture.ts). */
+  captureState?: string | null;
+  /** What kind of thing the address is, by rule and only where certain: `video`, or empty (src/papyrus_content/reference_medium.py). The card says it in words with an icon. */
+  medium?: string | null;
+  /** `evidenceLevel` is `primary`, `secondary`, `aggregation` or `unknown` (the medium rule writes only `aggregation`); `playlistUrl` is the playlist a video address also names. */
+  evidenceLevel?: string | null;
+  playlistUrl?: string | null;
+  /** `<corpusId>#<medium>#<status>` while the Reference has a medium: the medium index's partition. */
+  mediumFeedKey?: string | null;
+  /** `no_transcript`, `unavailable` or `unsupported_platform` once the transcript worker found nothing to capture on a video; else empty. */
+  captureReason?: string | null;
+  /** `<corpusId>#<medium>#needs_content#<status>` while the content of a video is missing: the content-needed index's partition. */
+  contentNeededKey?: string | null;
+  /** The public blocks' index keys and card copies (docs/plans/public-blocks-from-indexes.md). Null unless the row can be public. */
+  publicFeedKey?: string | null;
+  publicOrderKey?: string | null;
+  cardImage?: string | null;
+  cardSummary?: string | null;
+  cardSiteName?: string | null;
+  cardPageTitle?: string | null;
+  /** The monitor that delivered this Reference (set at intake; the Reference is the record, no Message). */
+  discoveredByMonitorId?: string | null;
+  /** What the monitor's source said about it (a Hub model's structured fields, say). */
+  discoveryDetails?: unknown;
   metadata?: unknown;
   updatedAt?: string | null;
 };
@@ -412,6 +458,9 @@ export type MessageRecord = {
   authorSub?: string | null;
   authorUserProfileId?: string | null;
   authorLabel?: string | null;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+  deletedBySub?: string | null;
   threadId?: string | null;
   parentMessageId?: string | null;
   sequenceNumber?: number | null;
@@ -656,6 +705,10 @@ export type NewsroomSummaryFacets = {
 
 export type CategorySteeringDashboard = {
   isDemo?: boolean;
+  /** Local preview only: the demo newsroom is showing a real export (scripts/export-reference-feed-fixture.py), so it must not say "synthetic". */
+  realDataPreview?: boolean;
+  /** Local preview only: review requests from scripts/export-notification-center-fixture.py. */
+  notificationFixture?: { requests: import("./review-requests").ReviewRequest[] } | null;
   isPublicSkeleton?: boolean;
   summaryStatus?: "loading" | "missing" | "ready";
   summary?: NewsroomSummaryRecord | null;
@@ -767,7 +820,7 @@ function stringArray(value: unknown): string[] {
 
 function knowledgeCorpusIdFromKey(corpusKey: string): string {
   const safeKey = String(corpusKey || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "unknown";
-  return `knowledge-corpus-${safeKey}`;
+  return corpusIdForKey(safeKey);
 }
 
 export async function loadCategorySteeringDashboard(): Promise<CategorySteeringDashboard> {
@@ -820,7 +873,8 @@ function sortCategorys(categorys: CategorySteeringCategory[]): CategorySteeringC
 }
 
 function defaultNewsroomSections(importedAt: string, sectionsConfigPath?: string): NewsroomSectionRecord[] {
-  if (!sectionsConfigPath) return [];
+  // A data-driven site names a seed file it does not ship: its Sections live in the backend, so there is nothing to seed.
+  if (!sectionsConfigPath || !fs.existsSync(sectionsConfigPath)) return [];
   return loadNewsroomSectionSeedRows(sectionsConfigPath).map((row, index) => ({
     ...row,
     enabledStatus: "enabled",
@@ -1467,18 +1521,6 @@ export function createDemoCategorySteeringDashboard(
     ],
     messages: [
       {
-        id: "message-demo-history-002-rationale",
-        messageKind: "ingestion_rationale",
-        messageDomain: "commentary",
-        status: "active",
-        body: "Imported as a useful holdout against modern scaling coverage.",
-        summary: "Holdout ingestion rationale",
-        source: "biblicus-import",
-        importRunId: "knowledge-import-demo-projection",
-        createdAt: importedAt,
-        updatedAt: importedAt,
-      },
-      {
         id: reportingPacketMessageId,
         messageKind: "reporting_context_packet",
         messageDomain: "assignment_work",
@@ -1504,7 +1546,7 @@ export function createDemoCategorySteeringDashboard(
             riskFlags: ["Avoid promotional framing."],
             coverageGaps: ["Need a second independent source."],
             openQuestions: ["Which users are affected first?"],
-            copywriterBrief: "Use accepted evidence and recent desk memory before drafting.",
+            copywriterBrief: "Use accepted evidence and recent section memory before drafting.",
           },
         },
       },
@@ -1654,8 +1696,8 @@ export function createDemoCategorySteeringDashboard(
         slug: "editorial-doctrine-policy",
         title: "Editorial Policy",
         body: [
-          "Publication doctrine is the global inclusion standard; desk doctrine sets local source priorities and framing.",
-          "News reporting should prioritize current, journalistic, and official sources; desk workflows may use academic research as background unless a desk policy explicitly makes research the primary evidence class.",
+          "Publication doctrine is the global inclusion standard; section doctrine sets local source priorities and framing.",
+          "News reporting should prioritize current, journalistic, and official sources; section workflows may use academic research as background unless a section policy explicitly makes research the primary evidence class.",
           "High-risk domains, including health-related claims, require stricter sourcing, explicit uncertainty handling, and clear separation between verified facts and interpretation.",
         ],
         editorial: { kind: "policy" },
@@ -1818,32 +1860,6 @@ export function createDemoCategorySteeringDashboard(
         rank: 1,
         classifierId: "demo-canonical-classifier",
         reviewRecommended: true,
-        importRunId: "knowledge-import-demo-projection",
-        importedAt,
-      },
-      {
-        id: "semantic-relation-demo-message-history-002-rationale",
-        relationState: "current",
-        predicate: "comment",
-        relationTypeId: "semantic-relation-type-comment",
-        relationTypeKey: "comment",
-        relationDomain: "commentary",
-        subjectKind: "message",
-        subjectId: "message-demo-history-002-rationale",
-        subjectLineageId: "message-demo-history-002-rationale",
-        subjectVersionNumber: 1,
-        objectKind: "reference",
-        objectId: referenceHistoryTwoId,
-        objectLineageId: referenceHistoryTwoLineageId,
-        objectVersionNumber: 1,
-        subjectStateKey: "message#message-demo-history-002-rationale#current",
-        objectStateKey: `reference#${referenceHistoryTwoLineageId}#current`,
-        objectSubjectStateKey: `reference#${referenceHistoryTwoLineageId}#current#message`,
-        predicateObjectStateKey: `comment#reference#${referenceHistoryTwoLineageId}#current`,
-        subjectVersionKey: "message#message-demo-history-002-rationale",
-        objectVersionKey: `reference#${referenceHistoryTwoId}`,
-        rank: 1,
-        reviewRecommended: false,
         importRunId: "knowledge-import-demo-projection",
         importedAt,
       },

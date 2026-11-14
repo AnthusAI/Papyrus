@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f1f69ac3-8e16-4d1d-83d3-069c68b00eac",
+  "issue_id": "PPY-a9f068a1-daef-4822-b410-9a31bbc3d261",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-31T07:45:50.091Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Rename the working identifier wire to the chosen feature name",
+        "to": "Rename the working identifier wire to home page (done in the tickets, 2026-10-31)"
+      },
+      "description": {
+        "from": "Chore in the `wire` epic, to run once Ryan picks the feature name (open question 1 in the epic). Until then, nothing to do.\n\nRename the working identifier `wire` everywhere it appears as the feature name: `projection.json` key `wire`, `_data/wire/` (with a one-release compatibility read of the old directory in `WireSource`, then remove), `src/papyrus_content/wire/`, `projection/standard/wire*.py`, `papyrus-wire.css`, the projection task `wire-snapshot`, the plugin `amplify/plugins/wire/`, `KNOWN_PLUGINS`, the schedule prefix `papyrus-wire-snapshot-`, the debounce pk, the CLI `papyrus wire ...`, `docs/wire.md`, the feature files `features_backend/wire-*.feature` and their step module names, the Anth.us `projection.json` and `papyrus.config.ts` (site PR). Keep the Anth.us segment and label \"newsroom\" as they are: they are the site's choice, not the feature name.\n\nAcceptance: `git grep -i wire` in Papyrus returns only unrelated hits (e.g. \"wire(backend, ...)\" in the plugin API); CI green; one release; Anth.us bumped. Gherkin: no behaviour change, so the existing scenarios pass unchanged under the new names.",
+        "to": "Ryan named the feature \"home page\" on 2026-10-31 before any code existed, so the rename happened in the tickets themselves: settings key homePage, data directory _data/home-page/, modules src/papyrus_content/home_page/ and projection/standard/home_page*.py, task home-page-snapshot, CLI papyrus home-page snapshot, plugin home-page. No code to rename. Closed."
+      }
+    }
+  }
+}

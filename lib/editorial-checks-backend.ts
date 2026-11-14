@@ -5,12 +5,16 @@ import type { EditorialSettings } from "./editorial-checks-settings";
 export type EditorialChecksBackend = {
   loadSettings: () => Promise<{ settings: EditorialSettings; exists: boolean }>;
   dismissedFindingIds: (itemId: string) => Promise<Set<string>>;
-  check: (body: string, section: string | null) => Promise<EditorialCheckResult>;
+  /** `language` is the Story's language (`storyLanguage`); it is never assumed by the server. */
+  check: (body: string, section: string | null, language: string) => Promise<EditorialCheckResult>;
   suggest: (
     body: string,
     section: string | null,
+    language: string,
     target: { finding: EditorialFinding } | { selection: Span },
     note: string | null,
   ) => Promise<RewriteResult>;
   recordFeedback: (input: EditorialFeedbackInput) => Promise<void>;
+  /** Ask the server to check one saved version and store the result with it. It skips content it has already checked. */
+  checkVersion?: (itemId: string) => Promise<void>;
 };

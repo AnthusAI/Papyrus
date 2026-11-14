@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9c5ce05a-a2a5-4852-ab09-0f8c20dcaff1",
+  "issue_id": "PPY-30658712-db3c-4b6c-ae66-597053e9c486",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T18:00:33.393Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Alert when a newsroom stage suddenly grows",
+    "description": "Alert when a stage grows far beyond its normal size for that site, using an adaptive comparison (no fixed caps). Also add to the new-site steps: after a first run, open the newsroom, not only the public site.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}

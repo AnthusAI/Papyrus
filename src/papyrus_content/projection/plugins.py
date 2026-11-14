@@ -11,19 +11,23 @@ import json
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
+from ..home_page.snapshot import HOME_PAGE_DATA_DIRECTORY
 from ..reader_steering.proposals import PROPOSALS_DATA_DIRECTORY
 from ..reader_steering.snapshot import READER_DATA_DIRECTORY
 
 PLUGINS_ENV = "PAPYRUS_PLUGINS"
 PLUGIN_ASSET_DIRECTORY = Path(__file__).parent / "plugin_assets"
 PLUGIN_STATIC_ASSETS: dict[str, dict[str, str]] = {
+    "alexa": {},  # no files: its privacy and terms pages are projected by standard/alexa_pages.py (mirrors ALEXA_STATIC_ASSETS)
+    "home-page": {},  # ships no static files; listed so PAPYRUS_PLUGINS=home-page is a known name
+    "notifications": {"_plugins/papyrus-notifications@1.js": "papyrus-notifications.js", "_plugins/papyrus-notifications-pages@1.js": "papyrus-notifications-pages.js"},
     "reader-steering": {"_plugins/papyrus-reader@1.js": "papyrus-reader.js", "_plugins/papyrus-reader@1.css": "papyrus-reader.css"},
     "newsletter": {"_plugins/papyrus-newsletter@1.js": "papyrus-newsletter.js", "_plugins/papyrus-newsletter-pages@1.js": "papyrus-newsletter-pages.js"},
     "signup": {"_plugins/papyrus-signup@1.js": "papyrus-signup.js"},
 }
 # The site-relative key prefixes of the pages a plugin projects. A reconcile never deletes a key under one of them unless the plugin
 # is known to be disabled for the site (``standard/newsletter_pages.site_key`` writes ``newsletter/<name>/index.html``).
-PLUGIN_PAGE_PREFIXES: dict[str, tuple[str, ...]] = {"newsletter": ("newsletter/",)}
+PLUGIN_PAGE_PREFIXES: dict[str, tuple[str, ...]] = {"alexa": ("alexa/",), "newsletter": ("newsletter/",), "notifications": ("notifications/",)}
 
 
 def plugin_names_from_environment(environ: Mapping[str, str]) -> tuple[str, ...]:
@@ -41,11 +45,11 @@ def plugin_static_files(names: Iterable[str]) -> dict[str, bytes]:
 
 
 KNOWLEDGE_DATA_DIRECTORY = "_data/knowledge"
-PLUGIN_RUNTIME_DIRECTORIES = (READER_DATA_DIRECTORY + "/", PROPOSALS_DATA_DIRECTORY + "/", KNOWLEDGE_DATA_DIRECTORY + "/")
+PLUGIN_RUNTIME_DIRECTORIES = (READER_DATA_DIRECTORY + "/", PROPOSALS_DATA_DIRECTORY + "/", KNOWLEDGE_DATA_DIRECTORY + "/", HOME_PAGE_DATA_DIRECTORY + "/")
 
 
 def is_plugin_runtime_key(key: str) -> bool:
-    """A file a task writes (the reader snapshot, its proposals, the knowledge snapshot), at the site root or under ``urls.basePath``.
+    """A file a task writes (the reader snapshot, its proposals, the knowledge snapshot, the home-page snapshot), at the site root or under ``urls.basePath``.
 
     The projector's page reconcile must never call such a file an orphan: no page expects it, a task owns it.
     """

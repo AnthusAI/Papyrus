@@ -6,15 +6,41 @@ import os
 import re
 import sys
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections.abc import Callable
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
+from papyrus_content.knowledge_snapshot.keys import concept_hashtag, kind_label
+from papyrus_content.knowledge_wiki.pages import entity_body
+from papyrus_content.tenant_knowledge_keys import REFERENCE_LINK_FEED_KEY, global_key
+
+from .concept_kinds import is_concept
 from .engine import _chunk_text, _clean_text, object_title
 from .services import GraphQLKnowledgeGraphProvider, KnowledgeQueryServices
 
 SUMMARY_RELATION_RE = re.compile(r"^reference_summary_(\d+)_tokens$")
+
+CONCEPT_CARD_KEY_PREFIX = "concept_card-"
+
+LINK_EXPLANATION_KEY_PREFIX = "link_explanation-"
+LINK_EXPLANATION_VECTOR_KIND = "link_explanation"
+LINK_EXPLANATION_FEED_KEY = REFERENCE_LINK_FEED_KEY   # the feed every Reference link and concept tag row carries
+LINK_EXPLANATION_EDGE_KINDS = ("reference.link", "reference.concept", "concept.link")   # concept.link: an editor's link between two concepts (amplify/functions/category-action/reference-links.ts)
+LINK_EXPLANATION_AUDIENCE = "editor"
+LINK_EXPLANATION_WITHDRAWN = "withdrawn"
+
+LIST_SEMANTIC_NODES_QUERY = """
+query ListSemanticNodes($limit: Int, $nextToken: String) {
+  listSemanticNodes(limit: $limit, nextToken: $nextToken) {
+    items { id lineageId versionState nodeKey nodeKind displayName description aliases status }
+    nextToken
+  }
+}
+"""
 
 MAX_FILTERABLE_METADATA_CHARS = 480
 MAX_FILTERABLE_SUMMARY_CHARS = 320
@@ -40,6 +66,17 @@ query ListNoteMessages($messageKind: String!, $limit: Int, $nextToken: String) {
   listMessagesByKindAndCreatedAt(messageKind: $messageKind, limit: $limit, nextToken: $nextToken) {
     items {
       id messageKind messageDomain status summary source importRunId authorLabel semanticLayer searchVisibility threadId createdAt updatedAt
+    }
+    nextToken
+  }
+}
+"""
+
+LIST_LINK_RELATIONS_QUERY = """
+query ListLinkRelations($newsroomFeedKey: String!, $limit: Int, $nextToken: String) {
+  listSemanticRelationsByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, limit: $limit, nextToken: $nextToken) {
+    items {
+      id relationState predicate subjectKind subjectId subjectLineageId objectKind objectId objectLineageId updatedAt importedAt metadata
     }
     nextToken
   }
@@ -82,10 +119,18 @@ class VectorIndexOptions:
     include_source_vectors: bool = True
     include_passage_vectors: bool = True
     include_ontology_vectors: bool = True
+    include_concept_cards: bool = True
+    include_link_explanations: bool = True
     force: bool = False
     dry_run: bool = False
     progress_every: int = 25
     worker_count: int = 8
+    skip_references: bool = False
+    stop_check: Callable[[dict[str, Any]], str | None] | None = None
+    include_notes: bool = True   # the router's pass indexes References and concepts only: reading every note Message's body and relations costs minutes on a big site
+    skip_indexed: bool = False   # leave out a Reference whose summary vector is in the index with the Reference's current status: no attachment read, no text read, no hash
+    on_summary_written: Callable[[list[dict[str, Any]]], None] | None = None   # told, per stored batch, which Reference summary vectors were just written (new or changed text)
+    concept_kinds: tuple[str, ...] | None = None   # the publication's allowlist of concept kinds; None: every kind but the bookkeeping ones (concept_kinds.py)
 
 
 def index_reference_passages(services: KnowledgeQueryServices, options: VectorIndexOptions) -> dict[str, Any]:
@@ -100,30 +145,56 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
     if not vector_index_arn:
         raise RuntimeError("Missing PAPYRUS_S3_VECTOR_INDEX_ARN and custom.knowledgeQuery.s3VectorIndexArn")
 
+    timings: dict[str, float] = {}
+    mark = time.perf_counter()
     all_references = _list_references(services.graph)
+    timings["listReferencesSeconds"] = round(time.perf_counter() - mark, 2)
+    mark = time.perf_counter()
     accepted_references = [reference for reference in all_references if _reference_is_accepted(reference)]
+    indexable_references = [reference for reference in all_references if _reference_is_indexable(reference)]
+    wanted_ids = frozenset(options.reference_ids)   # a set: the filter below asks it once per Reference, not once per Reference and id
     references = [
-        reference for reference in accepted_references
+        reference for reference in indexable_references
         if (not options.corpus_id or reference.get("corpusId") == options.corpus_id)
-        and (not options.reference_ids or _reference_matches(reference, options.reference_ids))
+        and (not wanted_ids or _reference_matches(reference, wanted_ids))
     ]
+    if wanted_ids:
+        # The caller's order is the order of work (the router lists the References an editor looks at first), not the order the API happened to list them in.
+        rank = {reference_id: place for place, reference_id in reversed(list(enumerate(options.reference_ids)))}
+        references.sort(key=lambda reference: min((rank[value] for value in _reference_identifiers(reference) if value in rank), default=len(rank)))
+    timings["selectReferencesSeconds"] = round(time.perf_counter() - mark, 2)
     if options.max_references:
         references = references[: options.max_references]
+    if options.skip_references:
+        references = []
 
+    mark = time.perf_counter()
     existing_vectors = _list_index_vectors(vector_index_arn)
+    timings["listVectorsSeconds"] = round(time.perf_counter() - mark, 2)
     existing_keys = {str(vector.get("key")) for vector in existing_vectors if vector.get("key")}
     existing_reference_keys = _indexed_reference_keys(existing_vectors)
+    existing_summary_state = {
+        str(vector.get("key")): (
+            str((vector.get("metadata") or {}).get("summarySource") or ""),
+            str((vector.get("metadata") or {}).get("contentHash") or ""),
+        )
+        for vector in existing_vectors
+        if vector.get("key") and (vector.get("metadata") or {}).get("vectorKind") == "reference_summary"
+    }
     existing_note_keys = _indexed_note_message_keys(existing_vectors)
     stats = {
         "action": options.action,
         "startedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "totalReferences": len(all_references),
         "acceptedReferences": len(accepted_references),
+        "pendingReferences": len(indexable_references) - len(accepted_references),
         "referencesScanned": len(references),
         "existingVectors": len(existing_vectors),
         "existingIndexedReferences": len(existing_reference_keys),
         "existingIndexedNoteMessages": len(existing_note_keys),
         "referencesWithExtractedText": 0,
+        "referencesSkippedNoText": 0,
+        "summarySourceCounts": {},
         "referencesPrepared": 0,
         "sourceVectorsPrepared": 0,
         "passageVectorsPrepared": 0,
@@ -133,7 +204,11 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "vectorsSkippedExisting": 0,
         "vectorsToWrite": 0,
         "vectorsWritten": 0,
+        "vectorsDeletedForStatus": 0,
+        "vectorsStatusRefreshed": 0,
         "embeddingRequests": 0,
+        "embeddingInputsEmpty": 0,
+        "embeddingInputsTruncated": 0,
         "embeddingInputCharacters": 0,
         "dryRun": options.dry_run,
         "vectorIndexArn": vector_index_arn,
@@ -148,14 +223,23 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "ontologyVectorsPrepared": 0,
         "ontologyRelationExplanationVectorsPrepared": 0,
         "ontologyConceptProfileVectorsPrepared": 0,
+        "conceptCardsPrepared": 0,
+        "conceptCardsSkippedUnchanged": 0,
+        "conceptCardsToWrite": 0,
+        "linkExplanationsPrepared": 0,
+        "linkExplanationsToWrite": 0,
+        "linkExplanationsSkippedUnchanged": 0,
+        "linkExplanationsRemoved": 0,
+        "linkExplanationsWithdrawn": 0,
         "noteResults": [],
         "ontologyResults": [],
         "failures": [],
         "warnings": [],
         "referenceResults": [],
+        "timings": timings,
     }
-    note_messages = _list_note_messages(services.graph)
-    prepared_notes = _prepare_note_messages(services, note_messages)
+    note_messages = _list_note_messages(services.graph) if options.include_notes else []
+    prepared_notes = _prepare_note_messages(services, note_messages) if options.include_notes else []
     eligible_notes = [entry for entry in prepared_notes if entry.get("relation") and _note_body_text(entry)]
     missing_body_notes = [
         entry for entry in prepared_notes
@@ -176,34 +260,69 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         missing_note = sorted(selected_note_keys - existing_note_keys)
         stats["missingIndexedNoteMessages"] = len(missing_note)
         stats["missingIndexedNoteMessageSample"] = missing_note[:20]
+        stale = _stale_reference_vectors(existing_vectors, all_references)
+        stats["vectorsToDeleteForStatus"] = len(stale["delete"])
+        stats["vectorsToRefreshStatus"] = len(stale["refresh"])
         return stats
 
     if options.action == "rebuild" and existing_keys and not options.dry_run:
         _delete_vectors(vector_index_arn, sorted(existing_keys))
         existing_keys = set()
         existing_reference_keys = set()
+        existing_vectors = []
         stats["vectorsDeleted"] = len(existing_vectors)
+
+    mark = time.perf_counter()
+    stale = _stale_reference_vectors(existing_vectors, all_references)
+    stats["vectorsToDeleteForStatus"] = len(stale["delete"])
+    stats["vectorsToRefreshStatus"] = len(stale["refresh"])
+    if not options.dry_run:
+        _apply_status_reconciliation(vector_index_arn, stale, stats)
+        existing_keys -= set(stale["delete"])
+    timings["reconcileSeconds"] = round(time.perf_counter() - mark, 2)
+
+    stats["referencesSkippedIndexed"] = 0
+    if options.skip_indexed:
+        # The router's daily pass: preparing a Reference costs a GraphQL read of its attachments (and a storage read of its text) before the index is even asked
+        # whether the vector exists, so a site of thousands of References spent its whole time walking ones that were already done. A Reference whose summary vector
+        # is there with the status the Reference has now needs nothing; a status change (pending to accepted, say) differs and is prepared as before, and the
+        # full sync (the command line) still checks every summary against its hash.
+        statuses = {str(vector.get("key")): str((vector.get("metadata") or {}).get("curationStatus") or "") for vector in existing_vectors
+                    if (vector.get("metadata") or {}).get("vectorKind") == "reference_summary"}
+        waiting = [reference for reference in references
+                   if statuses.get(reference_summary_vector_key(str(reference.get("lineageId") or reference.get("id")))) != reference_curation_status(reference)]
+        stats["referencesSkippedIndexed"] = len(references) - len(waiting)
+        references = waiting
 
     pending_vectors: list[dict[str, Any]] = []
     completed = 0
+    mark = time.perf_counter()
     worker_count = max(1, int(options.worker_count or 1))
     if worker_count == 1 or len(references) <= 1:
         prepared_results = (_prepare_reference_for_indexing(services, reference, options) for reference in references)
         for result in prepared_results:
             completed += 1
-            pending_vectors = _consume_prepared_reference(result, stats, existing_keys, pending_vectors, vector_index_arn, options)
+            pending_vectors = _consume_prepared_reference(result, stats, existing_keys, pending_vectors, vector_index_arn, options, existing_summary_state)
             _maybe_report_progress(completed, len(references), stats, options)
+            if _stopped(stats, options):
+                break
     else:
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [executor.submit(_prepare_reference_for_indexing, services, reference, options) for reference in references]
             for future in as_completed(futures):
                 completed += 1
-                pending_vectors = _consume_prepared_reference(future.result(), stats, existing_keys, pending_vectors, vector_index_arn, options)
+                pending_vectors = _consume_prepared_reference(future.result(), stats, existing_keys, pending_vectors, vector_index_arn, options, existing_summary_state)
                 _maybe_report_progress(completed, len(references), stats, options)
+                if _stopped(stats, options):
+                    for pending_future in futures:
+                        pending_future.cancel()
+                    break
 
     if pending_vectors and not options.dry_run:
-        pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
-    if options.include_ontology_vectors:
+        pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors, options)
+    timings["referencesSeconds"] = round(time.perf_counter() - mark, 2)
+    mark = time.perf_counter()
+    if options.include_ontology_vectors and not stats.get("stoppedBy"):
         for candidate in _prepare_ontology_vectors(services):
             stats["vectorsPrepared"] += 1
             stats["ontologyVectorsPrepared"] += 1
@@ -228,14 +347,40 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
             if not options.dry_run:
                 pending_vectors.append(candidate)
                 if len(pending_vectors) >= options.batch_size:
-                    pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
+                    pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors, options)
             stats["ontologyResults"].append(result)
     if pending_vectors and not options.dry_run:
-        pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
-    for prepared in prepared_notes:
+        pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors, options)
+    if options.include_concept_cards and not stats.get("stoppedBy"):
+        existing_card_hashes = {
+            str(vector.get("key")): str((vector.get("metadata") or {}).get("contentHash") or "")
+            for vector in existing_vectors
+            if str(vector.get("key") or "").startswith(CONCEPT_CARD_KEY_PREFIX)
+        }
+        for candidate in _prepare_concept_card_vectors(services.graph, options.concept_kinds):
+            stats["vectorsPrepared"] += 1
+            stats["conceptCardsPrepared"] += 1
+            unchanged = existing_card_hashes.get(candidate["key"]) == candidate["metadata"]["contentHash"]
+            if not options.force and unchanged:
+                stats["vectorsSkippedExisting"] += 1
+                stats["conceptCardsSkippedUnchanged"] += 1
+                continue
+            stats["vectorsToWrite"] += 1
+            stats["conceptCardsToWrite"] += 1
+            if not options.dry_run:
+                pending_vectors.append(candidate)
+                if len(pending_vectors) >= options.batch_size:
+                    pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors, options)
+    if pending_vectors and not options.dry_run:
+        pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors, options)
+    timings["conceptCardsSeconds"] = round(time.perf_counter() - mark, 2)
+    if options.include_link_explanations and not stats.get("stoppedBy"):
+        pending_vectors = _sync_link_explanations(
+            services.graph, all_references, existing_vectors, pending_vectors, stats, vector_index_arn, options)
+    for prepared in [] if stats.get("stoppedBy") else prepared_notes:
         pending_vectors = _consume_prepared_note(prepared, stats, existing_keys, pending_vectors, vector_index_arn, options)
     if pending_vectors and not options.dry_run:
-        pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
+        pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors, options)
     selected_keys = _reference_key_set(references)
     stats["missingIndexedReferencesBeforeRun"] = len(selected_keys - existing_reference_keys)
     selected_note_keys = _note_message_key_set(eligible_notes)
@@ -245,11 +390,148 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
     return stats
 
 
+def index_changes(services: KnowledgeQueryServices, options: VectorIndexOptions, *, references: list[dict[str, Any]], nodes: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """The router's daily pass: index ONLY the Reference rows and concept rows the caller says changed since last time (``references`` and ``nodes``, read from the
+    ``updatedAt`` indexes), never listing the Reference table, the index, the concepts or the links. The cost is proportional to the rows given.
+
+    For each changed Reference: one call asks the index (by key) what it holds for its summary vector; one that is no longer accepted or pending loses every vector (found by a
+    filtered query with its own summary vector, not by listing), one whose status changed has its stored status rewritten (and a pending one that was accepted loses
+    nothing; an accepted one sent back to pending loses its passages), and one with changed text (a different ``contentHash``) or no vector is prepared and embedded.
+    A vote, a star or any other edit finds the vector as it is and writes nothing. ``options.on_summary_written`` hears about each summary vector stored.
+    Concept cards are written for the changed concepts whose card hash differs. Link explanations are not part of this pass (docs/monitoring-cloud.md)."""
+    if not hasattr(services.graph, "graphql") or not hasattr(services.graph, "list_reference_attachments"):
+        raise RuntimeError("knowledge vector indexing requires an AppSync GraphQL provider")
+    if services.corpus_text is None:
+        raise RuntimeError("knowledge vector indexing requires a corpus text provider")
+    arn = os.environ.get("PAPYRUS_S3_VECTOR_INDEX_ARN") or _vector_index_from_outputs()
+    if not arn:
+        raise RuntimeError("Missing PAPYRUS_S3_VECTOR_INDEX_ARN and custom.knowledgeQuery.s3VectorIndexArn")
+    started = time.perf_counter()
+    timings: dict[str, float] = {}
+    wanted = [row for row in references if row.get("versionState", "current") == "current" and (not options.corpus_id or row.get("corpusId") == options.corpus_id)]
+    indexable = [row for row in wanted if _reference_is_indexable(row)]
+    stats: dict[str, Any] = {
+        "action": "changes", "startedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "changedReferences": len(wanted), "changedConcepts": len(nodes or []),
+        "totalReferences": len(wanted), "acceptedReferences": sum(1 for row in indexable if _reference_is_accepted(row)),
+        "pendingReferences": sum(1 for row in indexable if not _reference_is_accepted(row)), "referencesScanned": len(indexable),
+        "referencesWithExtractedText": 0, "referencesSkippedNoText": 0, "summarySourceCounts": {}, "referencesPrepared": 0, "sourceVectorsPrepared": 0,
+        "passageVectorsPrepared": 0, "vectorsPrepared": 0, "vectorsSkippedExisting": 0, "vectorsToWrite": 0, "vectorsWritten": 0, "vectorsDeletedForStatus": 0,
+        "vectorsStatusRefreshed": 0, "embeddingRequests": 0, "embeddingInputsEmpty": 0, "embeddingInputsTruncated": 0, "embeddingInputCharacters": 0,
+        "dryRun": options.dry_run, "vectorIndexArn": arn, "conceptCardsPrepared": 0, "conceptCardsSkippedUnchanged": 0, "conceptCardsToWrite": 0,
+        "linkExplanationsToWrite": 0, "failures": [], "warnings": [], "referenceResults": [], "timings": timings,
+    }
+    mark = time.perf_counter()
+    summary_keys = {reference_summary_vector_key(str(row.get("lineageId") or row.get("id"))): row for row in wanted if row.get("lineageId") or row.get("id")}
+    held = _get_vector_metadata(arn, list(summary_keys)) if summary_keys else {}
+    needs_reconciling = [row for key, row in summary_keys.items()
+                         if (not _reference_is_indexable(row) and key in held)
+                         or (key in held and str(held[key].get("curationStatus") or "") != reference_curation_status(row))]
+    timings["summaryLookupSeconds"] = round(time.perf_counter() - mark, 2)
+    mark = time.perf_counter()
+    if needs_reconciling and not options.dry_run:
+        _reconcile_changed(arn, needs_reconciling, stats)
+    timings["reconcileSeconds"] = round(time.perf_counter() - mark, 2)
+
+    mark = time.perf_counter()
+    pending_vectors: list[dict[str, Any]] = []
+    prepared_results: list[dict[str, Any]] = []
+    workers = max(1, int(options.worker_count or 1))
+    if workers == 1 or len(indexable) <= 1:
+        prepared_results = [_prepare_reference_for_indexing(services, row, options) for row in indexable]
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            prepared_results = list(executor.map(lambda row: _prepare_reference_for_indexing(services, row, options), indexable))
+    candidate_keys = [candidate["key"] for result in prepared_results for candidate in result.get("candidates") or [] if isinstance(candidate, dict)]
+    present = dict(held)
+    unknown = [key for key in candidate_keys if key not in present]
+    if unknown:
+        present.update(_get_vector_metadata(arn, unknown))
+    existing_keys = set(present)
+    existing_summary_state = {key: (str(meta.get("summarySource") or ""), str(meta.get("contentHash") or ""))
+                              for key, meta in present.items() if meta.get("vectorKind") == "reference_summary"}
+    for result in prepared_results:
+        pending_vectors = _consume_prepared_reference(result, stats, existing_keys, pending_vectors, arn, options, existing_summary_state)
+        if _stopped(stats, options):
+            break
+    if pending_vectors and not options.dry_run:
+        pending_vectors = _flush_pending_vectors(stats, arn, pending_vectors, options)
+    timings["referencesSeconds"] = round(time.perf_counter() - mark, 2)
+
+    mark = time.perf_counter()
+    if nodes and options.include_concept_cards and not stats.get("stoppedBy"):
+        cards = _prepare_concept_card_vectors(services.graph, options.concept_kinds, nodes=nodes)
+        held_cards = _get_vector_metadata(arn, [card["key"] for card in cards]) if cards else {}
+        for card in cards:
+            stats["vectorsPrepared"] += 1
+            stats["conceptCardsPrepared"] += 1
+            if not options.force and held_cards.get(card["key"], {}).get("contentHash") == card["metadata"]["contentHash"]:
+                stats["vectorsSkippedExisting"] += 1
+                stats["conceptCardsSkippedUnchanged"] += 1
+                continue
+            stats["vectorsToWrite"] += 1
+            stats["conceptCardsToWrite"] += 1
+            if not options.dry_run:
+                pending_vectors.append(card)
+                if len(pending_vectors) >= options.batch_size:
+                    pending_vectors = _flush_pending_vectors(stats, arn, pending_vectors, options)
+        if pending_vectors and not options.dry_run:
+            pending_vectors = _flush_pending_vectors(stats, arn, pending_vectors, options)
+    timings["conceptCardsSeconds"] = round(time.perf_counter() - mark, 2)
+    stats["elapsedSeconds"] = round(time.perf_counter() - started, 3)
+    stats["completedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    return stats
+
+
+def _reconcile_changed(arn: str, rows: list[dict[str, Any]], stats: dict[str, Any]) -> None:
+    """For the changed References whose status no longer matches what the index holds: find each one's vectors by a filtered query (using its own summary vector
+    as the query) and apply the same rules as the full sync (``_stale_reference_vectors``): delete the vectors of one that is no longer accepted or pending, drop the
+    passages of one sent back to pending, rewrite the stored status of the rest."""
+    by_key = {reference_summary_vector_key(str(row.get("lineageId") or row.get("id"))): row for row in rows}
+    vectors: list[dict[str, Any]] = []
+    for batch in _batched_scalar(sorted(by_key), 100):
+        for summary in _get_vectors(arn, batch):
+            row = by_key.get(str(summary.get("key")))
+            data = (summary.get("data") or {}).get("float32")
+            if row is None or not data:
+                continue
+            try:
+                found = _query_reference_vectors(arn, str(row.get("lineageId") or row.get("id")), list(data))
+            except Exception as error:  # noqa: BLE001 - without the filtered query the summary vector alone is reconciled, and the pass says so
+                stats["warnings"].append(f"could not list the vectors of {row.get('lineageId')} ({type(error).__name__}); only its summary vector was reconciled")
+                found = []
+            seen = {str(vector["key"]) for vector in found}
+            if str(summary.get("key")) not in seen:
+                found.append({"key": summary["key"], "metadata": dict(summary.get("metadata") or {})})
+            vectors.extend(found)
+    stale = _stale_reference_vectors(vectors, rows)
+    stats["vectorsToDeleteForStatus"] = len(stale["delete"])
+    stats["vectorsToRefreshStatus"] = len(stale["refresh"])
+    _apply_status_reconciliation(arn, stale, stats)
+
+
+def _stopped(stats: dict[str, Any], options: VectorIndexOptions) -> bool:
+    """Asks the caller's ``stop_check`` (it sees the live stats, so it can meter embedding cost) and records the reason it gives."""
+    reason = options.stop_check(stats) if options.stop_check else None
+    if reason:
+        stats["stoppedBy"] = reason
+    return bool(reason)
+
+
+def summary_written_entry(candidate: dict[str, Any]) -> dict[str, Any]:
+    """What the suggestion trigger needs to know about a stored summary vector: the Reference and the hash of the text the vector was made from."""
+    metadata = candidate.get("metadata") or {}
+    text_hash = metadata.get("contentHash") or hashlib.sha256(str(candidate.get("text") or "").encode("utf-8")).hexdigest()
+    return {"referenceLineageId": str(metadata.get("referenceLineageId") or metadata.get("lineageId") or ""), "contentHash": str(text_hash), "key": candidate["key"]}
+
+
 def _prepare_reference_for_indexing(
     services: KnowledgeQueryServices,
     reference: dict[str, Any],
     options: VectorIndexOptions,
 ) -> dict[str, Any]:
+    if reference_curation_status(reference) != ACCEPTED_STATUS and options.include_passage_vectors:
+        # A pending Reference is context only: its summary vector is enough to find its neighbours, and its passages stay out of the index until it is accepted.
+        options = dataclasses.replace(options, include_passage_vectors=False)
     result: dict[str, Any] = {
         "referenceId": reference.get("id"),
         "referenceLineageId": reference.get("lineageId"),
@@ -271,8 +553,13 @@ def _prepare_reference_for_indexing(
         None,
     )
     if not extracted:
-        result["status"] = "missing_extracted_text"
-        result["warnings"].append(f"missing extracted text attachment for {reference.get('id')}")
+        candidate = _prepare_summary_only_vector(services, reference, attachments, options) if options.include_source_vectors else None
+        if candidate:
+            result["candidates"] = [candidate]
+            result["status"] = "prepared"
+            return result
+        result["status"] = "no_text"
+        result["warnings"].append(f"no extracted text and no summary text to index for {reference.get('id')}")
         return result
     result["hasExtractedText"] = True
     try:
@@ -303,6 +590,75 @@ def _prepare_reference_for_indexing(
     return result
 
 
+SUMMARY_SOURCES = ("curation", "canonical", "preview")
+
+
+def _attachment_metadata(attachment: dict[str, Any]) -> dict[str, Any]:
+    raw = attachment.get("metadata")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _fallback_summary_payload(
+    services: KnowledgeQueryServices,
+    reference: dict[str, Any],
+    attachments: list[dict[str, Any]],
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    """The best summary text for a Reference with no extracted text: (source, summary payload, reference metadata payload).
+
+    Order: the curation attachment's ``metadata.summary.text``; the canonical summary in the reference metadata attachment (or the legacy summary
+    message); the preview attachment's description. The description counts only when it is real text beyond the title: a title alone embeds as the
+    title and nothing else, and would make every such Reference "similar" to any other with a similar headline, so it is not indexed."""
+    for attachment in attachments:
+        if attachment.get("role") != "curation" or attachment.get("status") == "deleted":
+            continue
+        summary = (_attachment_metadata(attachment).get("summary") or {})
+        text = _clean_text(str(summary.get("text") or "")) if isinstance(summary, dict) else ""
+        if text:
+            return "curation", {"summary": text, "promptVersion": summary.get("promptVersion"), "model": summary.get("model")}, {}
+    metadata_payload = _reference_metadata_payload_for_indexing(services, reference)
+    canonical = _reference_summary_payload_from_metadata(metadata_payload)
+    if not canonical.get("summary"):
+        canonical = _reference_summary_payload_for_indexing_legacy(services, reference)
+    if canonical.get("summary"):
+        return "canonical", canonical, metadata_payload
+    title = _reference_title(reference, metadata_payload)
+    for attachment in attachments:
+        if attachment.get("role") != "preview":
+            continue
+        description = _clean_text(str(_attachment_metadata(attachment).get("description") or ""))
+        if description and description.casefold() != title.casefold():
+            return "preview", {"summary": description}, metadata_payload
+    return "", {}, metadata_payload
+
+
+def _prepare_summary_only_vector(
+    services: KnowledgeQueryServices,
+    reference: dict[str, Any],
+    attachments: list[dict[str, Any]],
+    options: VectorIndexOptions,
+) -> dict[str, Any] | None:
+    """The ``reference_summary`` vector (same key, no passages) for a Reference that has no extracted text, or None when there is no text for it."""
+    source, summary_payload, metadata_payload = _fallback_summary_payload(services, reference, attachments)
+    if not source:
+        return None
+    candidate = _prepare_source_vector(
+        "", reference, "", options,
+        reference_metadata_payload=metadata_payload,
+        reference_summary_payload=summary_payload,
+    )
+    if not candidate:
+        return None
+    candidate["metadata"]["summarySource"] = source
+    candidate["metadata"]["contentHash"] = hashlib.sha256(candidate["text"].encode("utf-8")).hexdigest()
+    candidate["metadata"].pop("storagePath", None)
+    return candidate
+
+
 def _consume_prepared_reference(
     result: dict[str, Any],
     stats: dict[str, Any],
@@ -310,7 +666,11 @@ def _consume_prepared_reference(
     pending_vectors: list[dict[str, Any]],
     vector_index_arn: str,
     options: VectorIndexOptions,
+    existing_summary_state: dict[str, tuple[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
+    """``existing_summary_state`` maps an indexed ``reference_summary`` key to its (summarySource, contentHash); a summary-only vector is skipped only
+    when its hash is unchanged, and a full vector replaces a summary-only one that is already stored under the same key."""
+    existing_summary_state = existing_summary_state or {}
     reference_result = {
         "referenceId": result.get("referenceId"),
         "referenceLineageId": result.get("referenceLineageId"),
@@ -325,6 +685,8 @@ def _consume_prepared_reference(
     }
     stats["warnings"].extend(result.get("warnings") or [])
     stats["failures"].extend(result.get("failures") or [])
+    if result.get("status") == "no_text":
+        stats["referencesSkippedNoText"] += 1
     if result.get("hasExtractedText"):
         stats["referencesWithExtractedText"] += 1
     candidates = [candidate for candidate in result.get("candidates") or [] if isinstance(candidate, dict)]
@@ -340,7 +702,17 @@ def _consume_prepared_reference(
         elif candidate["metadata"].get("vectorKind") == "reference_passage":
             stats["passageVectorsPrepared"] += 1
             reference_result["passageVectorCount"] += 1
-        if not options.force and candidate["key"] in existing_keys:
+        summary_source = candidate["metadata"].get("summarySource")
+        if summary_source:
+            stats["summarySourceCounts"][summary_source] = stats["summarySourceCounts"].get(summary_source, 0) + 1
+        stored_source, stored_hash = existing_summary_state.get(candidate["key"], ("", ""))
+        if summary_source:
+            unchanged = candidate["key"] in existing_keys and stored_hash == candidate["metadata"].get("contentHash")
+        elif candidate["metadata"].get("vectorKind") == "reference_summary":
+            unchanged = candidate["key"] in existing_keys and not stored_source
+        else:
+            unchanged = candidate["key"] in existing_keys
+        if not options.force and unchanged:
             stats["vectorsSkippedExisting"] += 1
             reference_result["skippedExisting"] += 1
             continue
@@ -350,9 +722,7 @@ def _consume_prepared_reference(
         wrote_any = True
         pending_vectors.append(candidate)
         if len(pending_vectors) >= options.batch_size:
-            stats["vectorsWritten"] += _embed_and_put_vectors(vector_index_arn, pending_vectors)
-            stats["embeddingRequests"] += 1
-            stats["embeddingInputCharacters"] += sum(len(vector["text"]) for vector in pending_vectors)
+            _write_pending_vectors(stats, vector_index_arn, pending_vectors, options)
             pending_vectors = []
     if candidates:
         if wrote_any:
@@ -369,13 +739,28 @@ def _flush_pending_vectors(
     stats: dict[str, Any],
     vector_index_arn: str,
     pending_vectors: list[dict[str, Any]],
+    options: "VectorIndexOptions | None" = None,
 ) -> list[dict[str, Any]]:
     if not pending_vectors:
         return pending_vectors
-    stats["vectorsWritten"] += _embed_and_put_vectors(vector_index_arn, pending_vectors)
-    stats["embeddingRequests"] += 1
-    stats["embeddingInputCharacters"] += sum(len(vector["text"]) for vector in pending_vectors)
+    _write_pending_vectors(stats, vector_index_arn, pending_vectors, options)
     return []
+
+
+def _write_pending_vectors(stats: dict[str, Any], vector_index_arn: str, pending_vectors: list[dict[str, Any]], options: "VectorIndexOptions | None" = None) -> None:
+    """Embeds and writes one batch after making every text acceptable to the embeddings endpoint (see `_embeddable`). When ``options.on_summary_written`` is
+    set it is called once the batch is stored, with ``{"referenceLineageId", "contentHash", "key"}`` for each ``reference_summary`` vector in it: the one
+    moment a Reference becomes ready to be compared with the others (docs/monitoring-cloud.md#vector-index-and-suggestions)."""
+    candidates = _embeddable(stats, pending_vectors)
+    if not candidates:
+        return
+    stats["vectorsWritten"] += _embed_and_put_vectors(vector_index_arn, candidates)
+    stats["embeddingRequests"] += 1
+    stats["embeddingInputCharacters"] += sum(len(vector["text"]) for vector in candidates)
+    if options is not None and options.on_summary_written is not None:
+        written = [summary_written_entry(candidate) for candidate in candidates if (candidate.get("metadata") or {}).get("vectorKind") == "reference_summary"]
+        if written:
+            options.on_summary_written(written)
 
 
 def _prepare_note_messages(
@@ -557,7 +942,7 @@ def _consume_prepared_note(
         wrote_any = True
         pending_vectors.append(candidate)
         if len(pending_vectors) >= options.batch_size:
-            pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
+            pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors, options)
     if candidates:
         if wrote_any:
             result["status"] = "indexed"
@@ -697,9 +1082,8 @@ def _prepare_source_vector(
     )
     if len(source_text) < 80:
         return None
-    digest = hashlib.sha256(str(reference.get("lineageId") or reference.get("id") or title).encode("utf-8")).hexdigest()[:20]
     return {
-        "key": f"reference-summary-{digest}",
+        "key": reference_summary_vector_key(str(reference.get("lineageId") or reference.get("id") or title)),
         "text": source_text,
         "metadata": {
             **_base_reference_metadata(
@@ -715,6 +1099,11 @@ def _prepare_source_vector(
             "storagePath": storage_path,
         },
     }
+
+
+def reference_summary_vector_key(reference_lineage_id: str) -> str:
+    digest = hashlib.sha256(reference_lineage_id.encode("utf-8")).hexdigest()[:20]
+    return f"reference-summary-{digest}"
 
 
 def _prepare_chunks(
@@ -783,7 +1172,7 @@ def _base_reference_metadata(
         "referenceSummaryRelationTypeKey": summary_payload.get("relationTypeKey"),
         "referenceSummaryPromptVersion": summary_payload.get("promptVersion"),
         "referenceSummaryResolvedAt": summary_payload.get("resolvedAt"),
-        "curationStatus": reference.get("curationStatus"),
+        "curationStatus": reference_curation_status(reference) or reference.get("curationStatus"),
         "curationStatusKey": reference.get("curationStatusKey"),
     }
 
@@ -1024,30 +1413,128 @@ def _authors_text(reference: dict[str, Any]) -> str:
     return str(authors or "")
 
 
+ACCEPTED_STATUS = "accepted"
+PENDING_STATUS = "pending"
+INDEXABLE_STATUSES = (ACCEPTED_STATUS, PENDING_STATUS)
+
+
+def reference_curation_status(reference: dict[str, Any]) -> str:
+    """``accepted``, ``pending``, another status (``rejected``, ``archived``...) or "" when the row names none; read from ``curationStatus``, else from the
+    suffix of ``curationStatusKey`` (``<corpusId>#<status>``)."""
+    status = str(reference.get("curationStatus") or "").strip()
+    if status:
+        return status
+    key = str(reference.get("curationStatusKey") or "")
+    return key.rsplit("#", 1)[1] if "#" in key else ""
+
+
 def _reference_is_accepted(reference: dict[str, Any]) -> bool:
-    return (
-        reference.get("versionState") == "current"
-        and (
-            reference.get("curationStatus") == "accepted"
-            or str(reference.get("curationStatusKey") or "").endswith("#accepted")
-        )
-    )
+    return reference.get("versionState") == "current" and reference_curation_status(reference) == ACCEPTED_STATUS
 
 
-def _reference_matches(reference: dict[str, Any], reference_ids: tuple[str, ...]) -> bool:
-    values = {
-        str(reference.get("id") or ""),
-        str(reference.get("lineageId") or ""),
-        str(reference.get("externalItemId") or ""),
-    }
-    return any(reference_id in values for reference_id in reference_ids)
+def _reference_is_indexable(reference: dict[str, Any]) -> bool:
+    """A current Reference that is accepted or still pending. Pending ones are indexed as context only (their vectors carry ``curationStatus`` and every
+    reader-facing query filters to accepted); rejected, archived and superseded ones are not indexed."""
+    return reference.get("versionState") == "current" and reference_curation_status(reference) in INDEXABLE_STATUSES
+
+
+def _reference_vector_lineage(vector: dict[str, Any]) -> str | None:
+    metadata = vector.get("metadata") if isinstance(vector.get("metadata"), dict) else {}
+    vector_kind = str(metadata.get("vectorKind") or "")
+    if str(metadata.get("kind") or "") != "reference" and not vector_kind.startswith("reference_"):
+        return None
+    key = metadata.get("referenceLineageId") or metadata.get("lineageId") or metadata.get("referenceId") or metadata.get("id")
+    return str(key) if key else None
+
+
+def _stale_reference_vectors(existing_vectors: list[dict[str, Any]], all_references: list[dict[str, Any]]) -> dict[str, Any]:
+    """What the index holds that no longer matches the References: ``delete`` is the keys to remove (the Reference is rejected, archived or has no
+    current version, or it is not accepted and a passage vector remains), ``refresh`` is ``{key: new curation fields}`` for vectors whose stored
+    ``curationStatus`` differs from the Reference's (a pending Reference accepted since, an accepted one sent back to pending, vectors written before the
+    field existed). A Reference the graph does not list at all is left alone."""
+    current: dict[str, dict[str, Any]] = {}
+    known: set[str] = set()
+    for reference in all_references:
+        key = str(reference.get("lineageId") or reference.get("id") or "")
+        if not key:
+            continue
+        known.add(key)
+        if reference.get("versionState") == "current":
+            current[key] = reference
+    delete: list[str] = []
+    refresh: dict[str, dict[str, Any]] = {}
+    exclude_fields: dict[str, dict[str, Any]] = {}
+    for vector in existing_vectors:
+        key = vector.get("key")
+        lineage = _reference_vector_lineage(vector)
+        if not key or not lineage:
+            continue
+        reference = current.get(lineage)
+        metadata = vector.get("metadata") if isinstance(vector.get("metadata"), dict) else {}
+        if reference is None:
+            if lineage in known:
+                delete.append(str(key))
+                if metadata.get("curationStatus") != "superseded":
+                    exclude_fields[str(key)] = {"curationStatus": "superseded", "curationStatusKey": None}
+            continue
+        status = reference_curation_status(reference)
+        if status not in INDEXABLE_STATUSES or (status != ACCEPTED_STATUS and metadata.get("vectorKind") == "reference_passage"):
+            delete.append(str(key))
+            marked = status if status not in INDEXABLE_STATUSES else "superseded"
+            if status and metadata.get("curationStatus") != marked:
+                exclude_fields[str(key)] = {"curationStatus": marked, "curationStatusKey": reference.get("curationStatusKey")}
+        elif metadata.get("curationStatus") != status:
+            refresh[str(key)] = {"curationStatus": status, "curationStatusKey": reference.get("curationStatusKey")}
+    return {"delete": sorted(delete), "refresh": refresh, "exclude_fields": exclude_fields}
+
+
+def _apply_status_reconciliation(vector_index_arn: str, stale: dict[str, Any], stats: dict[str, Any]) -> None:
+    """Deletes the vectors of rejected or superseded References and rewrites the curation fields of the rest, keeping each vector's stored data (no
+    embedding call, no cost)."""
+    refresh = dict(stale["refresh"])
+    if stale["delete"]:
+        try:
+            _delete_vectors(vector_index_arn, stale["delete"])
+            stats["vectorsDeletedForStatus"] += len(stale["delete"])
+        except Exception as error:  # noqa: BLE001
+            code = str(((getattr(error, "response", None) or {}).get("Error") or {}).get("Code") or "")
+            if "AccessDenied" not in code:
+                raise
+            # A role without s3vectors:DeleteVectors cannot remove them; marking them with the Reference's real status keeps them out of every
+            # accepted-only query until a role that may delete runs the sync.
+            stats["warnings"].append(f"s3vectors:DeleteVectors was denied for {len(stale['delete'])} vectors of non-indexable References; they were marked with their status instead")
+            refresh.update(stale["exclude_fields"])
+            stats["vectorsMarkedExcluded"] = len(stale["exclude_fields"])
+    for keys in _batched_scalar(sorted(refresh), 100):
+        rewritten = []
+        for vector in _get_vectors(vector_index_arn, keys):
+            fields = refresh.get(str(vector.get("key")))
+            if fields is None or not (vector.get("data") or {}).get("float32"):
+                continue
+            metadata = {**(vector.get("metadata") or {}), **fields}
+            if metadata.get("curationStatusKey") is None:
+                metadata.pop("curationStatusKey", None)
+            rewritten.append({"key": vector["key"], "data": vector["data"], "metadata": _sanitize_vector_metadata(metadata)})
+        if rewritten:
+            _put_vectors(vector_index_arn, rewritten)
+            stats["vectorsStatusRefreshed"] += len(rewritten)
+
+
+def _reference_identifiers(reference: dict[str, Any]) -> set[str]:
+    return {str(reference.get("id") or ""), str(reference.get("lineageId") or ""), str(reference.get("externalItemId") or "")}
+
+
+def _reference_matches(reference: dict[str, Any], reference_ids: Any) -> bool:
+    """True when the Reference's id, lineage id or external id is one of ``reference_ids``. A set is asked once per Reference; a tuple of thousands of ids used to be
+    walked for every Reference (8,000 ids by 10,000 References is 80 million comparisons, seconds of a small Lambda's CPU before the first read)."""
+    return not _reference_identifiers(reference).isdisjoint(reference_ids)
 
 
 def _list_references(graph: GraphQLKnowledgeGraphProvider) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     next_token = None
     while True:
-        payload = graph.graphql(LIST_REFERENCES_QUERY, {"limit": 100, "nextToken": next_token})
+        payload = graph.graphql(LIST_REFERENCES_QUERY, {"limit": 1000, "nextToken": next_token})
         connection = payload.get("listReferences") or {}
         records.extend(item for item in connection.get("items") or [] if item)
         next_token = connection.get("nextToken")
@@ -1162,6 +1649,262 @@ def _prepare_ontology_vectors(services: KnowledgeQueryServices) -> list[dict[str
     return vectors
 
 
+def _accepted_current(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [node for node in nodes if node and node.get("status") == "accepted" and node.get("versionState", "current") == "current"]
+
+
+def _list_accepted_semantic_nodes(graph: Any) -> list[dict[str, Any]]:
+    nodes: list[dict[str, Any]] = []
+    next_token = None
+    while True:
+        payload = graph.graphql(LIST_SEMANTIC_NODES_QUERY, {"limit": 100, "nextToken": next_token})
+        connection = payload.get("listSemanticNodes") or {}
+        for item in connection.get("items") or []:
+            if item and item.get("status") == "accepted" and item.get("versionState", "current") == "current":
+                nodes.append(item)
+        next_token = connection.get("nextToken")
+        if not next_token:
+            return nodes
+
+
+def _concept_card_text(node: dict[str, Any]) -> str:
+    name = str(node.get("displayName") or "")
+    aliases = [str(alias) for alias in node.get("aliases") or [] if alias]
+    page_body = entity_body(name, str(node.get("nodeKind") or ""), aliases, node.get("description"), str(node.get("nodeKey") or ""))
+    lead = page_body.split("::include", 1)[0].strip()
+    alias_line = f"\nAlso known as: {', '.join(aliases)}." if aliases and "Also known as" not in lead else ""
+    return f"{lead}\n\nKind: {kind_label(str(node.get('nodeKind') or ''))}.{alias_line}"
+
+
+def _prepare_concept_card_vectors(graph: Any, concept_kinds: tuple[str, ...] | None = None, nodes: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """Cards for ``nodes`` when given (the router's pass hands in only the concepts that changed), else for every accepted concept of the graph."""
+    if nodes is None and (not graph or not hasattr(graph, "graphql")):
+        return []
+    vectors: list[dict[str, Any]] = []
+    for node in (_accepted_current(nodes) if nodes is not None else _list_accepted_semantic_nodes(graph)):
+        node_key = str(node.get("nodeKey") or "")
+        if not node_key or not node.get("displayName"):
+            continue
+        if not is_concept(node.get("nodeKind"), node_key, concept_kinds):
+            continue   # authors, comment and rating concepts, coverage questions and the like are not subjects to link a Reference to
+        text = _concept_card_text(node)
+        lineage_id = str(node.get("lineageId") or node.get("id") or "")
+        hashtag = concept_hashtag(node_key)
+        vectors.append({
+            "key": f"{CONCEPT_CARD_KEY_PREFIX}{lineage_id}",
+            "text": text,
+            "metadata": {
+                "kind": "semanticNode",
+                "vectorKind": "concept_card",
+                "nodeKey": node_key,
+                "nodeKind": node.get("nodeKind"),
+                "lineageId": lineage_id,
+                "hashtag": hashtag,
+                "contentHash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                "text": _truncate_filterable_metadata(text, MAX_FILTERABLE_METADATA_CHARS),
+            },
+        })
+    return vectors
+
+
+def _link_explanation_key(relation_id: str) -> str:
+    return f"{LINK_EXPLANATION_KEY_PREFIX}{relation_id}"
+
+
+def _relation_metadata(relation: dict[str, Any]) -> dict[str, Any]:
+    raw = relation.get("metadata")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw or "{}")
+        except json.JSONDecodeError:
+            return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _list_link_relations(graph: Any) -> list[dict[str, Any]]:
+    relations: list[dict[str, Any]] = []
+    next_token = None
+    while True:
+        payload = graph.graphql(LIST_LINK_RELATIONS_QUERY, {"newsroomFeedKey": global_key(LINK_EXPLANATION_FEED_KEY), "limit": 100, "nextToken": next_token})
+        connection = payload.get("listSemanticRelationsByNewsroomFeedAndCreatedAt") or {}
+        relations.extend(item for item in connection.get("items") or [] if item)
+        next_token = connection.get("nextToken")
+        if not next_token:
+            return relations
+
+
+def _link_explanation_text(relation: dict[str, Any]) -> str:
+    """The editor's explanation of an accepted link, or "" when the edge carries none or is not an accepted, person-made Reference link or concept tag.
+    ``current`` is a link a person made or confirmed; ``metadata.decision`` is ``accepted`` once decided, and a link a person made has provenance ``human``."""
+    metadata = _relation_metadata(relation)
+    if relation.get("relationState") != "current" or metadata.get("kind") not in LINK_EXPLANATION_EDGE_KINDS:
+        return ""
+    if not (metadata.get("decision") == "accepted" or (metadata.get("decision") in (None, "") and metadata.get("provenance") == "human")):
+        return ""
+    return _clean_text(str(metadata.get("note") or ""))
+
+
+def _prepare_link_explanation_vector(relation: dict[str, Any], titles: dict[str, str], options: VectorIndexOptions, corpus_id: str) -> dict[str, Any]:
+    """One vector for one explained link. Its text names both ends and the explanation so it stands alone. The metadata carries both lineage ids, the
+    relation id, the predicate and who decided; ``curationStatus: accepted`` is set on purpose so the Reference filter lets it through whatever the scope asks,
+    and ``audience: editor`` marks it as an internal note that no public reader query may return (services.S3VectorsProvider)."""
+    metadata_row = _relation_metadata(relation)
+    explanation = _link_explanation_text(relation)
+    first = titles[f"{relation['subjectKind']}#{relation['subjectLineageId']}"]
+    second = titles[f"{relation['objectKind']}#{relation['objectLineageId']}"]
+    predicate = str(relation.get("predicate") or "related_to")
+    text = f"Editor's explanation of a link between two items.\nLink: {first} ({predicate.replace('_', ' ')}) {second}\nExplanation: {explanation}"
+    relation_id = str(relation["id"])
+    metadata = {
+        "kind": "semanticRelation",
+        "vectorKind": LINK_EXPLANATION_VECTOR_KIND,
+        "id": relation_id,
+        "lineageId": relation_id,
+        "relationId": relation_id,
+        "relationKind": metadata_row.get("kind"),
+        "predicate": predicate,
+        "subjectKind": relation.get("subjectKind"),
+        "subjectLineageId": relation.get("subjectLineageId"),
+        "objectKind": relation.get("objectKind"),
+        "objectLineageId": relation.get("objectLineageId"),
+        "subjectTitle": _truncate_filterable_metadata(first, MAX_FILTERABLE_TITLE_CHARS),
+        "objectTitle": _truncate_filterable_metadata(second, MAX_FILTERABLE_TITLE_CHARS),
+        "title": _truncate_filterable_metadata(f"{first} / {second}", MAX_FILTERABLE_TITLE_CHARS),
+        "decidedBy": metadata_row.get("decidedBy") or metadata_row.get("addedBy"),
+        "decidedAt": metadata_row.get("decidedAt") or metadata_row.get("addedAt"),
+        "audience": LINK_EXPLANATION_AUDIENCE,
+        "curationStatus": "accepted",
+        "corpusId": corpus_id,
+        "categorySetId": options.category_set_id,
+        "contentHash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "explanation": explanation[:1800],
+        "text": text[:2400],
+    }
+    return {"key": _link_explanation_key(relation_id), "text": text, "metadata": metadata}
+
+
+def _plan_link_explanations(graph: Any, all_references: list[dict[str, Any]], options: VectorIndexOptions) -> dict[str, Any]:
+    """What the index should hold for explained links: ``candidates`` (vectors to hold, by key) and ``remove`` (relation ids whose vector must go: the link is
+    rejected or no longer current, its note is cleared, or an end is no longer accepted). A link whose Reference end the graph does not list at all is left alone."""
+    references = {str(ref.get("lineageId") or ref.get("id")): ref for ref in all_references if ref.get("versionState") == "current" and (ref.get("lineageId") or ref.get("id"))}
+    nodes = {str(node.get("lineageId") or node.get("id")): node for node in _list_accepted_semantic_nodes(graph)}
+    known_reference_ids = {str(ref.get("lineageId") or ref.get("id")) for ref in all_references if ref.get("lineageId") or ref.get("id")}
+    candidates: dict[str, dict[str, Any]] = {}
+    remove: set[str] = set()
+    leave: set[str] = set()
+    for relation in _list_link_relations(graph):
+        relation_id = str(relation.get("id") or "")
+        if not relation_id:
+            continue
+        if not _link_explanation_text(relation):
+            remove.add(relation_id)
+            continue
+        titles: dict[str, str] = {}
+        corpus_id = options.corpus_id
+        verdict = "write"
+        for side in ("subject", "object"):
+            kind, lineage = str(relation.get(f"{side}Kind") or ""), str(relation.get(f"{side}LineageId") or "")
+            if kind == "reference":
+                reference = references.get(lineage)
+                if reference is None:
+                    verdict = "leave" if lineage not in known_reference_ids else "remove"
+                    break
+                if reference_curation_status(reference) != ACCEPTED_STATUS:
+                    verdict = "remove"
+                    break
+                titles[f"{kind}#{lineage}"] = _reference_title(reference)
+                corpus_id = corpus_id or str(reference.get("corpusId") or "")
+            elif kind == "semanticNode":
+                node = nodes.get(lineage)
+                if node is None or not node.get("displayName"):
+                    verdict = "remove"
+                    break
+                titles[f"{kind}#{lineage}"] = _clean_text(str(node["displayName"]))
+            else:
+                verdict = "remove"
+                break
+        if verdict == "write":
+            if options.corpus_id and corpus_id != options.corpus_id:
+                continue
+            candidates[_link_explanation_key(relation_id)] = _prepare_link_explanation_vector(relation, titles, options, corpus_id)
+        elif verdict == "remove":
+            remove.add(relation_id)
+        else:
+            leave.add(relation_id)
+    return {"candidates": candidates, "remove": remove - set(candidates), "leave": leave}
+
+
+def _sync_link_explanations(
+    graph: Any,
+    all_references: list[dict[str, Any]],
+    existing_vectors: list[dict[str, Any]],
+    pending_vectors: list[dict[str, Any]],
+    stats: dict[str, Any],
+    vector_index_arn: str,
+    options: VectorIndexOptions,
+) -> list[dict[str, Any]]:
+    """Keeps one vector per explained, accepted link current. The vector's own ``contentHash`` (ends' titles plus the explanation) and ``curationStatus`` are its
+    watermark: an unchanged explanation costs nothing, a new or edited one is embedded and written, and the vector of a link later rejected or with its note
+    cleared is deleted. A role without ``s3vectors:DeleteVectors`` (the router's) cannot delete, so the vector is re-marked ``curationStatus: withdrawn``,
+    which every query filter excludes, until a role that may delete runs the sync."""
+    if not hasattr(graph, "graphql"):
+        return pending_vectors
+    try:
+        plan = _plan_link_explanations(graph, all_references, options)
+    except Exception as error:  # noqa: BLE001 - a link read that fails must not delete anything or fail the Reference sync
+        stats["warnings"].append(f"link explanations were not synced ({type(error).__name__}: {str(error)[:160]})")
+        return pending_vectors
+    existing = {
+        str(vector["key"]): vector.get("metadata") or {}
+        for vector in existing_vectors
+        if str(vector.get("key") or "").startswith(LINK_EXPLANATION_KEY_PREFIX)
+    }
+    for key, candidate in plan["candidates"].items():
+        stats["vectorsPrepared"] += 1
+        stats["linkExplanationsPrepared"] += 1
+        stored = existing.get(key) or {}
+        if not options.force and stored.get("contentHash") == candidate["metadata"]["contentHash"] and stored.get("curationStatus") == "accepted":
+            stats["vectorsSkippedExisting"] += 1
+            stats["linkExplanationsSkippedUnchanged"] += 1
+            continue
+        stats["vectorsToWrite"] += 1
+        stats["linkExplanationsToWrite"] += 1
+        if not options.dry_run:
+            pending_vectors.append(candidate)
+            if len(pending_vectors) >= options.batch_size:
+                pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors, options)
+    stale = sorted(key for key, metadata in existing.items()
+                   if str(metadata.get("relationId") or key[len(LINK_EXPLANATION_KEY_PREFIX):]) in plan["remove"] and key not in plan["candidates"])
+    stats["linkExplanationsRemoved"] = len(stale)
+    if stale and not options.dry_run:
+        pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors, options)
+        _remove_link_explanation_vectors(vector_index_arn, stale, existing, stats)
+    return pending_vectors
+
+
+def _remove_link_explanation_vectors(vector_index_arn: str, keys: list[str], existing: dict[str, dict[str, Any]], stats: dict[str, Any]) -> None:
+    try:
+        _delete_vectors(vector_index_arn, keys)
+        stats["vectorsDeletedForStatus"] += len(keys)
+        return
+    except Exception as error:  # noqa: BLE001
+        code = str(((getattr(error, "response", None) or {}).get("Error") or {}).get("Code") or "")
+        if "AccessDenied" not in code:
+            raise
+    marked = [key for key in keys if existing.get(key, {}).get("curationStatus") != LINK_EXPLANATION_WITHDRAWN]
+    stats["warnings"].append(f"s3vectors:DeleteVectors was denied for {len(keys)} link explanation vectors; they were marked {LINK_EXPLANATION_WITHDRAWN} instead")
+    for batch in _batched_scalar(marked, 100):
+        rewritten = []
+        for vector in _get_vectors(vector_index_arn, batch):
+            if not (vector.get("data") or {}).get("float32"):
+                continue
+            metadata = {**(vector.get("metadata") or {}), "curationStatus": LINK_EXPLANATION_WITHDRAWN}
+            rewritten.append({"key": vector["key"], "data": vector["data"], "metadata": _sanitize_vector_metadata(metadata)})
+        if rewritten:
+            _put_vectors(vector_index_arn, rewritten)
+            stats["linkExplanationsWithdrawn"] += len(rewritten)
+
+
 def _list_ontology_attachments(graph: Any) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     next_token = None
@@ -1253,7 +1996,57 @@ def _list_index_vectors(index_arn: str) -> list[dict[str, Any]]:
             return vectors
 
 
+# OpenAI's documented limits for text-embedding-3-small: 8191 tokens per input, 300,000 tokens summed over one request, 2048 inputs per request,
+# and no empty input (HTTP 400). The Lambda zip carries no tokenizer, so the bounds below are in UTF-8 bytes: a token always covers at least one
+# byte of the text, so tokens <= bytes for any text in any language, and a text of at most 8191 bytes can never exceed 8191 tokens. For English
+# (about 4 bytes a token) that keeps roughly the first 2000 tokens of a text, which is far more than a passage or summary vector holds; the cost
+# of the safe bound is paid only by the rare overlong text, and each truncation is counted in `embeddingInputsTruncated`.
+EMBEDDING_MAX_INPUT_BYTES = 8191
+EMBEDDING_MAX_REQUEST_BYTES = 300_000   # tokens <= bytes, so this keeps a request under the 300,000-token total
+EMBEDDING_MAX_REQUEST_INPUTS = 2048
+
+
+def _truncate_to_bytes(text: str, limit: int) -> str:
+    return text.encode("utf-8")[:limit].decode("utf-8", errors="ignore")   # a cut inside a character is dropped, never sent as a broken one
+
+
+def _embeddable(stats: dict[str, Any], candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Candidates the endpoint will accept: empty or whitespace-only texts are dropped (`embeddingInputsEmpty`), overlong ones are cut (`embeddingInputsTruncated`)."""
+    kept = []
+    for candidate in candidates:
+        text = candidate.get("text")
+        if not isinstance(text, str) or not text.strip():
+            stats["embeddingInputsEmpty"] = stats.get("embeddingInputsEmpty", 0) + 1
+            continue
+        if len(text.encode("utf-8")) > EMBEDDING_MAX_INPUT_BYTES:
+            stats["embeddingInputsTruncated"] = stats.get("embeddingInputsTruncated", 0) + 1
+            text = _truncate_to_bytes(text, EMBEDDING_MAX_INPUT_BYTES)
+            if not text.strip():
+                stats["embeddingInputsEmpty"] = stats.get("embeddingInputsEmpty", 0) + 1
+                continue
+            candidate = {**candidate, "text": text}
+        kept.append(candidate)
+    return kept
+
+
 def _embed(texts: list[str]) -> list[list[float]]:
+    """Embeds `texts` in as many requests as the per-request limits need, in order."""
+    embeddings: list[list[float]] = []
+    group: list[str] = []
+    size = 0
+    for text in texts:
+        weight = len(text.encode("utf-8"))
+        if group and (size + weight > EMBEDDING_MAX_REQUEST_BYTES or len(group) >= EMBEDDING_MAX_REQUEST_INPUTS):
+            embeddings.extend(_embed_request(group))
+            group, size = [], 0
+        group.append(text)
+        size += weight
+    if group:
+        embeddings.extend(_embed_request(group))
+    return embeddings
+
+
+def _embed_request(texts: list[str]) -> list[list[float]]:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is required to embed vectors")
@@ -1267,9 +2060,27 @@ def _embed(texts: list[str]) -> list[list[float]]:
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=60) as response:  # nosec B310 - fixed OpenAI endpoint
-        payload = json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:  # nosec B310 - fixed OpenAI endpoint
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(f"embeddings request failed: HTTP {error.code}: {_error_message(error)}") from error
+    from .services import _record_embedding_usage
+    _record_embedding_usage(payload)
     return [item["embedding"] for item in sorted(payload["data"], key=lambda entry: entry["index"])]
+
+
+def _error_message(error: "urllib.error.HTTPError") -> str:
+    """The `error.message` OpenAI sent with a failure (never the request, so never the key); falls back to the first 300 characters of the body."""
+    try:
+        raw = error.read().decode("utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        return str(error.reason or "no response body")
+    try:
+        message = (json.loads(raw).get("error") or {}).get("message")
+    except (ValueError, AttributeError):
+        message = None
+    return str(message or raw or "empty response body")[:300]
 
 
 def _sanitize_vector_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -1311,6 +2122,36 @@ def _embed_and_put_vectors(index_arn: str, candidates: list[dict[str, Any]]) -> 
         })
     _put_vectors(index_arn, vectors)
     return len(vectors)
+
+
+def _get_vectors(index_arn: str, keys: list[str]) -> list[dict[str, Any]]:
+    import boto3  # type: ignore
+
+    client = boto3.client("s3vectors", region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"))
+    return list(client.get_vectors(indexArn=index_arn, keys=keys, returnData=True, returnMetadata=True).get("vectors") or [])
+
+
+def _get_vector_metadata(index_arn: str, keys: list[str]) -> dict[str, dict[str, Any]]:
+    """The stored metadata of the vectors that exist among ``keys`` (no vector data), 100 keys a call: how the incremental pass asks "is this one already there"
+    without listing the index."""
+    import boto3  # type: ignore
+
+    client = boto3.client("s3vectors", region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"))
+    found: dict[str, dict[str, Any]] = {}
+    for batch in _batched_scalar(sorted(set(keys)), 100):
+        for vector in client.get_vectors(indexArn=index_arn, keys=batch, returnData=False, returnMetadata=True).get("vectors") or []:
+            found[str(vector.get("key"))] = dict(vector.get("metadata") or {})
+    return found
+
+
+def _query_reference_vectors(index_arn: str, lineage_id: str, query_data: list[float]) -> list[dict[str, Any]]:
+    """Every vector of one Reference (summary, source, passages) as ``{"key", "metadata"}``, by a metadata-filtered query with the Reference's own summary vector
+    as the query: no listing of the index. At most 100 come back, far more than a Reference holds (a summary and up to ``max_chunks_per_reference`` passages)."""
+    import boto3  # type: ignore
+
+    client = boto3.client("s3vectors", region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"))
+    response = client.query_vectors(indexArn=index_arn, queryVector={"float32": query_data}, topK=100, filter={"referenceLineageId": {"$eq": lineage_id}}, returnMetadata=True)
+    return [{"key": vector["key"], "metadata": dict(vector.get("metadata") or {})} for vector in response.get("vectors") or []]
 
 
 def _put_vectors(index_arn: str, vectors: list[dict[str, Any]]) -> None:

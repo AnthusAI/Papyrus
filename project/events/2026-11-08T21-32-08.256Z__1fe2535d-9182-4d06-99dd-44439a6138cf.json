@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "1fe2535d-9182-4d06-99dd-44439a6138cf",
+  "issue_id": "PPY-16d75b41-c64d-4ad2-9b0e-3eca178f42b1",
+  "event_type": "issue_deleted",
+  "occurred_at": "2026-11-08T21:32:08.256Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Shared bucket part 1: the projection writes under an output prefix separate from urls.basePath",
+    "issue_type": "sub-task",
+    "status": "open"
+  }
+}

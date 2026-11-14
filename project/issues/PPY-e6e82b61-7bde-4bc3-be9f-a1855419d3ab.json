@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e6e82b61-7bde-4bc3-be9f-a1855419d3ab",
+  "title": "Raw material: mined concepts reach References, and References reach sections",
+  "description": "Ranking and section views depend on two links that barely exist today: Reference to concept, and Reference to section. Comes first.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-17d05702-569a-41fd-bfc8-4e11eca9792e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:45.790138Z",
+  "updated_at": "2026-11-04T02:52:45.790166Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

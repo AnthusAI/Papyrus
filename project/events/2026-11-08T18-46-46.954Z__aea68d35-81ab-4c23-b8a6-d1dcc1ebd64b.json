@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "aea68d35-81ab-4c23-b8a6-d1dcc1ebd64b",
+  "issue_id": "PPY-62f10d4c-b26c-4222-aea4-3027bc3dabb1",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:46.954Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Implements the deletion half of PPY-8e6c06. After cancellation and the grace period (owner decision 11 default: 30 days, export available throughout), one workflow removes every row (through tenant indexes), every object under tenants/<t>/ and sites/<t>/, KVS host entries and certificates, the Cyclotron store, vectors and the title-word entries, then runs a verification that finds nothing and writes a deletion receipt (counts only). Backups age out on their own schedule, which the terms state.\n\nTouches (verified at origin/develop 23fabe1d): new src/papyrus_content/tenant_delete.py, a workflow function, TenantDomain cleanup, docs and terms text.\n\nAcceptance (Gherkin feature file: features_backend/tenant-deletion.feature):\nScenario: Deletion leaves nothing behind\n    Given \"alpha\" was cancelled 30 days ago\n    When deletion runs\n    Then a fresh export of \"alpha\" is empty, its hosts answer 404 and \"beta\" is unchanged\n\nDependencies: blocked by PPY-e882ee, PPY-d7274f. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-8e6c06.\n\nTesting: Behave; the adversarial suite re-run after deletion.\nRollout: Shared stack; every deletion of a real tenant is logged and reported to the operator.\nRisk and mitigation: Risk: deleting the wrong tenant. Mitigation: deletion takes the tenant id and its display name, refuses an active tenant, and runs a dry run that must be confirmed.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "74531061-6998-4b33-8487-7fc4b4fb5cf2",
+  "issue_id": "PPY-a2c23009-43ab-4e30-93cd-02e6c7c66d82",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T17:09:03.891Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "An image-only revision of a published story keeps its review status instead of reopening six checklist steps",
+    "description": "2026-11-08: replacing the pictures of an already published music article opened six workflow steps (research, outline and all four audience reviews); an editor marked each skipped by hand with a reason. Papyrus should recognise a revision whose text is unchanged (only pictures, credits or alt text differ) and carry the existing step states forward, and scope what reopens for other small changes: a picture swap reopens only the picture-related checks (alt text, credit, ratio), a text-only edit of a published story reopens only the lenses that read text. Related: PPY-0515e1 (checklist-open blocks publishing, scripts cannot tell). Gherkin for image-only, text-only and full rewrite.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
+    "labels": []
+  }
+}

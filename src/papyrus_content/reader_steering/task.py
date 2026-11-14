@@ -25,6 +25,7 @@ from .retirement import (
     RetirementReport,
     run_retirement_poll,
 )
+from .extraction import ExtractionReport, ExtractionSetup, extraction_from_environment, run_extraction
 from .proposals import FROZEN_STATES, VoteCounts, build_proposal_files
 from .review import ReviewReport, review_comments, review_submissions
 from .signals import submission_signals
@@ -77,6 +78,7 @@ class ReaderSnapshotReport:
     purge_error: str | None
     retirement_poll: RetirementReport
     review: ReviewReport
+    extraction: ExtractionReport
 
     def to_dict(self) -> dict:
         return {
@@ -91,6 +93,7 @@ class ReaderSnapshotReport:
             "purgeError": self.purge_error,
             "retirementPoll": self.retirement_poll.to_dict(),
             "review": self.review.to_dict(),
+            "extraction": self.extraction.to_dict(),
         }
 
 
@@ -251,6 +254,27 @@ def freeze_community_results(resource: Any, table_name: str, rows: list[dict], c
     return frozen
 
 
+def record_attention(resource: Any, table_name: str, rows: list[dict], attention: Mapping[str, list[dict]], now_iso: str) -> int:
+    """Stores, on each proposal row, the reasons an editor should look at it (``needsLook``), and clears it when none is left.
+
+    The field is private (staff-readable like the rest of the model) and never reaches a public file. A row is written only when
+    its reasons changed, so a quiet proposal costs no writes; ``at`` is when the current reasons were first found.
+    """
+    table = resource.Table(table_name)
+    changed = 0
+    for row in rows:
+        reasons = attention.get(row["id"], [])
+        stored = json.loads(row["needsLook"]) if isinstance(row.get("needsLook"), str) else row.get("needsLook")
+        if (stored or {}).get("reasons", []) == reasons and (stored is None) == (not reasons):
+            continue
+        if reasons:
+            table.update_item(Key={"id": row["id"]}, UpdateExpression="SET needsLook = :look", ExpressionAttributeValues={":look": json.dumps({"reasons": reasons, "at": now_iso})})
+        else:
+            table.update_item(Key={"id": row["id"]}, UpdateExpression="REMOVE needsLook")
+        changed += 1
+    return changed
+
+
 def write_proposal_files(context: Any, files: Mapping[str, dict]) -> list[str]:
     """Writes the proposal files that changed (the freshness stamp alone is not a change), so only they are purged on the edge."""
     written: list[str] = []
@@ -276,6 +300,7 @@ def run_reader_snapshot(
     submitter_of: Callable[[str], str | None] | None = None,
     review_signals: Callable[..., list[dict]] | None = None,
     comment_signals: Callable[[str], list[dict]] | None = None,
+    extraction: ExtractionSetup | None = None,
 ) -> ReaderSnapshotReport:
     environment = os.environ if environment is None else environment
     settings = snapshot_settings_from_environment(environment)
@@ -306,6 +331,7 @@ def run_reader_snapshot(
     submissions = [plain_row(row) for row in scan_table(resource, environment[SUBMISSION_TABLE_ENV])] if environment.get(SUBMISSION_TABLE_ENV) else []
     flags = [plain_row(row) for row in scan_table(resource, environment[FLAG_TABLE_ENV])] if environment.get(FLAG_TABLE_ENV) else []
     now = time.time() if now_seconds is None else now_seconds
+    proposal_rows = [plain_row(row) for row in scan_table(resource, environment[PROPOSAL_TABLE_ENV])] if environment.get(PROPOSAL_TABLE_ENV) else []
     comments = [plain_row(row) for row in scan_table(resource, environment[COMMENT_TABLE_ENV])] if environment.get(COMMENT_TABLE_ENV) else []
     review = ReviewReport()
     try:
@@ -326,6 +352,7 @@ def run_reader_snapshot(
         comments=comments,
         published_items=published_entries(client, context.projector),
         flags=flags,
+        proposals=proposal_rows,
     )
     keys: list[str] = []
     files = [(ITEMS_FILE, snapshot.items), (BOARD_FILE, snapshot.board), (READERS_FILE, snapshot.readers), (SUBJECTS_FILE, snapshot.subjects)]
@@ -341,13 +368,13 @@ def run_reader_snapshot(
         keys.append(key)
     comment_keys = write_comment_files(context, snapshot.comments, snapshot.items["generatedAt"])
     keys.extend(comment_keys)
-    proposal_rows = [plain_row(row) for row in scan_table(resource, environment[PROPOSAL_TABLE_ENV])] if environment.get(PROPOSAL_TABLE_ENV) else []
     proposal_keys: list[str] = []
     if proposal_rows:
         counts = VoteCounts.from_items_file(snapshot.items)
         freeze_community_results(resource, environment[PROPOSAL_TABLE_ENV], proposal_rows, counts, snapshot.items["generatedAt"])
+        record_attention(resource, environment[PROPOSAL_TABLE_ENV], proposal_rows, snapshot.proposal_attention, snapshot.items["generatedAt"])
         if (environment.get(PUBLISH_PROPOSALS_ENV) or "").strip().lower() == "true":
-            proposal_keys = write_proposal_files(context, build_proposal_files(proposal_rows, counts, snapshot.items["generatedAt"]))
+            proposal_keys = write_proposal_files(context, build_proposal_files(proposal_rows, counts, snapshot.items["generatedAt"], snapshot.proposal_exclusions))
             keys.extend(proposal_keys)
     karma_updated = write_karma(resource, environment[PROFILE_TABLE_ENV], profiles, snapshot.karma)
     purged: list[str] = []
@@ -357,6 +384,15 @@ def run_reader_snapshot(
             purged = context.invalidate(keys)
         except Exception as error:  # noqa: BLE001 - the files are written; a purge that fails only delays them by the cache lifetime
             purge_error = type(error).__name__
+    extraction_report = ExtractionReport()
+    if submissions:
+        # Last, after the public files are written and purged: the extraction is private and can take as long as the budget allows.
+        try:
+            setup = extraction or extraction_from_environment(environment, client)
+            if setup is not None:
+                extraction_report = run_extraction(resource, environment[SUBMISSION_TABLE_ENV], submissions, setup, now_iso=snapshot_iso(now))
+        except Exception as error:  # noqa: BLE001 - extraction is advice for the reader; a failure must not fail the run
+            extraction_report = ExtractionReport(enabled=True, error=type(error).__name__)
     return ReaderSnapshotReport(
         written=keys,
         subjects=len(snapshot.items["items"]),
@@ -368,4 +404,5 @@ def run_reader_snapshot(
         purge_error=purge_error,
         retirement_poll=retirement,
         review=review,
+        extraction=extraction_report,
     )

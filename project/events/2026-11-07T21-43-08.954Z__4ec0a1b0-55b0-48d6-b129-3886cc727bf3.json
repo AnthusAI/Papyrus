@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "4ec0a1b0-55b0-48d6-b129-3886cc727bf3",
+  "issue_id": "PPY-d647eee4-f51b-4dcc-a187-bde04beb066a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:08.954Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Incremental reader snapshot: stream-maintained aggregates replace the full read",
+    "description": "What: replace reading every vote and profile with aggregates updated from DynamoDB Streams, one record per change. Public output keeps counts, means and histograms only (who rated stays private).\nAcceptance:\nScenario: One vote costs a constant number of calls\n  Given 5,000 votes exist\n  When one more vote arrives\n  Then the snapshot update makes the same number of calls as with 200 votes",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

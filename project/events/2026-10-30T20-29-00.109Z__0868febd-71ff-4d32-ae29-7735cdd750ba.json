@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0868febd-71ff-4d32-ae29-7735cdd750ba",
+  "issue_id": "PPY-3b965d2d-57d2-4b2b-9140-4743c436ac21",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-30T20:29:00.109Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Mermaid diagrams render on every standard site by default",
+    "description": "Fenced mermaid blocks render as diagrams on projected pages: self-hosted lazy loader plus library, source kept as a readable pre and verbatim in the Markdown twin, strict security level, accessible, theme tokens, no colour coding. Config: mermaid.enabled. Specs: features_backend/mermaid-diagrams.feature, scripts/test-mermaid-browser.ts. Docs: docs/building-a-papyrus-static-site.md.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

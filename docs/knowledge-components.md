@@ -19,7 +19,7 @@ Where the files come from:
 - **Deployed and `--out` builds:** the site store the projection writes to (`writer.get`), so `_data/knowledge/` next to the pages, under `urls.basePath` when the site has one (`posts/_data/knowledge/`). Reconcile must leave `_data/knowledge/` alone.
 - **Local builds:** `papyrus ops content project --all --knowledge-dir DIR`, with `index.json`, `clusters.json` and `entities/` directly under `DIR`.
 
-A page that reads the snapshot is re-rendered when the files it reads change: the digest of `index.json` and `clusters.json` is part of every generated page, and the digest of the entity files a page names with `knowledge-entity` is part of that page.
+A page that reads the snapshot is re-rendered when the files it reads change: the digest of `index.json`, `clusters.json` and, when the snapshot has one, `clusters-history.json` ([cluster history](knowledge-snapshot.md#cluster-history)) is part of every generated page, and the digest of the entity files a page names with `knowledge-entity` is part of that page.
 
 ## Blocks
 

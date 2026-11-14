@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "33a35e2e-f874-4bfe-bf0e-73dcf915c691",
+  "issue_id": "PPY-689f50bf-844e-41a8-a22b-51296451ba8d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:07:27.815Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us: lead with the newsroom you steer; remove false and off-message claims",
+    "description": "One-sentence pitch, daily loop, steering touchpoints; cut Long memory card, newsprint language, platform grid as headline, false 'copy-edited with Editorial Checks' claim; A week with your newsroom page as the trial runs.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+    "labels": []
+  }
+}

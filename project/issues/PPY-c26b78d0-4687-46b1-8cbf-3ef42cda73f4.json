@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c26b78d0-4687-46b1-8cbf-3ef42cda73f4",
+  "title": "Concept page history, and a list of concepts that need work",
+  "description": "History: who changed what on a concept, from versions and link records. Work list in the newsroom: concepts with the most evidence and no description, thin pages, suggested links waiting, sorted by a rank. This is how fast mining stays manageable. Screenshot review.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-46d70d7c-891b-4332-8819-012cf0b24628",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:46.742653Z",
+  "updated_at": "2026-11-04T02:52:46.742672Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

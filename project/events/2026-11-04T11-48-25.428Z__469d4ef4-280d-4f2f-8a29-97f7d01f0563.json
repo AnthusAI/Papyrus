@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "469d4ef4-280d-4f2f-8a29-97f7d01f0563",
+  "issue_id": "PPY-49303fcd-6b40-48a7-8086-9490a4561b6a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T11:48:25.428Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editorial check fails after save on Machines on Machines: Editorial context tenant mismatch",
+    "description": "After stories save-version on newsroom.machines-on-machines.anth.us in the signed-in lane, on 2026-11-04, the automatic check printed: not checked, GraphQL request failed: Editorial context tenant mismatch. The copy_edit step depends on this check, so Stories on this site may be unable to complete that step. Not yet tested with editorial check-version directly.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

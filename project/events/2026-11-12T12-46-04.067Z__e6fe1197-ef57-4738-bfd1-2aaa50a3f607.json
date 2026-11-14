@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e6fe1197-ef57-4738-bfd1-2aaa50a3f607",
+  "issue_id": "PPY-85fdba5a-3906-4c4f-b57a-eb1f158c72b3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T12:46:04.067Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Standardize the time-bucketed quality ranking as one specified module",
+    "description": "**Goal.** The time-bucketed rank-by-quality algorithm is one specified, documented, tested module that every consumer reuses, and it is perfected. Today it lives in `src/papyrus_content/home_page/ordering.py` (`rank_in_buckets`, the shared order: 3-5 stars, then unrated by Cyclotron confidence with unscored last, then 1-2 stars; ties by newest arrival then key), is reused by `src/papyrus_content/projection/standard/story_order.py` for Stories (`listings.bucket`), by the references include (`select=\"confident|recommended\"`, `bucket=\"day|week\"`, docs/home-page.md \"Ordering\" and \"Time buckets\"), and by the Worth-watching card. The rules are written in prose in docs/home-page.md; the Stories side and the Worth-watching card have their own copies of parts of it.\n\n**Build.**\n- Extract to one module with a small public API (rank, bucket, as-of day) and no consumer-specific logic; Stories, References, the Worth-watching card, lists and the roundup selection call it. Remove duplicate copies (no shims).\n- One standalone doc page of the algorithm: inputs, rolling UTC windows, bucket date (acceptedAt, then arrivedAt, then oldest), order inside a bucket, tie rules, what a rating never changes, what time does.\n- Gherkin for each rule; property tests: stable under subsetting, deterministic for a given day, nothing dropped, a rating never changes bucket.\n- Perfect it: audit open questions below against the data (distribution of ratings and confidences) and adapt rather than fix constants.\n\n**Specification.**\n```gherkin\nFeature: Time-bucketed quality ranking\n  Scenario: Newest bucket first\n    Given Stories published in three different weeks\n    When ranked with week buckets\n    Then every Story of the newest week precedes every Story of the next\n\n  Scenario: Human rating over prediction\n    Given a four-star Reference with low Cyclotron confidence and an unrated one with high confidence\n    Then the four-star one ranks first inside the bucket\n\n  Scenario: Unscored is not 50 percent\n    Given an accepted Reference the Cyclotron never scored\n    Then it ranks below every scored unrated Reference\n\n  Scenario: Low ratings sink\n    Given a one-star Reference the Cyclotron likes\n    Then it ranks below unrated ones\n\n  Scenario: Rating does not move buckets\n    When a Reference is rated\n    Then its bucket is unchanged\n\n  Scenario: Time moves buckets\n    Given a Reference that turns seven days old today\n    Then it moves to the older window and follows every newer one\n\n  Scenario: Subsets keep order\n    When a section filter is applied to a ranked list\n    Then the filtered list is in the same relative order\n\n  Scenario: One implementation\n    Then Stories, References, the Worth-watching card and the roundup call the same module\n```\n\n**Depends on:** none. Blocks the story-type selection story. Under the home-page epic PPY-1b83d3.\n**Related:** PPY-ba2f19 (stars shown), PPY-f24696.\n\n**Open questions for Ryan:** (1) Is a one- or two-star rating a hard sink below unrated, as now? (2) Should bucket width ever be learned from a site's publishing rate instead of day/week?",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+    "labels": []
+  }
+}

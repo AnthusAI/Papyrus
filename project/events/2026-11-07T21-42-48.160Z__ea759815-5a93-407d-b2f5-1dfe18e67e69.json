@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ea759815-5a93-407d-b2f5-1dfe18e67e69",
+  "issue_id": "PPY-05ebd546-059c-4742-918c-fdfb3290023b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:48.160Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Tenant sites are eventually consistent with a TTL; no per-edit CloudFront purge",
+    "description": "What: the shared stack serves with a TTL and versioned object keys; purging is rare and batched, not per edit. States the freshness promise in docs. Builds on PPY-409932.\nAcceptance:\nScenario: An edit appears within the TTL with no invalidation\n  Given a tenant edits a page\n  When the TTL passes\n  Then readers see the edit and no invalidation request was made",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

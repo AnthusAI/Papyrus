@@ -52,12 +52,12 @@ All commands act on the backend the CLI is configured for. Both are dry runs unt
 ### `papyrus knowledge wiki sync`
 
 ```bash
-papyrus knowledge wiki sync [--section wiki] [--apply] [--json]
+papyrus knowledge wiki sync [--section wiki] [--vocabulary FILE | --public-kinds a,b] [--tenant ID] [--apply] [--json]
 papyrus knowledge wiki sync --beats-category-set <set id> [--topics-section topics] [--subtopic-min-items 30] [--items-per-topic 20] [--topic-sections posts,essays] [--topics-url '/topics/{slug}/'] --apply
 papyrus knowledge wiki sync --beats-config web/scoring.json --apply
 ```
 
-For each accepted entity it creates or updates a draft page in the wiki section. The Item id is `item-<section>-<slug>`; the slug is the entity key with `--` folded to `-`. Rejected and merely generated entities get no page.
+For each accepted entity whose page answer is not no (the extractor's, or an editor's decision against it; an entity with no answer keeps its page: see [page answer](knowledge-snapshot.md#page-answer)) it creates or updates a draft page in the wiki section. The Item id is `item-<section>-<slug>`; the slug is the entity key with `--` folded to `-`. Rejected and merely generated entities get no page.
 
 What happens to a page that already exists:
 
@@ -67,9 +67,22 @@ What happens to a page that already exists:
 | A draft page whose entity changed | The draft is updated in place. |
 | A published page whose entity changed | A pending revision: a new draft version of the same lineage (`<lineage>-v2`), marked current. The live page is untouched until the revision is published. A second change updates that draft rather than adding versions. |
 | Nothing changed | Nothing is written. |
-| An entity that is no longer accepted | A warning. The page is left as it is; unpublish it by hand if it should go. |
+| An entity that is no longer accepted, whose kind is no longer public, or whose page answer is now no | A warning, and the page is left as it is (see "Public kinds"). |
 
 The sync removes the `review` stamp from any text it writes, so changed text can never keep the stamp of the text it replaced.
+
+#### Public kinds
+
+A site's graph holds nodes that are not subjects: paper authors, the editorial concepts a comment is filed under, quality ratings, relevance decisions, coverage questions, editorial forms. The wiki publishes only the entity kinds of the site's vocabulary:
+
+- `--vocabulary FILE` (the Biblicus `vocabulary.yml` the extraction uses) or `--public-kinds a,b` names the kinds that get a page. A vocabulary that declares no `entity_kinds` is refused.
+- `commentConcept`, `qualityRating`, `relevanceDecision`, `coverageQuestion` and `editorialForm` are never public, even when a vocabulary names them.
+- With neither flag every kind is public except those five and `personAuthor`. Paper authors get pages only when the vocabulary names `personAuthor`. A person's name stored without spaces (`AaronCohen`) is shown spaced (`Aaron Cohen`); the entity key is unchanged.
+- The knowledge snapshot takes the same `--vocabulary` / `--public-kinds`: it gives no link to an entity without a page and leaves the bookkeeping kinds out of its entities. The cloud knowledge run passes the run state's `config/vocabulary.yml` to the snapshot, the archive and the wiki sync.
+
+**The sync never takes a page down.** A page that was ever public may be indexed by search engines, so a page nothing generates any more (an entity rejected, or a kind that left the vocabulary) is reported as a warning and left as it is, live or draft. There is no `--retire` flag and the cloud run does not retire anything. A page that must disappear is a deliberate act that redirects its address, never a side effect of a daily run. A page an earlier version of the sync marked `retired: true` stays down (`wiki publish --all-drafts` skips a marked page), and the sync clears the mark if the entity becomes eligible again. A page an undo of a run retired (`papyrus knowledge run undo`) is left down too.
+
+**Tenants.** `wiki sync` and `wiki publish` write Items and PublishedItems, which on a tenant publication carry the tenant (`tenantId`, `tenantSlug` and the tenant-prefixed `typeStatus` and `sectionStatus`) so the publication's renders and console can see them. The tenant is `--tenant`, else `PAPYRUS_TENANT_ID`, else the signed-in site's, as for every command ([multi-tenancy](multi-tenancy.md)). A command that has no tenant refuses to run when the backend's Items belong to one, because what it wrote would be invisible to the publication.
 
 #### Front matter of an entity page
 
@@ -145,3 +158,10 @@ papyrus knowledge snapshot --site-bucket <bucket> --entity-href '/wiki/{slug}/' 
 ```
 
 Code: `src/papyrus_content/knowledge_wiki/` (sync and commands), `src/papyrus_content/wiki_stamp.py` (the stamp and its checker), `src/papyrus_content/projection/standard/wiki.py` (the stamp, notice and footer on the page). Tests: `procedures/newsroom/tests/test_knowledge_wiki.py`.
+
+
+Concepts that editors invent by typing a hashtag have the kind `editor_concept`. They are real concepts in the console (Related section, suggestions) but are not published: like paper authors, the wiki publishes the kind only when the site's vocabulary names it. There is no per-concept publish switch yet. No vocabulary or config in this repository names the kind, so no site publishes these pages today.
+
+**Their address has no kind in it.** Every other kind keeps it (`maker-acme-loom`); a concept an editor invented is at its name alone: `containment`, from the name part of its node key (`editor_concept--containment`). The same plain name is its key in the knowledge snapshot, so the page and the snapshot agree. Two concepts cannot share a name part; a collision gets `-2`. If a page that is not that concept's already has the address (written by hand, or generated for another subject), the sync leaves that page as it is, writes nothing for the concept, and warns with both addresses; move or rename one of the two pages and sync again. This check applies to every generated page. An older page for the concept that has the kind in its address (`editor-concept-containment`) is reported, not moved: the address of a published page is locked, so if it was ever published, add its old address to the new page's `aliases` so readers are redirected, then retire it.
+
+**The description.** A page uses a concept's description only once a person accepted it (`knowledge entities describe --text ... --actor human` accepts the words as they are typed; `knowledge entities accept-description --key ... --actor human` accepts the words already there, and refuses `--actor ai`). Until then the page has the factual line and the sync warns that the description is a draft nobody accepted. Nothing accepts a model's words on its own. See [idea context packs](idea-context-packs.md#concepts-an-editor-invents-by-typing-a-hashtag).

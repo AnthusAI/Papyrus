@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "814656ea-ccaa-4154-a6d4-f9c2afb6a3f5",
+  "issue_id": "PPY-55014b23-bf9a-4f8d-b57c-680eec9f3ca3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:37:55.551Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Shipped grids: vote cards for items and Stories, a proposals include, votes on the cards",
+    "description": "Repo: **Papyrus** (grid subjects) and **Shipped-web** (page). Fold-in note b: Shipped's public units are items, Stories and proposals, not References, and its cards carry votes. Make the home-page grids able to show those subjects with the reader-steering vote island on each card.\n\n## Change\n1. Papyrus `::include{kind=\"listing\"}` already renders Stories and items (any `listings.types`); add `card=\"vote\"`: the standard card plus a `::island{name=\"Vote\" props='{\"subject\": \"item:<lineage>\"}'}` mount (reader-steering's `Vote` island, mounted today by Shipped's `hooks.py`; the island and its props contract are in `papyrus-reader@1.js`). The include emits the island only when the site has the reader-steering plugin's assets configured (`IslandSettings`), else the plain card.\n2. Proposals: `_data/proposals/index.json` is written by reader-steering (`proposals.publish: true`); add `::include{kind=\"proposals\" count=\"6\"}` in `home_page_components.py` reading that file through `HomePageSource` (same digest folding), card = title, vote count as text with a Lucide `arrow-big-up` icon, \"proposal\" label. \"Proposed Story\" wording where a proposal is a story idea; never \"Draft\".\n3. Shipped-web `web/pages/newsroom.md` uses both; `hooks.py` stops hand-mounting the Vote island on the pages the include now covers (leave item pages alone).\n\n## Gherkin (`features_backend/home-page-vote-cards.feature`)\n  Scenario: A listing with card=\"vote\" mounts a Vote island per card when reader-steering assets are configured\n  Scenario: Without reader-steering the vote card renders as the plain card\n  Scenario: The proposals include renders the published proposals with counts as text\n  Scenario: Page-level de-duplication applies across listing and proposals includes\n\n## Acceptance\nFixture renders; Shipped page shows votes on its cards; reader-privacy scan clean; `docs/home-page.md` \"Vote cards and proposals\". Blocked by the Shipped public-pages task.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

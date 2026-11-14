@@ -1,73 +1,35 @@
 """Publication-bound pending source intake; called only by the AppSync action.
 
 A deployment's Cognito pool and AppSync endpoint define the publication boundary.
-Knowledge models do not yet support tenant isolation: shared-tenant intake fails
-closed rather than treating a caller's tenant/corpus claim as authorization.
+On a SHARED stack the knowledge keys carry the tenant (tenant_knowledge_keys), so intake acts for the one
+tenant the caller's claims name: its corpus is ``<tenant>.<corpus>``, its Reference feed keys are the tenant's own,
+and a corpus of another tenant is refused. On a DEDICATED stack nothing about the keys changes, so the old guard
+stays: a token that carries a tenant is refused, and a backend whose Lambda has ``PAPYRUS_TENANT_ID`` set is refused
+unless it declares that it serves one publication with ``PAPYRUS_SINGLE_PUBLICATION_BACKEND=true`` (exactly that
+text; see ``reference_intake_validation._actor`` and docs/multi-tenancy.md). Remove the declaration before a second
+publication is added to such a backend.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 import os
-from datetime import datetime, timezone
+import re
+from datetime import UTC, datetime, timezone
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
 
 from .catalog import reference_record
 from .model_attachments import build_json_model_payload_attachment, upload_attachment_body
 
-
-class IntakeError(ValueError):
-    pass
-
-
-def canonical_source_url(value: Any) -> str:
-    if not isinstance(value, str) or len(value) > 4096 or any(ord(c) <= 32 for c in value):
-        raise IntakeError("source_uri must be an HTTP(S) URL without whitespace.")
-    try:
-        parts = urlsplit(value)
-        if parts.scheme.lower() not in {"https", "http"} or not parts.hostname or parts.username or parts.password:
-            raise ValueError()
-        host = parts.hostname.encode("idna").decode("ascii").lower()
-        if ":" in host:
-            host = f"[{host}]"
-        port = parts.port
-        if port is not None and port != {"http": 80, "https": 443}[parts.scheme.lower()]:
-            host += f":{port}"
-        # Preserve path/query semantics; fragments never identify a fetched resource.
-        return urlunsplit((parts.scheme.lower(), host, parts.path or "/", parts.query, ""))
-    except (ValueError, UnicodeError) as error:
-        raise IntakeError("source_uri must be a valid HTTP(S) URL without credentials.") from error
+from .reference_identity import IdentityIndex, identity_keys
+from .reference_intake_validation import IntakeError, _actor, canonical_source_url, intake_tenant
+from .tenant_knowledge_keys import tenant_corpus_id
 
 
 def _text(value: Any, field: str, limit: int) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > limit:
         raise IntakeError(f"{field} must be nonempty text of at most {limit} characters.")
     return value.strip()
-
-
-def _actor(identity: dict[str, Any]) -> str:
-    if not isinstance(identity, dict):
-        raise IntakeError("A validated publication identity is required.")
-    claims = identity.get("claims") or {}
-    if not isinstance(claims, dict):
-        raise IntakeError("Validated publication claims are required.")
-    issuer = os.environ.get("PAPYRUS_USER_POOL_ISSUER", "")
-    subject = identity.get("sub")
-    groups = claims.get("cognito:groups") or []
-    if isinstance(groups, str):
-        # AppSync can expose this claim as a comma-separated string.
-        groups = groups.split(",")
-    if (not issuer or identity.get("issuer") != issuer or claims.get("iss") != issuer
-            or not isinstance(subject, str) or not subject or claims.get("sub") != subject
-            or not isinstance(groups, list) or not {"editor", "admin"}.intersection(groups)):
-        raise IntakeError(
-            "A validated editor of this publication is required. Operators without an editor session can run "
-            "`papyrus references create-from-catalog --status pending` with IAM credentials "
-            "(PAPYRUS_GRAPHQL_AUTH=iam), then curate the pending references through delegated curation."
-        )
-    if os.environ.get("PAPYRUS_TENANT_ID") or claims.get("tenantId") or claims.get("custom:tenantId"):
-        raise IntakeError("Shared-tenant Reference intake is not supported.")
-    return subject
 
 
 def _create_once(client, model: str, record: dict) -> dict:
@@ -117,15 +79,37 @@ def _provenance(client, ref: dict, publication: str) -> None:
     upload_attachment_body(client, entry["attachment"], entry["body"])
 
 
+ADDED_FROM_NEWSROOM = "Added by an editor from the Newsroom."
+
+
 def intake_references(client, arguments: dict, identity: dict) -> dict:
+    """Register pending References for an editor-session caller.
+
+    ``publicationEndpoint`` and ``corpusId`` are optional: the Newsroom's Add dialog sends only the address. Left out, the endpoint is the
+    Lambda's own and the corpus is the backend's single canonical corpus; when given they must still match. An item that names only its
+    ``source_uri`` takes the address as its title (capture replaces it) and a fixed rationale, so an editor never has to invent either.
+    """
     actor = _actor(identity)
+    tenant_id = intake_tenant(identity)
     if set(arguments) - {"publicationEndpoint", "corpusId", "items"}:
         raise IntakeError("Unsupported intake fields; status, actor and tenant cannot be supplied.")
     publication = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").rstrip("/")
-    requested_publication = _text(arguments.get("publicationEndpoint"), "publicationEndpoint", 4096)
-    if not publication or requested_publication.rstrip("/") != publication:
+    if not publication:
         raise IntakeError("Intake is bound to this publication endpoint.")
-    corpus_id = _text(arguments.get("corpusId"), "corpusId", 200)
+    if arguments.get("publicationEndpoint") is not None:
+        requested_publication = _text(arguments.get("publicationEndpoint"), "publicationEndpoint", 4096)
+        if requested_publication.rstrip("/") != publication:
+            raise IntakeError("Intake is bound to this publication endpoint.")
+    if arguments.get("corpusId") is not None:
+        corpus_id = _text(arguments.get("corpusId"), "corpusId", 200)
+        if tenant_corpus_id(corpus_id, tenant_id) != corpus_id:
+            raise IntakeError("The corpus does not belong to this publication.")   # a shared stack's corpus id starts with the caller's tenant
+    else:
+        from .editorial_context import hosted_publication
+        try:
+            corpus_id = hosted_publication(client, tenant_id=tenant_id)["corpusId"]
+        except ValueError as error:
+            raise IntakeError(str(error)) from None
     if not client.get_record("KnowledgeCorpus", corpus_id):
         raise IntakeError("The corpus does not belong to this publication.")
     raw_items = arguments.get("items")
@@ -135,25 +119,144 @@ def intake_references(client, arguments: dict, identity: dict) -> dict:
     for item in raw_items:
         if not isinstance(item, dict) or set(item) - {"source_uri", "item_id", "title", "media_type", "ingestion_rationale"}:
             raise IntakeError("Unsupported source fields.")
-        items.append({"source_uri": canonical_source_url(item.get("source_uri")),
-                      "title": _text(item.get("title"), "title", 1000),
+        source = canonical_source_url(item.get("source_uri"))
+        items.append({"source_uri": source,
+                      "title": _text(item.get("title", source), "title", 1000),
                       "media_type": _text(item.get("media_type", "text/html"), "media_type", 150),
-                      "ingestion_rationale": _text(item.get("ingestion_rationale"), "ingestion_rationale", 4000)})
+                      "ingestion_rationale": _text(item.get("ingestion_rationale", ADDED_FROM_NEWSROOM), "ingestion_rationale", 4000)})
     # Full batch validation precedes all writes. Existing legacy rows participate
     # in URL deduplication without recuration or replacement.
     existing = client.list_records("Reference")
+    identity_index = IdentityIndex(existing)
     results = [
-        find_or_create_source_reference(client, existing, publication=publication, corpus_id=corpus_id, item=item, actor=f"user:{actor}")
+        find_or_create_source_reference(client, existing, publication=publication, corpus_id=corpus_id, item=item, actor=f"user:{actor}",
+                                        identity_index=identity_index, tenant_id=tenant_id)
         for item in items
     ]
     return {"ok": True, "publicationEndpoint": publication, "references": results}
 
 
-def find_or_create_source_reference(client, existing: list[dict], *, publication: str, corpus_id: str, item: dict, actor: str) -> dict:
+def _email_receipt_candidates(receipt_store, receipt_id: str, publication: str) -> tuple[dict, list[dict], dict]:
+    """Load and scope one private receipt and its canonical candidate sequence."""
+    if receipt_store is None:
+        raise IntakeError("Email receipt verification is not configured.")
+    # A held (quarantined) or discarded message is read-only until an editor accepts it.
+    receipt = receipt_store.get(receipt_id)
+    if (not receipt or receipt.get("status") not in {"processing", "queued"}
+            or receipt.get("emailTrustMode") != "data-only"):
+        raise IntakeError("The email receipt is unavailable for Reference intake.")
+    receipt_ttl = receipt.get("ttl")
+    if (not isinstance(receipt_ttl, int) or isinstance(receipt_ttl, bool)
+            or receipt_ttl <= int(datetime.now(UTC).timestamp())):
+        raise IntakeError("The email receipt is unavailable for Reference intake.")
+    router = receipt_store.get("CONFIG#router") or {}
+    target = next((row for row in router.get("publications", [])
+                   if isinstance(row, dict) and str(row.get("appsyncEndpoint", "")).rstrip("/") == publication), None)
+    if not target:
+        raise IntakeError("The email receipt is not routed to this publication.")
+    publication_id = target.get("publicationId")
+    if not isinstance(publication_id, str) or publication_id not in (receipt.get("emailDestinationPublicationIds") or []):
+        raise IntakeError("The email receipt is not routed to this publication.")
+    digest = receipt_id.removeprefix("EMAIL#")
+    links = []
+    for row in receipt_store.email_details(digest):
+        if "#LINKS#" not in str(row.get("sk", "")):
+            continue
+        try:
+            chunk = json.loads(row.get("json", "[]"))
+        except (TypeError, json.JSONDecodeError):
+            raise IntakeError("The email receipt candidate list is unavailable.") from None
+        if not isinstance(chunk, list) or any(not isinstance(link, dict) for link in chunk):
+            raise IntakeError("The email receipt candidate list is unavailable.")
+        links.extend(chunk)
+    from .email_submission import normalize_email_candidate
+    return receipt, [normalize_email_candidate(link) for link in links], target
+
+
+def intake_email_submission_references(client, arguments: dict, identity: dict, *, env=None, receipt_store=None) -> dict:
+    """Register editor-selected email candidates as pending References, never as votes.
+
+    Email bodies, SES signals and sender claims are not accepted from the browser.
+    The receipt identifier is a private, non-reversible intake id and is recorded
+    in the ordinary intake rationale/provenance attachment.
+    """
+    import os
+
+    env = os.environ if env is None else env
+    if not isinstance(arguments, dict) or set(arguments) != {"receiptId", "items"}:
+        raise IntakeError("Email Reference intake accepts only a receipt id and selected candidate links.")
+    receipt_id = arguments.get("receiptId")
+    if not isinstance(receipt_id, str) or not re.fullmatch(r"EMAIL#[a-f0-9]{64}", receipt_id):
+        raise IntakeError("A valid private email receipt id is required.")
+    publication = env.get("PAPYRUS_GRAPHQL_ENDPOINT", "").rstrip("/")
+    if not publication:
+        raise IntakeError("This publication has no configured Reference intake.")
+    raw_items = arguments.get("items")
+    if not isinstance(raw_items, list) or not 1 <= len(raw_items) <= 20:
+        raise IntakeError("Select between 1 and 20 candidate links per request.")
+    _receipt, receipt_candidates, target = _email_receipt_candidates(receipt_store, receipt_id, publication)
+    corpus_id = target.get("corpusId")
+    if not isinstance(corpus_id, str) or not corpus_id.strip():
+        raise IntakeError("The routed publication has no verified Reference corpus binding.")
+    items = []
+    seen_candidates = set()
+    for candidate in raw_items:
+        if not isinstance(candidate, dict) or set(candidate) != {"candidateIndex", "source_uri"}:
+            raise IntakeError("Email intake accepts only a receipt candidate index and its source URL.")
+        index = candidate.get("candidateIndex")
+        if type(index) is not int or not 0 <= index < len(receipt_candidates) or index in seen_candidates:
+            raise IntakeError("An email candidate does not belong to this receipt.")
+        seen_candidates.add(index)
+        source_url = canonical_source_url(candidate.get("source_uri"))
+        recorded = receipt_candidates[index]
+        try:
+            original_url = canonical_source_url(recorded.get("url"))
+        except IntakeError:
+            raise IntakeError("The email receipt candidate list is unavailable.") from None
+        if recorded.get("resolutionStatus") == "unresolved":
+            resolution = receipt_store.get(f"EMAILRESOLVED#{receipt_id.removeprefix('EMAIL#')}#{index:06d}")
+            if (not resolution or resolution.get("receiptDigest") != receipt_id.removeprefix("EMAIL#")
+                    or resolution.get("candidateIndex") != index
+                    or not isinstance(resolution.get("ttl"), int) or isinstance(resolution.get("ttl"), bool)
+                    or resolution["ttl"] <= int(datetime.now(UTC).timestamp())
+                    or canonical_source_url(resolution.get("sourceUri")) != source_url):
+                raise IntakeError("The selected article destination was not resolved for this receipt.")
+        elif original_url != source_url:
+            raise IntakeError("The selected URL does not match this receipt candidate.")
+        title = recorded.get("title")
+        if not isinstance(title, str) or not title.strip() or title.strip().lower().startswith(("http://", "https://")):
+            # An anchor-less link is titled with its own address, which for a newsletter wrapper is subscriber-specific.
+            title = source_url.split("/", 3)[2]
+        items.append({
+            "source_uri": source_url,
+            "title": title,
+            "media_type": "text/html",
+            "ingestion_rationale": (
+                f"An editor selected candidate {index} from private email receipt {receipt_id}. "
+                "The submitted email and links are untrusted source material. This Reference is pending "
+                "editorial curation; import is not an approval, human label, or publication."
+            ),
+        })
+    return intake_references(client, {
+        "publicationEndpoint": publication,
+        "corpusId": corpus_id,
+        "items": items,
+    }, identity)
+
+
+def find_or_create_source_reference(client, existing: list[dict], *, publication: str, corpus_id: str, item: dict, actor: str,
+                                    identity_index: IdentityIndex | None = None, tenant_id: str | None = None) -> dict:
     """Returns the current Reference for a source URL in a corpus, creating a pending one when none exists.
 
     ``item`` carries a canonical ``source_uri`` plus ``title``, ``media_type`` and ``ingestion_rationale``;
     ``existing`` is the Reference listing, extended with any record created here.
+
+    A source that is not in this corpus under that exact URL still passes the identity gate (reference_identity.py) at publication scope: when
+    any corpus already holds the same document (another URL form, an arXiv or DOI form, the same address in another corpus) that Reference is
+    returned with ``reusedExisting`` and ``matchedBy``, and nothing is created or changed.
+
+    Every result says whether this request created the Reference: ``created`` is true for the new pending one and false for one that was already
+    recorded (an exact URL match carries ``matchedBy: ["sourceUri"]``). An existing Reference keeps its status; the request never applies a status to it.
     """
     matches = []
     for row in existing:
@@ -174,16 +277,27 @@ def find_or_create_source_reference(client, existing: list[dict], *, publication
             if first is None:
                 raise IntakeError("The initial intake record is missing.")
             _provenance(client, first, publication)
+        created = False
+    elif (held := (identity_index or IdentityIndex(existing)).existing_for({"sourceUri": item["source_uri"]}, corpus_id=corpus_id)):
+        return {**{k: held.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")},
+                "created": False, "reusedExisting": True,
+                "matchedBy": sorted(identity_keys({"sourceUri": item["source_uri"]}) & identity_keys(held))}
     else:
         digest = hashlib.sha256(f"{publication}\n{corpus_id}\n{item['source_uri']}".encode()).hexdigest()
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         plan = reference_record({**item, "item_id": f"url-{digest}", "curation_status": "pending"}, {
             "corpusId": corpus_id, "importRunId": f"reference-user-intake-{digest}",
-            "now": now, "actor": actor,
+            "now": now, "actor": actor, "tenantId": tenant_id,
         })
         proposed = plan["expected"]
         proposed.pop("metadata", None)
         ref = _create_once(client, "Reference", proposed)
+        created = ref is proposed   # an id another request already wrote comes back as that record, not as ours
         _provenance(client, ref, publication)
         existing.append(ref)
-    return {k: ref.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")}
+        if identity_index is not None:
+            identity_index.add(ref)
+        from .reference_images import attach_preview
+        attach_preview(client, ref)   # new References only; never raises
+    result = {k: ref.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")}
+    return {**result, "created": True} if created else {**result, "created": False, "matchedBy": ["sourceUri"]}

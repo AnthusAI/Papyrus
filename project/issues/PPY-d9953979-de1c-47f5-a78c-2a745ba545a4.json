@@ -1,0 +1,27 @@
+{
+  "id": "PPY-d9953979-de1c-47f5-a78c-2a745ba545a4",
+  "title": "papyrus CLI parity: subscriptions and connections",
+  "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** `papyrus notifications` beside the other groups in `src/papyrus/operator/group_commands.py` and `src/papyrus/operator/commands/`, through the signed-in CLI with no AWS login. Mutations write unless `--dry-run`, per the CLI's rule. `subscriptions list|add|remove`, `settings show|set`, `history`, `test`; `connections list|remove` for Slack and Discord once live. No raw address in default output.\n\n**Acceptance.**\n`features_backend/operator-cli.feature` scenarios; `docs/operator-cli.md` updated.\n\n**Depends on:** PPY-44721a",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m3"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-44721afe-c320-47fd-96cf-1e227300b170",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-04T13:14:30.885422Z",
+  "updated_at": "2026-11-04T13:14:33.286892Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

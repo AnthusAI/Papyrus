@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "12820d63-fbe9-4412-9388-7f750e9099a3",
+  "issue_id": "PPY-d7274f89-41d4-44bb-99f2-24f4759af61e",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:46.772Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Implements PPY-bd1c6e. Tenant.state changes only through one function, driven by Prospectus payment and cancellation events (whether past-due suspends automatically is owner decision 5; Prospectus billing today never suspends on its own). Effects: past_due shows a banner; suspended removes the editor, curator and admin write claims at the next token issue (members keep read claims, so the newsroom is read-only and export works), stops monitors, scheduled jobs and model spend, and keeps the public site up; deleted_pending starts the stated grace period, then deletion (PPY-62f10d). Every change is logged and the admin is told by email.\n\nTouches (verified at origin/develop 23fabe1d): Tenant model, amplify/functions/tenant-claims (state-aware claims), new state-change function, monitoring router (skip suspended tenants), procedure runner and scheduled tasks, the newsroom banner.\n\nAcceptance (Gherkin feature file: features_backend/tenant-lifecycle.feature):\nScenario: A suspended tenant can read and export but not write\n    Given \"alpha\" is suspended\n    When its admin signs in\n    Then stories open read-only, saving is refused, and export works\n\nScenario: Suspension stops spending\n    Given \"alpha\" is suspended\n    When its monitors are due\n    Then they do not run and no model call is made\n\nDependencies: blocked by PPY-0bb0fd, PPY-31c45c, PPY-6d9a6d, PPY-bdc4ee. Blocks PPY-62f10d, PPY-d7c279. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-bd1c6e.\n\nTesting: Behave with a fake event source.\nRollout: Shared stack.\nRisk and mitigation: Risk: a wrong suspension locks a paying customer out. Mitigation: suspension needs the payment event plus the grace period; a platform operator can reverse it in one command; the runbook covers it.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: claims depend on tenant state.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

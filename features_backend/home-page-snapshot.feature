@@ -1,0 +1,153 @@
+Feature: The home-page snapshot publishes the accepted and recommended References as public JSON
+  A Papyrus site can show part of its newsroom's curation to visitors. The first step is a public data file,
+  _data/home-page/references.json, that holds the site's accepted References and the pending ones that the
+  Cyclotron expects an editor to accept. A projection task writes it under the projection lease, only when its content
+  changed (the freshness stamp alone is not a change), and then re-renders only the pages that read it.
+  papyrus home-page snapshot runs the same code from a workstation, against a local directory or a site bucket.
+
+  The file holds an explicit allowlist of fields and nothing else. Anything that identifies a person (who decided, who
+  relayed, the editor's private note, intake provenance), the captured text of the source and the model's internal keys
+  stay out. Each Reference is named by a short hash of its lineage, so no id appears.
+
+  Scenario: A site without a homePage setting writes no home-page files and the projector ignores the task
+    Given a site whose projection.json has no homePage setting
+    When the home-page-snapshot task runs
+    Then the task reports that the site has no homePage setting
+    And the store holds no key under _data/home-page
+
+  Scenario: Accepted current References are exported newest-accepted first with every public field and no excluded field
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    Then the accepted titles in the file, in order, are "Accepted eight", "Accepted seven", "Accepted six", "Accepted five", "Accepted four", "Accepted three, contact", "Accepted two", "Accepted one"
+    And every record has exactly the public fields in the allowlist order
+    And no record has an excluded field
+    And the file mentions none of the excluded values the fixture holds
+    And the file does not list "Superseded old version"
+
+  Scenario: Pending References the Cyclotron has predicted at or above the recommended threshold are exported as recommended; rejected, archived and superseded ones never are
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    Then the recommended titles in the file are "Pending high", "Pending mid", "Pending unrecorded confidence"
+    And every recommended record has no acceptedAt
+    And the file does not list "Pending low", "Pending predicted reject", "Rejected", "Archived", "Superseded old version"
+
+  Scenario: A pending Reference nobody has predicted is published nowhere, and its first prediction publishes it
+    Ryan, 2026-11-05: an unpredicted Reference is not 50% and shows nothing until there is a prediction. The test is the number the Cyclotron wrote onto the
+    Reference (predictedAcceptProbability). Every Reference has a prediction sort key from the day it is created, 0.5 when unpredicted, so the key is not evidence,
+    nor is a decision time. "Pending undecided" has no prediction, so it is not in the file at all, even though a 0.5 would pass the threshold.
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    Then the file does not list "Pending undecided"
+    When the Cyclotron predicts 0.8 for "Pending undecided" and the home-page-snapshot task runs again
+    Then the recommended titles in the file are "Pending high", "Pending mid", "Pending unrecorded confidence", "Pending undecided"
+    And the record titled "Pending undecided" has confidence 0.8
+
+  Scenario: A prediction that really is 0.5 is a prediction and keeps the threshold behaviour
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the Cyclotron predicts 0.5 for "Pending undecided" and the home-page-snapshot task runs
+    Then the record titled "Pending undecided" has confidence 0.5
+    And the record titled "Pending undecided" has status "recommended"
+
+  Scenario: The live Cyclotron decision sets confidence the way the newsroom console computes it
+    A decision for the other label counts for the opposite (0.9 sure of "exclude" is 0.1 to accept). A label other than
+    include is positive only when the decision names it. A decision with no recorded confidence is a mild lean (0.6).
+    No decision and no prediction at all is no confidence: the record carries none, not 0.5.
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    Then the record titled "Pending high" has confidence 0.92
+    And the record titled "Accepted three, contact" has confidence 0.1
+    And the record titled "Accepted six" has actor "rule" and no confidence
+
+  Scenario: Once an editor has accepted a Reference its confidence is not published
+    The Cyclotron's confidence stops mattering when a person accepts. The snapshot leaves it out of the record of a Reference an editor accepted
+    (its actor is human); a Reference accepted by a Cyclotron or a rule, and a pending one, keep it. The page order does not change, because the rank
+    is computed from the row.
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    Then the record titled "Accepted two" has no confidence
+    And the record titled "Accepted four" has no confidence
+    And the record titled "Accepted one" has no confidence
+    And the record titled "Accepted six" has actor "rule" and no confidence
+    And the record titled "Accepted three, contact" has actor "cyclotron" and confidence 0.1
+
+  Scenario: A preview attachment supplies image and summary; a Reference without one has neither field
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    Then the record titled "Accepted two" has an image, a summary and a site name
+    And the record titled "Accepted four" has no image, no summary and no site name
+    And the summary of "Accepted one" is at most 240 characters and ends on a sentence boundary
+
+  Scenario: The public files hold no email, person id, Cognito sub or UUID
+    The fixture's titles and addresses carry an email on purpose; the export scrubs them, and the same scanner that
+    checks the reader files finds nothing, with no reader id allowed.
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    Then the identity scanner finds nothing in the file
+
+  Scenario: An unchanged snapshot is not rewritten and no page is re-rendered
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    And the home-page-snapshot task runs again with no change in the References
+    Then the file is not written again
+    And no page is re-rendered
+
+  Scenario: A changed snapshot rewrites only the pages that read it
+    Pages that place a references include read the file; a page without one is not rewritten.
+    Given a site with pages that place a references include and a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    And a Reference is accepted and the home-page-snapshot task runs again
+    Then the file is written
+    And only pages that read the file are re-rendered
+    And the page "front/index.html" was re-rendered
+    And the page "quiet/index.html" was not re-rendered
+
+  Scenario: A page whose source has no home-page include is never rewritten, even when its stored digest looks stale
+    On 2026-10-31 the snapshot rewrote a site's root index.html, which has no home-page include, and replaced a large home
+    page with a small one, while the only page that reads the snapshot was left alone. The snapshot now rewrites exactly
+    the pages whose source places a references or threads include, whatever else looks out of date.
+    Given a site with pages that place a references include and a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    And the stored digest of the page "index.html" no longer matches
+    And a Reference is accepted and the home-page-snapshot task runs again
+    Then the page "front/index.html" was re-rendered
+    And the page "index.html" was not re-rendered
+    And the page "index.html" still holds the bytes it held before
+
+  Scenario: The snapshot refuses to write when it cannot build the site's projector
+    The deploy projection uses the standard front end named by projection.json. A static directory without that file
+    used to give a plain projector, which renders other pages. The command now names what is missing and writes nothing.
+    When papyrus home-page snapshot runs against an output directory with a static directory that holds no projection.json
+    Then the CLI refused with a message naming the missing projection.json
+    And the output directory is still empty
+
+  Scenario: The dry run lists the exact keys a real run would write and rewrite
+    An operator can see every key before anything is written, and notice an index.html in the list.
+    When papyrus home-page snapshot --dry-run runs against the home-page fixture site
+    Then the CLI listed "would write" for "_data/home-page/references.json"
+    And the CLI listed "would rewrite" for "front/index.html"
+    And the CLI listed no "would rewrite" for "index.html"
+    And the CLI listed no "would rewrite" for "quiet/index.html"
+    And the fixture output directory is still empty
+
+  Scenario: A projector that would render a page outside the readers aborts the run before anything is written
+    Given a site with pages that place a references include and a homePage setting for a corpus of accepted, pending, rejected and archived References
+    And a projector that also renders the page "index.html" when it is asked for the reader pages
+    When the home-page-snapshot task runs and is aborted
+    Then the abort names the page "index.html"
+    And the store is unchanged
+
+  Scenario: Reconcile leaves _data/home-page files alone
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    And the site is reconciled
+    Then the file is still in the store
+
+  Scenario: The snapshot honours urls.basePath
+    Given a site whose projection.json has a homePage setting and the base path "updates"
+    When the home-page-snapshot task runs
+    Then the file is stored at "updates/_data/home-page/references.json"
+
+  Scenario: papyrus home-page snapshot --dry-run writes nothing and prints the report
+    When papyrus home-page snapshot --dry-run runs against an empty output directory
+    Then the output directory is still empty
+    And the CLI printed the number of References and the size of the file

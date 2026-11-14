@@ -1,7 +1,7 @@
 """The asynchronous review step of the ``reader-snapshot`` run: signals on new submissions.
 
 A new submission is public at once; this step runs after the request, in the worker, so nothing here can slow or block a
-reader's submit. Entity extraction is a later step of the same worker (the knowledge-base lead owns it): a submission waits
+reader's submit. Entity extraction is a later step of the same run (``extraction.py``): a submission waits
 in ``extractionState: "pending"`` and this step leaves that state alone.
 
 ``signals`` is stored as a JSON string, because the Amplify ``a.json()`` field is an AWSJSON scalar.

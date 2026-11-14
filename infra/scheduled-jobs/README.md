@@ -10,6 +10,9 @@ Per-publication settings are the optional `knowledgeRun` block of the publicatio
 read at deploy time from the SSM String parameter named by `knowledgeRun.alarmEmailParameter`
 (default `/papyrus/<site>/knowledge-run/alarm-email`); create it first.
 
+A site's vocabulary, stop words and review guidance are files in `knowledgeRun.settingsDirectory`, shipped with the deploy as an asset and read by
+the run from there, never from the S3 state: [Committed settings](../../docs/knowledge-cloud-run.md#committed-settings).
+
 ```bash
 cd infra/scheduled-jobs && npm ci
 export AWS_PROFILE=papyrus-production          # account 712236451410; check with `aws sts get-caller-identity`

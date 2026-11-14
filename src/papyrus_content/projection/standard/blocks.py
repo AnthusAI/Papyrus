@@ -321,7 +321,13 @@ def _band_html(band: dict) -> str:
     )
 
 
-def _knowledge_block(attributes: dict) -> bool:
+KEPT_INCLUDE_KINDS = ("references", "threads")
+
+
+def _kept_include(attributes: dict) -> bool:
+    """Includes whose line stays in the twin: the knowledge blocks and the home-page components."""
+    if attributes.get("kind") in KEPT_INCLUDE_KINDS:
+        return True
     return attributes.get("kind") == "block" and attributes.get("name", "").startswith("knowledge-")
 
 
@@ -329,15 +335,35 @@ def twin(text: str, values: Mapping[str, str], source: str) -> str:
     """The Markdown twin's source: tokens replaced and every page block kept as written (an island carries its ``summary``).
 
     Only ``::include`` and ``::raw`` regions are left out: they place generated or hand-written markup that has no
-    source text to read. The knowledge blocks (``::include{kind="block" name="knowledge-..."}``) are the exception: they
-    stay as written, because the line says what the page shows and where the data lives."""
+    source text to read. The knowledge blocks (``::include{kind="block" name="knowledge-..."}``) and the home-page components
+    (``::include{kind="references"}``) are the exception: they stay as written, because the line says what the page shows and where the data lives."""
     text = substitute(text, values, source)
     if not uses_blocks(text):
         return text
     front = FRONT_MATTER.match(text)
     head, body = (text[: front.end()], text[front.end():]) if front else ("", text)
-    out = [line for line, name, attributes, _inside in _directives(body) if name not in ("include", "raw", "rawline", "endraw") or (name == "include" and _knowledge_block(attributes))]
+    out = [line for line, name, attributes, _inside in _directives(body) if name not in ("include", "raw", "rawline", "endraw") or (name == "include" and _kept_include(attributes))]
     return head + re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip() + "\n"
+
+
+def twin_omissions(body: str) -> list[dict]:
+    """What the Markdown twin leaves out of a body (front matter already removed): ``[{"kind", "line", "lines", "text"}]``.
+
+    ``kind`` is ``include`` (a generated listing or component, not a knowledge block or a home-page component) or ``raw`` (a ``::raw`` region, from its
+    opening line to ``::endraw``). ``line`` is the first line (1 is the body's first), ``lines`` how many lines are left out."""
+    omitted: list[dict] = []
+    region: dict | None = None
+    for number, (line, name, attributes, _inside) in enumerate(_directives(body), start=1):
+        if name == "raw":
+            region = {"kind": "raw", "line": number, "lines": 1, "text": line.strip()}
+        elif name in ("rawline", "endraw") and region is not None:
+            region["lines"] += 1
+            if name == "endraw":
+                omitted.append(region)
+                region = None
+        elif name == "include" and not _kept_include(attributes):
+            omitted.append({"kind": "include", "line": number, "lines": 1, "text": line.strip()})
+    return omitted
 
 
 ISLAND_MOUNT = re.compile(

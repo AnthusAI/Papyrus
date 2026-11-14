@@ -1,0 +1,113 @@
+<!-- @dsCard group="Newsroom" height=940 subtitle="The whole reference pane, top to bottom" -->
+<div id="root"></div>
+<style>
+  #root, #root * { box-sizing: border-box; }
+  #root { display: grid; font-family: var(--font-sans); gap: var(--space-4); justify-items: center; }
+  .routes > *, .pane > *, dl > * { min-width: 0; }
+  .pane { background: var(--surface); border-radius: var(--radius-lg); display: grid; gap: var(--space-4); max-width: 560px; padding: var(--space-4); width: 100%; }
+  .zone { display: grid; gap: var(--space-2); position: relative; }
+  .zone::before { color: var(--ink-muted); content: attr(data-zone); font-family: var(--font-label); font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+  h2 { color: var(--ink-strong); font-size: 18px; font-weight: 600; line-height: 1.35; margin: 0; }
+  .dek { color: var(--ink-muted); font-size: 15px; margin: 0; }
+  .src { align-items: center; color: var(--ink-strong); display: flex; font-size: 13px; gap: 4px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; }
+  .badge { background: var(--surface-muted); border-radius: 8px; color: var(--ink); font-size: 11px; font-weight: 600; padding: 3px 8px; }
+  .shot { align-items: center; background: var(--surface-muted); border-radius: 8px; color: var(--ink-muted); display: flex; font-size: 11px; height: 104px; justify-content: center; }
+  .lbl { color: var(--ink-muted); font-family: var(--font-label); font-size: 10px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
+  p.body { color: var(--ink); font-size: 13px; line-height: 19px; margin: 0; }
+
+  /* the decision control, as built */
+  .seg { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
+  .opt { align-items: center; background: color-mix(in srgb, var(--surface-accent) 45%, transparent); border: 0; border-radius: 8px; color: var(--ink-muted); display: flex; flex-direction: column; font: inherit; font-size: 14px; gap: 1px; justify-content: center; min-height: 48px; position: relative; }
+  .opt[data-s="predicted"] { background: var(--surface-accent); color: var(--ink-strong); }
+  .opt .sub { font-family: var(--font-label); font-size: 10px; font-weight: 800; letter-spacing: 0.07em; opacity: 0.75; text-transform: uppercase; }
+  .bar { background: var(--surface-muted); border-radius: 999px; height: 16px; overflow: hidden; position: relative; }
+  .fill { align-items: center; background: var(--ink-muted); border-radius: 999px; display: flex; inset-block: 0; justify-content: flex-end; left: 7%; position: absolute; width: 43%; }
+  .fill small { color: var(--surface); font-family: var(--font-label); font-size: 10px; font-weight: 800; padding: 0 6px; }
+  .notch { background: var(--surface); inset-block: 0; left: 50%; position: absolute; transform: translateX(-50%); width: 3px; }
+  textarea, .field { background: var(--surface-muted); border: 0; border-radius: 8px; color: var(--ink); font: inherit; font-size: 13px; min-height: 60px; padding: 9px 11px; resize: vertical; width: 100%; }
+
+  /* messages */
+  .msg { background: var(--surface-muted); border-radius: 8px; display: grid; gap: 4px; padding: 10px 11px; }
+  .msg.reply { background: color-mix(in srgb, var(--surface-muted) 55%, transparent); margin-left: var(--space-4); }
+  .who { align-items: baseline; display: flex; gap: 8px; }
+  .who b { color: var(--ink-strong); font-size: 13px; }
+  .who span { color: var(--ink-muted); font-size: 11px; }
+  .pill { background: var(--surface-accent); border: 0; border-radius: 8px; color: var(--ink-strong); font: inherit; font-size: 12px; font-weight: 600; min-height: 28px; padding: 0 10px; }
+  .pill.primary { background: var(--primary); color: var(--primary-contrast); }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* the captured record */
+  .record { background: var(--surface-muted); border-radius: 8px; display: grid; gap: 3px; padding: 11px; }
+  .record[data-state="partial"] { background: var(--verdict-miss-tint); color: var(--verdict-miss-ink); }
+  .record b { font-size: 13px; }
+  .record small { font-size: 11px; opacity: 0.9; }
+  .routes { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+  .route { background: var(--surface-muted); border-radius: 8px; display: grid; gap: 6px; padding: 11px; }
+  .route b { color: var(--ink-strong); font-size: 12px; }
+  .route p { color: var(--ink-muted); font-size: 11px; line-height: 15px; margin: 0; }
+  dl { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; margin: 0; }
+  dt { color: var(--ink-muted); font-family: var(--font-label); font-size: 10px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
+  dd { color: var(--ink); font-size: 13px; margin: 4px 0 0; }
+  .queue { align-items: center; background: var(--surface-accent); border-radius: 8px; display: flex; gap: 8px; justify-content: space-between; margin-top: var(--space-2); padding: 8px 10px; }
+  .queue span { color: var(--ink); font-size: 13px; }
+</style>
+<script>
+  const ICON = {
+    link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="height:13px;width:13px"><path d="M15 3h6v6M10 14 21 3M18 13v8H3V6h8"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="height:15px;width:15px"><path d="M20 6 9 17l-5-5"/></svg>',
+    cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="height:15px;width:15px"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  };
+  document.getElementById("root").innerHTML = `
+  <section class="pane" aria-label="Reference detail">
+    <div class="zone" data-zone="1 · what it is">
+      <h2>A quiet month for ransomware crews, and why that is not good news</h2>
+      <p class="dek">Payment volumes fell for the third quarter running while the number of named victims rose.</p>
+      <a class="src" href="#" onclick="return false">chainalysis.example.org/reports/q3${ICON.link}</a>
+      <div class="shot">source preview · the page as captured</div>
+      <div class="badges"><span class="badge">Needs review</span><span class="badge">Accepted automatically · 96%</span></div>
+      <div><span class="lbl">Summary</span><p class="body">Three quarters of falling payments alongside a rising victim count points to crews publishing more and collecting less.</p></div>
+    </div>
+
+    <div class="zone" data-zone="2 · the decision">
+      <span class="lbl">Predicted Accept</span>
+      <div class="bar"><span class="fill"><small>93%</small></span><span class="notch"></span></div>
+      <div class="seg">
+        <button class="opt" data-s="predicted" type="button"><span>${ICON.check} Accept</span><span class="sub">Predicted</span></button>
+        <button class="opt" type="button"><span>${ICON.cross} Reject</span></button>
+      </div>
+      <span class="lbl">Reason · optional</span>
+      <textarea placeholder="Why? In your own words — this is what the next prediction learns from."></textarea>
+      <p class="body" style="color:var(--ink-muted);font-size:12px">Nothing recorded yet</p>
+    </div>
+
+    <div class="zone" data-zone="3 · why it was predicted">
+      <p class="body">Scored against the Ransomware Economics topic · 12 accepted examples · the classifier leaned on the payment-volume language in the dek.</p>
+    </div>
+
+    <div class="zone" data-zone="4 · messages">
+      <div class="msg"><div class="who"><b>Ryan</b><span>2h</span></div><p class="body">Worth pairing with the Chainalysis mid-year piece if we run it.</p></div>
+      <div class="msg reply"><div class="who"><b>Desk agent</b><span>1h</span></div><p class="body">That one is already accepted — linked it as related.</p></div>
+      <textarea style="min-height:48px" placeholder="Write a message"></textarea>
+      <div class="row"><button class="pill primary" type="button">Post</button><button class="pill" type="button">Cancel</button></div>
+    </div>
+
+    <div class="zone" data-zone="5 · our captured record">
+      <div class="record" data-state="partial"><b>The capture looks cut off</b><small>about 340 words · paywall marker found</small></div>
+      <div class="field" style="min-height:0;padding:11px"><p class="body">The first three paragraphs read cleanly, then the text stops mid-sentence at “crews publishing more and…”</p></div>
+      <div class="row"><button class="pill" type="button">Show all the text</button></div>
+      <div class="routes">
+        <div class="route"><b>Paste or correct the text</b><p>Your own text replaces the capture, and the capture is kept.</p><button class="pill" type="button">Paste text</button></div>
+        <div class="route"><b>Upload a PDF</b><p>The server reads the text from the PDF you downloaded.</p><button class="pill" type="button">Choose a PDF</button></div>
+      </div>
+      <span class="lbl">Was the capture complete?</span>
+      <div class="row"><button class="pill" type="button">Complete</button><button class="pill" type="button">Incomplete</button><button class="pill" type="button">Not sure</button></div>
+    </div>
+
+    <div class="zone" data-zone="6 · provenance">
+      <dl><div><dt>Imported</dt><dd>29 Oct 2026</dd></div><div><dt>Media</dt><dd>text/html</dd></div></dl>
+    </div>
+
+    <div class="queue"><button class="pill" type="button">Previous</button><span>4 of 23</span><button class="pill" type="button">Next</button></div>
+  </section>`;
+</script>

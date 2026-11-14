@@ -9,7 +9,9 @@ from typing import Any
 from papyrus_content.projection.runtime import SITE_BUCKET_ENV, SITE_STATIC_DIRECTORY_ENV
 from papyrus_content.renditions import (
     RenditionSettings,
+    PrefixedRenditionStore,
     S3RenditionStore,
+    base_path_from_static_directory,
     make_renditions,
     media_originals_enabled,
     meta_key,
@@ -36,10 +38,14 @@ def originals_enabled() -> bool:
     return _loaded["originals"]
 
 
-def site_store() -> S3RenditionStore:
+def site_store():
+    """The site bucket, seen through the site's ``urls.basePath``: with one, renditions and originals are written under it."""
     if "store" not in _loaded:
         _loaded["store"] = S3RenditionStore(os.environ[SITE_BUCKET_ENV])
-    return _loaded["store"]
+    if "prefixed" not in _loaded:
+        static_directory = (os.environ.get(SITE_STATIC_DIRECTORY_ENV) or "").strip()
+        _loaded["prefixed"] = PrefixedRenditionStore(_loaded["store"], base_path_from_static_directory(Path(static_directory) if static_directory else None))
+    return _loaded["prefixed"]
 
 
 def s3_client():

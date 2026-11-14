@@ -1,8 +1,8 @@
-"""Run state in S3, per publication: ``publications/<publication>/{config,corpus,runs/<week>}/``.
+"""Run state in S3, per publication: ``publications/<publication>/{corpus,runs/<week>}/``.
 
-``config/`` holds what an operator maintains (vocabulary, stop words, review guidance, amplify_outputs.json); ``corpus/`` is
-the long-lived Biblicus corpus with the previous run's identity state (``knowledge-run.json``); ``runs/<week>/`` is the
-scratch folder of a run. A stage downloads what it needs into the work directory and uploads what it changed, so a
+``corpus/`` is the long-lived Biblicus corpus with the previous run's identity state (``knowledge-run.json``); ``runs/<week>/`` is the
+scratch folder of a run. What an operator maintains (vocabulary, stop words, review guidance) is not state: it is committed settings
+(``settings.py``). A stage downloads what it needs into the work directory and uploads what it changed, so a
 container keeps nothing between stages.
 """
 
@@ -35,6 +35,10 @@ class StateStore:
             for entry in page.get("Contents", []):
                 found[entry["Key"][len(root):]] = entry
         return found
+
+    def names(self, relative: str) -> list[str]:
+        """The names (relative to ``relative``) of the files under it."""
+        return sorted(name for name in self._objects(relative) if name and not name.endswith("/"))
 
     def download(self, relative: str, directory: Path) -> int:
         """Copy every object under ``relative`` into ``directory``; returns how many files were fetched."""

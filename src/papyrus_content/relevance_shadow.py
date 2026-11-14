@@ -15,6 +15,7 @@ from typing import Any, Mapping, Sequence
 
 from .catalog import _record
 from .ids import safe_id
+from .reference_vote import latest_vote
 from .relevance_decisions import human_label_for_review
 
 SHADOW_AGREEMENT_PAYLOAD_KIND = "cyclotron-shadow-agreement"
@@ -40,18 +41,17 @@ def live_agreement(comparisons: Sequence[Mapping[str, Any]], *, positive_label: 
 
 
 def comparison_of_suggestion_with_human_decision(reference: Mapping[str, Any], decision_relation: Mapping[str, Any],
-                                                 messages: Sequence[Mapping[str, Any]], *,
-                                                 labels: Sequence[str]) -> dict[str, Any] | None:
+                                                 *, labels: Sequence[str]) -> dict[str, Any] | None:
     """The suggestion and the editor's label, or None when it is not an honest comparison.
 
     Not honest: no human label, or the suggestion was made after the editor reviewed.
     """
-    editor_label = human_label_for_review(reference, messages, labels=labels)
+    editor_label = human_label_for_review(reference, labels=labels)
     if editor_label is None:
         return None
     metadata = json.loads(decision_relation.get("metadata") or "{}")
     suggested_at = str(metadata.get("decidedAt") or decision_relation.get("importedAt") or "")
-    reviewed_at = str(messages[-1].get("createdAt") or "")
+    reviewed_at = str(latest_vote(reference)["createdAt"] or "")
     if not suggested_at or not reviewed_at or suggested_at >= reviewed_at:
         return None
     return {"referenceLineageId": reference["lineageId"], "suggestedLabel": metadata.get("label"),

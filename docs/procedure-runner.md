@@ -139,13 +139,42 @@ Both stacks are deployed by hand. Review a change set before you execute it.
 To run a procedure by hand, invoke the runner with a request like the one above:
 `aws lambda invoke --function-name papyrus-procedure-runner --invocation-type Event --payload file://request.json out.json`.
 
+## Granting a newsroom to the runner
+
+The runner may call a newsroom's API only if the role's `PublicationNewsrooms` statement names it. Granting one is a
+shared-infrastructure change to the `papyrus-procedure-runner` stack: it modifies the role's inline policy and nothing
+else. In the template, add a parameter with the API id and two resources (every Query field, every Mutation field),
+as `DistinctiveApiId` and `AnthUsApiId` do. Then, by hand, with a change set that a person reads before it runs:
+
+```bash
+export AWS_PROFILE=papyrus-production
+aws sts get-caller-identity --query Account --output text        # must print 712236451410
+aws appsync list-graphql-apis --region us-east-1 --query "graphqlApis[].[name,apiId]" --output text   # confirm the site's API id
+aws cloudformation create-change-set --stack-name papyrus-procedure-runner --change-set-name grant-anthus-newsroom \
+  --change-set-type UPDATE --capabilities CAPABILITY_IAM \
+  --template-body file://infra/procedures/papyrus-procedure-runner.yaml \
+  --parameters ParameterKey=ImageUri,UsePreviousValue=true ParameterKey=MonitoringTableName,UsePreviousValue=true \
+               ParameterKey=ReservedConcurrency,UsePreviousValue=true ParameterKey=DistinctiveApiId,UsePreviousValue=true \
+               ParameterKey=AnthUsApiId,ParameterValue=<the site's API id>
+aws cloudformation describe-change-set --stack-name papyrus-procedure-runner --change-set-name grant-anthus-newsroom \
+  --query "{Status:Status,Reason:StatusReason,Changes:Changes[].ResourceChange.{Action:Action,Id:LogicalResourceId,Replacement:Replacement}}"
+# Read it. Expected: one Modify of RunnerRole, Replacement False, no other resource.
+aws cloudformation execute-change-set --stack-name papyrus-procedure-runner --change-set-name grant-anthus-newsroom
+aws cloudformation wait stack-update-complete --stack-name papyrus-procedure-runner
+```
+
+No image rebuild is needed for a grant. Delete the change set instead of executing it to abandon the change
+(`aws cloudformation delete-change-set ...`). The first run of a procedure on the newly granted newsroom shows in
+`papyrus automations runs`; an AppSync "not authorized" error on a run means the grant is not live.
+
 ## Limits
 
 - **Time.** A run gets about 14 minutes. A procedure that needs longer needs a different runtime (ECS),
   which is not built.
-- **Access.** The runner's role may call every Query and Mutation of the newsroom APIs it is granted (only
-  Distinctive's today), because a procedure's tools may call any of them. Grant a new publication by
-  adding its API id to the template.
+- **Access.** The runner's role may call every Query and Mutation of the newsroom APIs it is granted, because a
+  procedure's tools may call any of them. The deployed stack grants only Distinctive's today; the template also
+  names Anth.us (`AnthUsApiId`), which takes effect when the change set below is executed. Grant a new publication
+  by adding its API id to the template.
 - **Records.** Logs go to CloudWatch (`/aws/lambda/papyrus-procedure-runner`). The ProcedureRun keeps the
   output, the error and its log tail, and the run's model usage and estimated cost (`usage`, `costUsd`).
 - **Interactive runs.** A procedure that waits for a human is not supported. It fails.

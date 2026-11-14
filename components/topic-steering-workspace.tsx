@@ -2,24 +2,32 @@
 
 import { AdministrationDelegationsPanel } from "./administration-delegations-panel";
 import { WikiConceptsView } from "./wiki-concepts-view";
+import { SectionConceptsEditor } from "./section-concepts-editor";
+import { parseCoreConcepts, serializeCoreConcepts, type CoreConcept } from "../lib/section-concepts";
 import { Hub } from "aws-amplify/utils";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { gsap } from "gsap";
 import { Flip } from "gsap/Flip";
 import { ArchiveIcon, MenuIcon, MoreHorizontalIcon, RefreshCwIcon, XIcon } from "lucide-react";
+import { Palette, PenLine, ScrollText } from "lucide-react";
+import { VisualStyleAdmin } from "./visual-style-admin";
+import { WritingGuidelinesAdmin } from "./writing-guidelines-admin-panel";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import amplifyOutputs from "papyrus-amplify-outputs";
+import { AnnouncementsPanel } from "./announcements-panel";
 import { EditorialChecksAdminPanel } from "./editorial-checks-admin-panel";
 import { AutomationPanel } from "./automation-panel";
 import { MonitoringPanel } from "./monitoring-panel";
 import { ModerationPanel } from "./moderation-panel";
+import { ProposalsPanel } from "./proposals-panel";
 import { NewsletterPanel } from "./newsletter-panel";
 import { SignupEntriesPanel } from "./signup-entries-panel";
 import { pluginSettings, type PluginOutputs } from "../lib/plugin-settings";
+import { assertReferenceReviewSaved, type ReferenceReviewResult } from "../lib/reference-review-response";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import {
@@ -37,13 +45,19 @@ import {
   loadEditorUserDirectoryData,
   loadModelPayloadsForOwner,
   loadStoragePathText,
-  loadEditorReferencesData,
+  loadAllEditorReferences,
+  loadReferenceFeedCorpusIds,
+  readReferenceFeedStream,
+  readReferenceStarStream,
+  readReferenceMediumStream,
+  searchReferences,
+  discardFeedCorpusIds,
+  loadReferenceAttachmentsForLineages,
   loadEditorProcedureData,
-  loadEditorSemanticRelationsData,
+  loadEditorReferencePredictions,
   loadEditorReferenceReviewDetails,
   loadEditionForumThreads,
   loadNewsroomAssignmentPage,
-  loadNewsroomMessagePage,
   loadNewsroomReferencePage,
   loadNewsroomSemanticNodePage,
   appendForumThreadMessageRecord,
@@ -61,20 +75,16 @@ import {
   type KnowledgeQueryResponse,
   type NewsroomRecordPage,
   loadCyclotronStatus,
+  loadAutoAcceptedReferencePage,
   loadCyclotronShadowAgreement,
   loadSiteSectionAgreement,
-  requestCyclotronPriming,
-  loadCyclotronPrimingRequests,
   requestCyclotronReviewRate,
 } from "./news-desk-taxonomy-client";
-import { listConsoleThreads } from "../lib/console-chat-client";
 import {
   effectiveAssignmentsIndexFilters,
-  effectiveMessagesIndexFilters,
   effectiveReferencesIndexFilters,
   normalizeReferenceIndexOrder,
   readAssignmentsIndexFilters,
-  readMessagesIndexFilters,
   readReferencesIndexFilters,
   referencesStatusFromUrl,
   referencesStatusToUrl,
@@ -93,12 +103,25 @@ import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
+import { correctReferenceCapture } from "../lib/content-actions-client";
+import { loadMessagesWithHeadStart } from "./references-prefetch";
+import { useIndexedReferenceFeed, type IndexedFeedSource } from "./use-indexed-reference-feed";
+import { useReferencePredictions } from "../lib/use-reference-predictions";
+import { buildFeedItems, feedWindow } from "../lib/reference-feed-ranking";
+import { loadFeedSnapshot, saveFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
+import { referencePreviewsByLineage } from "../lib/reference-preview";
+import { PREVIEW_SEARCH_MEANING, normalizeSearchQuery, previewSearch, statusFromLocation, type ReferenceSearchReader } from "../lib/reference-search";
+import { NewsroomSearchResults } from "./newsroom-search-results";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
+import { ConversationProvider } from "./conversation-provider";
+import { ReferenceLinksProvider } from "./reference-links-provider";
+import { ConversationsPage } from "./conversations-page";
 import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
 import { NewsroomTopicsView } from "./newsroom-topics-view";
-import { NewsroomOpsSearchButton, NewsroomOpsSectionIntro, NewsroomOpsShell, NewsroomOpsStatusBanner, type NewsroomNavCount } from "./newsroom-ops-shell";
+import { MarkdownContext } from "./markdown-context";
+import { NewsroomOpsSectionIntro, NewsroomOpsShell, NewsroomOpsStatusBanner, type NewsroomNavCount } from "./newsroom-ops-shell";
 import { Button, buttonVariants } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -175,14 +198,13 @@ import { delegatedCurationsByReference, referencesWithHumanLatestCuration, type 
 import { createLocalPreviewCyclotronFixtures } from "../lib/local-preview-seed";
 import { createLocalPreviewSectionFixtures } from "../lib/local-preview-section-fixtures";
 import { currentSectionSuggestions, siteCyclotronIdOf, type SiteSectionAgreement } from "../lib/site-section-suggestions";
+import { addReference, parseIntakeAnswer, type AddReferenceInput, type AddReferenceOutcome } from "../lib/add-reference";
 import {
-  buildPrimingRequest,
   buildReviewRateRequest,
-  DEFAULT_RELEVANCE_CYCLOTRON,
   DEMO_CYCLOTRON_STATUS,
-  type PrimingRequestView,
 } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
+import { SEMANTIC_RELATION_FEED_KEY, corpusIdForKey, corpusKeyOf, globalKey, isCorpusId } from "../lib/tenant-knowledge-keys";
 import {
   referenceDisplaySummary,
   referenceMetadataField,
@@ -214,7 +236,6 @@ import {
 import {
   buildForumThreadUrl,
   getForumMessageAnchorId,
-  isForumThreadId,
   parseForumMessageAnchorFromHash,
   pushForumThreadUrl,
   readCurrentForumRoute,
@@ -256,7 +277,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "automations" | "delegations" | "signups" | "newsletter" | "moderation" | "editorial-checks" | "monitoring";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "automations" | "delegations" | "signups" | "newsletter" | "moderation" | "proposals" | "editorial-checks" | "monitoring" | "announcements";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -310,20 +331,6 @@ type NewsroomCardRecord = {
   stamp?: ReactNode;
   templateRole?: NewsroomCardTemplateRole;
   title: ReactNode;
-};
-type ConsoleThreadSummary = {
-  id: string;
-  threadKind: string;
-  status: string;
-  title: string;
-  summary?: string | null;
-  primaryAnchorKey?: string | null;
-  createdByLabel?: string | null;
-  messageCount?: number | null;
-  lastMessageAt?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  newsroomFeedKey?: string | null;
 };
 type NewsroomDetailAction = {
   ariaLabel?: string;
@@ -384,23 +391,6 @@ type LexicalRuleDraft = {
 
 const REFERENCE_PAGE_SIZE = 25;
 const TOPIC_REFERENCE_PAGE_SIZE = 12;
-const NEWSROOM_SECTION_SHORT_TITLE_FALLBACKS: Record<string, string> = {
-  arts: "Creative Work",
-  business: "Market Structure",
-  education: "Learning Systems",
-  health: "Clinical Systems",
-  history: "Prior Lineage",
-  "law-policy": "Rules & Power",
-  labor: "Work Change",
-  methods: "Applied Practice",
-  news: "Trends & Analysis",
-  opinion: "Editorial Voice",
-  science: "New Findings",
-  security: "Threat Awareness",
-  sports: "Signal & Edge",
-  technology: "Infrastructure Landscape",
-  world: "Global Affairs",
-};
 const ANALYSIS_REINDEX_MODES: AnalysisReindexMode[] = [
   "online-update",
   "classifier-retrain",
@@ -419,6 +409,8 @@ export type NewsDeskSelection = {
   item?: string | null;
   panel?: string | null;
   searchQuery?: string | null;
+  /** `?status=` on the search page: pending, accepted or rejected; absent is Any. */
+  searchStatus?: string | null;
   searchAnchorKind?: string | null;
   searchAnchorId?: string | null;
   searchAnchorLineageId?: string | null;
@@ -440,15 +432,7 @@ type CategoryReviewResponse = {
 };
 
 type ReferenceReviewResponse = {
-  data?: {
-    ok?: boolean | null;
-    action?: string | null;
-    referenceId?: string | null;
-    status?: string | null;
-    reasonCode?: string | null;
-    messageId?: string | null;
-    relationId?: string | null;
-  } | null;
+  data?: ReferenceReviewResult | null;
   errors?: Array<{ message?: string | null } | string | null> | null;
 };
 
@@ -579,39 +563,6 @@ const TAILORED_TOPIC_PROPOSAL_KINDS = new Set([
 
 const USER_POOL_AUTH_MODE = "userPool";
 type SemanticGraph = ReturnType<typeof createSemanticGraphSnapshot>;
-type ReferenceSubscriptionInput = {
-  filter?: {
-    newsroomFeedKey?: {
-      eq?: string;
-    };
-  };
-};
-type ReferenceSubscription = {
-  unsubscribe: () => void;
-};
-type RealtimeSubscriptionStatus = "idle" | "connected" | "connecting" | "reconnecting" | "stale" | "error";
-type SubscriptionObserver = {
-  next: (value: unknown) => void;
-  error?: (error: unknown) => void;
-};
-type ModelSubscriptionFactory = {
-  subscribe: (observer: SubscriptionObserver) => ReferenceSubscription;
-};
-type ReferenceSubscriptionModel = {
-  onCreate: (input?: ReferenceSubscriptionInput) => ModelSubscriptionFactory;
-  onUpdate: (input?: ReferenceSubscriptionInput) => ModelSubscriptionFactory;
-  onDelete?: (input?: ReferenceSubscriptionInput) => ModelSubscriptionFactory;
-};
-type SemanticRelationSubscriptionModel = {
-  onCreate: () => ModelSubscriptionFactory;
-  onUpdate: () => ModelSubscriptionFactory;
-  onDelete?: () => ModelSubscriptionFactory;
-};
-type ModelAttachmentSubscriptionModel = {
-  onCreate: () => ModelSubscriptionFactory;
-  onUpdate: () => ModelSubscriptionFactory;
-  onDelete?: () => ModelSubscriptionFactory;
-};
 
 const TAXONOMY_PROPOSAL_KINDS = new Set([
   "create-category",
@@ -642,19 +593,7 @@ export function NewsDeskWorkspace({
   initialSelection?: NewsDeskSelection;
 }) {
   const session = useOptionalNewsDeskClient();
-  const sessionDashboard = useMemo(() => {
-    if (!session?.shell.dashboard) return null;
-    const fallbackSections = dashboard?.newsroomSections ?? [];
-    const fallbackProposals = dashboard?.proposals ?? [];
-    const needsSectionFallback = session.shell.dashboard.newsroomSections.length === 0 && fallbackSections.length > 0;
-    const needsProposalFallback = session.shell.dashboard.proposals.length === 0 && fallbackProposals.length > 0;
-    if (!needsSectionFallback && !needsProposalFallback) return session.shell.dashboard;
-    return {
-      ...session.shell.dashboard,
-      newsroomSections: needsSectionFallback ? fallbackSections : session.shell.dashboard.newsroomSections,
-      proposals: needsProposalFallback ? fallbackProposals : session.shell.dashboard.proposals,
-    };
-  }, [dashboard?.newsroomSections, dashboard?.proposals, session?.shell.dashboard]);
+  const sessionDashboard = session?.shell.dashboard ?? null;
   const showSectionTabs = initialTab === "overview";
 
   if (dashboard?.isDemo) {
@@ -667,14 +606,14 @@ export function NewsDeskWorkspace({
         editorShellReady
         initialSelection={initialSelection}
         initialTab={initialTab}
-        authState={{ status: "signedIn", label: "Demo Desk" }}
+        authState={{ status: "signedIn", label: "Demo section" }}
         isRefreshing={false}
         shellError={null}
       />
     );
   }
 
-  if (session && sessionDashboard) {
+  if (session && sessionDashboard && session.shell.phase !== "loadingDesk") {
     return (
       <NewsDeskDashboard
         analysisProfiles={analysisProfiles}
@@ -695,7 +634,7 @@ export function NewsDeskWorkspace({
   }
 
   if (dashboard?.isPublicSkeleton && session?.shell.phase !== "ready") {
-    return <NewsDeskAccessGate shell={session?.shell ?? null} showSectionTabs={showSectionTabs} />;
+    return <NewsDeskAccessGate initialTab={initialTab} shell={session?.shell ?? null} showSectionTabs={showSectionTabs} />;
   }
 
   if (dashboard) {
@@ -715,7 +654,7 @@ export function NewsDeskWorkspace({
     );
   }
 
-  return <NewsDeskAccessGate shell={session?.shell ?? null} showSectionTabs={showSectionTabs} />;
+  return <NewsDeskAccessGate initialTab={initialTab} shell={session?.shell ?? null} showSectionTabs={showSectionTabs} />;
 }
 
 function NewsDeskDashboard({
@@ -748,10 +687,6 @@ function NewsDeskDashboard({
   onRefreshUserDirectory?: () => Promise<void>;
 }) {
   const dataClient = useMemo(() => generateClient<Schema>(), []);
-  const referenceSubscriptionClient = useMemo(
-    () => generateClient<Schema>({ authMode: USER_POOL_AUTH_MODE }),
-    [],
-  );
   const activeTab = initialTab;
   const pathname = usePathname();
   const pathnameReferenceLineageId = useMemo(
@@ -776,43 +711,38 @@ function NewsDeskDashboard({
   const [referenceAttachments, setReferenceAttachments] = useState(dashboard.referenceAttachments);
   const [messages, setMessages] = useState(dashboard.messages);
   const [semanticRelations, setSemanticRelations] = useState(dashboard.semanticRelations);
+  const [savedFeedCopy, setSavedFeedCopy] = useState<Pick<FeedSnapshot, "references" | "previews" | "decisions"> | null>(null);
+  useEffect(() => {
+    // Display only: the last view this browser saved, shown until the live read arrives.
+    if (dashboard.isDemo) return;
+    const snapshot = loadFeedSnapshot(SITE_BRAND.id);
+    if (snapshot) setSavedFeedCopy(snapshot);
+  }, [dashboard.isDemo]);
   const cyclotronPreviewFixtures = useMemo(
-    () => (isLocalPreviewEnabled() ? createLocalPreviewCyclotronFixtures(references) : null),
-    [references],
+    () => (isLocalPreviewEnabled() && !semanticRelations.some((relation) => relation.predicate === "relevance_decision_is") ? createLocalPreviewCyclotronFixtures(references) : null),
+    [references, semanticRelations],
+  );
+  // A Reference keeps its latest vote on itself; the preview fixtures overlay votes on the first few.
+  const votedReferences = useMemo(
+    () => (cyclotronPreviewFixtures ? references.map((reference) => cyclotronPreviewFixtures.votedReferences.get(reference.id) ?? reference) : references),
+    [cyclotronPreviewFixtures, references],
   );
   const relevanceDecisions = useMemo(
     () => currentRelevanceDecisions(cyclotronPreviewFixtures ? [...semanticRelations, ...cyclotronPreviewFixtures.relations] : semanticRelations),
     [cyclotronPreviewFixtures, semanticRelations],
   );
   const delegatedCurations = useMemo(
-    () => delegatedCurationsByReference(cyclotronPreviewFixtures ? [...messages, ...cyclotronPreviewFixtures.messages] : messages),
-    [cyclotronPreviewFixtures, messages],
+    () => delegatedCurationsByReference(votedReferences),
+    [votedReferences],
   );
   const humanCuratedReferenceLineageIds = useMemo(
-    () => referencesWithHumanLatestCuration(cyclotronPreviewFixtures ? [...messages, ...cyclotronPreviewFixtures.messages] : messages),
-    [cyclotronPreviewFixtures, messages],
+    () => referencesWithHumanLatestCuration(votedReferences),
+    [votedReferences],
   );
   const relevanceCyclotronId = useMemo(
     () => [...relevanceDecisions.values()].find((decision) => decision.cyclotronId)?.cyclotronId ?? null,
     [relevanceDecisions],
   );
-  const primingCyclotronId = relevanceCyclotronId ?? DEFAULT_RELEVANCE_CYCLOTRON.id;
-  const primingLabels = useMemo(
-    () => [...relevanceDecisions.values()].find((decision) => decision.classes.length)?.classes
-      ?? DEFAULT_RELEVANCE_CYCLOTRON.labels,
-    [relevanceDecisions],
-  );
-  const [primingRequests, setPrimingRequests] = useState<PrimingRequestView[]>([]);
-  useEffect(() => {
-    if (dashboard.isDemo) return;
-    let cancelled = false;
-    const refresh = () => loadCyclotronPrimingRequests(primingCyclotronId)
-      .then((views) => { if (!cancelled) setPrimingRequests(views); })
-      .catch(() => { if (!cancelled) setPrimingRequests([]); });
-    void refresh();
-    const timer = window.setInterval(() => { void refresh(); }, 30_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [dashboard.isDemo, primingCyclotronId]);
   const [cyclotronStatus, setCyclotronStatus] = useState<CyclotronStatus | null>(null);
   useEffect(() => {
     if (!relevanceCyclotronId) return;
@@ -840,15 +770,12 @@ function NewsDeskDashboard({
     return () => { cancelled = true; };
   }, [cyclotronPreviewFixtures, dashboard.isDemo, relevanceCyclotronId]);
   const [semanticNodes, setSemanticNodes] = useState(dashboard.semanticNodes);
+  const conceptNames = useMemo(() => Object.fromEntries(semanticNodes.map((node) => [node.lineageId ?? node.id, node.displayName || node.nodeKey])), [semanticNodes]);
   const [assignments, setAssignments] = useState(dashboard.assignments);
   const [assignmentEvents, setAssignmentEvents] = useState(dashboard.assignmentEvents);
   const [editionSlots, setEditionSlots] = useState(dashboard.editionSlots ?? []);
   const [doctrineRecords, setDoctrineRecords] = useState(dashboard.doctrineRecords);
-  const fallbackNewsroomSections = useMemo(
-    () => normalizeNewsroomSectionsWithFallback(dashboard.newsroomSections),
-    [dashboard.newsroomSections],
-  );
-  const [newsroomSections, setNewsroomSections] = useState(fallbackNewsroomSections);
+  const [newsroomSections, setNewsroomSections] = useState(() => sortNewsroomSections(dashboard.newsroomSections));
   const sectionChoices = useMemo(
     () => newsroomSections
       .filter((section) => section.enabled !== false && section.enabledStatus !== "disabled")
@@ -903,14 +830,31 @@ function NewsDeskDashboard({
   const [hasHydratedReferences, setHasHydratedReferences] = useState(
     dashboard.isDemo ? dashboard.references.length > 0 : false,
   );
-  const [referencesRealtimeStatus, setReferencesRealtimeStatus] = useState<RealtimeSubscriptionStatus>("idle");
-  const [referencesRealtimeError, setReferencesRealtimeError] = useState<string | null>(null);
+  // Every Reference is read only for the consumers that need all of them (the List view, the Assignments graph, Search), and only when
+  // one is opened. The feed and the home page read their own pages from the feed-state indexes.
+  const [wantsAllReferences, setWantsAllReferences] = useState(false);
+  const [allReferencesState, setAllReferencesState] = useState<{ status: "idle" | "loading" | "ready" | "error"; error: string | null }>({ status: "idle", error: null });
+  const [allReferencesAttempt, setAllReferencesAttempt] = useState(0);
+  const requestAllReferences = useCallback(() => setWantsAllReferences(true), []);
+  const retryAllReferences = useCallback(() => { setAllReferencesState({ status: "idle", error: null }); setAllReferencesAttempt((count) => count + 1); }, []);
+  const feedSource = useMemo<IndexedFeedSource>(() => ({
+    loadCorpusIds: () => loadReferenceFeedCorpusIds(Object.keys(summary?.facets?.references?.byCorpus ?? {})),
+    readStream: readReferenceFeedStream,
+    readStarStream: readReferenceStarStream,
+    readMediumStream: readReferenceMediumStream,
+    search: searchReferences,
+  }), [summary?.facets?.references?.byCorpus]);
   const referencesRef = useRef(references);
+  // The demo has no site to ask: its search box looks through the References the page holds, by words (the local preview adds a stand-in for meaning).
+  const demoSearch = useMemo<ReferenceSearchReader | undefined>(
+    () => (dashboard.isDemo ? async (input) => previewSearch(referencesRef.current, input, isLocalPreviewEnabled() ? { meaning: PREVIEW_SEARCH_MEANING } : {}) : undefined),
+    [dashboard.isDemo],
+  );
   const referenceReviewsPending = useRef(new Map<string, Promise<void>>());
   const [selectedReviewRead, setSelectedReviewRead] = useState<{ lineageId: string; state: "loading" | "ready" | "error"; error: string | null }>({ lineageId: "", state: "ready", error: null });
   const [selectedReviewAttempt, setSelectedReviewAttempt] = useState(0);
-  const reviewReasons = useMemo(() => latestReferenceReviewReasons(messages), [messages]);
-  const reviewSectionIds = useMemo(() => latestReferenceReviewSections(messages), [messages]);
+  const reviewReasons = useMemo(() => latestReferenceReviewReasons(references), [references]);
+  const reviewSectionIds = useMemo(() => latestReferenceReviewSections(references), [references]);
 
   useEffect(() => {
     referencesRef.current = references;
@@ -971,14 +915,14 @@ function NewsDeskDashboard({
     messages: summaryCountFromRecord(summary, "messages"),
     assignments: summaryCountFromRecord(summary, "assignments"),
     references: summaryCountFromRecord(summary, "references")
-      ?? (hasHydratedReferences ? references.length : null),
+      ?? (allReferencesState.status === "ready" ? references.length : null),
     topics: summaryCountFromRecord(summary, "categories"),
     concepts: summaryCountFromRecord(summary, "semanticNodes"),
     administration: userDirectory.length + doctrineRecords.length + newsroomSections.length + procedureDefinitions.length,
     search: 0,
   }), [
     doctrineRecords.length,
-    hasHydratedReferences,
+    allReferencesState.status,
     newsroomSections.length,
     procedureDefinitions.length,
     references.length,
@@ -1028,18 +972,11 @@ function NewsDeskDashboard({
   const canLoadPrivateCorpus = !dashboard.isDemo && editorShellReady && authState.status === "signedIn";
   const refreshNewsroomSections = useCallback(async () => {
     if (dashboard.isDemo || !canRefreshNewsroomSections) {
-      setNewsroomSections(fallbackNewsroomSections);
+      setNewsroomSections(sortNewsroomSections(dashboard.newsroomSections));
       return;
     }
-    const nextSections = await listNewsroomSectionsFromApi(dataClient);
-    setNewsroomSections((current) => {
-      const mergedNextSections = normalizeNewsroomSectionsWithFallback(
-        nextSections,
-        current.length > 0 ? current : fallbackNewsroomSections,
-      );
-      return mergedNextSections.length === 0 && current.length > 0 ? current : mergedNextSections;
-    });
-  }, [canRefreshNewsroomSections, dashboard.isDemo, fallbackNewsroomSections, dataClient]);
+    setNewsroomSections(sortNewsroomSections(await listNewsroomSectionsFromApi(dataClient)));
+  }, [canRefreshNewsroomSections, dashboard.isDemo, dashboard.newsroomSections, dataClient]);
 
   useEffect(() => {
     setCorpora(dashboard.corpora);
@@ -1121,10 +1058,7 @@ function NewsDeskDashboard({
   }, [dashboard.doctrineRecords]);
 
   useEffect(() => {
-    setNewsroomSections((current) => normalizeNewsroomSectionsWithFallback(
-      dashboard.newsroomSections,
-      current.length > 0 ? current : undefined,
-    ));
+    setNewsroomSections(sortNewsroomSections(dashboard.newsroomSections));
   }, [dashboard.newsroomSections]);
 
   useEffect(() => {
@@ -1209,32 +1143,95 @@ function NewsDeskDashboard({
     if (authState.status === "signedIn") return;
     setLoadedSections((current) => ({ ...current, references: false }));
     setHasHydratedReferences(false);
+    setWantsAllReferences(false);
+    setAllReferencesState({ status: "idle", error: null });
+    discardFeedCorpusIds();
   }, [authState.status]);
 
+  // Records the feed has read join the page's own list; the summary is not touched (they are not new, only newly read).
+  const takeFeedRecords = useCallback((records: ReferenceRecord[]) => {
+    setReferences((current) => mergeReferenceRecords(current, records));
+    setHasHydratedReferences(true);
+    setLoadedSections((current) => ({ ...current, references: true }));
+  }, []);
+
+  // The home page shows the newest unrated References: one page of the arrival index, read when the home page is open.
+  const overviewFeed = useIndexedReferenceFeed({
+    enabled: canLoadPrivateCorpus && activeTab === "overview",
+    source: feedSource,
+    sort: "newest",
+    show: "unrated",
+  });
   useEffect(() => {
-    if (!canLoadPrivateCorpus || hasHydratedReferences) return;
+    if (overviewFeed.status === "ready") takeFeedRecords(overviewFeed.records);
+    if (overviewFeed.status === "error") {
+      setActionState({ id: "references-load", message: `The References could not be read. ${overviewFeed.error ?? ""}`.trim(), tone: "error" });
+    }
+  }, [overviewFeed.status, overviewFeed.records, overviewFeed.error, takeFeedRecords]);
+
+  // Attachments (previews, captured text) for the References the feed shows, a batch per short pause: one request for the batch, none for
+  // a Reference already read.
+  const attachmentsAsked = useRef(new Set<string>());
+  const attachmentsQueue = useRef<string[]>([]);
+  const attachmentsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestAttachments = useCallback((lineageIds: string[]) => {
+    if (dashboard.isDemo) return;
+    for (const id of lineageIds) {
+      if (attachmentsAsked.current.has(id)) continue;
+      attachmentsAsked.current.add(id);
+      attachmentsQueue.current.push(id);
+    }
+    if (!attachmentsQueue.current.length || attachmentsTimer.current) return;
+    attachmentsTimer.current = setTimeout(() => {
+      attachmentsTimer.current = null;
+      const batch = attachmentsQueue.current.splice(0);
+      void loadReferenceAttachmentsForLineages(batch)
+        .then((loaded) => {
+          if (!loaded.length) return;
+          setReferenceAttachments((current) => {
+            const byId = new Map(current.map((attachment) => [attachment.id, attachment] as const));
+            for (const attachment of loaded) byId.set(attachment.id, attachment);
+            return [...byId.values()].sort((left, right) => left.sortKey.localeCompare(right.sortKey));
+          });
+        })
+        .catch((error) => {
+          // Previews are a nicety: let the next scroll ask again, and say nothing that blocks voting.
+          for (const id of batch) attachmentsAsked.current.delete(id);
+          console.warn("[References] attachments for the shown cards could not be read", error);
+        });
+    }, 40);
+  }, [dashboard.isDemo]);
+
+  const needsAllReferences = canLoadPrivateCorpus && (wantsAllReferences || activeTab === "assignments" || activeTab === "search");
+  useEffect(() => {
+    if (!needsAllReferences || allReferencesState.status === "ready" || allReferencesState.status === "loading") return;
     let active = true;
-    void loadEditorReferencesData()
-      .then(({ references: nextReferences, referenceAttachments }) => {
+    setAllReferencesState({ status: "loading", error: null });
+    void loadAllEditorReferences()
+      .then((all) => {
         if (!active) return;
-        setReferences(nextReferences);
-        setReferenceAttachments(referenceAttachments);
+        setReferences((current) => mergeReferenceRecords(current, all));
+        setAllReferencesState({ status: "ready", error: null });
         setHasHydratedReferences(true);
-        setLoadedSections((current) => ({ ...current, references: true }));
       })
       .catch((error) => {
-        if (active) {
-          setActionState({
-            id: "references-load",
-            message: error instanceof Error ? error.message : "references load failed",
-            tone: "error",
-          });
-        }
+        if (active) setAllReferencesState({ status: "error", error: error instanceof Error ? error.message : "The references could not be read." });
       });
-    return () => {
-      active = false;
-    };
-  }, [canLoadPrivateCorpus, hasHydratedReferences]);
+    return () => { active = false; };
+    // `allReferencesAttempt` is the Retry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsAllReferences, allReferencesAttempt]);
+
+  // A reference opened by its address is read on its own when the feed has not brought it.
+  useEffect(() => {
+    if (!canLoadPrivateCorpus || activeTab !== "references" || !pathnameReferenceLineageId) return;
+    if (referencesRef.current.some((reference) => referenceLineageId(reference) === pathnameReferenceLineageId)) return;
+    let active = true;
+    void loadReferenceRecordByLineageId(pathnameReferenceLineageId)
+      .then((found) => { if (active && found) setReferences((current) => mergeReferenceRecords(current, [found])); })
+      .catch((error) => { if (active) setActionState({ id: "reference-load", message: error instanceof Error ? error.message : "This reference could not be read.", tone: "error" }); });
+    return () => { active = false; };
+  }, [activeTab, canLoadPrivateCorpus, pathnameReferenceLineageId]);
 
   useEffect(() => {
     if (dashboard.isDemo) return;
@@ -1291,10 +1288,7 @@ function NewsDeskDashboard({
           setAssignments(nextDashboard.assignments);
           setAssignmentEvents(nextDashboard.assignmentEvents);
           setDoctrineRecords(nextDashboard.doctrineRecords);
-          setNewsroomSections((current) => normalizeNewsroomSectionsWithFallback(
-            nextDashboard.newsroomSections,
-            current.length > 0 ? current : fallbackNewsroomSections,
-          ));
+          setNewsroomSections(sortNewsroomSections(nextDashboard.newsroomSections));
           setUserDirectory(nextDashboard.userDirectory);
         })
         .catch((error) => {
@@ -1312,7 +1306,6 @@ function NewsDeskDashboard({
     newsroomSections.length,
     hasRefreshedNewsroomSections,
     canRefreshNewsroomSections,
-    fallbackNewsroomSections,
     loadedSections.assignments,
     loadedSections.fullDashboard,
     loadedSections.messages,
@@ -1321,24 +1314,49 @@ function NewsDeskDashboard({
     refreshNewsroomSections,
   ]);
 
-  const needsReferenceReviewData = activeTab === "references" || activeTab === "assignments" || activeTab === "messages";
+  const needsReferenceReviewData = activeTab === "overview" || activeTab === "references" || activeTab === "assignments" || activeTab === "messages";
   const selectedReviewLineageId = pathname ? pathnameReferenceLineageId ?? "" : initialSelection.reference ?? "";
   const referenceReviewData = useReferenceReviewData({
     enabled: canLoadPrivateCorpus && needsReferenceReviewData && !(activeTab === "references" && selectedReviewLineageId),
-    loadRelations: loadEditorSemanticRelationsData,
-    loadMessages: loadEditorMessagesData,
-    onRelations: setSemanticRelations,
+    loadMessages: loadMessagesWithHeadStart,
     onMessages: setMessages,
   });
+  // Predictions are read per Reference, only for the ones a page shows: the References feed asks for its visible page (and each page
+  // after it as it scrolls); the home page asks for the newest page. The newsroom's whole relation feed is never read for this.
+  const [shownPredictionIds, setShownPredictionIds] = useState<string[]>([]);
+  const requestPredictions = useCallback((ids: string[]) => {
+    setShownPredictionIds((current) => (ids.every((id) => current.includes(id)) ? current : [...new Set([...current, ...ids])]));
+  }, []);
+  const mergeReferencePredictions = useCallback((lineageId: string, relations: SemanticRelationRecord[]) => {
+    setSemanticRelations((current) => [
+      ...current.filter((relation) => relation.subjectKind !== "reference" || relation.subjectLineageId !== lineageId),
+      ...relations,
+    ]);
+  }, []);
+  const readsPredictions = canLoadPrivateCorpus && !dashboard.isDemo && (activeTab === "references" || activeTab === "overview");
+  const referencePredictions = useReferencePredictions({
+    enabled: readsPredictions,
+    ids: shownPredictionIds,
+    load: loadEditorReferencePredictions,
+    onRelations: mergeReferencePredictions,
+  });
+  useEffect(() => {
+    if (activeTab !== "overview" || !readsPredictions || !hasHydratedReferences) return;
+    requestPredictions(feedWindow(buildFeedItems(selectCanonicalReferenceRecords(references), undefined), 1).map((item) => item.lineageId));
+  }, [activeTab, readsPredictions, hasHydratedReferences, references, requestPredictions]);
+  useEffect(() => {
+    if (referenceReviewData.state === "error" && referenceReviewData.error) {
+      setActionState({ id: "review-history-load", message: referenceReviewData.error, tone: "error" });
+    }
+  }, [referenceReviewData.state, referenceReviewData.error]);
 
   useEffect(() => {
     if (!canLoadPrivateCorpus || activeTab !== "references" || !selectedReviewLineageId) return;
     let active = true;
     setSelectedReviewRead({ lineageId: selectedReviewLineageId, state: "loading", error: null });
-    void loadEditorReferenceReviewDetails(selectedReviewLineageId).then(({ relations, messages: history }) => {
+    void loadEditorReferenceReviewDetails(selectedReviewLineageId).then(({ relations }) => {
       if (!active) return;
       setSemanticRelations((current) => [...current.filter((relation) => relation.subjectLineageId !== selectedReviewLineageId || relation.subjectKind !== "reference"), ...relations]);
-      setMessages((current) => [...current.filter((message) => !history.some((entry) => entry.id === message.id)), ...history]);
       setSelectedReviewRead({ lineageId: selectedReviewLineageId, state: "ready", error: null });
     }).catch((error) => {
       if (active) setSelectedReviewRead({ lineageId: selectedReviewLineageId, state: "error", error: error instanceof Error ? error.message : "Reference review details could not be loaded." });
@@ -1348,9 +1366,21 @@ function NewsDeskDashboard({
   const selectedReviewIsCurrent = selectedReviewLineageId && !dashboard.isDemo;
   const predictionState = selectedReviewIsCurrent
     ? selectedReviewRead.lineageId === selectedReviewLineageId ? selectedReviewRead.state : "loading"
-    : referenceReviewData.state;
-  const predictionError = selectedReviewIsCurrent ? selectedReviewRead.error : referenceReviewData.error;
-  const retryReferenceReviewData = () => { referenceReviewData.retry(); setSelectedReviewAttempt((current) => current + 1); };
+    : "ready";
+  const predictionError = selectedReviewIsCurrent ? selectedReviewRead.error : null;
+  useEffect(() => {
+    // Keep a display copy for the next visit once everything the feed shows has been read.
+    if (dashboard.isDemo || (activeTab !== "references" && activeTab !== "overview") || !hasHydratedReferences || predictionState !== "ready" || !references.length) return;
+    const timer = window.setTimeout(() => {
+      saveFeedSnapshot(SITE_BRAND.id, {
+        references: selectCanonicalReferenceRecords(references),
+        previews: referencePreviewsByLineage(referenceAttachments),
+        decisions: relevanceDecisions,
+      });
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, dashboard.isDemo, hasHydratedReferences, predictionState, referenceAttachments, references, relevanceDecisions]);
+  const retryReferenceReviewData = () => { setSelectedReviewAttempt((current) => current + 1); };
 
   const applyReferenceRecord = useCallback((nextReference: ReferenceRecord) => {
     const { nextRecords, nextRecord, previousRecord } = upsertReferenceRecords(referencesRef.current, nextReference);
@@ -1376,124 +1406,6 @@ function NewsDeskDashboard({
         console.error("[ReferencesDesk] Unable to load reference attachments for deep link", error);
       });
   }, [applyReferenceRecord]);
-
-  useEffect(() => {
-    if (dashboard.isDemo || activeTab !== "references" || authState.status !== "signedIn" || !hasHydratedReferences) {
-      setReferencesRealtimeStatus("idle");
-      setReferencesRealtimeError(null);
-      return;
-    }
-    const referenceModel = referenceSubscriptionClient.models.Reference as unknown as ReferenceSubscriptionModel | undefined;
-    const semanticRelationModel = referenceSubscriptionClient.models.SemanticRelation as unknown as SemanticRelationSubscriptionModel | undefined;
-    if (!referenceModel || typeof referenceModel.onCreate !== "function" || typeof referenceModel.onUpdate !== "function") {
-      setReferencesRealtimeStatus("error");
-      setReferencesRealtimeError("Reference realtime model is unavailable.");
-      return;
-    }
-    if (!semanticRelationModel || typeof semanticRelationModel.onCreate !== "function" || typeof semanticRelationModel.onUpdate !== "function") {
-      setReferencesRealtimeStatus("error");
-      setReferencesRealtimeError("Semantic relation realtime model is unavailable.");
-      return;
-    }
-
-    let active = true;
-    let reconnectAttempts = 0;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let subscriptions: ReferenceSubscription[] = [];
-    const referenceInput = { filter: { newsroomFeedKey: { eq: "references" } } };
-
-    const clearSubscriptions = () => {
-      for (const subscription of subscriptions) subscription.unsubscribe();
-      subscriptions = [];
-    };
-
-    const scheduleReconnect = (error?: unknown) => {
-      if (!active) return;
-      clearSubscriptions();
-      reconnectAttempts += 1;
-      const delayMs = Math.min(30_000, 1000 * Math.max(1, 2 ** (reconnectAttempts - 1)));
-      setReferencesRealtimeStatus(reconnectAttempts > 1 ? "stale" : "reconnecting");
-      setReferencesRealtimeError(error instanceof Error ? error.message : "Realtime stream disconnected.");
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(() => {
-        connect();
-      }, delayMs);
-    };
-
-    const handleReferenceCreateOrUpdate = (value: unknown) => {
-      const nextReference = normalizeReferenceSubscriptionPayload(value);
-      if (!nextReference) return;
-      applyReferenceRecord(nextReference);
-    };
-
-    const handleReferenceDelete = (value: unknown) => {
-      const deletedReference = normalizeReferenceSubscriptionPayload(value);
-      const deletedId = deletedReference?.id ?? extractSubscriptionRecordId(value);
-      if (!deletedId) return;
-      const previousRecord = referencesRef.current.find((entry) => entry.id === deletedId) ?? null;
-      if (!previousRecord) return;
-      const nextRecords = referencesRef.current.filter((entry) => entry.id !== deletedId);
-      referencesRef.current = nextRecords;
-      setReferences(nextRecords);
-      setSummary((current) => patchReferenceSummaryForDelete(current, previousRecord));
-    };
-
-    const handleSemanticRelationCreateOrUpdate = (value: unknown) => {
-      const relation = normalizeSemanticRelationSubscriptionPayload(value);
-      if (!relation) return;
-      setSemanticRelations((current) => upsertSemanticRelationRecords(current, relation));
-    };
-
-    const handleSemanticRelationDelete = (value: unknown) => {
-      const relationId = extractSubscriptionRecordId(value);
-      if (!relationId) return;
-      setSemanticRelations((current) => current.filter((entry) => entry.id !== relationId));
-    };
-
-    const connect = () => {
-      if (!active) return;
-      clearSubscriptions();
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-      setReferencesRealtimeStatus(reconnectAttempts > 0 ? "reconnecting" : "connecting");
-      try {
-        const nextSubscriptions: ReferenceSubscription[] = [
-          referenceModel.onCreate(referenceInput).subscribe({ next: handleReferenceCreateOrUpdate, error: scheduleReconnect }),
-          referenceModel.onUpdate(referenceInput).subscribe({ next: handleReferenceCreateOrUpdate, error: scheduleReconnect }),
-          semanticRelationModel.onCreate().subscribe({ next: handleSemanticRelationCreateOrUpdate, error: scheduleReconnect }),
-          semanticRelationModel.onUpdate().subscribe({ next: handleSemanticRelationCreateOrUpdate, error: scheduleReconnect }),
-        ];
-        if (typeof referenceModel.onDelete === "function") {
-          nextSubscriptions.push(referenceModel.onDelete(referenceInput).subscribe({ next: handleReferenceDelete, error: scheduleReconnect }));
-        }
-        if (typeof semanticRelationModel.onDelete === "function") {
-          nextSubscriptions.push(semanticRelationModel.onDelete().subscribe({ next: handleSemanticRelationDelete, error: scheduleReconnect }));
-        }
-        subscriptions = nextSubscriptions;
-        reconnectAttempts = 0;
-        setReferencesRealtimeStatus("connected");
-        setReferencesRealtimeError(null);
-      } catch (error) {
-        scheduleReconnect(error);
-      }
-    };
-
-    connect();
-    return () => {
-      active = false;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      clearSubscriptions();
-    };
-  }, [
-    activeTab,
-    applyReferenceRecord,
-    authState.status,
-    dashboard.isDemo,
-    hasHydratedReferences,
-    referenceSubscriptionClient,
-  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1613,59 +1525,18 @@ function NewsDeskDashboard({
       setActionState({ id: reference.id, message: `${action} pending`, tone: "pending" });
       if (dashboard.isDemo) {
         const now = new Date().toISOString();
-        const messageId = `message-demo-${reference.id}-${action}-${now.replace(/[^0-9]/g, "")}`;
-        const relationId = `semantic-relation-demo-${messageId}`;
         applyReferenceRecord(buildReviewedReferenceRecord(referencesRef.current, reference, {
           actorLabel: authState.label,
           nextStatus,
           note: note ?? null,
           now,
-        }));
-        setMessages((current) => [{
-          id: messageId,
-          messageKind: "reference_curation",
-          messageDomain: "commentary",
-          status: "active",
-          body: note?.trim() || `${authState.label} marked this reference ${nextStatus}.`,
-          summary: `${reference.title ?? reference.externalItemId}: ${nextStatus}`,
-          source: "newsroom",
-          authorLabel: authState.label,
-          createdAt: now,
-          updatedAt: now,
-          metadata: {
-            referenceLineageId: reference.lineageId ?? reference.id,
-            action,
-            curationStatus: nextStatus,
+          vote: {
             reasonCode: action === "reject" ? reasonCode ?? null : null,
-            ...(relevance ? { decisionRelationId: relevance.decisionRelationId, shareable: relevance.shareable } : {}),
-            ...(action === "accept" && sectionId ? { sectionId } : {}),
+            sectionId: action === "accept" ? sectionId ?? null : null,
+            decisionRelationId: relevance?.decisionRelationId ?? null,
+            shareable: relevance ? relevance.shareable : null,
           },
-        }, ...current]);
-        setSemanticRelations((current) => [{
-          id: relationId,
-          relationState: "current",
-          predicate: "comment",
-          relationTypeId: "semantic-relation-type-comment",
-          relationTypeKey: "comment",
-          relationDomain: "commentary",
-          subjectKind: "message",
-          subjectId: messageId,
-          subjectLineageId: messageId,
-          subjectVersionNumber: 1,
-          objectKind: "reference",
-          objectId: reference.id,
-          objectLineageId: reference.lineageId ?? reference.id,
-          objectVersionNumber: reference.versionNumber ?? null,
-          subjectStateKey: `message#${messageId}#current`,
-          objectStateKey: `reference#${reference.lineageId ?? reference.id}#current`,
-          objectSubjectStateKey: `reference#${reference.lineageId ?? reference.id}#current#message`,
-          predicateObjectStateKey: `comment#reference#${reference.lineageId ?? reference.id}#current`,
-          subjectVersionKey: `message#${messageId}`,
-          objectVersionKey: `reference#${reference.id}`,
-          rank: 1,
-          reviewRecommended: false,
-          importedAt: now,
-        }, ...current]);
+        }));
         setActionState({ id: reference.id, message: `${action} saved`, tone: "ok" });
         return;
       }
@@ -1691,6 +1562,12 @@ function NewsDeskDashboard({
           nextStatus: status,
           note: note?.trim() || null,
           now,
+          vote: {
+            reasonCode: action === "reject" ? reasonCode ?? null : null,
+            sectionId: action === "accept" ? sectionId ?? null : null,
+            decisionRelationId: relevance?.decisionRelationId ?? null,
+            shareable: relevance ? relevance.shareable : null,
+          },
         }));
         setActionState({ id: reference.id, message: `${action} saved`, tone: "ok" });
         retryReferenceReviewData();
@@ -1699,6 +1576,79 @@ function NewsDeskDashboard({
         throw error;
       }
     });
+  }
+
+  /**
+   * The Add dialog: the address becomes a pending Reference (`intakePendingReferences`), then the editor's optional accept and star rating are
+   * recorded through the same mutations the review buttons use, from this Newsroom session. The list reloads afterwards.
+   */
+  async function runAddReference(input: AddReferenceInput): Promise<AddReferenceOutcome> {
+    if (!canEdit) throw new Error("Your session does not have permission to add references.");
+    if (dashboard.isDemo) {
+      return addReference(input, {
+        register: async (url) => ({ id: `demo-${url}`, curationStatus: "pending", reusedExisting: false }),
+        accept: async () => undefined,
+        rate: async () => undefined,
+      });
+    }
+    const outcome = await addReference(input, {
+      register: async (url) => {
+        const response = await dataClient.mutations.intakePendingReferences(
+          { input: JSON.stringify({ items: [{ source_uri: url }] }) },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+        if (errors?.length) throw new Error(errors[0]?.message ?? "The newsroom did not accept this address.");
+        return parseIntakeAnswer(response.data);
+      },
+      accept: async (referenceId, note) => {
+        const response = await dataClient.mutations.reviewReferenceCuration(
+          { referenceId, action: "accept", actorLabel: authState.label, note: note || undefined },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        assertReferenceReviewMutationSucceeded(response, referenceId);
+      },
+      rate: async (referenceId, stars) => {
+        const response = await dataClient.mutations.setReferenceStars(
+          { referenceId, stars, actorLabel: authState.label },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+        if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
+      },
+    });
+    retryReferenceReviewData();
+    return outcome;
+  }
+
+  /**
+   * An editor's star rating (null clears it). It sits on the Reference beside the vote and is not a Cyclotron label. Rating a pending Reference also
+   * accepts it, on the server and by the same person; an accepted or rejected one keeps its status, and clearing a rating never changes it.
+   */
+  async function runReferenceStars(reference: ReferenceRecord, stars: number | null): Promise<void> {
+    if (!canEdit) throw new Error("Your session does not have permission to rate references.");
+    const record = (now: string, accepted = false): ReferenceRecord => ({
+      ...(referencesRef.current.find((entry) => entry.id === reference.id) ?? reference),
+      ...(accepted ? { curationStatus: "accepted", curationStatusUpdatedAt: now, curationStatusUpdatedBy: authState.label } : {}),
+      starRating: stars,
+      starRatedAt: stars === null ? null : now,
+      starRatedBy: stars === null ? null : authState.label,
+    });
+    const wasPending = (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === undefined
+      || (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === null
+      || (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === "pending";
+    if (dashboard.isDemo) {
+      applyReferenceRecord(record(new Date().toISOString(), wasPending && stars !== null));
+      return;
+    }
+    const response = await dataClient.mutations.setReferenceStars(
+      { referenceId: reference.id, stars, actorLabel: authState.label },
+      { authMode: USER_POOL_AUTH_MODE },
+    );
+    const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+    if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
+    const answered = (response as { data?: { status?: string | null } | null }).data?.status;
+    applyReferenceRecord(record(new Date().toISOString(), wasPending && stars !== null && answered === "accepted"));
   }
 
   function runReferenceQualityRating(reference: ReferenceRecord, rating: number) {
@@ -3018,13 +2968,14 @@ function NewsDeskDashboard({
     return entries;
   }, [summaryStatus, tabCounts]);
   const opsPageTitle = activeTab === "overview"
-    ? "Notification Center"
+    ? "Newsroom home"
     : activeTab === "administration" && administrationPanel === "sections"
       ? "Sections"
       : formatDeskSectionHeadline(activeTab);
 
   return (
-    <>
+    <ConversationProvider authorLabel={authState.label} demo={Boolean(dashboard.isDemo)}>
+    <ReferenceLinksProvider demo={Boolean(dashboard.isDemo) || isLocalPreviewEnabled()}>
       <NewsroomOpsShell
         activeTab={activeTab}
         appTitle={SITE_BRAND.appTitle}
@@ -3034,16 +2985,10 @@ function NewsDeskDashboard({
         headerActions={(
           <>
             {dashboard.isDemo ? (
-              <Badge variant="outline">Demo</Badge>
+              dashboard.realDataPreview ? null : <Badge variant="outline">Demo</Badge>
             ) : (
-              <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
+              <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "organizer-header-settings")} href="/settings">Settings</Link>
             )}
-            {canEdit && editorShellReady && !dashboard.isDemo ? (
-              <NewsroomOpsSearchButton
-                disabled={false}
-                onPress={activeTab === "search" ? focusNewsroomSearchForm : topBarSearchControl.open}
-              />
-            ) : null}
             <NewsroomConsoleProgressToggle />
           </>
         )}
@@ -3080,13 +3025,30 @@ function NewsDeskDashboard({
             assignments={assignments}
             decisions={relevanceDecisions}
             demo={Boolean(dashboard.isDemo)}
+            disabledReason={controlsDisabled ? "Editor access is required to change this reference." : null}
             humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
-            messages={messages}
+            loading={!dashboard.isDemo && !hasHydratedReferences}
             newsroomSections={newsroomSections}
+            notificationFixture={dashboard.notificationFixture ?? null}
+            onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
+            onReview={(reference, action, options) => runReferenceCurationAction(reference, action, options?.note, options?.reasonCode,
+              options?.decisionRelationId ? { decisionRelationId: options.decisionRelationId, shareable: options.shareable === true } : undefined)}
+            onSetStars={runReferenceStars}
+            predictionState="ready"
+            referenceAttachments={referenceAttachments}
             references={references}
+            savedCopy={savedFeedCopy}
           />
         ) : null}
-        {activeTab === "search" ? (
+        {activeTab === "search" && !initialSearchRequest?.anchor ? (
+          <NewsroomSearchResults
+            hrefFor={(lineageId) => getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, Boolean(dashboard.isDemo))}
+            initialQuery={normalizeSearchQuery(initialSelection.searchQuery)}
+            initialStatus={statusFromLocation(`status=${encodeURIComponent(initialSelection.searchStatus ?? "")}`)}
+            search={dashboard.isDemo ? (input) => Promise.resolve(previewSearch(references, input, { meaning: PREVIEW_SEARCH_MEANING })) : searchReferences}
+          />
+        ) : null}
+        {activeTab === "search" && initialSearchRequest?.anchor ? (
           <SearchDeskView
             assignments={assignments}
             categories={mergeCategoryRecords(categorys, activeCategoryTreeNodes)}
@@ -3130,9 +3092,12 @@ function NewsDeskDashboard({
         ) : null}
         {activeTab === "concepts" ? (
           <ConceptsDeskView
+            disabled={controlsDisabled}
             graph={graph}
             initialNodeLineageId={initialSelection.node}
             isDemo={Boolean(dashboard.isDemo)}
+            onSectionCoreConcepts={(section, next) => runSectionUpsert({ ...section, coreConcepts: serializeCoreConcepts(next) }, section.id)}
+            sections={newsroomSections}
             semanticNodes={semanticNodes}
           />
         ) : null}
@@ -3143,15 +3108,7 @@ function NewsDeskDashboard({
             disabled={controlsDisabled}
             initialReferenceLineageId={selectedReviewLineageId}
             cyclotronStatus={cyclotronStatus}
-            cyclotronPriming={{
-              labels: primingLabels,
-              requests: primingRequests,
-              onRequest: async (input) => {
-                const request = buildPrimingRequest(input, authState.label, primingLabels);
-                if (!dashboard.isDemo) await requestCyclotronPriming(primingCyclotronId, request);
-                setPrimingRequests((current) => [{ request, outcome: null }, ...current]);
-              },
-            }}
+            onAddReference={runAddReference}
             decisions={relevanceDecisions}
             humanCuratedReferenceLineageIds={selectedReviewIsCurrent && predictionState !== "ready" ? undefined : humanCuratedReferenceLineageIds}
             delegatedCurations={selectedReviewIsCurrent && predictionState !== "ready" ? undefined : delegatedCurations}
@@ -3175,27 +3132,33 @@ function NewsDeskDashboard({
             predictionState={predictionState}
             predictionError={predictionError}
             onRetryPredictions={retryReferenceReviewData}
+            predictionStatuses={readsPredictions ? referencePredictions.statuses : undefined}
+            onRequestPredictions={readsPredictions ? requestPredictions : undefined}
+            onRetryPrediction={referencePredictions.retry}
             reviewReasons={reviewReasons}
             reviewSectionIds={reviewSectionIds}
             onReview={(reference, action, options) => runReferenceCurationAction(reference, action, options?.note, options?.reasonCode,
               options?.decisionRelationId ? { decisionRelationId: options.decisionRelationId, shareable: options.shareable === true } : undefined,
               options?.sectionId)}
+            onSetStars={runReferenceStars}
             referenceAttachments={referenceAttachments}
             references={references}
+            loadAutoAccepted={dashboard.isDemo && !isLocalPreviewEnabled() ? undefined : loadAutoAcceptedReferencePage}
+            searchReader={demoSearch}
+            loading={!dashboard.isDemo && !hasHydratedReferences}
+            feedSource={canLoadPrivateCorpus ? feedSource : undefined}
+            onFeedRecords={takeFeedRecords}
+            onShownIds={requestAttachments}
+            ratedTotal={ratedCountFromSummary(summary)}
+            onNeedAllReferences={requestAllReferences}
+            allReferences={{ status: allReferencesState.status, error: allReferencesState.error, retry: retryAllReferences }}
+            onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
+            savedCopy={savedFeedCopy}
           />
           </NewsroomCurationBootstrap>
         ) : null}
         {activeTab === "messages" ? (
-          <MessagesDeskView
-            assignments={assignments}
-            graph={graph}
-            initialForumThreadId={initialSelection.forumThread}
-            initialMessageId={initialSelection.message}
-            isDemo={Boolean(dashboard.isDemo)}
-            messages={messages}
-            newsroomSections={newsroomSections}
-            summary={summary}
-          />
+          <ConversationsPage authorLabel={authState.label} demo={Boolean(dashboard.isDemo)} />
         ) : null}
         {activeTab === "assignments" ? (
           <AssignmentDeskView
@@ -3224,6 +3187,7 @@ function NewsDeskDashboard({
             actionState={actionState}
             administrationPanel={administrationPanel}
             canManageUsers={Boolean(dashboard.canManageUsers)}
+            conceptNames={conceptNames}
             disabled={controlsDisabled}
             doctrineDrafts={doctrineDrafts}
             doctrineRecords={doctrineRecords}
@@ -3256,7 +3220,8 @@ function NewsDeskDashboard({
         </div>
       </NewsroomOpsShell>
       {topBarSearchControl.dialog}
-    </>
+    </ReferenceLinksProvider>
+    </ConversationProvider>
   );
 }
 
@@ -3904,7 +3869,7 @@ function NewsroomSectionRail({
     <aside className="newsroom-section-rail" data-newsroom-section-rail aria-labelledby="newsroom-section-rail-title" ref={railRef}>
       <header className="newsroom-section-rail__header">
         <p className="story-label">Sections</p>
-        <h2 id="newsroom-section-rail-title">Section Desk</h2>
+        <h2 id="newsroom-section-rail-title">Section</h2>
       </header>
       <div className="newsroom-section-rail__body">
         {canonicalSections.length ? (
@@ -4225,6 +4190,7 @@ function AdministrationDeskView({
   actionState,
   administrationPanel,
   canManageUsers,
+  conceptNames,
   disabled,
   doctrineCategories,
   doctrineDrafts,
@@ -4256,6 +4222,7 @@ function AdministrationDeskView({
   actionState: ActionState | null;
   administrationPanel: AdministrationPanel;
   canManageUsers: boolean;
+  conceptNames: Record<string, string>;
   disabled: boolean;
   doctrineCategories: DoctrineCategory[];
   doctrineDrafts: DoctrineEditorState;
@@ -4369,6 +4336,15 @@ function AdministrationDeskView({
                 <span>Policies the article editor checks drafts against</span>
               </Link>
               <Link
+                href={administrationPanelHref("announcements", isDemo)}
+                data-news-desk-admin-nav="announcements"
+                data-active={administrationPanel === "announcements" || undefined}
+                onClick={() => onPanelChange("announcements")}
+              >
+                <strong>Announcements</strong>
+                <span>Post new Stories on the site&apos;s X account</span>
+              </Link>
+              <Link
                 href={administrationPanelHref("monitoring", isDemo)}
                 data-news-desk-admin-nav="monitoring"
                 data-active={administrationPanel === "monitoring" || undefined}
@@ -4399,6 +4375,15 @@ function AdministrationDeskView({
                   <span>Subscribers, issues and delivery for the site&apos;s email</span>
                 </Link>
               ) : null}
+              <Link
+                href={administrationPanelHref("proposals", isDemo)}
+                data-news-desk-admin-nav="proposals"
+                data-active={administrationPanel === "proposals" || undefined}
+                onClick={() => onPanelChange("proposals")}
+              >
+                <strong>Proposals</strong>
+                <span>Changes that AI proposes</span>
+              </Link>
               {readerPluginEnabled() ? (
                 <Link
                   href={administrationPanelHref("moderation", isDemo)}
@@ -4414,8 +4399,10 @@ function AdministrationDeskView({
             <div className="news-desk-settings-panel">
               {administrationPanel === "signups" ? <SignupEntriesPanel /> : null}
               {administrationPanel === "newsletter" ? <NewsletterPanel isAdmin={canManageUsers} isDemo={isDemo} /> : null}
+              {administrationPanel === "proposals" ? <ProposalsPanel /> : null}
               {administrationPanel === "moderation" ? <ModerationPanel /> : null}
               {administrationPanel === "editorial-checks" ? <EditorialChecksAdminPanel /> : null}
+              {administrationPanel === "announcements" ? <AnnouncementsPanel isAdmin={canManageUsers} isDemo={isDemo} sections={newsroomSections.filter((section) => section.enabled).map((section) => ({ id: section.id, title: section.title }))} /> : null}
               {administrationPanel === "automations" ? <AutomationPanel isDemo={isDemo} /> : null}
               {administrationPanel === "monitoring" ? <MonitoringPanel isAdmin={canManageUsers} isDemo={isDemo} /> : null}
               {administrationPanel === "delegations" ? <AdministrationDelegationsPanel disabled={disabled} /> : null}
@@ -4441,6 +4428,7 @@ function AdministrationDeskView({
                   doctrineDrafts={doctrineDrafts}
                   doctrineRecords={doctrineRecords}
                   onCategoryDoctrineSave={onCategoryDoctrineSave}
+                  isAdmin={canManageUsers}
                   onPolicyChange={onPolicyChange}
                   onPolicySave={onPolicySave}
                 />
@@ -4448,6 +4436,7 @@ function AdministrationDeskView({
               {administrationPanel === "sections" ? (
                 <AdministrationSectionsPanel
                   actionState={actionState}
+                  conceptNames={conceptNames}
                   disabled={disabled}
                   sections={newsroomSections}
                   onReorder={onSectionReorder}
@@ -4738,6 +4727,7 @@ function AdministrationPoliciesPanel({
   doctrineCategories,
   doctrineDrafts,
   doctrineRecords,
+  isAdmin,
   onCategoryDoctrineSave,
   onPolicyChange,
   onPolicySave,
@@ -4747,6 +4737,7 @@ function AdministrationPoliciesPanel({
   doctrineCategories: DoctrineCategory[];
   doctrineDrafts: DoctrineEditorState;
   doctrineRecords: DoctrineRecord[];
+  isAdmin: boolean;
   onCategoryDoctrineSave: (category: DoctrineCategory, kind: DoctrineKind, text: string) => void;
   onPolicyChange: (kind: DoctrineKind, text: string) => void;
   onPolicySave: (kind: DoctrineKind) => void;
@@ -4757,6 +4748,7 @@ function AdministrationPoliciesPanel({
   );
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(sortedCategories[0]?.categoryKey ?? null);
   const selectedCategory = sortedCategories.find((category) => category.categoryKey === selectedCategoryKey) ?? sortedCategories[0] ?? null;
+  const [policiesTab, setPoliciesTab] = useState<"doctrine" | "writing-guidelines" | "visual-style">("doctrine");
 
   useEffect(() => {
     if (!sortedCategories.length) {
@@ -4770,6 +4762,14 @@ function AdministrationPoliciesPanel({
 
   return (
     <div data-news-desk-admin-panel="policies">
+      <div aria-label="Policy pages" className="mb-4 flex flex-wrap gap-2" data-policies-tabs role="group">
+        <Button aria-pressed={policiesTab === "doctrine"} onClick={() => setPoliciesTab("doctrine")} type="button" variant={policiesTab === "doctrine" ? "default" : "secondary"}><ScrollText aria-hidden /> Mission and policy{policiesTab === "doctrine" ? <span className="sr-only"> (selected)</span> : null}</Button>
+        <Button aria-pressed={policiesTab === "writing-guidelines"} data-policies-tab="writing-guidelines" onClick={() => setPoliciesTab("writing-guidelines")} type="button" variant={policiesTab === "writing-guidelines" ? "default" : "secondary"}><PenLine aria-hidden /> Writing guidelines{policiesTab === "writing-guidelines" ? <span className="sr-only"> (selected)</span> : null}</Button>
+        <Button aria-pressed={policiesTab === "visual-style"} data-policies-tab="visual-style" onClick={() => setPoliciesTab("visual-style")} type="button" variant={policiesTab === "visual-style" ? "default" : "secondary"}><Palette aria-hidden /> Visual style{policiesTab === "visual-style" ? <span className="sr-only"> (selected)</span> : null}</Button>
+      </div>
+      {policiesTab === "visual-style" ? <VisualStyleAdmin isAdmin={isAdmin} /> : policiesTab === "writing-guidelines" ? (
+        <WritingGuidelinesAdmin isAdmin={isAdmin} sections={sortedCategories.map((category) => ({ key: category.categoryKey, name: category.shortTitle || category.displayName }))} />
+      ) : <>
       <SectionHeader title="Editorial Policies" detail="Publication defaults with optional category overrides" />
       <div className="news-desk-doctrine-list">
         {DOCTRINE_DEFINITIONS.map((definition) => {
@@ -4833,18 +4833,21 @@ function AdministrationPoliciesPanel({
           </div>
         </div>
       </section>
+      </>}
     </div>
   );
 }
 
 function AdministrationSectionsPanel({
   actionState,
+  conceptNames,
   disabled,
   sections,
   onReorder,
   onSave,
 }: {
   actionState: ActionState | null;
+  conceptNames: Record<string, string>;
   disabled: boolean;
   sections: NewsroomSectionRecord[];
   onReorder: (nextOrder: NewsroomSectionRecord[]) => void;
@@ -4950,7 +4953,7 @@ function AdministrationSectionsPanel({
                 </div>
                 <span>{sectionDraft.type}</span>
               </header>
-              <NewsroomSectionEditorBody draft={sectionDraft} disabled={disabled} onChange={setSectionDraft} />
+              <NewsroomSectionEditorBody conceptNames={conceptNames} draft={sectionDraft} disabled={disabled} onChange={setSectionDraft} />
               <div className="news-desk-doctrine-card__footer">
                 <span>Order: {sectionDraft.sortOrder}</span>
                 <div className="news-desk-doctrine-card__actions">
@@ -4972,7 +4975,7 @@ function AdministrationSectionsPanel({
           </div>
           <span>Draft</span>
         </header>
-        <NewsroomSectionEditorBody draft={newSection} disabled={disabled} onChange={setNewSection} />
+        <NewsroomSectionEditorBody conceptNames={conceptNames} draft={newSection} disabled={disabled} onChange={setNewSection} />
         <div className="news-desk-doctrine-card__footer">
           <span>{newSection.type} / sort {newSection.sortOrder}</span>
           <div className="news-desk-doctrine-card__actions">
@@ -4989,10 +4992,12 @@ function AdministrationSectionsPanel({
 }
 
 function NewsroomSectionEditorBody({
+  conceptNames,
   draft,
   disabled,
   onChange,
 }: {
+  conceptNames: Record<string, string>;
   draft: NewsroomSectionRecord;
   disabled: boolean;
   onChange: (next: NewsroomSectionRecord) => void;
@@ -5051,6 +5056,12 @@ function NewsroomSectionEditorBody({
           value={draft.editorialPolicy}
         />
       </label>
+      <SectionConceptsEditor
+        disabled={disabled}
+        entries={parseCoreConcepts(draft.coreConcepts)}
+        names={conceptNames}
+        onChange={(next) => onChange({ ...draft, coreConcepts: serializeCoreConcepts(next) })}
+      />
       <label className="news-desk-doctrine-card__field">
         <span>Enabled</span>
         <select
@@ -5744,7 +5755,7 @@ function DesksDeskView({
     <div className="news-desk-columns news-desk-columns--administration news-desk-columns--taxonomy" data-news-desk-section="desks">
       <div className="news-desk-main-column">
         <section className="category-steering-section category-steering-section--lead" aria-labelledby="newsroom-desks-title">
-          <SectionHeader title="News Desks" detail={`${roots.length} root topic desks`} />
+          <SectionHeader title="News sections" detail={`${roots.length} root topic sections`} />
           <div className="news-desk-desk-list">
             {roots.length ? roots.map((root) => {
               const rootNode = root.node ?? categoryToCategoryTreeNode(root.category);
@@ -5764,11 +5775,11 @@ function DesksDeskView({
                 >
                   <span>{rootNode.shortTitle ?? deriveShortTitle(rootNode.displayName)}</span>
                   <strong>{rootNode.displayName}</strong>
-                  <p>{rootNode.description ?? "No desk description yet."}</p>
+                  <p>{rootNode.description ?? "No section description yet."}</p>
                   <small>{referenceCount} refs / {assignmentCount} assignments / {root.subcategorys.length} subtopics / {doctrineStatus.savedCount} of 2 doctrine slots</small>
                 </Link>
               );
-            }) : <EmptyRow label="No root topic desks are available in the canonical category set" />}
+            }) : <EmptyRow label="No root topic sections are available in the canonical category set" />}
           </div>
         </section>
 
@@ -5789,18 +5800,18 @@ function DesksDeskView({
 
       <aside className="news-desk-rail-column">
         <section className="category-steering-section" aria-labelledby="desk-index-notes-title">
-          <SectionHeader title="Desk Rules" detail="Root topics only" />
+          <SectionHeader title="Section rules" detail="Root topics only" />
           <div className="news-desk-ledger-list">
             <article className="news-desk-ledger-item">
               <header>
-                <strong>Desk Identity</strong>
+                <strong>Section identity</strong>
                 <span>Category</span>
               </header>
               <p>Official name, short title, subtitle, and description stay on the accepted root Category record.</p>
             </article>
             <article className="news-desk-ledger-item">
               <header>
-                <strong>Desk Doctrine</strong>
+                <strong>Section doctrine</strong>
                 <span>Private Item</span>
               </header>
               <p>Mission and policies are private doctrine Items tied to the root category lineage.</p>
@@ -5850,7 +5861,7 @@ function DeskDetailPanel({
     <section className="category-steering-section news-desk-desk-detail" aria-labelledby="selected-desk-title">
       <header className="news-desk-topic-detail__header">
         <div>
-          <p className="story-label">News Desk</p>
+          <p className="story-label">News section</p>
           <h3 id="selected-desk-title">{rootNode.displayName}</h3>
           <span>{rootNode.shortTitle ?? deriveShortTitle(rootNode.displayName)}</span>
         </div>
@@ -5933,7 +5944,7 @@ function CategoryDoctrineEditorCard({
     <article className="news-desk-doctrine-card" data-news-desk-doctrine={definition.slug}>
       <header className="news-desk-doctrine-card__header">
         <div>
-          <p className="story-label">Desk Doctrine</p>
+          <p className="story-label">Section doctrine</p>
           <h3>{definition.label}</h3>
         </div>
         <span>{record ? "Saved record" : "Empty slot"}</span>
@@ -6291,14 +6302,20 @@ function TopicProposalEditModal({
 }
 
 function ConceptsDeskView({
+  disabled,
   graph,
   initialNodeLineageId,
   isDemo,
+  onSectionCoreConcepts,
+  sections,
   semanticNodes,
 }: {
+  disabled: boolean;
   graph: SemanticGraph;
   initialNodeLineageId?: string | null;
   isDemo: boolean;
+  onSectionCoreConcepts: (section: NewsroomSectionRecord, next: CoreConcept[]) => void;
+  sections: NewsroomSectionRecord[];
   semanticNodes: SemanticNodeRecord[];
 }) {
   const feed = useNewsroomPagedRows({
@@ -6311,7 +6328,7 @@ function ConceptsDeskView({
     if (feed.hasMore && !feed.isLoadingMore) feed.loadMore();
   }, [feed]);
   const nodes = feed.items.length ? feed.items : semanticNodes;
-  return <WikiConceptsView demo={isDemo} graph={graph} initialNodeLineageId={initialNodeLineageId} nodes={nodes} />;
+  return <WikiConceptsView demo={isDemo} disabled={disabled} graph={graph} initialNodeLineageId={initialNodeLineageId} nodes={nodes} onSectionCoreConcepts={onSectionCoreConcepts} sections={sections} />;
 }
 
 function ReferencesDeskView({
@@ -6333,8 +6350,6 @@ function ReferencesDeskView({
   onSetQualityRating,
   onReviewTopicLabel,
   qualityActionState,
-  realtimeError,
-  realtimeStatus,
   references,
   referenceAttachments,
   semanticRelations,
@@ -6358,8 +6373,6 @@ function ReferencesDeskView({
   onSetQualityRating: (reference: ReferenceRecord, rating: number) => void;
   onReviewTopicLabel: (input: { action: TopicLabelAction; category: CategorySteeringCategory; note?: string | null; reference: ReferenceRecord; sourceRelationId?: string | null }) => void;
   qualityActionState: ReferenceQualityActionState | null;
-  realtimeError?: string | null;
-  realtimeStatus?: RealtimeSubscriptionStatus;
   references: ReferenceRecord[];
   referenceAttachments: ReferenceAttachmentRecord[];
   semanticRelations: SemanticRelationRecord[];
@@ -6630,7 +6643,6 @@ function ReferencesDeskView({
   const selectedReferenceQualityActionState = selectedReference && qualityActionState?.referenceId === selectedReference.id
     ? qualityActionState
     : null;
-  const realtimeStatusMessage = formatReferencesRealtimeStatusMessage(realtimeStatus, realtimeError);
   const referenceDetailPending = Boolean(requestedReferenceLineageId) && !selectedReference && !deepLinkReferenceError;
   const referenceDetailPlaceholder = deepLinkReferenceLoading || referenceDetailPending
     ? "Loading reference…"
@@ -6639,11 +6651,6 @@ function ReferencesDeskView({
 
   return (
     <>
-      {realtimeStatusMessage ? (
-        <div className="category-steering-alert" role="status" aria-live="polite">
-          {realtimeStatusMessage}
-        </div>
-      ) : null}
       {deepLinkReferenceError ? (
         <div className="category-steering-alert" role="alert">
           {deepLinkReferenceError}
@@ -6803,574 +6810,6 @@ function NewsroomDeskSectionLede({
       </div>
       {controls ?? null}
     </section>
-  );
-}
-
-function MessagesDeskView({
-  assignments,
-  graph,
-  initialForumThreadId = null,
-  initialMessageId,
-  isDemo = false,
-  messages,
-  newsroomSections,
-  summary,
-}: {
-  assignments: AssignmentRecord[];
-  graph: SemanticGraph;
-  initialForumThreadId?: string | null;
-  initialMessageId?: string | null;
-  isDemo?: boolean;
-  messages: MessageRecord[];
-  newsroomSections: NewsroomSectionRecord[];
-  summary?: NewsroomSummaryRecord | null;
-}) {
-  const resolvedInitialForumThreadId = initialForumThreadId
-    ?? (isForumThreadId(initialMessageId) ? initialMessageId : null);
-  const forumMessageAnchorId = useForumMessageAnchorId();
-  const [kindFilter, setKindFilter] = useState(() => {
-    if (resolvedInitialForumThreadId) return "__forum";
-    if (typeof window === "undefined") return "";
-    return readMessagesIndexFilters(new URLSearchParams(window.location.search)).kind;
-  });
-  const [domainFilter, setDomainFilter] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return readMessagesIndexFilters(new URLSearchParams(window.location.search)).domain;
-  });
-  const [selectedMessageId, setSelectedMessageId] = useState(initialMessageId ?? "");
-  const [isMessageDetailOpen, setIsMessageDetailOpen] = useState(Boolean(initialMessageId));
-  const [consoleThreads, setConsoleThreads] = useState<ConsoleThreadSummary[]>([]);
-  const [consoleThreadsError, setConsoleThreadsError] = useState<string | null>(null);
-  const [selectedForumEditionId, setSelectedForumEditionId] = useState("");
-  const [selectedForumSectionId, setSelectedForumSectionId] = useState("");
-  const [forumScopeFilter, setForumScopeFilter] = useState<"all" | "edition" | "section">("all");
-  const [forumActivityFilter, setForumActivityFilter] = useState<"active" | "all">("active");
-  const [forumThreads, setForumThreads] = useState<ForumThreadWithMessages[]>([]);
-  const [forumThreadsLoading, setForumThreadsLoading] = useState(false);
-  const [forumThreadsError, setForumThreadsError] = useState<string | null>(null);
-  const [selectedForumThreadId, setSelectedForumThreadId] = useState("");
-  const [forumView, setForumView] = useState<ForumViewState>({ mode: "index" });
-  const [forumComposeSummary, setForumComposeSummary] = useState("");
-  const [forumComposeContent, setForumComposeContent] = useState("");
-  const [forumReplyParentId, setForumReplyParentId] = useState("");
-  const [forumComposeError, setForumComposeError] = useState<string | null>(null);
-  const [newForumThreadDraft, setNewForumThreadDraft] = useState<ForumNewThreadDraft>(createDefaultForumNewThreadDraft(""));
-  const [newForumThreadOpen, setNewForumThreadOpen] = useState(false);
-  const [newForumThreadError, setNewForumThreadError] = useState<string | null>(null);
-  const [deletingForumMessageId, setDeletingForumMessageId] = useState("");
-  const messageKind = kindFilter === "__chat_detail" ? "console_chat_turn" : kindFilter;
-  const isForumMode = kindFilter === "__forum";
-  const syncMessagesIndexUrl = useCallback((nextKind: string, nextDomain: string, replace = true) => {
-    if (isDemo || isForumMode || isMessageDetailOpen) return;
-    syncBrowserNewsroomIndexUrl(
-      "messages",
-      effectiveMessagesIndexFilters({ kind: nextKind, domain: nextDomain }),
-      { replace },
-    );
-  }, [isDemo, isForumMode, isMessageDetailOpen]);
-  useEffect(() => {
-    if (isDemo || isForumMode || isMessageDetailOpen) return;
-    syncMessagesIndexUrl(kindFilter, domainFilter, true);
-  }, [domainFilter, isDemo, isForumMode, isMessageDetailOpen, kindFilter, syncMessagesIndexUrl]);
-  const feed = useNewsroomPagedRows({
-    initialItems: messages,
-    enabled: !isDemo && kindFilter !== "__chat_sessions" && !isForumMode,
-    resetKey: `messages:${kindFilter}:${domainFilter}`,
-    loadPage: (nextToken) => loadNewsroomMessagePage({
-      kind: messageKind,
-      domain: domainFilter,
-      nextToken,
-    }),
-  });
-  useEffect(() => {
-    if (isDemo || kindFilter !== "__chat_sessions") return;
-    let active = true;
-    void listConsoleThreads(100)
-      .then((threads) => {
-        if (!active) return;
-        setConsoleThreads(threads);
-        setConsoleThreadsError(null);
-      })
-      .catch((error) => {
-        if (!active) return;
-        setConsoleThreadsError(error instanceof Error ? error.message : "Unable to load chat sessions.");
-      });
-    return () => {
-      active = false;
-    };
-  }, [isDemo, kindFilter]);
-  const [messageOverviewEditions, setMessageOverviewEditions] = useState<ResolvedOverviewEdition[]>([]);
-  useEffect(() => {
-    if (isDemo) {
-      setMessageOverviewEditions([]);
-      return;
-    }
-    let active = true;
-    void loadEditorOverviewEditionData()
-      .then((data) => {
-        if (!active) return;
-        setMessageOverviewEditions(resolveOverviewEditions({
-          editions: data.editions,
-          editionSlots: data.editionSlots,
-          assignments: data.assignments,
-        }));
-      })
-      .catch(() => {
-        if (!active) return;
-        setMessageOverviewEditions(resolveOverviewEditions({
-          editions: [],
-          editionSlots: [],
-          assignments,
-        }));
-      });
-    return () => {
-      active = false;
-    };
-  }, [assignments, isDemo]);
-  const availableSections = useMemo(
-    () => sortNewsroomSections(newsroomSections).filter((section) => section.enabled !== false),
-    [newsroomSections],
-  );
-  useEffect(() => {
-    if (!messageOverviewEditions.length) {
-      setSelectedForumEditionId("");
-      return;
-    }
-    if (selectedForumEditionId && messageOverviewEditions.some((edition) => edition.editionId === selectedForumEditionId)) {
-      return;
-    }
-    const preferred = messageOverviewEditions.find((edition) => edition.isNearestUpcoming) ?? messageOverviewEditions[0];
-    setSelectedForumEditionId(preferred.editionId);
-  }, [messageOverviewEditions, selectedForumEditionId]);
-  useEffect(() => {
-    if (!availableSections.length) {
-      setSelectedForumSectionId("");
-      setNewForumThreadDraft((current) => ({ ...current, sectionId: "" }));
-      return;
-    }
-    if (!selectedForumSectionId || !availableSections.some((section) => section.id === selectedForumSectionId)) {
-      setSelectedForumSectionId(availableSections[0].id);
-    }
-    setNewForumThreadDraft((current) => (
-      current.sectionId
-        ? current
-        : { ...current, sectionId: availableSections[0].id }
-    ));
-  }, [availableSections, selectedForumSectionId]);
-  const refreshForumThreads = useCallback(async () => {
-    if (!selectedForumEditionId) {
-      setForumThreads([]);
-      setForumThreadsError(null);
-      return;
-    }
-    setForumThreadsLoading(true);
-    try {
-      const sectionIdForQuery = forumScopeFilter === "section" ? selectedForumSectionId : "";
-      const sectionForQuery = availableSections.find((section) => section.id === sectionIdForQuery) ?? null;
-      const result = await loadEditionForumThreads({
-        editionId: selectedForumEditionId,
-        sectionId: sectionIdForQuery || undefined,
-        sectionKey: sectionForQuery?.id ?? undefined,
-        includeMessages: true,
-        status: forumActivityFilter === "active" ? "active" : "",
-      });
-      const merged = [...result.editionThreads, ...result.sectionThreads]
-        .sort((left, right) => String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? "")));
-      setForumThreads(merged);
-      setForumThreadsError(null);
-      setSelectedForumThreadId((current) => (current && merged.some((thread) => thread.id === current) ? current : ""));
-    } catch (error) {
-      setForumThreads([]);
-      setForumThreadsError(error instanceof Error ? error.message : "Could not load edition forum threads.");
-    } finally {
-      setForumThreadsLoading(false);
-    }
-  }, [availableSections, forumActivityFilter, forumScopeFilter, selectedForumEditionId, selectedForumSectionId]);
-  useEffect(() => {
-    if (!isForumMode || isDemo) return;
-    void refreshForumThreads();
-  }, [isDemo, isForumMode, refreshForumThreads]);
-  useEffect(() => {
-    if (!isForumMode) return;
-    const threadId = resolvedInitialForumThreadId ?? readCurrentForumRoute().threadId;
-    if (!threadId || forumThreadsLoading) return;
-    if (!forumThreads.some((thread) => thread.id === threadId)) return;
-    if (selectedForumThreadId === threadId && forumView.mode === "thread") return;
-    setSelectedForumThreadId(threadId);
-    setForumView({ mode: "thread", threadId });
-  }, [
-    forumThreads,
-    forumThreadsLoading,
-    forumView.mode,
-    isForumMode,
-    resolvedInitialForumThreadId,
-    selectedForumThreadId,
-  ]);
-
-  useEffect(() => {
-    if (!isForumMode) return;
-    const handlePopState = () => {
-      const route = readCurrentForumRoute();
-      if (route.threadId) {
-        setSelectedForumThreadId(route.threadId);
-        setForumView({ mode: "thread", threadId: route.threadId });
-        return;
-      }
-      setSelectedForumThreadId("");
-      setForumView({ mode: "index" });
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [isForumMode]);
-  const feedMessages = isDemo ? messages : feed.items;
-  const messageKindCounts = summary?.facets?.messages?.byKind ?? summary?.messageKindCounts ?? countMessagesBy(messages, "messageKind");
-  const messageDomainCounts = summary?.facets?.messages?.byDomain ?? summary?.messageDomainCounts ?? countMessagesBy(messages, "messageDomain");
-  const messageKinds = useMemo(() => sortedCountOptions(messageKindCounts).map((option) => option.key), [messageKindCounts]);
-  const messageDomains = useMemo(() => sortedCountOptions(messageDomainCounts).map((option) => option.key), [messageDomainCounts]);
-  const chatSessionMessages = useMemo(() => consoleThreads.map(consoleThreadToMessageRecord), [consoleThreads]);
-  const forumSectionKeyByThreadId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const thread of forumThreads) {
-      const sectionKey = normalizeForumThreadSectionKey(thread);
-      if (sectionKey) map.set(thread.id, sectionKey);
-    }
-    return map;
-  }, [forumThreads]);
-  const filteredForumThreads = useMemo(() => forumThreads.filter((thread) => {
-    if (forumScopeFilter === "edition" && thread.scope !== "edition") return false;
-    if (forumScopeFilter === "section" && thread.scope !== "section") return false;
-    if (forumScopeFilter === "section" && selectedForumSectionId) {
-      const selectedSection = availableSections.find((section) => section.id === selectedForumSectionId) ?? null;
-      if (selectedSection) {
-        const threadSectionKey = forumSectionKeyByThreadId.get(thread.id) ?? "";
-        if (threadSectionKey && threadSectionKey !== selectedSection.id) return false;
-      }
-    }
-    if (forumActivityFilter === "active" && thread.status !== "active") return false;
-    return true;
-  }), [availableSections, forumActivityFilter, forumScopeFilter, forumSectionKeyByThreadId, forumThreads, selectedForumSectionId]);
-  const selectedForumThread = filteredForumThreads.find((thread) => thread.id === selectedForumThreadId) ?? null;
-  const visibleMessages = useMemo(() => {
-    if (kindFilter === "__chat_sessions") return chatSessionMessages;
-    return feedMessages
-      .filter((message) => !messageKind || message.messageKind === messageKind)
-      .filter((message) => !domainFilter || message.messageDomain === domainFilter)
-      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-  }, [chatSessionMessages, domainFilter, feedMessages, kindFilter, messageKind]);
-  const selectedMessage = visibleMessages.find((message) => message.id === selectedMessageId)
-    ?? (initialMessageId ? messages.find((message) => message.id === initialMessageId) : null)
-    ?? visibleMessages[0]
-    ?? null;
-  const selected = selectedMessage ? graph.resolve("message", selectedMessage.id) : null;
-  const selectedForumMessage = selectedForumThread
-    ? [...(selectedForumThread.messages ?? [])]
-      .sort((left, right) => Number(left.sequenceNumber ?? 0) - Number(right.sequenceNumber ?? 0))
-      .at(-1) ?? null
-    : null;
-  const selectedEntity = isForumMode
-    ? (selectedForumMessage ? graph.resolve("message", selectedForumMessage.id) : null)
-    : selected;
-  const messageKnowledgeQuery = useNewsroomKnowledgeContext(selectedMessage ? {
-    anchor: { kind: "message", id: selectedMessage.id },
-    title: selectedMessage.summary ?? "Stored message payload",
-    subtitle: selectedMessage.messageKind,
-  } : null);
-  const forumKnowledgeQuery = useNewsroomKnowledgeContext(selectedForumMessage ? {
-    anchor: { kind: "message", id: selectedForumMessage.id },
-    title: selectedForumThread?.title ?? selectedForumMessage.summary ?? "Forum thread",
-    subtitle: selectedForumMessage.messageKind,
-  } : null);
-  const cards = visibleMessages.map((message, index) => messageToNewsroomCard(message, index));
-  const totalMessageCount = summaryCountFromRecord(summary, "messages") || messages.length;
-  const metrics = [
-    { key: "", label: "All", count: totalMessageCount },
-    ...messageDomains.slice(0, 4).map((domain) => ({ key: domain, label: domain, count: messageDomainCounts[domain] ?? 0 })),
-  ];
-  const selectMessage = (id: string) => {
-    setSelectedMessageId(id);
-    setIsMessageDetailOpen(true);
-    pushNewsroomDetailUrl("messages", id, isDemo);
-  };
-  const openForumThread = (threadId: string, options?: { messageId?: string | null; replace?: boolean }) => {
-    setSelectedForumThreadId(threadId);
-    setForumView({ mode: "thread", threadId });
-    setIsMessageDetailOpen(true);
-    pushForumThreadUrl(threadId, {
-      demo: isDemo,
-      messageId: options?.messageId,
-      replace: options?.replace,
-    });
-  };
-
-  const closeForumThread = () => {
-    setSelectedForumThreadId("");
-    setForumView({ mode: "index" });
-    pushForumThreadUrl(null, { demo: isDemo, replace: true });
-  };
-  const submitNewForumThread = async () => {
-    if (!selectedForumEditionId) return;
-    const title = newForumThreadDraft.title.trim();
-    const content = newForumThreadDraft.content.trim();
-    if (!title) {
-      setNewForumThreadError("Thread title is required.");
-      return;
-    }
-    if (!content) {
-      setNewForumThreadError("Thread body is required.");
-      return;
-    }
-    try {
-      let threadId = "";
-      if (newForumThreadDraft.scope === "section") {
-        const sectionId = String(newForumThreadDraft.sectionId || selectedForumSectionId || "").trim();
-        const section = availableSections.find((entry) => entry.id === sectionId) ?? null;
-        if (!section) {
-          setNewForumThreadError("Section is required for section threads.");
-          return;
-        }
-        const created = await createSectionForumThreadRecord({
-          editionId: selectedForumEditionId,
-          sectionId: section.id,
-          sectionKey: section.id,
-          sectionTitle: section.title,
-          title,
-          actorLabel: "human-editor",
-        });
-        threadId = created.thread.id;
-      } else {
-        const ensured = await ensureEditionForumThreadRecord({
-          editionId: selectedForumEditionId,
-          actorLabel: "human-editor",
-        });
-        threadId = ensured.thread.id;
-      }
-      await appendForumThreadMessageRecord({
-        threadId,
-        summary: title,
-        content,
-        role: "human",
-        authorLabel: "human-editor",
-      });
-      await refreshForumThreads();
-      setNewForumThreadDraft(createDefaultForumNewThreadDraft(selectedForumSectionId || availableSections[0]?.id || ""));
-      setNewForumThreadError(null);
-      setNewForumThreadOpen(false);
-      openForumThread(threadId, { replace: true });
-    } catch (error) {
-      setNewForumThreadError(error instanceof Error ? error.message : "Could not create thread.");
-    }
-  };
-  const submitForumMessage = async () => {
-    if (!selectedForumThread) return;
-    const summary = forumComposeSummary.trim() || forumComposeContent.trim().slice(0, 120) || "Forum reply";
-    const content = forumComposeContent.trim();
-    if (!content) {
-      setForumComposeError("Message content is required.");
-      return;
-    }
-    setForumComposeError(null);
-    try {
-      await appendForumThreadMessageRecord({
-        threadId: selectedForumThread.id,
-        summary,
-        content,
-        role: "human",
-        authorLabel: "human-editor",
-        parentMessageId: forumReplyParentId || undefined,
-      });
-      setForumComposeSummary("");
-      setForumComposeContent("");
-      setForumReplyParentId("");
-      await refreshForumThreads();
-      setForumView({ mode: "thread", threadId: selectedForumThread.id });
-    } catch (error) {
-      setForumComposeError(error instanceof Error ? error.message : "Could not append message.");
-    }
-  };
-  const deleteForumMessage = async (threadId: string, messageId: string) => {
-    setDeletingForumMessageId(messageId);
-    try {
-      await deleteForumThreadMessageRecord({ threadId, messageId });
-      if (forumReplyParentId === messageId) setForumReplyParentId("");
-      await refreshForumThreads();
-      setForumComposeError(null);
-    } catch (error) {
-      setForumComposeError(error instanceof Error ? error.message : "Could not delete message.");
-    } finally {
-      setDeletingForumMessageId("");
-    }
-  };
-  return (
-    <>
-      <NewsroomListDetailShell
-        animatedDetail
-        sectionKey="messages"
-        canExpandDetail={Boolean(isForumMode ? (forumView.mode === "thread" && forumView.threadId) : selectedMessage)}
-        detailOpen={isForumMode ? (forumView.mode === "thread" && Boolean(forumView.threadId)) : isMessageDetailOpen}
-        selectionScrollKey={(isForumMode ? (forumView.mode === "thread" ? forumView.threadId : null) : selectedMessage?.id) ?? null}
-        utilityActions={[isForumMode ? forumKnowledgeQuery.action : messageKnowledgeQuery.action]}
-        lede={(
-          <section className="news-desk-lede news-desk-assignment-lede" aria-labelledby="message-management-title">
-            <div>
-              <h2 id="message-management-title">{formatDeskSectionHeadline("messages")}</h2>
-              <p>{formatDeskSectionLede("messages")}</p>
-            </div>
-          </section>
-        )}
-        list={(
-          <section className="category-steering-section category-steering-section--lead" aria-label="Messages">
-            {isForumMode ? (
-              <ForumThreadIndex
-                threads={filteredForumThreads}
-                sections={availableSections}
-                isLoading={forumThreadsLoading}
-                error={forumThreadsError}
-                emptyLabel="No forum threads for this edition/filter."
-                toolbar={(
-                  <div className="news-desk-forum-toolbar">
-                    <select
-                      aria-label="Forum edition"
-                      value={selectedForumEditionId}
-                      onChange={(event) => setSelectedForumEditionId(event.target.value)}
-                    >
-                      {messageOverviewEditions.length ? messageOverviewEditions.map((edition) => (
-                        <option key={edition.editionId} value={edition.editionId}>{edition.label}</option>
-                      )) : <option value="">No editions found</option>}
-                    </select>
-                    <select
-                      aria-label="Forum scope"
-                      value={forumScopeFilter}
-                      onChange={(event) => setForumScopeFilter((event.target.value as "all" | "edition" | "section"))}
-                    >
-                      <option value="all">All scopes</option>
-                      <option value="edition">Edition</option>
-                      <option value="section">Section</option>
-                    </select>
-                    <select
-                      aria-label="Forum section"
-                      value={selectedForumSectionId}
-                      onChange={(event) => {
-                        setSelectedForumSectionId(event.target.value);
-                        setNewForumThreadDraft((current) => ({ ...current, sectionId: event.target.value }));
-                      }}
-                      disabled={!availableSections.length}
-                    >
-                      {availableSections.length ? availableSections.map((section) => (
-                        <option key={section.id} value={section.id}>{section.title}</option>
-                      )) : <option value="">No sections</option>}
-                    </select>
-                    <select
-                      aria-label="Forum status"
-                      value={forumActivityFilter}
-                      onChange={(event) => setForumActivityFilter((event.target.value as "active" | "all"))}
-                    >
-                      <option value="active">Active</option>
-                      <option value="all">All</option>
-                    </select>
-                    <button type="button" disabled={!selectedForumEditionId} onClick={() => setNewForumThreadOpen((value) => !value)}>
-                      {newForumThreadOpen ? "Close New Thread" : "New Thread"}
-                    </button>
-                    <button type="button" onClick={() => setKindFilter("")}>Back to Messages</button>
-                  </div>
-                )}
-                composer={newForumThreadOpen ? (
-                  <ForumThreadComposer
-                    draft={newForumThreadDraft}
-                    sections={availableSections}
-                    error={newForumThreadError}
-                    onChange={setNewForumThreadDraft}
-                    onCancel={() => {
-                      setNewForumThreadOpen(false);
-                      setNewForumThreadError(null);
-                    }}
-                    onSubmit={() => void submitNewForumThread()}
-                  />
-                ) : null}
-                onOpenThread={openForumThread}
-              />
-            ) : (
-              <NewsroomCardGrid
-                cards={cards}
-                emptyLabel="No private messages recorded"
-                filterLabel="Message kind"
-                filterOptions={[
-                  { key: "__forum", label: "Forum threads", count: forumThreads.length || undefined },
-                  { key: "", label: "All kinds", count: totalMessageCount },
-                  { key: "__chat_sessions", label: "Chat sessions", count: consoleThreads.length || undefined },
-                  { key: "__chat_detail", label: "Chat detail", count: messageKindCounts.console_chat_turn ?? 0 },
-                  ...messageKinds.map((kind) => ({ key: kind, label: kind, count: messageKindCounts[kind] ?? 0 })),
-                ]}
-                filterValue={kindFilter}
-                metricValue={domainFilter}
-                metrics={metrics}
-                footerLabel={consoleThreadsError ?? feed.error ?? undefined}
-                hasMore={!isDemo && kindFilter !== "__chat_sessions" && feed.hasMore}
-                isLoadingMore={feed.isLoadingMore}
-                onFilterChange={(value) => {
-                  setKindFilter(value);
-                  syncMessagesIndexUrl(value, domainFilter, true);
-                }}
-                onLoadMore={feed.loadMore}
-                onMetricChange={(value) => {
-                  setDomainFilter(value);
-                  syncMessagesIndexUrl(kindFilter, value, true);
-                }}
-                onSelect={selectMessage}
-                selectedId={selectedMessage?.id ?? null}
-              />
-            )}
-          </section>
-        )}
-        onCloseDetail={() => {
-          if (isForumMode) {
-            closeForumThread();
-            return;
-          }
-          setIsMessageDetailOpen(false);
-          syncMessagesIndexUrl(kindFilter, domainFilter, true);
-        }}
-        detail={isForumMode ? (
-          (forumView.mode === "thread" && selectedForumThread ? (
-            <ForumThreadView
-              thread={selectedForumThread}
-              sections={availableSections}
-              replyParentId={forumReplyParentId}
-              composeSummary={forumComposeSummary}
-              composeContent={forumComposeContent}
-              composeError={forumComposeError}
-              focusMessageId={forumMessageAnchorId}
-              isDemo={isDemo}
-              onBack={closeForumThread}
-              onReplyTarget={(messageId) => {
-                setForumReplyParentId(messageId);
-                pushForumThreadUrl(selectedForumThread.id, { demo: isDemo, messageId, replace: true });
-              }}
-              onDeleteMessage={(messageId) => {
-                if (!selectedForumThread || deletingForumMessageId === messageId) return;
-                void deleteForumMessage(selectedForumThread.id, messageId);
-              }}
-              onClearReplyTarget={() => {
-                setForumReplyParentId("");
-                pushForumThreadUrl(selectedForumThread.id, { demo: isDemo, replace: true });
-              }}
-              onSummaryChange={setForumComposeSummary}
-              onContentChange={setForumComposeContent}
-              onSubmit={() => void submitForumMessage()}
-              deletingMessageId={deletingForumMessageId}
-            />
-          ) : forumView.mode === "thread" ? (
-            <section className="category-steering-section">
-              <SectionHeader title="Thread Unavailable" detail="Forum" />
-              <EmptyRow label="That thread is not available under the current filters. Return to Threads and adjust filters." />
-              <button type="button" onClick={closeForumThread}>Back to Threads</button>
-            </section>
-          ) : <SemanticDetailPanel graph={graph} selected={selectedEntity} knowledgeQuery={forumKnowledgeQuery} />)
-        ) : (selectedMessage
-          ? <MessageDetailPanel graph={graph} message={selectedMessage} selected={selected} knowledgeQuery={messageKnowledgeQuery} />
-          : <SemanticDetailPanel graph={graph} selected={selected} knowledgeQuery={messageKnowledgeQuery} />)}
-      />
-      {isForumMode ? forumKnowledgeQuery.dialog : messageKnowledgeQuery.dialog}
-    </>
   );
 }
 
@@ -8999,11 +8438,7 @@ function SemanticDetailPanel({
                 {messages.slice(0, 4).map((message) => (
                   <div className="news-desk-detail-line" key={message.id}>
                     <span>{message.messageKind}</span>
-                    <strong>
-                      {message.messageKind === "reference_curation"
-                        ? "Canonical summary is stored on the linked reference metadata attachment."
-                        : (message.summary ?? "Stored message payload")}
-                    </strong>
+                    <strong>{message.summary ?? "Stored message payload"}</strong>
                   </div>
                 ))}
               </div>
@@ -9027,10 +8462,6 @@ function useModelPayloads(
     loading: boolean;
     payloads: HydratedModelPayload[];
   }>({ error: null, loading: false, payloads: [] });
-  const subscriptionClient = useMemo(
-    () => generateClient<Schema>({ authMode: USER_POOL_AUTH_MODE }),
-    [],
-  );
 
   useEffect(() => {
     if (!ownerId) {
@@ -9039,9 +8470,6 @@ function useModelPayloads(
     }
 
     let active = true;
-    const roleSet = new Set(rolesKey ? rolesKey.split("|").filter(Boolean) : []);
-    const attachmentModel = subscriptionClient.models.ModelAttachment as unknown as ModelAttachmentSubscriptionModel | undefined;
-    let subscriptions: ReferenceSubscription[] = [];
 
     const runLoad = (showLoading: boolean) => {
       if (showLoading) setState((current) => ({ ...current, error: null, loading: true }));
@@ -9062,30 +8490,10 @@ function useModelPayloads(
 
     void runLoad(true);
 
-    const handleAttachmentEvent = (value: unknown) => {
-      const attachment = normalizeModelAttachmentSubscriptionPayload(value);
-      if (!attachment) return;
-      if (attachment.ownerKind !== ownerKind) return;
-      if (attachment.ownerId !== ownerId) return;
-      if (roleSet.size > 0 && !roleSet.has(attachment.role)) return;
-      void runLoad(false);
-    };
-
-    if (attachmentModel && typeof attachmentModel.onCreate === "function" && typeof attachmentModel.onUpdate === "function") {
-      subscriptions = [
-        attachmentModel.onCreate().subscribe({ next: handleAttachmentEvent }),
-        attachmentModel.onUpdate().subscribe({ next: handleAttachmentEvent }),
-      ];
-      if (typeof attachmentModel.onDelete === "function") {
-        subscriptions.push(attachmentModel.onDelete().subscribe({ next: handleAttachmentEvent }));
-      }
-    }
-
     return () => {
       active = false;
-      for (const subscription of subscriptions) subscription.unsubscribe();
     };
-  }, [ownerKind, ownerId, rolesKey, subscriptionClient]);
+  }, [ownerKind, ownerId, rolesKey]);
 
   return state;
 }
@@ -9816,415 +9224,6 @@ function SearchDeskView({
   );
 }
 
-function MarkdownContext({ className, text }: { className?: string; text: string }) {
-  const blocks = useMemo(() => parseMarkdownBlocks(normalizeMarkdownForRendering(text)), [text]);
-  return (
-    <div className={className ? `news-desk-markdown-context ${className}` : "news-desk-markdown-context"}>
-      {blocks.map((block, index) => renderMarkdownBlock(block, index))}
-    </div>
-  );
-}
-
-type MarkdownBlock =
-  | { type: "code"; text: string }
-  | { type: "heading"; depth: number; text: string }
-  | { type: "list"; items: string[]; ordered: boolean }
-  | { type: "table"; headers: string[]; rows: string[][] }
-  | { type: "paragraph"; text: string };
-
-function normalizeMarkdownForRendering(text: string): string {
-  const trimmed = text.trim();
-  const fencedMarkdown = /^```(?:markdown|md|mdx)?\s*\n([\s\S]*?)\n```$/i.exec(trimmed);
-  const unwrapped = fencedMarkdown ? (fencedMarkdown[1] ?? "") : text;
-  return normalizeMultilineMarkdownLinks(unwrapped);
-}
-
-function parseMarkdownBlocks(text: string): MarkdownBlock[] {
-  const blocks: MarkdownBlock[] = [];
-  const lines = text.split(/\r?\n/);
-  let paragraph: string[] = [];
-  let list: string[] = [];
-  let listOrdered = false;
-  let code: string[] = [];
-  let inCode = false;
-  const flushParagraph = () => {
-    if (paragraph.length) {
-      blocks.push({ type: "paragraph", text: paragraph.join(" ").trim() });
-      paragraph = [];
-    }
-  };
-  const flushList = () => {
-    if (list.length) {
-      blocks.push({ type: "list", items: list, ordered: listOrdered });
-      list = [];
-      listOrdered = false;
-    }
-  };
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-    const line = lines[lineIndex];
-    if (line.trim().startsWith("```")) {
-      if (inCode) {
-        blocks.push({ type: "code", text: code.join("\n") });
-        code = [];
-        inCode = false;
-      } else {
-        flushParagraph();
-        flushList();
-        inCode = true;
-      }
-      continue;
-    }
-    if (inCode) {
-      code.push(line);
-      continue;
-    }
-    const trimmed = line.trim();
-    if (!trimmed) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-    if (
-      lineIndex + 1 < lines.length
-      && looksLikeMarkdownTableHeaderLine(line)
-      && isMarkdownTableDividerLine(lines[lineIndex + 1] ?? "")
-    ) {
-      flushParagraph();
-      flushList();
-      const headerCells = splitMarkdownTableCells(line);
-      const dividerCells = splitMarkdownTableCells(lines[lineIndex + 1] ?? "");
-      const columnCount = Math.max(headerCells.length, dividerCells.length, 1);
-      const headers = normalizeMarkdownTableCells(headerCells, columnCount);
-      const rows: string[][] = [];
-      lineIndex += 2;
-      while (lineIndex < lines.length) {
-        const rowLine = lines[lineIndex] ?? "";
-        if (!looksLikeMarkdownTableRowLine(rowLine)) {
-          lineIndex -= 1;
-          break;
-        }
-        rows.push(normalizeMarkdownTableCells(splitMarkdownTableCells(rowLine), columnCount));
-        lineIndex += 1;
-      }
-      if (lineIndex >= lines.length) lineIndex -= 1;
-      blocks.push({ type: "table", headers, rows });
-      continue;
-    }
-    const heading = /^(#{1,4})\s+(.+)$/.exec(trimmed);
-    if (heading) {
-      flushParagraph();
-      flushList();
-      blocks.push({ type: "heading", depth: heading[1].length, text: heading[2].trim() });
-      continue;
-    }
-    const bullet = /^(?:([-*+])\s+|(\d+)[.)]\s+)(.+)$/.exec(trimmed);
-    if (bullet) {
-      flushParagraph();
-      const ordered = Boolean(bullet[2]);
-      if (list.length && listOrdered !== ordered) flushList();
-      listOrdered = ordered;
-      list.push((bullet[3] ?? "").trim());
-      continue;
-    }
-    flushList();
-    paragraph.push(trimmed);
-  }
-  flushParagraph();
-  flushList();
-  if (code.length) blocks.push({ type: "code", text: code.join("\n") });
-  return blocks;
-}
-
-function renderMarkdownBlock(block: MarkdownBlock, index: number): ReactNode {
-  const key = `${block.type}-${index}`;
-  if (block.type === "code") return <pre className="news-desk-analysis-command" key={key}>{block.text}</pre>;
-  if (block.type === "list") {
-    const ListTag = block.ordered ? "ol" : "ul";
-    return (
-      <ListTag key={key}>
-        {block.items.map((item, itemIndex) => <li key={`${key}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>)}
-      </ListTag>
-    );
-  }
-  if (block.type === "heading") {
-    if (block.depth <= 1) return <h3 key={key}>{block.text}</h3>;
-    if (block.depth === 2) return <h4 key={key}>{block.text}</h4>;
-    return <h5 key={key}>{block.text}</h5>;
-  }
-  if (block.type === "table") {
-    return (
-      <table key={key}>
-        <thead>
-          <tr>
-            {block.headers.map((header, headerIndex) => (
-              <th key={`${key}-head-${headerIndex}`} scope="col">{renderInlineMarkdown(header)}</th>
-            ))}
-          </tr>
-        </thead>
-        {block.rows.length ? (
-          <tbody>
-            {block.rows.map((row, rowIndex) => (
-              <tr key={`${key}-row-${rowIndex}`}>
-                {row.map((cell, cellIndex) => (
-                  <td key={`${key}-row-${rowIndex}-cell-${cellIndex}`}>{renderInlineMarkdown(cell)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        ) : null}
-      </table>
-    );
-  }
-  return <p key={key}>{renderInlineMarkdown(block.text)}</p>;
-}
-
-function renderInlineMarkdown(text: string): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  let index = 0;
-  let plain = "";
-  const flushPlain = () => {
-    if (!plain) return;
-    nodes.push(plain);
-    plain = "";
-  };
-
-  while (index < text.length) {
-    const linkLike = parseMarkdownLinkLikeAt(text, index);
-    if (linkLike) {
-      flushPlain();
-      if (!linkLike.image) {
-        const href = normalizeInlineMarkdownHref(linkLike.hrefRaw);
-        const label = collapseMarkdownLinkLabel(linkLike.label);
-        if (href) {
-          nodes.push(
-            <a href={href} key={`${index}-link`} rel="noopener noreferrer" target="_blank">
-              {renderInlineMarkdown(label)}
-            </a>,
-          );
-        } else {
-          nodes.push(linkLike.raw);
-        }
-      }
-      index += linkLike.length;
-      continue;
-    }
-
-    if (text.startsWith("**", index) || text.startsWith("__", index)) {
-      const marker = text.slice(index, index + 2);
-      const end = text.indexOf(marker, index + 2);
-      if (end > index + 2) {
-        flushPlain();
-        nodes.push(<strong key={`${index}-strong`}>{renderInlineMarkdown(text.slice(index + 2, end))}</strong>);
-        index = end + 2;
-        continue;
-      }
-    }
-
-    if (text.startsWith("~~", index)) {
-      const end = text.indexOf("~~", index + 2);
-      if (end > index + 2) {
-        flushPlain();
-        nodes.push(<del key={`${index}-strike`}>{renderInlineMarkdown(text.slice(index + 2, end))}</del>);
-        index = end + 2;
-        continue;
-      }
-    }
-
-    if (text[index] === "*" || text[index] === "_") {
-      const marker = text[index];
-      const end = text.indexOf(marker, index + 1);
-      if (end > index + 1) {
-        flushPlain();
-        nodes.push(<em key={`${index}-em`}>{renderInlineMarkdown(text.slice(index + 1, end))}</em>);
-        index = end + 1;
-        continue;
-      }
-    }
-
-    if (text[index] === "`") {
-      const end = text.indexOf("`", index + 1);
-      if (end > index + 1) {
-        flushPlain();
-        nodes.push(<code key={`${index}-code`}>{text.slice(index + 1, end)}</code>);
-        index = end + 1;
-        continue;
-      }
-    }
-
-    const autolinkMatch = /^(<https?:\/\/[^>\s]+>|https?:\/\/[^\s<]+)/.exec(text.slice(index));
-    if (autolinkMatch) {
-      flushPlain();
-      const token = autolinkMatch[1];
-      const href = normalizeInlineMarkdownHref(token);
-      if (href) {
-        nodes.push(
-          <a href={href} key={`${index}-autolink`} rel="noopener noreferrer" target="_blank">
-            {href}
-          </a>,
-        );
-      } else {
-        nodes.push(token);
-      }
-      index += token.length;
-      continue;
-    }
-
-    plain += text[index];
-    index += 1;
-  }
-
-  flushPlain();
-  return nodes;
-}
-
-function normalizeInlineMarkdownHref(rawHref: string): string | null {
-  const href = extractMarkdownHrefDestination(rawHref);
-  if (!href) return null;
-  if (/^(https?:\/\/|mailto:)/i.test(href)) return href;
-  return null;
-}
-
-function normalizeMultilineMarkdownLinks(text: string): string {
-  let normalized = "";
-  let index = 0;
-  while (index < text.length) {
-    const linkLike = parseMarkdownLinkLikeAt(text, index);
-    if (!linkLike || linkLike.image || !linkLike.raw.includes("\n")) {
-      normalized += text[index];
-      index += 1;
-      continue;
-    }
-    const href = extractMarkdownHrefDestination(linkLike.hrefRaw);
-    const label = collapseMarkdownLinkLabel(linkLike.label);
-    if (!href || !label) {
-      normalized += linkLike.raw;
-      index += linkLike.length;
-      continue;
-    }
-    normalized += `[${label}](${href})`;
-    index += linkLike.length;
-  }
-  return normalized;
-}
-
-function collapseMarkdownLinkLabel(label: string): string {
-  const withoutImages = label.replace(/!\[[^\]]*\]\((?:[^)(]|\([^)(]*\))*\)/g, " ");
-  return withoutImages
-    .replace(/\r?\n+/g, " ")
-    .replace(/(^|\s)#{1,6}\s+/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function extractMarkdownHrefDestination(rawHref: string): string {
-  const trimmed = rawHref.trim();
-  if (!trimmed) return "";
-  if (trimmed.startsWith("<")) {
-    const closing = trimmed.indexOf(">");
-    if (closing > 1) return trimmed.slice(1, closing).trim();
-  }
-  const match = /^(\S+)/.exec(trimmed);
-  return match?.[1]?.trim() ?? "";
-}
-
-function parseMarkdownLinkLikeAt(
-  source: string,
-  startIndex: number,
-): { hrefRaw: string; image: boolean; label: string; length: number; raw: string } | null {
-  const image = source.startsWith("![", startIndex);
-  const link = source[startIndex] === "[";
-  if (!image && !link) return null;
-  const labelStart = startIndex + (image ? 2 : 1);
-  const labelEnd = findMatchingBracketIndex(source, labelStart, "[", "]");
-  if (labelEnd < 0) return null;
-  let next = labelEnd + 1;
-  while (next < source.length && /\s/.test(source[next])) next += 1;
-  if (source[next] !== "(") return null;
-  const hrefStart = next + 1;
-  const hrefEnd = findMatchingBracketIndex(source, hrefStart, "(", ")");
-  if (hrefEnd < 0) return null;
-  const raw = source.slice(startIndex, hrefEnd + 1);
-  return {
-    image,
-    label: source.slice(labelStart, labelEnd),
-    hrefRaw: source.slice(hrefStart, hrefEnd),
-    length: raw.length,
-    raw,
-  };
-}
-
-function findMatchingBracketIndex(source: string, contentStart: number, open: string, close: string): number {
-  let depth = 1;
-  for (let index = contentStart; index < source.length; index += 1) {
-    const ch = source[index];
-    if (ch === "\\") {
-      index += 1;
-      continue;
-    }
-    if (ch === open) {
-      depth += 1;
-      continue;
-    }
-    if (ch !== close) continue;
-    depth -= 1;
-    if (depth === 0) return index;
-  }
-  return -1;
-}
-
-function looksLikeMarkdownTableHeaderLine(line: string): boolean {
-  return /\|/.test(line.trim());
-}
-
-function looksLikeMarkdownTableRowLine(line: string): boolean {
-  const trimmed = line.trim();
-  if (!trimmed) return false;
-  if (!/\|/.test(trimmed)) return false;
-  if (isMarkdownTableDividerLine(trimmed)) return false;
-  return true;
-}
-
-function isMarkdownTableDividerLine(line: string): boolean {
-  const cells = splitMarkdownTableCells(line);
-  if (!cells.length) return false;
-  return cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
-}
-
-function splitMarkdownTableCells(line: string): string[] {
-  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
-  if (!trimmed) return [];
-  const cells: string[] = [];
-  let current = "";
-  let escaping = false;
-  for (let index = 0; index < trimmed.length; index += 1) {
-    const ch = trimmed[index];
-    if (escaping) {
-      current += ch;
-      escaping = false;
-      continue;
-    }
-    if (ch === "\\") {
-      escaping = true;
-      current += ch;
-      continue;
-    }
-    if (ch === "|") {
-      cells.push(current.trim());
-      current = "";
-      continue;
-    }
-    current += ch;
-  }
-  cells.push(current.trim());
-  return cells;
-}
-
-function normalizeMarkdownTableCells(cells: string[], columnCount: number): string[] {
-  const normalized = cells.slice(0, columnCount);
-  while (normalized.length < columnCount) normalized.push("");
-  return normalized;
-}
-
 function PayloadDetailBlock({
   fallback,
   hideLabel = false,
@@ -10821,11 +9820,7 @@ function ReferenceDetailPanel({
                 {messages.slice(0, 4).map((message) => (
                   <div className="news-desk-detail-line" key={message.id}>
                     <span>{message.messageKind}</span>
-                    <strong>
-                      {message.messageKind === "reference_curation"
-                        ? (metadataSummary ?? "Canonical summary unavailable")
-                        : (message.summary ?? "Stored message payload")}
-                    </strong>
+                    <strong>{message.summary ?? "Stored message payload"}</strong>
                   </div>
                 ))}
               </div>
@@ -10927,25 +9922,9 @@ function MessageDetailPanel({
   const bodyPayload = modelPayloadByRole(messagePayloadState.payloads, "message_body");
   const metadataPayload = modelPayloadByRole(messagePayloadState.payloads, "metadata");
   const messageMetadata = metadataRecord(metadataPayload?.json) ?? metadataRecord(message.metadata);
-  const linkedReference = useReferenceCurationMessageReference(graph, message, messageMetadata);
-  const referencePayloadState = useModelPayloads("reference", linkedReference?.id, ["metadata"]);
-  const referenceMetadataPayload = modelPayloadByRole(referencePayloadState.payloads, "metadata");
-  const referenceSubtitle = referenceMetadataSubtitle(referenceMetadataPayload, linkedReference?.metadata);
-  const referenceSummary = linkedReference
-    ? referenceDisplaySummary(
-      graph,
-      linkedReference.lineageId ?? linkedReference.id,
-      referenceMetadataPayload,
-      linkedReference.metadata,
-    )
-    : null;
   const headerLabel = humanizeNewsroomLabel(message.messageKind ?? "message");
-  const headerTitle = message.messageKind === "reference_curation"
-    ? linkedReference?.title ?? linkedReference?.externalItemId ?? "Reference curation"
-    : message.summary ?? "Stored message payload";
-  const detailSummary = message.messageKind === "reference_curation"
-    ? referenceSummary ?? null
-    : message.summary ?? null;
+  const headerTitle = message.summary ?? "Stored message payload";
+  const detailSummary = message.summary ?? null;
   const neighborGroups = selected ? graph.neighbors(selected.kind, selected.lineageId) : [];
   return (
     <section className="category-steering-section" aria-label="Message detail" data-news-desk-message-detail={message.id}>
@@ -10954,9 +9933,6 @@ function MessageDetailPanel({
           <div>
             <p className="story-label">{headerLabel}</p>
             <strong data-news-desk-message-headline>{headerTitle}</strong>
-            {message.messageKind === "reference_curation" && referenceSubtitle ? (
-              <p className="news-desk-semantic-detail__subheading" data-news-desk-message-subheading>{referenceSubtitle}</p>
-            ) : null}
             <span>{formatDateTime(message.createdAt)}</span>
           </div>
         </header>
@@ -10975,14 +9951,13 @@ function MessageDetailPanel({
               <p className="story-label">Message Metadata</p>
               {detailSummary ? (
                 <div className="news-desk-detail-line" data-news-desk-message-summary>
-                  <span>{message.messageKind === "reference_curation" ? "Summary" : "Event summary"}</span>
+                  <span>Event summary</span>
                   <strong>{detailSummary}</strong>
                 </div>
               ) : null}
               <div className="news-desk-detail-line"><span>Status</span><strong>{message.status}</strong></div>
               <div className="news-desk-detail-line"><span>Source</span><strong>{message.source ?? "unknown"}</strong></div>
               <div className="news-desk-detail-line"><span>Author</span><strong>{message.authorLabel ?? message.authorSub ?? "unknown"}</strong></div>
-              {linkedReference ? <div className="news-desk-detail-line"><span>Reference</span><strong>{linkedReference.title ?? linkedReference.externalItemId}</strong></div> : null}
               {message.importRunId ? <div className="news-desk-detail-line"><span>Import run</span><strong>{message.importRunId}</strong></div> : null}
             </div>
             <PayloadDetailBlock
@@ -10999,81 +9974,6 @@ function MessageDetailPanel({
       </article>
     </section>
   );
-}
-
-function useReferenceCurationMessageReference(
-  graph: ReturnType<typeof createSemanticGraphSnapshot>,
-  message: MessageRecord,
-  metadata: Record<string, unknown> | null,
-): ReferenceRecord | null {
-  const relationReferenceId = useMemo(
-    () => referenceCurationMessageReferenceId(graph, message),
-    [graph, message],
-  );
-  const graphReference = useMemo(
-    () => resolveReferenceCurationMessageReference(graph, message, metadata),
-    [graph, message, metadata],
-  );
-  const referenceId = relationReferenceId ?? normalizeMetadataString(metadata?.referenceId);
-  const [loadedReference, setLoadedReference] = useState<ReferenceRecord | null>(null);
-
-  useEffect(() => {
-    setLoadedReference(null);
-    if (message.messageKind !== "reference_curation" || graphReference || !referenceId) return;
-    let active = true;
-    loadReferenceRecordById(referenceId)
-      .then((reference) => {
-        if (active) setLoadedReference(reference);
-      })
-      .catch(() => {
-        if (active) setLoadedReference(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [graphReference, message.id, message.messageKind, referenceId]);
-
-  return graphReference ?? loadedReference;
-}
-
-function resolveReferenceCurationMessageReference(
-  graph: ReturnType<typeof createSemanticGraphSnapshot>,
-  message: MessageRecord,
-  metadata: Record<string, unknown> | null,
-): ReferenceRecord | null {
-  if (message.messageKind !== "reference_curation") return null;
-  const outgoingReference = referenceCurationMessageRelation(graph, message);
-  const graphSummary = outgoingReference
-    ? graph.resolve("reference", outgoingReference.objectLineageId) ?? graph.resolve("reference", outgoingReference.objectId)
-    : null;
-  if (graphSummary?.kind === "reference" && graphSummary.record) {
-    return graphSummary.record as ReferenceRecord;
-  }
-  const referenceId = normalizeMetadataString(metadata?.referenceId);
-  const referenceLineageId = normalizeMetadataString(metadata?.referenceLineageId);
-  const fallbackSummary = (referenceId ? graph.resolve("reference", referenceId) : null)
-    ?? (referenceLineageId ? graph.resolve("reference", referenceLineageId) : null);
-  return fallbackSummary?.kind === "reference" && fallbackSummary.record
-    ? fallbackSummary.record as ReferenceRecord
-    : null;
-}
-
-function referenceCurationMessageReferenceId(
-  graph: ReturnType<typeof createSemanticGraphSnapshot>,
-  message: MessageRecord,
-): string | null {
-  const relation = referenceCurationMessageRelation(graph, message);
-  return relation?.objectId ?? null;
-}
-
-function referenceCurationMessageRelation(
-  graph: ReturnType<typeof createSemanticGraphSnapshot>,
-  message: MessageRecord,
-): SemanticRelationRecord | null {
-  if (message.messageKind !== "reference_curation") return null;
-  return graph.outgoing("message", message.id)
-    .find((relation) => relation.objectKind === "reference" && relationTypeKey(relation) === "comment")
-    ?? null;
 }
 
 type ReferenceCurationDisplayState = {
@@ -12298,7 +11198,7 @@ function AssignmentRow({
             {context ? (
               <>
                 <p className="news-desk-assignment-row__angle">
-                  <span>{context.deskTitle ?? context.deskKey ?? "Desk"}</span>
+                  <span>{context.deskTitle ?? context.deskKey ?? "Section"}</span>
                   {`${context.focusTitle ?? context.focusKey ?? "focus"} / ${context.targetSystemType ?? context.contextProfile ?? "context"}`}
                 </p>
                 {context.contextProfile || context.contextTokenBudget ? (
@@ -12413,7 +11313,7 @@ function normalizeAnalysisReindexMode(value: string | null | undefined): Analysi
 function formatAnalysisReindexModeLabel(mode: AnalysisReindexMode): string {
   if (mode === "online-update") return "Online update - new or changed accepted references";
   if (mode === "classifier-retrain") return "Classifier retrain - rebuild topic classifier";
-  if (mode === "scoped-topic-rebuild") return "Scoped topic rebuild - one desk or focus";
+  if (mode === "scoped-topic-rebuild") return "Scoped topic rebuild - one section or focus";
   if (mode === "entity-graph-rebuild") return "Entity graph rebuild - generated graph outputs";
   return "Generated analysis rebuild - clear and rebuild targeted generated outputs";
 }
@@ -12425,9 +11325,9 @@ function formatAnalysisCorpusLabel(corpusKey: string, corpora: CategorySteeringC
 }
 
 function analysisCorpusKeyFromRecord(corpus: CategorySteeringCorpus): string | null {
-  if (corpus.name && !corpus.name.startsWith("knowledge-corpus-")) return corpus.name;
+  if (corpus.name && !isCorpusId(corpus.name)) return corpus.name;
   if (!corpus.id) return null;
-  return corpus.id.replace(/^knowledge-corpus-/, "");
+  return corpusKeyOf(corpus.id);
 }
 
 function mergeAnalysisCorpora(configuredCorpora: CategorySteeringCorpus[], liveCorpora: CategorySteeringCorpus[]): CategorySteeringCorpus[] {
@@ -12443,7 +11343,7 @@ function mergeAnalysisCorpora(configuredCorpora: CategorySteeringCorpus[], liveC
 function analysisReindexModeHelp(mode: AnalysisReindexMode): string {
   if (mode === "generated-analysis-rebuild") return "Use this for a full generated-output rebuild for the selected profile. It still creates an assignment only; the worker/operator executes it later.";
   if (mode === "classifier-retrain") return "Use this when authoritative labels or accepted references should retrain the semi-supervised topic classifier.";
-  if (mode === "scoped-topic-rebuild") return "Use this when proposals for a desk or focus topic should be regenerated from the accepted taxonomy plus steering feedback.";
+  if (mode === "scoped-topic-rebuild") return "Use this when proposals for a section or focus topic should be regenerated from the accepted taxonomy plus steering feedback.";
   if (mode === "entity-graph-rebuild") return "Use this when generated ontology/entity graph records should be rebuilt from accepted references.";
   return "Use this for incremental processing of new or changed accepted references without clearing broader generated outputs.";
 }
@@ -12653,7 +11553,7 @@ function buildUiAnalysisTargetRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       analysisProfileKey: profile.key,
       reindexMode: mode,
@@ -12708,7 +11608,7 @@ function buildUiAuthoritativeLabelRelation(
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       kind: sourceRelationId ? "classification.authoritative_label.accepted_from_prediction" : "classification.authoritative_label.manual",
       actor: actorLabel,
@@ -12862,7 +11762,7 @@ function resolveUiKnowledgeCorpusId(corpora: CategorySteeringCorpus[], corpusKey
 }
 
 function knowledgeCorpusIdFromKey(corpusKey: string): string {
-  return `knowledge-corpus-${safeUiId(corpusKey)}`;
+  return corpusIdForKey(safeUiId(corpusKey));
 }
 
 function safeUiId(value: unknown): string {
@@ -12891,7 +11791,7 @@ function readerPluginEnabled(): boolean {
 }
 
 function normalizeAdministrationPanel(value: string | null | undefined, demo = false): AdministrationPanel {
-  if (value === "policies" || value === "sections" || value === "procedures" || value === "automations" || value === "delegations" || value === "editorial-checks" || value === "monitoring") return value;
+  if (value === "policies" || value === "sections" || value === "procedures" || value === "automations" || value === "delegations" || value === "editorial-checks" || value === "monitoring" || value === "proposals" || value === "announcements") return value;
   if (value === "signups" && signupPluginEnabled()) return value;
   if (value === "newsletter" && newsletterPluginEnabled(demo)) return value;
   if (value === "moderation" && readerPluginEnabled()) return value;
@@ -12908,26 +11808,8 @@ function sortNewsroomSections(sections: NewsroomSectionRecord[]): NewsroomSectio
   });
 }
 
-function normalizeNewsroomSectionsWithFallback(
-  sections: NewsroomSectionRecord[],
-  fallbackSections: NewsroomSectionRecord[] = [],
-): NewsroomSectionRecord[] {
-  const fallbackById = new Map(fallbackSections.map((section) => [section.id, section]));
-  return sortNewsroomSections(sections.map((section) => {
-    const fallback = fallbackById.get(section.id);
-    return {
-      ...section,
-      shortTitle: section.shortTitle?.trim() || fallback?.shortTitle || defaultNewsroomSectionShortTitle(section.id),
-    };
-  }));
-}
-
-function defaultNewsroomSectionShortTitle(sectionId: string): string {
-  return NEWSROOM_SECTION_SHORT_TITLE_FALLBACKS[sectionId] ?? "";
-}
-
 function displayNewsroomSectionShortTitle(section: NewsroomSectionRecord): string {
-  return section.shortTitle?.trim() || defaultNewsroomSectionShortTitle(section.id);
+  return section.shortTitle?.trim() || section.title;
 }
 
 function normalizeNewsroomSectionType(value: string | null | undefined): "canonical" | "floating" {
@@ -13093,7 +11975,7 @@ function formatDeskSectionHeadline(section: NewsDeskTab): string {
 
 function formatDeskSectionLede(section: NewsDeskTab): string {
   if (section === "search") return "Search the newsroom knowledge base with semantic and ontology context.";
-  if (section === "desks") return "The desks and topic categories that organize coverage, with each desk's mission and policies.";
+  if (section === "desks") return "The sections and topic categories that organize coverage, with each section's mission and policies.";
   if (section === "topics") return "Review suggested changes to the subject areas the newsroom covers.";
   if (section === "concepts") return "Browse people, organizations, places, and ideas found in the source material.";
   if (section === "references") return "Review source materials before they become usable evidence.";
@@ -13425,7 +12307,7 @@ function buildUiReferenceQualityRelation(
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: JSON.stringify({
       actorLabel,
       kind: "reference.quality-rating.manual",
@@ -13468,29 +12350,6 @@ function messageToNewsroomCard(message: MessageRecord, index: number): NewsroomC
     stamp: formatDateTime(message.createdAt),
     templateRole: template.role,
     title: message.summary ?? "Stored message payload",
-  };
-}
-
-function consoleThreadToMessageRecord(thread: ConsoleThreadSummary): MessageRecord {
-  const updatedAt = thread.updatedAt ?? thread.lastMessageAt ?? thread.createdAt;
-  return {
-    id: thread.id,
-    messageKind: "console_thread",
-    messageDomain: "conversation",
-    status: thread.status,
-    summary: thread.summary ?? thread.title,
-    source: "papyrus-console",
-    authorLabel: thread.createdByLabel ?? null,
-    createdAt: thread.createdAt,
-    updatedAt,
-    newsroomFeedKey: thread.newsroomFeedKey ?? "consoleChat",
-    metadata: {
-      threadId: thread.id,
-      threadKind: thread.threadKind,
-      messageCount: thread.messageCount ?? 0,
-      lastMessageAt: thread.lastMessageAt ?? null,
-      primaryAnchorKey: thread.primaryAnchorKey ?? null,
-    },
   };
 }
 
@@ -13557,10 +12416,6 @@ function mapsEqualReferenceMetadataFields(a: Map<string, ReferenceMetadataFields
 
 function useReferenceMetadataFields(references: ReferenceRecord[]): Map<string, ReferenceMetadataFields> {
   const [fieldsByReferenceId, setFieldsByReferenceId] = useState<Map<string, ReferenceMetadataFields>>(() => new Map());
-  const subscriptionClient = useMemo(
-    () => generateClient<Schema>({ authMode: USER_POOL_AUTH_MODE }),
-    [],
-  );
   const referenceMeta = useMemo(
     () => references.map((reference) => ({
       id: reference.id,
@@ -13570,10 +12425,6 @@ function useReferenceMetadataFields(references: ReferenceRecord[]): Map<string, 
   );
   const referenceKey = useMemo(
     () => referenceMeta.map((entry) => entry.revision).join("|"),
-    [referenceMeta],
-  );
-  const visibleReferenceIds = useMemo(
-    () => new Set(referenceMeta.map((entry) => entry.id)),
     [referenceMeta],
   );
 
@@ -13630,58 +12481,6 @@ function useReferenceMetadataFields(references: ReferenceRecord[]): Map<string, 
       active = false;
     };
   }, [referenceKey, referenceMeta]);
-
-  useEffect(() => {
-    const attachmentModel = subscriptionClient.models.ModelAttachment as unknown as ModelAttachmentSubscriptionModel | undefined;
-    if (!attachmentModel || typeof attachmentModel.onCreate !== "function" || typeof attachmentModel.onUpdate !== "function") return;
-    if (!visibleReferenceIds.size) return;
-
-    let active = true;
-    const refreshReference = async (referenceId: string) => {
-      const nextRevision = `${referenceId}:attachment`;
-      try {
-        const payloads = await loadModelPayloadsForOwner("reference", referenceId, ["metadata"]);
-        if (!active) return;
-        const metadataPayload = modelPayloadByRole(payloads, "metadata");
-        const fields = {
-          title: referenceMetadataTitle(metadataPayload),
-          subtitle: referenceMetadataSubtitle(metadataPayload),
-        };
-        referenceMetadataFieldsCache.set(referenceId, { fields, revision: nextRevision });
-        setFieldsByReferenceId((current) => {
-          const existing = current.get(referenceId);
-          if (existing && existing.title === fields.title && existing.subtitle === fields.subtitle) return current;
-          const next = new Map(current);
-          next.set(referenceId, fields);
-          return next;
-        });
-      } catch {
-        if (!active) return;
-      }
-    };
-
-    const handleAttachmentEvent = (value: unknown) => {
-      const attachment = normalizeModelAttachmentSubscriptionPayload(value);
-      if (!attachment) return;
-      if (attachment.ownerKind !== "reference") return;
-      if (attachment.role !== "metadata") return;
-      if (!visibleReferenceIds.has(attachment.ownerId)) return;
-      void refreshReference(attachment.ownerId);
-    };
-
-    const subscriptions: ReferenceSubscription[] = [
-      attachmentModel.onCreate().subscribe({ next: handleAttachmentEvent }),
-      attachmentModel.onUpdate().subscribe({ next: handleAttachmentEvent }),
-    ];
-    if (typeof attachmentModel.onDelete === "function") {
-      subscriptions.push(attachmentModel.onDelete().subscribe({ next: handleAttachmentEvent }));
-    }
-
-    return () => {
-      active = false;
-      for (const subscription of subscriptions) subscription.unsubscribe();
-    };
-  }, [subscriptionClient, visibleReferenceIds]);
 
   return fieldsByReferenceId;
 }
@@ -14369,7 +13168,7 @@ function buildUiProducesRelation({ assignment, decision, item, messageId, now }:
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       lifecycle: "reporting-packet-review",
       decision,
@@ -14434,7 +13233,7 @@ function buildUiDerivedFromRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       lifecycle: "reporting-packet-review",
       decision,
@@ -14524,17 +13323,6 @@ function buildNewsroomSearchHref(request: NewsroomSearchRequest, demo?: boolean)
   if (demo) params.set("demo", "1");
   const queryString = params.toString();
   return toPublicNewsroomPath(queryString ? `/newsroom/search?${queryString}` : "/newsroom/search");
-}
-
-function focusNewsroomSearchForm() {
-  if (typeof window === "undefined") return;
-  const input = document.getElementById("newsroom-search-query");
-  if (input instanceof HTMLElement) {
-    input.focus();
-    input.scrollIntoView({ behavior: "smooth", block: "center" });
-    return;
-  }
-  window.dispatchEvent(new CustomEvent("papyrus:newsroom-search-focus"));
 }
 
 function resolveCurrentRouteAnchor(activeTab: NewsDeskTab): KnowledgeQueryAnchor | null {
@@ -15692,20 +14480,11 @@ function assertReviewMutationSucceeded(response: CategoryReviewResponse, proposa
   return response.data;
 }
 
-function assertReferenceReviewMutationSucceeded(response: ReferenceReviewResponse, referenceId: string): NonNullable<ReferenceReviewResponse["data"]> {
+function assertReferenceReviewMutationSucceeded(response: ReferenceReviewResponse, referenceId: string): ReferenceReviewResult {
   if (response.errors?.length) {
     throw new Error(response.errors.map(formatGraphQLError).join("; "));
   }
-  if (!response.data?.ok) {
-    throw new Error(`Reference curation review was not saved for ${referenceId}.`);
-  }
-  if (response.data.referenceId && response.data.referenceId !== referenceId) {
-    throw new Error(`Reference review response did not match ${referenceId}.`);
-  }
-  if (!response.data.messageId || !response.data.relationId) {
-    throw new Error(`Reference review saved without commentary audit rows for ${referenceId}.`);
-  }
-  return response.data;
+  return assertReferenceReviewSaved(response.data, referenceId);
 }
 
 function assertReferenceQualityMutationSucceeded(
@@ -16078,45 +14857,6 @@ function normalizeReferenceSubscriptionPayload(value: unknown): ReferenceRecord 
   return null;
 }
 
-function normalizeSemanticRelationSubscriptionPayload(value: unknown): SemanticRelationRecord | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as { data?: unknown; id?: unknown };
-  if (typeof record.id === "string") return record as SemanticRelationRecord;
-  if (record.data && typeof record.data === "object" && typeof (record.data as { id?: unknown }).id === "string") {
-    return record.data as SemanticRelationRecord;
-  }
-  return null;
-}
-
-function normalizeModelAttachmentSubscriptionPayload(value: unknown): ModelAttachmentRecord | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as { data?: unknown; id?: unknown };
-  if (
-    typeof (record as { ownerId?: unknown }).ownerId === "string"
-    && typeof (record as { ownerKind?: unknown }).ownerKind === "string"
-    && typeof (record as { role?: unknown }).role === "string"
-  ) {
-    return record as ModelAttachmentRecord;
-  }
-  if (record.data && typeof record.data === "object") {
-    const payload = record.data as { ownerId?: unknown; ownerKind?: unknown; role?: unknown };
-    if (typeof payload.ownerId === "string" && typeof payload.ownerKind === "string" && typeof payload.role === "string") {
-      return record.data as ModelAttachmentRecord;
-    }
-  }
-  return null;
-}
-
-function extractSubscriptionRecordId(value: unknown): string | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as { id?: unknown; data?: unknown };
-  if (typeof record.id === "string") return record.id;
-  if (record.data && typeof record.data === "object" && typeof (record.data as { id?: unknown }).id === "string") {
-    return (record.data as { id: string }).id;
-  }
-  return null;
-}
-
 function buildReviewedReferenceRecord(
   records: ReferenceRecord[],
   reference: ReferenceRecord,
@@ -16125,6 +14865,8 @@ function buildReviewedReferenceRecord(
     nextStatus: string;
     note: string | null;
     now: string;
+    /** The details of a person's vote, as the curation mutation records them on the Reference. */
+    vote?: { reasonCode: string | null; sectionId: string | null; decisionRelationId: string | null; shareable: boolean | null };
   },
 ): ReferenceRecord {
   const current = records.find((entry) => entry.id === reference.id) ?? reference;
@@ -16135,8 +14877,34 @@ function buildReviewedReferenceRecord(
     curationStatusUpdatedAt: options.now,
     curationStatusUpdatedBy: options.actorLabel,
     curationStatusReason: options.note,
+    ...(options.vote ? {
+      curationActorKind: "human",
+      curationReasonCode: options.vote.reasonCode,
+      curationSectionId: options.vote.sectionId,
+      curationShareable: options.vote.decisionRelationId ? options.vote.shareable === true : null,
+      curationDelegation: null,
+      curationDecisionRelationId: options.vote.decisionRelationId,
+    } : {}),
     updatedAt: options.now,
   };
+}
+
+/** Merge records that were read into the page's list, keeping a record the page already holds when it is newer. */
+function mergeReferenceRecords(current: ReferenceRecord[], incoming: ReferenceRecord[]): ReferenceRecord[] {
+  const byId = new Map(current.map((reference) => [reference.id, reference] as const));
+  for (const reference of incoming) {
+    const held = byId.get(reference.id);
+    if (held && (held.updatedAt ?? "") > (reference.updatedAt ?? "")) continue;
+    byId.set(reference.id, reference);
+  }
+  return sortReferencesByRecency(selectCanonicalReferenceRecords([...byId.values()]));
+}
+
+/** Accepted plus rejected References from the newsroom summary, or null when the summary does not say. */
+function ratedCountFromSummary(summary: NewsroomSummaryRecord | null | undefined): number | null {
+  const byStatus = summary?.facets?.references?.byCurationStatus;
+  if (!byStatus) return null;
+  return Number(byStatus.accepted ?? 0) + Number(byStatus.rejected ?? 0);
 }
 
 function upsertReferenceRecords(
@@ -16226,58 +14994,6 @@ function patchReferenceSummary(
     referenceStatusCounts,
     facets: facets ?? summary.facets,
   };
-}
-
-function patchReferenceSummaryForDelete(
-  summary: NewsroomSummaryRecord | null | undefined,
-  deletedReference: ReferenceRecord | null,
-): NewsroomSummaryRecord | null {
-  if (!summary || !deletedReference) return summary ?? null;
-  const deletedStatus = normalizeReferenceStatus(deletedReference.curationStatus);
-  const deletedCorpusId = deletedReference.corpusId;
-  const counts = applyCountDelta(summary.counts, "references", -1);
-  const referenceStatusCounts = { ...summary.referenceStatusCounts };
-  decrementCount(referenceStatusCounts, deletedStatus);
-  const facets = summary.facets ? { ...summary.facets } : undefined;
-  const referenceFacets = summary.facets?.references
-    ? {
-        ...summary.facets.references,
-        byCurationStatus: { ...(summary.facets.references.byCurationStatus ?? {}) },
-        byCorpus: { ...(summary.facets.references.byCorpus ?? {}) },
-        statusByCorpus: cloneNestedNumberCounts(summary.facets.references.statusByCorpus),
-      }
-    : undefined;
-  if (referenceFacets?.byCurationStatus) decrementCount(referenceFacets.byCurationStatus, deletedStatus);
-  if (referenceFacets?.byCorpus) decrementCount(referenceFacets.byCorpus, deletedCorpusId);
-  if (referenceFacets?.statusByCorpus) {
-    const corpusCounts = { ...(referenceFacets.statusByCorpus[deletedCorpusId] ?? {}) };
-    decrementCount(corpusCounts, deletedStatus);
-    referenceFacets.statusByCorpus[deletedCorpusId] = corpusCounts;
-  }
-  if (facets && referenceFacets) facets.references = referenceFacets;
-  return {
-    ...summary,
-    counts,
-    referenceStatusCounts,
-    facets: facets ?? summary.facets,
-  };
-}
-
-function upsertSemanticRelationRecords(
-  current: SemanticRelationRecord[],
-  relation: SemanticRelationRecord,
-): SemanticRelationRecord[] {
-  return [relation, ...current.filter((entry) => entry.id !== relation.id)];
-}
-
-function formatReferencesRealtimeStatusMessage(
-  status: RealtimeSubscriptionStatus | undefined,
-  error: string | null | undefined,
-): string | null {
-  if (!status || status === "idle" || status === "connected") return null;
-  if (status === "connecting" || status === "reconnecting") return "References realtime is reconnecting.";
-  if (status === "stale") return "References realtime is temporarily stale while reconnecting.";
-  return error ? `References realtime is unavailable: ${error}` : "References realtime is unavailable.";
 }
 
 function cloneNestedNumberCounts(value: Record<string, Record<string, number>> | null | undefined): Record<string, Record<string, number>> {
@@ -17088,8 +15804,8 @@ function CategorySetPanel({
             <dd>{referenceAttachments.length}</dd>
           </div>
           <div>
-            <dt>Ingestion Rationales</dt>
-            <dd>{messages.filter((message) => message.messageKind === "ingestion_rationale").length}</dd>
+            <dt>Monitor Deliveries</dt>
+            <dd>{references.filter((reference) => Boolean(reference.discoveredByMonitorId)).length}</dd>
           </div>
           <div>
             <dt>Review Links</dt>

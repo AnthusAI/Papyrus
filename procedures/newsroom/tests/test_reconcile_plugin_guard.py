@@ -155,8 +155,9 @@ def build(monkeypatch, tmp_path, outputs, **options):
 
 def test_a_context_marks_the_plugins_the_deployment_lacks_as_disabled(monkeypatch, tmp_path):
     monkeypatch.delenv(PLUGINS_ENV, raising=False)
-    assert build(monkeypatch, tmp_path, write_outputs(tmp_path, {})).disabled_plugins == {"newsletter"}
-    assert build(monkeypatch, tmp_path, write_outputs(tmp_path, {"newsletter": {}})).disabled_plugins == frozenset()
+    assert build(monkeypatch, tmp_path, write_outputs(tmp_path, {})).disabled_plugins == set(PLUGIN_PAGE_PREFIXES)
+    every_plugin_with_pages = {name: {} for name in PLUGIN_PAGE_PREFIXES}
+    assert build(monkeypatch, tmp_path, write_outputs(tmp_path, every_plugin_with_pages)).disabled_plugins == frozenset()
     assert build(monkeypatch, tmp_path, str(tmp_path / "missing.json")).disabled_plugins == frozenset()
 
 

@@ -97,6 +97,19 @@ Feature: The scheduled cloud knowledge run
     Then the pinned release from requirements-publication.txt was installed before the project command
     And the project command ran with the pinned release first on the Python path
 
+  Scenario: A site without requirements-publication.txt projects with the Papyrus version of its site.json
+    Given the site has no requirements-publication.txt and its infra/site.json says papyrusVersion "5.42.1"
+    When the stage "projection" runs
+    Then the stage succeeded
+    And the pinned release "papyrus-newsroom==5.42.1" was installed before the project command
+
+  Scenario: A site with neither file projects with the release the image carries
+    Given the site has no requirements-publication.txt and no infra/site.json
+    And the image carries Papyrus "5.50.0"
+    When the stage "projection" runs
+    Then the stage succeeded
+    And the pinned release "papyrus-newsroom==5.50.0" was installed before the project command
+
   Scenario: A pin without the projection lease stops the projection before it writes
     Given the pinned release lacks the projection lease
     When the stage "projection" runs
@@ -187,3 +200,87 @@ Feature: The scheduled cloud knowledge run
     And no command was given "--allow-deletions"
     And no command was given "--replace"
     And the project command passes the plugins "newsletter,reader-steering"
+
+  Scenario: A site that sets no monitor source exports and counts its own items only
+    When the stages "corpus-sync", "topic-model", "typed-extraction", "publish-run", "snapshot" run
+    Then no command was given "--monitor"
+
+  Scenario: A site that sets monitorSources exports the monitor records as data, dated for the week
+    Given the site sets the monitor sources "huggingface" for 26 weeks
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-sources huggingface --monitor-weeks 26"
+    And the commands include "--as-of 2026-10-26"
+    And the state in S3 holds "runs/2026-W44/monitor-records.json"
+
+  Scenario: A site that sets no monitor weeks exports all history
+    Given the site sets the monitor sources "huggingface" for all history
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-sources huggingface"
+    And no command was given "--monitor-weeks"
+
+  Scenario: A site can ask for the stories its monitors routed to it as monitor records
+    Given the site sets the monitor sources "routed" for 26 weeks
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-sources routed --monitor-weeks 26"
+
+  Scenario: A site that sets no Reference documents bucket exports its own items only
+    When the stages "corpus-sync", "topic-model", "typed-extraction", "publish-run", "snapshot" run
+    Then no command was given "--reference-documents"
+
+  Scenario: A site that sets a Reference documents bucket exports the texts of its References as documents
+    Given the site sets the Reference documents bucket "media-bucket" with the extractor "markitdown"
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--reference-documents-bucket media-bucket --reference-documents-extractor markitdown"
+    And the commands include "--corpus-key shipped"
+    And the state in S3 holds "runs/2026-W44/reference-documents.json"
+
+  Scenario: A site that asks for its accepted References as documents needs no bucket
+    Given the site asks for its accepted References as the Reference documents
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--reference-documents-accepted --reference-documents-out"
+    And the commands include "--corpus-key shipped"
+    And no command was given "--reference-documents-bucket"
+
+  Scenario: A site that asks for its accepted References has them read by the import, the snapshot, the archive and the wiki
+    Given the site asks for its accepted References as the Reference documents
+    And the stages "corpus-sync", "topic-model", "typed-extraction" have run
+    When the stages "publish-run", "snapshot", "archive", "wiki-sync" run
+    Then each of the commands "knowledge publish-run", "knowledge snapshot", "knowledge archive", "knowledge wiki sync" was given "--reference-documents" with the week's Reference documents file
+
+  Scenario: The import, the snapshot, the archive and the wiki read the same Reference documents file
+    Given the site sets the Reference documents bucket "media-bucket" with the extractor "markitdown"
+    And the stages "corpus-sync", "topic-model", "typed-extraction" have run
+    When the stages "publish-run", "snapshot", "archive", "wiki-sync" run
+    Then each of the commands "knowledge publish-run", "knowledge snapshot", "knowledge archive", "knowledge wiki sync" was given "--reference-documents" with the week's Reference documents file
+
+  Scenario: Reference documents and monitor records are separate sources
+    Given the site sets the monitor sources "routed" for 26 weeks and the Reference documents bucket "media-bucket"
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-records-out"
+    And the commands include "--reference-documents-out"
+
+  Scenario: The import, the snapshot, the archive and the wiki read the same records file
+    Given the site sets the monitor sources "huggingface" for 26 weeks
+    And the stages "corpus-sync", "topic-model", "typed-extraction" have run
+    When the stages "publish-run", "snapshot", "archive", "wiki-sync" run
+    Then each of the commands "knowledge publish-run", "knowledge snapshot", "knowledge archive", "knowledge wiki sync" was given "--monitor-records" with the week's records file
+
+  Scenario: Only the import is given the ledger of what it wrote before, kept with the corpus so it outlives the week
+    Given the site sets the monitor sources "huggingface" for 26 weeks
+    And the stages "corpus-sync", "topic-model" have run
+    When the stages "typed-extraction", "publish-run", "snapshot" run
+    Then the command "knowledge publish-run" was given "--monitor-ledger" with the corpus's import ledger
+    And no command "knowledge snapshot" was given "--monitor-ledger"
+
+  Scenario: A publication that belongs to a tenant runs every papyrus command under that tenant
+    The run writes the wiki and the knowledge records of a tenant's publication. A command with no tenant would
+    write rows the tenant's readers never see, so the tenant the site names is part of every command's environment.
+    Given the site sets the tenant "machines-on-machines"
+    When the stages "wiki-sync", "projection" run
+    Then every papyrus command ran with the tenant "machines-on-machines"

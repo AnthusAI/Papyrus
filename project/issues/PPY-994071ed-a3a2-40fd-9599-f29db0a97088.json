@@ -1,0 +1,20 @@
+{
+  "id": "PPY-994071ed-a3a2-40fd-9599-f29db0a97088",
+  "title": "Backend: holdDecisions routing for web monitors",
+  "description": "Per-publication router configs with holdDecisions; Distinctive decisions hold with no cyclotron block.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069646f-2bd9-4471-8d91-9908015e9419",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-28T02:21:03.556953Z",
+  "updated_at": "2026-10-28T02:21:03.556982Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

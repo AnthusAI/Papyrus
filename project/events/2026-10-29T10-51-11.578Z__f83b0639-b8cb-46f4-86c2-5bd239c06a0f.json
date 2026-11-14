@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "f83b0639-b8cb-46f4-86c2-5bd239c06a0f",
+  "issue_id": "PPY-cda732d0-b820-4777-8833-96408a62cf27",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T10:51:11.578Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Posts seed their image from the Reference preview",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d9090fa8-2170-48d7-84c5-4aff10126b06",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Sonnet 5.5",
+      "name": "Claude Code"
+    }
+  }
+}

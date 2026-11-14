@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "fb9f05f5-fe85-4212-b6ee-06a9b23a6a74",
+  "issue_id": "PPY-bbc8e5be-9f9f-4374-a187-960a67623125",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T13:14:30.980Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Replace newsletter alert lists; keep old links working",
+    "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** Settled: new-story replaces alert lists; subscribers move without re-confirming. Roundups stay in the plugin until the digest epic.\n\n**Build.**\nPlugin action to export a site's alert-list rows and suppressions for Caducus kanbus-25c166. Unsubscribe and preferences routes forward alert-list changes, since manage tokens in sent mail never expire. `announce_published` stops raising alert issues for a site once it is moved, per site. Panel stops listing alert issues there. `docs/newsletter.md` updated. Sites with alert lists today: Shipped and Distinctive.\n\n**Acceptance.**\nMigrated site: one message per publish, not two; an old link unsubscribes.\n\n**Depends on:** PPY-38be08\n**Related:** kanbus-25c166",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+    "labels": [
+      "m3"
+    ]
+  }
+}

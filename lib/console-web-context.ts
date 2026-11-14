@@ -41,7 +41,7 @@ export function formatConsoleWebContextMessage(
     webPath ? `Web path: ${webPath}` : null,
     objectUri ? `Focused object: ${objectUri}` : null,
     label ? `Label: ${label}` : null,
-    tab ? `Desk: ${tab}` : null,
+    tab ? `Section: ${tab}` : null,
     viewMode ? `View: ${viewMode}` : null,
   ].filter((line): line is string => Boolean(line));
 

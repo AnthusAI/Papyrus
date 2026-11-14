@@ -1,3 +1,5 @@
+import "chatticus/chat.css";
+import "../components/papyrus-console-conversation.css";
 import type { Metadata } from "next";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import Script from "next/script";
@@ -152,7 +154,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         {showStagingBanner() ? <StagingBanner /> : null}
         <AmplifyClientProvider>
           <TooltipProvider>
-            <PapyrusConsoleShell>{children}</PapyrusConsoleShell>
+            <PapyrusConsoleShell privateChatEnabled={process.env.PAPYRUS_PRIVATE_CHAT_ENABLED === "true"}>
+              {children}
+            </PapyrusConsoleShell>
           </TooltipProvider>
         </AmplifyClientProvider>
       </body>

@@ -14,6 +14,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from papyrus_content.tenant_knowledge_keys import corpus_id_for_key, tenant_unique_id
+from papyrus_content.tenant_knowledge_keys import SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
+from papyrus_content.concept_link_predicates import is_reference_concept_link
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.content_item_lifecycle import (
     build_new_content_item_version,
@@ -238,7 +241,6 @@ def signals_trend_report(
     references: list[dict[str, Any]] | None = None,
     semantic_nodes: list[dict[str, Any]] | None = None,
     newsroom_sections: list[dict[str, Any]] | None = None,
-    apply: bool = False,
     now: str = "",
 ) -> dict[str, Any]:
     now = now or _now_iso()
@@ -287,15 +289,7 @@ def signals_trend_report(
             "createsItemOrEditionItem": False,
         },
     }
-    records = build_signal_report_records(report)
-    output = {
-        **report,
-        "records": records,
-        "apply": False,
-    }
-    if apply:
-        output = {**output, **apply_records(records)}
-    return output
+    return report
 
 
 def signals_concept_report(
@@ -312,7 +306,6 @@ def signals_concept_report(
     references: list[dict[str, Any]] | None = None,
     semantic_nodes: list[dict[str, Any]] | None = None,
     semantic_relations: list[dict[str, Any]] | None = None,
-    apply: bool = False,
     now: str = "",
 ) -> dict[str, Any]:
     now = now or _now_iso()
@@ -376,15 +369,7 @@ def signals_concept_report(
             "createsItemOrEditionItem": False,
         },
     }
-    records = build_concept_report_records(report)
-    output = {
-        **report,
-        "records": records,
-        "apply": False,
-    }
-    if apply:
-        output = {**output, **apply_records(records)}
-    return output
+    return report
 
 
 def build_trend_signals(
@@ -514,138 +499,6 @@ def build_concept_reports(
         elif current_type == "pagerank":
             reports.append(_build_concept_pagerank_report(context, limit, pagerank_iterations, pagerank_damping, max_nodes_per_reference))
     return reports
-
-
-def build_signal_report_records(report: dict[str, Any]) -> list[dict[str, Any]]:
-    now = str(report.get("generatedAt") or _now_iso())
-    run_id = str(report["runId"])
-    message_id = f"message-edition-signal-report-{_safe_id(run_id)}"
-    summary = f"Edition signal report: {len(report.get('signals') or [])} ranked knowledge-base signal(s)."
-    message = {
-        "id": message_id,
-        "messageKind": "edition_signal_report",
-        "messageDomain": "edition_planning",
-        "status": "active",
-        "summary": summary,
-        "source": "papyrus knowledge signals trend-report",
-        "importRunId": run_id,
-        "authorLabel": "papyrus",
-        "newsroomFeedKey": "message#edition_signal_report",
-        "createdAt": now,
-        "updatedAt": now,
-    }
-    body = _signal_report_body(report)
-    records = [
-        _record("Message", message),
-        _attachment_record(message_id, "message_body", "message", "message.txt", "text/plain", body, run_id, now),
-        _attachment_record(message_id, "metadata", "metadata", "metadata.json", "application/json", {"kind": "edition.signal_report", **report}, run_id, now),
-    ]
-    for signal in report.get("signals") or []:
-        node = coverage_node_record(
-            coverage_key=signal["coverageKey"],
-            topic=signal["topic"],
-            corpus_key=str(report.get("corpusKey") or ""),
-            category=None,
-            category_set=None,
-            now=now,
-            change_reason="edition-signal-report",
-        )
-        records.append(_record("SemanticNode", node))
-        records.append(_record("SemanticRelation", semantic_relation(
-            predicate="uses_signal",
-            subject_kind="message",
-            subject_id=message_id,
-            object_kind="semanticNode",
-            object_id=node["id"],
-            object_lineage_id=node["lineageId"],
-            object_version_number=node["versionNumber"],
-            rank=signal.get("rank"),
-            import_run_id=run_id,
-            now=now,
-            metadata={"signalId": signal["signalId"], "coverageKey": signal["coverageKey"], "topic": signal["topic"]},
-        )))
-        for rank, reference_id in enumerate(signal.get("sourceReferenceIds") or [], start=1):
-            records.append(_record("SemanticRelation", semantic_relation(
-                predicate="uses_evidence",
-                subject_kind="message",
-                subject_id=message_id,
-                object_kind="reference",
-                object_id=reference_id,
-                object_lineage_id=reference_id,
-                rank=rank,
-                import_run_id=run_id,
-                now=now,
-                metadata={"signalId": signal["signalId"], "coverageKey": signal["coverageKey"]},
-            )))
-    return _dedupe_records(records)
-
-
-def build_concept_report_records(report: dict[str, Any]) -> list[dict[str, Any]]:
-    now = str(report.get("generatedAt") or _now_iso())
-    run_id = str(report["runId"])
-    message_id = f"message-concept-report-{_safe_id(run_id)}"
-    summary = f"Concept analytics report: {len(report.get('reports') or [])} report section(s)."
-    message = {
-        "id": message_id,
-        "messageKind": "concept_report",
-        "messageDomain": "analytics",
-        "status": "active",
-        "summary": summary,
-        "source": "papyrus-newsroom signals concept-report",
-        "importRunId": run_id,
-        "authorLabel": "papyrus-newsroom",
-        "newsroomFeedKey": "message#concept_report",
-        "createdAt": now,
-        "updatedAt": now,
-    }
-    records = [
-        _record("Message", message),
-        _attachment_record(message_id, "message_body", "message", "message.txt", "text/plain", _concept_report_body(report), run_id, now),
-        _attachment_record(message_id, "metadata", "metadata", "metadata.json", "application/json", {"kind": "analytics.concept_report", **report}, run_id, now),
-    ]
-    linked_concept_reports: set[str] = set()
-    linked_references: set[str] = set()
-    for report_section in report.get("reports") or []:
-        for concept in report_section.get("rankedConcepts") or []:
-            concept_id = str(concept.get("conceptId") or "")
-            report_key = f"{concept_id}:{report_section.get('reportType')}"
-            if concept_id and report_key not in linked_concept_reports:
-                linked_concept_reports.add(report_key)
-                records.append(_record("SemanticRelation", semantic_relation(
-                    predicate="uses_signal",
-                    subject_kind="message",
-                    subject_id=message_id,
-                    object_kind="semanticNode",
-                    object_id=concept_id,
-                    object_lineage_id=str(concept.get("conceptLineageId") or concept_id),
-                    rank=concept.get("rank"),
-                    score=concept.get("score"),
-                    import_run_id=run_id,
-                    now=now,
-                    metadata={
-                        "reportType": report_section.get("reportType"),
-                        "displayName": concept.get("displayName"),
-                        "metric": concept.get("metric"),
-                    },
-                )))
-            for reference_id in concept.get("sourceReferenceIds") or []:
-                reference_id = str(reference_id or "")
-                if not reference_id or reference_id in linked_references:
-                    continue
-                linked_references.add(reference_id)
-                records.append(_record("SemanticRelation", semantic_relation(
-                    predicate="uses_evidence",
-                    subject_kind="message",
-                    subject_id=message_id,
-                    object_kind="reference",
-                    object_id=reference_id,
-                    object_lineage_id=reference_id,
-                    rank=len(linked_references),
-                    import_run_id=run_id,
-                    now=now,
-                    metadata={"reportType": report_section.get("reportType")},
-                )))
-    return _dedupe_records(records)
 
 
 def editions_plan(
@@ -2289,7 +2142,7 @@ def _concept_snapshot_from_semantic_nodes(
     topic: str,
     limit: int,
 ) -> dict[str, Any]:
-    corpus_id = f"knowledge-corpus-{_safe_id(corpus_key)}"
+    corpus_id = corpus_id_for_key(_safe_id(corpus_key))
     topic_terms = _terms(topic)
     rows: list[dict[str, Any]] = []
     for raw_node in semantic_nodes:
@@ -5036,7 +4889,7 @@ def coverage_node_record(
     now: str,
     change_reason: str = "coverage-theme-coverage-concept",
 ) -> dict[str, Any]:
-    lineage_id = f"semantic-node-{_safe_id(coverage_key)}"
+    lineage_id = tenant_unique_id(f"semantic-node-{_safe_id(coverage_key)}")
     record = {
         "id": f"{lineage_id}-v1",
         "lineageId": lineage_id,
@@ -5048,7 +4901,7 @@ def coverage_node_record(
         "changeReason": change_reason,
         "nodeKey": coverage_key,
         "nodeKind": "coverageQuestion",
-        "corpusId": (category_set or {}).get("corpusId") or f"knowledge-corpus-{_safe_id(corpus_key)}",
+        "corpusId": (category_set or {}).get("corpusId") or corpus_id_for_key(_safe_id(corpus_key)),
         "categorySetId": (category_set or {}).get("id"),
         "categoryLineageId": (category or {}).get("lineageId"),
         "categoryKey": (category or {}).get("categoryKey"),
@@ -5059,14 +4912,14 @@ def coverage_node_record(
         "importRunId": None,
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "semanticNodes",
+        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
     }
     record["contentHash"] = _hash_stable({"nodeKey": coverage_key, "nodeKind": record["nodeKind"], "displayName": topic})
     return {key: value for key, value in record.items() if value is not None}
 
 
 def lane_node_record(node_key: str, display_name: str, alias: str, now: str) -> dict[str, Any]:
-    lineage_id = f"semantic-node-{_safe_id(node_key)}"
+    lineage_id = tenant_unique_id(f"semantic-node-{_safe_id(node_key)}")
     record = {
         "id": f"{lineage_id}-v1",
         "lineageId": lineage_id,
@@ -5084,7 +4937,7 @@ def lane_node_record(node_key: str, display_name: str, alias: str, now: str) -> 
         "status": "accepted",
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "semanticNodes",
+        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
     }
     record["contentHash"] = _hash_stable({"nodeKey": node_key, "displayName": display_name, "aliases": [alias]})
     return record
@@ -5134,7 +4987,7 @@ def research_assignment_record(**kwargs: Any) -> dict[str, Any]:
         "brief": f"{section['title']} research lens: {section_research_lens(section)}.",
         "instructions": f"Research {topic} through the {section['title']} section lens. Produce a private research_packet only.",
         "metadata": metadata,
-        "corpusId": (category_set or {}).get("corpusId") or f"knowledge-corpus-{_safe_id(corpus_key)}",
+        "corpusId": (category_set or {}).get("corpusId") or corpus_id_for_key(_safe_id(corpus_key)),
         "categorySetId": (category_set or {}).get("id"),
         "classifierId": (category_set or {}).get("classifierId"),
         "sourceSnapshotId": None,
@@ -5235,7 +5088,7 @@ def reporting_assignment_record(**kwargs: Any) -> dict[str, Any]:
         "brief": brief,
         "instructions": f"Use the {section['title']} doctrine and section research packet. Produce reporting_context_packet only.",
         "metadata": metadata,
-        "corpusId": (category_set or {}).get("corpusId") or f"knowledge-corpus-{_safe_id(corpus_key)}",
+        "corpusId": (category_set or {}).get("corpusId") or corpus_id_for_key(_safe_id(corpus_key)),
         "categorySetId": (category_set or {}).get("id"),
         "classifierId": (category_set or {}).get("classifierId"),
         "sourceSnapshotId": None,
@@ -5419,7 +5272,7 @@ def semantic_relation(
         "importedAt": now,
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": metadata or {},
     }
     return {key: value for key, value in relation.items() if value is not None}
@@ -5675,46 +5528,6 @@ def load_json_file(path: str) -> dict[str, Any]:
     return payload
 
 
-def _signal_report_body(report: dict[str, Any]) -> str:
-    lines = [
-        f"Edition Signal Report: {report.get('date')}",
-        f"Corpus: {report.get('corpusKey')}",
-        "",
-    ]
-    for signal in report.get("signals") or []:
-        lines.extend([
-            f"{signal.get('rank')}. {signal.get('topic')} ({signal.get('coverageKey')})",
-            f"Score: {signal.get('score')}",
-            f"Why now: {signal.get('whyNow')}",
-            f"Accepted references: {signal.get('acceptedEvidenceCount')}",
-            "",
-        ])
-    return "\n".join(lines).strip() + "\n"
-
-
-def _concept_report_body(report: dict[str, Any]) -> str:
-    lines = [
-        "Concept Analytics Report",
-        f"Corpus: {report.get('corpusKey')}",
-        f"Generated: {report.get('generatedAt')}",
-        "",
-    ]
-    for report_section in report.get("reports") or []:
-        lines.extend([
-            str(report_section.get("title") or report_section.get("reportType") or "Report"),
-            f"Metric: {report_section.get('primaryMetric')}",
-            "",
-        ])
-        for concept in report_section.get("rankedConcepts") or []:
-            lines.append(
-                f"{concept.get('rank')}. {concept.get('displayName')} "
-                f"({concept.get('conceptLineageId') or concept.get('conceptId')}) - "
-                f"{concept.get('metric')}: {concept.get('score')}"
-            )
-        lines.append("")
-    return "\n".join(lines).strip() + "\n"
-
-
 def _research_packet_body(packet: dict[str, Any]) -> str:
     return "\n".join([
         packet["summary"],
@@ -5804,7 +5617,7 @@ def _concept_report_context(
     now: str,
 ) -> dict[str, Any]:
     now_dt = _parse_datetime(now) or dt.datetime.now(dt.UTC)
-    corpus_id = f"knowledge-corpus-{_safe_id(corpus_key)}"
+    corpus_id = corpus_id_for_key(_safe_id(corpus_key))
     accepted = _accepted_references(references, corpus_key)
     references_by_key: dict[str, dict[str, Any]] = {}
     for ref in accepted:
@@ -5832,13 +5645,9 @@ def _concept_report_context(
     for raw_relation in semantic_relations:
         relation = _decode_record(raw_relation)
         relation_type = relation.get("relationTypeKey") or relation.get("predicate")
-        if _normalize_relation_key(relation_type) != "mentions":
+        if not is_reference_concept_link(_normalize_relation_key(relation_type), relation.get("subjectKind"), relation.get("objectKind")):
             continue
         if relation.get("relationState") not in {None, "current"}:
-            continue
-        if str(relation.get("subjectKind") or "") != "reference":
-            continue
-        if str(relation.get("objectKind") or "") != "semanticNode":
             continue
         reference = references_by_key.get(str(relation.get("subjectLineageId") or "")) or references_by_key.get(str(relation.get("subjectId") or ""))
         node = nodes_by_key.get(str(relation.get("objectLineageId") or "")) or nodes_by_key.get(str(relation.get("objectId") or ""))
@@ -6112,7 +5921,7 @@ def _attachment_record(owner_id: str, role: str, sort_key: str, filename: str, m
 
 
 def _accepted_references(references: list[dict[str, Any]], corpus_key: str) -> list[dict[str, Any]]:
-    corpus_id = f"knowledge-corpus-{_safe_id(corpus_key)}"
+    corpus_id = corpus_id_for_key(_safe_id(corpus_key))
     accepted = []
     for ref in references:
         ref = _decode_record(ref)

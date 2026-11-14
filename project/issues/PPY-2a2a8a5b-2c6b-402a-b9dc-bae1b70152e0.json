@@ -1,0 +1,45 @@
+{
+  "id": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+  "title": "Guidelines as data: writing and image guidelines per site and section",
+  "description": "Ryan 2026-11-08: a site's writing guidelines and image guidelines are backend data, a section can override them on top of the site's defaults, admins edit them in Administration and through the papyrus CLI, and every agent and tool reads them through one resolver. Design: docs/plans/guidelines-as-data.md.\n\nShape: one guideline document, two kinds (writing, image), two scopes (publication, section). Each is a versioned private doctrine Item lineage (catalog row only: slug, version, who, when, why, contentHash); the document itself is one JSON file in S3 as a ModelAttachment (role doctrine_document) on the Item version. No new table, no new index, no subscriptions. Layering follows the image resolver's rules: prose added, avoid-lists joined, choices replaced only where the site does not lock them, binding constraints publication-only, fieldSources on every answer. Agents get it as a core context-pack layer after their fixed role text (add-only). Saving writing guidelines syncs the Humanus policies derived from it (source writing-guidelines:*), never hand-written ones.\n\nConstraints: text in S3, DynamoDB is the catalog; one new GSI per table per deploy (this epic adds none); Gherkin specs for every behaviour; tenantId-ready via Item.tenantSlug. Batch rule: Pilobolus first, then all seven sites.\n\nRelates: PPY-1f68bf / PPY-6d878b (visual style profile and its admin UI), PPY-90e312 (writing guidelines in Administration), PPY-7a61ca (add-only agent instructions), PPY-84439e (shared resolver for triage), PPY-25ffa3 (multi-tenant).",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3fd4064c-8f00-4a07-aed2-2e70487c28d9",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-1f68bf26-6671-4514-a2b2-3cb220a33d96",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-90e312f1-4720-4d32-9cd0-55e1622e8303",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-7a61ca2f-2f51-43cd-bc06-8d3eb5027884",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-84439ef5-a204-48dc-8cfc-807056f8b862",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-3fd4064c-8f00-4a07-aed2-2e70487c28d9",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-09T00:14:46.880496Z",
+  "updated_at": "2026-11-09T00:15:51.928973Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

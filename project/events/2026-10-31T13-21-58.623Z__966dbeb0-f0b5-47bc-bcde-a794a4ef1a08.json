@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "966dbeb0-f0b5-47bc-bcde-a794a4ef1a08",
+  "issue_id": "PPY-c57a4840-7817-4a2c-97a4-6a9560b2c22c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T13:21:58.623Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reference as a subject type in reader-steering, checked against the Reference table, opt-in per site",
+    "description": "Repo: **Papyrus**. Files: `amplify/plugins/reader-steering/function/handler.py` (`SUBJECT_TYPES`, `parse_subject`, `subject_key`, `react`'s existence check: `is_published` for items, `get_submission` for submissions; add the Reference check), the DynamoDB `ReaderStore` in the same file (new `reference_exists(reference_id)`), `amplify/plugins/reader-steering/function/resource.ts` + `papyrus.plugin.ts`/`config.ts` (grant read on the Reference table and pass its name in the environment, only when the site's plugin config lists `reference` in `subjects.types`), `src/papyrus_content/reader_steering/snapshot.py` (subject kind `reference` in items.json under key `reference:<id>`), `features_backend/reader-subject-votes.feature`.\n\n## Change\nAdd `reference` to `SUBJECT_TYPES`. A vote on `{type: \"reference\", id}` is accepted only when the site has `reference` in `subjects.types` (opt-in, as for `story`/`proposal`) AND a Reference row with that id exists (`Reference` model in `amplify/data/schema.ts`, read by id); otherwise `422 unknown_subject` / `unknown_subject_type` as today. Subject key `reference:<id>` (the existing prefix rule in `subject_key`). The snapshot publishes it under that key with the same `{mean, n, hist, upShare}` block; the privacy scan runs over it. No vote changes the Reference's `curationStatus` or teaches the Cyclotron here (that is PPY-c6aced's loop; record a follow-up note there, do not implement). Resources (table grant, environment) are added only for sites that opt in; a site without `reference` in its types gets no new IAM statement.\n\n## Gherkin\n  Scenario: A reader rates a Reference that exists on a site that allows it\n  Scenario: A Reference that does not exist cannot be voted on\n  Scenario: A site that has not turned on Reference voting refuses it\n  Scenario: Reference judgements reach items.json under the reference key with counts and means only\n  Scenario: A site without Reference voting gets no grant on the Reference table\n\n## Acceptance\nPlugin tests + backend cucumber pass; `npx tsc --noEmit` for the plugin; a synth of a site config with and without `reference` shows the grant only in the former. Independent of the write-path story (can start now; rebase on it if it lands first).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-49e9b51e-5a5e-455b-8cf2-4d7c841c0281",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2e7e066d-961a-447a-8330-4a2b448edb85",
+  "issue_id": "PPY-d294d830-9160-4b0a-b227-fb1f3e914e54",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T19:18:18.188Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Capture YouTube transcripts from the cloud: YouTube blocks our Lambda addresses",
+    "description": "Measured 2026-11-04: in the last 30 days the router's YouTube capture was blocked 39 times and worked once. The same call from a home connection returned 30,151 characters for UytYrhYLOKI. Ryan: this must be a cloud function and cannot depend on any Mac being connected. An editor's paste in the To capture queue stays the fallback only.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f8ff4916-268e-45a3-97a6-d6f2d5d780f6",
+    "labels": []
+  }
+}

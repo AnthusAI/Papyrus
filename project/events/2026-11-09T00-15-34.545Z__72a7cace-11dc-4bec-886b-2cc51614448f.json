@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "72a7cace-11dc-4bec-886b-2cc51614448f",
+  "issue_id": "PPY-07bc723f-af3f-4d44-a33c-14a22c0cb1d9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T00:15:34.545Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P7 Move every site to guidelines as data and delete the repository files",
+    "description": "What: per-site data moves, then code removal. Pilobolus first, then the other six in one batch.\n\nSteps and files:\n- Write publication writing documents with papyrus guidelines save --kind writing: from publications/anthus/style-profile.yml and publications/pilobolus/style-profile.yml; others start empty (warning only)\n- Re-save each visual style profile so its document is in S3\n- Copy each section's NewsroomSection.visualStyle / visualGuidance into a section image document; then clear the old fields\n- scripts/guidelines/migrate_site.py (dry-run plan by default, idempotent, prints per-site counts)\n- After all seven: delete publications/*/style-profile.yml, publications/*/reference-samples/, publications/pilobolus/editorial-rewrite-skill.yml, the inline profile reader and the section field fallback\n- features_backend/guidelines-migration.feature\n\nAcceptance checks:\n- For each site, resolve before and after migration gives the same effective image guidance.\n- git grep finds no reader of style-profile.yml or reference-samples.\n- Repo contains no publication voice wording outside data fixtures.\n\nGherkin scenarios:\n- Migrating a site writes its writing guidelines from the old profile file\n- Migrating a site moves its section visual guidance into section documents\n- Running the migration twice changes nothing the second time\n- The migration plan is shown without writing when asked for a dry run\n\nDesign: docs/plans/guidelines-as-data.md. Gherkin specs are required and ship in the same PR. Text lives in S3, never inline in DynamoDB; no new GSI; no subscriptions. Style and voice wording is data, never code.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+    "labels": []
+  }
+}

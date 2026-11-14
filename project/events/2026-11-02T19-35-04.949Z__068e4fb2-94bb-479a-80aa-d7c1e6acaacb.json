@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "068e4fb2-94bb-479a-80aa-d7c1e6acaacb",
+  "issue_id": "PPY-4142e8d1-ec6e-4eef-abad-f4f0220ed639",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-02T19:35:04.949Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "",
+        "to": "Write the p.apyr.us docs page for the engine change in PPY-a6acd2: urls.types (keying a URL base and listing on the Item type), urls.sections.<id>.aliases, sections as topics (collections select.sections), the dry-run section migration (python -m papyrus_content.section_migration) and the URL comparison (python -m papyrus_content.projection.url_compare). Source text is docs/building-a-papyrus-static-site.md (Sections and types) and docs/content-item-lifecycle.md (Story types and sections)."
+      }
+    }
+  }
+}

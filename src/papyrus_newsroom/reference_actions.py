@@ -3,12 +3,15 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
-import re
 import secrets
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable
+
+from papyrus_content.reference_feed_keys import feed_state_key, medium_key_patch, public_key_patch
+from papyrus_content.reference_stars import validated_stars
+from papyrus_content.reference_vote import AGENT, vote_fields
 
 
 GraphqlInvoker = Callable[[str, dict[str, Any]], dict[str, Any]]
@@ -21,9 +24,21 @@ query GetReference($id: ID!) {
     versionNumber
     corpusId
     title
+    sourceUri
     externalItemId
+    versionState
     curationStatus
     newsroomFeedKey
+    contentNeededKey
+    predictedAcceptProbability
+    feedArrivalAt
+    createdAt
+    importedAt
+    retrievedAt
+    sourcePublishedAt
+    versionCreatedAt
+    publicFeedKey
+    publicOrderKey
   }
 }
 """
@@ -38,43 +53,12 @@ mutation UpdateReference($input: UpdateReferenceInput!) {
     curationStatusUpdatedAt
     curationStatusUpdatedBy
     curationStatusReason
-    updatedAt
-  }
-}
-"""
-
-CREATE_MESSAGE_MUTATION = """
-mutation CreateMessage($input: CreateMessageInput!) {
-  createMessage(input: $input) {
-    id
-    messageKind
-    messageDomain
-    status
-    summary
-    source
-    authorLabel
-    responseTarget
-    responseStatus
-    responseOwner
-    createdAt
-    updatedAt
-  }
-}
-"""
-
-CREATE_SEMANTIC_RELATION_MUTATION = """
-mutation CreateSemanticRelation($input: CreateSemanticRelationInput!) {
-  createSemanticRelation(input: $input) {
-    id
-    relationState
-    predicate
-    relationTypeKey
-    relationDomain
-    subjectKind
-    subjectId
-    objectKind
-    objectId
-    createdAt
+    curationReasonCode
+    curationActorKind
+    curationSectionId
+    curationShareable
+    curationDelegation
+    curationDecisionRelationId
     updatedAt
   }
 }
@@ -87,20 +71,6 @@ REFERENCE_CURATION_STATUSES = {
     "reopen": "pending",
     "archive": "archived",
 }
-RELATION_TYPE_FIELDS = {
-    "comment": {
-        "relationTypeId": "semantic-relation-type-comment",
-        "relationTypeKey": "comment",
-        "relationDomain": "commentary",
-    },
-    "note_about": {
-        "relationTypeId": "semantic-relation-type-note-about",
-        "relationTypeKey": "note_about",
-        "relationDomain": "knowledge",
-    },
-}
-
-
 SET_REFERENCE_QUALITY_RATING_MUTATION = """
 mutation SetReferenceQualityRating($referenceId: ID!, $rating: Int!, $actorLabel: String, $note: String) {
   setReferenceQualityRating(
@@ -187,6 +157,24 @@ mutation RecordDelegatedCuration(
     reasonCode
     messageId
     relationId
+  }
+}
+"""
+
+
+RECORD_DELEGATED_STARS_MUTATION = """
+mutation RecordDelegatedStars(
+  $referenceId: ID!, $stars: Int, $delegationId: ID!, $delegationToken: String!, $agentLabel: String!,
+  $onBehalfOf: String!, $instruction: String!
+) {
+  recordDelegatedStars(
+    referenceId: $referenceId, stars: $stars, delegationId: $delegationId, delegationToken: $delegationToken,
+    agentLabel: $agentLabel, onBehalfOf: $onBehalfOf, instruction: $instruction
+  ) {
+    ok
+    referenceId
+    stars
+    status
   }
 }
 """
@@ -339,6 +327,37 @@ def record_delegated_curation(
     )
 
 
+def record_delegated_stars(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    stars: int | None,
+    delegation_token: str,
+    agent_label: str,
+    on_behalf_of: str,
+    instruction: str,
+) -> dict[str, Any]:
+    """Record a person's star rating (1 to 5, or None to clear it), relayed by an agent with the delegation the person granted.
+
+    The rules are ``setReferenceStars`` (``reference_stars``). The Reference's rating is filed as the person's rating relayed by the agent
+    under that delegation, never as the person's own direct one.
+    """
+    return _call(
+        graphql,
+        RECORD_DELEGATED_STARS_MUTATION,
+        "recordDelegatedStars",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "stars": validated_stars(stars),
+            "delegationId": delegation_id_from_token(_required(delegation_token, "delegation_token")),
+            "delegationToken": delegation_token,
+            "agentLabel": _required(agent_label, "agent_label"),
+            "onBehalfOf": _required(on_behalf_of, "on_behalf_of"),
+            "instruction": _required(instruction, "instruction"),
+        },
+    )
+
+
 def review_reference_curation(
     graphql: GraphqlInvoker,
     *,
@@ -357,21 +376,7 @@ def review_reference_curation(
     now = _now_iso()
     reference = _get_required_reference(graphql, resolved_reference_id)
     resolved_section_id = _validated_section_id(graphql, section_id, resolved_action)
-    reference_lineage_id = _optional(reference.get("lineageId")) or resolved_reference_id
-    reference_title = _reference_title(reference)
-    message_id = (
-        f"message-reference-curation-{_safe_id(reference_lineage_id)}-{_safe_id(resolved_action)}-"
-        f"{now.replace(':', '').replace('-', '')[:15]}-{uuid.uuid4().hex[:8]}"
-    )
-    relation_id = "semantic-relation-" + _hash_short(
-        [
-            _semantic_version_key("message", message_id),
-            "comment",
-            _semantic_version_key("reference", resolved_reference_id),
-            resolved_action,
-        ]
-    )
-
+    reasoning = _optional(reason_code)
     _call(
         graphql,
         UPDATE_REFERENCE_MUTATION,
@@ -381,62 +386,100 @@ def review_reference_curation(
                 "id": resolved_reference_id,
                 "curationStatus": next_status,
                 "curationStatusKey": f"{_required(reference.get('corpusId'), 'reference.corpusId')}#{next_status}",
+                "feedStateKey": feed_state_key({**reference, "curationStatus": next_status}),   # a vote moves it between the feeds; its prediction stays
+                **medium_key_patch(reference, curationStatus=next_status),
+                **public_key_patch(reference, curationStatus=next_status),   # the prediction and arrival it needs are in GET_REFERENCE_QUERY
                 "curationStatusUpdatedAt": now,
                 "curationStatusUpdatedBy": actor,
                 "curationStatusReason": user_note,
+                # The vote's details live on the Reference: Messages come only from people, so no Message is written.
+                **vote_fields(AGENT, reason_code=reasoning, section_id=resolved_section_id),
                 "newsroomFeedKey": _optional(reference.get("newsroomFeedKey")) or "references",
                 "updatedAt": now,
             }
         },
-    )
-    _create_message(
-        graphql,
-        message_id=message_id,
-        message_kind="reference_curation",
-        message_domain="commentary",
-        summary=f"{reference_title}: {next_status}",
-        body=user_note or f"{actor} marked this reference {next_status}.",
-        actor_label=actor,
-        now=now,
-        metadata={
-            "action": resolved_action,
-            "curationStatus": next_status,
-            "reasonCode": _optional(reason_code),
-            "referenceId": resolved_reference_id,
-            "referenceLineageId": reference_lineage_id,
-            **({"sectionId": resolved_section_id} if resolved_section_id else {}),
-        },
-    )
-    _create_semantic_relation(
-        graphql,
-        relation_id=relation_id,
-        predicate="comment",
-        subject_kind="message",
-        subject_id=message_id,
-        subject_lineage_id=message_id,
-        subject_version_number=1,
-        object_kind="reference",
-        object_id=resolved_reference_id,
-        object_lineage_id=reference_lineage_id,
-        object_version_number=_optional_int(reference.get("versionNumber")),
-        metadata={
-            "action": resolved_action,
-            "curationStatus": next_status,
-            "reasonCode": _optional(reason_code),
-            "messageKind": "reference_curation",
-        },
-        now=now,
     )
     return {
         "ok": True,
         "action": resolved_action,
         "referenceId": resolved_reference_id,
         "status": next_status,
-        "reasonCode": _optional(reason_code),
+        "reasonCode": reasoning,
         "sectionId": resolved_section_id,
-        "messageId": message_id,
-        "relationId": relation_id,
     }
+
+
+REVIEW_REFERENCE_CURATION_MUTATION = """
+mutation ReviewReferenceCuration($referenceId: ID!, $action: String!, $note: String, $reasonCode: String, $sectionId: ID, $agentLabel: String) {
+  reviewReferenceCuration(referenceId: $referenceId, action: $action, note: $note, reasonCode: $reasonCode, sectionId: $sectionId, agentLabel: $agentLabel) {
+    ok
+    action
+    referenceId
+    status
+    reasonCode
+  }
+}
+"""
+
+SET_REFERENCE_STARS_MUTATION = """
+mutation SetReferenceStars($referenceId: ID!, $stars: Int, $agentLabel: String) {
+  setReferenceStars(referenceId: $referenceId, stars: $stars, agentLabel: $agentLabel) {
+    ok
+    referenceId
+    stars
+    status
+  }
+}
+"""
+
+
+def review_reference_curation_as_signed_in_person(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    action: str,
+    note: str = "",
+    reason_code: str = "",
+    section_id: str = "",
+    agent_label: str = "",
+) -> dict[str, Any]:
+    """Accept or reject as the signed-in editor or admin (an agent acts through their session). No delegation: the decision is the person's.
+
+    The site's own function records who signed in, and notes that it came through the CLI and ``agent_label``, if given.
+    """
+    return _call(
+        graphql,
+        REVIEW_REFERENCE_CURATION_MUTATION,
+        "reviewReferenceCuration",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "action": _normalize_curation_action(action),
+            "note": _optional(note) or None,
+            "reasonCode": _optional(reason_code) or None,
+            "sectionId": _optional(section_id) or None,
+            "agentLabel": _optional(agent_label) or None,
+        },
+    )
+
+
+def set_reference_stars_as_signed_in_person(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    stars: int | None,
+    agent_label: str = "",
+) -> dict[str, Any]:
+    """Rate (1 to 5, or None to clear) as the signed-in editor or admin. No delegation: the rating is the person's."""
+    return _call(
+        graphql,
+        SET_REFERENCE_STARS_MUTATION,
+        "setReferenceStars",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "stars": validated_stars(stars),
+            "agentLabel": _optional(agent_label) or None,
+        },
+    )
 
 
 def _validated_section_id(graphql: GraphqlInvoker, section_id: str, action: str) -> str | None:
@@ -472,76 +515,6 @@ def set_reference_quality_rating(
             "note": note or None,
         },
     )
-
-
-def create_reference_note(
-    graphql: GraphqlInvoker,
-    *,
-    reference_id: str,
-    summary: str,
-    body: str,
-    actor_label: str = "",
-) -> dict[str, Any]:
-    resolved_reference_id = _required(reference_id, "reference_id")
-    resolved_summary = _required(summary, "summary")
-    resolved_body = _required(body, "body")
-    actor = _optional(actor_label) or "Papyrus newsroom"
-    now = _now_iso()
-    reference = _get_required_reference(graphql, resolved_reference_id)
-    reference_lineage_id = _optional(reference.get("lineageId")) or resolved_reference_id
-    message_id = (
-        f"message-reference-note-{_safe_id(reference_lineage_id)}-"
-        f"{now.replace(':', '').replace('-', '')[:15]}-{uuid.uuid4().hex[:8]}"
-    )
-    relation_id = "semantic-relation-" + _hash_short(
-        [
-            _semantic_version_key("message", message_id),
-            "note_about",
-            _semantic_version_key("reference", resolved_reference_id),
-        ]
-    )
-    _create_message(
-        graphql,
-        message_id=message_id,
-        message_kind="note",
-        message_domain="knowledge",
-        summary=resolved_summary,
-        body=resolved_body,
-        actor_label=actor,
-        now=now,
-        metadata={
-            "kind": "reference.note.created",
-            "targetKind": "reference",
-            "targetId": resolved_reference_id,
-            "targetLineageId": reference_lineage_id,
-        },
-    )
-    _create_semantic_relation(
-        graphql,
-        relation_id=relation_id,
-        predicate="note_about",
-        subject_kind="message",
-        subject_id=message_id,
-        subject_lineage_id=message_id,
-        subject_version_number=1,
-        object_kind="reference",
-        object_id=resolved_reference_id,
-        object_lineage_id=reference_lineage_id,
-        object_version_number=_optional_int(reference.get("versionNumber")),
-        metadata={
-            "kind": "reference.note",
-            "summary": resolved_summary,
-            "actor": actor,
-        },
-        now=now,
-    )
-    return {
-        "ok": True,
-        "referenceId": resolved_reference_id,
-        "messageId": message_id,
-        "relationId": relation_id,
-        "status": "created",
-    }
 
 
 def move_reference_corpus(
@@ -616,109 +589,6 @@ def _get_required_reference(graphql: GraphqlInvoker, reference_id: str) -> dict[
     return reference_data
 
 
-def _create_message(
-    graphql: GraphqlInvoker,
-    *,
-    message_id: str,
-    message_kind: str,
-    message_domain: str,
-    summary: str,
-    body: str,
-    actor_label: str,
-    now: str,
-    metadata: dict[str, Any],
-) -> None:
-    _call(
-        graphql,
-        CREATE_MESSAGE_MUTATION,
-        "createMessage",
-        {
-            "input": {
-                "id": message_id,
-                "messageKind": message_kind,
-                "messageDomain": message_domain,
-                "status": "active",
-                "summary": summary,
-                "source": "newsroom",
-                "authorLabel": actor_label,
-                "content": body,
-                "responseTarget": "none",
-                "responseStatus": "COMPLETED",
-                "responseOwner": "papyrus-reference-actions",
-                "responseStartedAt": now,
-                "responseCompletedAt": now,
-                "responseError": None,
-                "metadata": json.dumps(metadata, sort_keys=True),
-                "createdAt": now,
-                "updatedAt": now,
-                "newsroomFeedKey": "messages",
-            }
-        },
-    )
-
-
-def _create_semantic_relation(
-    graphql: GraphqlInvoker,
-    *,
-    relation_id: str,
-    predicate: str,
-    subject_kind: str,
-    subject_id: str,
-    subject_lineage_id: str,
-    subject_version_number: int | None,
-    object_kind: str,
-    object_id: str,
-    object_lineage_id: str,
-    object_version_number: int | None,
-    metadata: dict[str, Any],
-    now: str,
-) -> None:
-    relation_type = RELATION_TYPE_FIELDS.get(predicate)
-    if relation_type is None:
-        raise ValueError(f"Unsupported relation predicate: {predicate}")
-    subject_state_key = _semantic_state_key(subject_kind, subject_lineage_id)
-    object_state_key = _semantic_state_key(object_kind, object_lineage_id)
-    _call(
-        graphql,
-        CREATE_SEMANTIC_RELATION_MUTATION,
-        "createSemanticRelation",
-        {
-            "input": {
-                "id": relation_id,
-                "relationState": "current",
-                "predicate": predicate,
-                **relation_type,
-                "subjectKind": subject_kind,
-                "subjectId": subject_id,
-                "subjectLineageId": subject_lineage_id,
-                "subjectVersionNumber": subject_version_number,
-                "objectKind": object_kind,
-                "objectId": object_id,
-                "objectLineageId": object_lineage_id,
-                "objectVersionNumber": object_version_number,
-                "subjectStateKey": subject_state_key,
-                "objectStateKey": object_state_key,
-                "objectSubjectStateKey": f"{object_state_key}#{subject_kind}",
-                "predicateObjectStateKey": f"{predicate}#{object_state_key}",
-                "subjectVersionKey": _semantic_version_key(subject_kind, subject_id),
-                "objectVersionKey": _semantic_version_key(object_kind, object_id),
-                "score": 1,
-                "rank": 1,
-                "reviewRecommended": False,
-                "importedAt": now,
-                "createdAt": now,
-                "updatedAt": now,
-                "newsroomFeedKey": "semanticRelations",
-                "metadata": json.dumps(metadata, sort_keys=True),
-            }
-        },
-    )
-
-
-def _reference_title(reference: dict[str, Any]) -> str:
-    return _optional(reference.get("title")) or _optional(reference.get("externalItemId")) or _required(reference.get("id"), "reference.id")
-
-
 def _normalize_curation_action(action: Any) -> str:
     normalized = _required(action, "action").strip().lower().replace("-", "_")
     if normalized not in REFERENCE_CURATION_ACTIONS:
@@ -729,31 +599,6 @@ def _normalize_curation_action(action: Any) -> str:
 def _optional(value: Any) -> str | None:
     text = str(value).strip() if value is not None else ""
     return text or None
-
-
-def _optional_int(value: Any) -> int | None:
-    if value is None or value == "":
-        return None
-    numeric = int(value)
-    return numeric if numeric > 0 else None
-
-
-def _semantic_state_key(kind: str, lineage_id: str) -> str:
-    return f"{kind}#{lineage_id}#current"
-
-
-def _semantic_version_key(kind: str, version_id: str) -> str:
-    return f"{kind}#{version_id}"
-
-
-def _safe_id(value: Any) -> str:
-    cleaned = re.sub(r"[^a-z0-9]+", "-", str(value or "").lower()).strip("-")
-    return cleaned[:80] or "id"
-
-
-def _hash_short(value: Any) -> str:
-    payload = json.dumps(value, sort_keys=True, default=str)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:24]
 
 
 def _now_iso() -> str:

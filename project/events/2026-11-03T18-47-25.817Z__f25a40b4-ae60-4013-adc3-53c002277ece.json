@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "f25a40b4-ae60-4013-adc3-53c002277ece",
+  "issue_id": "PPY-b76c33d2-7f15-44b0-b8ce-f76154ede6be",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T18:47:25.817Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Seed the paper monitors and run arXiv AI dry",
+    "description": "Mine, after the source types ship: router deploy with Ryan seeing the change set, seed configs and routes, measure accepted counts per site in dry-run before live. Then archive the stubs: the archive runs only after the intake fix is live.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-dd6c50f1-9918-46d6-8148-f1f759d14aea",
+    "labels": []
+  }
+}

@@ -24,6 +24,7 @@ from typing import Any
 from .semantic import PapyrusSemanticClient
 from .reference_policy import is_evidence_eligible_reference
 from . import reference_actions
+from papyrus_content.tenant_knowledge_keys import corpus_id_for_key
 from papyrus_content.biblicus_runner import BiblicusCommandError, BiblicusOutputError, BiblicusRunner, resolve_biblicus_workdir
 from papyrus_content.env import PAPYRUS_ROOT
 from papyrus_content.graphql_http import execute_graphql
@@ -1299,26 +1300,26 @@ def papyrus_reference_create(args: dict[str, Any]) -> dict[str, Any]:
     external_item_id = str(
         catalog_item.get("item_id") or catalog_item.get("externalItemId") or catalog_item.get("id") or ""
     ).strip()
-    if skip_existing:
-        existing = _find_existing_reference_for_url(
-            client,
-            corpus_id=corpus_id,
-            external_item_id=external_item_id,
-        )
-        if existing:
-            return {
-                "ok": True,
-                "resource": "Reference",
-                "verb": "create",
-                "applied": False,
-                "skipped": True,
-                "reason": "already_exists",
-                "referenceId": existing.get("id"),
-                "reference": _decode_record_json(existing),
-                "url": normalized_url,
-                "api_calls": ["papyrus.Reference.create"],
-                "error": None,
-            }
+    from papyrus_content.reference_identity import IdentityIndex, identity_keys
+
+    existing = _find_existing_reference_for_url(client, corpus_id=corpus_id, external_item_id=external_item_id) if skip_existing else None
+    if not existing:
+        existing = IdentityIndex(client.list_records("Reference")).existing_for({"sourceUri": normalized_url}, corpus_id=corpus_id)
+    if existing:
+        return {
+            "ok": True,
+            "resource": "Reference",
+            "verb": "create",
+            "applied": False,
+            "skipped": True,
+            "reason": "already_exists",
+            "referenceId": existing.get("id"),
+            "reference": _decode_record_json(existing),
+            "url": normalized_url,
+            "matchedBy": sorted(identity_keys({"sourceUri": normalized_url}) & identity_keys(existing)),
+            "api_calls": ["papyrus.Reference.create"],
+            "error": None,
+        }
 
     plan_options = {
         "corpusConfig": corpus_config,
@@ -1328,9 +1329,6 @@ def papyrus_reference_create(args: dict[str, Any]) -> dict[str, Any]:
         "note": str(payload.get("note") or f"Registered from console chat for {normalized_url}"),
         "ingestionRationale": ingestion_rationale or None,
         "actor": actor_label,
-        "createIngestionRationaleMessage": bool(
-            payload.get("createIngestionRationaleMessage", payload.get("create_ingestion_rationale_message"))
-        ),
     }
     plan = build_reference_catalog_registration_records(catalog, plan_options)
     assert_reference_catalog_plan_safety(plan)
@@ -1367,6 +1365,9 @@ def papyrus_reference_create(args: dict[str, Any]) -> dict[str, Any]:
     changes = build_record_changes(client, plan["records"])
     apply_record_changes(client, changes)
     update_newsroom_summary_after_reference_registration(client, changes, plan)
+    from papyrus_content.reference_prediction_queue import references_created_by, request_predictions
+    wanted_predictions = references_created_by(changes)   # one Cyclotron prediction per new Reference, requested once, here
+    result["prediction"] = request_predictions(client, wanted_predictions).to_json() if wanted_predictions else None
 
     applied_reference_ids = {
         str(change["expected"].get("id") or "")
@@ -1529,7 +1530,7 @@ def _build_research_assignment_resource_plan(payload: dict[str, Any], title: str
         "priority": priority,
         "title": title,
         "summary": summary,
-        "corpusId": f"knowledge-corpus-{_safe_id(corpus_key)}",
+        "corpusId": corpus_id_for_key(_safe_id(corpus_key)),
         "importRunId": import_run_id or None,
         "createdBy": actor_label,
         "createdAt": now,
@@ -2046,25 +2047,6 @@ def papyrus_reference_quality_rate(
         rating=rating,
         actor_label=actor_label,
         note=note,
-    )
-
-
-def papyrus_reference_note_create(
-    *,
-    reference_id: str,
-    summary: str,
-    body: str,
-    actor_label: str = "",
-) -> dict[str, Any]:
-    """
-    Canonical note creation action for a reference.
-    """
-    return reference_actions.create_reference_note(
-        execute_graphql,
-        reference_id=reference_id,
-        summary=summary,
-        body=body,
-        actor_label=actor_label,
     )
 
 
@@ -3915,7 +3897,7 @@ def _reference_lineage_id(corpus_key: str, external_item_id: str) -> str:
 
 
 def _knowledge_corpus_id(corpus_key: str) -> str:
-    return f"knowledge-corpus-{_slugify(corpus_key)}"
+    return corpus_id_for_key(_slugify(corpus_key))
 
 
 def _semantic_state_key(kind: str, lineage_id: str) -> str:

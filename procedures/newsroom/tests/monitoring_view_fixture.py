@@ -37,8 +37,7 @@ def route(source_id, decided_at=None, publications=None, delivered=None, **extra
 
 
 def rows():
-    router = {"pk": PK, "sk": "CONFIG#router", "mode": "live", "maxItemsPerRun": 5, "feedback": True, "enabled": True,
-              "ceilings": {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300},
+    router = {"pk": PK, "sk": "CONFIG#router", "mode": "live", "feedback": True, "enabled": True,
               "publications": [
                   {"publicationId": "anth-us", "site": "anth.us", "appsyncEndpoint": APP_ANTH},
                   {"publicationId": "p-apyr-us", "site": "p.apyr.us", "appsyncEndpoint": APP_PAPYRUS, "corpusId": "knowledge-corpus-ai-ml-research"},
@@ -46,7 +45,7 @@ def rows():
               "cyclotron": {"endpoint": "https://o01d28uizl.execute-api.us-east-1.amazonaws.com", "accountId": "acct-1", "runId": "run-1",
                             "bindingRevision": "1", "roleArn": "arn:aws:iam::682849160744:role/cyclotron-machine-invoker", "pollSeconds": 45}}
     table = [
-        {"pk": PK, "sk": "CONFIG", "sourceUrl": "https://news.ycombinator.com/rss", "intervalSeconds": 900, "limit": 30, "enabled": True},
+        {"pk": PK, "sk": "CONFIG", "sourceUrl": "https://news.ycombinator.com/rss", "intervalSeconds": 900, "enabled": True},
         {"pk": PK, "sk": "STATE", "nextDueAt": 1_792_551_000, "lastRunId": "r3", "lastStatus": "complete", "lastFinishedAt": "2026-10-21T02:33:00Z"},
         router,
         {"pk": PK, "sk": "RUN#2026-10-21T02:18:00.000000Z#r1", "runId": "r1", "startedAt": "2026-10-21T02:18:00.000000Z", "finishedAt": "2026-10-21T02:18:03Z",
@@ -76,11 +75,30 @@ def rows():
     return deepcopy(table)
 
 
+def receipt_rows(count, *, held=(), destination=("anth-us",)):
+    """`count` email receipts, receipt 0 the oldest; the receipts numbered in `held` are held for review."""
+    table = []
+    for n in range(count):
+        digest = f"{n:064x}"
+        observed = f"2026-10-20T{n // 60:02d}:{n % 60:02d}:00Z"
+        status = "pending_review" if n in held else "queued"
+        table += [
+            {"pk": PK, "sk": f"EMAILINDEX#{observed}#{digest}", "receiptId": f"EMAIL#{digest}",
+             "destinationPublicationIds": list(destination)},
+            {"pk": PK, "sk": f"EMAIL#{digest}", "status": status, "emailTrustMode": "data-only",
+             "emailDestinationPublicationIds": list(destination), "observedAt": observed, "subject": f"Mail {n}",
+             "linkCount": 1, "processedCount": 0 if n in held else 1,
+             **({"reviewRequired": True} if n in held else {})},
+        ]
+    return table
+
+
 class FakeViewStore:
     """The read interface monitoring_view needs; refuses nothing because it can write nothing."""
 
     def __init__(self, table=None):
         self.table = {r["sk"]: r for r in (rows() if table is None else table)}
+        self.pk = next((r["pk"] for r in self.table.values()), PK)
 
     def get(self, sk):
         return deepcopy(self.table.get(sk))
@@ -89,5 +107,56 @@ class FakeViewStore:
         found = sorted((r for sk, r in self.table.items() if sk.startswith(prefix)), key=lambda r: r["sk"], reverse=True)
         return deepcopy(found[:limit])
 
+    def page(self, prefix, limit, start=None):
+        """Newest first, like the real store: the rows and the key to continue after them (None at the end)."""
+        found = sorted((r for sk, r in self.table.items() if sk.startswith(prefix)), key=lambda r: r["sk"], reverse=True)
+        if start:
+            assert start["pk"] == self.pk, "cursor is for another partition"
+            found = [r for r in found if r["sk"] < start["sk"]]
+        rows = deepcopy(found[:limit])
+        return rows, ({"pk": rows[-1]["pk"], "sk": rows[-1]["sk"]} if len(found) > limit else None)
+
+    def email_details(self, receipt_digest):
+        prefix = f"EMAILDETAIL#{receipt_digest}#"
+        found = sorted((r for sk, r in self.table.items() if sk.startswith(prefix)), key=lambda r: r["sk"])
+        return deepcopy(found)
+
+    def record_email_resolution(self, receipt_digest, candidate_index, *, url, title, ttl=None, found_via_search=None):
+        sk = f"EMAILRESOLVED#{receipt_digest}#{candidate_index:06d}"
+        item = {"pk": PK, "sk": sk, "receiptDigest": receipt_digest,
+                "candidateIndex": candidate_index, "sourceUri": url, "title": title}
+        if ttl is not None:
+            item["ttl"] = ttl
+        if found_via_search:
+            item["foundViaSearch"] = found_via_search
+        prior = self.table.get(sk)
+        if prior and prior.get("sourceUri") != url:
+            raise ValueError("email_candidate_resolution_conflict")
+        self.table[sk] = deepcopy(prior or item)
+        return deepcopy(self.table[sk])
+
     def decision_times(self):
-        return [r["decision"]["decidedAt"] for sk, r in sorted(self.table.items()) if sk.startswith("ROUTE#") and r.get("decision")]
+        return ([r["decision"]["decidedAt"] for sk, r in sorted(self.table.items())
+                 if sk.startswith("ROUTE#") and r.get("decision")], True)
+
+
+def only_hn(store):
+    """Store factory for the handler: the fixture is the hn monitor; other monitors have nothing."""
+    return lambda monitor_id="hn": store if monitor_id == "hn" else FakeViewStore([])
+
+
+def ttab_rows(endpoint, monitor="ttab"):
+    """A second monitor routed to a single publication (distinctive, or p.apyr.us for huggingface)."""
+    pk = f"MONITOR#{monitor}"
+    publication = ("distinctive", "distinctive") if endpoint not in (APP_PAPYRUS,) else ("p-apyr-us", "p.apyr.us")
+    title = "Decision on a mark" if monitor == "ttab" else "Model release"
+    return deepcopy([
+        {"pk": pk, "sk": "CONFIG", "sourceType": "x", "sourceUrl": f"https://{monitor}.example.org/feed", "intervalSeconds": 3600, "enabled": True},
+        {"pk": pk, "sk": "CONFIG#router", "mode": "live", "feedback": False, "enabled": True,
+         "publications": [{"publicationId": publication[0], "site": publication[1], "appsyncEndpoint": endpoint}]},
+        {"pk": pk, "sk": "RUN#2026-10-21T02:20:00.000000Z#t1", "runId": "t1", "startedAt": "2026-10-21T02:20:00.000000Z",
+         "status": "complete", "new": 1, "revised": 0, "unchanged": 0, "itemCount": 1, "errorCount": 0, "errors": []},
+        {"pk": pk, "sk": f"DISC#{monitor}-1#000001", "sourceId": f"{monitor}-1", "revision": 1, "title": title,
+         "canonicalUrl": f"https://{monitor}.example.org/1", "sourceItemUrl": None, "observedAt": "2026-10-21T02:00:00.000000Z",
+         "sourcePublishedAt": "2026-10-21T02:00:00.000000Z", "routing": "collected", "fingerprint": f"fp-{monitor}"},
+    ])

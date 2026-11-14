@@ -1,10 +1,14 @@
 "use client";
 
 import { Hub } from "aws-amplify/utils";
+import { isUnauthenticatedError } from "./reader-auth-state";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { DevSandboxEditorAuth } from "../lib/dev-sandbox-editor-auth";
 import type { CategorySteeringDashboard } from "../lib/category-repository";
 import { ensureDevSandboxEditorSession } from "./dev-sandbox-editor-sign-in";
+import { discardReferencesHeadStart, prefetchReferencesFeed, wantsReferencesHeadStart } from "./references-prefetch";
+import { SITE_BRAND } from "../lib/site-brand";
+import { clearSavedNewsroomDisplay, loadSessionDisplay, saveSessionDisplay } from "../lib/reference-feed-cache";
 import {
   loadEditorAssignmentsData,
   loadEditorDoctrineRecordsData,
@@ -14,9 +18,10 @@ import {
 } from "./news-desk-taxonomy-client";
 import {
   beginAccessCheck,
-  beginAuthenticatedDeskHydration,
+  beginDeskLoad,
   createInitialNewsDeskShellState,
   patchDashboard,
+  resolveAccessFailure,
   resolveDashboardFailure,
   resolveDashboardReady,
   resolveForbidden,
@@ -73,7 +78,12 @@ export function NewsDeskClientProvider({
       ));
       return;
     }
-    setShell((current) => beginAccessCheck(current));
+    // A recent confirmed session is shown (name, "loading" instead of "checking") while the real check runs again.
+    // Display only: the check below still decides access, and the backend authorizes every call.
+    const remembered = loadSessionDisplay(SITE_BRAND.id);
+    setShell((current) => (remembered && !current.dashboard
+      ? { ...beginAccessCheck(current), phase: "loadingDesk" as const, auth: { status: "signedIn" as const, label: remembered.label } }
+      : beginAccessCheck(current)));
 
     try {
       await ensureDevSandboxEditorSession(devSandboxEditorAuth);
@@ -86,6 +96,8 @@ export function NewsDeskClientProvider({
     if (bootstrapSequenceRef.current !== sequence) return;
 
     if (access.status === "signedOut") {
+      clearSavedNewsroomDisplay(SITE_BRAND.id);
+      discardReferencesHeadStart();
       setShell((current) => resolveSignedOut(current, access.auth));
       return;
     }
@@ -94,11 +106,14 @@ export function NewsDeskClientProvider({
       return;
     }
     if (access.status === "error") {
-      setShell((current) => resolveDashboardFailure(current, access.auth, access.error));
+      setShell((current) => resolveAccessFailure(current, access.error));
       return;
     }
 
-    setShell((current) => beginAuthenticatedDeskHydration(current, access.auth, { canManageUsers: access.isAdmin }));
+    saveSessionDisplay(SITE_BRAND.id, { label: access.auth.label, isAdmin: access.isAdmin });
+    setShell((current) => beginDeskLoad(current, access.auth));
+    // The References reads do not depend on the summary dashboard: start them now, side by side with it.
+    if (typeof window !== "undefined" && wantsReferencesHeadStart(window.location.pathname)) prefetchReferencesFeed();
 
     try {
       const dashboard = await loadEditorNewsDeskDashboard({ isAdmin: access.isAdmin });
@@ -106,8 +121,13 @@ export function NewsDeskClientProvider({
       setShell((current) => resolveDashboardReady(current, dashboard, access.auth, new Date().toISOString()));
     } catch (error) {
       if (bootstrapSequenceRef.current !== sequence) return;
+      if (isUnauthenticatedError(error)) {
+        setShell((current) => resolveSignedOut(current, { status: "signedOut", label: "Signed out" }));
+        return;
+      }
       if (isAuthorizationError(error)) {
-        setShell((current) => resolveForbidden(current, access.auth));
+        // The session already has editor rights, so the backend refusing a read is not a missing role. Say what was refused.
+        setShell((current) => resolveDashboardFailure(current, access.auth, refusedReadMessage(error)));
         return;
       }
       setShell((current) => resolveDashboardFailure(
@@ -132,11 +152,7 @@ export function NewsDeskClientProvider({
       ));
     } catch (error) {
       const auth = shellRef.current.auth;
-      setShell((current) => resolveDashboardFailure(
-        current,
-        auth,
-        error instanceof Error ? error.message : "Could not refresh assignments.",
-      ));
+      setShell((current) => resolvePrivateReadFailure(current, auth, error, "Could not refresh assignments."));
     }
   }, []);
 
@@ -153,11 +169,7 @@ export function NewsDeskClientProvider({
       ));
     } catch (error) {
       const auth = shellRef.current.auth;
-      setShell((current) => resolveDashboardFailure(
-        current,
-        auth,
-        error instanceof Error ? error.message : "Could not refresh doctrine records.",
-      ));
+      setShell((current) => resolvePrivateReadFailure(current, auth, error, "Could not refresh doctrine records."));
     }
   }, []);
 
@@ -175,11 +187,7 @@ export function NewsDeskClientProvider({
       ));
     } catch (error) {
       const auth = shellRef.current.auth;
-      setShell((current) => resolveDashboardFailure(
-        current,
-        auth,
-        error instanceof Error ? error.message : "Could not refresh the user directory.",
-      ));
+      setShell((current) => resolvePrivateReadFailure(current, auth, error, "Could not refresh the user directory."));
     }
   }, []);
 
@@ -188,6 +196,8 @@ export function NewsDeskClientProvider({
     const unsubscribe = Hub.listen("auth", ({ payload }) => {
       if (payload.event === "signedOut") {
         bootstrapSequenceRef.current += 1;
+        clearSavedNewsroomDisplay(SITE_BRAND.id);
+        discardReferencesHeadStart();
         setShell((current) => resolveSignedOut(current, { status: "signedOut", label: "Signed out" }));
         return;
       }
@@ -219,6 +229,17 @@ export function NewsDeskClientProvider({
 function isAuthorizationError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /not authorized|unauthorized|access denied|forbidden/i.test(message);
+}
+
+function refusedReadMessage(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error ?? "");
+  return `The Newsroom backend refused a read for this signed-in account (${detail}). The account has editor or admin rights, so this is a backend authorization rule, not a missing role.`;
+}
+
+function resolvePrivateReadFailure(state: NewsDeskShellState, auth: NewsDeskShellState["auth"], error: unknown, fallback: string): NewsDeskShellState {
+  if (isUnauthenticatedError(error)) return resolveSignedOut(state, { status: "signedOut", label: "Signed out" });
+  if (isAuthorizationError(error)) return resolveDashboardFailure(state, auth, refusedReadMessage(error));
+  return resolveDashboardFailure(state, auth, error instanceof Error ? error.message : fallback);
 }
 
 export function useOptionalNewsDeskClient() {

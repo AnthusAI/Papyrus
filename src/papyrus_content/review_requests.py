@@ -4,11 +4,12 @@ Review is not a story state. Any step can raise a ReviewRequest about any item (
 reference, an automation run, a Cyclotron decision, or a batch of those). Three modes:
 
 * ``flag``         informational. Nothing waits. An editor can acknowledge or steer it.
-* ``soft_review``  the process waits until a deadline. If nobody answers it proceeds, and the request records
-                   "proceeded without review" (state ``timed_out``).
+* ``soft_review``  the request stays open until someone handles it: it has no expiry unless the caller passes a
+                   deadline. With a deadline, if nobody answers by then it proceeds, and the request records
+                   "proceeded without review" (state ``timed_out``). Without one it is never timed out.
 * ``hard_gate``    the process never proceeds without an explicit answer. A hard gate has no deadline.
 
-An answer is ``approve``, ``reject`` or ``feedback``, with optional feedback text and an optional ``steer``
+An answer is ``approve``, ``acknowledge`` (the flag form of approve: nothing was approved, the editor saw it), ``reject`` or ``feedback``, with optional feedback text and an optional ``steer``
 (``adjust`` or ``not_this_kind``). Feedback and steering are stored on the request and handed to whatever raised
 it: that step reads them back with ``steering_for`` and records that it used them with ``mark_applied``
 ("You steered X, applied in run Y").
@@ -35,15 +36,16 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
+from .staff_groups import STAFF_GROUPS, has_editor_rights
+
 MODES = ("flag", "soft_review", "hard_gate")
 STATES = ("open", "answered", "timed_out", "withdrawn")
-DECISIONS = ("approve", "reject", "feedback")
+DECISIONS = ("approve", "acknowledge", "reject", "feedback")
 STEERS = ("adjust", "not_this_kind")
-ANSWERING_ROLES = frozenset({"editor", "admin"})
+ANSWERING_ROLES = STAFF_GROUPS
 RECIPIENT_SCOPES = ("default", "mode", "automation")
 RECIPIENT_ROLES = ("editor", "admin")
 PROCEEDED_WITHOUT_REVIEW = "proceeded without review"
-DEFAULT_SOFT_REVIEW_DAYS = 7
 SUBJECT_TYPES = ("story", "proposal", "reference", "automation_run", "cyclotron_decision", "batch")
 REQUEST_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MAX_TEXT = 2000
@@ -149,7 +151,7 @@ def read_review(row: dict[str, Any]) -> dict[str, Any]:
 def outcome_of(state: str | None, answer: dict[str, Any] | None) -> str:
     """What the raising process should do: a one-word answer to "may I continue, and with what"."""
     if state == "answered" and answer:
-        return {"approve": "approved", "reject": "rejected", "feedback": "feedback"}.get(answer.get("decision"), "answered")
+        return {"approve": "approved", "acknowledge": "approved", "reject": "rejected", "feedback": "feedback"}.get(answer.get("decision"), "answered")
     if state == "timed_out":
         return "proceeded_without_review"
     if state == "withdrawn":
@@ -169,7 +171,8 @@ def raise_review(client, *, subject: dict[str, Any], mode: str, reason: str, rai
                  request_id: str | None = None, now: datetime | None = None) -> dict[str, Any]:
     """Raise a review request. A given ``request_id`` makes the call idempotent: raising it again returns the existing request.
 
-    A soft review needs a deadline (``deadline`` or ``deadline_days``; default 7 days). A flag and a hard gate take none."""
+    A soft review has no deadline unless the caller passes one (``deadline`` or ``deadline_days``): by default it stays open until
+    someone handles it and is never timed out. A flag and a hard gate take none."""
     if mode not in MODES:
         raise ReviewError(f"mode must be one of {', '.join(MODES)}.")
     if request_id is not None and not REQUEST_ID.match(request_id):
@@ -184,11 +187,12 @@ def raise_review(client, *, subject: dict[str, Any], mode: str, reason: str, rai
             if parse_time(deadline) is None:
                 raise ReviewError("deadline must be an ISO date and time.")
             deadline_at = now_iso(parse_time(deadline))
-        else:
-            days = DEFAULT_SOFT_REVIEW_DAYS if deadline_days is None else deadline_days
-            if days <= 0:
+        elif deadline_days is not None:
+            if deadline_days <= 0:
                 raise ReviewError("deadline_days must be more than zero.")
-            deadline_at = now_iso(moment + timedelta(days=days))
+            deadline_at = now_iso(moment + timedelta(days=deadline_days))
+        else:
+            deadline_at = None  # no expiry: the request stays open until someone handles it
     else:
         if deadline is not None or deadline_days is not None:
             raise ReviewError(f"a {mode.replace('_', ' ')} has no deadline: only a soft review waits until one.")
@@ -260,7 +264,7 @@ def expire_due(client, *, now: datetime | None = None) -> list[str]:
 def answer_review(client, request_id: str, *, decision: str, by: str, feedback: str | None = None, steer: str | None = None,
                   roles: list[str] | None = None, now: datetime | None = None) -> dict[str, Any]:
     """Approve, reject, or give feedback (with an optional steer). Only an open request can be answered."""
-    if roles is not None and not ANSWERING_ROLES & set(roles):
+    if roles is not None and not has_editor_rights(roles):
         raise ReviewError("only editors and admins can answer a review request.")
     if decision not in DECISIONS:
         raise ReviewError(f"decision must be one of {', '.join(DECISIONS)}.")
@@ -274,6 +278,8 @@ def answer_review(client, request_id: str, *, decision: str, by: str, feedback: 
     if request["state"] != "open":
         suffix = f" ({PROCEEDED_WITHOUT_REVIEW})" if request["state"] == "timed_out" else ""
         raise ReviewError(f"review request {request_id} is {request['state'].replace('_', ' ')}{suffix}; it can no longer be answered.")
+    if decision == "acknowledge" and request["mode"] != "flag":
+        raise ReviewError("only a flag is acknowledged; a soft review or hard gate is approved or rejected.")
     at = now_iso(moment)
     answer = {"decision": decision, "feedback": note, "steer": steer, "by": _text(by, "by", required=True, limit=200), "at": at}
     client.update_record("ReviewRequest", {
@@ -371,23 +377,48 @@ def review_gate(client, *, wait: bool = True, poll_seconds: float = 30.0, max_wa
 # --- the idea pipeline hook ---------------------------------------------------------------------------------------
 
 
-def raise_batch_review(client, *, raised_by: str, batch_id: str, proposal_ids: list[str], noun: str = "story idea",
-                       deadline_days: float = DEFAULT_SOFT_REVIEW_DAYS, links: Any = None, now: datetime | None = None) -> dict[str, Any]:
-    """ONE soft review for a run that produced a batch of proposals: "N new story ideas to review".
+def raise_batch_review(client, *, raised_by: str, batch_id: str, idea_ids: list[str], noun: str = "story idea",
+                       deadline_days: float | None = None, links: Any = None, now: datetime | None = None, link_type: str = "story",
+                       extend: bool = False) -> dict[str, Any]:
+    """ONE soft review for a run that produced a batch of generated story ideas: "N new story ideas to review".
 
-    The subject is the batch; each proposal is a link. Idempotent per ``batch_id``, so a re-run of the same synthesis
-    does not raise a second request. Feedback comes back through ``steering_for(client, raised_by=raised_by)``."""
-    if not proposal_ids:
-        raise ReviewError("a batch review needs at least one proposal.")
-    count = len(proposal_ids)
+    The subject is the batch; each idea is a link (``link_type="story"``: the lineage id of the Item at the ``idea`` stage, which the console shows in
+    the Idea column of the Stories board; an idea kept only as a local JSON file is linked as ``"idea"``, which the console cannot open). Editors decide the
+    ideas on the board: moving one forward accepts it, moving it to spiked with a reason declines it. Idempotent per ``batch_id``, so a re-run of the same
+    synthesis does not raise a second request. Feedback comes back through ``steering_for(client, raised_by=raised_by)``.
+
+    With ``extend`` a batch that is still open takes the new ideas into its links and its count instead (a plan whose ideas are filed one step at a time
+    raises its request with the first idea and adds the rest); one already answered is left as it is, the ideas being on the board in any case."""
+    if not idea_ids:
+        raise ReviewError("a batch review needs at least one idea.")
+    count = len(idea_ids)
     plural = noun if count == 1 else f"{noun}s"
     safe = re.sub(r"[^a-z0-9._-]+", "-", batch_id.lower()).strip("-")[:100]
-    entries = [{"type": "proposal", "id": proposal_id, "label": f"{noun} {index}"} for index, proposal_id in enumerate(proposal_ids, 1)]
+    entries = [{"type": link_type, "id": idea_id, "label": f"{noun} {index}"} for index, idea_id in enumerate(idea_ids, 1)]
+    existing = client.get_record("ReviewRequest", f"rr-batch-{safe}") if extend else None
+    if existing:
+        return _extend_batch(client, existing, entries, noun, now)
     return raise_review(
         client, subject={"type": "batch", "id": batch_id}, mode="soft_review", raised_by=raised_by,
         reason=f"{count} new {plural} to review",
-        ask="Approve to keep them all, reject to drop the batch, or steer with a note about what kind of ideas you want.",
+        ask="Move an idea forward to accept it, or move it to Spiked with a reason to decline it. Open the Idea column of the Stories board. A reason tells the idea pipeline what you do not want.",
         deadline_days=deadline_days, links=[*entries, *(_links(links))], request_id=f"rr-batch-{safe}", now=now)
+
+
+def _extend_batch(client, row: dict[str, Any], entries: list[dict[str, str]], noun: str, now: datetime | None) -> dict[str, Any]:
+    request = read_review(row)
+    known = {(link.get("type"), link.get("id")) for link in request["links"]}
+    added = [entry for entry in entries if (entry["type"], entry["id"]) not in known]
+    if request["state"] != "open" or not added:
+        return request
+    links = [*request["links"], *({**entry, "label": f"{noun} {len(request['links']) + position}"} for position, entry in enumerate(added, 1))]
+    count = len([link for link in links if link.get("type") == entries[0]["type"]])
+    at = now_iso(now)
+    client.update_record("ReviewRequest", {
+        "id": request["id"], "links": json.dumps(links), "reason": f"{count} new {noun if count == 1 else noun + 's'} to review", "updatedAt": at,
+        "history": json.dumps(_history(request["history"], "ideas_added", by=request["raisedBy"], at=at, note=f"{len(added)} more")),
+    })
+    return read_review(client.get_record("ReviewRequest", request["id"]) or row)
 
 
 # --- who is told ---------------------------------------------------------------------------------------------------
@@ -451,7 +482,10 @@ def resolve_recipients(client, *, mode: str, automation: str | None = None, site
 
 def _line(request: dict[str, Any]) -> str:
     subject = request["subject"]
-    when = f"proceeds {request['deadline']}" if request["mode"] == "soft_review" and request["state"] == "open" else request["outcome"]
+    if request["mode"] == "soft_review" and request["state"] == "open":
+        when = f"proceeds {request['deadline']}" if request["deadline"] else "open until handled"
+    else:
+        when = request["outcome"]
     return "\t".join(["reviews", request["id"], request["mode"], request["state"], f"{subject.get('type')}:{subject.get('id')}", when, request["reason"] or ""])
 
 

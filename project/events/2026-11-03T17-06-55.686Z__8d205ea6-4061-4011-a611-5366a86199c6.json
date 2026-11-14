@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8d205ea6-4061-4011-a611-5366a86199c6",
+  "issue_id": "PPY-07ca8acb-7d18-4b7d-9cfa-0d1c58ddbf56",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T17:06:55.686Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Automated process standard, one identity gate, read-only duplicate report",
+    "description": "PART 1, STANDARD. `docs/automated-processes.md`: a template every automated process states, then an inventory using it. Template: what triggers it; inputs; the decision; what it may write; what it must never do; how a person sees and reverses it; what it records; how it fails (fail closed or open, and what is left); what it costs and what bounds it; how it is measured; where its Gherkin is. Inventory the real processes from the code, honestly, including gaps: monitoring collection, routing and delivery, relevance decisions, auto-accept, capture and summary, suggestions, idea generation, point check, fact check, research assignments, knowledge runs. Say \"no spec\" where none exists. Do not invent behaviour.\n\nPART 2, ONE IDENTITY GATE. `src/papyrus_content/reference_identity.py`: `identity_keys(reference) -> set[str]`, pure. Canonical URL (reuse `monitoring.canonical_url`; say if `reference_intake_validation.canonical_source_url` differs and reconcile), arXiv id across abs, pdf, html and versions, DOI including `doi.org` and arXiv DOIs, captured text hash when present. Read every path that creates a Reference (monitoring intake, email, research intake, public submissions, CLI catalog, editor create) and list them; report which check duplicates today, and at what scope. Route those that don't through the gate at publication scope, not per corpus. On a hit: link or report the existing Reference, never overwrite its curation status. Accepted is never reset to pending (a bug already found in research intake).\n\nPART 3, REPORT, READ-ONLY. `papyrus references duplicates [--format text|json]` groups by identity keys; writes nothing. Also counts same-title groups, marked as candidates, not as duplicates. Bounded by the corpus; it reads what it needs. Real numbers go in your report, not the repo.\n\nNot in this ticket: the agent, grouping relations, curation UI, cleaning up existing rows.\n\nGherkin `features_backend/reference-identity.feature`, synthetic content: each URL form; arXiv and DOI forms of one paper; same title alone is not identity; each entry path uses the gate; accepted stays accepted; report writes nothing. No production writes, no model calls.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-24fdf421-e5cb-4b83-856c-92a8ac73fd22",
+    "labels": []
+  }
+}

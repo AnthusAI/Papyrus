@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "1d7ac923-9e56-4796-b0ec-2629c5c18923",
+  "issue_id": "PPY-e1d26fa2-6008-40d6-a6a1-4be875bd55b3",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:48.125Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: A full dress rehearsal with no reader impact. Steps: (1) run copy-backend --stamp-tenant threat-intelligence from TI's backend (amplify-app-shell-threat-intelligence-cms in papyrus-production; TI rows carry no tenant today) into the staging shared stack, dry run first; (2) convert TI's web/projection.json and brand into SiteConfig and BrandPack (PPY-1252ce); (3) copy the Cyclotron store and monitor configuration; (4) project the tenant; (5) compare every URL of the live site with the staging tenant's (the PPY-bcfd2d parity method and src/papyrus_content/projection/url_compare.py: status, normalised DOM, head metadata, sitemap URL set, redirects, feeds); (6) run the adversarial suite with TI and the staging test tenant. Writes nothing to TI's production backend.\n\nTouches (verified at origin/develop 23fabe1d): copy-backend (docs/migrations/copy-backend.md), src/papyrus_content/projection/url_compare.py, Threat-Intelligence repo web/projection.json and publication/brand (read), the staging shared stack.\n\nAcceptance (Gherkin feature file: features_backend/ti-shared-rehearsal.feature):\nScenario: The staging tenant matches the live TI site\n    Given TI copied into the staging shared stack\n    When every live URL is compared with the staging tenant\n    Then differences are only the allow-listed ones, each with a reason\n\nScenario: The copy is complete\n    When copy-backend runs a second time\n    Then it creates, updates and copies nothing\n\nDependencies: blocked by PPY-8f9462, PPY-413576, PPY-3bbbf9, PPY-bdc4ee. Blocks PPY-e51189, PPY-0c4b55. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-32b4c5.\n\nTesting: Parity report attached to this issue.\nRollout: Staging only.\nRisk and mitigation: Risk: TI's own art (pictograms) has no place in the preset. Mitigation: still pictograms through the image-style slot (PPY-9c4af5) must be done first, listed in the parity allow-list otherwise.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

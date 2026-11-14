@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "b98acd8a-3418-4e2e-b138-9ad35ade84e0",
+  "issue_id": "PPY-e286792d-9b1a-4af7-8a31-23e58c6ef6eb",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-04T17:10:48.780Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "**Milestone:** M3, public email and new stories\n\n**Goal.** Try on Machines on Machines, the site under test for reader features. Once it works, one batch across the rest.\n\n**Build.**\nOne PR per site carrying both the version bump and the `papyrus.config.ts` plugin block, so one deploy per site, never two in a row. A site's sending setup comes first (kanbus-313b10). Full reprojection on enable. List sites from the repo, not memory; a site's Slack or Discord reader option needs public-reader registration in Prospectus, which only some have.\n\n**Acceptance.**\nEvery site's `/notifications/` page answers, in its own theme; Amplify builds succeed.\n\n**Depends on:** PPY-f361ee, PPY-17cf09, PPY-d7443d, PPY-d99539",
+        "to": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M3, public email and new stories\n\n**Goal.** Try on Machines on Machines, the site under test for reader features. Once it works, one batch across the rest.\n\n**Build.**\nOne PR per site carrying both the version bump and the `papyrus.config.ts` plugin block, so one deploy per site, never two in a row. A site's sending setup comes first (kanbus-313b10). Full reprojection on enable. List sites from the repo, not memory; a site's Slack or Discord reader option needs public-reader registration in Prospectus, which only some have.\n\n**Acceptance.**\nEvery site's `/notifications/` page answers, in its own theme; Amplify builds succeed.\n\n**Depends on:** PPY-f361ee, PPY-17cf09, PPY-d7443d, PPY-d99539, PPY-c522bf"
+      }
+    }
+  }
+}

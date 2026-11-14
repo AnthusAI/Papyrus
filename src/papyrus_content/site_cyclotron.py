@@ -15,6 +15,8 @@ from typing import Any, Mapping, Sequence
 
 from .ids import safe_id
 from .relevance_cyclotron import FIELD as RELEVANCE_FIELD
+from .learning_classifiers import (LINK_CLASSIFIER_ID, LINK_LABELS, LINK_POSITIVE_LABEL, LINK_QUESTION, PACK_CLASSIFIER_ID, PACK_LABELS,
+                                   PACK_POSITIVE_LABEL, PACK_QUESTION, learning_seed_rubrics)
 from .relevance_cyclotron import RelevanceCyclotronPlan, _refuse_secrets, _string
 
 FIELD = "siteCyclotron"
@@ -23,7 +25,9 @@ SECTION_FIT_POSITIVE_LABEL = "fits"
 SECTION_SELECTOR_CLASSIFIER_PREFIX = "section-selector-"
 SECTION_FIT_CLASSIFIER_PREFIX = "section-fit-"
 SECTION_SELECTOR_QUESTION = "Which newsroom Section is the best home for this candidate source?"
-SITE_CYCLOTRON_FIELDS = {"cyclotronId", "enabled", "maxDecisionsPerDay", "approvedProofPath", "store"}
+SITE_CYCLOTRON_FIELDS = {"cyclotronId", "enabled", "maxDecisionsPerDay", "approvedProofPath", "store", "autoSection"}
+AUTO_SECTION_KEYS = ("enabled", "precision", "proofPath")
+DEFAULT_AUTO_SECTION_PRECISION = 0.9
 
 
 def normalize_site_cyclotron_config(raw: Any, relevance_block: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -61,9 +65,33 @@ def normalize_site_cyclotron_config(raw: Any, relevance_block: Mapping[str, Any]
         "enabled": enabled,
         "maxDecisionsPerDay": maximum_per_day,
         "approvedProofPath": approved_proof_path,
+        "autoSection": normalize_auto_section_policy(raw.get("autoSection")),
         "store": {"localPath": _string(store.get("localPath", f"var/cyclotrons/{cyclotron_id}"), f"{FIELD}.store.localPath"),
                   "s3Prefix": s3_prefix},
     }
+
+
+def normalize_auto_section_policy(raw: Any) -> dict[str, Any]:
+    """The ``siteCyclotron.autoSection`` policy (docs/reference-auto-section.md). Absent means on, with the default target precision and no proof:
+    with no approved Section proof there is no learned threshold, so nothing is set until one is named."""
+    path = f"{FIELD}.autoSection"
+    if raw is None:
+        return {"enabled": True, "precision": DEFAULT_AUTO_SECTION_PRECISION, "proofPath": None}
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} must be an object.")
+    unknown = sorted(set(raw) - set(AUTO_SECTION_KEYS))
+    if unknown:
+        raise ValueError(f"{path} has unknown fields: {', '.join(unknown)}.")
+    enabled = raw.get("enabled", True)
+    if type(enabled) is not bool:
+        raise ValueError(f"{path}.enabled must be true or false.")
+    precision = raw.get("precision", DEFAULT_AUTO_SECTION_PRECISION)
+    if type(precision) not in (int, float) or not 0 < precision < 1:
+        raise ValueError(f"{path}.precision must be a number above 0 and below 1.")
+    proof_path = raw.get("proofPath")
+    if proof_path is not None and (not isinstance(proof_path, str) or not proof_path.strip()):
+        raise ValueError(f"{path}.proofPath must be a file path.")
+    return {"enabled": enabled, "precision": float(precision), "proofPath": proof_path.strip() if proof_path else None}
 
 
 def tenant_site_cyclotron_steering(steering_config: Mapping[str, Any], tenant_id: str | None) -> Mapping[str, Any]:
@@ -132,7 +160,19 @@ def selector_seed_rubric(sections: Sequence[Mapping[str, Any]]) -> str:
     return "Choose the one Section whose mission fits best:\n" + "\n".join(descriptions)
 
 
-def site_classifier_specs(sections: Sequence[Mapping[str, Any]]) -> list[Any]:
+def learning_classifier_specs() -> list[Any]:
+    """The two learning classifiers, derived like the Section classifiers: nothing to configure. They learn only from decisions people made."""
+    from decision_flywheel import ClassifierSpec
+
+    return [ClassifierSpec(LINK_CLASSIFIER_ID, LINK_LABELS, LINK_QUESTION, positive_label=LINK_POSITIVE_LABEL),
+            ClassifierSpec(PACK_CLASSIFIER_ID, PACK_LABELS, PACK_QUESTION, positive_label=PACK_POSITIVE_LABEL)]
+
+
+def site_classifier_specs(sections: Sequence[Mapping[str, Any]], include_learning: bool = False) -> list[Any]:
+    """The Section classifiers and selector; with ``include_learning`` also ``reference-link-fit`` and ``idea-pack-fit``.
+
+    The sweep decides every classifier of the definition on each pending Reference, so it keeps the Section-only set until it can skip the
+    learning classifiers."""
     from decision_flywheel import ClassifierSpec
 
     ordered = enabled_sections_in_order(sections)
@@ -144,10 +184,11 @@ def site_classifier_specs(sections: Sequence[Mapping[str, Any]]) -> list[Any]:
         selector_labels = tuple(sorted(str(section["id"]) for section in ordered))
         specs.append(ClassifierSpec(section_selector_classifier_id(selector_labels), selector_labels,
                                     SECTION_SELECTOR_QUESTION))
-    return specs
+    return specs + learning_classifier_specs() if include_learning else specs
 
 
-def build_site_cyclotron(steering_config: Mapping[str, Any], sections: Sequence[Mapping[str, Any]]) -> RelevanceCyclotronPlan:
+def build_site_cyclotron(steering_config: Mapping[str, Any], sections: Sequence[Mapping[str, Any]],
+                         include_learning: bool = False) -> RelevanceCyclotronPlan:
     """Build the site cyclotron's plan from the steering config and the current Section list. No model call."""
     from decision_flywheel import CyclotronDefinition, ReviewProgram
 
@@ -160,10 +201,12 @@ def build_site_cyclotron(steering_config: Mapping[str, Any], sections: Sequence[
     if not relevance_block:
         raise ValueError(f"This publication's steering config has no {RELEVANCE_FIELD} block.")
     ordered = enabled_sections_in_order(sections)
-    specs = site_classifier_specs(sections)
+    specs = site_classifier_specs(sections, include_learning)
     seed_rubrics = {section_fit_classifier_id(section["id"]): section_seed_rubric(section) for section in ordered}
     if len(ordered) >= 2:
         seed_rubrics[section_selector_classifier_id([str(section["id"]) for section in ordered])] = selector_seed_rubric(ordered)
+    if include_learning:
+        seed_rubrics.update(learning_seed_rubrics())
     definition = CyclotronDefinition(site_block["cyclotronId"], tuple(specs), seed=f"{site_block['cyclotronId']}-v1")
     program = ReviewProgram(**{REVIEW_PROGRAM_FIELDS[key]: (tuple(value) if key == "rates" else value)
                                for key, value in relevance_block["reviewProgram"].items()})

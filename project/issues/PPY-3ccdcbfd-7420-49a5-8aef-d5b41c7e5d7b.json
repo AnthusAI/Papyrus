@@ -1,0 +1,28 @@
+{
+  "id": "PPY-3ccdcbfd-7420-49a5-8aef-d5b41c7e5d7b",
+  "title": "Ideas must be more than a summary of their source",
+  "description": "Ryan 11-02. Fable review: 13 of 13 single-item ideas restate the source because the prompt asks for it and the writer gets nothing else. Decisions: an accept reason clears the bar, except that a Reference whose page could not be read also needs a human comment or a real related Reference; adversarial model check waits for the replay; a pack with titles only is skipped; editors reject with a reason rather than delete; build and replay now. Small sites propose fewer ideas, no relaxed bar. An empty run raises a curation suggestion.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2e906437-368b-49fa-b003-1369f1f7cae7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3db2e4ca-cb2b-43f3-80dd-ca19e485bc86",
+      "author": "home",
+      "text": "PR #1042 (feat/ideas-more-than-summary): point check for single items and packs, retry memory for rejected References and packs (new connection only, no limits), one standard (summary standard, prompt and --minimum-standard removed; stored minimumStandard still loads), curation flag also for drafts that added nothing, replay now one dry run. Tests and Gherkin updated; docs in idea-context-packs section 9. Not deployed; RouterIdeaPolicy change set still needs a human.",
+      "created_at": "2026-11-02T17:16:40.380441Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-02T07:04:34.621573Z",
+  "updated_at": "2026-11-02T17:16:40.380868Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

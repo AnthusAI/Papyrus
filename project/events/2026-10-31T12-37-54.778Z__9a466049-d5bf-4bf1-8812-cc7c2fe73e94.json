@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "9a466049-d5bf-4bf1-8812-cc7c2fe73e94",
+  "issue_id": "PPY-8f05cc63-a0de-4b41-840c-65311d80c1f7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:37:54.778Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Thread pages: <threadBase>/<key>/ rendered from the per-thread JSON, homePage.forum settings, threads include links",
+    "description": "Repo: **Papyrus**. Phase 1 of PPY-452419. Every public thread gets its own static page, read-only, from the per-thread JSON that #907 already writes.\n\n## Files\n- `src/papyrus_content/home_page/settings.py`: add `forum` to `home_page_settings_from_mapping`: `ForumSettings(thread_base=\"conversations\", index_page_size=50, posting=None)`; unknown keys are a build error naming the key (same style as `ThreadsSettings`). `threadBase` is validated like a section `base` (`projection/standard/config.py` `_check_section_fronts` / reserved prefixes `_data`, `_plugins`, `_papyrus`, `_next`, `api`; `newsroom` reserved on CMS-style edges, `docs/home-page.md` ~69).\n- `src/papyrus_content/projection/standard/home_page.py` (`HomePageSource`): read `_data/home-page/threads/<key>.json` (shape: `{key,title,anchor:{kind:\"reference\",key,title}|{kind:\"story\",url,title},messages:[{key,at,edited,text,author:{handle}|{label}}]}`) and `threads.json` for the list.\n- New `src/papyrus_content/projection/standard/forum_pages.py`: `thread_page(context, thread) -> Page` and `forum_index_pages(context) -> list[Page]` (index is the next task; put the module here so both share it). Register in `projector.py` next to the section fronts (#908, `home_page_blocks.py` / `page_ledger.py` pattern), emitted through `add()` so the `.md` twin and `llms.txt` entry come for free.\n- `src/papyrus_content/projection/standard/home_page_components.py`: a `threads` include card links to `/<threadBase>/<key>/` (today it links nowhere; `docs/home-page.md` ~73 \"Nothing reads the per-thread files yet\").\n- `assets/papyrus-home-page.css`: thread page styles: a header (title, anchor card reusing the Reference `row` card or a Story line), then one flat block per Message (`rounded-xl`, background tone), author handle with a Lucide `user` icon or \"Editor\" label with `badge-check`, time as `<time datetime>`, \"edited\" as text with a `pencil` icon. No borders.\n- Digest: the page digest folds in the thread file's digest (as `_knowledge_inputs()` does), so the incremental re-render (#906/#909) rewrites a thread page only when its file changed; `owns_page_key` must own `<threadBase>/` pages so reconcile deletes a page whose thread stopped being public (`task.py` `_stale_thread_files` already deletes the JSON; mirror it for the page).\n\n## Gherkin (`features_backend/forum-thread-pages.feature`)\nFeature: Public thread pages\n  Scenario: A public thread renders as a page with its Messages in sequence\n  Scenario: The page has a Markdown twin and an llms.txt entry\n  Scenario: A thread that is no longer public loses its page on the next snapshot\n  Scenario: A site without homePage.forum renders no thread pages and the threads include links nowhere\n  Scenario: threadBase may not be a reserved prefix\n  Scenario: No email, sub or UUID appears on a thread page (reader-privacy scan)\n\n## Acceptance\n- Fixture site in `procedures/newsroom/tests/` with two threads renders `conversations/<key>/index.html` and `.md`; `pytest procedures/newsroom/tests -k forum` green; byte-identical output for sites without `forum`.\n- `docs/home-page.md` gains \"Thread pages\" (setting, URL shape, what is public).\n- Depends on nothing open; shares `home_page.py` and `settings.py` with the forum index task, so the same implementer takes both or they land in order.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

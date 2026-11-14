@@ -1,25 +1,31 @@
 """Bounded monitor collection through existing intake; never curates or trains.
 
-A monitor reads one source type (`SOURCE_TYPES`): the Hacker News RSS feed, or the USPTO TTAB
-Reading Room's decision search. Each type turns its source into `SourceItem`s; everything after
+A monitor reads one source type (`SOURCE_TYPES`): the Hacker News RSS feed, the USPTO TTAB
+Reading Room's decision search, the Hugging Face Hub model list (`monitoring_huggingface.py`), the Hugging Face daily papers
+(`monitoring_hf_papers.py`), any RSS or Atom feed on an allowed host (`monitoring_feed.py`) or a web search of
+queries through Tavily (`monitoring_web.py`). Each type turns its source into `SourceItem`s; everything after
 that (fingerprints, revisions, routing, intake) is shared.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import fcntl
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import sqlite3
 import time
 from typing import Callable
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
+
+from .monitoring_paging import RateLimited, retry_after_seconds
 
 HN_FEED = "https://news.ycombinator.com/rss"
 TTAB_DECISIONS_URL = "https://ttab-reading-room.uspto.gov/ttab-efoia-api/decision/search"
@@ -28,13 +34,40 @@ MAX_FEED_BYTES = 2_000_000
 USER_AGENT = "Papyrus-Monitor/0.2 (+https://github.com/AnthusAI/Papyrus)"
 
 
+#: Parameters that name a visitor's session, not a document. They differ on every visit, so they defeat de-duplication of the same page.
+SESSION_PARAMETERS = frozenset({"jsessionid", "phpsessid", "sessionid", "session_id", "aspsessionid", "cfid", "cftoken"})
+_SESSION_PATH_PARAMETER = re.compile(r";(?:jsessionid|phpsessid|sessionid)=[^/?#;]*", re.IGNORECASE)
+
+
+#: Parameters that say how a reader arrived, not which document they asked for. The one list: every URL cleaner and the identity gate read it.
+TRACKING_PARAMETERS = frozenset({
+    "fbclid", "gclid", "dclid", "gbraid", "wbraid", "msclkid", "yclid", "twclid", "igshid", "li_fat_id", "mc_cid", "mc_eid",
+    "_hsenc", "_hsmi", "__hssc", "__hstc", "__hsfp", "mkt_tok", "vero_id", "vero_conv", "oly_enc_id", "oly_anon_id", "_bhlid",
+    "bhlid", "ck_subscriber_id", "s_cid", "cmpid", "ref_src", "ss_source", "ss_campaign_id", "trk", "trkcampaign", "wickedid",
+    "elqtrackid", "sg_uid", "rb_clickid", "ito", "__s", "_ga", "_gl", "pk_campaign", "pk_kwd", "sc_cid", "mbid",
+})
+TRACKING_PREFIXES = ("utm_", "mc_", "hsa_", "elq", "vero_", "sg_", "oly_", "pk_")
+
+
+def is_tracking_parameter(name: str) -> bool:
+    lowered = name.lower()
+    return lowered in TRACKING_PARAMETERS or lowered.startswith(TRACKING_PREFIXES)
+
+
+def without_session_junk(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Query pairs without session identifiers and without the ``error=cookies_not_supported&code=<id>`` pair a publisher adds when it could not set a cookie."""
+    cookie_error = any(key.lower() == "error" and "cookie" in value.lower() for key, value in pairs)
+    return [(key, value) for key, value in pairs
+            if key.lower() not in SESSION_PARAMETERS and not (cookie_error and key.lower() in {"error", "code"})]
+
+
 def canonical_url(value: str) -> str:
     url = urlsplit(value.strip())
     if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password:
         raise ValueError("An HTTP(S) source URL without credentials is required")
-    query = [(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
-             if not k.lower().startswith("utm_") and k.lower() not in {"fbclid", "gclid"}]
-    return urlunsplit((url.scheme.lower(), url.netloc.lower(), url.path or "/", urlencode(query), ""))
+    query = without_session_junk([(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
+                                  if not is_tracking_parameter(k)])
+    return urlunsplit((url.scheme.lower(), url.netloc.lower(), _SESSION_PATH_PARAMETER.sub("", url.path) or "/", urlencode(query), ""))
 
 
 def _digest(value) -> str:
@@ -54,10 +87,14 @@ class SourceItem:
     published_at: str | None
     media_type: str = "text/html"
     aliases: tuple[str, ...] = ()       # other URLs of the same source document; intake treats them as one
+    #: Structured fields of the source record (a Hugging Face model's license, tags, base models, ...),
+    #: carried into the discovery. A `sha` here is the source's own revision: a new one is a new fingerprint.
+    details: dict | None = field(default=None, compare=False, hash=False)
 
     @property
     def fingerprint(self) -> str:
-        return _digest([self.title, self.canonical_url, self.published_at])
+        revision = (self.details or {}).get("sha")
+        return _digest([self.title, self.canonical_url, self.published_at] + ([revision] if revision else []))
 
 
 @dataclass(frozen=True)
@@ -68,7 +105,6 @@ class Monitor:
     endpoint: str
     state: Path
     interval_seconds: int = 900
-    limit: int = 10
     source_ids: tuple[str, ...] = ()
     source_url: str = HN_FEED
     source_name: str = "Hacker News"
@@ -78,8 +114,6 @@ class Monitor:
         if (not self.id or not self.publication or not self.corpus_id or endpoint.scheme != "https"
                 or not endpoint.hostname or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
             raise ValueError("Monitor requires an explicit publication, corpus and HTTPS endpoint binding")
-        if type(self.limit) is not int or not 1 <= self.limit <= 100:
-            raise ValueError("Monitor limit must be between 1 and 100")
         if type(self.interval_seconds) is not int or self.interval_seconds < 60:
             raise ValueError("Monitor interval must be at least 60 seconds")
 
@@ -130,8 +164,10 @@ def fetch_hn_feed(url: str = HN_FEED) -> bytes:
     return body
 
 
-def ttab_search_body(now: float, lookback_days: int, limit: int, *, precedential_only: bool = False) -> bytes:
-    """The Reading Room search for decisions issued in the last `lookback_days`, newest first.
+def ttab_search_body(now: float, lookback_days: int, page_size: int, *, precedential_only: bool = False,
+                     offset: int = 0) -> bytes:
+    """One page of the Reading Room search for decisions issued in the last `lookback_days`, newest first:
+    `page_size` results from result number `offset` (the API's page size, not a total; the collector pages on).
 
     The date filter key is `decisionDate`, but sorting must use `issueDate`: sorting by
     `decisionDate` silently returns nothing. `precedential_only` asks for decisions the Board
@@ -141,15 +177,20 @@ def ttab_search_body(now: float, lookback_days: int, limit: int, *, precedential
     start = datetime.fromtimestamp(now - lookback_days * 86400, timezone.utc).date()
     return json.dumps({"dateRangeData": {"decisionDate": {"from": start.isoformat(), "to": end.isoformat()}},
                        "facetData": {}, "parameterData": {"precedentCitableIndicator": "Y"} if precedential_only else {},
-                       "recordTotalQuantity": limit, "searchText": "",
-                       "sortDataBag": [{"issueDate": "desc"}], "recordStartNumber": 0}).encode()
+                       "recordTotalQuantity": page_size, "searchText": "",
+                       "sortDataBag": [{"issueDate": "desc"}], "recordStartNumber": offset}).encode()
 
 
 def fetch_ttab_decisions(url: str, body: bytes) -> bytes:
     request = Request(url, data=body, method="POST",
                       headers={"User-Agent": USER_AGENT, "Content-Type": "application/json", "Accept": "application/json"})
-    with urlopen(request, timeout=25) as response:
-        payload = response.read(MAX_FEED_BYTES + 1)
+    try:
+        with urlopen(request, timeout=25) as response:
+            payload = response.read(MAX_FEED_BYTES + 1)
+    except HTTPError as error:
+        if error.code == 429:
+            raise RateLimited("TTAB Reading Room rate limit reached", retry_after_seconds(error.headers.get("Retry-After"))) from error
+        raise
     if len(payload) > MAX_FEED_BYTES:
         raise ValueError("TTAB decision search exceeds the response size bound")
     return payload
@@ -158,6 +199,12 @@ def fetch_ttab_decisions(url: str, body: bytes) -> bytes:
 def parse_ttab_decisions(body: bytes, *, final_decisions_only: bool = True) -> list[SourceItem]:
     """One item per decision document. A redesignation as precedential changes the title,
     so the decision is collected again as a new revision."""
+    return parse_ttab_page(body, final_decisions_only=final_decisions_only)[0]
+
+
+def parse_ttab_page(body: bytes, *, final_decisions_only: bool = True) -> tuple[list[SourceItem], int]:
+    """`parse_ttab_decisions` plus how many results the page held before the final-decision filter, which is
+    how far the next page starts (and an empty page is the end of the search)."""
     if len(body) > MAX_FEED_BYTES:
         raise ValueError("TTAB decision search response is oversized")
     try:
@@ -187,7 +234,7 @@ def parse_ttab_decisions(body: bytes, *, final_decisions_only: bool = True) -> l
         items.append(SourceItem(source_id, title, f"{TTAB_DOCUMENT_ROOT}{document}",
                                 f"https://ttabvue.uspto.gov/ttabvue/v?pno={proceeding}&pty={kind}", published,
                                 "application/pdf", ttab_document_aliases(document)))
-    return items
+    return items, len(payload["results"])
 
 
 def ttab_document_aliases(document: str) -> tuple[str, ...]:
@@ -202,19 +249,15 @@ def ttab_document_aliases(document: str) -> tuple[str, ...]:
     return tuple(aliases)
 
 
-def merge_source_items(*groups: list[SourceItem]) -> list[SourceItem]:
-    """One item per source id across several result lists; a later list wins (its data is newer or more specific)."""
-    merged: dict[str, SourceItem] = {}
-    for group in groups:
-        for item in group:
-            merged[item.source_id] = item
-    return list(merged.values())
-
-
 #: Source types a monitor can read: the hosts its sourceUrl may name, its display name and how to read it.
 SOURCE_TYPES = {
     "hn-rss": {"host": "news.ycombinator.com", "name": "Hacker News", "media": "rss"},
     "ttab-decisions": {"host": "ttab-reading-room.uspto.gov", "name": "TTAB Reading Room", "media": "json-search"},
+    "huggingface-models": {"host": "huggingface.co", "name": "Hugging Face Hub", "media": "json-list"},
+    "web-search": {"host": "api.tavily.com", "name": "Web search", "media": "json-search"},
+    "huggingface-papers": {"host": "huggingface.co", "name": "Hugging Face Papers", "media": "json-list"},
+    # Any RSS or Atom feed on a host in monitoring_feed.FEED_HOSTS (the address is the monitor's sourceUrl), so no one host here.
+    "feed": {"host": None, "name": "Feed", "media": "rss"},
 }
 
 
@@ -265,7 +308,7 @@ def collect(monitor: Monitor, intake: Callable[[SourceItem, dict], dict], *,
                         result["errors"].append({"stage": "selection", "sourceId": source_id,
                                                  "message": "Selected HN item is no longer in the current feed"})
                 items = [item for item in items if item.source_id in monitor.source_ids]
-            for item in items[:monitor.limit]:
+            for item in items:
                 old = db.execute("SELECT fingerprint, revision FROM current WHERE source_id=?", (item.source_id,)).fetchone()
                 if old and old[0] == item.fingerprint:
                     result["unchanged"] += 1

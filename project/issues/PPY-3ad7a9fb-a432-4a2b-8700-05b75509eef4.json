@@ -1,0 +1,20 @@
+{
+  "id": "PPY-3ad7a9fb-a432-4a2b-8700-05b75509eef4",
+  "title": "Multi-search MVP: research.multi mode (plan, fan out, merge, synthesise) and research-multi CLI",
+  "description": "Phase 3 MVP of epic PPY-af6525 (Ryan, 2026-11-01: \"a multi search would be a special thing that you would reserve for certain things and not something you would do all the time. I think we will rely on Google as our normal search.\").\n\nresearch.multi is an opt-in assignment type an editor picks per assignment, beside research.tavily-deep; never the default, never automatic. `papyrus assignments research-multi <assignment> [--dry-run]`: one model call plans queries from the brief; every query runs on every configured provider of web_search.py in a thread pool; sources are merged by canonical URL with per-source providers, queries, best rank and snippets; one model call synthesises claims (cited by index), disagreements and open questions; the packet is written through apply_research_packet and intake_research_packet_proposals with per-provider contribution (queries run, hits, unique sources, failures, elapsed ms). A provider failing is recorded and never fatal while another answers; if none answers the assignment records an error and no packet. No page fetching.\n\nAlso in this PR: the default web-search chain becomes gemini,openai (was tavily).\n\nSpecs: features_backend/assignment-multi-search.feature; procedures/newsroom/tests/test_multi_search_research.py. Docs: docs/automated-publication-research-workflow.md, docs/sources-and-monitoring.md.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-af6525c3-1f00-40ad-8647-a57ec32915bd",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-01T13:21:18.647139Z",
+  "updated_at": "2026-11-01T13:21:18.647139Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

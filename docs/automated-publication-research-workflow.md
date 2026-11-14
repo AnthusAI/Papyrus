@@ -23,8 +23,8 @@ should work for another publication.
 
 Use these objects as distinct editorial concepts:
 
-- `NewsroomSection`: the operational desk lens. It supplies mission, policy,
-  assignment guidance, kill criteria, visual guidance, and recent desk memory.
+- `NewsroomSection`: the operational section lens. It supplies mission, policy,
+  assignment guidance, kill criteria, visual guidance, and recent section memory.
 - `Category`: the accepted taxonomy scope. It says what body of knowledge the
   work belongs to.
 - `SemanticNode`: the richer coverage concept, entity, or question. It lets
@@ -137,16 +137,16 @@ Coverage Theme planning posts **three sequential messages** on the canonical
 
 | Phase | Summary prefix | Content |
 | --- | --- | --- |
-| 1 | `Edition theme (phase 1):` | Proposed edition theme and coverage concept; pointers to phases 2–3. Floating/rotating desks are **not** the edition theme. |
-| 2 | `Optional desk (phase 2):` | One proposed optional desk after `rotating_section_selector.tac` (informed by the accepted theme). |
-| 3 | `Reporting dispatch (phase 3):` | Reporting assignment candidates per confirmed desk, with default `ceil(slots * 1.5)` overassignment. |
+| 1 | `Edition theme (phase 1):` | Proposed edition theme and coverage concept; pointers to phases 2–3. Floating/rotating sections are **not** the edition theme. |
+| 2 | `Optional desk (phase 2):` | One proposed optional section after `rotating_section_selector.tac` (informed by the accepted theme). |
+| 3 | `Reporting dispatch (phase 3):` | Reporting assignment candidates per confirmed section, with default `ceil(slots * 1.5)` overassignment. |
 
-Phase 3 is deferred until phase 2 completes when optional desks are still
-provisional (floating or rotating `NewsroomSection` desks). Recent optional-desk
+Phase 3 is deferred until phase 2 completes when optional sections are still
+provisional (floating or rotating sections). Recent optional-section
 history in phase 2 uses **confirmed** prior selections only (`selectedOptionalDeskKey`
 on past editions)—not provisional `sectionBudgets` rows.
 
-Planning no longer posts default `section_forum` kickoffs; desk-specific steering
+Planning no longer posts default `section_forum` kickoffs; section-specific steering
 for dispatch lives in message 3 and in assignment briefs. Legacy `section_forum`
 threads may still exist and remain readable in assignment context.
 
@@ -200,6 +200,69 @@ Both packet types are private `Message` rows with
 human-readable body lives in a `ModelAttachment` with role `message_body`; the
 structured packet lives in a `ModelAttachment` with role `metadata`.
 
+## Multi-search research (`research.multi`)
+
+Most assignments are researched with the site's normal search (cheapest first: the default chain is `tavily,perplexity,openai`). Multi-search is
+a special mode an editor reserves for an assignment that deserves a wider net. It is **opt-in per assignment and never the
+default**: nothing creates a `research.multi` assignment or runs it automatically, and an assignment created without `--type` is
+still `research.candidate`.
+
+**Picking the mode.** The mode is the assignment type, chosen when the assignment is created, beside `research.tavily-deep`:
+
+```bash
+papyrus research create --type research.multi --title "Assess Fastino GLiDE's claims on reasoning benchmarks" --section ai
+papyrus assignments research-multi <assignment-id> [--dry-run]
+```
+
+`research-multi` writes by default; `--dry-run` runs the searches and the two model calls, prints the plan and the per-provider
+contribution, and writes nothing. Also accepted: `--corpus-key`, `--config`, `--model`, `--intake-proposals false`, `--json`.
+The newsroom lists no assignment types today, so the CLI (and `Assignment.create` with `type`) is where an editor picks the mode.
+
+Every claim is fact checked after synthesis: only verified claims stay in `claims`, the rest are held in `unverifiedClaims` with reasons, and the summary is written again from the verified claims. See [fact-checking.md](fact-checking.md). `papyrus assignments fact-check --message <id>` replays the check on a stored packet and writes nothing.
+
+**What it does** (`src/papyrus_content/multi_search_research.py`):
+
+1. *Plan.* One model call (`DEFAULT_LLM_MODEL`, the OpenAI Responses API) turns the brief (title, summary, notes, instructions and
+   the assignment's section, angle and topic scope) into search queries, each with a short purpose such as "independent
+   benchmarks". The number of queries comes from the brief; there is no fixed count.
+2. *Fan out.* Every query runs on every configured provider of `papyrus_content.web_search` (a key, or AWS credentials and
+   `BEDROCK_SEARCH_MODEL` for Bedrock), one thread per provider. A failure is recorded with its kind (`plan_exhausted`, `auth`,
+   `rate_limited`, ...) and never stops the others; a provider whose key is refused or plan is spent is not asked again. A provider
+   with no key is listed as unavailable, not as a failure.
+3. *Merge.* URLs are canonicalised (tracking parameters, session junk, fragment, `www.`, trailing slash) and de-duplicated. Each source keeps the
+   providers that found it, the queries, its best rank, its title and its snippets. A source only one provider found is kept. See
+   "What a run files as a Reference" below for the address and title rules.
+4. *Read.* Every source is opened and its text read, as much as fits. See "What a run reads" below.
+5. *Synthesise.* One model call over the merged sources, cited by index, writes the claims with their supporting sources, where the
+   sources disagree, and the open questions. Claims or positions citing a source that does not exist are dropped and counted.
+
+**The packet.** It is written through the same path as `research.tavily-deep` (`apply_research_packet`, then
+`intake_research_packet_proposals`), so the newsroom shows an ordinary research packet whose body also lists the claims,
+disagreements and open questions. `proposedReferences` come from the merged set and each names its providers. The packet metadata
+adds `claims`, `disagreements` and `multiSearch`: the queries, `sourceProviders` (providers and best rank per source), and
+`providers`, the per-provider contribution:
+
+| field | meaning |
+| --- | --- |
+| `queriesRun`, `hits` | queries the provider answered, and hits it returned |
+| `sources`, `uniqueSources` | merged sources it found, and those no other provider found |
+| `failures` | `{query, kind, status, message}` for each failed query |
+| `elapsedMs` | time spent in that provider's calls |
+
+**Failure.** If no provider answers (or none is configured, or the planning or synthesis call fails) no packet is written. A
+`multi_search_error` Message and a `research.multi.failed` AssignmentEvent record the reason, as `research.tavily-deep` does.
+
+**What a run reads, and what it cannot.** Page text comes from `read_sources`, between merging and synthesis. It opens every source at once (an arXiv abstract page is read as its paper; a thin page as the PDF it wraps), and only public http(s) addresses. The model's input is the limit (`SYNTHESIS_INPUT_CHARACTERS`, measured: `gpt-6-luna` took 600,000 tokens and refused 1,000,000): the room left after the brief and the snippets is shared fairly, so a short page keeps all its text and what it leaves goes to the longer ones. A long source is cut at its share, keeping the start, and PDFs are parsed one at a time, best supported first, only as far as their share. Reading stops at 90 seconds (`READ_DEADLINE_SECONDS`). Measured on 133 real sources on 2026-11-04: 124 gave text, in 6 seconds. It cannot read a page behind a login or paywall, a page that refuses the request, or one that builds its text in the browser. A consent wall that returns text counts as read, and the fact check then finds it silent.
+
+Each source records `read` (`whole`, `part` or `none`). `multiSearch.reading` holds `sources`, `read`, `inPart`, `notOpened` and `outOfRoom` (it opened, but no time or room was left to read it, which is not the same as being refused); `multiSearch.sourceProviders` holds the text each source was given, so a replay checks what the run saw. A claim whose cited sources were not read has `snippetOnly: true`: it can still be verified, but only against a search engine's excerpt, and the body, the newsroom and the reporter's context pack say so. The Assign research box and `papyrus stories assign-research` state what a run does before the editor relies on it.
+
+**What a run files as a Reference** (PPY-0a5d52). The packet's `proposed_references` become pending References, so what goes in them is cleaned first:
+
+- *Address.* The one normaliser (`link_exploration.canonical_url`, with `monitoring.canonical_url` that the identity gate uses) drops tracking parameters and, now, session junk: `jsessionid`, `phpsessid`, `sessionid`, `cfid`, `cftoken` as a parameter or a `;jsessionid=` path part, and the `error=cookies_not_supported&code=<id>` pair a publisher adds when it could not set a cookie (the pair goes only when the `error` value mentions cookies, so an ordinary `error` or `code` parameter stays). The same page with and without the junk is now one source and one identity key.
+- *The arXiv record, not a mirror.* An arXiv paper found at ar5iv, alphaxiv, export.arxiv.org or its PDF address is filed as `https://arxiv.org/abs/<id>` (no version), so all of them merge. The run still reads the paper's PDF. No other address is rewritten, and DOI resolution is not attempted (follow-up: a personal copy of a paper is still filed as the copy).
+- *Title.* A search result's title loses an arXiv id in brackets at the start (`[2204.06974] `), a trailing `...`, and a trailing segment after `|` or a dash that names the site the page is on (`- CS@Cornell` on cs.cornell.edu, `- Wikipedia`) or is a `Proceedings of ...` line. A segment is only taken off while another remains. Once the run has opened a source, the title the source gives itself replaces the search result's: a scholarly `citation_title` or `og:title` meta tag, else the `<title>`, else the PDF's metadata title. The title of a blocked page ("Just a moment...", an error page, a sign-in page), a file name and "Microsoft Word - ..." are not used. A title the search engine cut mid-word stays cut when the source was not opened.
+- *The note.* `ingestion_rationale` ("Found by perplexity (undecidability proof): ...") says how the run found the source. It is stored in `curationStatusReason` and also in the Reference's `metadata.ingestion_rationale`. The context pack labels it "How it was found" and never "Accepted because" (see [newsroom-context-packs.md](newsroom-context-packs.md), "The note on a Reference").
+
 ## Context Order
 
 Agents should assemble context in this order:
@@ -225,7 +288,7 @@ When a researcher or reporter finds a new web source, the packet should store it
 as `sourceSnapshots` and/or `proposedReferences` with an ingestion rationale.
 Reference intake then registers the prospect as pending. Curation later accepts
 or rejects it. Only accepted references can become `uses_evidence` links,
-knowledge-query evidence, desk memory, or copywriting support.
+knowledge-query evidence, section memory, or copywriting support.
 
 ## Story-Cycle Run
 

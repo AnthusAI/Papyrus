@@ -1,0 +1,186 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="HandheldFriendly" content="True" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="" />
+
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,700;1,400&family=Source+Sans+Pro:ital,wght@0,300;0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" type="text/css" href="https://blog.kjamistan.com/theme/stylesheet/style.min.css">
+
+
+    <link id="pygments-light-theme" rel="stylesheet" type="text/css"
+          href="https://blog.kjamistan.com/theme/pygments/github.min.css">
+
+
+
+  <link rel="stylesheet" type="text/css" href="https://blog.kjamistan.com/theme/font-awesome/css/fontawesome.css">
+  <link rel="stylesheet" type="text/css" href="https://blog.kjamistan.com/theme/font-awesome/css/brands.css">
+  <link rel="stylesheet" type="text/css" href="https://blog.kjamistan.com/theme/font-awesome/css/solid.css">
+
+
+
+
+  <link href="https://blog.kjamistan.com/feeds/atom.xml" type="application/atom+xml" rel="alternate" title="kjam's blog Atom">
+
+  <link href="https://blog.kjamistan.com/feeds/rss.xml" type="application/rss+xml" rel="alternate" title="kjam's blog RSS">
+
+
+ 
+
+<meta name="author" content="katharine" />
+<meta name="description" content="Want to learn more about how, when and why machine learning, particularly deep learning systems memorize data? By studying memorization, you&#39;ll learn more about how machine learning systems really function, along with how privacy works from a technical point-of-view. You&#39;ll also be better able to decide how, when and where …" />
+<meta name="keywords" content="">
+
+
+  <meta property="og:site_name" content="kjam's blog"/>
+  <meta property="og:title" content="A Deep Dive into Memorization in Deep Learning"/>
+  <meta property="og:description" content="Want to learn more about how, when and why machine learning, particularly deep learning systems memorize data? By studying memorization, you&#39;ll learn more about how machine learning systems really function, along with how privacy works from a technical point-of-view. You&#39;ll also be better able to decide how, when and where …"/>
+  <meta property="og:locale" content="en_US"/>
+  <meta property="og:url" content="https://blog.kjamistan.com/a-deep-dive-into-memorization-in-deep-learning.html"/>
+  <meta property="og:type" content="article"/>
+  <meta property="article:published_time" content="2024-11-03 00:00:00+01:00"/>
+  <meta property="article:modified_time" content=""/>
+  <meta property="article:author" content="https://blog.kjamistan.com/author/katharine.html">
+  <meta property="article:section" content="ml-memorization"/>
+  <meta property="og:image" content="">
+
+  <title>kjam's blog &ndash; A Deep Dive into Memorization in Deep Learning</title>
+
+
+</head>
+<body class="light-theme">
+
+<aside>
+  <div>
+    <a href="https://blog.kjamistan.com/">
+      <img src="https://blog.kjamistan.com/theme/img/profile.png" alt="" title="">
+    </a>
+
+    <h1>
+      <a href="https://blog.kjamistan.com/"></a>
+    </h1>
+
+
+
+    <nav>
+      <ul class="list">
+
+
+
+          <li>
+            <a target="_self" href="https://blog.kjamistan.com" >kjam is blogging things</a>
+          </li>
+          <li>
+            <a target="_self" href="https://probablyprivate.com/" >Probably Private</a>
+          </li>
+          <li>
+            <a target="_self" href="https://kjamistan.com/" >kjamistan</a>
+          </li>
+          <li>
+            <a target="_self" href="https://practicaldataprivacybook.com" >Practical Data Privacy</a>
+          </li>
+          <li>
+            <a target="_self" href="https://blog.kjamistan.com/feeds/rss.xml" >RSS feed</a>
+          </li>
+          <li>
+            <a target="_self" href="https://blog.kjamistan.com/feeds/atom.xml" >Atom feed</a>
+          </li>
+      </ul>
+    </nav>
+
+    <ul class="social">
+      <li>
+        <a class="sc-Twitter"
+           href="https://twitter.com/kjam"
+           target="_blank">
+          <i class="fa-brands fa-Twitter"></i>
+        </a>
+      </li>
+      <li>
+        <a class="sc-LinkedIn"
+           href="https://linkedin.com/in/katharine.jarmul/"
+           target="_blank">
+          <i class="fa-brands fa-LinkedIn"></i>
+        </a>
+      </li>
+    </ul>
+  </div>
+
+</aside>
+  <main>
+
+
+<article class="single">
+  <header>
+      
+    <h1 id="a-deep-dive-into-memorization-in-deep-learning">A Deep Dive into Memorization in Deep Learning</h1>
+    <p>
+      Posted on So 03 November 2024 in <a href="https://blog.kjamistan.com/category/ml-memorization.html">ml-memorization</a>
+
+    </p>
+  </header>
+
+
+  <div>
+    <p>Want to learn more about how, when and why machine learning, particularly deep learning systems memorize data? By studying memorization, you'll learn more about how machine learning systems really function, along with how privacy works from a technical point-of-view. You'll also be better able to decide how, when and where to use AI systems based on your new learnings.</p>
+<p>This series aims to introduce the topics to a general audience, but there are plenty of links to dive deeper in each article. This page will be updated as the series is published.</p>
+<p>The recommended reading order is as follows, but feel free to hop around!</p>
+<ul>
+<li><a href="https://blog.kjamistan.com/deep-learning-memorization-and-why-you-should-care.html">Introduction: Why study memorization in machine learning?</a></li>
+<li><a href="https://blog.kjamistan.com/machine-learning-dataset-distributions-history-and-biases.html">Start with the Data: Machine Learning dataset distributions, history, and biases</a></li>
+<li><a href="https://blog.kjamistan.com/encodings-and-embeddings-how-does-data-get-into-machine-learning-systems.html">Encodings and embeddings: How does data get into machine learning systems?</a></li>
+<li><a href="https://blog.kjamistan.com/gaming-evaluation-the-evolution-of-deep-learning-training-and-evaluation.html">Gaming Evaluation: The evolution of deep learning training and evaluation</a></li>
+<li><a href="https://blog.kjamistan.com/how-memorization-happens-repetition.html">How Memorization Happens: Repetition</a></li>
+<li><a href="https://blog.kjamistan.com/how-memorization-happens-novelty.html">How Memorization Happens: Novelty</a></li>
+<li><a href="https://blog.kjamistan.com/how-memorization-happens-overparametrized-models.html">How Memorization Happens: Overparametrized models</a></li>
+<li><a href="https://blog.kjamistan.com/differential-privacy-as-a-counterexample-to-aiml-memorization.html">Differential Privacy as a Counterexample to AI/ML Memorization</a></li>
+<li><a href="https://blog.kjamistan.com/adversarial-examples-demonstrate-memorization-properties.html">Adversarial Examples Demonstrate Memorization Properties</a></li>
+<li><a href="https://blog.kjamistan.com/defining-privacy-attacks-in-ai-and-ml.html">Privacy Attacks on AI/ML Models</a></li>
+<li><a href="https://blog.kjamistan.com/blocking-aiml-memorization-with-software-guardrails.html">Blocking AI memorization with Software Guardrails</a></li>
+<li><a href="https://blog.kjamistan.com/algorithmic-based-guardrails-external-guardrail-models-and-alignment-methods.html">Can we use Algorithmic Guardrails to block memorization?</a></li>
+<li><a href="https://blog.kjamistan.com/machine-unlearning-what-is-it.html">Machine Unlearning: What is it?</a></li>
+<li><a href="https://blog.kjamistan.com/machine-unlearning-how-todays-unlearning-is-done.html">Machine Unlearning: How it's done</a></li>
+<li><a href="https://blog.kjamistan.com/attacks-on-machine-unlearning-how-unlearned-models-leak-information.html">Attacks on Machine Unlearning: How Unlearned Models Leak Information</a></li>
+<li><a href="https://blog.kjamistan.com/differential-privacy-in-deep-learning.html">Differential Privacy in Deep Learning</a></li>
+<li><a href="https://blog.kjamistan.com/differential-privacy-in-todays-ai-whats-so-hard.html">Differential Privacy in Today's AI: What's so hard?</a></li>
+<li><a href="https://blog.kjamistan.com/differential-privacy-parameters-accounting-and-auditing-in-deep-learning-and-ai.html">Differential Privacy Parameters, Accouting, Auditing and Testing</a></li>
+</ul>
+<p>If you are a more visual or video learner, I've made a <a href="https://www.youtube.com/watch?v=JDAPDpbXRXw&amp;list=PLJkNSeYcYBlCaamscxip0l2LGYCZ2TIom&amp;ab_channel=ProbablyPrivate">YouTube playlist to accompany the series</a>.</p>
+<p>I'm very open to feedback (positive, neutral or critical), questions (there are no stupid questions!) and creative re-use of this content. If you have any of those, please share it with me! This helps keep me inspired and writing. :)</p>
+<p><em>Acknowledgements</em>: I would like to thank <a href="https://vickiboykis.com/">Vicki Boykis</a>, <a href="https://desfontain.es/serious.html">Damien Desfontaines</a> and <a href="https://www.linkedin.com/in/yanndupis/">Yann Dupis</a> for their feedback, corrections and thoughts on this series. Their input greatly contributed to improvements in my thinking and writing. Any mistakes, typos, inaccuracies or controversial opinions are my own.</p>
+  </div>
+  <div class="tag-cloud">
+    <p>
+    </p>
+  </div>
+
+
+
+
+
+
+</article>
+
+<footer>
+<p>&copy;  </p>
+<p>
+Built with <a href="http://getpelican.com" target="_blank">Pelican</a> using <a href="http://bit.ly/flex-pelican" target="_blank">Flex</a> theme
+</p></footer>  </main>
+
+<script type="application/ld+json">
+{
+  "@context" : "http://schema.org",
+  "@type" : "Blog",
+  "name": " kjam's blog ",
+  "url" : "https://blog.kjamistan.com",
+  "image": "",
+  "description": ""
+}
+</script>
+</body>
+</html>

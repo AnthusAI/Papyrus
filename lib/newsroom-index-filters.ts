@@ -167,3 +167,21 @@ export function parseAssignmentIdFromNewsroomPathname(pathname: string | null | 
     return segment;
   }
 }
+
+/** The Notification Center's deep link to one item: `/newsroom/needs-me/<id>` (public `/needs-me/<id>` on a root-path newsroom). */
+export function buildNeedsMeItemPath(itemId: string): string {
+  return toPublicNewsroomPath(`/newsroom/needs-me/${encodeURIComponent(itemId)}`);
+}
+
+/** Item id from `/newsroom/needs-me/<id>`, else null. */
+export function parseNeedsMeItemIdFromNewsroomPathname(pathname: string | null | undefined): string | null {
+  const internalPathname = pathname ? browserPathToInternalNewsroomPath(pathname) : null;
+  if (!internalPathname?.startsWith("/newsroom/needs-me/")) return null;
+  const segment = internalPathname.slice("/newsroom/needs-me/".length).split("/")[0]?.trim() ?? "";
+  if (!segment) return null;
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}

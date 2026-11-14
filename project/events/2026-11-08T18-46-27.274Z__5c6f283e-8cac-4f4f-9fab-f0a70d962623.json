@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "5c6f283e-8cac-4f4f-9fab-f0a70d962623",
+  "issue_id": "PPY-dad077d6-3bf9-470d-8535-37cb0bcbf88e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:27.274Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M7 Provisioning, onboarding, lifecycle, export and deletion; reader features for tenants",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

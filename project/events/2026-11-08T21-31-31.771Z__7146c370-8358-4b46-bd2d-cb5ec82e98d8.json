@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7146c370-8358-4b46-bd2d-cb5ec82e98d8",
+  "issue_id": "PPY-f1e4c4f0-1fb3-4a41-a7ec-1d9884ee37f5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:31:31.771Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Every story picture is hosted by us: localise an external picture into our own storage (CLI, MCP, newsroom)",
+    "description": "Ryan 2026-11-08: we definitely need to host our own headline images. Found on Machines on Machines: three published pages use a front matter cover picture hosted by someone else (two Wikimedia Commons addresses on 'Before chatbots answered us' and the Norbert Wiener article, one Guardian CDN address on the Muse article); link preview scrapers and readers depend on a third party, the host can refuse or change the file, and a publication with an internal-links-only policy should not point at outside hosts. Add one operation, defined once behind the CLI, the MCP tool, the skill and the newsroom UI (the image operation table): localise a story picture: given a story and either its cover (front matter image) or a body picture, fetch the external address (with a size cap, content-type and decode check, PNG/JPEG/GIF/WebP/AVIF/SVG only, 10 MB cap as the existing upload rules, no private network addresses: SSRF-safe fetch), store it as a MediaAsset in our media bucket under the story's media path with the same one-key rule as an editor upload, create a new Story version that rewrites the front matter image (and body src) to the stored path, KEEPS the existing credit and adds the source address as a recorded provenance field (not shown as a hyperlink), and records who did it. A picture with no credit stays blocked from publishing (third-party image credits rule). Idempotent (same source gives the same stored file). --dry-run prints what it would fetch and store. Also a bulk form: localise every external picture of every published story of a site, as a dry run first, then writing new versions. Gherkin: fetch and store, credit kept, rewritten paths, repeat is a no-op, refusal of private addresses and oversize/wrong-type files, dry run writes nothing, MCP matches CLI. Licence: record the licence/credit text the editor supplies; the tool does not decide copyright.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": []
+  }
+}

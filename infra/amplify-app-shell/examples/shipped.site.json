@@ -5,6 +5,10 @@
   "brand": "shipped",
   "frontend": "markus-static",
   "papyrusVersion": "5.26.0",
+  "chat": {
+    "enabled": true,
+    "modelKeyParameter": "/papyrus/shipped/openai-api-key"
+  },
   "aws": {
     "profile": "papyrus-production",
     "accountId": "712236451410",
@@ -36,7 +40,8 @@
     "repoId": 1428297675
   },
   "knowledgeRun": {
-    "schedule": "cron(0 5 ? * MON *)",
+    "settingsDirectory": "knowledge-run-settings/shipped",
+    "schedule": "cron(0 5 * * ? *)",
     "vCpu": 4,
     "memoryMiB": 16384,
     "ephemeralStorageGiB": 40,
@@ -56,6 +61,17 @@
       "concept",
       "model_family"
     ],
-    "lockWaitSeconds": 1800
+    "lockWaitSeconds": 1800,
+    "monitorSources": ["huggingface", "routed"],
+    "monitorSuggestions": 5,
+    "monitorStories": {
+      "limit": 3
+    }
+  },
+  "email": {
+    "mode": "existing",
+    "sendingDomain": "mail.example.test",
+    "configurationSet": "existing-site-email",
+    "eventTopicName": "existing-site-email-events"
   }
 }

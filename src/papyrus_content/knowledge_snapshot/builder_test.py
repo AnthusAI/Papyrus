@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from papyrus_content.reader_steering.snapshot import encoded
 
 from .actors import Actor
-from .builder import CLUSTERS_FILE, INDEX_FILE, build_files, entity_file
+from .builder import CLUSTERS_FILE, CLUSTERS_HISTORY_FILE, INDEX_FILE, build_files, entity_file
 from .model import (
     Beat,
     Cluster,
@@ -90,6 +90,16 @@ def test_percent_needs_a_base_of_five():
     assert percent_change(1, 8) == -88
 
 
+def test_the_index_carries_every_entitys_full_weekly_history_from_its_first_week():
+    data, *_ = two_tasks()
+    files = build_files(data, OPTIONS)
+    row = next(entity for entity in files[INDEX_FILE]["entities"] if entity["key"] == "task--voice-cloning")
+    assert row["seriesWeekly"] == [1, 1, 2, 2, 3, 3, 3, 3] and len(row["seriesWeekly"]) == row["weeksOfHistory"] == 8
+    assert row["seriesWeekly"][-8:] == row["series8"] and sum(row["seriesWeekly"]) == row["itemCount"]
+    assert row["seriesWeeklyStart"] < files[INDEX_FILE]["asOf"]
+    assert row["dateBasis"] == "publication"
+
+
 def test_weekly_series_and_change_for_an_entity():
     data, voice, _completion, _maker = two_tasks()
     files = build_files(data, OPTIONS)
@@ -111,7 +121,6 @@ def test_an_entity_first_linked_two_weeks_ago_is_new_and_not_trending():
     row = next(row for row in files[INDEX_FILE]["entities"] if row["key"] == "task--code-completion")
     assert row["isNew"] is True and row["weeksOfHistory"] == 3
     assert "task--code-completion" not in files[INDEX_FILE]["trending"]
-    assert "task--voice-cloning" in files[INDEX_FILE]["trending"]
 
 
 def test_only_confirmed_links_to_published_dated_items_count():
@@ -149,13 +158,11 @@ def test_unaccepted_entities_and_entities_without_links_are_left_out():
     assert [key for key in files if key.startswith("_data/knowledge/entities/")] == []
 
 
-def test_trending_order_percent_then_null_percent_by_growth_then_key():
-    entities = []
-    links = []
-    items = []
-
-    def add(name: str, last: int, prior: int):
-        target = node("task", name)
+def _corpus(shapes: dict[str, tuple[str, int, int]]):
+    """Entities by name: ``name -> (kind, mentions in the last four weeks, mentions in the four weeks before)``."""
+    entities, links, items = [], [], []
+    for name, (kind, last, prior) in shapes.items():
+        target = node(kind, name)
         entities.append(target)
         for index in range(last):
             items.append(item(f"{name}-l{index}", offset=index % 4))
@@ -163,41 +170,41 @@ def test_trending_order_percent_then_null_percent_by_growth_then_key():
         for index in range(prior):
             items.append(item(f"{name}-p{index}", offset=4 + index % 4))
             links.append(link(f"{name}-p{index}", target))
-
-    add("alpha", 12, 6)
-    add("bravo", 7, 5)
-    add("charlie", 9, 3)
-    add("delta", 5, 1)
-    add("echo", 8, 6)
-    data = KnowledgeData(items=tuple(items), nodes=tuple(entities), links=tuple(links))
-    files = build_files(data, OPTIONS)
-    order = files[INDEX_FILE]["trending"]
-    percents = {row["key"]: row["change"]["percent"] for row in files[INDEX_FILE]["entities"]}
-    assert percents == {"task--alpha": 100, "task--bravo": 40, "task--charlie": None, "task--delta": None, "task--echo": 33}
-    assert order == ["task--alpha", "task--bravo", "task--echo", "task--charlie", "task--delta"]
+    return KnowledgeData(items=tuple(items), nodes=tuple(entities), links=tuple(links))
 
 
-def test_percent_is_null_under_eight_weeks_of_history_and_trending_follows_it():
-    entities, links, items = [], [], []
+def test_trending_is_surprise_over_the_entitys_own_baseline_and_the_corpus_growth_not_a_raw_count():
+    # The shape of 2026-10-26: a licence and a task carry the biggest counts and rise with the whole corpus; makers with few mentions are the news.
+    data = _corpus(
+        {
+            "mit": ("licence", 60, 40),
+            "text generation": ("task", 80, 55),
+            "nvidia": ("maker", 6, 1),
+            "olmo": ("model_family", 5, 2),
+            "steady": ("maker", 9, 8),
+            "quiet": ("maker", 1, 0),
+        }
+    )
+    # nvidia gained share; olmo (+3 on a small base) is not far enough above its baseline; the licence and the task rose with the corpus.
+    assert build_files(data, OPTIONS)[INDEX_FILE]["trending"] == ["maker--nvidia"]
 
-    def add(name: str, counts: dict[int, int]):
-        target = node("task", name)
-        entities.append(target)
-        for offset, amount in counts.items():
-            for index in range(amount):
-                items.append(item(f"{name}-{offset}-{index}", offset=offset))
-                links.append(link(f"{name}-{offset}-{index}", target))
 
-    add("young", {0: 3, 1: 3, 2: 3, 3: 3, 4: 1, 5: 1})
-    add("mature", {0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2})
-    add("zshort", {0: 4, 1: 4, 2: 1, 3: 1, 4: 1, 5: 1})
-    data = KnowledgeData(items=tuple(items), nodes=tuple(entities), links=tuple(links))
-    index = build_files(data, OPTIONS)[INDEX_FILE]
-    rows = {row["key"]: row for row in index["entities"]}
-    assert rows["task--young"]["weeksOfHistory"] == 6
-    assert rows["task--young"]["change"] == {"last4": 12, "prior4": 2, "percent": None}
-    assert rows["task--mature"]["change"]["percent"] == 0
-    assert index["trending"] == ["task--mature", "task--young", "task--zshort"]
+def test_a_broad_kind_needs_a_far_larger_surprise_than_a_maker_to_trend():
+    shapes = {"anchor": ("maker", 4, 1), "same shape": ("task", 4, 1), "filler": ("maker", 30, 30)}
+    order = build_files(_corpus(shapes), OPTIONS)[INDEX_FILE]["trending"]
+    assert order == ["maker--anchor"]  # the same counts as a task: the task is demoted below the threshold, the maker is not
+
+
+def test_entities_that_only_grew_with_the_corpus_do_not_trend():
+    # Everything doubles: no entity gained share, so nobody is news.
+    data = _corpus({"a": ("maker", 20, 10), "b": ("maker", 20, 10), "c": ("model", 20, 10)})
+    assert build_files(data, OPTIONS)[INDEX_FILE]["trending"] == []
+
+
+def test_trending_ties_break_by_recent_mentions_then_key():
+    data = _corpus({"zeta": ("maker", 4, 0), "alpha": ("maker", 4, 0), "big": ("maker", 6, 1), "filler": ("model", 40, 40)})
+    order = build_files(data, OPTIONS)[INDEX_FILE]["trending"]
+    assert order.index("maker--alpha") < order.index("maker--zeta")
 
 
 def test_concept_of_the_week_is_the_reviewed_entity_with_the_most_recent_items():
@@ -412,13 +419,13 @@ def test_public_safe_output_has_no_email_or_private_text():
 INDEX_FIELDS = {"schemaVersion", "asOf", "entityCount", "topicCount", "kinds", "beats", "entities", "trending", "conceptOfTheWeek"}
 KIND_FIELDS = {"key", "label", "count"}
 BEAT_FIELDS = {"key", "name", "href", "itemCount", "series8", "topEntities"}
-INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "change", "isNew"}
+INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "series26", "dateBasis", "seriesWeekly", "seriesWeeklyStart", "change", "isNew"}
 CHANGE_FIELDS = {"last4", "prior4", "percent"}
 CONCEPT_FIELDS = {"key", "name", "href", "lede", "editedBy", "itemCount", "makerCount"}
 ACTOR_FIELDS = {"actor", "name", "on"}
 ENTITY_FIELDS = {
     "schemaVersion", "key", "kind", "name", "aliases", "acceptedBy", "description", "href", "itemCount", "weeksOfHistory",
-    "series8", "series26", "change", "neighbours", "relatedItems",
+    "series8", "series26", "dateBasis", "change", "neighbours", "relatedItems",
 }
 DESCRIPTION_FIELDS = {"state", "editedBy"}
 NEIGHBOUR_FIELDS = {"relation", "key", "name", "kind", "weight"}
@@ -460,7 +467,11 @@ def test_guest_surface_pins_the_exact_field_set_of_every_file():
     assert set(clusters) == CLUSTERS_FIELDS
     assert clusters["clusters"] and all(set(row) == CLUSTER_FIELDS for row in clusters["clusters"])
     assert all(set(row["acceptedBy"]) == ACTOR_FIELDS for row in clusters["clusters"])
-    assert set(files) == {INDEX_FILE, CLUSTERS_FILE, *(f"_data/knowledge/entities/{key}.json" for key in ("task--voice-cloning", "task--code-completion", "maker--some-lab"))}
+    history = files[CLUSTERS_HISTORY_FILE]
+    assert set(history) == {"schemaVersion", "asOf", "weeks"} and len(history["weeks"]) == 1
+    assert set(history["weeks"][0]) == {"asOf", "runId", "clusters", "events"}
+    assert all(set(row) == {"uid", "label", "itemCount"} for row in history["weeks"][0]["clusters"])
+    assert set(files) == {INDEX_FILE, CLUSTERS_FILE, CLUSTERS_HISTORY_FILE, *(f"_data/knowledge/entities/{key}.json" for key in ("task--voice-cloning", "task--code-completion", "maker--some-lab"))}
     json.dumps(files)
 
 
@@ -517,3 +528,106 @@ def test_a_member_of_relation_links_a_model_to_its_family_and_an_unrelated_model
     assert explicit("model--tern-3") == [("member_of", "model-family--tern")]
     assert explicit("model-family--tern") == [("member_of", "model--tern-3")]
     assert explicit("model--lone-1") == []
+
+
+# -- monitor records (the Hub): data that counts and has no page ---------------------------------------------------------
+def record(name: str, offset: int, **overrides) -> PublishedItem:
+    return PublishedItem(
+        key=f"lineage-ref-{name}",
+        item_id=f"reference-{name}",
+        title=overrides.pop("title", f"org/{name}"),
+        url=f"https://huggingface.co/org/{name}",
+        published_at=overrides.pop("published_at", published_in_week(offset, name)),
+        kind="monitor-record",
+        summary=f"org/{name} is a text-generation model by org, released 2026-10-12.",
+        source="huggingface",
+        **overrides,
+    )
+
+
+def record_link(name: str, target: EntityNode) -> ItemLink:
+    return ItemLink(item_key=f"lineage-ref-{name}", node_lineage_id=target.lineage_id, confirmed=True, source="monitor")
+
+
+def hub_data():
+    licence = node("licence", "Apache-2.0")
+    maker = node("maker", "Org")
+    lone = node("model", "org/lone")
+    base = node("model", "org/base")
+    tuned = node("model", "org/tuned")
+    items = [item("story", 0), record("a", 0), record("b", 1), record("lone", 1), record("base", 3), record("tuned", 0)]
+    links = [link("story", licence)]
+    links += [record_link(name, licence) for name in ("a", "b")] + [record_link(name, maker) for name in ("a", "b")]
+    links += [record_link("lone", lone), record_link("base", base), record_link("tuned", tuned)]
+    relation = NodeRelation(tuned.lineage_id, base.lineage_id, "built_on", True, subtype="finetune", evidence="https://huggingface.co/org/tuned", provenance="from the Hugging Face Hub")
+    return KnowledgeData(items=tuple(items), nodes=(licence, maker, lone, base, tuned), links=tuple(links), relations=(relation,)), licence, maker
+
+
+def test_records_count_in_an_entity_next_to_site_items_and_are_listed_apart():
+    data, licence, _maker = hub_data()
+    files = build_files(data, SnapshotOptions(as_of=AS_OF, entity_href_template="/wiki/{slug}/"))
+    entry = next(row for row in files[INDEX_FILE]["entities"] if row["key"] == "licence--apache-2-0")
+    detail = files[entity_file("licence--apache-2-0")]
+    assert (entry["itemCount"], entry["recordCount"]) == (3, 2)
+    assert detail["recordCount"] == 2 and sum(detail["series8"]) == 3
+    assert [row["url"] for row in detail["relatedItems"]] == ["/items/story/"]  # a record is never listed as an item
+    assert [row["title"] for row in detail["relatedRecords"]] == ["org/a", "org/b"]
+    first = detail["relatedRecords"][0]
+    assert first["url"] == "https://huggingface.co/org/a" and first["provenance"] == "from the Hugging Face Hub" and first["summary"].startswith("org/a is a text-generation model")
+    assert entry["href"] == "/wiki/licence-apache-2-0/"  # a site item mentions it, so it has a page
+
+
+def test_an_entity_only_records_mention_has_no_page_link_and_needs_support_to_appear():
+    data, _licence, _maker = hub_data()
+    files = build_files(data, SnapshotOptions(as_of=AS_OF, entity_href_template="/wiki/{slug}/"))
+    by_key = {row["key"]: row for row in files[INDEX_FILE]["entities"]}
+    assert by_key["maker--org"]["href"] is None and by_key["maker--org"]["recordCount"] == 2
+    assert "model--org-lone" not in by_key  # one record and no relation: not worth an entity on the map
+    assert {"model--org-base", "model--org-tuned"} <= set(by_key)  # a built-on relation puts both ends on the map
+    assert by_key["model--org-tuned"]["href"] is None
+
+
+def test_a_built_on_relation_keeps_its_subtype_evidence_and_provenance():
+    data, _licence, _maker = hub_data()
+    files = build_files(data, SnapshotOptions(as_of=AS_OF))
+    tuned = files[entity_file("model--org-tuned")]
+    [neighbour] = [row for row in tuned["neighbours"] if row["relation"] == "built_on"]
+    assert neighbour["key"] == "model--org-base"
+    assert (neighbour["subtype"], neighbour["evidence"], neighbour["provenance"]) == ("finetune", "https://huggingface.co/org/tuned", "from the Hugging Face Hub")
+
+
+def test_records_have_weekly_history_from_their_source_date():
+    data, _licence, _maker = hub_data()
+    files = build_files(data, SnapshotOptions(as_of=AS_OF))
+    detail = files[entity_file("licence--apache-2-0")]
+    assert detail["series8"][-1] == 2 and detail["series8"][-2] == 1  # the story and record a in this week, record b in the week before
+
+
+def test_a_cluster_counts_its_records_and_says_how_many():
+    data, _licence, _maker = hub_data()
+    cluster = Cluster(
+        uid="cl-1", accepted=True, name="Open models", event="new", top_terms=("open",), weekly_series={week_label(MONDAY_WEEK): 3},
+        earliest_published_at=published_in_week(0, "a"), member_item_keys=("lineage-story", "lineage-ref-a", "lineage-ref-b"), member_count=3, run_id="r1",
+        accepted_by=AI,
+    )
+    files = build_files(dataclasses.replace(data, clusters=(cluster,)), SnapshotOptions(as_of=AS_OF))
+    [row] = files[CLUSTERS_FILE]["clusters"]
+    assert (row["itemCount"], row["recordCount"]) == (3, 2)
+
+
+def test_a_snapshot_without_records_has_none_of_the_record_fields():
+    data, _voice, _completion, _maker = two_tasks()
+    files = build_files(data, OPTIONS)
+    text = json.dumps(files)
+    assert "recordCount" not in text and "relatedRecords" not in text
+
+
+def test_a_concept_series_counts_each_item_in_its_publication_week_and_declares_that_basis():
+    voice = node("task", "Voice cloning", accepted_by=AI)
+    items = [item("early", offset=6), item("middle", offset=3), item("latest", offset=0)]
+    data = KnowledgeData(items=tuple(items), nodes=(voice,), links=tuple(link(each.key.removeprefix("lineage-"), voice) for each in items))
+    files = build_files(data, OPTIONS)
+    entity = files[entity_file("task--voice-cloning")]
+    assert entity["series8"] == [0, 1, 0, 0, 1, 0, 0, 1]
+    assert entity["dateBasis"] == "publication"
+    assert next(row for row in files[INDEX_FILE]["entities"] if row["key"] == "task--voice-cloning")["dateBasis"] == "publication"

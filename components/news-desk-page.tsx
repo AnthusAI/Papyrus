@@ -1,3 +1,4 @@
+import { withReferenceFeedFixture } from "../lib/local-preview-feed-fixture";
 import { resolveNewsDeskTab } from "../lib/newsroom-section-routing";
 import { NewsDeskWorkspace, type NewsDeskTab } from "./topic-steering-workspace";
 import {
@@ -29,6 +30,7 @@ export type NewsDeskPageProps = {
     user?: string | string[];
     item?: string | string[];
     q?: string | string[];
+    status?: string | string[];
     anchorKind?: string | string[];
     anchorId?: string | string[];
     anchorLineageId?: string | string[];
@@ -54,6 +56,7 @@ export async function NewsDeskPage({ section: routeSection, selectionPath, searc
     item: getFirstSearchParam(resolvedSearchParams, "item"),
     panel: routeSelection.panel ?? getFirstSearchParam(resolvedSearchParams, "panel"),
     searchQuery: getFirstSearchParam(resolvedSearchParams, "q"),
+    searchStatus: getFirstSearchParam(resolvedSearchParams, "status"),
     searchAnchorKind: getFirstSearchParam(resolvedSearchParams, "anchorKind"),
     searchAnchorId: getFirstSearchParam(resolvedSearchParams, "anchorId"),
     searchAnchorLineageId: getFirstSearchParam(resolvedSearchParams, "anchorLineageId"),
@@ -67,7 +70,7 @@ export async function NewsDeskPage({ section: routeSection, selectionPath, searc
   const analysisProfiles = await loadAnalysisProfileSummaries(getBrandAnalysisProfilesPath(brand));
   const configuredCorpora = await loadConfiguredCorpusSummaries(getBrandSteeringConfigPath(brand));
   const dashboard = useDemoDashboard
-    ? createDemoCategorySteeringDashboard(brand.id, getBrandNewsroomSectionsConfigPath(brand))
+    ? withReferenceFeedFixture(createDemoCategorySteeringDashboard(brand.id, getBrandNewsroomSectionsConfigPath(brand)))
     : await loadCategorySteeringDashboard();
   return <NewsDeskWorkspace analysisProfiles={analysisProfiles} configuredCorpora={configuredCorpora} dashboard={dashboard} initialSelection={initialSelection} initialTab={initialTab} />;
 }

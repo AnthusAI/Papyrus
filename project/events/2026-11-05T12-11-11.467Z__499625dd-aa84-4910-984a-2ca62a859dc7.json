@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "499625dd-aa84-4910-984a-2ca62a859dc7",
+  "issue_id": "PPY-956dff77-886f-4c7a-acfd-3c5d06988b15",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:11:11.467Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Image picker in the newsroom: four options, reload, search target",
+    "description": "The one interface editors use for stock and generated options, on a Story in the newsroom. Four options at a time. Pick one, or reload for four more. A text box for a search target, with a button to search. Editors can repeat until they find one or give up and move to the next kind of option.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
+    "labels": []
+  }
+}

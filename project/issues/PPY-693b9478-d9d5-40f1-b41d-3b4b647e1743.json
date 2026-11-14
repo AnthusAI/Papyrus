@@ -1,0 +1,28 @@
+{
+  "id": "PPY-693b9478-d9d5-40f1-b41d-3b4b647e1743",
+  "title": "Clean up Concepts: rejected nodes, duplicates across kinds, and junk entities",
+  "description": "Ryan, 2026-11-02: duplicate concept names on the Concepts tab, and they affect the quality of proposed Stories. Measured on Machines on Machines, read-only: 2,755 current SemanticNodes, 293 of them rejected. 81 names appear more than once among current nodes (169 rows). Almost all are rejected versions of one name under different kinds: 'agent work' as task and topic, 'publication' as task, topic and product. Only 5 names repeat among accepted or generated nodes outside identifiers, such as Papyrus and npm (product and software), and YuchengJiang (ORCID and name author records). Findings: (1) the Concepts page shows rejected nodes, which makes most of the visible duplicates. (2) Many names are Papyrus's own vocabulary carried over with the old site's data, such as /newsroom/references, curation passes, audit material, content CLI. (3) Junk extraction: PDF fragments (A.7 Details, Appendix, A.L.), initials, and glued author names (AbheeshtNayak); 1,348 personAuthor nodes dominate the list. To do: decide what the page lists, confirm which of these reach idea context packs and concept cards, merge true duplicates using the existing aliases, and stop extraction producing the junk. Relationships are first-class: keep editors' edge explanations through any merge. Reversible only; nothing hard deleted. Gherkin specs.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2e906437-368b-49fa-b003-1369f1f7cae7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "9f8cc436-1d7a-4061-87be-4dc091b74ff3",
+      "author": "home",
+      "text": "Ryan, 2026-11-02: author names stay in the graph, properly tagged as author. We want analysis of the most popular and most cited authors. So do not remove personAuthor nodes or treat them as junk. What this needs: correct tagging (Wang and Zhang are also tagged entity), clean names (AbheeshtNayak), and one record per person (the same author by ORCID and by name), or the counts are wrong. Whether authors appear in the default Concepts list is a display choice only.",
+      "created_at": "2026-11-02T22:14:39.585214Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-02T22:09:48.632111Z",
+  "updated_at": "2026-11-02T22:14:39.585769Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

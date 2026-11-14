@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "96347299-cbb1-45ff-8713-a23900b0c820",
+  "issue_id": "PPY-272c84d1-cc26-4982-bc8d-4e071563e85f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:24.307Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A Machines-on-Machines-shaped reference fixture in core tests (MoM stays dedicated)",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "eec3e9e6-a296-47c3-87a5-cdbc0fa31562",
+  "issue_id": "PPY-ce567faa-47b6-4506-9eb9-29c6d5912ed2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:48.226Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Spike: Google sign-in through Cognito hosted UI from Alexa app linking and Echo Show QR",
+    "description": "Before building, check with a throwaway dev skill and the pilot pool: does account linking through the Alexa app (iOS) and through the Echo Show QR on a phone browser complete Google sign-in through the Cognito hosted UI? Record the results, the certificate check on the hosted UI domain, and any user-agent issues. Decide the custom-domain need. Write the findings into this epic before the next task starts.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-ef1e52d9-dc78-4c85-9c03-5d7c70d3aff8",
+    "labels": []
+  }
+}

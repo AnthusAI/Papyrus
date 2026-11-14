@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0f7fb940-0fb8-4872-9b8c-ab6921018ed8",
+  "issue_id": "PPY-40b7a4d2-ccc9-419b-b2e5-31d1a77d0c87",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T14:42:18.929Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Expose the shared image workflow in the Papyrus CLI",
+    "description": "As an editor or agent using the CLI, I want to search, generate, inspect and apply image candidates so that I can curate an item without manually reproducing newsroom internals.\n\nFeature: Image curation from the command line\n  Scenario: Search and apply a candidate\n    Given I am authorized for the selected site and item\n    When I search for images and apply a returned candidate\n    Then the item and image metadata match the result of using the shared image service\n  Scenario: Request a generated round\n    Given a generation provider has been configured\n    When I request generated image candidates with a brief\n    Then the CLI returns identifiers and provenance suitable for inspection and selection\n  Scenario: A selection cannot be applied\n    Given an invalid or unauthorized image selection\n    When I attempt to apply it\n    Then the CLI reports an actionable error without changing the item\n\nProvide machine-readable output and predictable errors; support current site selection and auth, and do not depend on browser UI or unavailable story commands.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": []
+  }
+}

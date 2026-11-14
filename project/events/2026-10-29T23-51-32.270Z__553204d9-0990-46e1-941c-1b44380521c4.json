@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "553204d9-0990-46e1-941c-1b44380521c4",
+  "issue_id": "PPY-59edce1c-8c25-407c-8a63-5a588c2836ed",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T23:51:32.270Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Stage 2: agent chat, console notes and forum posts without machine Messages",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+    "labels": []
+  }
+}

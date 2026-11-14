@@ -1,0 +1,20 @@
+{
+  "id": "PPY-733919c2-4859-4775-a393-0b54cf83c1a0",
+  "title": "Build the concept graph in the run",
+  "description": "`concept_graph.py`, pure over rows: concepts, References (accepted), Stories, sections, links with the evidence weights, co-occurrence. A new stage or an addition to the snapshot stage; check `docs/knowledge-cloud-run.md` stages and cost ledger. Fits in the existing task. Python only; add networkx only if a measure needs it. Deterministic, and tested with fixtures.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-ee757023-8014-4c31-8397-e55566c7ab80",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:46.925777Z",
+  "updated_at": "2026-11-04T02:52:46.925800Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -16,8 +16,9 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-destinations a[aria-current=page]{color:var(--org-ink);box-shadow:inset 3px 0 0 var(--org-accent)}
 .newsroom-organizer :is(a,button):focus-visible,.organizer-menu :is(a,button):focus-visible{outline:2px solid currentColor;outline-offset:-3px}
 .organizer-workspace{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;padding:0 16px}
-.organizer-topbar{height:48px;min-height:48px;display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--org-line)}
+.organizer-topbar{height:48px;min-height:48px;display:flex;align-items:center;gap:16px}
 .organizer-masthead{font:900 28px var(--font-wordmark),Georgia,serif;white-space:nowrap;max-width:30vw;overflow:hidden;text-overflow:ellipsis}
+.organizer-masthead-logo{display:block;height:24px;width:auto;max-width:36vw;overflow:visible}
 .organizer-topbar h1{font:400 12px var(--kb-theme-ui-font);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
 .organizer-toggle{display:flex;align-items:center;justify-content:center;width:36px;min-height:36px;padding:0;border:1px solid var(--org-line);flex-shrink:0}
 .organizer-sidebar-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.organizer-sidebar-head .organizer-brand{flex:1;min-width:0}
@@ -31,7 +32,33 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-account-popup{min-width:250px;max-width:calc(100vw - 32px);border:1px solid var(--org-line);padding:6px;border-radius:4px}
 .organizer-account-popup [role=menuitem]{min-height:40px;font-size:12px}.organizer-account-popup .reader-auth{display:contents}.organizer-account-popup .reader-auth__error{display:block;white-space:normal;font-size:11px;padding:8px}
 .organizer-bottom-nav{display:none}
+.organizer-bottom-nav button{appearance:none;border:0;background:transparent;color:inherit}
 .organizer-main:has(.organizer-native-board){display:flex;overflow:hidden}
+@media (min-width:768px){
+.organizer-main:has(>[data-category-steering]>[data-news-desk-section=references]){display:flex;flex-direction:column;overflow:hidden;padding-bottom:0}
+.organizer-main>[data-category-steering]:has(>[data-news-desk-section=references]){display:flex;flex-direction:column;flex:1;min-height:0}
+.organizer-main:has(>[data-category-steering]>[data-newsroom-ops-home]){display:flex;flex-direction:column;overflow:hidden;padding-bottom:0}
+.organizer-main>[data-category-steering]:has(>[data-newsroom-ops-home]){display:flex;flex-direction:column;flex:1;min-height:0}
+[data-newsroom-ops-home]{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto}
+[data-newsroom-ops-home]>[data-newsroom-overview-feeds]{display:contents}
+[data-newsroom-overview-notifications]{display:flex;flex-direction:column;flex:0 0 100%;min-height:0}
+[data-newsroom-overview-notifications]>[data-notification-center]{flex:1;min-height:0}
+[data-newsroom-overview-feeds]>:not([data-newsroom-overview-notifications]){flex:none}
+}
+.organizer-native-board .issue-card[data-priority="Generated"] .issue-accent-priority::before,.organizer-native-board .issue-card[data-priority="Started by a person"] .issue-accent-priority::before{content:"";display:inline-block;width:12px;height:12px;margin-right:4px;vertical-align:-1px;background:currentColor;-webkit-mask:var(--idea-origin-icon) center/contain no-repeat;mask:var(--idea-origin-icon) center/contain no-repeat}
+.organizer-native-board .issue-card[data-priority="Generated"] .issue-accent-priority::before{--idea-origin-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z'/%3E%3Cpath d='M20 2v4M22 4h-4'/%3E%3Ccircle cx='4' cy='20' r='2'/%3E%3C/svg%3E")}
+.organizer-native-board .issue-card[data-priority="Started by a person"] .issue-accent-priority::before{--idea-origin-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E")}
+@media (max-width:640px){
+.organizer-native-board .issue-accent-bar{height:auto;min-height:1.75rem;padding-block:4px}
+.organizer-native-board .issue-accent-row{flex-wrap:wrap;row-gap:2px}
+.organizer-native-board .issue-accent-left{flex:1 1 100%;min-width:0}
+.organizer-native-board .issue-accent-id{white-space:normal;overflow-wrap:anywhere}
+}
+[data-board-skeleton]{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:599.98px){
+[data-board-skeleton]{grid-template-columns:minmax(0,1fr);gap:0}
+[data-board-skeleton] [data-board-skeleton-section]{min-height:0;border-radius:0;background:transparent;padding:12px 0}
+}
 .organizer-native-board{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;gap:8px}
 .organizer-board-view-toggle{display:flex;gap:4px;flex-shrink:0}
 .organizer-header-button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:4px 12px;border:1px solid var(--org-line);font:inherit;color:inherit;background:transparent;text-decoration:none;white-space:nowrap;cursor:pointer}
@@ -41,7 +68,21 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-board-body{position:relative;display:grid;grid-template-columns:minmax(0,1fr);flex:1;min-width:0;min-height:0;gap:16px}
 .organizer-board-body[data-detail-open=true]{grid-template-columns:minmax(0,1fr) clamp(320px,34vw,1000px)}
 .organizer-board-body>.kb-issue-collection{height:100%;min-height:0;overflow:auto}
-.organizer-board-body>.kb-issue-detail{overflow:auto;min-height:0}
+/* With a Story open the board has less room, so its columns shrink to fit instead of overflowing: Kanbus scrolls an overflowing board to its far end when a panel opens, which clipped the first columns. */
+.organizer-board-body[data-detail-open=true] .kb-grid{--kb-column-width:180px}
+.organizer-board-body[data-detail-open=true] .kb-column:not(.kb-column-collapsed){min-width:0}
+/* The detail view is a solid surface from its first frame: the theme's panel token (opaque), with the card token as a fallback if
+   a theme has not defined it yet, and never any opacity animation, so the board never shows through it while it loads. */
+.organizer-board-body>.kb-issue-detail{overflow:auto;min-height:0;position:relative;z-index:2;opacity:1;background-color:var(--kb-theme-panel,var(--card,Canvas));isolation:isolate}
+/* One stable shape while an article loads and after: the preview card (and its skeleton) reserve the same height, so the page below it does not move. */
+.newsroom-embedded-article :is([data-newsroom-article-preview],[data-skeleton-preview]){min-height:min(28rem,55dvh)}
+/* The loading skeleton is the loaded editor's size block for block: the toolbar wraps onto more rows as the panel narrows (a container query,
+   because the panel's width, not the window's, decides), and the three fields stack when it is narrow. */
+[data-skeleton-schedule]{height:92px}[data-skeleton-toolbar]{height:44px}[data-skeleton-stars]{height:59px}[data-skeleton-fields]{height:254px}[data-skeleton-preview]{height:min(28rem,55dvh)}
+/* The headline image block is one fixed height in every state (loading, none, processing, missing, loaded), and the skeleton reserves it. */
+[data-story-headline-frame],[data-skeleton-headline]{height:11rem}
+@container (max-width:719px){[data-skeleton-toolbar]{height:80px}[data-skeleton-fields]{height:274px}[data-skeleton-schedule]{height:113px}}
+@container (max-width:399px){[data-skeleton-toolbar]{height:116px}[data-skeleton-schedule]{height:134px}}
 .organizer-board-body .kb-issue-detail a:not(.organizer-header-button){display:block;min-height:44px;text-decoration:underline;padding:12px 0}
 .organizer-menu{height:min(85dvh,760px);max-height:85dvh;display:flex;flex-direction:column;padding:16px;border-radius:24px 24px 0 0;gap:20px}
 .organizer-menu .organizer-destinations{overflow-y:auto}.organizer-menu .organizer-destinations section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.organizer-menu .organizer-destinations h3{grid-column:1/-1;font-size:12px;text-transform:none;margin:0 0 4px}
@@ -52,7 +93,7 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
  .organizer-sidebar,.organizer-toggle{display:none}.organizer-workspace{padding:0 16px}.organizer-topbar{gap:8px;height:55px;min-height:55px}
  .organizer-masthead{font-size:24px;max-width:36vw}.organizer-topbar h1{font-size:10px}.organizer-account-header{display:flex}.organizer-header-actions{gap:4px;max-width:35%}
  .organizer-bottom-nav{display:block;border-top:1px solid var(--org-ink);background:var(--org-paper);padding:4px 8px max(4px,env(safe-area-inset-bottom))}
- .organizer-bottom-nav ul{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;list-style:none;margin:0;padding:0}
+ .organizer-bottom-nav ul{display:flex;justify-content:center;gap:4px;list-style:none;margin:0;padding:0}.organizer-bottom-nav li{flex:1 1 0;max-width:20%;min-width:0}
  .organizer-bottom-nav :is(a,button){display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:54px;width:100%;font:400 10px var(--kb-theme-ui-font);padding:6px 0;text-decoration:none;border-radius:8px}
  .organizer-bottom-nav a[aria-current=page]{background:var(--muted);font-weight:600}
  .organizer-board-body[data-detail-open=true]{grid-template-columns:minmax(0,1fr)}
@@ -82,7 +123,8 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 :root.light-theme .newsroom-organizer,:root.light-theme .organizer-menu,:root.light-theme .organizer-account-popup{--org-ink:var(--foreground-strong);--org-muted:var(--foreground)}
 .newsroom-organizer [class~="bg-primary"],.newsroom-organizer [class~="bg-secondary"],.newsroom-organizer [data-slot=button][class*="bg-primary"]{background:transparent !important;color:var(--org-ink) !important;border:1px solid var(--org-ink) !important;font-weight:700}
 .newsroom-organizer [class~="text-primary-foreground"],.newsroom-organizer [class~="text-secondary-foreground"]{color:var(--org-ink) !important}
-.newsroom-organizer [data-selected=true],.newsroom-organizer [aria-current=true]{background:transparent !important;color:var(--org-ink) !important;box-shadow:inset 3px 0 0 var(--org-ink);font-weight:600}
+/* A conversation card wears a ring around its outside instead (components/conversations-view.tsx), so neither it nor its title gets the edge bar. */
+.newsroom-organizer [data-selected=true]:not([data-conversation-card]),.newsroom-organizer [aria-current=true]:not([data-conversation-open]){background:transparent !important;color:var(--org-ink) !important;box-shadow:inset 3px 0 0 var(--org-ink);font-weight:600}
 .newsroom-organizer .news-desk-columns--administration{--administration-gap:16px;--administration-quiet:color-mix(in oklab,var(--org-ink) 64%,var(--org-paper));--administration-strong:var(--org-ink);container-type:inline-size;font-family:var(--kb-theme-ui-font);font-size:14px;line-height:1.5;max-width:1280px}
 .news-desk-columns--administration :is(h2,h3,strong){font-family:var(--kb-theme-title-font);color:var(--administration-strong)}
 .news-desk-columns--administration .category-steering-section--lead>.category-steering-section__header{display:none}
@@ -181,6 +223,19 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .story-trail-row{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
 .story-trail-meta,.story-trail-empty{font-size:12px;color:var(--org-muted);margin:0}
 .story-trail-chip{font-size:11px;border:1px solid var(--org-ink);padding:0 6px;text-transform:uppercase;letter-spacing:.04em}
+.story-trail-reference{display:grid;grid-template-columns:minmax(0,96px) minmax(0,1fr);gap:12px;align-items:start;background:color-mix(in srgb,var(--org-ink) 6%,transparent);border-radius:10px;padding:12px}
+.story-trail-reference:not(:has(.story-trail-reference-image)){grid-template-columns:minmax(0,1fr)}
+.story-trail-reference-image{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;background:color-mix(in srgb,var(--org-ink) 10%,transparent)}
+.story-trail-reference-text{display:grid;gap:4px;min-width:0}
+.story-trail-reference-links{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px}
+.story-trail-reference-links a,.reference-stories a{display:inline-flex;align-items:center;gap:4px}
+.story-trail-ai{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:color-mix(in srgb,var(--org-ink) 14%,transparent);border-radius:999px;padding:1px 8px}
+.story-trail-list>li.story-trail-agent-note{background:color-mix(in srgb,var(--org-ink) 6%,transparent);border-radius:10px;padding:12px;border-bottom:0}
+.story-trail-role{display:inline-flex;align-items:center;gap:4px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:color-mix(in srgb,var(--org-ink) 12%,transparent);border-radius:999px;padding:1px 8px}
+.reference-stories{display:grid;gap:8px}
+.reference-stories h3{margin:0;font-size:14px;font-weight:500}
+.reference-stories ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.reference-stories li{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;background:color-mix(in srgb,var(--org-ink) 6%,transparent);border-radius:10px;padding:10px 12px}
 .story-trail-message pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0;font-size:12px;max-height:320px;overflow:auto}
 .story-trail-message summary{cursor:pointer;font-size:13px}
 @container (min-width:900px){.story-trail{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:32px;align-items:start}}
@@ -211,6 +266,7 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .newsroom-article-front-matter-fields{display:grid;gap:10px;max-width:640px}
 .newsroom-article-front-matter-fields label{display:grid;gap:4px;font-size:13px;font-weight:600}
 .newsroom-article-summary{border-bottom:1px solid var(--org-line);margin-bottom:12px;padding-bottom:10px}
+.newsroom-article-headline{margin:0 0 6px;font-size:24px;font-weight:700;line-height:1.2}
 .newsroom-article-subtitle{margin:0 0 4px;font-size:18px;font-weight:600;line-height:1.3}
 .newsroom-article-blurb{margin:0;font-size:14px;line-height:1.45}
 .organizer-search{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--org-ink);padding:2px 0;min-width:140px;max-width:240px}
@@ -344,3 +400,278 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .news-desk-columns--administration .news-desk-newsletter__text{margin:0;padding:12px;max-height:280px;overflow:auto;border:1px solid var(--org-line);font:400 12px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 .news-desk-columns--administration .news-desk-newsletter__filters{display:flex;flex-wrap:wrap;gap:12px 24px}
 .news-desk-columns--administration .news-desk-newsletter__filters .news-desk-doctrine-card__field{min-width:180px}
+
+/* The References feed is rounded and borderless (Ryan's design rule): flat tones and rounded rectangles instead of lines and boxes.
+   The newsroom chrome squares every "rounded" class above; inside a [data-feed-surface] the rounded classes mean what they say.
+   The repeated attribute raises specificity over the squaring rules without !important escalation. */
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-full"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-full"] { border-radius: var(--feed-radius-pill) !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-[20px]"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-[20px]"] { border-radius: var(--feed-radius-lg) !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-2xl"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-2xl"] { border-radius: var(--feed-radius-md) !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-[16px]"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-[16px]"] { border-radius: var(--feed-radius-md) !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-3xl"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-3xl"] { border-radius: var(--feed-radius-xl) !important; }
+
+/* The mobile sheet is portaled outside .newsroom-organizer; it carries the theme attributes itself, so the same radii apply inside it. */
+[data-kanbus-theme][data-feed-surface] [class*="rounded-full"] { border-radius: var(--feed-radius-pill) !important; }
+[data-kanbus-theme][data-feed-surface] [class*="rounded-[20px]"] { border-radius: var(--feed-radius-lg) !important; }
+[data-kanbus-theme][data-feed-surface] [class*="rounded-2xl"], [data-kanbus-theme][data-feed-surface] [class*="rounded-[16px]"] { border-radius: var(--feed-radius-md) !important; }
+[data-kanbus-theme][data-feed-surface] [class*="rounded-3xl"] { border-radius: var(--feed-radius-xl) !important; }
+
+/* Feed tones. Light: cards a touch lighter than the page, footers between, controls a touch darker. Dark: each step lifts toward the ink.
+   Also set on the portaled mobile sheet, which carries the theme attributes itself. */
+[data-kanbus-theme] [data-feed-surface], [data-kanbus-theme][data-feed-surface] {
+  --feed-card: color-mix(in oklab, var(--kb-theme-paper) 35%, white);
+  --feed-footer: color-mix(in oklab, var(--kb-theme-paper) 70%, white);
+  --feed-control: color-mix(in oklab, var(--kb-theme-paper) 90%, var(--kb-theme-ink));
+  /* Corner radii of the whole feed layer, in one place (Ryan, 2026-10-27: half of the first design). lg: cards and the detail pane;
+     md: rating cells, buttons, textareas; xl: sheets; pill: chips, filters and toggles (a rounded rectangle, not a capsule). */
+  --feed-radius-xl: 12px;
+  --feed-radius-lg: 10px;
+  --feed-radius-md: 8px;
+  --feed-radius-pill: 8px;
+  /* Verdict tones for the rating grid. Hue is never the only signal: the cell also carries a CircleCheck or
+     CircleX and the word Match or Miss. Named here, in the feed layer, because the component must not hold
+     literal palette values and because Tailwind's dark: variant (.dark *) never fires in this app. */
+  --feed-verdict-match-tint: #05966933;
+  --feed-verdict-match-ink: #064e3b;
+  --feed-verdict-match-fill: #059669;
+  --feed-verdict-miss-tint: #dc262633;
+  --feed-verdict-miss-ink: #7f1d1d;
+  --feed-verdict-miss-fill: #dc2626;
+  /* The quiet step for an unpredicted cell and a switched-off button. */
+  --feed-quiet: 0.6;
+}
+[data-kanbus-theme][data-color-mode="dark"] [data-feed-surface], [data-kanbus-theme][data-color-mode="dark"][data-feed-surface] {
+  --feed-card: color-mix(in oklab, var(--kb-theme-paper) 94%, var(--kb-theme-ink));
+  --feed-footer: color-mix(in oklab, var(--kb-theme-paper) 90%, var(--kb-theme-ink));
+  --feed-control: color-mix(in oklab, var(--kb-theme-paper) 80%, var(--kb-theme-ink));
+  /* Dark verdicts lift toward the tint rather than down into it, so the ink reads on a dark card. */
+  --feed-verdict-match-tint: #34d39933;
+  --feed-verdict-match-ink: #d1fae5;
+  --feed-verdict-match-fill: #34d399;
+  --feed-verdict-miss-tint: #f8717133;
+  --feed-verdict-miss-ink: #fee2e2;
+  --feed-verdict-miss-fill: #f87171;
+}
+
+/* Borderless detail pane, Add panel and mobile sheet ([data-feed-flat]): no border, rule or box anywhere inside. Regions are told apart
+   by tone (card, footer, control) and shapes are rounded rectangles. The repeated attribute outranks the newsroom chrome's own rules. */
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat],
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] * { border-width: 0 !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] *:not(:focus-visible) { box-shadow: none; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is([data-slot=separator], hr) { display: none !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(button, [role=button], [data-slot=badge]):not([aria-pressed=true]):not([data-slot=sheet-close]):not([class*="hover:bg-muted"]) {
+  background: var(--feed-control) !important; border-radius: var(--feed-radius-pill) !important; color: var(--foreground, inherit);
+}
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(button, [role=button])[aria-pressed=true]:not([class*="destructive"]) {
+  background: var(--primary) !important; color: var(--primary-foreground) !important; border-radius: var(--feed-radius-pill) !important;
+}
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(button, [role=button])[aria-pressed=true][class*="destructive"] { border-radius: var(--feed-radius-pill) !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(textarea, input:not([type=radio]):not([type=checkbox]), select, details, [data-cyclotron-choice]:not([data-predicted])) {
+  background: var(--feed-control) !important; border-radius: 16px !important;
+}
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-cyclotron-choice] { border-radius: var(--feed-radius-pill) !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-review-queue-bar] { background: var(--feed-footer) !important; }
+/* The decision control keeps one corner across its segments and its reason field, and its predicted segment
+   keeps its tones apart: the flat rules above give every unpressed button the same control fill, which would
+   leave the predicted side and an untouched side looking identical. */
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-decision-control] :is(button, textarea) { border-radius: var(--feed-radius-md) !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-decision-control] [data-review-choice][data-state="idle"] { background: color-mix(in oklab, var(--feed-control) 45%, transparent) !important; }
+
+/* The rating grid keeps its own rounded rectangles in the borderless panes (not the pill shape the flat rules give other buttons). */
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-rating-grid] :is(button, [data-cyclotron-choice]) { border-radius: var(--feed-radius-md) !important; }
+
+/* Flat chrome (Ryan, 2026-10-28): the shell has no outlines or rules either. Controls are tone fills in rounded rectangles; on a phone the
+   page's own heading names the page, so the bar keeps one search field and the account button, nothing cut off. */
+.newsroom-organizer,.organizer-menu,.organizer-account-popup{--org-control:color-mix(in oklab,var(--org-paper) 90%,var(--org-ink))}
+.organizer-sidebar{border-right:0}
+.organizer-search{border-bottom:0;background:var(--org-control);border-radius:8px;padding:6px 10px}
+.newsroom-organizer button.organizer-toggle,.newsroom-organizer button.organizer-account{border:0;background:var(--org-control);border-radius:8px !important}
+.organizer-account-popup{border:0}
+.organizer-menu .organizer-destinations a{border:0;background:var(--org-control);border-radius:8px !important}
+@media(max-width:900px){
+ .organizer-topbar h1{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+ .organizer-search{flex:1;max-width:none}
+ .organizer-header-settings{display:none}
+ .organizer-bottom-nav{border-top:0;background:color-mix(in oklab,var(--org-paper) 95%,var(--org-ink))}
+}
+
+/* Captured text in the reference detail reads in the feed's own type, not the analysis view's serif and small caps. */
+[data-capture-text] .reference-capture-markdown,[data-capture-text] .reference-capture-markdown :is(h1,h2,h3,h4,h5,h6,p,li,th,td){font-family:inherit;letter-spacing:normal;text-transform:none}
+[data-capture-text] .reference-capture-markdown :is(h3,h4,h5){font-size:1em;font-weight:600;margin:1em 0 .25em}
+
+/* An open reference's Previous / Next bar is sticky inside the organizer's scroller on a phone, so the scroller's bottom padding would leave a
+   gap between the bar and the tab bar. With the detail open the bar is flush with the tab bar instead. */
+@media(max-width:767px){.organizer-main:has([data-reference-layout=detail]){padding-bottom:0}}
+.organizer-public-site{display:flex;align-items:center;gap:10px;padding:12px;background:var(--org-control);border-radius:8px!important;color:var(--org-ink);font:600 14px var(--kb-theme-ui-font);text-decoration:none}
+
+.assign-research{display:grid;gap:8px;background:color-mix(in srgb,var(--org-ink) 6%,transparent);border-radius:12px;padding:12px;margin-bottom:12px}
+.assign-research-text{width:100%;box-sizing:border-box;resize:vertical;font:inherit;font-size:16px;line-height:1.4;color:inherit;background:color-mix(in srgb,var(--org-ink) 8%,var(--org-paper,#fff));border:0;border-radius:10px;padding:10px 12px;min-height:96px}
+.assign-research-text,.assign-research-button{outline:none}
+.assign-research-text:focus{background:color-mix(in srgb,var(--org-ink) 14%,var(--org-paper,#fff))}
+.assign-research-button:focus-visible{background:color-mix(in srgb,var(--org-ink) 78%,var(--org-paper,#fff));text-decoration:underline}
+.assign-research-actions{display:flex}
+.assign-research-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;font:inherit;font-size:14px;font-weight:600;color:var(--org-paper,#fff);background:var(--org-ink);border:0;border-radius:12px;cursor:pointer}
+.assign-research-button[disabled]{opacity:.6;cursor:default}
+.assign-research-note{display:flex;align-items:flex-start;gap:6px;margin:0;font-size:13px}
+.assign-research-problem{background:color-mix(in srgb,var(--org-ink) 12%,transparent);border-radius:8px;padding:6px 10px;font-weight:600}
+.assign-research-spin{animation:assign-research-spin 1s linear infinite}
+@keyframes assign-research-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.assign-research-spin{animation:none}}
+.research-assignment{display:grid;gap:8px}
+.research-state{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;background:color-mix(in srgb,var(--org-ink) 12%,transparent);border-radius:999px;padding:1px 10px}
+.research-assignment[data-research-state="failed"] .research-state{background:color-mix(in srgb,var(--org-ink) 22%,transparent)}
+.research-direction{margin:0;background:color-mix(in srgb,var(--org-ink) 6%,transparent);border-radius:8px;padding:8px 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.research-failure{display:flex;gap:6px;align-items:flex-start;margin:0;font-size:13px;font-weight:600;background:color-mix(in srgb,var(--org-ink) 12%,transparent);border-radius:8px;padding:8px 10px}
+.research-packet{display:grid;gap:10px;background:color-mix(in srgb,var(--org-ink) 4%,transparent);border-radius:10px;padding:12px;min-width:0}
+.research-packet p{margin:0}
+.research-packet h4{display:flex;align-items:center;gap:6px;margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.research-packet h5{margin:8px 0 4px;font-size:12px}
+.research-packet ul{margin:0;padding-left:18px;display:grid;gap:6px}
+.research-packet .research-reasons{font-size:12px;color:var(--org-muted)}
+.research-unverified{background:color-mix(in srgb,var(--org-ink) 10%,transparent);border-radius:8px;padding:8px 10px}
+.research-sources{display:inline-flex;flex-wrap:wrap;gap:2px 10px;font-size:12px}
+.research-sources a{display:inline-flex;align-items:center;gap:3px;overflow-wrap:anywhere}
+.research-assignment .story-trail-row strong{display:inline-flex;align-items:center;gap:5px}
+.research-packet ul{list-style:disc}
+.research-packet ul ul{list-style:circle}
+.research-verdict{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:color-mix(in srgb,var(--org-ink) 14%,transparent);border-radius:999px;padding:1px 8px;margin-right:4px}
+.research-unverified [data-research-verdict="contradicted"]{background:color-mix(in srgb,var(--org-ink) 26%,transparent)}
+@media (max-width:599.98px){
+.organizer-topbar{flex-wrap:wrap;height:auto;min-height:55px;row-gap:4px;padding-block:4px 8px}
+.organizer-masthead{order:1;flex:1 1 calc(100% - 52px);max-width:none;min-width:0;display:flex;align-items:center;min-height:44px}
+.organizer-account-header{order:2;min-width:44px;min-height:44px}
+.organizer-search{order:3;flex:1 1 120px;min-width:120px;box-sizing:border-box;padding-block:0}
+.organizer-search input{min-height:44px}
+.organizer-header-actions{order:4;max-width:none;overflow:visible;flex:0 0 auto}
+.organizer-header-actions .organizer-header-button{min-height:44px}
+.organizer-header-button-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.organizer-header-button[data-newsroom-article-new]{justify-content:center;min-width:44px;padding:4px}
+/* The Schedule shortcut leaves the phone header, which has room for the search and the board controls but no further button; Schedule is one tap away in the menu. */
+.organizer-header-button[data-newsroom-schedule-link]{display:none}
+}
+
+/* Connect the CLI or an agent: flat tones and rounded rectangles, no borders. Tones come from the ink so they follow light and dark. */
+.connect-cli-card{display:grid;gap:12px;border-radius:12px;padding:20px;background:color-mix(in srgb,var(--org-ink) 6%,transparent)}
+.connect-cli-row{display:flex;flex-direction:column;gap:8px}
+.connect-cli-command{display:block;min-width:0;flex:1;border-radius:8px;padding:10px 12px;font:500 14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:break-word;user-select:all;background:color-mix(in srgb,var(--org-ink) 11%,transparent)}
+.connect-cli-inline{border-radius:4px;padding:1px 6px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:color-mix(in srgb,var(--org-ink) 11%,transparent);color:var(--org-ink)}
+.connect-cli-copy{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;border:0;border-radius:8px;font:600 14px var(--kb-theme-ui-font);color:var(--org-ink);cursor:pointer;background:color-mix(in srgb,var(--org-ink) 16%,transparent)}
+.connect-cli-copy:hover{background:color-mix(in srgb,var(--org-ink) 24%,transparent)}
+@media (min-width:640px){.connect-cli-row{flex-direction:row;align-items:stretch}.connect-cli-copy{min-width:120px}}
+.connect-cli-command,.connect-cli-inline{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+/* The Story checklist: a card line, and in the panel Kanbus's own sub-task cards with the buttons for the chosen step. Flat backgrounds and rounded rectangles, no outlines;
+   a state is an icon and a word, never colour alone. Class names carry no "rounded" because the newsroom theme squares every class that does. */
+.story-card-checklist-slot{display:inline-flex;align-items:center;margin-right:auto;pointer-events:none}
+.story-card-checklist{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:8px;background:var(--card-muted,var(--muted));color:var(--org-muted);font:500 11px/1.3 var(--kb-theme-ui-font)}
+.story-checklist{display:grid;gap:8px;padding:12px 8px 4px}
+.story-checklist-heading{display:flex;align-items:center;gap:6px;margin:0;font:600 13px/1.2 var(--kb-theme-ui-font)}
+.story-checklist-progress{margin-left:auto;padding:2px 8px;border-radius:8px;background:var(--card-muted,var(--muted));font-weight:500;font-size:11px;color:var(--org-muted)}
+.story-checklist-note{margin:0;font-size:12px;color:var(--org-muted)}
+.story-checklist-steps{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.story-checklist-step{display:grid;gap:4px}
+.story-checklist-steps .issue-card{border-radius:8px}
+.story-checklist-steps .issue-accent-priority::before{content:"";display:inline-block;width:12px;height:12px;margin-right:4px;vertical-align:-1px;background:currentColor;-webkit-mask:var(--step-state-icon) center/contain no-repeat;mask:var(--step-state-icon) center/contain no-repeat}
+.story-checklist-steps .issue-card[data-priority="Open"] .issue-accent-priority::before{--step-state-icon:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Ccircle%20cx=%2212%22%20cy=%2212%22%20r=%2210%22%20/%3E%3C/svg%3E")}
+.story-checklist-steps .issue-card[data-priority="Done"] .issue-accent-priority::before{--step-state-icon:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Ccircle%20cx=%2212%22%20cy=%2212%22%20r=%2210%22%20/%3E%20%3Cpath%20d=%22m9%2012%202%202%204-4%22%20/%3E%3C/svg%3E")}
+.story-checklist-steps .issue-card[data-priority="Skipped"] .issue-accent-priority::before{--step-state-icon:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d=%22M21%204v16%22%20/%3E%20%3Cpath%20d=%22M6.029%204.285A2%202%200%200%200%203%206v12a2%202%200%200%200%203.029%201.715l9.997-5.998a2%202%200%200%200%20.003-3.432z%22%20/%3E%3C/svg%3E")}
+.story-checklist-steps .issue-card[data-priority="Not applicable"] .issue-accent-priority::before{--step-state-icon:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Ccircle%20cx=%2212%22%20cy=%2212%22%20r=%2210%22%20/%3E%20%3Cpath%20d=%22M4.929%204.929%2019.07%2019.071%22%20/%3E%3C/svg%3E")}
+.story-checklist-actions{display:grid;gap:6px;padding:0 4px}
+.story-checklist-meta{margin:0;font-size:11px;line-height:1.4;color:var(--org-muted)}
+.story-checklist-buttons{display:flex;flex-wrap:wrap;gap:6px}
+.story-checklist-button{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:2px 10px;border:0;border-radius:8px;background:var(--card,var(--org-paper));color:var(--org-ink);font:600 12px var(--kb-theme-ui-font);cursor:pointer}
+.story-checklist-button:disabled{opacity:.6;cursor:default}
+.story-checklist-form{display:grid;gap:6px}
+.story-checklist-form label{font-size:12px;font-weight:600}
+.story-checklist-text{width:100%;padding:8px;border:0;border-radius:8px;background:var(--card,var(--org-paper));color:var(--org-ink);font:13px/1.4 var(--kb-theme-ui-font);resize:vertical}
+.newsroom-organizer .story-checklist-button,.newsroom-organizer .story-checklist-text,.newsroom-organizer .story-checklist-steps .issue-card{border-radius:8px !important}
+.story-checklist-notes{display:grid;gap:4px;padding:0 4px}
+.story-checklist-note-list{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.story-checklist-note-item{display:grid;gap:2px;padding:6px 10px;border-radius:8px;background:var(--card-muted,var(--muted))}
+.story-checklist-note-text{font:13px/1.4 var(--kb-theme-ui-font);white-space:pre-wrap;overflow-wrap:anywhere}
+.story-checklist-fold{justify-self:start}
+
+/* Administration > Policies > Visual style: flat fills and rounded shapes, no outlines or hairlines (the Anthus design rule). The organizer's square, outlined controls are
+   undone inside this panel only; shapes use the vs-* classes (not Tailwind's rounded-*, which the organizer zeroes) and every state keeps its icon and its word. */
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] :is(button,input,textarea,[role=button]){border-radius:12px !important;border:0 !important;text-transform:none;letter-spacing:0;font-family:var(--org-ui-font)}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-pill{border-radius:999px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-panel{border-radius:20px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-tile{border-radius:12px}
+.newsroom-organizer [data-news-desk-admin-panel="writing-guidelines"] .vs-pill{border-radius:999px}
+.newsroom-organizer [data-news-desk-admin-panel="writing-guidelines"] .vs-panel{border-radius:20px}
+.newsroom-organizer [data-news-desk-admin-panel="writing-guidelines"] .vs-tile{border-radius:12px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-small{border-radius:8px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="bg-primary"]{background:var(--org-ink) !important;color:var(--org-paper) !important;border:0 !important;font-weight:600}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="bg-secondary"]{background:var(--org-control) !important;color:var(--org-ink) !important;border:0 !important;font-weight:600}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="text-primary-foreground"]{color:var(--org-paper) !important}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="text-secondary-foreground"]{color:var(--org-ink) !important}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] button[class~="hover:bg-muted"]:hover,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] button[data-slot=button]:not([class~="bg-primary"]):not([class~="bg-secondary"]):hover{background:var(--org-control)}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] input:not([type=file]),.newsroom-organizer [data-news-desk-admin-panel="visual-style"] textarea{background:var(--org-paper) !important;color:var(--org-ink) !important;min-height:0;padding:8px 12px;font-size:14px;line-height:1.5}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] input:focus-visible,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] textarea:focus-visible,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] button:focus-visible{outline:2px solid var(--org-ink);outline-offset:2px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h3,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h4,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h5,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h6{text-transform:none;letter-spacing:0}
+
+/* Announcements panel (components/announcements-panel.tsx). Flat tone fills and rounded rectangles: no borders, no rules (Ryan's design rule).
+   Selection is told by an icon and a word as well as by tone, because colour is never the only signal. */
+.news-desk-columns--administration .announcements{--ann-tone:color-mix(in srgb,var(--administration-strong) 7%,transparent);--ann-tone-strong:color-mix(in srgb,var(--administration-strong) 15%,transparent);--ann-radius:10px;display:grid;gap:20px;align-content:start;min-width:0}
+.announcements :is(h2,h3,p,ol,ul,dl,dd,table,caption){margin:0}
+.announcements__heading{display:grid;gap:4px}
+.announcements__heading h2{display:flex;align-items:center;gap:10px;font:700 26px/1.2 var(--kb-theme-title-font)}
+.announcements__heading p,.announcements__quiet,.announcements__card>header>span{font:400 13px/1.45 var(--kb-theme-ui-font);color:var(--administration-quiet)}
+.announcements__card{display:grid;gap:16px;padding:20px;border:0;border-radius:var(--ann-radius);background:var(--ann-tone);min-width:0}
+.announcements__card>header{display:grid;gap:2px}
+.announcements__card h3{font:700 18px/1.25 var(--kb-theme-title-font)}
+.announcements__card p,.announcements__steps{font:400 14px/1.55 var(--kb-theme-ui-font)}
+.announcements__steps{display:grid;gap:12px;padding-left:24px;list-style:decimal}
+.announcements__steps>li{display:list-item}
+.announcements__pause{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px 16px;padding:16px 20px;border-radius:var(--ann-radius);background:var(--ann-tone-strong)}
+.announcements__pause p{font:400 13px/1.45 var(--kb-theme-ui-font)}
+.announcements__pause strong{font:700 15px/1.3 var(--kb-theme-ui-font)}
+.announcements__notice{display:flex;align-items:flex-start;gap:8px;padding:12px 16px;border-radius:var(--ann-radius);background:var(--ann-tone-strong);font:600 14px/1.45 var(--kb-theme-ui-font)}
+.announcements__notice svg,.announcements__status svg,.announcements__saved svg{flex:none;margin-top:1px}
+.announcements__button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:6px 14px;border:0;border-radius:8px;background:var(--ann-tone-strong);color:var(--administration-strong);font:600 13px/1.2 var(--kb-theme-ui-font);cursor:pointer}
+.announcements__button--primary{background:var(--administration-strong);color:var(--kb-theme-paper,#fff)}
+.announcements__button:disabled,.announcements__choice:disabled,.announcements__toggle:disabled{opacity:.55;cursor:default}
+.announcements__button:focus-visible,.announcements__choice:focus-visible,.announcements__toggle:focus-visible,.announcements__field input:focus-visible,.announcements__prices input:focus-visible{outline:2px solid var(--administration-strong);outline-offset:2px}
+.announcements__fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;align-items:start}
+.announcements__field{display:grid;gap:6px;min-width:0}
+.announcements__field--narrow{max-width:320px}
+.announcements__field>span,.announcements__label{font:600 11px/1.4 var(--kb-theme-ui-font);letter-spacing:.07em;text-transform:uppercase;color:var(--administration-quiet)}
+.announcements :is(.announcements__field,.announcements__prices) input{width:100%;min-height:40px;padding:8px 12px;border:0;border-radius:8px;background:var(--ann-tone-strong);color:var(--administration-strong);font:400 14px/1.4 var(--kb-theme-ui-font)}
+.announcements__prices input{max-width:140px}
+.announcements__saved,.announcements__status{display:flex;align-items:center;gap:8px}
+.announcements__actions,.announcements__savebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.announcements__savebar{justify-content:space-between;padding:12px 20px;border-radius:var(--ann-radius);background:var(--ann-tone-strong)}
+.announcements__copy{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.announcements__copy code{flex:1 1 260px;min-width:0;padding:8px 12px;border-radius:8px;background:var(--ann-tone-strong);font:400 12px/1.4 ui-monospace,monospace;overflow-wrap:anywhere}
+.announcements__facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 20px}
+.announcements__facts dt{font:600 11px/1.4 var(--kb-theme-ui-font);letter-spacing:.07em;text-transform:uppercase;color:var(--administration-quiet)}
+.announcements__facts dd{font:400 14px/1.45 var(--kb-theme-ui-font);overflow-wrap:anywhere}
+.announcements__choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.announcements__choices--row{display:flex;flex-wrap:wrap}
+.announcements__choice{display:grid;gap:4px;justify-items:start;padding:12px 14px;border:0;border-radius:8px;background:var(--ann-tone);color:var(--administration-strong);text-align:left;cursor:pointer;font:400 13px/1.4 var(--kb-theme-ui-font)}
+.announcements__choice--small{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:6px 14px}
+.announcements__choice[data-selected=true]{background:var(--ann-tone-strong);box-shadow:inset 4px 0 0 var(--administration-strong)}
+.announcements__selected{display:inline-flex;align-items:center;gap:4px;font:600 12px/1.2 var(--kb-theme-ui-font)}
+.announcements__toggle{display:flex;align-items:center;gap:10px;padding:12px 14px;border:0;border-radius:8px;background:var(--ann-tone);color:var(--administration-strong);font:400 14px/1.45 var(--kb-theme-ui-font);text-align:left;cursor:pointer}
+.announcements__toggle em{font-style:normal;font-weight:700;margin-left:auto;white-space:nowrap}
+.announcements__toggle[data-selected=true]{background:var(--ann-tone-strong)}
+.announcements__blockers{display:grid;gap:6px;list-style:none;padding:0}
+.announcements__blockers li{display:flex;align-items:center;gap:8px;font:600 13px/1.4 var(--kb-theme-ui-font)}
+.announcements__group{display:grid;gap:8px}
+.announcements__prices{border-collapse:separate;border-spacing:0 6px;font:400 14px/1.4 var(--kb-theme-ui-font);width:100%}
+.announcements__prices caption{text-align:left;padding-bottom:6px;font:600 13px/1.4 var(--kb-theme-ui-font)}
+.announcements__prices :is(th,td){text-align:left;padding:4px 8px 4px 0;font-weight:400;border:0}
+.announcements__prices thead th{font:600 11px/1.4 var(--kb-theme-ui-font);letter-spacing:.07em;text-transform:uppercase;color:var(--administration-quiet)}
+.announcements__rows{display:grid;gap:10px;list-style:none;padding:0}
+.announcements__rows>li{display:grid;gap:6px;padding:14px;border-radius:8px;background:var(--ann-tone)}
+.announcements__rowhead{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.announcements__state{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:8px;background:var(--ann-tone-strong);font:600 12px/1.6 var(--kb-theme-ui-font)}
+.announcements__post{font:400 15px/1.5 var(--kb-theme-ui-font);overflow-wrap:anywhere}
+.announcements-callback{display:grid;gap:16px;max-width:520px;margin:15vh auto;padding:0 16px;font:400 16px/1.5 var(--kb-theme-ui-font,system-ui)}
+.announcements-callback p{display:flex;gap:8px;align-items:center}
+@container (max-width:640px){.announcements__pause{grid-template-columns:auto minmax(0,1fr)}.announcements__pause .announcements__button{grid-column:1/-1}}
+@media (max-width:640px){.announcements__pause{grid-template-columns:auto minmax(0,1fr)}.announcements__pause .announcements__button{grid-column:1/-1}.announcements__card{padding:16px}.announcements__toggle em{margin-left:0}}

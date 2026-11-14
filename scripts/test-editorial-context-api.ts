@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { assignmentDoctrine, resolveEditorialContext, type EditorialClient, type EditorialOptions, type EditorialRecord } from "../amplify/functions/shared/editorial-context";
 
@@ -26,6 +27,7 @@ async function rejects(change: (data: any) => void, pattern: RegExp, override: P
   const data = structuredClone(fixture); change(data);
   await assert.rejects(resolveEditorialContext(client(data), { ...options, ...override }), pattern);
 }
+const digestOf = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
 async function main() {
   const pack = await resolveEditorialContext(client(), options);
   const { resolvedAt: ignoredTs, ...actual } = pack;
@@ -59,6 +61,23 @@ async function main() {
   scopedClient.models.Item.itemBySlug = async () => { throw new Error('Tenant reads must use tenant index'); };
   const tenantPack = await resolveEditorialContext(scopedClient, { ...options, tenantId: 'example' });
   assert.equal(tenantPack.publication.tenantId, 'example');
+  // PPY-de286b: the writing and image guidelines are pointer entries at the publication and the section, only when asked for.
+  const withGuidelines = structuredClone(fixture);
+  const guideline = (slug: string, versionNumber: number) => [{ id: `item-${slug}-v${versionNumber}`, lineageId: `item-${slug}`, versionNumber, versionState: "current", type: "doctrine",
+    status: "private", slug, contentHash: `sha256:${slug}`, updatedAt: "2026-11-10T10:00:00Z", tenantId: null }];
+  withGuidelines.records.Item["editorial-doctrine-writing"] = guideline("editorial-doctrine-writing", 3);
+  withGuidelines.records.Item["desk-doctrine-science-writing"] = guideline("desk-doctrine-science-writing", 2);
+  withGuidelines.records.Item["desk-doctrine-science-visual-style"] = guideline("desk-doctrine-science-visual-style", 1);
+  const without = await resolveEditorialContext(client(withGuidelines), options);
+  assert.equal(without.contextHash, pack.contextHash, "guidelines are not in the context unless asked for");
+  const guided = await resolveEditorialContext(client(withGuidelines), { ...options, includeGuidelines: true });
+  const listed = guided.entries.filter(value => ["writing-guidelines", "visual-style"].includes(value.kind)).map(value => `${value.scope}:${value.kind}:${value.source.sha256 === digestOf(value.text)}`);
+  assert.deepEqual(listed, ["publication:writing-guidelines:true", "section:writing-guidelines:true", "section:visual-style:true"]);
+  const writingEntry = guided.entries.find(value => value.scope === "section" && value.kind === "writing-guidelines")!;
+  assert.equal(writingEntry.source.versionNumber, 2);
+  assert.equal(writingEntry.source.lineageId, "item-desk-doctrine-science-writing");
+  assert.ok(writingEntry.text.includes("version 2, sha256:desk-doctrine-science-writing") && writingEntry.text.includes("--kind writing --section science"));
+  assert.equal(assignmentDoctrine(guided).length, 6, "guideline pointers are not doctrine snapshots");
   const denied = client();
   denied.models.Item.itemBySlug = async () => ({ errors: [{ message: "Unauthorized" }] });
   await assert.rejects(resolveEditorialContext(denied, options), /Unauthorized/);
@@ -78,7 +97,16 @@ async function main() {
   const optional = await resolveEditorialContext(client(), { ...options, optionalPublicationDoctrine: true });
   assert.equal("missingPublicationDoctrine" in optional, false);
   assert.equal(optional.contextHash, pack.contextHash);
-  await rejects(d => { d.records.Item['editorial-doctrine-mission'].push(d.records.Item['editorial-doctrine-mission'].at(-1)); }, /found 2/, { optionalPublicationDoctrine: true });
+  // Strict callers still refuse two current missions; checks run without the mission and log a warning that names the publication.
+  await rejects(d => { d.records.Item['editorial-doctrine-mission'].push(d.records.Item['editorial-doctrine-mission'].at(-1)); }, /found 2/);
+  const twoMissions = structuredClone(fixture); twoMissions.records.Item['editorial-doctrine-mission'].push(twoMissions.records.Item['editorial-doctrine-mission'].at(-1));
+  const warned: string[] = []; const realWarn = console.warn; console.warn = (message: string) => { warned.push(String(message)); };
+  try {
+    const ambiguous = await resolveEditorialContext(client(twoMissions), { ...options, optionalPublicationDoctrine: true });
+    assert.deepEqual(ambiguous.missingPublicationDoctrine, ["mission"]);
+    assert.ok(!ambiguous.entries.some(value => value.scope === "publication" && value.kind === "mission"));
+    assert.ok(warned.some(line => line.includes("mission") && line.includes("example") && line.includes("found 2")), `warnings: ${JSON.stringify(warned)}`);
+  } finally { console.warn = realWarn; }
   // PPY-2c4b56: an item stores its section as an id, a slug or a name; resolve by id, then slug, then name, within the publication.
   const sectioned = structuredClone(fixture);
   sectioned.records.NewsroomSection['example#arts'] = { id: 'example#arts', tenantId: 'example', title: 'Arts & Culture', shortTitle: 'Arts', updatedAt: '2026-10-18', editorialMission: 'Cover the arts', editorialPolicy: 'Credit the artists' };
@@ -103,6 +131,12 @@ async function main() {
   const twin = structuredClone(sectioned); twin.records.NewsroomSection['example#a1'] = { ...twin.records.NewsroomSection['example#arts'], id: 'example#a1', title: 'Culture Desk' };
   twin.records.NewsroomSection['example#a2'] = { ...twin.records.NewsroomSection['example#arts'], id: 'example#a2', title: 'Culture Desk' };
   await assert.rejects(resolveEditorialContext(client(twin), { ...bare, sectionId: 'Culture Desk' }), /ambiguous/);
+  console.warn = () => {};
+  try {
+    const unsure = await resolveEditorialContext(client(twin), { ...bare, sectionId: 'Culture Desk', optionalPublicationDoctrine: true });
+    assert.deepEqual(unsure.missingSectionConfiguration, ['Culture Desk']);
+    assert.ok(unsure.entries.every(value => value.scope !== 'section'));
+  } finally { console.warn = realWarn; }
   const fallback = structuredClone(fixture); fallback.attachments = [];
   const brief = await resolveEditorialContext(client(fallback), options);
   assert.ok(brief.warnings.some(warning => warning.includes('summary')));

@@ -142,8 +142,7 @@ def step_status_records(context):
 
 @given('a reference curated as "{status}" with reason "{reason}"')
 def step_curated(context, status, reason):
-    context.reference = {**REFERENCE, "curationStatus": status}
-    context.messages = [{"createdAt": NOW, "metadata": json.dumps({"reasonCode": reason})}] if reason else []
+    context.reference = {**REFERENCE, "curationStatus": status, **({"curationReasonCode": reason} if reason else {})}
 
 
 @given('a reference curated as "{status}" with reason ""')
@@ -153,7 +152,7 @@ def step_curated_without_reason(context, status):
 
 @when("its cyclotron label is read")
 def step_label(context):
-    context.label = relevance_label_for_review(context.reference, context.messages, labels=("include", "exclude"))
+    context.label = relevance_label_for_review(context.reference, labels=("include", "exclude"))
 
 
 @then('the label is "{label}"')

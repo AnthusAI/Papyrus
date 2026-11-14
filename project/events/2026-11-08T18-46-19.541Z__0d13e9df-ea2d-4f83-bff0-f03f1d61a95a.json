@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "0d13e9df-ea2d-4f83-bff0-f03f1d61a95a",
+  "issue_id": "PPY-cd5926d8-9eb1-4574-bf56-f419053b9d30",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:19.541Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Inventory: every model's indexes, which keys are global, and whether a tenant can reach all its rows",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

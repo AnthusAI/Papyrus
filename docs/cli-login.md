@@ -1,7 +1,8 @@
 # Native newsroom CLI login
 
 `papyrus login` opens normal Google sign-in through a **reviewed public
-Cognito app client**, then stores the renewable session in macOS Keychain.
+Cognito app client**, then stores the renewable session in the machine's secure
+credential store (see [Supported platforms](#supported-platforms-and-secure-storage)).
 Editorial requests use the same Cognito user-pool authorization as the newsroom;
 AppSync remains responsible for validating the token and enforcing permissions.
 This does not grant an operator role or require personal AWS SSO.
@@ -10,6 +11,347 @@ This implementation is reviewable code, not activated provider configuration.
 The existing Prospectus server client has 60-minute access/ID/refresh validity
 and discards refresh tokens. Do not silently reuse it for an unattended CLI
 session or extend browser sessions as part of setup.
+
+## Install the CLI so `papyrus` is on your PATH
+
+Install the published package as a tool, not into a project virtualenv. A tool install
+puts the `papyrus` command on your PATH in every shell:
+
+```sh
+pipx install papyrus-newsroom        # or: uv tool install papyrus-newsroom
+pipx upgrade papyrus-newsroom        # or: uv tool upgrade papyrus-newsroom
+```
+
+The package declares the `papyrus` console script (`[project.scripts]` in
+`pyproject.toml`). Inside a Poetry checkout `papyrus` exists only while that
+virtualenv is active (or as `poetry run papyrus`), which is why a bare `papyrus login`
+fails elsewhere. `papyrus doctor` reports which kind of install you are running:
+
+```text
+version   0.1.0   (newer release 0.2.0 available; upgrade with `pipx upgrade papyrus-newsroom` ...)
+install   pipx tool install
+on-path   ~/.local/bin/papyrus
+site      shipped.anth.us   signed in, session valid
+site      p.apyr.us         expired or revoked; run `papyrus login p.apyr.us`
+```
+
+It compares against the latest PyPI release (a lookup that is skipped with `--offline`
+and simply reported as unknown when PyPI is unreachable), says whether you are in a
+tool install, a virtualenv or system Python, and checks each signed-in site. It exits
+non-zero when a site needs a new login. It prints no tokens and no account identity.
+
+## Supported platforms and secure storage
+
+Sign-in, renewal, locking and storage come from the shared
+[`cli-login`](https://pypi.org/project/cli-login/) library (pinned to an exact
+version). Papyrus keeps only what is its own: reading a site's
+`/.well-known/papyrus-cli.json`, the registry of signed-in sites, picking the session
+that owns a GraphQL endpoint, and the `login`, `logout`, `whoami` and `auth status`
+commands.
+
+| Platform | Where the session is kept |
+| --- | --- |
+| macOS | Keychain, service `papyrus-newsroom-oauth`, one item per site key (sessions saved by earlier CLIs keep working) |
+| Linux | Secret Service (an unlocked desktop keyring), then the kernel keyring, then the memory agent |
+| Windows | Credential Manager |
+
+There is never a plaintext fallback. If no secure store is usable, `papyrus login`
+fails with the steps to fix it and writes nothing. Set `CLI_LOGIN_STORE` to
+`keychain`, `secret-service`, `kernel-keyring`, `agent` or `credential-manager` to
+choose a store explicitly.
+
+### Cloud machines and containers
+
+A cloud machine usually has no desktop keyring. When `papyrus login` finds no store it
+prints the exact command that starts the memory agent; run that command, then sign in
+again. The library is installed only inside the Papyrus tool's own environment, so the
+command must use that environment's Python by its full path. A bare `python` fails with
+`No module named cli_login`. This form works for every command below:
+
+```sh
+# pipx install; for uv tool install use "$(uv tool dir)/papyrus-newsroom/bin/python"
+PY="$(pipx environment --value PIPX_LOCAL_VENVS)/papyrus-newsroom/bin/python"
+"$PY" -m cli_login.stores.agent serve --namespace papyrus-newsroom-oauth --background
+"$PY" -m cli_login.stores.agent status --namespace papyrus-newsroom-oauth
+"$PY" -m cli_login.stores.agent stop   --namespace papyrus-newsroom-oauth
+```
+
+The agent keeps sessions in memory only, behind a private Unix socket, so they last
+until it stops or the machine restarts; sign in again after that. The agent is not
+available on Windows in this version.
+
+`papyrus login --remote` signs in from a machine with no browser at all, and needs no
+agent unless the machine has no keyring either: see
+[Remote sign-in from another device](#remote-sign-in-from-another-device).
+
+## Remote sign-in from another device
+
+This is the usual way to connect a reporting agent: the agent runs on a cloud computer, and you approve from your phone or another device of your own. The console's **Connect the CLI or an agent** page gives the command for the site.
+
+An agent on a cloud machine has no browser and should hold no long-lived keys. It runs
+
+```sh
+papyrus login --remote shipped.anth.us
+```
+
+and prints an approval URL and a short matching code, then waits (up to 10 minutes):
+
+```text
+To approve this sign-in, open https://shipped.anth.us/cli/approve?t=...
+and check that the page shows the code BCDF-GHJK.
+```
+
+Open the URL on your phone, sign in with Google on the site, check that the page shows
+the same code and approve. The waiting CLI receives the session and stores it exactly
+like a normal login (the same secure store, key and registry), then prints
+`Signed in as <you>.` The approval URL and code are an approval capability: whoever opens
+the URL and signs in first owns the session. When the agent knows who should approve, add
+`--expect-email you@example.com`; the CLI then refuses, and stores nothing, if anyone else
+approved. Nothing secret is printed or relayed: the broker sees only hashes of the CLI's
+secrets, and the code it holds for a moment is useless without the CLI's PKCE verifier.
+
+On a machine with no keyring, start the memory agent first (see
+[Cloud machines and containers](#cloud-machines-and-containers)); sessions then live in
+memory only. A site that has not switched this on answers
+`<site> does not publish a remote sign-in broker`, and nothing is started. A denied or
+expired approval, or an approval link that was already used, stores nothing.
+
+### Switching it on for one site
+
+Remote sign-in is **off for every site** until the site turns it on. It is built on the
+shared [`cli-login`](https://github.com/AnthusAI/cli-login) broker protocol
+(`docs/protocol.md` there) with one broker per site:
+
+| Piece | Where it lives |
+| --- | --- |
+| Broker (Lambda function URL for `/start` and `/poll`, DynamoDB transactions, alarms) | the site's Amplify backend, in the `CliRemoteLogin` stack (`amplify/cli-login/remote-login.ts`) |
+| Approval pages function (the library's own `ApprovalPages`, Python) | the same stack (`amplify/functions/cli-login-pages`) |
+| `/cli/approve` and `/cli/callback` | the site's Next.js app, which forwards them to the pages function with IAM (`lib/cli-login-pages.ts`) |
+| `https://<site>/cli/callback` | registered as a sign-in return URL on the site's existing web app client (never a logout URL) |
+| `broker_endpoint`, `remote_callback_uri` | added to `/.well-known/papyrus-cli.json`, only when the backend outputs name them |
+
+The broker, the pages and the CLI run the same pinned `cli-login` release
+(`amplify/cli-login/bundle.ts` and `pyproject.toml`; a test keeps them equal).
+
+To turn it on, set `cliRemoteLogin: true` in the `cms` block of the site's app-shell
+`site.json`, then deploy the app-shell stack and the site's backend:
+
+```json
+"cms": { "cliRemoteLogin": true }
+```
+
+The app-shell stack then sets two variables on the production branch:
+`PAPYRUS_ENABLE_CLI_REMOTE_LOGIN=true` and `PAPYRUS_CLI_INVOKER_ROLE_ARN` (the app's
+compute role, the only principal allowed to invoke the pages function). A site whose
+backend is configured without the app-shell can set the same two variables itself, or set
+`features: { cliRemoteLogin: true }` in `defineSiteBackend`. The site also needs
+`PAPYRUS_SITE_ORIGIN`, which production branches already have. With the flag off, the
+synthesized backend and the Cognito client are unchanged.
+
+### Operating the broker
+
+The broker has two CloudWatch alarms in the `CliRemoteLogin` stack, checked every five minutes:
+
+| Alarm | Meaning |
+| --- | --- |
+| `StartCeilingAlarm` | The broker refused login starts at its ceiling across all callers: too many login starts, such as a flood from many addresses. |
+| `ThrottledAlarm` | The broker Lambda reached its reserved concurrency of 10 and is being throttled. |
+
+Both notify the site's alarm topic when they fire and when they recover. Set the topic with
+`alarmTopicArn` in the `cms` block of the site's app-shell `site.json`; the app-shell stack
+passes it to the backend as `PAPYRUS_ALARM_TOPIC_ARN` on the production branch:
+
+```json
+"cms": { "cliRemoteLogin": true, "alarmTopicArn": "arn:aws:sns:<region>:<account>:<topic>" }
+```
+
+The topic ARN belongs in the site's own config, never in this repository, and so does the
+subscription that delivers the notifications. Without the setting the alarms exist but
+notify nobody, and synth prints one warning that names the setting.
+
+### A console on its own host
+
+When the newsroom console is served from its own host (`cms.consoleOrigin` in the app-shell
+`site.json`, for example `https://newsroom.shipped.anth.us`), the app shell sets
+`PAPYRUS_CONSOLE_ORIGIN`, and remote login follows it: the approval page and the callback
+(`/cli/approve`, `/cli/callback`) and the Cognito return URL are on the console origin, and
+`broker_endpoint` and `remote_callback_uri` in `/.well-known/papyrus-cli.json` name it.
+`PAPYRUS_SITE_ORIGIN` stays the public site's origin. The login file names the console origin
+as `publication`, because the CLI requires `publication` to equal the origin it was given.
+The new address is therefore `papyrus login --site https://newsroom.shipped.anth.us` (or
+`papyrus login --remote newsroom.shipped.anth.us`). The public host serves the same file, so
+the CLI refuses it there with the publication mismatch until the old address is retired.
+
+## Sign in by site name
+
+```sh
+papyrus login shipped.anth.us          # host name, or an https origin
+papyrus login shipped.anth.us p.apyr.us pilobol.us
+```
+
+The CLI reads the site's public sign-in values from
+`https://<site>/.well-known/papyrus-cli.json`. It reads that file only over HTTPS,
+refuses every redirect, caps it at 16 KiB, rejects any field it does not know, requires
+every field it does, and requires `publication` to equal the origin you asked for.
+The same validation as for a hand-written config then applies (HTTPS endpoints, a
+registered loopback callback, and so on). Nothing is saved if any check fails.
+
+If a site's frontend does not serve the file, the CLI says:
+`<site> does not publish CLI login (its sign-in client does not register the CLI callback)`.
+Deploy a frontend that includes the route (see
+[How a site publishes the file](#how-a-site-publishes-the-file)). `--config` keeps
+working for a site you configure by hand.
+
+Sign-in uses the fixed callback `http://localhost:3001/`. If something else already
+listens on that port (a dev server, another login), the CLI stops before opening a
+browser and says `Sign-in needs local port 3001 ... already in use`; stop that program
+and run the login again. Signing in to several sites at once is sequential, so one
+login never competes with another for the port.
+
+After the login the CLI also reads a second public file, `https://<site>/.well-known/papyrus-site.json`
+(see [The site file](#the-site-file-tenant-and-version)), keeps what it says, and warns on standard error when this CLI is
+older than the site. A site that serves no such file changes nothing.
+
+## Many sites at once
+
+Signed-in sites are kept in a registry of **public** metadata (the same
+`user-session.json` in the state directory, mode 0600, atomic writes under a lock, and
+the same symlink refusals). Renewable secrets stay in the OS credential store under the
+same per-site keys as before, so existing sessions survive the upgrade. A single-site
+`user-session.json` written by an earlier CLI is read as a one-site registry and is
+rewritten in the new shape the next time a site is saved.
+
+| Command | Effect |
+| --- | --- |
+| `papyrus login <site> [<site> ...]` | sign in to each, adding it to the registry |
+| `papyrus login --all` | sign in again to every site in the registry (a failure is reported and the rest continue; exit status is non-zero) |
+| `papyrus login` | sign in again to the only registered site (otherwise it asks you to name one) |
+| `papyrus whoami [<site>]` | renew and show every signed-in site, or one |
+| `papyrus auth status [<site>]` | local status for every site, without renewing |
+| `papyrus logout <site>` / `--all` | remove the stored session (and revoke it where reachable) |
+
+`papyrus logout` with no name is refused when several sites are signed in. A signed-out
+site stays in the registry so a later command cannot silently fall back to IAM.
+
+### Managing concepts from the signed-in CLI
+
+An editor's token can read the concepts and links of a site and write none of them directly (the model rules allow AWS credentials only). These commands therefore go through the site's own routes, which are open to the `editor` and `admin` groups only and check what may change, so a signed-in editor needs no AWS login:
+
+| Command | Route |
+| --- | --- |
+| `papyrus sections concepts add --section S --concept NAME --create [--display-name TEXT]` | `createEditorConcept(name, displayName)` |
+| `papyrus knowledge entities accept\|reject\|rename\|alias\|describe\|accept-description\|page --key K --actor ai\|human ...` | `applyKnowledgeReview(patches)` |
+| `papyrus knowledge entities link --key A --to B --note TEXT` | `createConceptLink` (the words are required) |
+| `papyrus references link --reference R (--to-reference R2 \| --concept NAME [--create]) [--predicate P] [--note TEXT]` | `createReferenceLink` |
+
+All of them write unless `--dry-run`, and `--help` sends nothing. A review may change only a node's name, aliases, description, status and review marks, and a link's confirmation; it cannot change a kind, a key or another model. `knowledge entities retype`, `add` and `merge` still need AWS credentials (`--auth iam`).
+
+**Where a decision was made is on the record.** A person may decide from the CLI, but a script or agent can work inside the same session, so the site stamps `via` on what it writes, from the sign-in client the token was issued to (Cognito signs it): `cli`, `newsroom`, or `signed-in` on a site that has not named its CLI client (`cliOnFederationClient`) and so cannot tell. On a link: `metadata.addedVia` and `metadata.decidedVia`. On a review mark in a node's change reason: `via` on the reviewer. The call cannot choose it: a mark it claims for the Newsroom is stamped `cli`, and a mark it leaves unchanged keeps the place it was made. The console shows words written through the CLI as "Written by an editor on <date> through the CLI". This does not make a CLI decision count for less (a person's `--actor human` is a person's review), and it does not change the Cyclotron's accept and reject counts; it makes the record tell the truth. Votes and ratings are different and stricter (`curation-caller.ts`): a vote from a CLI session is recorded as an agent's.
+
+### How a request picks its session
+
+Every GraphQL request carries its endpoint. The CLI uses the registered site whose
+`graphql_endpoint` equals it exactly, and a token is only ever sent to that endpoint.
+If no signed-in site owns the endpoint, the request fails and the message lists the
+signed-in sites and tells you to run `papyrus login <site>` (or to choose
+`PAPYRUS_GRAPHQL_AUTH=iam` deliberately); it never uses another site's session or your
+AWS credentials. A site whose file names an endpoint already registered for a different
+site is refused, so one site cannot capture another's requests. `--config` and
+`PAPYRUS_CLI_AUTH_CONFIG` still select exactly one hand-written config.
+
+### Picking the site for a command
+
+An editor who has signed in needs no `amplify_outputs.json`, no `PAPYRUS_GRAPHQL_ENDPOINT`, no `PAPYRUS_TENANT_ID` and no AWS
+login to run a newsroom command from any directory. The CLI chooses the site in this order and stops at the first that applies:
+
+1. **A site you name.** A leading flag, `papyrus --site shipped.anth.us <group> <command> ...`, or `PAPYRUS_SITE=shipped.anth.us`.
+   The site must be signed in; otherwise the error says `Not signed in to <site>; run papyrus login <site>`. If
+   `PAPYRUS_GRAPHQL_ENDPOINT` also names a different backend, that is an error, not a pick. A present `amplify_outputs.json`
+   never overrides this choice.
+2. **`PAPYRUS_GRAPHQL_ENDPOINT`**, used as it always was.
+3. **The site the working directory declares**: `cms.consoleOrigin` (else `cms.siteOrigin`) in `infra/site.json`, found in the
+   working directory or a parent (or under `PAPYRUS_SITE_ROOT`), when you are signed in to it. If you are not signed in to the
+   declared site and no outputs file exists, the command stops and names `papyrus login <that site>` instead of using another site.
+4. **An `amplify_outputs.json`** that names an endpoint (`PAPYRUS_SITE_ROOT`, the working directory, the Papyrus root), as it always did.
+5. **The only signed-in site.** With several signed in and none chosen, the error lists them and shows the flag; the CLI never guesses.
+
+The flag is a leading global because a trailing `--site` already means something else for several commands (`items link-references`
+and `references auto-accept` take a publication key, `references search` takes a host, `home-page snapshot` takes a key). Only
+the leading position is read as the global choice; those commands keep their own option. A token still goes only to the
+registered site that owns the endpoint, as in [How a request picks its session](#how-a-request-picks-its-session).
+
+The operator reference commands (`papyrus references list`, `references show`, `assignments list`) choose `local` or `cloud` when no
+`--backend`, `PAPYRUS_BACKEND` or config value says. The signed-in site chosen by this order counts as the endpoint: a signed-in editor
+gets `cloud` with no flag and no outputs file, even when a local pod is configured. On the IAM lane, or with an explicit backend,
+nothing changes.
+
+Steps 3 and 5 look at the registry only on the signed-in lane (a session exists and `PAPYRUS_GRAPHQL_AUTH` is unset or `user`).
+An operator who sets `PAPYRUS_GRAPHQL_AUTH=iam` is never sent to a signed-in site by them; with no outputs file and no
+endpoint variable the command fails and names `papyrus login`. Naming a site (step 1) is the only way the registry
+supplies an endpoint to the IAM lane.
+
+`content publish` and `stories set-slug` on a published story need no outputs file: when no file of the chosen site says whether the
+site projects its pages, the signed-in lane asks the newsroom's own `publishItem` mutation, which projects the page on a site that does
+and does nothing on one that does not (an `amplify_outputs.json` of the chosen site still decides first).
+
+`stories save-version --images` needs no outputs file either. The storage bucket and Cognito identity pool come from, in order: `--bucket` /
+`PAPYRUS_MEDIA_BUCKET` and `--identity-pool-id` / `PAPYRUS_IDENTITY_POOL_ID`; an `amplify_outputs.json` of the chosen site; then the values the
+signed-in site publishes in its site file (`media_bucket`, `identity_pool_id`, see [below](#the-site-file-tenant-and-version)). A site that
+publishes neither (it runs an older Papyrus) fails with a message that names the site and says which flag or variable to pass. A file that names a
+different backend than the site you chose is ignored for them rather than used, so a stray file in the working directory cannot send an upload to
+the wrong bucket. An operator on the IAM lane never borrows a signed-in site's values.
+
+### The site file: tenant and version
+
+`/.well-known/papyrus-cli.json` is read strictly by every installed CLI (an unknown field fails the login with "invalid CLI
+login metadata"), so nothing may be added to it. A site therefore also serves
+`/.well-known/papyrus-site.json`, which a CLI that has never heard of it simply never requests:
+
+```json
+{ "tenant_id": "machines-on-machines", "papyrus_version": "5.81.0",
+  "media_bucket": "<the site's media bucket>", "identity_pool_id": "<region>:<uuid>" }
+```
+
+`tenant_id` is the site's `PAPYRUS_TENANT_ID` build variable and is present only when the site has one;
+`papyrus_version` is the `@anthusai/papyrus` version the site was built with. `media_bucket` and `identity_pool_id` are the site's Amplify
+Storage bucket and Cognito identity pool, read from its own `amplify_outputs.json` and present only when the outputs name them in the shape of
+a bucket name or a pool id; `stories save-version --images` uses them signed in. All are public and none is a credential: the tenant scopes
+requests, it authorizes nothing; the bucket is private and is reached only by trading a signed-in token with the pool, whose role limits what
+it may write. A copy kept before a site published them is fetched again once when a command needs them. The CLI reads the file over HTTPS only, refuses redirects, caps it at 4 KiB,
+ignores fields it does not know, and treats a missing or unusable file as "unknown", never as a failure. It reads it at login
+and, for a sign-in already in the registry, the first time a command needs the tenant, so nobody has to sign in again. The
+copy is kept beside the registry (`site-documents.json`, public values, mode 0600). The tenant a client uses is, in order:
+an explicit `--tenant`, `PAPYRUS_TENANT_ID`, the tenant of the signed-in site that owns the endpoint ([multi-tenancy](multi-tenancy.md)).
+
+### Old CLI, newer site
+
+When a command is unknown to the installed CLI and a signed-in site runs a newer Papyrus, the error keeps its
+`Unsupported papyrus command` text and adds which site runs which version and the upgrade command
+(`pipx upgrade papyrus-newsroom`, or `uv tool upgrade papyrus-newsroom`). `papyrus login` prints the same warning on standard error
+when the site is newer. A version difference never fails a command by itself. `papyrus login --remote` prints the approval
+URL as soon as it has it, even when standard output is a pipe or a file.
+
+## How a site publishes the file
+
+No infrastructure or backend change is needed. The app shell serves
+`/.well-known/papyrus-cli.json` from the site's own `amplify_outputs.json`, so deploying
+a frontend that includes the route is the whole setup. The file reuses the site's
+**existing public web app client** (`auth.user_pool_client_id`: no secret, authorization
+code flow, Google, 30-day refresh), the user pool id and region (the issuer), the
+hosted-UI domain, and the GraphQL URL (`data.url`). The callback is always
+`http://localhost:3001/`, which every app-shell site already registers
+(`infra/amplify-app-shell/lib/site-config.ts`). The route emits the file only if that
+exact URI is in the outputs' `auth.oauth.redirect_sign_in_uri`; otherwise it answers
+404. The `publication` value comes from `PAPYRUS_SITE_ORIGIN`, never the request's Host
+header. Every field is public. The publication API still decides what a signed-in
+person may do under the normal user/group permissions.
+
+The site file is served by the route `app/.well-known/papyrus-site.json/route.ts` (`lib/cli-site-document.ts`). The bucket and pool come from the
+site's `amplify_outputs.json` at request time, so a site needs a deploy of a release that has them before its editors can drop the file. Its tenant comes
+from the `PAPYRUS_TENANT_ID` build variable (copied into `.env.production` by the build spec) and its version from the package
+the site installed (`withPapyrus` sets `PAPYRUS_ENGINE_VERSION`). A site serves it once it is rebuilt on a release that has it. A
+public host that is fronted by an edge stack needs the path routed to the app like `papyrus-cli.json`
+(`infra/edge/s3-projection-cms.yaml`, `infra/edge/threat-intelligence.yaml`); a console host, which is the app itself, needs nothing.
 
 ## Required configuration and approval
 
@@ -45,8 +387,10 @@ change live client settings or grant permissions merely to make a test pass.
 This corrects the earlier assumption that every live test needs a new client.
 The separate short-lived Prospectus server client remains unsuitable.
 
-Save reviewed **public metadata** as `.papyrus/cli-auth.json` in the selected
-publication, or point `PAPYRUS_CLI_AUTH_CONFIG` at it:
+Without site discovery you can still save reviewed **public metadata** as
+`.papyrus/cli-auth.json` in the selected publication, or point
+`PAPYRUS_CLI_AUTH_CONFIG` at it (this is also exactly what a site's
+`/.well-known/papyrus-cli.json` contains):
 
 ```json
 {
@@ -65,14 +409,15 @@ not a TTL the CLI can impose on Cognito or a remaining-lifetime guarantee. The
 172800 value above is illustrative, not a policy applied to a live client.
 Published metadata must agree with reviewed provider settings and the current
 publication's `PAPYRUS_GRAPHQL_ENDPOINT`/Amplify outputs. The CLI rejects endpoint
-mismatches before sending any token. It does not infer a native client from a
-web client or guess a tenant when data is absent.
+mismatches before sending any token. It never guesses a client or tenant: it uses only a
+site's own published file or the config you pass.
 
 ## Commands
 
 From the configured publication checkout:
 
 ```sh
+papyrus login newsroom.example.test
 papyrus login --publication https://newsroom.example.test --config .papyrus/cli-auth.json
 papyrus auth status
 papyrus whoami
@@ -94,20 +439,17 @@ If another application occupies the registered port, login fails safely; do not
 stop a user's server or bind a public interface. Check port availability before
 an approved interactive test.
 
-The active public selection is stored in a private metadata directory
+The registry of signed-in sites is stored in a private metadata directory
 (`~/.config/papyrus` by default, override `PAPYRUS_CLI_STATE_DIR`). Renewable
-secrets and subject/label records live in macOS Keychain, scoped by the complete
+secrets and subject/label records live in the secure store, scoped by the complete
 issuer/client/publication/endpoint/callback binding. Short-lived ID tokens are
 in process memory only. There are no token argv, environment variables, repo
 files or plaintext fallback. Child CLI/Tactus processes use the same public
-selection and read their own renewable secret from the OS store.
+registry and read their own renewable secret from the OS store.
 
-macOS support uses Apple's Security/CoreFoundation framework through Python's
-standard-library FFI, without new dependency installation. Locked/unavailable
-Keychain fails with a useful error and does not trigger a surprise unlock
-prompt. Other desktop secure-store backends are not implemented in this first
-slice; unsupported hosts fail closed. Python interface tests use synthetic
-store/provider fixtures, never production credentials.
+A locked or unavailable store fails with a useful error and does not trigger a
+surprise unlock prompt. Python interface tests use synthetic store/provider fixtures,
+never production credentials.
 
 Rotation reads and replaces the latest secret under a process-shared file lock;
 lock files contain no token data. Transient provider/network failures retain the
@@ -118,10 +460,10 @@ User-authenticated API requests are not replayed after uncertain delivery.
 `logout` always attempts local deletion, attempts provider refresh-session
 revocation and reports whether remote revocation was confirmed. It does not
 claim global signout or immediate invalidation of every previously issued JWT.
-If local secure-store deletion fails, logout returns an error. Public selection
+If local secure-store deletion fails, logout returns an error. Public registry
 metadata remains as a signed-out binding so a subsequent command cannot
-silently fall back to a broader IAM identity. A different publication requires
-its own explicit `login --config ...`; no credential is reused across bindings.
+silently fall back to a broader IAM identity. Each site needs its own
+`papyrus login <site>`; no credential is reused across bindings.
 
 For deliberate operator work, `PAPYRUS_GRAPHQL_AUTH=iam` keeps the existing AWS
 credential chain. Managed Lambdas continue using IAM. A failed user session
@@ -143,8 +485,8 @@ no IAM escalation, secret-safe errors and honest offline logout. They do not
 prove a live session lasts a day. `elapsed_24h_live_verified: false` explicitly
 keeps that distinction in status output. No real elapsed 24-hour acceptance,
 Google login, Keychain credential read/write or live permission-parity test has
-run. Only Apple framework symbol resolution was checked on M1; complete
-credential-free tests and CI remain the review gate for this PR.
+run. The store backends are tested in the `cli-login` library; complete
+credential-free tests and CI remain the review gate.
 
 Reference implementation: [Apricity cloud CLI](https://github.com/AnthusAI/Apricity/blob/ffe8a023b0418445aa67893a52ae9e173c366d42/crates/apricity-cli/src/cloud.rs#L206).
 OAuth uses the native-app pattern in [RFC8252](https://www.rfc-editor.org/info/rfc8252/).
@@ -154,3 +496,91 @@ and [revocation](https://docs.aws.amazon.com/cognito/latest/developerguide/token
 CLI login is separate from research execution: this PR does not replace the
 hosted empty seeded packet, run a console-agent exchange, or prove execution of
 a registered Tactus procedure.
+
+## Which client
+
+By default `papyrus login` signs in on the site's main web app client, with the callback
+`http://localhost:3001/`. A site can instead move the CLI onto its registered Prospectus
+federation client (`prospectus-google-only`: Google only, code flow, no secret, no password
+flow reachable). Turn it on with `cliOnFederationClient: true` in the `cms` block of the
+site's app-shell `site.json` (or `features: { cliOnFederationClient: true }` in
+`defineSiteBackend`, or `PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT=true`). It is off by default,
+and with it off the synthesized backend and both Cognito clients are unchanged.
+
+With it on:
+
+- the federation client's callbacks are exactly each site origin's
+  `/api/auth/prospectus/callback`, the fixed loopback
+  `http://127.0.0.1:38947/cli/callback`, and `<site origin>/cli/callback`;
+- `/.well-known/papyrus-cli.json` names the federation client and the fixed loopback callback,
+  and the remote broker signs in on the same client;
+- the CLI binds exactly that port and path. Cognito matches callbacks exactly, so if the port is
+  taken the login stops and says so; free the port and run it again.
+
+`papyrus login --print-client <site>` is read-only: it prints which client the site names (the
+last four characters of its id only), the callback and whether remote login is published.
+
+Flip order for a site, after the Prospectus federation review for it is approved: set the flag,
+deploy the app shell, check `papyrus login --print-client` shows the federation client, confirm
+`papyrus login` and `papyrus login --remote` complete, then remove `/cli/callback` from the main
+client in a later change so nothing breaks mid-way.
+
+Session length: with the flag on, the federation client keeps refresh tokens for **seven
+days** (access and ID tokens stay at 60 minutes), so a CLI login lasts a week between
+sign-ins. With the flag off the client is exactly as registered with Prospectus: 60-minute
+refresh tokens, so sites already registered under reviews that record 60 minutes do not change.
+
+The flag also lets the backend tell a CLI session from the Newsroom's, because the token names its
+client. The curation-delegation routes use that: an agent in a CLI session can ask for a delegation
+and relay decisions under one, but only the Newsroom's sessions can approve it, and a site without
+the flag refuses signed-in requests for a delegation ([story reporting](story-reporting.md#an-agent-on-the-signed-in-cli-no-aws-login)).
+
+## Enrollment
+
+Enrollment makes a CLI login a Prospectus Person. It is off for every site until the site switches it on, and it
+covers both `papyrus login --remote` and the local `papyrus login` (cli-login 0.4.0 `prepare` and `enroll` hooks).
+
+**Switching it on.** Set `PAPYRUS_ENABLE_CLI_ENROLLMENT=true` in the backend build, next to remote CLI
+login. The pages function then gets `SITE_CHALLENGE_ORIGIN` (the site's own origin), the stack gets a small throttle
+table, and the site's Amplify outputs carry `cliLogin.enrollment: true` and the table name, which turn on `/cli/challenge`
+and `/cli/enroll`. The pages function holds no Prospectus access. With the flag off none of this exists and the stack synthesizes unchanged.
+
+**The flow.**
+
+1. Central Prospectus admits challenge and resolve only from the site's registered compute role, so the pages
+   function does not call it. On Approve (`amplify/functions/cli-login-pages/login_challenges.py`) it asks the site's
+   `GET /cli/challenge?loginStateDigest=<sha256hex(T)>`, where T is the broker transaction; that route runs as the
+   compute role and calls Prospectus. The route and the pages function both accept the answer only if the status is
+   200, `challengeId` is a UUID4, the nonce matches `^[A-Za-z0-9_-]{32,256}$`, `expiresAt` is within the next 300
+   seconds and the token is a signed `v1.` challenge. Otherwise nothing is bound and the page says the service is
+   unavailable.
+2. The challenge nonce is the OpenID nonce of the Google sign-in; the signed challenge token is the opaque
+   enrollment the broker hands only to the CLI that holds the poll secret.
+3. After the code exchange the CLI posts `{challengeToken, idToken, loginState: T}` with its access token as the
+   bearer to `/cli/enroll`. The route verifies both tokens against the site's registered federation client (issuer,
+   audience or client id, expiry, same subject and same `auth_time`) and asks Prospectus to resolve them as the site.
+   A local `papyrus login` asks the site first (`GET /cli/challenge?state=<its own state>`, bound to `sha256hex(state)`,
+   never unbound), uses the nonce in the authorize URL, and posts to `/cli/enroll` with that state. It does this only
+   for a site whose challenge route answers; for a site that has not switched enrollment on, local login is unchanged.
+4. The CLI keeps its session only if this succeeds, and records the Person's id beside the site in
+   `~/.config/papyrus/user-session.json` (never a token).
+
+**Sign-in protections the review relies on.** The CLI uses the authorization code flow with PKCE (S256, a fresh
+verifier for each login), the Cognito `state` is the broker transaction and its secret part (the CLI never learns the
+secret part, and the dot is never sent to Prospectus), and the OpenID nonce is the Prospectus challenge nonce, which
+Prospectus compares with the ID token before it resolves.
+
+**Throttle.** `/cli/challenge` is public and central Prospectus has no per-site limit, so the site keeps a token
+bucket shared by all callers in a DynamoDB item, updated with a conditional write: 1 request per second with a burst
+of 2 by default (the same as Prospectus's own CRM for the same route), configurable with
+`PAPYRUS_CLI_CHALLENGE_RATE_PER_SECOND` and `PAPYRUS_CLI_CHALLENGE_BURST`. The reasoning: a challenge is issued once
+per login that a person then approves in a browser, so real demand is orders of magnitude below one per second, and the
+limit only bounds abuse. An empty bucket answers 429 and a storage failure answers 503; neither reaches Prospectus.
+
+**Failures.** `challenge_invalid`, `login_state`, `challenge_replay` and `reenrollment_required` pass through with
+their status; `login_not_enrollable` (403) means the login was made on a client other than the site's registered
+federation client; anything else is `unavailable`. The CLI discards the session and says why, and for
+`reenrollment_required` it says "Run `papyrus login` again."
+
+**Registration.** The challenge and enroll routes run as the Amplify compute role, which must be the site's
+registered `roleArn` in Prospectus; an `executionDelegation` principal is refused on challenge and resolve.

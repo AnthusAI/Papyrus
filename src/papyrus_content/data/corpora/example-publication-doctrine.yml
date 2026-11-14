@@ -1,0 +1,16 @@
+# A neutral example mission and policy. It belongs to no publication. A new site is seeded with it so that
+# something sensible exists on day one; replace it in the newsroom (Administration) or with
+# `papyrus sections import-doctrine --config <your file>`. A site's live doctrine is data in its own
+# backend: read it with `papyrus --site <site> editorial context` (docs/editorial-context.md).
+schemaVersion: 1
+doctrine:
+  - kind: mission
+    body:
+      - An example publication that reports on one subject for readers who want to understand it.
+      - Replace this mission with the one sentence that says who the publication serves and what it is for.
+
+  - kind: policy
+    body:
+      - Say what is known and what is not. Label uncertainty and speculation plainly.
+      - Prefer primary sources and link to them.
+      - Replace this policy with your publication's own rules for sources, tone and corrections.

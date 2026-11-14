@@ -1,0 +1,22 @@
+{
+  "id": "PPY-3acc8d52-6a7e-44fb-aaa8-812ea3829e04",
+  "title": "Publishing one story re-reads every published story and blocks for minutes (O(N) per publish, lease failures)",
+  "description": "As an editor publishing a story, I want `papyrus ops content publish` (the `publishItem` mutation) to come back within seconds and the page to follow reliably, so that I never retry a publish that already worked and never lose an hour to lease failures.\n\nMeasured 2026-11-08 on Machines on Machines (about 160 published stories, about 7,000 References): one projection took 69 to 190 s and grew with the number of published stories. The content-actions log shows `papyrus_request_over_budget ... Item.GetItem x100, PublishedItem.GetPublishedItem x98` and `papyrus_unbounded_list PublishedItemSummary / PublishedItem`; 69 of 180 invocations in three hours failed with `Projection lease ... waited 120s`.\n\nCauses (profiled with the site's own web/ directory and a call-counting fake client):\n1. `llms-full.txt` (and the item-pages follow-up) need every Story's body, read as two serial AppSync requests a Story: 2N+5 requests a publish (326 at N=160).\n2. The item-pages follow-up re-reads the whole PublishedItem table with bodies on every publish (a whole-table read) and holds the lease while it renders every item page.\n3. Every listing page whose inputs digest moved is PUT again, one at a time, even when its bytes are identical (153 of 206 writes per publish), and each is purged at the edge.\n4. AppSync gives a Lambda resolver about 30 s, so a synchronous `publishItem` that projects always times out on a big site; a retry then waits 120 s for the lease and fails.\n\nNot included here (follow-ups): the site-side `DEPENDS_ON` declaration that would stop every Videos/Findings page being re-rendered on a Story publish (a Machines on Machines change); making the console's Publish button asynchronous; chunking the deploy render so queued publishes run between chunks.\n\n```gherkin\nFeature: Publishing one story costs the same whatever the size of the site\n\n  Scenario: A publish reads a fixed number of records, whatever the number of published stories\n    Given a site with 300 published stories whose pages were projected\n    When an editor publishes one more story\n    Then the projection reads at most 3 records one by one and lists the published summaries at most twice\n    And with 600 published stories the same publish reads the same number of records\n\n  Scenario: Pages whose bytes did not change are neither written nor purged\n    Given a projected site on a store that can tell what it holds\n    When an editor publishes one more story\n    Then only the pages whose bytes changed are written and purged\n\n  Scenario: The CLI publish returns at once and the page follows\n    Given a site whose page takes a minute to build\n    When an editor publishes a story from the CLI\n    Then the answer says the page is being built, with a job id, within seconds\n    And asking for the job's status says when the page is live\n\n  Scenario: Publishing the same story again while it is being built joins the build\n    Given the page of a story is being built\n    When the editor publishes the same story again\n    Then no second build is started and the answer names the running job\n\n  Scenario: A build that finds the site busy is queued, not failed\n    Given another projection holds the site's lease\n    When a story's build starts\n    Then it waits a few seconds at most, leaves the story queued and the lease holder builds it before letting go",
+  "type": "bug",
+  "status": "in_progress",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T22:14:09.254075Z",
+  "updated_at": "2026-11-08T22:14:13.655240Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

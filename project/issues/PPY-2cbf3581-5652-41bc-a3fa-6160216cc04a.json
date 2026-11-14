@@ -1,0 +1,34 @@
+{
+  "id": "PPY-2cbf3581-5652-41bc-a3fa-6160216cc04a",
+  "title": "Migration: backfill legacy up votes (+1 -> 5, -1 -> 1), papyrus reader migrate-votes, Shipped cut-over",
+  "description": "Repo: **Papyrus**. Files: new `src/papyrus_content/reader_steering/migrate_votes.py` + `migrate_votes_test.py`; CLI command in the `papyrus reader` group (find it with `grep -rn \"reader\" src/papyrus_content/cli*`; follow the existing command style; writes by default, `--dry-run` reports); `features_backend/reader-steering.feature` (or a new `reader-vote-migration.feature`); `docs/reader-steering.md` (runbook paragraph).\n\n## Change\nOne-shot, idempotent backfill of the ReaderVote table for a site: every row with `dimension == \"up\"` and `value == 1` becomes `5`, `value == -1` becomes `1`, every other row is left alone. Idempotent because a row already at 5 or 1 is never changed by the rule: run it twice, nothing moves (and a legacy `1` only exists before the first run, so the command refuses to run a second time against a table where the write path is already live unless `--force`; detect \"live\" as any `up` row with a value in 2..5). It pages the table through the existing store (`ReaderStore` in handler.py has `get_vote_values`/`put_vote`; add a `scan_votes` to the DynamoDB store, do not go round it), prints counts (rows seen, mapped up, mapped down, unchanged), and schedules one snapshot run at the end (`schedule_snapshot`, the debounce path) so `items.json` is rewritten once.\n\n## Cut-over order (write it in docs/reader-steering.md and on this story when done)\n1. Release with the write-path story and the snapshot story merged; deploy the site (Shipped first: it is the only site with votes today).\n2. Run `papyrus reader migrate-votes --site shipped --dry-run`, read the counts, then without `--dry-run`.\n3. Shipped-web ships its client change (Shipped-web story, Shipped session; reads `{mean, n, upShare}` and shows \"N% up\"). Between 1 and 3 the proposals page shows the old client against the new data: coordinate so the window is one deploy, or ship 3 first reading both shapes.\n\n## Gherkin\n  Scenario: Legacy up votes become five and down votes become one\n  Scenario: Running the migration twice changes nothing\n  Scenario: A dry run reports counts and writes nothing\n  Scenario: The migration schedules one snapshot run at the end\n\n## Acceptance\nTests pass; dry run on Shipped's table reports the expected counts, then the real run; `items.json` and the proposals data show the new shape; Shipped's proposals page shows \"N% up\" after the Shipped-web story deploys. Blocked by the write-path and snapshot stories and by the Shipped-web client story (external; link it here when the Shipped session files it).",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-49e9b51e-5a5e-455b-8cf2-4d7c841c0281",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-fa27d961-9013-4862-a230-a20660c3c397",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-5245ede0-e586-454f-841e-e0e5ec9c29f3",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T13:21:58.497314Z",
+  "updated_at": "2026-10-31T13:22:35.701299Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

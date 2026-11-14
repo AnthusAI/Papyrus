@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "56494b9a-6360-4e82-a488-82a96e1054d1",
+  "issue_id": "PPY-f3a18b8a-3d9a-4894-8a82-79b6e24c7664",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-25T13:25:49.969Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Hugging Face Hub monitor source for Shipped (huggingface-models)",
+    "description": "Source type huggingface-models for monitors: public Hub model list with per-author, search and pipeline-tag queries, minimum likes/downloads and a watchlist, structured details (license, tags, library, likes, downloads, sha, baseModels relations), dedupe on the model's sha, direct routing with an optional rule, and papyrus monitors backfill (bounded, resumable). Feeds Shipped's knowledge map and the weekly trend-story step (5a8661). Code: PR 704 (merged to develop). Not deployed: change set, seed and backfill commands are in docs/monitoring-cloud.md, Starting Shipped. Open: deploy and seed (Ryan), Shipped corpus check before going live, Cyclotron acceptance of source huggingface if cyclotron routing is ever used.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+    "labels": []
+  }
+}

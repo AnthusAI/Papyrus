@@ -1,5 +1,6 @@
 """Cloud HN collector: DynamoDB-backed store against a hand-rolled fake table, plus template checks."""
 from decimal import Decimal
+import json
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ FEED = b'''<rss><channel>
 <item><title>Security source</title><link>https://example.org/security</link><comments>https://news.ycombinator.com/item?id=124</comments></item>
 </channel></rss>'''
 CONFIG = {"pk": "MONITOR#hn", "sk": "CONFIG", "sourceUrl": "https://news.ycombinator.com/rss",
-          "intervalSeconds": 900, "limit": 30, "enabled": True}
+          "intervalSeconds": 900, "enabled": True}
 TEMPLATE = Path(__file__).resolve().parents[3] / "infra" / "monitoring" / "papyrus-monitoring.yaml"
 
 
@@ -175,14 +176,15 @@ def test_missing_disabled_and_invalid_config(store, table):
     table.put_item({**CONFIG, "sourceUrl": "https://example.org/rss"})
     with pytest.raises(ValueError):
         run(store, now=1)
-    table.put_item({**CONFIG, "limit": 500})
+    table.put_item({**CONFIG, "intervalSeconds": 5})
     with pytest.raises(ValueError):
         run(store, now=1)
 
 
-def test_limit_bounds_items_collected(store, table):
-    table.put_item({**CONFIG, "limit": 1})
-    assert run(store, now=1)["new"] == 1
+def test_a_monitor_reads_its_whole_feed_and_the_retired_limit_does_nothing(store, table, capsys):
+    table.put_item({**CONFIG, "limit": 1, "maxItems": 1})
+    assert run(store, now=1)["new"] == 2
+    assert json.loads(capsys.readouterr().out.splitlines()[0]) == {"monitor": "ignored_retired_config", "fields": ["limit", "maxItems"]}
 
 
 def test_handler_raises_on_failed_run_and_returns_summary(monkeypatch, table):
@@ -248,7 +250,12 @@ def test_template_inventory(template):
     assert {r["Type"] for r in template.values()} == {
         "AWS::DynamoDB::Table", "AWS::Logs::LogGroup", "AWS::IAM::Role", "AWS::Lambda::Function",
         "AWS::SQS::Queue", "AWS::Scheduler::Schedule", "AWS::CloudWatch::Alarm", "AWS::Lambda::EventInvokeConfig",
-        "AWS::SSM::Parameter", "AWS::IAM::ManagedPolicy"}
+        "AWS::SSM::Parameter", "AWS::IAM::ManagedPolicy", "AWS::Events::EventBus", "AWS::Events::EventBusPolicy",
+        "AWS::Events::Rule", "AWS::Lambda::Permission", "AWS::SQS::QueuePolicy", "AWS::S3::Bucket",
+        "AWS::Logs::MetricFilter", "AWS::SNS::Topic", "AWS::SNS::Subscription",
+        # the operator alert listener (PPY-e92c8e, PPY-dd8c18); see test_operator_alerts.py
+        "AWS::Lambda::EventSourceMapping", "AWS::CloudWatch::CompositeAlarm", "Custom::SecureStringParameter",
+            "Custom::DeadmanStart"}
 
 
 def test_template_runs_the_ttab_monitor_daily_and_routes_it_hourly(template):
@@ -282,3 +289,22 @@ def test_template_iam_has_no_wildcard_resources(template):
                 assert all("*" not in a for a in (statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]))
     collector = str(template["CollectorRole"]["Properties"]["Policies"])
     assert "appsync" not in collector.lower() and "secretsmanager" not in collector.lower()
+
+
+def test_a_receipt_with_an_unstorable_number_is_stored_not_lost():
+    """A router run crashed writing its receipt: DynamoDB refused a number too small to store (decimal.Underflow). Such a number is stored as zero and an
+    over-precise one is rounded, so the receipt is kept."""
+    from decimal import Decimal
+    from boto3.dynamodb.types import TypeSerializer
+
+    from papyrus_content.monitoring_cloud import _storable
+
+    record = {"pk": "monitor#hn", "counts": {"examined": 3, "tiny": Decimal("1E-320"), "ratio": Decimal(1) / Decimal(3) * Decimal("1E-5"), "long": Decimal(0.1)},
+              "series": [Decimal("2.5"), 1e-310, 0.25], "note": "kept", "none": None}
+    stored = _storable(record)
+    TypeSerializer().serialize(stored)   # the call that raised before
+    assert stored["counts"]["tiny"] == 0 and stored["series"][1] == 0
+    assert stored["counts"]["examined"] == 3 and stored["series"][0] == Decimal("2.5") and stored["series"][2] == Decimal("0.25")
+    assert stored["note"] == "kept" and stored["none"] is None
+    assert Decimal("0.0000033333333333333") < stored["counts"]["ratio"] < Decimal("0.0000033333333333334")
+    assert len(stored["counts"]["long"].as_tuple().digits) <= 15

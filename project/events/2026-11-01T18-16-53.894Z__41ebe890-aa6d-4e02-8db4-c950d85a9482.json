@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "41ebe890-aa6d-4e02-8db4-c950d85a9482",
+  "issue_id": "PPY-20d379eb-9a83-4c45-87df-8064c24fcb0d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:53.894Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Hashtags typed in Messages link the Message to the concept",
+    "description": "When a person writes #name in a Message body that matches a concept (S2.3), write a current related_to edge message -> semanticNode, provenance human; unknown hashtags are listed as a possible new concept, not created automatically. Feeds the conversation and acceptance signals.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-b322345d-523c-45e9-8888-5d0c6a2f9391",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

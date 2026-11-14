@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "7693ae2f-ba0b-421e-93a3-fc4d01e736a4",
+  "issue_id": "PPY-04ce84e0-a035-4ba0-ac7a-ee4282a9f879",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:46.323Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: A written cost model with measured numbers, so pricing in Prospectus has a floor. Fixed shared costs (distribution, KeyValueStore, wildcard certificate, the shared newsroom app, the shared backend's idle cost) and per-tenant costs: storage (S3 GB-month of the tenant prefix), requests and bytes served, CloudFront Function and KVS reads per request, projection (Lambda GB-seconds, S3 PUTs per publish), AppSync requests per editor action, DynamoDB reads and writes, model spend, invalidation paths, outbound email. Measured on the staging stack with a small tenant (10 stories a week) and a busy one (MoM-like: monitors delivering about 30 References a run). Prices are list prices to be checked at the time of writing.\n\nTouches (verified at origin/develop 23fabe1d): docs/plans/multi-tenant-architecture.md (cost section) or a new docs/shared-tier-costs.md; request meter output; CloudWatch; Cost Explorer by tag.\n\nAcceptance (Gherkin feature file: none (a document); its numbers feed features_backend/tenant-usage-counters.feature):\nScenario: The model explains a month of a small tenant\n    Given the staging small tenant ran for 7 days\n    When the cost model is applied to its counters\n    Then the estimate is within 20% of the tagged cost\n\nDependencies: blocked by PPY-4a79f9, PPY-49d059. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Comparison with Cost Explorer by tag for the staging account.\nRollout: Document only.\nRisk and mitigation: Risk: a busy tenant's monitors dominate cost in ways the model misses. Mitigation: measure the busy profile, not only the small one.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
@@ -89,15 +88,16 @@ export function NewsroomArticlesView({ demo }: { demo: boolean }) {
           </TabsList>
         </Tabs>
         {loadError ? <NewsroomOpsStatusBanner tone="error">{loadError}</NewsroomOpsStatusBanner> : null}
-        {rows === null && !loadError ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Spinner /> Loading articles…
-          </div>
-        ) : null}
         {rows !== null && visibleRows.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nothing here yet.</p>
         ) : null}
         <ul className="divide-y divide-border rounded-xl border border-border bg-card" data-newsroom-articles-list>
+          {rows === null && !loadError ? Array.from({ length: 5 }, (_, index) => (
+            <li aria-hidden="true" className="flex items-center justify-between px-4 py-3" key={index}>
+              <span className="w-2/3"><span className="block h-4 w-3/4 rounded bg-muted" /><span className="mt-2 block h-3 w-1/2 rounded bg-muted" /></span>
+              <span className="h-5 w-16 rounded bg-muted" />
+            </li>
+          )) : null}
           {visibleRows.map((row) => (
             <li key={row.id}>
               <Link

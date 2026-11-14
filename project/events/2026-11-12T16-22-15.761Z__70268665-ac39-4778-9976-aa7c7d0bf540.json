@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "70268665-ac39-4778-9976-aa7c7d0bf540",
+  "issue_id": "PPY-dd27549a-62d3-4e0c-b798-83c1d7dedff8",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-12T16:22:15.761Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Slice 1: one Spanish Machines on Machines Story in preview",
+        "to": "Slice 1: one Spanish Machines on Machines Story, JIT, in preview"
+      },
+      "description": {
+        "from": "As the editor of Machines on Machines, I want one existing Story translated into Spanish, checked, reviewed by a person and shown at its Spanish address in preview, so we can judge the whole idea on a real page before anything is public.\n\nScope: one editor-chosen published MoM Story without text-bearing figures; Spanish only; derive-from-primary only; started by a command; preview tool only (tools/preview_production.py); no live publish, no edge redirect, no Spanish home or section pages. Plan: docs/plans/multilingual-publishing.md (PR #1450).\n\nFeature: Preview one Spanish Story\n\nScenario: An editor creates a Spanish localization\n  Given a published English Story on Machines on Machines\n  And Spanish is configured for the site in preview\n  When the editor runs papyrus stories localize for that Story in Spanish\n  Then a Spanish localization exists in the Story's language group\n  And it records the exact English version it was translated from\n  And its checklist lists translation, fidelity check, copy-edit, language review and approval\n\nScenario: The Spanish page appears only in preview\n  Given the Spanish localization has passed its checks and a Spanish reader approved it\n  When the editor opens the preview of the site\n  Then the Story is at /es/ followed by its section and Spanish slug\n  And the page declares lang es, links to the English page with hreflang, and is canonical to itself\n  And a line under the byline says it was translated by AI from the English original and links to it\n  And the live site is unchanged",
+        "to": "As the editor of Machines on Machines, I want one existing Story translated into Spanish by the full JIT procedure, shown at its Spanish address in preview with the welcoming banner, and corrected by one of our Spanish reviewers, so we can judge the whole idea on a real page before anything is public.\n\nScope: one editor-chosen published MoM Story without text-bearing figures; Spanish; derive from primary; translation procedure steps 1 to 8 (notify goes to the operator list until Caducus subscriptions exist); version model with listing keys, derived ids and alignment on a sandbox backend; preview tool only; countdown banner in preview; one correction through the correction view; measure invalidation paths per publish. No live publish. Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.\n\nFeature: Preview one Spanish Story\n\nScenario: Publishing the English Story generates its Spanish localization\n  Given Spanish is configured in preview for Machines on Machines\n  When the chosen English Story is published in the sandbox\n  Then a Spanish localization is generated, checked and published to preview without anyone assembling it\n  And it records the exact English version it came from and the cost of each step\n\nScenario: The Spanish page in preview\n  When the editor opens the preview\n  Then the Story is at /es/ with lang es, a translated-by-AI line linking the English page, hreflang for both and a self-canonical link\n  And the English page offers the Spanish version with the countdown banner to a Spanish-preferring browser\n\nScenario: A Spanish reviewer corrects a paragraph\n  Given a Spanish reviewer follows the correction link and signs in\n  When they reword a paragraph and save\n  Then a new Spanish version by that reviewer is published to preview with the paragraph pinned"
+      }
+    }
+  }
+}

@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Papyrus account stack: one multi-region CloudTrail trail that records management events only (no data events,
+  no Insights), delivered to a private, encrypted S3 bucket that expires its logs after a retention period. Log
+  file validation is on, so tampering is detectable. The first copy of management events in an account is free;
+  only the S3 storage of the log files is billed.
+
+Parameters:
+  TrailName:
+    Type: String
+    AllowedPattern: "^[a-z][a-z0-9-]{2,127}$"
+    Description: >-
+      Name of the trail. Start it with the deployment prefix (<prefix>-trail) so the pipeline's service role may manage it.
+      The trail ARN is built from this name, so the bucket policy needs no reference to the trail.
+  RetentionDays:
+    Type: Number
+    Default: 400
+    MinValue: 30
+    Description: Days before log files expire. The default, 400, keeps a little over a year.
+
+Resources:
+  # Versioning is left off on purpose: CloudTrail writes each log object once and never overwrites it, log file
+  # validation already proves integrity, and versioning would keep every expired object as a noncurrent version
+  # that has to be paid for and cleaned up separately.
+  TrailBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-logs
+            Status: Enabled
+            ExpirationInDays: !Ref RetentionDays
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+
+  TrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TrailBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: CloudTrailAclCheck
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt TrailBucket.Arn
+            Condition:
+              StringEquals:
+                "aws:SourceArn": !Sub "arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/${TrailName}"
+          - Sid: CloudTrailWrite
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub "${TrailBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+            Condition:
+              StringEquals:
+                "s3:x-amz-acl": bucket-owner-full-control
+                "aws:SourceArn": !Sub "arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/${TrailName}"
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt TrailBucket.Arn
+              - !Sub "${TrailBucket.Arn}/*"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+
+  Trail:
+    Type: AWS::CloudTrail::Trail
+    DependsOn: TrailBucketPolicy
+    Properties:
+      TrailName: !Ref TrailName
+      S3BucketName: !Ref TrailBucket
+      IsLogging: true
+      IsMultiRegionTrail: true
+      IncludeGlobalServiceEvents: true
+      EnableLogFileValidation: true
+      EventSelectors:
+        - ReadWriteType: All
+          IncludeManagementEvents: true
+          DataResources: []
+
+Outputs:
+  TrailName:
+    Description: Name of the trail.
+    Value: !Ref Trail
+  TrailArn:
+    Description: ARN of the trail.
+    Value: !GetAtt Trail.Arn
+  BucketName:
+    Description: Bucket holding the log files (retained if the stack is deleted).
+    Value: !Ref TrailBucket

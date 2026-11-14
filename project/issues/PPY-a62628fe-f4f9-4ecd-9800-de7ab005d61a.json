@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a62628fe-f4f9-4ecd-9800-de7ab005d61a",
+  "title": "Trending and new concepts from References and topics",
+  "description": "The snapshot already ranks entities by surprise, marks new ones and tracks topic clusters as growing or cooling, but only over published Items, so a site with few Stories shows little. Extend the same rules to accepted References, kept as a separate series from Stories. Use the source's publication date where known and the arrival date otherwise, and say which (`docs/idea-context-packs.md` section 2.3). Trending from entities and growth from topic clusters stay separate views, linked where a cluster's top terms match a concept.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-ee757023-8014-4c31-8397-e55566c7ab80",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:47.112602Z",
+  "updated_at": "2026-11-04T02:52:47.112623Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -165,6 +165,26 @@ Feature: Editorial checks
     When an operator runs papyrus editorial check on a draft saying "This is game-changing."
     Then the printed check result has a "no-hype" finding on "game-changing"
 
+  # An operator reads the findings themselves, not just a count, so they can act on each one.
+  Scenario: Checking a version from the command line prints every finding
+    Given a stored check of version 1 with a violation of "no-hype" on "game-changing" and a judgment for review of "measured-or-model" on "Sales doubled."
+    When an operator runs papyrus editorial check-version on version 1
+    Then the printed summary says "1 violations" and "1 for review"
+    And each finding is printed with its policy, severity, probability, message, excerpt and id
+    And the violation is printed before the finding for review
+
+  Scenario: Checking a version from the command line as JSON prints the full findings
+    Given a stored check of version 1 with a violation of "no-hype" on "game-changing" and a judgment for review of "measured-or-model" on "Sales doubled."
+    When an operator runs papyrus editorial check-version on version 1 with --json
+    Then the printed JSON lists both findings with their ids, probabilities and excerpts
+
+  # A judgment about the whole story has no passage to quote, so it says so instead of showing an empty excerpt.
+  Scenario: A judgment about the whole story says it applies to the whole story
+    Given Humanus returns a judgment finding for the whole story and one for the sentence "Sales doubled."
+    When an editor checks "Sales doubled. Costs fell." in section "engineering"
+    Then the whole-story finding's message starts with "Applies to the whole story"
+    And the sentence finding keeps its excerpt "Sales doubled." and its message unchanged
+
   Scenario: The function resolves its provider keys from Amplify secrets
     Given the function environment has Amplify secret placeholders for "TYPESAFE_API_KEY" and "OPENAI_API_KEY"
     And SSM holds a value for "TYPESAFE_API_KEY" only
@@ -206,7 +226,210 @@ Feature: Editorial checks
     Then Humanus was asked to run the classifier with a 12 second deadline
     And the classifier lane status is reported
 
-  Scenario: Two current missions are still an error
+  # Editors never lose their rule checks to odd doctrine: two current missions cannot say which one governs, so no mission applies.
+  Scenario: Two current missions: rule checks run, judgment checks are skipped
     Given the publication has 2 current missions
+    And the editorial check settings turn the classifier on with a 12 second deadline
     When an editor checks "This game-changing release." in section "engineering"
-    Then the check fails with "expected exactly one current record, found 2"
+    Then the findings are for policies "no-hype"
+    And Humanus was asked to run without the classifier
+    And the classifier lane is skipped because the publication has no mission
+
+  # Production saw "NewsroomSection not found" for values like "Papyrus" or "articles": an unknown section checks against
+  # the publication's policies with no section guidance.
+  Scenario: A section name no section matches still gets the publication's policies
+    Given the section has no NewsroomSection record
+    When an editor checks "This game-changing synergy ships." in section "Newsroom How-To"
+    Then the findings are for policies "no-hype"
+    And the section is recorded as skipped because there is "no section configuration"
+
+  # The severity names are info, warn and error; an info finding is a normal finding, not a crash.
+  Scenario: An info finding is returned and stored with the checked version
+    When the saved version of a story with "This synergy ships." is checked
+    Then version 1 has a stored finding for policy "jargon" with severity "info"
+
+  # Every saved version is checked on the server, so findings exist for content changed outside the editor (PPY: auto-run).
+  Scenario: Saving a version checks it and stores the result with the version
+    When version 1 of the story is saved with "This game-changing release." and checked
+    Then Humanus was asked to check
+    And version 1 has a stored check with 1 finding for policy "no-hype"
+
+  # Identical content is never sent to the provider twice, which keeps automatic checks from running up a bill.
+  Scenario: Checking a version again without changes does not ask Humanus again
+    Given version 1 of the story is saved with "This game-changing release." and checked
+    When version 1 of the story is checked again
+    Then the check was skipped as unchanged
+    And Humanus was not asked again
+
+  Scenario: A new version with the same content reuses the earlier check
+    Given version 1 of the story is saved with "This game-changing release." and checked
+    When version 2 of the story is saved with the same content as version 1 and checked
+    Then the check was skipped as unchanged
+    And Humanus was not asked again
+    And version 2 has a stored check with 1 finding for policy "no-hype"
+
+  Scenario: Changed content is checked again
+    Given version 1 of the story is saved with "This game-changing release." and checked
+    When version 2 of the story is saved with "A calm release." and checked
+    Then Humanus was asked to check
+    And version 2 has a stored check with 0 finding for policy "no-hype"
+
+  Scenario: The same text in another section is checked again, because the section picks the policies
+    Given version 1 of the story is saved with "This synergy ships." and checked
+    When version 2 of the story is saved in section "culture" with "This synergy ships." and checked
+    Then Humanus was asked to check
+
+  Scenario: A check whose judgment lane did not finish is retried on the next update
+    Given version 1 of the story is saved with "This game-changing release." and checked
+    And the stored check of version 1 did not finish its judgment lane
+    When version 1 of the story is checked again
+    Then Humanus was asked to check
+
+  # A stored check is only as good as the policies it was made under. A rule added on Machines on Machines left a check
+  # that said "0 findings, unchanged" while a direct check found two.
+  Scenario: A policy added after a check makes the stored check stale
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    And a "no-self-reference" policy for "this release" is added to the publication
+    When version 1 of the story is saved with "A calm release of synergy." and checked
+    Then Humanus was asked to check
+    And version 1 has a stored check with 0 finding for policy "no-hype"
+
+  Scenario: A policy edited in place, without a new version, makes the stored check stale
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    And the "jargon" policy is edited in place to flag "calm release"
+    When version 1 of the story is checked again
+    Then Humanus was asked to check
+    And version 1 has a stored check with 1 finding for policy "jargon"
+
+  Scenario: A policy added after a check also makes the earlier version's check unusable for a new version
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    And a "no-self-reference" policy for "this release" is added to the publication
+    When version 2 of the story is saved with the same content as version 1 and checked
+    Then Humanus was asked to check
+
+  Scenario: Identical content under identical policies says it was reused, with the time of the check
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    When version 1 of the story is checked again
+    Then Humanus was not asked again
+    And the check says it was reused from the check made at the stored time
+    And the check summary line says it was not checked again
+
+  Scenario: A changed policy does not check any other story
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    And another story's version 1 is saved with "A quiet note." and checked
+    And a "no-self-reference" policy for "this release" is added to the publication
+    When version 1 of the story is checked again
+    Then Humanus was asked to check
+    And the other story's stored check is still the one made before the policy was added
+
+  # Checks stored before the pack version carried a content fingerprint are checked once more.
+  Scenario: A check stored under the old pack version is checked again once
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    And the stored check of version 1 was made under the old pack version
+    When version 1 of the story is checked again
+    Then Humanus was asked to check
+    When version 1 of the story is checked again
+    Then Humanus was not asked again
+
+  Scenario: A check made without the judgment lane does not stand in for one with it on
+    Given the editorial check settings turn the judgment lane off
+    And version 1 of the story is saved with "A calm release of synergy." and checked
+    And the editorial check settings turn the classifier on with a 12 second deadline
+    When version 1 of the story is checked again
+    Then Humanus was asked to check
+
+  Scenario: A site with no model key says its judgment questions did not run
+    Given policy "no-hype" also has a sentence classifier detector "hype-judge"
+    And the editorial check settings turn the classifier on with a 12 second deadline
+    When version 1 of the story is saved with "A calm release of synergy." and checked
+    Then the stored check run records the classifier lane as unavailable
+    And the check summary line says the judgment questions did not run
+    And the stored check is not reused on the next check
+
+  # A closing section pasted into several articles goes stale in all of them at once (seven Anth.us articles did).
+  # The check compares a story with the latest version of the site's other stories; it never calls a model.
+  Scenario: A closing paragraph copied across stories is flagged, naming the other story
+    Given the site has a current story "other-article" that ends with the standard closing
+    When the saved version of the story "this-article" ends with the standard closing and is checked
+    Then the story "this-article" has a stored "cross-story-boilerplate" finding naming "other-article"
+
+  Scenario: A story's own earlier version does not count
+    Given the site has a superseded version of the story "other-article" that ends with the standard closing
+    When version 2 of the story "this-article" is saved with its own earlier closing and checked
+    Then the story "this-article" has no stored "cross-story-boilerplate" finding
+
+  Scenario: A passage the other story only quotes is not boilerplate
+    Given the site has a current story "other-article" that says "As the memo put it, \"we run this for clients at scale and we keep the source open so every client owns the whole thing\" and that is all."
+    When the saved version of the story "this-article" with "We run this for clients at scale and we keep the source open so every client owns the whole thing." is checked
+    Then the story "this-article" has no stored "cross-story-boilerplate" finding
+
+  Scenario: A passage this story quotes is not boilerplate either
+    Given the site has a current story "other-article" that says "We run this for clients at scale and we keep the source open so every client owns the whole thing."
+    When the saved version of the story "this-article" with "She said \"we run this for clients at scale and we keep the source open so every client owns the whole thing\" twice." is checked
+    Then the story "this-article" has no stored "cross-story-boilerplate" finding
+
+  # Agents check a draft before they save it. The draft check runs the same checks a saved version gets, so they do not
+  # have to save an extra version just to learn that a closing paragraph is boilerplate.
+  Scenario: A draft that repeats another story's closing is flagged by the command-line check
+    Given the site has a current story "other-article" that ends with the standard closing
+    When an operator runs papyrus editorial check on a draft that ends with the standard closing
+    Then the printed check result has a "cross-story-boilerplate" finding naming "other-article"
+
+  Scenario: The draft check gives the same boilerplate finding a saved version gets
+    Given the site has a current story "other-article" that ends with the standard closing
+    When the saved version of the story "this-article" ends with the standard closing and is checked
+    And an operator runs papyrus editorial check on a draft that ends with the standard closing
+    Then the printed check result has the same "cross-story-boilerplate" finding as the stored check of "this-article"
+
+  Scenario: A draft that revises a story does not match that story's own saved version
+    Given the site has a current story "this-article" that ends with the standard closing
+    When an operator runs papyrus editorial check on a draft that ends with the standard closing and revises "this-article"
+    Then the printed check result has no "cross-story-boilerplate" finding
+
+  Scenario: A draft check against a policy file says the boilerplate check did not run
+    Given a policy-pack file whose policy "no-hype" flags "game-changing"
+    When an operator runs papyrus editorial check on a draft saying "This is game-changing."
+    Then the printed check result lists "cross-story-boilerplate" as not run because "a policy file has no stories to compare with"
+
+  Scenario: A draft check against the site has nothing left unrun
+    Given the site has a current story "other-article" that ends with the standard closing
+    When an operator runs papyrus editorial check on a draft that ends with the standard closing
+    Then the printed check result lists no checks as not run
+
+  Scenario: Naming a story the site does not have is refused
+    Given the site has a current story "other-article" that ends with the standard closing
+    When an operator runs papyrus editorial check on a draft that revises "no-such-story"
+    Then the draft check is refused with "No story found for 'no-such-story'"
+
+  Scenario: Fewer shared words than the copy guard's run are not flagged
+    Given the site has a current story "other-article" that says "We run this for clients at scale."
+    When the saved version of the story "this-article" with "We run this for clients at scale." is checked
+    Then the story "this-article" has no stored "cross-story-boilerplate" finding
+
+  Scenario: The checks function may call everything its store calls
+    The function talks to the site's data API with its own role, so a query its store
+    makes without a grant fails at run time with 401, after deploy, for every editor.
+    That happened when reusing an earlier check run was added without its grant.
+    When the editorial-checks store's GraphQL operations are compared with the function's role
+    Then every field the store calls is granted to the role
+
+  Scenario: A tenant site's checks function is told the site's tenant
+    A backend that carries a tenant publishes an editorial context whose publication has that
+    tenant. The checks function compares it with its own tenant and refuses a mismatch with
+    "Editorial context tenant mismatch". The function gets its tenant from the site's build
+    variable, as the other tenant Lambdas do; without it every check after a save-version on
+    that site printed "not checked", so the copy edit step could not finish.
+    When the site backend's tenant build variable is compared with the Lambdas that receive it
+    Then the editorial-checks function receives the tenant
+
+  Scenario Outline: The checks function compares the context's tenant with its own
+    Given the site's editorial context belongs to the tenant "<context tenant>"
+    When the checks function reads the editorial context with the tenant "<function tenant>"
+    Then the editorial context is <outcome>
+
+    Examples:
+      | context tenant       | function tenant      | outcome                                            |
+      | machines-on-machines | machines-on-machines | accepted                                           |
+      | machines-on-machines | none                 | refused as an "Editorial context tenant mismatch"  |
+      | none                 | none                 | accepted                                           |
+      | none                 | machines-on-machines | refused as an "Editorial context tenant mismatch"  |

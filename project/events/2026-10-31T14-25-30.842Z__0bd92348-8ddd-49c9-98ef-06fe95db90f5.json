@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "0bd92348-8ddd-49c9-98ef-06fe95db90f5",
+  "issue_id": "PPY-fd6a77ac-becf-4d96-9428-fe25a7ced935",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-31T14:25:30.842Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Enable, certify and publish each remaining site; Anth.us last",
+        "to": "Enable, certify and publish: Shipped, then Distinctive Mark, then the rest; Anth.us last"
+      },
+      "description": {
+        "from": "Turn on the plugin, deploy, certify and publish per site. Anth.us only after Ryan's explicit go-ahead. Track each site's status on this task.",
+        "to": "Turn on the plugin, deploy, certify and publish per site. Anth.us only after Ryan's explicit go-ahead. Order: Shipped, Distinctive Mark, then the remaining sites, Anth.us last. Track each site's status on this task."
+      }
+    }
+  }
+}

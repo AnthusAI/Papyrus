@@ -37,6 +37,15 @@ function shimFor(route) {
   return lines.join("\n") + "\n";
 }
 
+/** Anchored .gitignore line for a literal path; escapes gitignore metacharacters (Next dynamic routes use [ ]). */
+export function gitignoreEntry(rel) {
+  const escaped = rel
+    .replace(/[\\[\]*?]/g, "\\$&")
+    .replace(/^[#!]/, "\\$&")
+    .replace(/ +$/, (m) => m.replace(/ /g, "\\ "));
+  return "/" + escaped;
+}
+
 export function middlewareShim(manifest) {
   const matcher = manifest.middleware.matcher ?? '["/((?!_next/static|_next/image|favicon.ico|icon).*)"]';
   return [
@@ -101,9 +110,9 @@ export function sync({ root = process.cwd(), log = console.log, manifest: manife
   // Keep generated shims out of git.
   const giFile = path.join(root, ".gitignore");
   const gi = fs.existsSync(giFile) ? fs.readFileSync(giFile, "utf8") : "";
-  const block = [GITIGNORE_BEGIN, ...generated.map((g) => "/" + g), "/.papyrus/", GITIGNORE_END].join("\n");
+  const block = [GITIGNORE_BEGIN, ...generated.map(gitignoreEntry), "/.papyrus/", GITIGNORE_END].join("\n");
   const re = new RegExp(`${GITIGNORE_BEGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${GITIGNORE_END}`);
-  fs.writeFileSync(giFile, re.test(gi) ? gi.replace(re, block) : `${gi}${gi.endsWith("\n") || !gi ? "" : "\n"}${block}\n`);
+  fs.writeFileSync(giFile, re.test(gi) ? gi.replace(re, () => block) : `${gi}${gi.endsWith("\n") || !gi ? "" : "\n"}${block}\n`);
 
   log(`papyrus-app sync: ${generated.length} shim(s) written, ${skipped.length} site-owned file(s) kept (${PKG}@${manifest.version})${readerBasePath ? `, reader mounted at ${readerBasePath}` : ""}`);
   for (const rel of skipped) log(`  site-owned: ${rel}`);

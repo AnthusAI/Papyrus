@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c2938e66-d42d-49ee-abcf-97d61f74f7a0",
+  "issue_id": "PPY-f0ba44c8-da52-48db-aedc-bde763cc6a9e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:32.050Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Add Wikimedia Commons as an image source",
+    "description": "Search Commons through its API and read each file's licence per image, because licences differ by file. Only allowed licences are returned. Depends on the source interface. Done when a real search returns four candidates with licence data, tested against recorded responses.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

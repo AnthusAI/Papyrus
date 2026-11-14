@@ -1,0 +1,30 @@
+{
+  "id": "PPY-5f0bc7cc-d85d-4f43-964c-9881ad3ed473",
+  "title": "Public handle uniqueness: claim record with a conditional write (PublicHandleClaim), replacing the query check",
+  "description": "Repo: **Papyrus**. #901 checks handle uniqueness with a query on `userProfilesByPublicHandle` inside `amplify/data/resolvers/set-public-handle-check.js`, then writes in `set-public-handle-write.js`. Two people claiming the same handle in the same second both pass the check. Fix it with a claim record written by a conditional put, and make that record the single handle registry so the forum epic (PPY-452419, decision 4) can reuse it for readers.\n\n## Design\n- New model `PublicHandleClaim` in `amplify/data/schema.ts` (next to `UserProfile`): `id` = the lowercase handle (partition key), `ownerKind: \"staff\" | \"reader\"`, `ownerId` (the UserProfile id, or the readerId for readers later), `claimedAt`. Auth: staff-only read like `ReaderHandle`; written only by the pipeline. This is the same shape as reader-steering's `ReaderHandle {id = lowercase handle, readerId}` (`amplify/plugins/reader-steering/function/handler.py` `claim_handle`, a conditional put), on purpose: the unification task in PPY-452419 folds `ReaderHandle` into it.\n- `setPublicHandle` pipeline (`amplify/data/profile-actions.ts`): replace the query step with `set-public-handle-claim.js`: `PutItem` with `condition: attribute_not_exists(id) OR ownerId = :me`; on `ConditionalCheckFailedException` return the existing Conflict error \"That handle is taken\". Then `set-public-handle-write.js` writes the profile. If the profile write fails, delete the claim (compensating step in the same pipeline, `set-public-handle-release.js`). Changing a handle releases the old claim (`DeleteItem` with `condition: ownerId = :me`) after the new one is claimed.\n- Keep the rules file `lib/public-handle.ts` and `src/papyrus_content/home_page/handles.py` and the vectors `scripts/fixtures/public-handle-vectors.json` as the single rule source; the claim is keyed by the normalised handle from those rules.\n- Backfill: a one-off idempotent script `scripts/backfill-public-handle-claims.ts` that puts a claim for every profile that already has a handle (conditional put, reports conflicts). It runs per site by an operator with IAM; **no AWS writes by the implementer**, the script is run by Ryan or the site owner after the release.\n\n## Gherkin (`features_backend/public-handle.feature`, extend)\n  Scenario: Two simultaneous claims of the same handle leave exactly one owner\n  Scenario: Changing my handle releases the old one for someone else\n  Scenario: A failed profile write leaves no orphan claim\n  Scenario: The claim is keyed by the normalised handle (RYAN and ryan collide)\n\n## Acceptance\n- `amplify/data` lint and `npx tsc` green; the pipeline is covered by the resolver unit tests pattern used for `post-message.js` (evaluate-code lint runs, see memory \"Resolver deploy lessons\": APPSYNC_JS lint before release).\n- Adds one DynamoDB table (schema change). Note the Amplify build timeout risk for schema changes (`papyrus-conversations-messages.md` lesson) in the PR.\n- `docs/home-page.md` \"Public handles\" gains two lines. No emails or ids in fixtures.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T12:30:43.233235Z",
+  "updated_at": "2026-10-31T12:31:22.988446Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

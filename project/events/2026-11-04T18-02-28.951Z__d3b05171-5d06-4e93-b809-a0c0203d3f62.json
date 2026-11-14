@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d3b05171-5d06-4e93-b809-a0c0203d3f62",
+  "issue_id": "PPY-ba2f1903-b9ec-48e3-9c10-c8b60b306504",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T18:02:28.951Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Show an accepted Reference's star rating on public pages",
+    "description": "Ryan, 2026-11-04: lists of accepted References on public pages must show the star rating. This reverses the 11-03 decision that stars change the order but stay private, and the rule in docs/home-page.md that the star count never appears on a page. Pending References keep showing Cyclotron confidence instead.\n\nNeeded: publish the star count in _data/home-page/references.json and on the Reference tile, and remove that field from EXCLUDED_REFERENCE_FIELDS. Keep private who rated it, when, and any note. A row with no rating shows no stars, with Cyclotron confidence if it has one. Use marks that don't depend on color, with text such as 4 of 5 stars for screen readers. Update docs/home-page.md and the specs. Machines on Machines is the first site; its hooks rebuild the tile, so it needs a matching change to read the stars.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-97e016ea-6af5-49f6-978a-f9bbd46c68f7",
+    "labels": []
+  }
+}

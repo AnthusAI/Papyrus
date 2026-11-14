@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "46b118f5-9a08-42b7-972d-dfd858a285bd",
+  "issue_id": "PPY-ab8632e3-84fe-43b3-910f-ea2ec250e019",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T02:01:25.141Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Video References show the video's own thumbnail",
+    "description": "Ryan confirmed 2026-11-04 through the Machines on Machines session that this belongs in Papyrus. Its Videos page uses ::include{kind=\"references\" medium=\"video\"}, and every video card should show the video's own thumbnail as its image. Look first: capture may already take the page's preview image (og:image), in which case this may only need the video case verified, including from the cloud, which YouTube often refuses. Proposed: for YouTube, derive the address from the id youtube_transcript.video_id reads, such as img.youtube.com/vi/<id>/hqdefault.jpg, with no API key; other platforms in reference_medium.PLATFORMS use oEmbed where they have it. Copy it into our own storage at capture and publish it as the Reference's existing image, so public pages never load from YouTube before the cookie banner is answered, and a takedown does not break the card. Compute once when a Reference is created or changes, never in a scheduled pass, plus a one-time backfill for existing rows. Needs Gherkin.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

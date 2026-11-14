@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "c4b12117-1b7c-4bac-b960-4c7150b1f0dc",
+  "issue_id": "PPY-8eca5bb4-5fcf-4515-8f8d-193cb351c152",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:17:58.488Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Questions, answered with a sandbox pool and the current Cognito documentation: (1) Cognito's built-in 'Google' provider has a fixed name, so I believe a pool can hold only one; can a tenant's own Google client be added as a generic OIDC provider (issuer https://accounts.google.com) with a per-tenant provider name, and does it give the same claims (email, email_verified, sub)? (2) limits: identity providers per pool, app clients per pool, callback URLs per client (100), and whether each tenant needs its own app client to offer only its provider; (3) the redirect a tenant must register in its Google client is the pool's domain (https://<cognito domain>/oauth2/idpresponse): one domain per pool, so the tenant's consent screen shows our domain unless the pool has a custom domain; (4) a person who signs in through the shared Google provider and later through the tenant's OIDC provider becomes two Cognito users: does AdminLinkProviderForUser link them, or must Papyrus map both subs to one UserProfile through UserIdentity; (5) attribute mapping and email_verified for OIDC (applyGoogleEmailVerifiedMapping handles the built-in provider only). Not verified so far: every number above except the 100-callback limit; the one-Google-provider-per-pool belief.\n\nTouches (verified at origin/develop 23fabe1d): ampx sandbox pool only; amplify/auth/resource.ts (applyGoogleEmailVerifiedMapping), UserIdentity model.\n\nAcceptance (Gherkin feature file: features_backend/tenant-google-client-spike.feature):\nScenario: A tenant's own Google client signs a member in to that tenant only\n    Given a sandbox pool with the shared Google provider and an OIDC provider for tenant \"alpha\"\n    When an alpha member signs in through alpha's provider\n    Then the token carries alpha claims, the user maps to the same UserProfile as their shared-Google sign-in, and beta's sign-in is unaffected\n\nDependencies: blocked by PPY-9f3de0. Blocks PPY-496c0b. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Sandbox only; findings recorded here.\nRollout: None.\nRisk and mitigation: Risk: bring-your-own clients need per-tenant app clients and a sign-in page that picks the client before sign-in. Mitigation: the spike says so before PPY-496c0b is built.\n\nReleasable on its own: not applicable (spike).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

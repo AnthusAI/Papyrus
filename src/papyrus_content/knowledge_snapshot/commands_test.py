@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+from collections import Counter
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,14 +24,18 @@ class FakeClient:
         self.published_rows = published_rows
         self.rows: dict[str, dict[str, dict]] = {}
         self.writes: list[tuple[str, str, str]] = []
+        self.requests: Counter = Counter()  # reads by kind, so a test can say what a run did not ask for
 
     def list_published_item_summaries(self):
+        self.requests["list"] += 1
         return copy.deepcopy(self.published_rows)
 
     def list_records(self, model):
+        self.requests["list"] += 1
         return copy.deepcopy(list(self.rows.get(model, {}).values()))
 
     def get_record(self, model, record_id):
+        self.requests["get"] += 1
         row = self.rows.get(model, {}).get(record_id)
         return copy.deepcopy(row)
 
@@ -52,10 +57,26 @@ class FakeClient:
         return copy.deepcopy([row for row in self.rows.get("SemanticRelation", {}).values() if row.get(field) == state])
 
     def list_semantic_relations_by_object_state(self, state):
+        self.requests["index"] += 1
         return self._relations_by("objectStateKey", state)
 
     def list_semantic_relations_by_subject_state(self, state):
+        self.requests["index"] += 1
         return self._relations_by("subjectStateKey", state)
+
+    INDEXES = {
+        "itemsByLineageAndVersion": ("Item", "lineageId"),
+        "referencesByLineageAndVersion": ("Reference", "lineageId"),
+        "referenceAttachmentsByReferenceLineageAndSortKey": ("ReferenceAttachment", "referenceLineageId"),
+    }
+
+    def list_by_index(self, index_name, key, **_kwargs):
+        self.requests["index"] += 1
+        model, field = self.INDEXES[index_name]
+        return copy.deepcopy([row for row in self.rows.get(model, {}).values() if row.get(field) == key])
+
+    def list_reference_attachments_by_lineage(self, reference_lineage_id):
+        return self.list_by_index("referenceAttachmentsByReferenceLineageAndSortKey", reference_lineage_id)
 
 
 def published_row(name: str, published_at: str, entities=(), tags=()):
@@ -214,7 +235,7 @@ def write_run_directory(directory: Path, *, run_id="run-2026-10-19") -> Path:
             {
                 "schema_version": 1,
                 "vocabulary": {"publication": "shipped", "version": 1, "hash": "abc"},
-                "backend": {"id": "gliner2-hybrid", "model": "gliner2-base", "revision": "1", "threshold": 0.7},
+                "backend": {"id": "jev", "model": "jev-1.13.0"},
                 "summary": {},
                 "items": [
                     {
@@ -1152,3 +1173,362 @@ def test_the_cli_help_lists_the_archive_command():
     from papyrus.operator import help_text
 
     assert "archive" in help_text.build_knowledge_parser().format_help()
+
+
+# -- monitor records (docs/knowledge-cloud-run.md, "Monitor records"): the Hub counts in the map and makes no page ----------
+HUB = "https://huggingface.co"
+HUB_CORPUS = "knowledge-corpus-shipped"
+
+
+def hub_model(client, model_id: str, created: str, *, bases=(), status: str = "pending", **overrides) -> None:
+    """A delivered Hub model: its Reference, which carries the monitor and the Hub details."""
+    slug = model_id.replace("/", "--")
+    reference = {
+        "id": f"reference-{slug}", "lineageId": f"lineage-{slug}", "versionState": "current", "corpusId": HUB_CORPUS, "curationStatus": status,
+        "sourceUri": f"{HUB}/{model_id}", "title": f"{model_id}: text-to-speech model", "sourcePublishedAt": created,
+    }
+    details = {
+        "modelId": model_id, "author": model_id.split("/")[0], "createdAt": created, "pipelineTag": "text-to-speech", "license": "apache-2.0",
+        "likes": 30, "downloads": 900, "baseModels": [{"modelId": base, "relation": relation} for base, relation in bases], **overrides,
+    }
+    reference.update(discoveredByMonitorId="huggingface", discoveryDetails=json.dumps(details))
+    client.rows.setdefault("Reference", {})[reference["id"]] = reference
+
+
+def with_published_rows(client) -> None:
+    from .corpus_export_test import row
+
+    client.rows["PublishedItem"] = {entry["id"]: entry for entry in (row("alpha"), row("beta"))}
+
+
+@pytest.fixture
+def hub(client, tmp_path):
+    with_published_rows(client)
+    hub_model(client, "org/base", "2026-10-06T08:00:00Z")
+    hub_model(client, "org/tuned", "2026-10-14T08:00:00Z", bases=[("org/base", "finetune"), ("elsewhere/gone", "adapter")])
+    hub_model(client, "org/lone", "2026-10-15T08:00:00Z", license="mit", pipelineTag="image-classification")
+    hub_model(client, "org/refused", "2026-10-15T08:00:00Z", status="rejected")
+    records = tmp_path / "run" / "monitor-records.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    return records
+
+
+def test_the_corpus_export_keeps_records_out_of_the_corpus_and_writes_the_records_file(hub, tmp_path):
+    names = sorted(path.name for path in (tmp_path / "raw").iterdir())
+    assert names == ["item-alpha.md", "item-beta.md"]  # records are data: the topic model reads only the site's own items
+    assert [entry["referenceId"] for entry in json.loads(hub.read_text())["records"]] == ["reference-org--lone", "reference-org--tuned", "reference-org--base"]
+
+
+def test_the_corpus_export_says_records_are_data_only(hub, tmp_path, capsys):
+    capsys.readouterr()
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19")
+    assert "3 monitor records (data only, not in the corpus)" in capsys.readouterr().out
+
+
+def test_the_corpus_export_adds_a_document_per_record_only_when_asked(hub, tmp_path, capsys):
+    capsys.readouterr()
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--records-in-topic-model")
+    names = sorted(path.name for path in (tmp_path / "raw").iterdir())
+    assert [name for name in names if name.startswith("record-")] == ["record-reference-org--base.md", "record-reference-org--lone.md", "record-reference-org--tuned.md"]
+    document = (tmp_path / "raw" / "record-reference-org--tuned.md").read_text(encoding="utf-8")
+    assert "kind: monitor-record" in document and "Built on org/base (finetune), elsewhere/gone (adapter)." in document
+    assert "3 monitor records" in capsys.readouterr().out
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19")
+    assert sorted(path.name for path in (tmp_path / "raw").iterdir()) == ["item-alpha.md", "item-beta.md"]  # an earlier export's record documents are removed
+
+
+def test_without_monitor_sources_the_export_has_no_records(client, tmp_path):
+    with_published_rows(client)
+    hub_model(client, "org/base", "2026-10-06T08:00:00Z")
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"))
+    assert sorted(path.name for path in (tmp_path / "raw").iterdir()) == ["item-alpha.md", "item-beta.md"]
+
+
+def test_monitor_sources_need_the_corpus_key_and_a_supported_source(client, tmp_path):
+    with pytest.raises(ValueError, match="--corpus-key"):
+        run(commands.knowledge_corpus_export, "--out", str(tmp_path), "--monitor-sources", "huggingface")
+    with pytest.raises(ValueError, match="Unsupported monitor source"):
+        run(commands.knowledge_corpus_export, "--out", str(tmp_path), "--monitor-sources", "rss", "--corpus-key", "shipped")
+
+
+def test_publish_run_imports_the_records_structured_entities_and_built_on_relations_and_is_idempotent(client, hub, capsys):
+    capsys.readouterr()
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub))
+    dry = capsys.readouterr().out
+    assert "recordNodesCreated" in dry and "recordRelations\t1" in dry and "recordBaseModelsOffMap\t1" in dry
+    assert not [write for write in client.writes if write[1] == "SemanticNode" and "org" in write[2]]
+
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")
+    capsys.readouterr()
+    nodes = {row["nodeKey"]: row for row in client.rows["SemanticNode"].values()}
+    assert {"model--org-tuned", "model--org-base", "model--org-lone", "maker--org", "licence--apache-2-0", "licence--mit", "task--text-to-speech", "task--image-classification"} <= set(nodes)
+    assert "model--org-refused" not in nodes
+    built_on = [row for row in client.rows["SemanticRelation"].values() if row["predicate"] == "built_on"]
+    assert len(built_on) == 1 and json.loads(built_on[0]["metadata"])["subtype"] == "finetune"
+
+    before = len(client.writes)
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")
+    assert len(client.writes) == before
+
+
+def test_the_snapshot_counts_records_by_release_week_with_no_page_and_cites_them_apart_from_items(client, hub, tmp_path, capsys):
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")
+    out = tmp_path / "site"
+    run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19", "--entity-href", "/wiki/{slug}/", "--monitor-records", str(hub))
+    index = json.loads((out / INDEX_FILE).read_text())
+    by_key = {row["key"]: row for row in index["entities"]}
+    maker = by_key["maker--org"]  # three records, no site item: counted, no page
+    assert (maker["itemCount"], maker["recordCount"], maker["href"]) == (3, 3, None)
+    assert maker["series8"][-2:] == [2, 0] and maker["series8"][-3] == 1  # released in the weeks of 10-12 (2) and 10-05 (1)
+    licence = by_key["licence--apache-2-0"]
+    assert licence["recordCount"] == 2 and licence["href"] is None
+    assert "model--org-lone" not in by_key and {"model--org-tuned", "model--org-base"} <= set(by_key)
+    detail = json.loads((out / "_data" / "knowledge" / "entities" / "maker--org.json").read_text())
+    assert detail["relatedItems"] == [] and [row["title"] for row in detail["relatedRecords"]] == ["org/lone", "org/tuned", "org/base"]
+    assert detail["relatedRecords"][1]["url"] == f"{HUB}/org/tuned" and detail["relatedRecords"][1]["provenance"] == "from the Hugging Face Hub"
+    tuned = json.loads((out / "_data" / "knowledge" / "entities" / "model--org-tuned.json").read_text())
+    [neighbour] = [row for row in tuned["neighbours"] if row["relation"] == "built_on"]
+    assert (neighbour["key"], neighbour["subtype"], neighbour["evidence"]) == ("model--org-base", "finetune", f"{HUB}/org/tuned")
+
+
+def test_a_snapshot_without_the_records_option_is_what_it_was(client, hub, tmp_path):
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")
+    out = tmp_path / "site"
+    run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19")
+    index = json.loads((out / INDEX_FILE).read_text())
+    assert all("recordCount" not in row for row in index["entities"])
+
+
+# -- the incremental record import: the monitor ledger (docs/knowledge-cloud-run.md, "Monitor records: a run that adds nothing costs minutes") --
+
+def import_records(hub, ledger, *flags, capsys=None):
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--monitor-ledger", str(ledger), "--apply", *flags)
+    return capsys.readouterr().out if capsys is not None else ""
+
+
+def count_of(output: str, name: str) -> int:
+    line = next((line for line in output.splitlines() if f"\tplan\t{name}\t" in line), None)
+    return int(line.rsplit("\t", 1)[1]) if line else 0
+
+
+def test_a_first_import_writes_the_ledger_and_a_second_run_with_nothing_new_reads_and_writes_nothing_for_the_records(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "corpus" / "monitor-import-ledger.json"
+    first = import_records(hub, ledger, capsys=capsys)
+    assert count_of(first, "recordsImported") == 3 and count_of(first, "recordsUnchanged") == 0
+    assert set(json.loads(ledger.read_text())["records"]) == {"reference-org--base", "reference-org--tuned", "reference-org--lone"}
+
+    writes, before = len(client.writes), Counter(client.requests)
+    second = import_records(hub, ledger, capsys=capsys)
+    assert count_of(second, "recordsImported") == 0 and count_of(second, "recordsUnchanged") == 3
+    assert len(client.writes) == writes
+    # what the records cost on a run that adds nothing: no read of their links and no point read of their entities
+    published = len(client.published_rows)
+    assert client.requests["index"] - before["index"] <= published
+    assert client.requests["get"] - before["get"] <= 2 * published + 10
+
+
+def test_the_ledger_is_saved_only_after_the_import_was_applied(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--monitor-ledger", str(ledger))  # a dry run
+    assert not ledger.exists()
+    original = client.create_record
+
+    def fail(model, payload):
+        raise RuntimeError("AppSync is down")
+
+    client.create_record = fail
+    with pytest.raises(RuntimeError, match="AppSync is down"):
+        import_records(hub, ledger)
+    client.create_record = original
+    assert not ledger.exists()  # the next run imports the same records again
+    import_records(hub, ledger)
+    assert ledger.exists()
+
+
+def test_a_new_record_is_the_only_one_imported_and_the_ledger_grows(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    import_records(hub, ledger)
+    hub_model(client, "org/newcomer", "2026-10-16T08:00:00Z", license="mit")
+    records = tmp_path / "run" / "monitor-records-2.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    capsys.readouterr()
+    before = len(client.writes)
+    output = import_records(records, ledger, capsys=capsys)
+    assert (count_of(output, "recordsImported"), count_of(output, "recordsUnchanged")) == (1, 3)
+    written = [write for write in client.writes[before:] if write[0] == "create"]
+    assert ("create", "SemanticNode", "semantic-node-model--org-newcomer-v1") in written
+    assert all("newcomer" in write[2] or write[1] == "SemanticRelation" for write in written)
+    assert len(json.loads(ledger.read_text())["records"]) == 4
+
+
+def test_a_record_whose_import_fields_changed_is_imported_again_and_supersedes_the_links_it_lost(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    import_records(hub, ledger)
+    assert any(row["objectLineageId"] == "semantic-node-licence--mit" and row["subjectLineageId"] == "lineage-org--lone" and row["relationState"] == "current" for row in client.rows["SemanticRelation"].values())
+    hub_model(client, "org/lone", "2026-10-15T08:00:00Z", license="gpl-3.0", pipelineTag="image-classification")  # its licence changed on the Hub
+    records = tmp_path / "run" / "monitor-records-2.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    capsys.readouterr()
+    output = import_records(records, ledger, capsys=capsys)
+    assert (count_of(output, "recordsImported"), count_of(output, "recordsUnchanged"), count_of(output, "recordLinksSuperseded")) == (1, 2, 1)
+    states = {row["objectLineageId"]: row["relationState"] for row in client.rows["SemanticRelation"].values() if row["subjectLineageId"] == "lineage-org--lone" and row["predicate"] == "mentions"}
+    assert states["semantic-node-licence--mit"] == "superseded" and states["semantic-node-licence--gpl-3-0"] == "current"
+
+
+def test_a_likes_or_downloads_change_is_not_a_change_of_the_import(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    import_records(hub, ledger)
+    hub_model(client, "org/base", "2026-10-06T08:00:00Z", likes=9000, downloads=1_000_000)
+    records = tmp_path / "run" / "monitor-records-2.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    capsys.readouterr()
+    assert count_of(import_records(records, ledger, capsys=capsys), "recordsImported") == 0
+
+
+def test_a_record_waiting_for_its_base_model_is_imported_again_when_the_base_reaches_the_map(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    import_records(hub, ledger)  # org/tuned names elsewhere/gone, which has no record and no entity
+    assert json.loads(ledger.read_text())["records"]["reference-org--tuned"]["unplacedBases"] == ["elsewhere/gone"]
+    assert len([row for row in client.rows["SemanticRelation"].values() if row["predicate"] == "built_on"]) == 1
+    hub_model(client, "elsewhere/gone", "2026-10-16T08:00:00Z")
+    records = tmp_path / "run" / "monitor-records-2.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    capsys.readouterr()
+    output = import_records(records, ledger, capsys=capsys)
+    assert count_of(output, "recordsImported") == 2  # the newcomer and the record that was waiting for it
+    built_on = {row["subjectLineageId"]: row["objectLineageId"] for row in client.rows["SemanticRelation"].values() if row["predicate"] == "built_on"}
+    assert built_on["semantic-node-model--org-tuned"] == "semantic-node-model--elsewhere-gone"
+    assert json.loads(ledger.read_text())["records"]["reference-org--tuned"]["unplacedBases"] == []
+    assert count_of(import_records(records, ledger, capsys=capsys), "recordsImported") == 0
+
+
+def test_monitor_full_imports_every_record_again_and_a_run_without_a_ledger_is_what_it_was(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    import_records(hub, ledger)
+    writes = len(client.writes)
+    assert count_of(import_records(hub, ledger, "--monitor-full", capsys=capsys), "recordsImported") == 3
+    assert len(client.writes) == writes  # deterministic ids: importing them again writes nothing new
+    capsys.readouterr()
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")  # no --monitor-ledger: every record, every time
+    output = capsys.readouterr().out
+    assert (count_of(output, "recordsImported"), count_of(output, "recordsUnchanged")) == (3, 0)
+
+
+def test_a_ledger_that_is_not_a_ledger_stops_the_import_instead_of_being_overwritten(client, hub, tmp_path):
+    ledger = tmp_path / "ledger.json"
+    ledger.write_text("[]")
+    with pytest.raises(ValueError, match="not a monitor import ledger"):
+        import_records(hub, ledger)
+    assert ledger.read_text() == "[]"
+
+
+def test_parallel_workers_give_the_same_import(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    output = import_records(hub, ledger, "--parallel", "4", capsys=capsys)
+    assert count_of(output, "recordsImported") == 3
+    with pytest.raises(ValueError, match="--parallel"):
+        import_records(hub, ledger, "--parallel", "0")
+
+
+# -- routed monitor records (docs/knowledge-cloud-run.md, "Routed records"): any monitor's References, linked to entities already on the map --
+
+def routed_story(client, slug: str, title: str, created: str, *, monitor: str = "hn", status: str = "pending", **details) -> None:
+    """A Reference the shared router delivered (Hacker News by default): a pending Reference at the story's address naming the monitor on the Reference."""
+    reference = {
+        "id": f"reference-{slug}", "lineageId": f"lineage-{slug}", "versionState": "current", "corpusId": HUB_CORPUS, "curationStatus": status,
+        "sourceUri": f"https://example.org/{slug}", "title": title, "sourcePublishedAt": created,
+    }
+    reference.update(discoveredByMonitorId=monitor, **({"discoveryDetails": json.dumps(details)} if details else {}))
+    client.rows.setdefault("Reference", {})[reference["id"]] = reference
+
+
+def routed_export(tmp_path, *sources: str) -> Path:
+    records = tmp_path / "run" / "monitor-records.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", ",".join(sources), "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    return records
+
+
+@pytest.fixture
+def stories(client):
+    with_published_rows(client)
+    routed_story(client, "cloning", "Show HN: Voice cloning in 3 seconds, from Some Lab", "2026-10-14T09:00:00Z")
+    routed_story(client, "unrelated", "Why my sourdough failed", "2026-10-15T09:00:00Z")
+    routed_story(client, "refused", "Voice cloning scams", "2026-10-15T09:00:00Z", status="rejected")
+    routed_story(client, "novel", "Quantum Gardening is trending", "2026-10-16T09:00:00Z")
+    return client
+
+
+def test_routed_records_come_from_any_monitor_and_not_from_a_rejected_or_unrouted_reference(stories, tmp_path):
+    stories.rows["Reference"]["reference-bare"] = {
+        "id": "reference-bare", "lineageId": "lineage-bare", "versionState": "current", "corpusId": HUB_CORPUS, "curationStatus": "accepted",
+        "sourceUri": "https://example.org/bare", "title": "Voice cloning, imported by hand", "sourcePublishedAt": "2026-10-14T09:00:00Z",
+    }
+    routed_story(stories, "feed", "Voice cloning on arXiv", "2026-10-13T09:00:00Z", monitor="arxiv")
+    records = json.loads(routed_export(tmp_path, "routed").read_text())
+    assert sorted((entry["referenceId"], entry["source"]) for entry in records["records"]) == [
+        ("reference-cloning", "hn"), ("reference-feed", "arxiv"), ("reference-novel", "hn"), ("reference-unrelated", "hn"),
+    ]
+    assert sorted(path.name for path in (tmp_path / "raw").iterdir()) == ["item-alpha.md", "item-beta.md"]  # data only
+
+
+def test_a_routed_story_links_only_to_entities_already_accepted_and_creates_none(stories, tmp_path, capsys):
+    run(commands.knowledge_publish_run, "--apply")
+    nodes_before = set(stories.rows["SemanticNode"])
+    run(commands.knowledge_publish_run, "--monitor-records", str(routed_export(tmp_path, "routed")), "--apply")
+    assert set(stories.rows["SemanticNode"]) == nodes_before  # "Quantum Gardening" is on no map: no entity is made for it
+    mentions = [row for row in stories.rows["SemanticRelation"].values() if json.loads(row["metadata"] or "{}").get("kind") == "knowledge.record_mention"]
+    assert sorted((row["subjectLineageId"], row["objectLineageId"]) for row in mentions) == [
+        ("lineage-cloning", "semantic-node-maker--some-lab"), ("lineage-cloning", "semantic-node-task--voice-cloning"),
+    ]
+    metadata = json.loads(mentions[0]["metadata"])
+    assert (metadata["confirmed"], metadata["linkSource"], metadata["provenance"]) == (True, "monitor", "routed from the hn monitor")
+    before = len(stories.writes)
+    run(commands.knowledge_publish_run, "--monitor-records", str(routed_export(tmp_path, "routed")), "--apply")
+    assert len(stories.writes) == before
+
+
+def test_routed_records_count_in_entities_as_data_with_no_page(stories, tmp_path):
+    run(commands.knowledge_publish_run, "--apply")
+    records = routed_export(tmp_path, "routed")
+    run(commands.knowledge_publish_run, "--monitor-records", str(records), "--apply")
+    out = tmp_path / "site"
+    run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19", "--entity-href", "/wiki/{slug}/", "--monitor-records", str(records))
+    by_key = {row["key"]: row for row in json.loads((out / INDEX_FILE).read_text())["entities"]}
+    assert by_key["task--voice-cloning"]["recordCount"] == 1 and by_key["task--voice-cloning"]["itemCount"] == 3  # two items and the story
+    assert by_key["task--voice-cloning"]["series8"][-3:] == [1, 2, 0] and by_key["task--voice-cloning"]["href"] is not None  # its own items still give it a page
+    assert "quantum" not in " ".join(by_key)
+    detail = json.loads((out / "_data" / "knowledge" / "entities" / "task--voice-cloning.json").read_text())
+    [story] = detail["relatedRecords"]
+    assert (story["url"], story["source"], story["provenance"]) == ("https://example.org/cloning", "hn", "routed from the hn monitor")
+    assert [row["title"] for row in detail["relatedRecords"]] == ["Show HN: Voice cloning in 3 seconds, from Some Lab"]
+
+
+def test_a_new_entity_on_the_map_links_the_stories_that_name_it_even_with_the_ledger(stories, tmp_path):
+    run(commands.knowledge_publish_run, "--apply")
+    records, ledger = routed_export(tmp_path, "routed"), tmp_path / "ledger.json"
+    import_records(records, ledger)
+    import_records(records, ledger)  # unchanged: nothing is imported
+    before = len(stories.writes)
+    import_records(records, ledger)
+    assert len(stories.writes) == before
+    stories.rows["SemanticNode"]["semantic-node-concept--quantum-gardening-v1"] = {
+        **next(iter(stories.rows["SemanticNode"].values())), "id": "semantic-node-concept--quantum-gardening-v1", "lineageId": "semantic-node-concept--quantum-gardening",
+        "nodeKey": "concept--quantum-gardening", "nodeKind": "concept", "displayName": "Quantum Gardening", "aliases": [], "status": "accepted",
+    }
+    import_records(records, ledger)
+    mentions = [row for row in stories.rows["SemanticRelation"].values() if row["subjectLineageId"] == "lineage-novel"]
+    assert [row["objectLineageId"] for row in mentions] == ["semantic-node-concept--quantum-gardening"]
+
+
+def test_a_site_without_the_routed_source_has_a_byte_identical_snapshot(client, hub, tmp_path):
+    def snapshot(name: str) -> dict[str, bytes]:
+        run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")
+        out = tmp_path / name
+        run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19", "--entity-href", "/wiki/{slug}/", "--monitor-records", str(hub))
+        return {str(path.relative_to(out)): path.read_bytes() for path in sorted(out.rglob("*")) if path.is_file()}
+
+    first, records = snapshot("before"), hub.read_bytes()
+    routed_story(client, "cloning", "Show HN: Voice cloning in 3 seconds, from Some Lab", "2026-10-14T09:00:00Z")
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(hub))
+    assert hub.read_bytes() == records
+    assert snapshot("after") == first

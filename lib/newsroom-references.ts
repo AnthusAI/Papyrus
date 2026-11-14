@@ -5,6 +5,25 @@ export type ReferenceCurationAction = "accept" | "reject" | "archive";
 
 export type ReferenceStatusFilter = "all" | "pending" | "accepted" | "rejected" | "archived";
 
+/** The References list filters: a Reference status, or "Accepted automatically" (`?status=auto-accepted`). */
+export type ReferenceListFilterKey = ReferenceStatusFilter | "auto_accepted";
+
+const LIST_FILTER_BY_URL_STATUS: Readonly<Record<string, ReferenceListFilterKey>> = {
+  all: "all", pending: "pending", accepted: "accepted", rejected: "rejected", archived: "archived", "auto-accepted": "auto_accepted",
+};
+
+/** The filter a `?status=` value opens, or null when the URL names none this list knows (the page then keeps its default view). */
+export function referenceListFilterFromSearch(search: string): ReferenceListFilterKey | null {
+  const value = new URLSearchParams(search).get("status")?.trim().toLowerCase() ?? "";
+  return LIST_FILTER_BY_URL_STATUS[value] ?? null;
+}
+
+/** The `?status=` value for a filter ("" for All, which has none). */
+export function referenceListFilterToUrlStatus(filter: ReferenceListFilterKey | "needs_review"): string {
+  if (filter === "all" || filter === "needs_review") return "";
+  return filter === "auto_accepted" ? "auto-accepted" : filter;
+}
+
 export function referenceLineageId(reference: ReferenceRecord): string {
   return reference.lineageId ?? reference.id;
 }
@@ -96,7 +115,31 @@ export function formatReferenceListDate(reference: ReferenceRecord): string {
 }
 
 export function referenceDisplayTitle(reference: ReferenceRecord): string {
-  return reference.title?.trim() || reference.externalItemId;
+  const title = reference.title?.trim();
+  if (!title) return reference.externalItemId;
+  let host: string | null = null;
+  try { host = reference.sourceUri ? new URL(reference.sourceUri).hostname : null; } catch { host = null; }
+  return withoutSiteName(title, host);
+}
+
+const TITLE_SEPARATORS = [" | ", " – ", " — ", " - "] as const;
+
+/**
+ * A page title without the site's name tacked on: "Auditing employment algorithms | Brookings" reads "Auditing employment
+ * algorithms". Only a last segment that names the site (its host's name, such as "brookings" in brookings.edu) is dropped,
+ * and with a pipe, which sites use for furniture, the section names before it go too ("… | Poverty and Development | Al Jazeera").
+ */
+export function withoutSiteName(title: string, host: string | null): string {
+  const label = (host ?? "").toLowerCase().replace(/^www\./, "").split(".").slice(0, -1).filter((part) => part.length >= 4).at(-1);
+  if (!label) return title;
+  const plain = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, "");
+  // The separator whose last segment is shortest wins, so "… groups – report - Amnesty International" keeps "– report".
+  const match = TITLE_SEPARATORS.map((separator) => ({ separator, parts: title.split(separator) }))
+    .filter(({ parts }) => parts.length > 1 && plain(parts.at(-1)!).includes(label))
+    .sort((left, right) => left.parts.at(-1)!.length - right.parts.at(-1)!.length)[0];
+  if (!match) return title;
+  const kept = match.separator === " | " ? match.parts[0] : match.parts.slice(0, -1).join(match.separator);
+  return kept.trim() || title;
 }
 
 export function referenceStatusLabel(status: string): string {

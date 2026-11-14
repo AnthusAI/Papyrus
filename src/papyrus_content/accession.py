@@ -14,7 +14,10 @@ from urllib.parse import urlparse
 
 import yaml
 
+from .tenant_knowledge_keys import REFERENCE_REVIEWED_FEED_KEY, global_key
 from .biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
+from .reference_feed_keys import feed_keys
+from .reference_reads import attachments_for_references
 from .automatic_assignments import OPERATIONAL_ASSIGNMENT_FEED_KEY
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import semantic_relation_record
@@ -614,6 +617,7 @@ def next_reference_version_for_accession(
             "curationStatus": next_reference.get("curationStatus"),
         }
     )
+    next_reference.update(feed_keys(next_reference))
     return next_reference
 
 
@@ -659,7 +663,7 @@ def new_reference_for_accession_replacement(
         "reviewedFeedKey": (
             None
             if (reference.get("curationStatus") or "pending") == "pending"
-            else "references#reviewed"
+            else global_key(REFERENCE_REVIEWED_FEED_KEY)
         ),
         "metadata": json.dumps(metadata, sort_keys=True),
         "updatedAt": now,
@@ -672,6 +676,7 @@ def new_reference_for_accession_replacement(
             "curationStatus": next_reference.get("curationStatus"),
         }
     )
+    next_reference.update(feed_keys(next_reference))
     return next_reference
 
 
@@ -744,7 +749,7 @@ def resolve_accession_assignment_metadata(
         (options or {}).get("corpus-key"),
     )
     corpus_id = knowledge_corpus_id(corpus_config)
-    attachments = client.list_records("ReferenceAttachment")
+    attachments = attachments_for_references(client, [reference])
     readiness = reference_source_readiness(reference, attachments, None)
     rebuilt = reference_accession_assignment_record(
         reference,

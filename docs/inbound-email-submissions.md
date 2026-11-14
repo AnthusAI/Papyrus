@@ -1,5 +1,10 @@
 # Inbound Email Submissions
 
+This page describes the legacy command-capable receiver. For newsletter links
+submitted as untrusted reference data, use the separate
+[strict email reference intake](email-reference-intake.md) and its explicit
+publication or shared-Cyclotron destination configuration.
+
 Papyrus accepts reference suggestions by email at configured addresses on the
 publication domain. Messages are stored as `Message` records with
 `messageKind = email_submission`, then processed by the
@@ -8,15 +13,15 @@ publication domain. Messages are stored as `Message` records with
 
 ## Addresses
 
-Default deployment configuration:
+A site that turns inbound email on (`features.inboundEmail` or `PAPYRUS_ENABLE_INBOUND_EMAIL=true`) supplies each of these
+branch variables. None has a default; the synth fails naming the one that is missing:
 
-- `submissions@p.apyr.us` — canonical intake address
-- `suggestions@p.apyr.us` — alias used for early testing
+- `PAPYRUS_INBOUND_EMAIL_DOMAIN` — the domain that receives mail
+- `PAPYRUS_INBOUND_EMAIL_CORPUS_KEY` — the corpus received mail is filed into
+- `PAPYRUS_PUBLIC_SITE_BASE_URL` — the site's public https origin, linked from reply emails
+- `PAPYRUS_ROUTE53_HOSTED_ZONE_ID` and `PAPYRUS_ROUTE53_HOSTED_ZONE_NAME` — only when the stack verifies the SES domain identity
 
-Override with:
-
-- `PAPYRUS_INBOUND_EMAIL_DOMAIN`
-- `PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS` (comma-separated)
+`PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS` (comma-separated) defaults to `submissions,suggestions`.
 
 ## Authorization
 
@@ -108,7 +113,7 @@ publicSite:
 
 Lambda deployments set `PAPYRUS_PUBLIC_SITE_BASE_URL` on the inbound processor
 (which overrides the config file when the repo checkout is not present). If
-neither is set, the default base URL is `https://p.apyr.us`.
+neither is set, processing stops and names `PAPYRUS_PUBLIC_SITE_BASE_URL`.
 
 Feedback is idempotent: `metadata.feedbackEmailSentAt` prevents duplicate sends.
 Disable with `PAPYRUS_INBOUND_FEEDBACK_EMAIL_ENABLED=false`. Override the From
@@ -138,7 +143,7 @@ original submission `Message`.
 | Intake shape | Handling |
 |--------------|----------|
 | **Single URL/DOI, minimal prose** | Deterministic pipeline: create / find / process direct citations |
-| **Multiple URLs** (e.g. forwarded newsletter) | **Console agent** — file relevant references, create **note** Messages where prose discusses a paper (`papyrus.reference.note_create`), skip footer/nav links. HTML-only forwards extract links from anchor `href` attributes (visible text after tag-stripping often has no URLs). |
+| **Multiple URLs** (e.g. forwarded newsletter) | **Console agent** — file relevant references, skip footer/nav links. Agents write no notes: a note is a Message, and Messages come only from people. HTML-only forwards extract links from anchor `href` attributes (visible text after tag-stripping often has no URLs). |
 | **URL + substantial message** | **Console agent** — decide filing vs editorial note vs question vs command (knowledge search, list references, etc.) |
 | **PDF only** (one attachment, no body URL/DOI) | Deterministic: extract DOI/arXiv from PDF (GROBID header when `BIBLICUS_GROBID_URL` is reachable, else PDF-byte heuristics), attach to existing corpus reference or create from identifier, then find/process |
 | **PDF + URL/DOI or multiple PDFs or PDF + long prose** | **Console agent** |
@@ -236,8 +241,7 @@ plus a **PDF-only** first message and a **newsletter forward** with several link
 From a registered user mailbox, send email to `suggestions@p.apyr.us` with a
 subject and body that include at least one URL or DOI. Confirm a
 `email_submission` message appears in GraphQL and new pending `Reference` rows
-are created for the configured corpus (`PAPYRUS_INBOUND_EMAIL_CORPUS_KEY`,
-default `AI-ML-research`). You should receive a feedback email at the sender
+are created for the configured corpus (`PAPYRUS_INBOUND_EMAIL_CORPUS_KEY`). You should receive a feedback email at the sender
 address when processing completes.
 
 ## Replay an archived submission (local, pre-deploy)

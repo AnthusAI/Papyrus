@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a25b3fb5-b314-4df5-93bf-cde4ba9e31a7",
+  "title": "Knowledge run reads section vocabulary and taxonomy learns from decisions",
+  "description": "Taxonomy feedback is manual and outside the knowledge run (stages.py:401-428), and no loop exists for entities or ontology. Design after the rebuild: what a person's accept, reject, rename and merge teaches each stage. KnowledgeArtifact and CategoryKeyword rows and corpus snapshots were deleted, so taxonomy discovery starts over.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T18:22:37.095192Z",
+  "updated_at": "2026-11-04T18:22:37.095223Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

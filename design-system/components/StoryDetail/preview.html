@@ -1,0 +1,104 @@
+<!-- @dsCard group="Newsroom" height=1080 width=900 subtitle="As it is on the board today, and a way out" -->
+<div id="root"></div>
+<style>
+  #root, #root * { box-sizing: border-box; }
+  #root { display: grid; font-family: var(--font-sans); gap: var(--space-5); }
+  /* grid children default to min-width:auto, so a long line of body text or a wide select pushes the
+     panel past its column; nothing in this pane may scroll sideways. */
+  .selects > *, .cols > *, .zones > *, .panel > * { min-width: 0; }
+  .code, .prev h4, .prev p, .zone small { overflow-wrap: anywhere; }
+  .frame { display: grid; gap: var(--space-2); }
+  .cap { color: var(--ink-muted); font-family: var(--font-label); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+  .cap em { color: var(--ink-strong); font-style: normal; }
+  .hint { color: var(--ink-muted); font-size: 12px; line-height: 16px; margin: 0; }
+  .panel { background: var(--surface); border-radius: var(--radius-lg); display: grid; gap: var(--space-3); padding: var(--space-4); }
+
+  /* today: three button idioms, a bordered preview, labels as bare spans */
+  .hdr { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+  .slug { background: var(--surface-muted); border: 0; border-radius: 6px; color: var(--ink); font: inherit; font-size: 12px; padding: 6px 8px; width: 220px; }
+  .ghost { background: none; border: 0; color: var(--ink-strong); cursor: pointer; font: inherit; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+  .hbtn { background: var(--surface-muted); border: 0; border-radius: 6px; color: var(--ink); cursor: pointer; font: inherit; font-size: 12px; min-height: 28px; padding: 0 10px; }
+  .hbtn[aria-pressed="true"] { background: var(--primary); color: var(--primary-contrast); font-weight: 600; }
+  .selects { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+  .sel { background: var(--surface-muted); border: 0; border-radius: 6px; color: var(--ink); font: inherit; font-size: 13px; min-height: 32px; padding: 0 8px; width: 100%; }
+  label.f { display: grid; font-size: 12px; font-weight: 600; gap: 4px; }
+  label.f span { color: var(--ink-strong); }
+  .in, .ta { background: var(--surface-muted); border: 0; border-radius: 6px; color: var(--ink); font: inherit; font-size: 13px; min-height: 32px; padding: 7px 9px; width: 100%; }
+  .ta { min-height: 58px; resize: vertical; }
+  .cols { display: grid; gap: var(--space-3); grid-template-columns: 1fr 1fr; }
+  .code { background: var(--surface-muted); border-radius: 6px; color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 18px; min-height: 150px; padding: 10px; white-space: pre-wrap; }
+  .prev { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  .prev h4 { color: var(--ink-strong); font-family: var(--font-display); font-size: 20px; line-height: 1.15; margin: 0 0 6px; }
+  .prev p { color: var(--ink); font-family: var(--font-reader); font-size: 14px; line-height: 21px; margin: 0 0 8px; }
+  .errs { background: var(--verdict-miss-tint); border-radius: 6px; color: var(--verdict-miss-ink); font-size: 12px; padding: 9px 11px; }
+  .errs ul { margin: 4px 0 0; padding-left: 16px; }
+  .note { color: var(--ink-muted); font-size: 11px; margin: 0; }
+
+  /* the proposal: zones, not a form dump */
+  .zones { display: grid; gap: 8px; }
+  .zone { background: var(--surface-muted); border-radius: 8px; display: grid; gap: 3px; padding: 11px 12px; }
+  .zone b { color: var(--ink-strong); font-size: 13px; }
+  .zone small { color: var(--ink-muted); font-size: 11px; line-height: 15px; }
+  .zone[data-accent] { background: var(--surface-accent); }
+  .flag { color: var(--verdict-miss-ink); font-size: 11px; font-weight: 600; }
+</style>
+<script>
+  document.getElementById("root").innerHTML = `
+  <div class="frame">
+    <span class="cap">As it is today — <em>the article editor, embedded in the board's detail panel</em></span>
+    <p class="hint">Everything the editor can do, in one flat form: a slug, three selects, four front-matter fields, a markdown pane, a bordered preview and a validation list. Three button idioms appear in the same panel.</p>
+    <div class="panel">
+      <div class="hdr">
+        <input class="slug" value="quiet-month-for-ransomware-crews" aria-label="Slug">
+        <button class="ghost" type="button">Open full page</button>
+      </div>
+      <div class="selects">
+        <label class="f"><span>Type</span><select class="sel"><option>Article</option></select></label>
+        <label class="f"><span>Section</span><select class="sel"><option>Analysis</option></select></label>
+        <label class="f"><span>Status</span><select class="sel"><option>Draft</option></select></label>
+      </div>
+      <p class="note">This is version 3 of 5, shown read-only. <button class="ghost" type="button">Open the latest version</button></p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="hbtn" aria-pressed="true" type="button">Preview</button>
+        <button class="hbtn" type="button">Edit</button>
+        <button class="hbtn" type="button">Messages</button>
+        <button class="hbtn" type="button">References</button>
+      </div>
+      <label class="f"><span>Title</span><input class="in" value="A quiet month for ransomware crews"></label>
+      <label class="f"><span>Subtitle</span><input class="in" placeholder="A line under the headline"></label>
+      <label class="f"><span>Blurb</span><textarea class="ta" placeholder="Two or three lines that describe the story on the board and in listings"></textarea></label>
+      <input class="in" placeholder="What changed? Recorded when you save as a new version." aria-label="What changed in this version">
+      <div class="cols">
+        <div class="frame">
+          <span class="cap">Story body</span>
+          <div class="code">## The quarter in one line
+
+Payment volumes fell for the third quarter running, while the number of
+named victims rose.</div>
+          <div style="display:flex;gap:6px"><button class="hbtn" type="button">Insert image</button></div>
+          <p class="note">Save the draft once to enable image upload.</p>
+        </div>
+        <div class="frame">
+          <span class="cap">Preview</span>
+          <div class="prev"><h4>A quiet month for ransomware crews</h4><p>Payment volumes fell for the third quarter running, while the number of named victims rose.</p></div>
+          <p class="note">Showing the last valid version.</p>
+        </div>
+      </div>
+      <div class="errs">Validation errors<ul><li>front matter: <b>blurb</b> is required before publishing</li><li>body: an image has no alt text</li></ul></div>
+    </div>
+  </div>
+
+  <div class="frame">
+    <span class="cap">A way out — <em>four zones, in the order the work happens</em></span>
+    <p class="hint">The same capabilities, grouped by the question each answers, with the validation attached to the field it belongs to and one button idiom throughout.</p>
+    <div class="panel">
+      <div class="zones">
+        <div class="zone" data-accent><b>1 · Identity</b><small>Title, subtitle, blurb and slug, as one block with the preview of how they read on the board and in listings — written once, judged together. Validation sits on the field, not in a list at the bottom.</small></div>
+        <div class="zone"><b>2 · Placement</b><small>Type, section and desk. Status does not belong here: the board column already says it, and two controls for one truth is how a story ends up in two states.</small></div>
+        <div class="zone"><b>3 · The story</b><small>Body and media, with Edit and Preview as one switch rather than two of a four-way toggle. Image upload is a state of the draft, not a hint under a disabled button.</small></div>
+        <div class="zone"><b>4 · The record</b><small>Versions, what changed, messages and the references it draws on — everything about <em>this</em> story rather than its text. The change note belongs to the save, so it lives with the save.</small></div>
+      </div>
+      <p class="hint"><span class="flag">Open questions:</span> whether Messages and References stay as tabs or move to the pane that already holds them for a reference; and whether the embedded panel should offer publishing at all, or send an editor to the full page for anything irreversible.</p>
+    </div>
+  </div>`;
+</script>

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-70438356-96ff-414a-9692-42b7b9d99151",
+  "title": "Tell editors a change reaches the public site in a few minutes",
+  "description": "Ryan, 2026-11-05: he accepted the video on Machines on Machines, checked the Videos page at once, saw nothing and thought it had failed; the home-page snapshot runs after a debounce of up to about 5 minutes. When an editor accepts, rejects, rates or edits something that changes public pages, the Newsroom confirmation says it will be live on the site in a few minutes. Plain words, no colour alone. Gherkin. Later, when blocks read indexes (PPY-7f1e54), the wait may shrink; keep the wording honest to the real delay.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T21:03:27.587714Z",
+  "updated_at": "2026-11-05T21:03:27.588053Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

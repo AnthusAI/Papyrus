@@ -12,12 +12,14 @@ from ..projection.source import is_projectable, summary_from_row
 from .cluster_records import cluster_from_proposal
 from .actors import Actor, decode_review
 from .keys import normalize_name, slug
+from .page_answer import PAGE_FIELD, decode_page_answer, page_override
 from .model import (
     DESCRIPTION_AI_EDITED,
     DESCRIPTION_DRAFT,
     DESCRIPTION_NONE,
     DESCRIPTION_REVIEWED,
     LINK_EXTRACTOR,
+    LINK_MONITOR,
     Beat,
     Cluster,
     EntityNode,
@@ -27,7 +29,9 @@ from .model import (
     NodeRelation,
     PublishedItem,
 )
-from .publish_run import NODE_KIND, is_item_mention, json_object
+from .monitor_import import is_record_mention
+from .parallel import DEFAULT_WORKERS, map_with_clients
+from .publish_run import NODE_KIND, is_item_mention, is_reference_mention, json_object
 
 CURRENT = "current"
 
@@ -89,6 +93,7 @@ def description_state(row: Mapping[str, Any]) -> tuple[str, Actor | None]:
 
 def entity_node(row: Mapping[str, Any]) -> EntityNode:
     state, editor = description_state(row)
+    answer = decode_page_answer(row.get(PAGE_FIELD))
     return EntityNode(
         lineage_id=str(row.get("lineageId") or row["id"]),
         node_key=str(row.get("nodeKey") or ""),
@@ -100,6 +105,10 @@ def entity_node(row: Mapping[str, Any]) -> EntityNode:
         description_state=state,
         accepted_by=decode_review(row.get("changeReason")).accepted_by,
         description_edited_by=editor,
+        page_score=answer.score if answer else None,
+        page_answer=answer.answer if answer else None,
+        page_documents=answer.documents if answer else None,
+        page_override=page_override(row),
     )
 
 
@@ -107,14 +116,19 @@ def current_nodes(rows: Iterable[Mapping[str, Any]]) -> list[dict]:
     return [dict(row) for row in rows if row.get("versionState", CURRENT) == CURRENT]
 
 
-def relations_of_nodes(client: Any, node_rows: Iterable[Mapping[str, Any]]) -> list[dict]:
-    """Every current relation that touches one of the nodes, through the state indexes (no scan of the table)."""
+def relations_of_nodes(client: Any, node_rows: Iterable[Mapping[str, Any]], *, workers: int = 1, client_factory: Any = None) -> list[dict]:
+    """Every current relation that touches one of the nodes, through the state indexes (no scan of the table). Two index queries per node;
+    with ``workers`` above 1 and a ``client_factory`` they run over that many clients at once."""
+    states = [semantic_state_key(NODE_KIND, str(node.get("lineageId") or node["id"])) for node in node_rows]
+    pages = map_with_clients(
+        states,
+        lambda reader, state: [*reader.list_semantic_relations_by_object_state(state), *reader.list_semantic_relations_by_subject_state(state)],
+        client=client, client_factory=client_factory, workers=workers,
+    )
     seen: dict[str, dict] = {}
-    for node in node_rows:
-        state = semantic_state_key(NODE_KIND, str(node.get("lineageId") or node["id"]))
-        for lookup in (client.list_semantic_relations_by_object_state, client.list_semantic_relations_by_subject_state):
-            for row in lookup(state):
-                seen[row["id"]] = row
+    for rows in pages:
+        for row in rows:
+            seen[row["id"]] = row
     return sorted(seen.values(), key=lambda row: row["id"])
 
 
@@ -126,7 +140,7 @@ def links_and_relations(relation_rows: Iterable[Mapping[str, Any]]) -> tuple[lis
             continue
         metadata = json_object(row.get("metadata"))
         confirmed = metadata.get("confirmed") is True
-        if is_item_mention(row):
+        if is_item_mention(row) or is_reference_mention(row):
             links.append(
                 ItemLink(
                     item_key=str(row["subjectLineageId"]),
@@ -135,6 +149,8 @@ def links_and_relations(relation_rows: Iterable[Mapping[str, Any]]) -> tuple[lis
                     source=str(metadata.get("linkSource") or LINK_EXTRACTOR),
                 )
             )
+        elif is_record_mention(row):
+            links.append(ItemLink(item_key=str(row["subjectLineageId"]), node_lineage_id=str(row["objectLineageId"]), confirmed=confirmed, source=LINK_MONITOR))
         elif row.get("subjectKind") == NODE_KIND and row.get("objectKind") == NODE_KIND:
             relations.append(
                 NodeRelation(
@@ -142,9 +158,16 @@ def links_and_relations(relation_rows: Iterable[Mapping[str, Any]]) -> tuple[lis
                     object_lineage_id=str(row["objectLineageId"]),
                     predicate=str(row.get("predicate") or ""),
                     confirmed=confirmed,
+                    subtype=_text(metadata.get("subtype")),
+                    evidence=_text(metadata.get("evidence")),
+                    provenance=_text(metadata.get("provenance")),
                 )
             )
     return links, relations
+
+
+def _text(value: Any) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 def category_names(category_rows: Iterable[Mapping[str, Any]]) -> dict[tuple[str, str], str]:

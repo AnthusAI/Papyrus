@@ -30,7 +30,6 @@ if _FUNCTION_DIRECTORY not in sys.path:  # a Lambda already has its code directo
     sys.path.insert(0, _FUNCTION_DIRECTORY)
 import ai_moderation  # noqa: E402
 import moderation as moderation_rules  # noqa: E402
-import proposals as proposal_rules  # noqa: E402
 
 SITE_SUBJECT = re.compile(r"ss1_[A-Za-z0-9_-]{43}")
 INTERIM_SUBJECT = re.compile(r"ssdev_[A-Za-z0-9_-]{43}")
@@ -53,6 +52,8 @@ ACTION_HANDLE = "handle"
 ACTION_VOTE = "vote"
 ACTION_RATING = "rating"
 ACTION_SUBMIT = "submit"
+ACTION_EXTRACTION = "extraction"
+ACTION_EXTRACTION_CONFIRM = "extraction-confirm"
 ACTION_COMMENT = "comment"
 ACTION_REPORT = "report"
 ACTION_FLAG = "flag"
@@ -104,6 +105,15 @@ SUBMISSION_PROMOTED = "promoted"
 SUBMISSION_HIDDEN = "hidden"
 VISIBLE_SUBMISSION_STATES = (SUBMISSION_PENDING, SUBMISSION_PROMOTED)
 EXTRACTION_PENDING = "pending"
+EXTRACTION_EXTRACTED = "extracted"
+EXTRACTION_FAILED = "failed"
+EXTRACTION_FIELDS = ("model", "maker", "task")
+EXTRACTION_READ_KEYS = frozenset({"subject"})
+EXTRACTION_CONFIRM_KEYS = frozenset({"subject", "decision", *EXTRACTION_FIELDS})
+EXTRACTION_DECISIONS = ("confirm", "correct")
+EXTRACTION_DECISIONS_DONE = ("confirmed", "corrected")
+MAXIMUM_EXTRACTION_NAME = 120
+RATE_BUCKET_EXTRACTION = "extraction"
 SUBMISSION_PAYLOAD_KEYS = frozenset({"url", "title", "kind", "note"})
 MAXIMUM_URL_LENGTH = 2048
 MAXIMUM_TITLE_LENGTH = 200
@@ -139,7 +149,7 @@ class ReaderSettings:
     moderation_mode: str = "human"
     pre_moderation: bool = False
     reports_per_day: int = 20
-    promote_item_type: str = "brief"
+    promote_item_type: str = "untyped"  # a promoted submission is a Story with no type yet; UNTYPED_ITEM_TYPE
     promote_section: str = "unsectioned"
     ai_model: str = ai_moderation.DEFAULT_MODEL
     ai_key_parameter: str = ""
@@ -197,6 +207,8 @@ class ReaderStore(Protocol):
     def get_submission(self, submission_id: str) -> dict[str, Any] | None: ...
 
     def create_submission(self, submission: dict[str, Any]) -> bool: ...
+
+    def confirm_extraction(self, submission_id: str, reader_id: str, confirmation: dict[str, Any], now_iso: str) -> bool: ...
 
     def recent_submissions_by_domain(self, domain: str, since_iso: str) -> list[dict[str, Any]]: ...
 
@@ -595,6 +607,147 @@ def submit_action(
     )
 
 
+def stored_json(value: Any) -> dict[str, Any]:
+    """The JSON object a ``a.json()`` field holds (stored as a string), or ``{}``."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return {}
+    return value if isinstance(value, dict) else {}
+
+
+def public_entity(match: Any) -> dict[str, str] | None:
+    if not isinstance(match, dict) or not isinstance(match.get("key"), str):
+        return None
+    return {"key": match["key"], "name": str(match.get("name") or ""), "kind": str(match.get("kind") or "")}
+
+
+def extraction_field(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict) or not isinstance(value.get("name"), str):
+        return None
+    return {"name": value["name"], "match": public_entity(value.get("match"))}
+
+
+def reader_extraction(submission: dict[str, Any]) -> dict[str, Any]:
+    """What the filing reader may see of the extraction: names, entity matches, whether the link is already a Reference, and the typed reason on failure.
+
+    Never the Reference id or title, the model used, the page text or anything about another reader.
+    """
+    state = submission.get("extractionState") or EXTRACTION_PENDING
+    stored = stored_json(submission.get("extraction"))
+    view: dict[str, Any] = {"state": state}
+    if state == EXTRACTION_EXTRACTED:
+        for name in EXTRACTION_FIELDS:
+            view[name] = extraction_field(stored.get(name))
+        view["knownReference"] = isinstance(stored.get("reference"), dict)
+    elif state == EXTRACTION_FAILED:
+        view["reason"] = str(stored.get("failure") or "failed")
+    return view
+
+
+def reader_confirmation(submission: dict[str, Any]) -> dict[str, Any] | None:
+    stored = stored_json(submission.get("extractionConfirmation"))
+    if stored.get("status") not in EXTRACTION_DECISIONS_DONE:
+        return None
+    view: dict[str, Any] = {"status": stored["status"], "at": stored.get("at")}
+    for name in EXTRACTION_FIELDS:
+        view[name] = extraction_field(stored.get(name))
+    return view
+
+
+
+def own_submission(store: ReaderStore, profile: dict[str, Any], payload: dict[str, Any], allowed: frozenset[str]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """The reader's own submission named by ``payload.subject``. Another reader's, a hidden-and-gone one and an unknown one all answer the same 404."""
+    if set(payload) - allowed:
+        return None, refusal(422, "invalid_extraction_request", "Send only the fields this request takes.")
+    subject = payload.get("subject")
+    if not isinstance(subject, str) or not SUBMISSION_ID.fullmatch(subject):
+        return None, refusal(422, "invalid_subject", "Send the id of a submission you filed.")
+    submission = store.get_submission(subject)
+    if submission is None or submission.get("readerId") != profile.get("readerId"):
+        return None, refusal(404, "unknown_submission", "That submission was not found.")
+    return submission, None
+
+
+def extraction_view(submission: dict[str, Any]) -> dict[str, Any]:
+    held = submission.get("state") == SUBMISSION_HIDDEN
+    return {
+        "subject": submission["id"],
+        "url": submission["canonicalUrl"],
+        "title": submission["title"],
+        "state": "held" if held else submission["state"],
+        "extraction": reader_extraction(submission),
+        "confirmation": reader_confirmation(submission),
+    }
+
+
+def extraction_action(store: ReaderStore, profile: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    submission, refused = own_submission(store, profile, payload, EXTRACTION_READ_KEYS)
+    if refused:
+        return refused
+    return reply(200, extraction_view(submission))
+
+
+def correction_name(value: Any, label: str) -> tuple[str | None, dict[str, Any] | None]:
+    if value is None:
+        return None, None
+    text, problem = clean_text(value, label, MAXIMUM_EXTRACTION_NAME, required=False)
+    if problem:
+        return None, problem
+    return " ".join(text.split()) if text else None, None
+
+
+def extraction_confirm_action(
+    store: ReaderStore, profile: dict[str, Any], payload: dict[str, Any], settings: ReaderSettings, now_seconds: float
+) -> dict[str, Any]:
+    """The reader confirms what was pulled out, or corrects it. This records the reader's answer on the submission and nothing else:
+    no Reference, entity, vote or item changes. ``decision`` is ``confirm`` (needs an extracted result) or ``correct`` (the fields sent
+    replace the extracted ones; a field sent as ``null`` says there is none; a field left out keeps the extracted value)."""
+    if profile.get("state") == STATE_LIMITED:
+        return refusal(403, "reader_limited", "This reader cannot change a submission right now.")
+    submission, refused = own_submission(store, profile, payload, EXTRACTION_CONFIRM_KEYS)
+    if refused:
+        return refused
+    decision = payload.get("decision")
+    if decision not in EXTRACTION_DECISIONS:
+        return refusal(422, "invalid_decision", "Send decision confirm or correct.")
+    state = submission.get("extractionState") or EXTRACTION_PENDING
+    if state == EXTRACTION_PENDING:
+        return refusal(409, "extraction_not_ready", "The link has not been read yet. Try again later.")
+    if decision == "confirm":
+        if set(payload) & set(EXTRACTION_FIELDS):
+            return refusal(422, "invalid_extraction_request", "A confirmation sends no fields; send decision correct to change them.")
+        if state != EXTRACTION_EXTRACTED:
+            return refusal(409, "nothing_to_confirm", "There is no result to confirm; send a correction.")
+    if decision == "correct" and not set(payload) & set(EXTRACTION_FIELDS):
+        return refusal(422, "invalid_extraction_request", "Send at least one of model, maker and task.")
+    cleaned: dict[str, str | None] = {}
+    for name in EXTRACTION_FIELDS:
+        if name in payload:
+            value, problem = correction_name(payload[name], name)
+            if problem:
+                return problem
+            cleaned[name] = value
+    limited = within_rate_limit(store, profile, RATE_BUCKET_EXTRACTION, action_limit(profile, settings, now_seconds), now_seconds)
+    if limited:
+        return limited
+    extracted = stored_json(submission.get("extraction"))
+    answer: dict[str, Any] = {"status": "confirmed" if decision == "confirm" else "corrected", "at": iso(now_seconds)}
+    for name in EXTRACTION_FIELDS:
+        before = extraction_field(extracted.get(name)) if state == EXTRACTION_EXTRACTED else None
+        if name not in cleaned:
+            answer[name] = before
+        elif cleaned[name] is None:
+            answer[name] = None
+        else:
+            same = before is not None and before["name"].casefold() == cleaned[name].casefold()
+            answer[name] = {"name": cleaned[name], "match": before["match"] if same else None}
+    if not store.confirm_extraction(submission["id"], profile["readerId"], answer, iso(now_seconds)):
+        return refusal(404, "unknown_submission", "That submission was not found.")
+    return reply(200, {**extraction_view({**submission, "extractionConfirmation": answer}), "confirmation": reader_confirmation({"extractionConfirmation": answer})})
+
+
 def clean_comment_body(value: Any, settings: ReaderSettings) -> tuple[str | None, dict[str, Any] | None]:
     """Plain text, trimmed, at most ``comment_maximum_length`` characters, ``comment_maximum_links`` links, no email address."""
     if not isinstance(value, str):
@@ -921,6 +1074,8 @@ def handle_event(
     profile = ensure_profile(store, site_subject, now_seconds)
     if action == ACTION_ME:
         return my_state(store, profile, payload, settings)
+    if action == ACTION_EXTRACTION:
+        return extraction_action(store, profile, payload)
     if profile.get("state") == STATE_BANNED:
         return refusal(403, "reader_banned", "This reader cannot take part.")
     if action == ACTION_HANDLE:
@@ -931,6 +1086,8 @@ def handle_event(
         return rating_action(store, profile, payload, settings, event["isStaff"], now_seconds, schedule_snapshot)
     if action == ACTION_SUBMIT:
         return submit_action(store, profile, payload, settings, now_seconds, schedule_snapshot)
+    if action == ACTION_EXTRACTION_CONFIRM:
+        return extraction_confirm_action(store, profile, payload, settings, now_seconds)
     if action == ACTION_COMMENT:
         return comment_action(store, profile, payload, settings, now_seconds, schedule_snapshot)
     if action == ACTION_COMMENT_EDIT:
@@ -979,7 +1136,6 @@ class DynamoReaderStore:
         report_table: str = "",
         action_table: str = "",
         item_table: str = "",
-        proposal_table: str = "",
         flag_table: str = "",
     ) -> None:
         self._resource = resource
@@ -994,44 +1150,11 @@ class DynamoReaderStore:
             "report": report_table,
             "action": action_table,
             "item": item_table,
-            "proposal": proposal_table,
             "flag": flag_table,
         }
 
     def _table(self, key: str) -> Any:
         return self._resource.Table(self._names[key])
-
-    def get_proposal(self, proposal_id: str) -> dict[str, Any] | None:
-        item = self._table("proposal").get_item(Key={"id": proposal_id}, ConsistentRead=True).get("Item")
-        return plain(item) if item else None
-
-    def create_proposal(self, row: dict[str, Any]) -> bool:
-        item = {**_without_none(row), "__typename": "Proposal", "updatedAt": row["createdAt"]}
-        try:
-            self._table("proposal").put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
-        except Exception as error:
-            if is_conditional_failure(error):
-                return False
-            raise
-        return True
-
-    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str) -> bool:
-        names = {"#st": "state", "#u": "updatedAt", **{f"#c{index}": key for index, key in enumerate(changes)}}
-        assignments = ", ".join(f"#c{index} = :c{index}" for index in range(len(changes)))
-        values = {":expected": expected_state, ":now": now_iso, **{f":c{index}": value for index, value in enumerate(changes.values())}}
-        try:
-            self._table("proposal").update_item(
-                Key={"id": proposal_id},
-                UpdateExpression=f"SET {assignments}, #u = :now",
-                ConditionExpression="#st = :expected",
-                ExpressionAttributeNames=names,
-                ExpressionAttributeValues=values,
-            )
-        except Exception as error:
-            if is_conditional_failure(error):
-                return False
-            raise
-        return True
 
     def get_profile(self, site_subject: str) -> dict[str, Any] | None:
         item = self._table("profile").get_item(Key={"id": site_subject}, ConsistentRead=True).get("Item")
@@ -1131,6 +1254,20 @@ class DynamoReaderStore:
         item = {**submission, "__typename": "ReaderSubmission", "updatedAt": submission["createdAt"]}
         try:
             self._table("submission").put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
+        except Exception as error:
+            if is_conditional_failure(error):
+                return False
+            raise
+        return True
+
+    def confirm_extraction(self, submission_id: str, reader_id: str, confirmation: dict[str, Any], now_iso: str) -> bool:
+        try:
+            self._table("submission").update_item(
+                Key={"id": submission_id},
+                UpdateExpression="SET extractionConfirmation = :confirmation, updatedAt = :now",
+                ConditionExpression="attribute_exists(id) AND readerId = :reader",
+                ExpressionAttributeValues={":confirmation": json.dumps(confirmation, separators=(",", ":")), ":reader": reader_id, ":now": now_iso},
+            )
         except Exception as error:
             if is_conditional_failure(error):
                 return False
@@ -1446,7 +1583,6 @@ def store_from_environment(environment: dict[str, str] | None = None) -> DynamoR
         report_table=environment.get("PAPYRUS_READER_REPORT_TABLE", ""),
         action_table=environment.get("PAPYRUS_READER_ACTION_TABLE", ""),
         item_table=environment.get("PAPYRUS_READER_ITEM_TABLE", ""),
-        proposal_table=environment.get("PAPYRUS_READER_PROPOSAL_TABLE", ""),
         flag_table=environment.get("PAPYRUS_READER_FLAG_TABLE", ""),
     )
 
@@ -1499,17 +1635,13 @@ def run_ai_worker(
     return result
 
 
-def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSettings, now_seconds: float) -> dict[str, Any]:
+def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSettings, now_seconds: float, account_id: str | None = None) -> dict[str, Any]:
     """``moderateReader`` from AppSync: an editor or admin hides, approves, promotes, bans or undoes. Answers a receipt, never an exception."""
-    if (event.get("info") or {}).get("fieldName") in proposal_rules.MUTATIONS:
-        return proposal_rules.handle_proposal_event(event, store, now_iso=iso(now_seconds))
     identity = event.get("identity") or {}
     claims = identity.get("claims") or {}
     groups = claims.get("cognito:groups") or identity.get("groups") or []
-    if isinstance(groups, str):
-        groups = [group.strip() for group in groups.strip("[]").replace(",", " ").split()]
     subject = identity.get("sub")
-    if not isinstance(subject, str) or not subject or not moderation_rules.STAFF_GROUPS.intersection(groups):
+    if not isinstance(subject, str) or not subject or not moderation_rules.has_editor_rights(groups):
         return moderation_rules.refused("not_staff", "Only editors and admins can moderate.").to_dict()
     arguments = event.get("arguments") or {}
     outcome = moderation_rules.apply_action(
@@ -1527,14 +1659,30 @@ def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSet
     return outcome.to_dict()
 
 
+def is_appsync_event(event: dict[str, Any]) -> bool:
+    """True for an AppSync invocation (arguments plus ``info`` or a top-level ``fieldName``); the public path sends siteSubject, action and payload.
+
+    The Amplify Gen 2 Lambda data source sends ``fieldName`` at the top level with no ``info`` key; a direct resolver nests it under ``info``.
+    """
+    info = event.get("info")
+    name = (info.get("fieldName") if isinstance(info, dict) else None) or event.get("fieldName")
+    return "arguments" in event and ("info" in event or (isinstance(name, str) and bool(name)))
+
+
+def function_account(context: Any) -> str | None:
+    """The AWS account this function runs in, from its own ARN: the account of the function."""
+    parts = str(getattr(context, "invoked_function_arn", None) or "").split(":")
+    return parts[4] if len(parts) > 4 and parts[4] else None
+
+
 def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
     import boto3
 
     settings = settings_from_environment()
     store = store_from_environment()
     now_seconds = time.time()
-    if "arguments" in event and "info" in event:
-        return handle_staff_event(event, store=store, settings=settings, now_seconds=now_seconds)
+    if is_appsync_event(event):
+        return handle_staff_event(event, store=store, settings=settings, now_seconds=now_seconds, account_id=function_account(_context))
     target = snapshot_target_from_environment()
     if settings.moderation_mode == "ai" and target is not None and _context is not None:
         if event.get("worker") == AI_WORKER:

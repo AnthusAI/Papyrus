@@ -1,3 +1,4 @@
+import { resolveNewsroomChatIdentity, type NewsroomChatIdentityResolver } from "./newsroom-chat-identity";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   CYCLOTRON_LAB_PRODUCT,
@@ -12,6 +13,7 @@ import {
   PROSPECTUS_SESSION_COOKIE,
   openProspectusCookie,
   resolveProspectusSignInRuntime,
+  signedInProspectusSession,
   sameSiteReturnPath,
   sealProspectusCookie,
   sealedCookieAttributes,
@@ -25,6 +27,7 @@ import {
   publishingAccountsForSite,
   type PublicationCapability,
 } from "./prospectus-publication-access";
+import { isAllowedOrigin } from "./allowed-origins";
 import { SiteOriginNotConfiguredError, publicSiteOrigin, siteOriginNotConfiguredResponse } from "./site-origin";
 
 /**
@@ -35,12 +38,15 @@ import { SiteOriginNotConfiguredError, publicSiteOrigin, siteOriginNotConfigured
  * unregistered deployment never half-signs anyone in.
  */
 export interface ProspectusSignInRouteOptions {
+  resolveNewsroomIdentity?: NewsroomChatIdentityResolver;
   resolveRuntime?: (siteOrigin: string) => Promise<ProspectusSignInRuntime | null>;
   siteProduct?: string | null;
   completionOverrides?: Pick<CompleteProspectusGoogleSignInInput, "verifyCognitoTokens" | "fetcher">;
   nowInSeconds?: () => number;
   /** Trusted configuration the public site origin is read from; defaults to process.env. */
   environment?: Record<string, string | undefined>;
+  /** Receives each sign-in failure line; defaults to console.error so it reaches the compute log. */
+  log?: (line: string) => void;
 }
 
 const NO_STORE_HEADERS = { "cache-control": "no-store" };
@@ -55,6 +61,11 @@ function currentTimeInSeconds(options: ProspectusSignInRouteOptions): number {
 
 function siteOriginFor(request: NextRequest, options: ProspectusSignInRouteOptions): string {
   return publicSiteOrigin(request, options.environment);
+}
+
+/** Whether the request's Origin is the site origin or the console origin, exactly. */
+function requestOriginAllowed(request: NextRequest, options: ProspectusSignInRouteOptions): boolean {
+  return isAllowedOrigin(request.headers.get("origin"), siteOriginFor(request, options), options.environment);
 }
 
 async function signInRuntimeFor(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<ProspectusSignInRuntime | null> {
@@ -91,24 +102,29 @@ function signInFailedResponse(status: number, code: string, message: string): Ne
  * A failed sign-in never leaves the browser on /api/auth/prospectus/callback: it answers 303 to the page the reader started from
  * (or the home page when that is not known) with `sign_in_error=<code>`, which the reader plugin turns into a short message.
  */
+/** Which callback step failed; with the code it tells an operator where a reader's sign-in stopped. */
+type SignInFailureBranch = "pending_cookie" | "provider_error" | "missing_parameters" | "completion" | "unexpected";
+
+/**
+ * One structured line per failed callback: `prospectus_sign_in_failed {"code":...,"branch":...}`. It carries only the
+ * code, the branch, and (for errors from completing the sign-in) the HTTP status, Prospectus error code, its rule text
+ * (`prospectusMessage`, which names the broken rule and carries no personal data) and error name.
+ * Never tokens, authorization codes, state, emails or subjects.
+ */
+function logSignInFailure(
+  options: ProspectusSignInRouteOptions,
+  entry: { code: string; branch: SignInFailureBranch; httpStatus?: number; prospectusError?: string; prospectusMessage?: string; errorName?: string },
+): void {
+  (options.log ?? console.error)(`prospectus_sign_in_failed ${JSON.stringify(entry)}`);
+}
+
 function signInFailedRedirect(request: NextRequest, options: ProspectusSignInRouteOptions, returnPath: string | null, code: string): NextResponse {
   const target = new URL(returnPath ?? "/", siteOriginFor(request, options));
   target.searchParams.set("sign_in_error", /^[a-z0-9_]{1,60}$/.test(code) ? code : "sign_in_failed");
   return NextResponse.redirect(target, { status: 303, headers: NO_STORE_HEADERS });
 }
 
-export function signedInProspectusSession(
-  request: NextRequest,
-  sealingSecret: string,
-  nowInSeconds?: number,
-): ProspectusSignedInSession | null {
-  return openProspectusCookie<ProspectusSignedInSession>(
-    sealingSecret,
-    PROSPECTUS_SESSION_COOKIE,
-    request.cookies.get(PROSPECTUS_SESSION_COOKIE)?.value,
-    nowInSeconds,
-  );
-}
+export { signedInProspectusSession } from "./prospectus-session";
 
 /** `returnTo` from the query (a link) or, for the POST form the reader plugin's button submits, from the form body. */
 async function requestedReturnPath(request: NextRequest): Promise<string | null> {
@@ -129,12 +145,25 @@ export function handleProspectusSignInStart(request: NextRequest, options: Prosp
 async function handleProspectusSignInStartRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
+  const newsroomConnection = request.nextUrl.searchParams.get("newsroomChat") === "true";
+  let newsroomSubject: string | undefined;
+  if (newsroomConnection) {
+    if (request.method !== "POST" || !requestOriginAllowed(request, options)) {
+      return signInFailedResponse(403, "same_origin_required", "Connect chat from this newsroom.");
+    }
+    const identity = await (options.resolveNewsroomIdentity ?? resolveNewsroomChatIdentity)(request).catch(() => null);
+    if (!identity) return signInFailedResponse(401, "sign_in_required", "An authenticated newsroom editor is required.");
+    newsroomSubject = identity.subject;
+  }
   const { authorizationUrl, pendingSignIn } = await beginProspectusGoogleSignIn(runtime.accounts, runtime.cognitoClient);
   const pendingSignInCookie: PendingProspectusSignInCookie = {
     ...pendingSignIn,
-    returnPath: sameSiteReturnPath(await requestedReturnPath(request)),
+    ...(newsroomSubject ? { newsroomSubject } : {}),
+    returnPath: sameSiteReturnPath(newsroomConnection ? request.nextUrl.searchParams.get("returnTo") : await requestedReturnPath(request)),
   };
-  const response = NextResponse.redirect(authorizationUrl, { status: 303, headers: NO_STORE_HEADERS });
+  const response = newsroomConnection
+    ? NextResponse.json({ authorizationUrl }, { headers: NO_STORE_HEADERS })
+    : NextResponse.redirect(authorizationUrl, { status: 303, headers: NO_STORE_HEADERS });
   response.cookies.set(
     PROSPECTUS_PENDING_SIGN_IN_COOKIE,
     sealProspectusCookie(runtime.sealingSecret, PROSPECTUS_PENDING_SIGN_IN_COOKIE, pendingSignInCookie, pendingSignIn.expiresAt),
@@ -169,13 +198,16 @@ async function completeCallback(
   options: ProspectusSignInRouteOptions,
   nowInSeconds: number,
 ): Promise<NextResponse> {
-  const failed = (code: string) => signInFailedRedirect(request, options, pendingSignIn?.returnPath ?? null, code);
-  if (!pendingSignIn) return failed("sign_in_expired");
+  const failed = (code: string, branch: SignInFailureBranch, detail: { httpStatus?: number; prospectusError?: string; prospectusMessage?: string; errorName?: string } = {}) => {
+    logSignInFailure(options, { code, branch, ...detail });
+    return signInFailedRedirect(request, options, pendingSignIn?.returnPath ?? null, code);
+  };
+  if (!pendingSignIn) return failed("sign_in_expired", "pending_cookie");
   const searchParams = request.nextUrl.searchParams;
-  if (searchParams.get("error")) return failed("sign_in_declined");
+  if (searchParams.get("error")) return failed("sign_in_declined", "provider_error");
   const authorizationCode = searchParams.get("code");
   const returnedState = searchParams.get("state");
-  if (!authorizationCode || !returnedState) return failed("sign_in_incomplete");
+  if (!authorizationCode || !returnedState) return failed("sign_in_incomplete", "missing_parameters");
   try {
     const signedIn = await completeProspectusGoogleSignIn({
       accounts: runtime.accounts,
@@ -183,11 +215,13 @@ async function completeCallback(
       pendingSignIn,
       returnedState,
       authorizationCode,
+      expectedNewsroomSubject: pendingSignIn.newsroomSubject,
       nowInSeconds,
       ...options.completionOverrides,
     });
     const session: ProspectusSignedInSession = {
       personId: signedIn.person.id,
+      ...(pendingSignIn.newsroomSubject ? { newsroomSubject: pendingSignIn.newsroomSubject } : {}),
       accessToken: signedIn.accessToken,
       accessTokenExpiresAt: signedIn.accessTokenExpiresAt,
       ...(signedIn.person.siteSubject ? { siteSubject: signedIn.person.siteSubject } : {}),
@@ -200,9 +234,8 @@ async function completeCallback(
     );
     return response;
   } catch (error) {
-    if (error instanceof ProspectusAccountsError) return failed(error.code);
-    console.error(`Prospectus sign-in failed (${error instanceof Error ? error.name : "error"}).`);
-    return failed("sign_in_failed");
+    if (error instanceof ProspectusAccountsError) return failed(error.code, "completion", { httpStatus: error.status, prospectusError: error.code, prospectusMessage: error.message.slice(0, 300) });
+    return failed("sign_in_failed", "unexpected", { errorName: error instanceof Error ? error.name : "error" });
   }
 }
 
@@ -314,7 +347,7 @@ export function handleProspectusAccountSelection(request: NextRequest, options: 
 async function handleProspectusAccountSelectionRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
-  if (request.headers.get("origin") !== siteOriginFor(request, options)) {
+  if (!requestOriginAllowed(request, options)) {
     return signInFailedResponse(403, "cross_origin_selection", "Choose an account from this site.");
   }
   const nowInSeconds = currentTimeInSeconds(options);
@@ -355,7 +388,7 @@ export function handleProspectusPublishingAccountCreation(request: NextRequest, 
 async function handleProspectusPublishingAccountCreationRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
-  if (request.headers.get("origin") !== siteOriginFor(request, options)) {
+  if (!requestOriginAllowed(request, options)) {
     return signInFailedResponse(403, "cross_origin_creation", "Create an account from this site.");
   }
   const nowInSeconds = currentTimeInSeconds(options);

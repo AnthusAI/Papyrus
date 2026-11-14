@@ -11,6 +11,7 @@ export function signupSchemaDefinitions() {
     SignupEntry: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         form: a.string().required(),
         value: a.string().required(),
         submittedAt: a.datetime().required(),
@@ -18,6 +19,7 @@ export function signupSchemaDefinitions() {
       .disableOperations(["subscriptions"])
       .secondaryIndexes((index) => [
         index("form").sortKeys(["submittedAt"]).queryField("listSignupEntriesByFormAndSubmittedAt"),
+        index("tenantId").sortKeys(["id"]).queryField("listSignupEntriesByTenant"),
       ])
       .authorization((allow) => [
         allow.group("editor").to(["read"]),

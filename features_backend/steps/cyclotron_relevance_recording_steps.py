@@ -16,7 +16,6 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 from papyrus_content.relevance_cyclotron import build_relevance_cyclotron  # noqa: E402
 from papyrus_content.relevance_recording import (build_recording, price_basis, references_export_relevance_recording,  # noqa: E402
                                                  shareable_reviews)
-from papyrus_content.relevance_sweep import _owner_metadata  # noqa: E402
 
 DOCTRINE = [{"kind": "mission", "body": ["Publish practical AI security analysis."]},
             {"kind": "policy", "body": ["Prefer primary evidence over vendor marketing."]}]
@@ -32,8 +31,7 @@ def export(context, *, explanations=True):
         usage = cyclotron.usage(sdk_prices)
         events = cyclotron.subscribe(limit=1000)["events"]
     review_ids = [review["reviewId"] for row in log for review in row["reviews"].values() if review.get("reviewId")]
-    with mock.patch("papyrus_content.relevance_sweep.download_attachment_buffer", side_effect=lambda c, a: None):
-        shared = shareable_reviews(context.client, review_ids, _owner_metadata)
+    shared = shareable_reviews(context.client.tables["Reference"].values(), review_ids)
     context.recording = build_recording(plan=plan, publication="Example", log=log, usage=usage, events=events,
                                         shareable=shared, prices=prices, include_explanations=explanations)
     context.recording_text = json.dumps(context.recording)

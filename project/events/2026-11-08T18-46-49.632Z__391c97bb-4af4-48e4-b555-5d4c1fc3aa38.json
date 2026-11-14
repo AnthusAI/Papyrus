@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "391c97bb-4af4-48e4-b555-5d4c1fc3aa38",
+  "issue_id": "PPY-b5fab67c-3fbf-4b1d-83ad-01a2f8d5338b",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:49.632Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M0.\nExit criteria: PPY-7f1e54 stages B and C merged and rolled out (MoM first); PPY-ee02b8 closed including ReferenceIntake's whole-table list; PPY-d647ee incremental reader snapshot; PPY-3fd0aa call-count test at 1 tenant. In parallel (front-end track): PPY-c446fe ordering rule, PPY-2a44b2 native tokens, PPY-31efef cards, preset and brand pack.\nCustomer-visible: Lower cost on our sites; MoM and TI look unchanged or better.\nIndex-adding deploys in this milestone: Reference.publicFeedKey (PR #1239), per site, alone, after stage A and the backfill.\nContains: PPY-7f1e54, PPY-ee02b8, PPY-d647ee, PPY-3fd0aa, PPY-c446fe, PPY-2a44b2, PPY-31efef\nFollows: M0."
+      }
+    }
+  }
+}

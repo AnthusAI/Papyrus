@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "bodyMarkus": "Simplified Chinese (zh-Hans), neutral international usage: the established Chinese forms of places and institutions. Latin-script names of companies, products and people stay as written. Starter entries from the 2026-11-13 translation experiment's name findings and the 2026-11-12 spike's term findings.",
+  "entries": [
+    {"term": "AI", "doNotTranslate": true, "caseSensitive": true, "note": "Chinese tech press writes AI in Latin letters; 人工智能 for the spelled-out English."},
+    {"term": "artificial intelligence", "translations": ["人工智能"]},
+    {"term": "Paris", "translations": ["巴黎"], "caseSensitive": true},
+    {"term": "Congress", "translations": ["国会"], "caseSensitive": true, "note": "The United States Congress (美国国会 when the country is not clear from context)."},
+    {"term": "Justice Department", "translations": ["司法部"], "caseSensitive": true},
+    {"term": "Department of Justice", "translations": ["司法部"], "caseSensitive": true},
+    {"term": "North Carolina", "translations": ["北卡罗来纳州", "北卡罗来纳"], "caseSensitive": true},
+    {"term": "White House", "translations": ["白宫"], "caseSensitive": true},
+    {"term": "disclosure", "translations": ["披露"], "note": "Not 泄露 (leak), which is more negative than the English."}
+  ]
+}

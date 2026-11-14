@@ -3,7 +3,7 @@ import pytest
 
 from features_backend.steps.cyclotron_relevance_sweep_steps import CORPUS_ID, SweepClient
 from papyrus_content.relevance_auto_reject_support import (VENDOR_TITLE, SECURITY_TITLE, BORDERLINE_TITLE, ConfidentModel,
-                                                             auto_reject_context, curation_messages_of, labels_of_store,
+                                                             auto_reject_context, votes_of, labels_of_store,
                                                              make_reference, reopen_as_a_person, sweep_with)
 from papyrus_content.relevance_cyclotron import normalize_relevance_cyclotron_config
 from papyrus_content.relevance_decisions import human_label_for_review
@@ -53,7 +53,7 @@ def test_a_reference_a_person_already_reviewed_is_never_touched(tmp_path):
     result = sweep_with(context, ConfidentModel(), client, tmp_path)
     assert result.decided == 1 and result.auto_rejected == []
     assert statuses(client) == {"reference-vendor": "pending"}
-    assert len(curation_messages_of(client, "reference-vendor")) == 1
+    assert len(votes_of(client, "reference-vendor")) == 1
 
 
 def test_a_reference_moved_out_of_pending_is_not_rejected_again(tmp_path):
@@ -100,11 +100,10 @@ def test_a_clear_miss_is_rejected_with_an_audited_cyclotron_message_and_nothing_
     row = client.tables["Reference"][vendor["id"]]
     assert row["curationStatusKey"] == f"{CORPUS_ID}#rejected"
     assert "papyrus-relevance" in row["curationStatusUpdatedBy"]
-    (message,) = curation_messages_of(client, "reference-vendor")
-    metadata = message["metadata"]
-    assert metadata["actorKind"] == "cyclotron" and metadata["action"] == "reject"
-    assert metadata["cyclotronId"] == "papyrus-relevance" and metadata["probability"] == 0.99
-    assert metadata["proofId"] == "ti-cv-1" and metadata["automatic"] is True
+    # The vote is on the Reference itself; no Message is written.
+    (vote,) = votes_of(client, "reference-vendor")
+    assert vote["actorKind"] == "cyclotron" and vote["action"] == "reject" and vote["reasonCode"] == "out_of_scope"
+    assert "Message" not in client.tables or not client.tables["Message"]
     for fact in ("papyrus-relevance", "99.0%", "ti-cv-1"):
         assert fact in row["curationStatusReason"]
 
@@ -114,9 +113,8 @@ def test_an_auto_rejection_is_not_a_human_label_and_never_teaches(tmp_path):
     vendor = make_reference("reference-vendor", VENDOR_TITLE)
     client = SweepClient({"Reference": [vendor]})
     sweep_with(context, ConfidentModel(), client, tmp_path)
-    messages = curation_messages_of(client, "reference-vendor")
     rejected = client.tables["Reference"][vendor["id"]]
-    assert human_label_for_review(rejected, messages, labels=["include", "exclude"]) is None
+    assert human_label_for_review(rejected, labels=["include", "exclude"]) is None
     assert _human_label_count_of(client) == 0
     sweep_with(context, ConfidentModel(), client, tmp_path)
     assert labels_of_store(context) == {}
@@ -143,7 +141,7 @@ def test_a_dry_run_lists_what_would_be_rejected_and_writes_nothing(tmp_path):
     assert result.auto_rejected == [{"lineageId": "reference-vendor", "probability": 0.99, "proofId": "ti-cv-1"}]
     assert statuses(client) == {"reference-vendor": "pending", "reference-borderline": "pending"}
     assert [call for call in client.calls[writes_before:] if call[0] != "get"] == []
-    assert curation_messages_of(client, "reference-vendor") == []
+    assert votes_of(client, "reference-vendor") == []
 
 
 def test_the_configuration_defaults_to_off_and_refuses_unknown_or_invalid_fields():
