@@ -64,10 +64,8 @@ This page is the inventory behind epic PPY-2069d6. Each operation has one home:
 
 Remove these first, because they contradict the sign-in rule:
 
-- `graphql_request_headers` in `src/papyrus_content/graphql_http.py` falls back to the AWS credential chain when no user session applies. It should refuse and say to log in (PPY-5f119a).
 - `knowledge runs` ignores the user session.
 - `proposals publish` calls Lambda or the monitoring table directly. `papyrus automations` (list, show, runs, run) and `knowledge query` (remote) no longer do when signed in (PPY-544564); `automations create` and `update` already use the authoring client.
 - `knowledge snapshot`, `archive` and `home-page snapshot --auth user` take a user session for GraphQL but still write S3, CloudFront and the key-value store with AWS credentials.
-- `ops content inspect` reports only the AWS credential chain.
 
 The final step, in PPY-ba1f31, is updating the manuals and proposing reduced operator permissions. That IAM change is Ryan's decision.

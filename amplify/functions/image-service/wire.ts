@@ -1,5 +1,6 @@
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
+import { connectToSiteApi } from "../../site-api-access";
 
 /**
  * What the function reads and writes with its own role, through the site's own API (`allow.resource(imageService)` in the schema grants query and
@@ -29,7 +30,7 @@ export const IMAGE_SERVICE_BUCKET_ACTIONS = ["s3:GetObject", "s3:PutObject"];
 /** The function's environment: the site's own API. It holds no secret and calls no provider in this step. */
 export function wireImageService(backend: any): void {
   const lambda = backend.imageService.resources.lambda as LambdaFunction;
-  lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
+  connectToSiteApi(lambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
   // Read and write of the guideline documents, on the payload prefix of Item versions only (the role, not a bucket policy, as the other functions do it,
   // so the storage and data stacks do not depend on each other).
   const bucket = backend.storage.resources.bucket;

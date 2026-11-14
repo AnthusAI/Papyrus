@@ -85,6 +85,7 @@ import {
 import { addStorageBackups } from "./storage-backups/construct";
 import { storage } from "./storage/resource";
 import type { PapyrusSite } from "../lib/define-site";
+import { connectToSiteApi } from "./site-api-access";
 
 export function defineSiteBackend(papyrusSite: PapyrusSite) {
   // `papyrus.config.ts`'s default export. Backend options live under `backend`;
@@ -308,7 +309,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
           resources: ["*"],
         }),
       );
-      backend.slackEvents.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
+      connectToSiteApi(backend.slackEvents, graphqlEndpoint);
       backend.slackEvents.addEnvironment(
         "PAPYRUS_CONSOLE_RESPONSE_TARGET",
         (process.env.PAPYRUS_CONSOLE_RESPONSE_TARGET ?? "cloud").trim() || "cloud",
@@ -321,7 +322,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         backend.slackEvents.addEnvironment("AMPLIFY_SSM_ENV_CONFIG", amplifySsmEnvConfig);
         backend.slackDelivery.addEnvironment("AMPLIFY_SSM_ENV_CONFIG", amplifySsmEnvConfig);
       }
-      backend.slackDelivery.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
+      connectToSiteApi(backend.slackDelivery, graphqlEndpoint);
       backend.slackDelivery.addEnvironment(
         "PAPYRUS_CONSOLE_RESPONSE_TARGET",
         (process.env.PAPYRUS_CONSOLE_RESPONSE_TARGET ?? "cloud").trim() || "cloud",
@@ -518,10 +519,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     "PAPYRUS_USER_POOL_ISSUER",
     `https://cognito-idp.${Stack.of(contentActionsLambda).region}.amazonaws.com/${backend.auth.resources.userPool.userPoolId}`,
   );
-  contentActionsLambda.addEnvironment(
-    "PAPYRUS_GRAPHQL_ENDPOINT",
-    backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
-  );
+  connectToSiteApi(contentActionsLambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl);
   wireEmailReferenceIntake(contentActionsLambda, emailMonitorId);
   contentActionsLambda.addToRolePolicy(
     new PolicyStatement({
@@ -643,7 +641,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     inboundReceive.addEnvironment("PAPYRUS_INBOUND_EMAIL_DOMAIN", inboundEmailDomain);
     inboundReceive.addEnvironment("PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS", inboundEmailLocalParts.join(","));
     inboundReceive.addEnvironment("PAPYRUS_INBOUND_EMAIL_CORPUS_KEY", inboundEmailCorpusKey);
-    inboundReceive.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
+    connectToSiteApi(inboundReceive, graphqlEndpoint);
 
     inboundProcessor.addEnvironment("PAPYRUS_INBOUND_EMAIL_CORPUS_KEY", inboundEmailCorpusKey);
     inboundProcessor.addEnvironment("PAPYRUS_INBOUND_EMAIL_DOMAIN", inboundEmailDomain);
@@ -653,7 +651,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       `Papyrus Submissions <submissions@${inboundEmailDomain}>`,
     );
     inboundProcessor.addEnvironment("PAPYRUS_PUBLIC_SITE_BASE_URL", inbound.publicSiteBaseUrl);
-    inboundProcessor.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
+    connectToSiteApi(inboundProcessor, graphqlEndpoint);
 
     receiveLambda.addToRolePolicy(
       new PolicyStatement({
@@ -788,10 +786,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const knowledgeQueryLambda = backend.knowledgeQuery.resources.lambda as LambdaFunction;
   backend.knowledgeQuery.addEnvironment("OPENAI_API_KEY", secret("OPENAI_API_KEY"));
   knowledgeQueryLambda.addEnvironment("PAPYRUS_STORAGE_BUCKET_NAME", storageBucket.bucketName);
-  knowledgeQueryLambda.addEnvironment(
-    "PAPYRUS_GRAPHQL_ENDPOINT",
-    backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
-  );
+  connectToSiteApi(knowledgeQueryLambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl);
   knowledgeQueryLambda.addEnvironment("PAPYRUS_S3_VECTOR_INDEX_ARN", knowledgeVectorIndex.attrIndexArn);
   knowledgeQueryLambda.addEnvironment("PAPYRUS_S3_VECTOR_INDEX_NAME", knowledgeVectorIndexName);
   knowledgeQueryLambda.addEnvironment("PAPYRUS_EMBEDDING_MODEL", knowledgeEmbeddingModel);

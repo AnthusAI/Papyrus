@@ -1,6 +1,7 @@
 import { Stack } from "aws-cdk-lib";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
+import { connectToSiteApi } from "../../site-api-access";
 
 /** The monitoring stack writes the table's name here (infra/monitoring/papyrus-monitoring.yaml). */
 export const MONITORING_TABLE_PARAMETER = "/papyrus/monitoring/table-name";
@@ -29,7 +30,7 @@ export function wireMonitoringView(backend: any, emailMonitorId = "hn"): void {
   const lambda = backend.monitoringView.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
   lambda.addEnvironment("PAPYRUS_USER_POOL_ISSUER", `https://cognito-idp.${stack.region}.amazonaws.com/${backend.auth.resources.userPool.userPoolId}`);
-  lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
+  connectToSiteApi(lambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
   lambda.addEnvironment("PAPYRUS_MONITORING_TABLE_PARAMETER", MONITORING_TABLE_PARAMETER);
   lambda.addEnvironment("PAPYRUS_EMAIL_MONITOR_ID", emailMonitorId);
   lambda.addToRolePolicy(

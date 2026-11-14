@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from behave import given, when, then
 
-from papyrus.cli import _consume_site_flag
+from papyrus.cli import _consume_leading_flags
 from papyrus_content import env, site_document, site_selection
 from papyrus_content.cli_user_auth import AuthError, SiteSession, command, save_selection
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
@@ -154,7 +154,7 @@ def ask_endpoint(context):
 @when('a command asks for the site\'s GraphQL endpoint after the person names "{host}" with the leading site flag')
 def ask_endpoint_with_flag(context, host):
     world = _world(context)
-    assert _consume_site_flag(['--site', host, 'editorial', 'context']) == ['editorial', 'context']
+    assert _consume_leading_flags(['--site', host, 'editorial', 'context']) == ['editorial', 'context']
     world.endpoint = _try(world, env.graphql_endpoint)
 
 
@@ -168,7 +168,7 @@ def ask_endpoint_with_variable(context, host):
 @when('the bucket and identity pool are read after the person names "{host}" with the leading site flag')
 def read_bucket_and_pool(context, host):
     world = _world(context)
-    _consume_site_flag(['--site', host, 'x', 'y'])
+    _consume_leading_flags(['--site', host, 'x', 'y'])
     world.bucket, world.pool = env.storage_bucket_from_amplify_outputs(), env.identity_pool_id_from_amplify_outputs()
 
 

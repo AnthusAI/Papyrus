@@ -1,8 +1,10 @@
 """Shared AppSync GraphQL HTTP client for CLI tools and newsroom helpers.
 
-Configured editorial sessions use normal Cognito user authorization; explicit
-operator IAM calls use the standard AWS credential chain. Failed user sessions
-never escalate to IAM. Renewable user secrets live only in OS secure storage.
+The signed-in lane (`papyrus login`, Cognito user authorization) is the default.
+The operator lane (the standard AWS credential chain, SigV4) is used only when
+named (`papyrus --auth iam`, PAPYRUS_GRAPHQL_AUTH=iam). Nothing falls back from
+one lane to the other: no lane named and no session is a refusal that says what
+to do. Renewable user secrets live only in OS secure storage.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ import urllib.request
 from typing import Any
 
 from .env import graphql_endpoint, graphql_timeout_seconds, load_dotenv
-from .operator_errors import GraphQLRequestError, credential_recovery_guidance
+from .operator_errors import GraphQLRequestError, OperatorError, credential_recovery_guidance
 
 CREDENTIAL_REJECTION_STATUS_CODES = frozenset({401, 403})
 
@@ -48,24 +50,25 @@ def aws_credentials_available() -> bool:
     return True
 
 
-def authoring_credentials_available() -> bool:
-    from .user_auth_mode import user_auth_requested
-    # The selected user session is checked/renewed at request time, without an
-    # AWS credential probe or escalation when that user session has expired.
-    return user_auth_requested() or aws_credentials_available()
+def require_lane_ready() -> None:
+    """Raise, with the one thing to do, when the lane this process uses cannot sign a request (before any work starts)."""
+    from .user_auth_mode import NOT_SIGNED_IN, iam_requested, signed_in_anywhere
+    if iam_requested():
+        _aws_credentials()
+    elif not signed_in_anywhere():
+        raise OperatorError(NOT_SIGNED_IN)
 
 
 def graphql_request_headers(*, endpoint: str, body: bytes) -> dict[str, str]:
     from .guest_auth import refuse_guest_auth
 
     refuse_guest_auth("this command")
-    from .user_auth_mode import user_auth_requested
-    if user_auth_requested():
-        from .cli_user_auth import selected_headers
-        user_headers = selected_headers(endpoint)
-        if user_headers is not None:
-            return user_headers
-    return iam_signed_graphql_headers(endpoint, body)
+    from .user_auth_mode import iam_requested
+    if iam_requested():
+        return iam_signed_graphql_headers(endpoint, body)
+    require_lane_ready()
+    from .cli_user_auth import selected_headers
+    return selected_headers(endpoint)
 
 
 def execute_graphql(

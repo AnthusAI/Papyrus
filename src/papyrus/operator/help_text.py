@@ -5,7 +5,7 @@ import argparse
 VERSION = "0.1.0"
 
 TOP_LEVEL_HELP = """\
-Usage: papyrus [--help] [--version] [--backend local|cloud] <group> <command> [options]
+Usage: papyrus [--help] [--version] [--site SITE] [--auth iam] [--backend local|cloud] <group> <command> [options]
 
 Agents: run `papyrus guide` (or `papyrus guide --list`) for task-first recipes with exact syntax. Every command has `--help`.
 
@@ -44,6 +44,13 @@ Operator groups:
   logout        Remove the local user session and attempt provider revocation
   whoami        Renew and identify the selected newsroom user
   auth status   Inspect the selected user session without opening a browser
+
+Signing in (which lane a command calls the site with):
+  Signed in (the default): `papyrus login SITE` once, then every command runs as you. With no session a command refuses.
+  --site SITE   Choose one of your signed-in sites for this command (or PAPYRUS_SITE).
+  --auth iam    The operator lane: this process's own AWS credentials. Never chosen by itself; a worker, deploy or CI step that
+                runs as its own AWS role declares it (or sets PAPYRUS_GRAPHQL_AUTH=iam).
+  A CLI newer than the site's backend refuses what that backend cannot do; upgrade the site rather than switching lanes.
 
 Backend selection:
   Use --backend local|cloud, PAPYRUS_BACKEND, or .papyrus/operator-cli.config.yaml.

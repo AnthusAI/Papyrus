@@ -247,7 +247,7 @@ try {
       assert.equal(/npm run build/.test(readerSpec), false);
       assert.deepEqual(readerApp.Properties.CustomRules, [{ Source: "/<*>", Target: "/404.html", Status: "404-200" }], `${example}: reader catch-all serves a real 404 with 404.html`);
       assert.match(stagingSpec, /upload-preview/);
-      assert.match(stagingSpec, /PAPYRUS_ROOT="\$PWD" papyrus ops content export-published --drafts/, `${example}: staging export finds the checkout's amplify_outputs.json`);
+      assert.match(stagingSpec, /PAPYRUS_ROOT="\$PWD" PAPYRUS_GRAPHQL_AUTH=iam papyrus ops content export-published --drafts/, `${example}: staging export finds the checkout's amplify_outputs.json and declares the build role's operator lane`);
       assert.match(stagingSpec, /PAPYRUS_ROOT="\$PWD" papyrus ops content upload-preview/, `${example}: staging upload finds the checkout's amplify_outputs.json`);
       assert.match(stagingSpec, /cp amplify_outputs\.json \.next\/amplify_outputs\.json/, `${example}: staging ships amplify_outputs.json into the compute bundle`);
       assert.equal(/PAPYRUS_AMPLIFY_OUTPUTS/.test(stagingSpec), false, `${example}: staging must not set PAPYRUS_AMPLIFY_OUTPUTS`);
@@ -606,7 +606,7 @@ try {
   }
   for (const spec of specsSeen) {
     for (const line of spec.split("\n").filter((candidate) => /\bpapyrus\s+(ops\s+)?content\b/.test(candidate))) {
-      assert.match(line.trim(), /^- (PAPYRUS_ROOT="\$PWD" )?papyrus ops content /, `content command must be invoked as 'papyrus ops content': ${line.trim()}`);
+      assert.match(line.trim(), /^- (PAPYRUS_ROOT="\$PWD" )?(PAPYRUS_GRAPHQL_AUTH=iam )?papyrus ops content /, `content command must be invoked as 'papyrus ops content': ${line.trim()}`);
     }
   }
   for (const spec of specsSeen.filter((candidate) => /npm /.test(candidate))) {
