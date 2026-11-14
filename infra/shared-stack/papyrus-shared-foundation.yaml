@@ -1,0 +1,326 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  The foundation of one shared Papyrus stack (PPY-daf673): its customer-managed KMS key, the permissions boundary every role of the
+  shared backend carries, and the AWS Budget filtered on the stack's cost tags. One template, two stacks: papyrus-shared-prod-foundation
+  and papyrus-shared-staging-foundation (infra/pipeline/stacks.json). Only the release pipeline creates or changes them, through a change
+  set it checks; nobody runs this from a laptop. docs/shared-stack.md lists what it creates and what must be said go to first.
+
+Parameters:
+  Tier:
+    Type: String
+    AllowedValues: [production, staging]
+    Description: Which shared stack this is. Everything below takes its names from the tier.
+  MonthlyBudgetUsd:
+    Type: String
+    AllowedPattern: "^[0-9]+$"
+    Description: >-
+      The monthly cost, in USD, at which the budget starts to alert (50% and 80% actual, 100% forecast). No default: it is set per
+      stack in infra/pipeline/stacks.json, and the production value comes from staging's measured cost.
+  AlertEmail:
+    Type: AWS::SSM::Parameter::Value<String>
+    NoEcho: true
+    Default: /papyrus/shipped/knowledge-run/alarm-email
+    Description: >-
+      The NAME of the SSM String parameter that holds the operator's alarm mailbox, the one papyrus-monitoring's alarm topic already
+      uses. CloudFormation resolves it at deploy time, so the address is never in Git.
+  PlatformOperatorRoleName:
+    Type: String
+    Default: papyrus-platform-operator
+    Description: >-
+      The platform operator role, the only IAM path to tenant data. The key policy names it by a condition on the role's ARN, so the
+      role need not exist yet; until it does, no person can use the key.
+  PipelineServiceRoleName:
+    Type: String
+    Default: papyrus-shared-deploy-cloudformation
+    Description: The pipeline's CloudFormation service role for the shared stacks (infra/pipeline/papyrus-stack-pipeline.yaml). It alone administers the key.
+
+Mappings:
+  Tiers:
+    production:
+      Prefix: papyrus-shared-prod
+      Deployment: shared-prod
+      SsmName: prod
+    staging:
+      Prefix: papyrus-shared-staging
+      Deployment: shared-staging
+      SsmName: staging
+
+Resources:
+  # Layer 2: one customer-managed key for the stack. Retained when the stack is deleted (the data it encrypts would be lost with it),
+  # rotated every year, and scheduled for deletion only after the longest waiting period KMS allows.
+  Key:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub
+        - "Encrypts the ${Prefix} stack's tables, bucket, queues, vectors and function logs. Used only by roles on its own path and the platform operator role."
+        - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+      Enabled: true
+      EnableKeyRotation: true
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      MultiRegion: false
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: "2012-10-17"
+        # No statement trusts the account root: the account's administrators, and every dedicated site's roles, are outside this policy.
+        Statement:
+          # Administration: the pipeline's CloudFormation service role for the shared stacks, and no use of the data.
+          - Sid: AdministerByThePipelineServiceRoleOnly
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${PipelineServiceRoleName}
+            Action:
+              - kms:Create*
+              - kms:Describe*
+              - kms:Enable*
+              - kms:List*
+              - kms:Put*
+              - kms:Update*
+              - kms:Revoke*
+              - kms:Disable*
+              - kms:Get*
+              - kms:Delete*
+              - kms:TagResource
+              - kms:UntagResource
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: "*"
+          # Use: roles on the stack's own IAM path (every role its backend creates, see amplify/shared-stack/isolation.ts) and the platform operator role.
+          - Sid: UseByTheStacksOwnRolesAndThePlatformOperatorOnly
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+              - kms:CreateGrant
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "aws:PrincipalAccount": !Ref AWS::AccountId
+              ArnLike:
+                "aws:PrincipalArn":
+                  - !Sub
+                    - "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}/*"
+                    - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${PlatformOperatorRoleName}
+          # CloudWatch Logs encrypts the log groups of the stack's own functions (names carry the prefix), and no other log group.
+          - Sid: EncryptTheStacksFunctionLogGroupsOnly
+            Effect: Allow
+            Principal:
+              Service: !Sub logs.${AWS::Region}.amazonaws.com
+            Action:
+              - kms:Encrypt*
+              - kms:Decrypt*
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:Describe*
+            Resource: "*"
+            Condition:
+              ArnLike:
+                "kms:EncryptionContext:aws:logs:arn": !Sub
+                  - "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Prefix}-*"
+                  - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+
+  KeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub
+        - "alias/${Prefix}"
+        - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+      TargetKeyId: !Ref Key
+
+  # The backend (an Amplify Gen 2 stack made later) reads the key's ARN from here at deploy time.
+  KeyArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub
+        - "/papyrus/shared/${SsmName}/kms-key-arn"
+        - SsmName: !FindInMap [Tiers, !Ref Tier, SsmName]
+      Type: String
+      Value: !GetAtt Key.Arn
+      Description: The ARN of the shared stack's KMS key.
+
+  # Layer 3: the permissions boundary every role of the shared backend carries. It only limits: a role's own policy still has to allow
+  # an action. Every Allow is on resources tagged with this stack's anthus:deployment value or named with its prefix, apart from the
+  # actions that AWS gives no resource-level permission, which are listed one by one in the last two statements.
+  Boundary:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub
+        - "${Prefix}-boundary"
+        - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+      Description: Permissions boundary of every role the shared stack creates; reaches only resources of this stack.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ActOnResourcesTaggedWithThisStack
+            Effect: Allow
+            Action:
+              - "dynamodb:*"
+              - "lambda:*"
+              - "sqs:*"
+              - "sns:*"
+              - "events:*"
+              - "states:*"
+              - "cognito-idp:*"
+              - "cognito-identity:*"
+              - "s3vectors:*"
+              - "kms:Encrypt"
+              - "kms:Decrypt"
+              - "kms:ReEncrypt*"
+              - "kms:GenerateDataKey*"
+              - "kms:DescribeKey"
+              - "kms:CreateGrant"
+              - "cloudwatch:PutMetricAlarm"
+              - "cloudwatch:DeleteAlarms"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "aws:ResourceTag/anthus:deployment": !FindInMap [Tiers, !Ref Tier, Deployment]
+          - Sid: CreateResourcesThatCarryThisStacksTag
+            Effect: Allow
+            Action:
+              - "dynamodb:CreateTable"
+              - "dynamodb:TagResource"
+              - "sqs:CreateQueue"
+              - "sqs:TagQueue"
+              - "sns:CreateTopic"
+              - "sns:TagResource"
+              - "lambda:CreateFunction"
+              - "lambda:TagResource"
+              - "events:PutRule"
+              - "events:TagResource"
+              - "cognito-idp:CreateUserPool"
+              - "cognito-idp:TagResource"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "aws:RequestTag/anthus:deployment": !FindInMap [Tiers, !Ref Tier, Deployment]
+          - Sid: ActOnResourcesNamedWithThisStacksPrefix
+            Effect: Allow
+            Action:
+              - "s3:*"
+              - "lambda:*"
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+              - "logs:PutRetentionPolicy"
+              - "ssm:GetParameter"
+              - "ssm:GetParameters"
+              - "ssm:GetParametersByPath"
+              - "ssm:PutParameter"
+              - "iam:PassRole"
+            Resource:
+              - !Sub
+                - "arn:${AWS::Partition}:s3:::${Prefix}-*"
+                - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+              - !Sub
+                - "arn:${AWS::Partition}:s3:::${Prefix}-*/*"
+                - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+              - !Sub
+                - "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${Prefix}-*"
+                - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+              - !Sub
+                - "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Prefix}-*"
+                - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+              - !Sub
+                - "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Prefix}-*:*"
+                - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+              - !Sub
+                - "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/shared/${SsmName}/*"
+                - SsmName: !FindInMap [Tiers, !Ref Tier, SsmName]
+              # The secrets Amplify keeps for a backend live under its namespace, which is the stack's prefix.
+              - !Sub
+                - "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/amplify/${Prefix}/*"
+                - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+              - !Sub
+                - "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}/*"
+                - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+          # AWS gives these no resource-level permission or no tag condition. Each is named here so a reviewer sees every exception.
+          - Sid: NoResourceLevelPermissionAppSyncCalls
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource: !Sub arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*
+          - Sid: NoResourceLevelPermissionTelemetryAndIdentity
+            Effect: Allow
+            Action:
+              - "cloudwatch:PutMetricData"
+              - "xray:PutTraceSegments"
+              - "xray:PutTelemetryRecords"
+              - "sts:GetCallerIdentity"
+              - "logs:DescribeLogGroups"
+              - "kms:ListAliases"
+            Resource: "*"
+
+  # Layer 5: the stack's own budget, filtered on its anthus:deployment cost tag. The tag must be activated as a cost-allocation tag in
+  # billing (a person does that once; it is not something this template can do).
+  Budget:
+    Type: AWS::Budgets::Budget
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Budget:
+        BudgetName: !Sub
+          - "${Prefix}-monthly"
+          - Prefix: !FindInMap [Tiers, !Ref Tier, Prefix]
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetUsd
+          Unit: USD
+        CostFilters:
+          TagKeyValue:
+            - !Sub
+              - "user:anthus:deployment$${Deployment}"
+              - Deployment: !FindInMap [Tiers, !Ref Tier, Deployment]
+        CostTypes:
+          IncludeCredit: true
+          IncludeDiscount: true
+          IncludeOtherSubscription: true
+          IncludeRecurring: true
+          IncludeRefund: true
+          IncludeSubscription: true
+          IncludeSupport: true
+          IncludeTax: true
+          IncludeUpfront: true
+          UseAmortized: false
+          UseBlended: false
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 50
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+
+Outputs:
+  KeyArn:
+    Value: !GetAtt Key.Arn
+  KeyAliasName:
+    Value: !Ref KeyAlias
+  BoundaryPolicyArn:
+    Value: !Ref Boundary

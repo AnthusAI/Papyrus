@@ -8,6 +8,8 @@
 # job summary, when the roles in the account differ from that file, and a permission refusal names that workflow. A change to that file puts
 # both stacks in scope on purpose, so the release runs this check. The account id lives in the AWS_ACCOUNT_ID
 # repository variable, not in Git. Public repository only.
+# The shared-tier stacks (group "shared", PPY-daf673) deploy with their own roles, papyrus-shared-plan-github and papyrus-shared-deploy-github, which reach only
+# stacks named papyrus-shared-*. A stack with a `hold` in stacks.json is planned on a pull request and never deployed.
 # Which stacks, which paths and which parameters: infra/pipeline/stacks.json. What may be removed or replaced: infra/pipeline/allowed-changes.json.
 # The safety checks live in infra/pipeline/stack_deploy.py and are tested.
 name: stack-deploy
@@ -20,6 +22,7 @@ on:
       - "infra/monitoring/**"
       - "infra/newsletter/**"
       - "infra/pipeline/**"
+      - "infra/shared-stack/**"
       - "src/papyrus_content/**"
       - "src/papyrus_knowledge_query/**"
       - "poetry.lock"
@@ -49,18 +52,18 @@ jobs:
       - run: pip install pyyaml
       - name: Which stacks does this pull request touch
         id: scope
-        run: python infra/pipeline/stack_deploy.py scope --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}"
+        run: python infra/pipeline/stack_deploy.py scope --plan --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}"
       - name: Say why there is no dry run yet
         if: steps.scope.outputs.deploy == 'true' && vars.AWS_ACCOUNT_ID == ''
         run: echo "::notice::Set the AWS_ACCOUNT_ID repository variable (one-time account setup, see infra/pipeline/README.md) to get the dry run."
       - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
-        if: steps.scope.outputs.deploy == 'true' && vars.AWS_ACCOUNT_ID != ''
+        if: steps.scope.outputs.stacks != '' && vars.AWS_ACCOUNT_ID != ''
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/papyrus-stack-plan-github
           aws-region: us-east-1
           role-session-name: stack-plan-${{ github.run_id }}
       - name: Dry run (read-only)
-        if: steps.scope.outputs.deploy == 'true' && vars.AWS_ACCOUNT_ID != ''
+        if: steps.scope.outputs.stacks != '' && vars.AWS_ACCOUNT_ID != ''
         env:
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
           STACKS: ${{ steps.scope.outputs.stacks }}
@@ -68,6 +71,22 @@ jobs:
           args=()
           for name in ${STACKS//,/ }; do args+=(--stack "$name"); done
           python infra/pipeline/stack_deploy.py plan "${args[@]}"
+      # The shared-tier stacks have roles of their own (reaching papyrus-shared-* only), so they are planned in a second step.
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        if: steps.scope.outputs.shared_stacks != '' && vars.AWS_ACCOUNT_ID != ''
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/papyrus-shared-plan-github
+          aws-region: us-east-1
+          role-session-name: shared-plan-${{ github.run_id }}
+      - name: Dry run of the shared-tier stacks (read-only)
+        if: steps.scope.outputs.shared_stacks != '' && vars.AWS_ACCOUNT_ID != ''
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          STACKS: ${{ steps.scope.outputs.shared_stacks }}
+        run: |
+          args=()
+          for name in ${STACKS//,/ }; do args+=(--stack "$name"); done
+          python infra/pipeline/stack_deploy.py plan --group shared "${args[@]}"
 
   scope:
     if: github.event_name == 'push'
@@ -79,6 +98,7 @@ jobs:
     outputs:
       deploy: ${{ steps.scope.outputs.deploy }}
       stacks: ${{ steps.scope.outputs.stacks }}
+      shared_stacks: ${{ steps.scope.outputs.shared_stacks }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -104,7 +124,7 @@ jobs:
 
   deploy:
     needs: [scope, tests]
-    if: needs.scope.outputs.deploy == 'true'
+    if: needs.scope.outputs.stacks != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     # One deploy at a time, and a newer push waits rather than cancelling one that is mid-change.
@@ -141,3 +161,40 @@ jobs:
           args=()
           for name in ${STACKS//,/ }; do args+=(--stack "$name"); done
           python infra/pipeline/stack_deploy.py deploy "${args[@]}"
+
+  # The shared-tier stacks (PPY-daf673), after the monitoring and operator stacks, with their own deploy role. A stack on hold never gets here:
+  # `scope` leaves it out. Staging comes before production in stacks.json, so a release creates staging first.
+  deploy-shared:
+    needs: [scope, tests, deploy]
+    if: always() && needs.scope.outputs.shared_stacks != '' && needs.tests.result == 'success' && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    concurrency:
+      group: stack-deploy-shared
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: The AWS_ACCOUNT_ID variable is set
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+        run: test -n "$ACCOUNT" || { echo "::error::Set the AWS_ACCOUNT_ID repository variable - one-time account setup, see infra/pipeline/README.md"; exit 1; }
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/papyrus-shared-deploy-github
+          aws-region: us-east-1
+          role-session-name: shared-deploy-${{ github.run_id }}
+      - name: Deploy the shared-tier stacks whose inputs changed
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          STACKS: ${{ needs.scope.outputs.shared_stacks }}
+        run: |
+          args=()
+          for name in ${STACKS//,/ }; do args+=(--stack "$name"); done
+          python infra/pipeline/stack_deploy.py deploy --group shared "${args[@]}"

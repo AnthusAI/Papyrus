@@ -356,7 +356,9 @@ def test_a_docs_only_release_deploys_nothing_and_a_code_change_deploys_the_monit
     assert sd.changed_stacks(config, ["docs/operator-alerts.md", "AGENTS.md", "project/issues/x.json", "docs/hosting/x.md"]) == []
     assert sd.changed_stacks(config, ["src/papyrus_content/monitoring_router.py"]) == ["papyrus-monitoring"]
     assert sd.changed_stacks(config, ["infra/newsletter/papyrus-newsletter-sending.yaml"]) == ["papyrus-newsletter-sending-operators"]
-    assert sd.changed_stacks(config, ["infra/pipeline/allowed-changes.json"]) == ["papyrus-newsletter-sending-operators", "papyrus-monitoring"]
+    assert sd.changed_stacks(config, ["infra/pipeline/allowed-changes.json"]) == [
+        "papyrus-newsletter-sending-operators", "papyrus-monitoring", "papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
+    assert sd.changed_stacks(config, ["infra/shared-stack/papyrus-shared-foundation.yaml"]) == ["papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
 
 
 def test_every_path_that_scopes_a_stack_also_triggers_the_dry_run_workflow():
@@ -510,7 +512,13 @@ def test_the_service_role_covers_the_service_of_every_resource_type_the_stacks_c
         for statement in pipeline["Resources"][name]["Properties"]["PolicyDocument"]["Statement"]:
             actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
             granted |= {a.split(":")[0] for a in actions}
+    # The shared-tier stacks are created by their own service role, whose rights are the inline policy of SharedCloudFormationRole.
+    shared_granted = set()
+    for statement in pipeline["Resources"]["SharedCloudFormationRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]:
+        actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
+        shared_granted |= {a.split(":")[0] for a in actions}
     for stack in json.loads((PIPELINE / "stacks.json").read_text())["stacks"]:
+        granted_here = shared_granted if stack.get("serviceRoleName") == "papyrus-shared-deploy-cloudformation" else granted
         for logical, resource in sd.parse_template((ROOT / stack["template"]).read_text())["Resources"].items():
             kind = resource["Type"]
             if kind.startswith("Custom::") or kind == "AWS::CloudFormation::CustomResource":
@@ -519,7 +527,7 @@ def test_the_service_role_covers_the_service_of_every_resource_type_the_stacks_c
                 service = kind.split("::")[1].lower()
             else:
                 continue
-            assert service in granted, f"{stack['name']} {logical} ({kind}): the service role has no {service}:* permission"
+            assert service in granted_here, f"{stack['name']} {logical} ({kind}): the service role has no {service}:* permission"
 
 
 def test_a_change_to_the_role_template_puts_both_stacks_in_scope_so_the_release_checks_the_roles():
@@ -817,7 +825,8 @@ def test_the_apply_role_has_no_iam_rights_and_only_touches_the_pipeline_stack():
 
 def test_the_approval_roles_cannot_touch_their_own_stack_or_roles_and_cannot_create_arbitrary_roles():
     template = _approver()
-    pipeline_roles = ["papyrus-stack-plan-github", "papyrus-stack-deploy-github", "papyrus-stack-deploy-cloudformation"]
+    pipeline_roles = ["papyrus-stack-plan-github", "papyrus-stack-deploy-github", "papyrus-stack-deploy-cloudformation",
+                      "papyrus-shared-plan-github", "papyrus-shared-deploy-github", "papyrus-shared-deploy-cloudformation"]
     for role in ("PlanRole", "ApplyRole", "ServiceRole"):
         for statement in _policy(template, role):
             actions = _as_list(statement["Action"])
@@ -827,7 +836,7 @@ def test_the_approval_roles_cannot_touch_their_own_stack_or_roles_and_cannot_cre
                 if "iam::" not in resource:
                     continue
                 name = resource.split("/", 1)[1]
-                # Every IAM resource is one of the three pipeline roles by exact name, or the pipeline stack's managed policies by prefix.
+                # Every IAM resource is one of the six pipeline roles (three for the monitoring stacks, three for the shared tier) by exact name, or the pipeline stack's managed policies by prefix.
                 assert name in pipeline_roles or name == "papyrus-stack-pipeline-*", f"{role} {statement.get('Sid')} reaches {resource}"
                 assert not any(fnmatch.fnmatch(own, name) for own in APPROVER_NAMES), f"{resource} would match the approval roles"
                 if any(a in ("iam:CreateRole", "iam:UpdateAssumeRolePolicy", "iam:PutRolePolicy") for a in actions):
@@ -1216,3 +1225,50 @@ def test_the_service_role_may_start_the_function_behind_every_custom_resource():
     for name, resource in custom.items():
         function = resource["Properties"]["ServiceToken"]["Fn::GetAtt"][0]
         assert any(re.fullmatch(re.escape(p).replace(r"\*", ".*"), f"papyrus-monitoring-{function}-AbCdEf123456") for p in patterns), f"{name}: no invoke permission for {function}"
+
+
+# --- a held stack: planned, never deployed (PPY-daf673) ---------------------------------------------------------------------------------
+
+
+HELD_CONFIG = {"region": "us-east-1", "serviceRoleName": "svc", "stacks": [
+    {"name": "live", "template": "t.yaml", "paths": ["a/"], "capabilities": []},
+    {"name": "held-shared", "template": "t.yaml", "paths": ["a/"], "capabilities": [], "group": "shared", "hold": "waits for a go"},
+    {"name": "open-shared", "template": "t.yaml", "paths": ["a/"], "capabilities": [], "group": "shared"},
+]}
+
+
+def test_a_held_stack_is_planned_but_left_out_of_every_deploy():
+    assert [s["name"] for s in sd.selected(HELD_CONFIG, None, "shared")] == ["open-shared"]
+    assert [s["name"] for s in sd.selected(HELD_CONFIG, None, "shared", include_held=True)] == ["held-shared", "open-shared"]
+    assert [s["name"] for s in sd.selected(HELD_CONFIG, None, "default", include_held=True)] == ["live"]
+    assert [s["name"] for s in sd.selected(HELD_CONFIG, ["held-shared"], "shared")] == []   # named, still not deployed
+
+
+def test_a_hold_needs_a_reason():
+    with pytest.raises(sd.Stop):
+        sd.validate_config({"stacks": [{"name": "x", "hold": " "}]})
+    sd.validate_config(HELD_CONFIG)
+
+
+def test_the_scope_command_splits_the_groups_and_leaves_held_stacks_out_unless_planning(tmp_path, monkeypatch, capsys):
+    config = tmp_path / "stacks.json"
+    config.write_text(json.dumps(HELD_CONFIG))
+    output = tmp_path / "out"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    git = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    # base == head and a git that cannot resolve it both mean "every stack"; use an unresolvable base so no diff is needed.
+    assert sd.main(["scope", "--config", str(config), "--base", "0" * 40, "--head", git]) == 0
+    assert "stacks=live\nshared_stacks=open-shared\ndeploy=true" in output.read_text()
+    output.write_text("")
+    assert sd.main(["scope", "--config", str(config), "--base", "0" * 40, "--head", git, "--plan"]) == 0
+    assert "stacks=live\nshared_stacks=held-shared,open-shared\ndeploy=true" in output.read_text()
+
+
+def test_the_shared_stacks_in_the_repo_are_held_and_use_the_shared_roles():
+    config = json.loads((PIPELINE / "stacks.json").read_text())
+    shared = [s for s in config["stacks"] if s.get("group") == "shared"]
+    assert [s["name"] for s in shared] == ["papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
+    for stack in shared:
+        assert sd.held_reason(stack) and stack["serviceRoleName"] == "papyrus-shared-deploy-cloudformation"
+    assert sd.selected(config, None, "shared") == [] and len(sd.selected(config, None, "shared", include_held=True)) == 2
+    assert all("group" not in s for s in config["stacks"] if s not in shared)

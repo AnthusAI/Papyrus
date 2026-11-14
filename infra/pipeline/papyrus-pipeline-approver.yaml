@@ -172,6 +172,9 @@ Resources:
                   - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-plan-github
                   - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-deploy-github
                   - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-deploy-cloudformation
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-shared-plan-github
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-shared-deploy-github
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-shared-deploy-cloudformation
               # Attaching is limited to the pipeline stack's own managed policies, so no role can be given an AWS-managed policy such as administrator.
               - Sid: AttachOnlyThePipelinesOwnPolicies
                 Effect: Allow
@@ -180,6 +183,9 @@ Resources:
                   - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-plan-github
                   - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-deploy-github
                   - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-deploy-cloudformation
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-shared-plan-github
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-shared-deploy-github
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-shared-deploy-cloudformation
                 Condition:
                   ArnLike:
                     "iam:PolicyARN": !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/papyrus-stack-pipeline-*

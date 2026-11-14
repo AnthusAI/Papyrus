@@ -26,6 +26,11 @@ export function setSiteFilesForContentActionsBundle(siteFiles: SiteBundleFile[] 
   siteFilesForNextContentActionsBundle = siteFiles;
 }
 
+/** The site files the next content-actions bundle will hold (undefined: the bundle takes none). Read by the synth harness. */
+export function siteFilesForContentActionsBundle(): SiteBundleFile[] | undefined {
+  return siteFilesForNextContentActionsBundle;
+}
+
 export const contentActions = defineFunction(
   (scope: Construct) => {
     return new Function(scope, "papyrus-content-actions", {

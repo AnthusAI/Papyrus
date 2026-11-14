@@ -3,7 +3,7 @@
 
 Subcommands (all read `infra/pipeline/stacks.json`):
 
-  scope --base SHA --head SHA     which stacks have inputs in the diff (writes `stacks=` and `deploy=` to $GITHUB_OUTPUT)
+  scope --base SHA --head SHA     which stacks have inputs in the diff (writes `stacks=`, `shared_stacks=` and `deploy=` to $GITHUB_OUTPUT; `--plan` also lists held stacks)
   requirements                    pip requirements for the vendored packages at the poetry.lock versions (a reproducible zip)
   plan [--stack NAME ...]         READ-ONLY dry run: what a release would change, as a job summary (pull requests)
   deploy [--stack NAME ...]       build, upload, create a change set, read it, execute it, watch it (push to main)
@@ -23,6 +23,9 @@ A deployment repository (another organisation, a client account) uses the same f
 `pipelineCheck`, `changeSetPrefix`; omit `templateBucketFrom` to pass templates inline; and per stack `enabled`/`reason`, parameters from the
 environment (`fromEnv`) or another stack's output (`fromStackOutput`), `import` (adopt a hand-made resource by CloudFormation IMPORT, then
 update, never replace) and `checks` (name servers of a zone against an expected file) and `when` (see below). Nothing here changes for a config without them.
+
+A stack may be held: `"hold": "<reason>"`. A held stack is planned (a pull request still prints its dry run, headed "HELD") but never created or changed:
+`scope`, `changed` and `deploy` leave it out. Taking the line out of Git, in a reviewed pull request, is the go. The shared-tier stacks wait this way (PPY-daf673).
 
 A stack may wait for DNS delegation: `"when": {"delegated": {"zone": "<domain>", "expectedFile": "<path relative to the config dir>"}}`. A
 DNS-validated certificate cannot validate while the registrar still points at old name servers, and CloudFormation would wait for hours and
@@ -811,6 +814,8 @@ def plan_stack(ctx: Context, cfg: dict) -> None:
     pipeline_notice(ctx)
     stack = cloud.describe_stack(name)
     lines = [f"### {name}"]
+    if held_reason(cfg):
+        lines.append(f"**HELD: a release will not create or change this stack.** {held_reason(cfg)} The dry run below is what it would do once the hold is taken out of `infra/pipeline/stacks.json`.")
     try:
         kind, status = classify_stack(stack)
         lines.append(f"Stack state: {status} (a release would {kind})")
@@ -868,9 +873,14 @@ def load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def selected(config: dict, names: list[str] | None, group: str | None = None) -> list[dict]:
+def held_reason(cfg: dict) -> str:
+    """The reason a stack is held ("" when it is not): planned, never deployed."""
+    return str(cfg.get("hold", "")).strip()
+
+
+def selected(config: dict, names: list[str] | None, group: str | None = None, include_held: bool = False) -> list[dict]:
     """Enabled stacks, in config order. `group` (None = every group) limits them to one `group` (a stack's default is "default");
-    a stack named explicitly must belong to that group."""
+    a stack named explicitly must belong to that group. A held stack is left out unless `include_held` (the dry run)."""
     chosen = [s for s in config["stacks"] if not names or s["name"] in names]
     if names and len(chosen) != len(set(names)):
         raise Stop(f"unknown stack in {names}")
@@ -879,7 +889,7 @@ def selected(config: dict, names: list[str] | None, group: str | None = None) ->
         if names and outside:
             raise Stop(f"stack {', '.join(outside)} is not in group {group}")
         chosen = [s for s in chosen if s.get("group", "default") == group]
-    return [s for s in chosen if s.get("enabled", True)]
+    return [s for s in chosen if s.get("enabled", True) and (include_held or not held_reason(s))]
 
 
 def changed_stack(ctx: Context, cfg: dict) -> tuple[bool, str]:
@@ -950,6 +960,8 @@ def validate_config(config: dict) -> None:
     for stack in config["stacks"]:
         if not stack.get("enabled", True) and not str(stack.get("reason", "")).strip():
             raise Stop(f"stack {stack['name']} is disabled and needs a non-empty reason")
+        if "hold" in stack and not (isinstance(stack["hold"], str) and stack["hold"].strip()):
+            raise Stop(f"stack {stack['name']} has a `hold` that is not a non-empty reason")
         if "when" in stack:
             validate_when(stack["name"], stack["when"])
         for pname, spec in stack.get("parameters", {}).items():
@@ -985,6 +997,7 @@ def main(argv: list[str] | None = None) -> int:
     scope = sub.add_parser("scope", parents=[common])
     scope.add_argument("--base", required=True)
     scope.add_argument("--head", required=True)
+    scope.add_argument("--plan", action="store_true", help="the dry run's scope: stacks on hold are included (they are planned, never deployed)")
     sub.add_parser("requirements", parents=[common])
     sub.add_parser("pipeline-check", parents=[common])
     sub.add_parser("delegation", parents=[common])
@@ -1000,7 +1013,7 @@ def main(argv: list[str] | None = None) -> int:
     except Stop as stop:
         print(f"::error::STOPPED, nothing executed: {stop}")
         return 2
-    enabled = [s for s in config["stacks"] if s.get("enabled", True)]
+    enabled = [s for s in config["stacks"] if s.get("enabled", True) and (not held_reason(s) or getattr(args, "plan", False))]
 
     if args.command == "scope":
         done = subprocess.run(["git", "-C", str(root), "diff", "--name-only", "--relative", args.base, args.head], capture_output=True, text=True)
@@ -1012,9 +1025,14 @@ def main(argv: list[str] | None = None) -> int:
         except Stop as stop:
             print(f"::error::STOPPED, nothing executed: {stop}")
             return 2
-        github_output("stacks", ",".join(names))
+        # The default group deploys with the monitoring role; every other group has roles of its own, so the workflow reads one list per group.
+        by_name = {s["name"]: s for s in enabled}
+        shared = [n for n in names if by_name[n].get("group", "default") == "shared"]
+        others = [n for n in names if n not in shared]
+        github_output("stacks", ",".join(others))
+        github_output("shared_stacks", ",".join(shared))
         github_output("deploy", "true" if names else "false")
-        print(f"stacks in scope: {names or 'none'}")
+        print(f"stacks in scope: {others or 'none'}; shared stacks in scope: {shared or 'none'}")
         return 0
     if args.command == "requirements":
         sys.path.insert(0, str(ROOT / "infra" / "monitoring"))
@@ -1049,7 +1067,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{cfg['name']}: {'changed' if differs else 'unchanged'} ({why})")
             github_output("changed", "true" if any(flags) else "false")
             return 0
-        for cfg in in_scope(ctx, selected(config, args.stack, args.group)):
+        for cfg in in_scope(ctx, selected(config, args.stack, args.group, include_held=args.command == "plan")):
             (plan_stack if args.command == "plan" else deploy_stack)(ctx, cfg)
         if ctx.failed_checks:
             print("::error::CHECK FAILED: " + "; ".join(ctx.failed_checks))

@@ -48,6 +48,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [how-a-publish-flows.md](how-a-publish-flows.md): what happens when an editor saves or publishes, and what to do when it looks wrong.
 - [multi-tenancy.md](multi-tenancy.md): several publications on one backend, with `--tenant`.
 - [plans/multi-tenant-architecture.md](plans/multi-tenant-architecture.md): design for many sites on one shared Papyrus (additive groundwork merged, isolation not built yet), with real tenant isolation (PPY-25ffa3).
+- [shared-stack.md](shared-stack.md): the shared production and staging stacks inside the Papyrus production account (key, boundary, deny, concurrency, alarms, budget), what the pipeline creates and what to say go to first (PPY-daf673).
 - [content-item-lifecycle.md](content-item-lifecycle.md): one content item and one lifecycle, with a configurable name (default Story).
 - [verification.md](verification.md): what to run before calling a change done, plus the reader browser smoke test.
 - [local-preview.md](local-preview.md): `npm run dev:preview` seeded newsroom Board with no AWS, plus headless screenshots for reviews.

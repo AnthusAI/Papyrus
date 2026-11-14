@@ -277,6 +277,196 @@ Resources:
             Action: route53:GetChange
             Resource: !Sub arn:${AWS::Partition}:route53:::change/*
 
+  # ===== The shared tier's own roles (PPY-daf673). They reach only stacks named papyrus-shared-*; the roles above name no shared stack. =====
+  # Pull requests: read-only dry run of the shared foundation stacks.
+  SharedPlanRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: papyrus-shared-plan-github
+      Description: Read-only dry run of the shared-tier stacks, for pull requests in the repository (GitHub OIDC, no keys).
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub repo:${GitHubRepository}:pull_request
+      Policies:
+        - PolicyName: read-only-dry-run-of-the-shared-stacks
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadTheSharedStacks
+                Effect: Allow
+                Action: [cloudformation:DescribeStacks, cloudformation:GetTemplate, cloudformation:ListChangeSets]
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-shared-*/*
+              - Sid: ReadThePipelineStackToSeeWhetherItIsOutOfDate
+                Effect: Allow
+                Action: [cloudformation:DescribeStacks, cloudformation:GetTemplate]
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-stack-pipeline/*
+              # The template bucket's name is read from papyrus-monitoring's CodeBucket parameter, as for every stack.
+              - Sid: ReadTheTemplateBucketNameFromTheMonitoringStack
+                Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-monitoring/*
+
+  # Pushes to main: drives change sets on the shared stacks and nothing else. It may create one only with the shared service role attached.
+  SharedDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: papyrus-shared-deploy-github
+      Description: Release deploy of the shared-tier stacks for the repository's main branch (GitHub OIDC, no keys).
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub repo:${GitHubRepository}:ref:refs/heads/main
+      Policies:
+        - PolicyName: change-sets-on-the-shared-stacks-only
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadAndRunChangeSetsOnSharedStacksOnly
+                Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeEvents
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ListChangeSets
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-shared-*/*
+              - Sid: CreateChangeSetsOnlyThroughTheSharedServiceRole
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-shared-*/*
+                Condition:
+                  StringEquals:
+                    "cloudformation:RoleArn": !GetAtt SharedCloudFormationRole.Arn
+              - Sid: HandOverTheSharedServiceRoleToCloudFormationOnly
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt SharedCloudFormationRole.Arn
+                Condition:
+                  StringEquals:
+                    "iam:PassedToService": cloudformation.amazonaws.com
+              - Sid: SharedTemplatesUnderOnePrefix
+                Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource: !Sub arn:${AWS::Partition}:s3:::cdk-*-assets-${AWS::AccountId}-${AWS::Region}/papyrus-monitoring/templates/papyrus-shared-*
+              - Sid: ReadTheTemplateBucketNameFromTheMonitoringStack
+                Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-monitoring/*
+              # CloudFormation resolves the parameters of type SSM with the caller's rights: the operator's alarm mailbox name and the stacks' own parameters.
+              - Sid: ResolveSsmParameterTypedParameters
+                Effect: Allow
+                Action: ssm:GetParameters
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/shipped/knowledge-run/alarm-email
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/shared/*
+              - Sid: ReadThePipelineStackToSeeWhetherItIsOutOfDate
+                Effect: Allow
+                Action: [cloudformation:DescribeStacks, cloudformation:GetTemplate]
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-stack-pipeline/*
+
+  # What CloudFormation uses to create and change the shared foundation stacks: the key, the boundary policy, the SSM parameters and the budget,
+  # each named by the shared prefix or tagged with a shared anthus:deployment value. It is also the key's only administrator.
+  SharedCloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: papyrus-shared-deploy-cloudformation
+      Description: Service role CloudFormation uses for the shared-tier stacks; passable only from the shared deploy role.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: the-shared-foundation-stacks-only
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CreateKeysThatCarryASharedTag
+                Effect: Allow
+                Action: [kms:CreateKey, kms:TagResource]
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "aws:RequestTag/anthus:deployment": [shared-prod, shared-staging]
+              - Sid: AdministerKeysTaggedAsShared
+                Effect: Allow
+                Action:
+                  - kms:DescribeKey
+                  - kms:GetKeyPolicy
+                  - kms:PutKeyPolicy
+                  - kms:GetKeyRotationStatus
+                  - kms:EnableKeyRotation
+                  - kms:DisableKeyRotation
+                  - kms:EnableKey
+                  - kms:DisableKey
+                  - kms:ScheduleKeyDeletion
+                  - kms:CancelKeyDeletion
+                  - kms:TagResource
+                  - kms:UntagResource
+                  - kms:ListResourceTags
+                  - kms:CreateAlias
+                  - kms:UpdateAlias
+                  - kms:DeleteAlias
+                Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
+                Condition:
+                  StringEquals:
+                    "aws:ResourceTag/anthus:deployment": [shared-prod, shared-staging]
+              - Sid: TheSharedAliasesOnly
+                Effect: Allow
+                Action: [kms:CreateAlias, kms:UpdateAlias, kms:DeleteAlias]
+                Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/papyrus-shared-*
+              - Sid: TheSharedBoundaryPolicies
+                Effect: Allow
+                Action:
+                  - iam:CreatePolicy
+                  - iam:DeletePolicy
+                  - iam:GetPolicy
+                  - iam:CreatePolicyVersion
+                  - iam:DeletePolicyVersion
+                  - iam:GetPolicyVersion
+                  - iam:ListPolicyVersions
+                  - iam:TagPolicy
+                  - iam:UntagPolicy
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/papyrus-shared-*
+              - Sid: TheSharedParameters
+                Effect: Allow
+                Action: [ssm:PutParameter, ssm:DeleteParameter, ssm:GetParameter, ssm:GetParameters, ssm:AddTagsToResource, ssm:RemoveTagsFromResource, ssm:ListTagsForResource]
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/shared/*
+              - Sid: ResolveTheOperatorMailboxName
+                Effect: Allow
+                Action: ssm:GetParameters
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/shipped/knowledge-run/alarm-email
+              - Sid: TheSharedBudgets
+                Effect: Allow
+                Action: [budgets:ViewBudget, budgets:ModifyBudget, budgets:TagResource, budgets:UntagResource, budgets:ListTagsForResource]
+                Resource: !Sub arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/papyrus-shared-*
+
 Outputs:
   PlanRoleArn:
     Value: !GetAtt PlanRole.Arn
@@ -284,3 +474,9 @@ Outputs:
     Value: !GetAtt DeployRole.Arn
   CloudFormationRoleArn:
     Value: !GetAtt CloudFormationRole.Arn
+  SharedPlanRoleArn:
+    Value: !GetAtt SharedPlanRole.Arn
+  SharedDeployRoleArn:
+    Value: !GetAtt SharedDeployRole.Arn
+  SharedCloudFormationRoleArn:
+    Value: !GetAtt SharedCloudFormationRole.Arn
