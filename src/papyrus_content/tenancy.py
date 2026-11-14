@@ -190,9 +190,13 @@ def tenant_field_stamped_payload(model_name: str, tenant_id: str | None, payload
 
 
 def row_belongs_to_tenant(model_name: str, tenant_id: str | None, row: dict[str, Any] | None) -> bool:
-    if not tenant_id or model_name not in TENANT_MODELS or row is None:
+    """A tenant client sees a row of a TENANT_MODELS model only when it carries the client's tenant. On a SHARED stack the same holds for the
+    models in TENANT_FIELD_MODELS (a row with no ``tenantId`` is nobody's); a dedicated stack keeps reading them whole, as it always has."""
+    if not tenant_id or row is None:
         return True
-    return row.get("tenantId") == tenant_id
+    if model_name in TENANT_MODELS or (model_name in TENANT_FIELD_MODELS and is_shared_stack()):
+        return row.get("tenantId") == tenant_id
+    return True
 
 
 def rows_for_tenant(model_name: str, tenant_id: str | None, rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:

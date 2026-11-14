@@ -24,6 +24,7 @@ from typing import Any, Callable, Protocol
 import humanus
 from humanus.packs import builtin_pack, list_builtin_packs
 
+from .tenancy import is_shared_stack, tenant_bare_record_id, tenant_scoped_value
 from .tenant_knowledge_keys import corpus_key_of, is_corpus_id, own_corpora
 from .editorial_languages import (
     DEFAULT_LANGUAGES,
@@ -760,16 +761,24 @@ def handle(field_name: str, arguments: dict[str, Any], services: Services) -> di
 
 # --- GraphQL store ----------------------------------------------------------------
 
-_POLICY_SELECTION = "id policyKey scope language version title guidance severity enabled detectors examples rewriteGuidance source"
+_POLICY_SELECTION = "id tenantId policyKey scope language version title guidance severity enabled detectors examples rewriteGuidance source"
 LIST_POLICIES = f"query ListEditorialPolicies($nextToken: String) {{ listEditorialPolicies(limit: 500, nextToken: $nextToken) {{ items {{ {_POLICY_SELECTION} }} nextToken }} }}"
-GET_SETTINGS = "query GetEditorialCheckSettings($id: ID!) { getEditorialCheckSettings(id: $id) { id settings } }"
+LIST_POLICIES_BY_TENANT = (
+    "query ListEditorialPoliciesByTenant($tenantId: String!, $nextToken: String) { "
+    f"listEditorialPoliciesByTenant(tenantId: $tenantId, limit: 500, nextToken: $nextToken) {{ items {{ {_POLICY_SELECTION} }} nextToken }} }}"
+)
+GET_SETTINGS = "query GetEditorialCheckSettings($id: ID!) { getEditorialCheckSettings(id: $id) { id tenantId settings } }"
 LIST_FEEDBACK = "query ListEditorialFeedbacks($nextToken: String) { listEditorialFeedbacks(limit: 1000, nextToken: $nextToken) { items { policyId detectorId lane probability decision text } nextToken } }"
+LIST_FEEDBACK_BY_TENANT = (
+    "query ListEditorialFeedbackByTenant($tenantId: String!, $nextToken: String) { "
+    "listEditorialFeedbackByTenant(tenantId: $tenantId, limit: 1000, nextToken: $nextToken) { items { policyId detectorId lane probability decision text } nextToken } }"
+)
 CREATE_POLICY = "mutation CreateEditorialPolicy($input: CreateEditorialPolicyInput!) { createEditorialPolicy(input: $input) { id } }"
 UPDATE_POLICY = "mutation UpdateEditorialPolicy($input: UpdateEditorialPolicyInput!) { updateEditorialPolicy(input: $input) { id } }"
-GET_ITEM = "query GetItemForEditorialCheck($id: ID!) { getItem(id: $id) { id lineageId versionNumber section contentHash bodyMarkus } }"
-LIST_STORY_VERSIONS = "query ListStoryVersionsForEditorialCheck($versionState: String!, $nextToken: String) { listItemsByVersionStateAndUpdatedAt(versionState: $versionState, limit: 200, nextToken: $nextToken) { items { id lineageId versionNumber versionState type stage slug bodyMarkus } nextToken } }"
-GET_CHECK_RUN = "query GetEditorialCheckRun($id: ID!) { getEditorialCheckRun(id: $id) { id } }"
-_CHECK_RUN_SELECTION = "id itemId lineageId versionNumber section contentHash packVersion violations reviews findings lanes checkedAt"
+GET_ITEM = "query GetItemForEditorialCheck($id: ID!) { getItem(id: $id) { id tenantId lineageId versionNumber section contentHash bodyMarkus } }"
+LIST_STORY_VERSIONS = "query ListStoryVersionsForEditorialCheck($versionState: String!, $nextToken: String) { listItemsByVersionStateAndUpdatedAt(versionState: $versionState, limit: 200, nextToken: $nextToken) { items { id tenantId lineageId versionNumber versionState type stage slug bodyMarkus } nextToken } }"
+GET_CHECK_RUN = "query GetEditorialCheckRun($id: ID!) { getEditorialCheckRun(id: $id) { id tenantId } }"
+_CHECK_RUN_SELECTION = "id tenantId itemId lineageId versionNumber section contentHash packVersion violations reviews findings lanes checkedAt"
 GET_CHECK_RUN_RECORD = f"query GetEditorialCheckRunRecord($id: ID!) {{ getEditorialCheckRun(id: $id) {{ {_CHECK_RUN_SELECTION} }} }}"
 LIST_CHECK_RUNS_BY_LINEAGE = (
     "query ListEditorialCheckRunsByLineage($lineageId: String!, $limit: Int) { "
@@ -782,7 +791,11 @@ UPDATE_SETTINGS = "mutation UpdateEditorialCheckSettings($input: UpdateEditorial
 
 
 class GraphQLEditorialStore:
-    """The editorial models through AppSync, signed the Papyrus way (IAM for functions and the CLI)."""
+    """The editorial models through AppSync, signed the Papyrus way (IAM for functions and the CLI).
+
+    On a SHARED stack the store acts for ``tenant_id`` alone: policies and feedback are listed through the tenant's own index, a row of another
+    tenant is never returned (a foreign item or check run answers as absent), the policy and settings ids carry the tenant, and every write
+    stamps it."""
 
     def __init__(self, execute: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None,
                  tenant_id: str | None = None) -> None:
@@ -792,18 +805,38 @@ class GraphQLEditorialStore:
             execute = execute_graphql
         self._execute = execute
         self._tenant_id = tenant_id   # the calling client's tenant; without one, the environment's or the signed-in site's
+        self._shared_tenant = tenant_id if tenant_id and is_shared_stack() else None
 
-    def _list(self, query: str, field_name: str) -> list[dict[str, Any]]:
+    def _list(self, query: str, field_name: str, variables: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         token = None
         while True:
-            page = self._execute(query, {"nextToken": token})[field_name]
+            page = self._execute(query, {**(variables or {}), "nextToken": token})[field_name]
             items.extend(page["items"])
             token = page.get("nextToken")
             if not token:
                 return items
 
+    def _own(self, row: dict[str, Any] | None) -> dict[str, Any] | None:
+        """A row of this store's tenant, or None for a missing row and for another tenant's (shared stack only)."""
+        if row is None or self._shared_tenant is None or row.get("tenantId") == self._shared_tenant:
+            return row
+        return None
+
+    def _stored_id(self, record_id: str) -> str:
+        return tenant_scoped_value(self._shared_tenant, record_id) if self._shared_tenant else record_id
+
+    def _bare(self, row: dict[str, Any]) -> dict[str, Any]:
+        if self._shared_tenant is None or not isinstance(row.get("id"), str):
+            return row
+        return {**row, "id": tenant_bare_record_id(self._shared_tenant, row["id"])}
+
+    def _stamped(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {**payload, "id": self._stored_id(payload["id"]), "tenantId": self._shared_tenant} if self._shared_tenant else payload
+
     def list_policies(self) -> list[dict[str, Any]]:
+        if self._shared_tenant:
+            return [self._bare(row) for row in self._list(LIST_POLICIES_BY_TENANT, "listEditorialPoliciesByTenant", {"tenantId": self._shared_tenant})]
         return self._list(LIST_POLICIES, "listEditorialPolicies")
 
     def publication_key(self) -> str:
@@ -813,7 +846,7 @@ class GraphQLEditorialStore:
             items { id name role } nextToken
           }
         }'''
-        rows = own_corpora(self._list(query, 'listKnowledgeCorporaByRoleAndName'))
+        rows = own_corpora(self._list(query, 'listKnowledgeCorporaByRoleAndName'), self._shared_tenant)
         if (len(rows) != 1 or rows[0].get('role') != 'canonical'
                 or not is_corpus_id(str(rows[0].get('id', '')))):
             raise ValueError('Exactly one verified publication is required for editorial context')
@@ -824,31 +857,33 @@ class GraphQLEditorialStore:
         from .tenancy import configured_tenant_id
         publication = self.publication_key()
         # Optional doctrine: a publication without a mission still gets its rule checks (PPY-2c4b56).
-        result = self._execute('''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID) {
-          getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId, optionalPublicationDoctrine: true)
-        }''', {'publicationKey': publication, 'sectionId': section})['getEditorialContext']
+        result = self._execute('''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID, $tenantId: String) {
+          getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId, tenantId: $tenantId, optionalPublicationDoctrine: true)
+        }''', {'publicationKey': publication, 'sectionId': section, 'tenantId': self._shared_tenant})['getEditorialContext']
         pack = checked_context(_awsjson_document(result), publication=publication, section=section)
         if (pack['publication'].get('tenantId') or None) != (self._tenant_id or configured_tenant_id() or None):
             raise ValueError('Editorial context tenant mismatch')
         return pack
 
     def get_settings(self) -> dict[str, Any] | None:
-        return self._execute(GET_SETTINGS, {"id": SETTINGS_ID})["getEditorialCheckSettings"]
+        return self._own(self._execute(GET_SETTINGS, {"id": self._stored_id(SETTINGS_ID)})["getEditorialCheckSettings"])
 
     def list_feedback(self) -> list[dict[str, Any]]:
+        if self._shared_tenant:
+            return self._list(LIST_FEEDBACK_BY_TENANT, "listEditorialFeedbackByTenant", {"tenantId": self._shared_tenant})
         return self._list(LIST_FEEDBACK, "listEditorialFeedbacks")
 
     def create_policy(self, record: dict[str, Any]) -> None:
-        self._execute(CREATE_POLICY, {"input": policy_input(record)})
+        self._execute(CREATE_POLICY, {"input": self._stamped(policy_input(record))})
 
     def update_policy(self, record: dict[str, Any]) -> None:
-        self._execute(UPDATE_POLICY, {"input": policy_input(record)})
+        self._execute(UPDATE_POLICY, {"input": self._stamped(policy_input(record))})
 
     def put_settings(self, values: dict[str, Any], *, exists: bool) -> None:
-        self._execute(UPDATE_SETTINGS if exists else CREATE_SETTINGS, {"input": {"id": SETTINGS_ID, "settings": json.dumps(values)}})
+        self._execute(UPDATE_SETTINGS if exists else CREATE_SETTINGS, {"input": self._stamped({"id": SETTINGS_ID, "settings": json.dumps(values)})})
 
     def get_item(self, item_id: str) -> dict[str, Any] | None:
-        return self._execute(GET_ITEM, {"id": item_id})["getItem"]
+        return self._own(self._execute(GET_ITEM, {"id": item_id})["getItem"])
 
     def list_story_versions(self) -> list[dict[str, Any]]:
         """The site's current and draft item versions, with their bodies, for the cross-story boilerplate check."""
@@ -857,22 +892,27 @@ class GraphQLEditorialStore:
             token = None
             while True:
                 page = self._execute(LIST_STORY_VERSIONS, {"versionState": state, "nextToken": token})["listItemsByVersionStateAndUpdatedAt"]
-                rows.extend(row for row in page["items"] if row.get("type") != "sub-task")   # a checklist step has no text to compare
+                rows.extend(row for row in page["items"] if row.get("type") != "sub-task" and self._own(row) is not None)   # a checklist step has no text to compare
                 token = page.get("nextToken")
                 if not token:
                     break
         return rows
 
     def get_check_run(self, item_id: str) -> dict[str, Any] | None:
-        return self._execute(GET_CHECK_RUN_RECORD, {"id": item_id})["getEditorialCheckRun"]
+        return self._own(self._execute(GET_CHECK_RUN_RECORD, {"id": item_id})["getEditorialCheckRun"])
 
     def list_check_runs_by_lineage(self, lineage_id: str, limit: int) -> list[dict[str, Any]]:
-        return self._execute(LIST_CHECK_RUNS_BY_LINEAGE, {"lineageId": lineage_id, "limit": limit})["listEditorialCheckRunsByLineage"]["items"]
+        rows = self._execute(LIST_CHECK_RUNS_BY_LINEAGE, {"lineageId": lineage_id, "limit": limit})["listEditorialCheckRunsByLineage"]["items"]
+        return [row for row in rows if self._own(row) is not None]
 
     def put_check_run(self, record: dict[str, Any]) -> None:
-        exists = self._execute(GET_CHECK_RUN, {"id": record["id"]})["getEditorialCheckRun"] is not None
+        current = self._execute(GET_CHECK_RUN, {"id": record["id"]})["getEditorialCheckRun"]
+        if current is not None and self._own(current) is None:
+            raise ValueError(f"Check run {record['id']} does not exist in tenant {self._shared_tenant}.")
         payload = {**record, "findings": json.dumps(record["findings"]), "lanes": json.dumps(record["lanes"]) if record.get("lanes") is not None else None}
-        self._execute(UPDATE_CHECK_RUN if exists else CREATE_CHECK_RUN, {"input": payload})
+        if self._shared_tenant:
+            payload["tenantId"] = self._shared_tenant
+        self._execute(UPDATE_CHECK_RUN if current is not None else CREATE_CHECK_RUN, {"input": payload})
 
 
 def policy_input(record: dict[str, Any]) -> dict[str, Any]:

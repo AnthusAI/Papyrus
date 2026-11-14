@@ -5,6 +5,7 @@
  * `tsx scripts/test-curation-delegation-signed-in.ts [behaviour]` runs every behaviour, or the one named (the Gherkin steps run them one by one).
  */
 import assert from "node:assert/strict";
+import * as asyncHooks from "node:async_hooks";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -69,6 +70,7 @@ async function makeBackend(options: { cliClientId?: string | null } = {}) {
   const modules: Record<string, unknown> = {
     // setItemStars asks content-actions to refresh listings; nothing here reads the answer.
     "@aws-sdk/client-lambda": { LambdaClient: class { async send() { return {}; } }, InvokeCommand: class { constructor(readonly input: unknown) {} } },
+    "node:async_hooks": asyncHooks,
     "node:crypto": crypto,
     "@aws-amplify/backend/function/runtime": { getAmplifyDataClientConfig: async () => ({ resourceConfig: {}, libraryOptions: {} }) },
     "aws-amplify": { Amplify: { configure: () => undefined } },

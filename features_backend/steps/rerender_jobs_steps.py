@@ -154,7 +154,7 @@ def step_joins(context) -> None:
 
 @when("the scheduled re-render runs")
 def step_runs(context) -> None:
-    support.handler.run_projection_task(server(context).scheduled[0])
+    support.handler.handler({"projectionTask": server(context).scheduled[0]}, None)
 
 
 @when('the scheduled re-render runs and the render fails with "{reason}"')
@@ -162,7 +162,7 @@ def step_runs_failing(context, reason: str) -> None:
     case = server(context)
     case.service.outcome = {**support.BROKEN, "rendered": {**support.BROKEN["rendered"], "errors": [reason]}}
     try:
-        support.handler.run_projection_task(case.scheduled[0])
+        support.handler.handler({"projectionTask": case.scheduled[0]}, None)
     except support.handler.ProjectionTaskFailed:
         pass   # the task fails so that Lambda retries it; the job already says how it ended
 

@@ -31,7 +31,7 @@ def call_action(context, field: str, payload: dict) -> dict:
     event = {
         "fieldName": field,
         "arguments": {"input": json.dumps(payload)},
-        "identity": {"username": "behave-editor"},
+        "identity": {"username": "behave-editor", "claims": {}},
     }
     with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})):
         return context.handler_module.handler(event, None)

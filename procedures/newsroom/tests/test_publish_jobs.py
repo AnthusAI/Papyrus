@@ -178,13 +178,13 @@ class AsynchronousPublishTest(LockTableCase):
         return report
 
     def publish(self, item_id: str = "story-1") -> dict:
-        return handler.handler({"fieldName": "publishItem", "arguments": {"input": json.dumps({"id": item_id, "async": True})}, "identity": {"username": "editor"}})
+        return handler.handler({"fieldName": "publishItem", "arguments": {"input": json.dumps({"id": item_id, "async": True})}, "identity": {"username": "editor", "claims": {}}})
 
     def unpublish(self, item_id: str = "story-1", **arguments) -> dict:
-        return handler.handler({"fieldName": "unpublishItem", "arguments": {"input": json.dumps({"id": item_id, **arguments})}, "identity": {"username": "editor"}})
+        return handler.handler({"fieldName": "unpublishItem", "arguments": {"input": json.dumps({"id": item_id, **arguments})}, "identity": {"username": "editor", "claims": {}}})
 
     def status(self, item_id: str = "story-1") -> dict:
-        return handler.handler({"fieldName": "publishItem", "arguments": {"input": json.dumps({"id": item_id, "jobStatus": True})}, "identity": {"username": "editor"}})
+        return handler.handler({"fieldName": "publishItem", "arguments": {"input": json.dumps({"id": item_id, "jobStatus": True})}, "identity": {"username": "editor", "claims": {}}})
 
     def test_the_publish_answers_with_a_job_and_builds_nothing_itself(self) -> None:
         answer = self.publish()
@@ -205,7 +205,7 @@ class AsynchronousPublishTest(LockTableCase):
         self.assertEqual([(task["task"], task["unpublished"]) for task in self.scheduled], [("item", True)])
         self.assertEqual(self.client.get_record("PublishedItem", "published-story-1"), None)
         self.assertEqual(self.status()["projection"]["state"], QUEUED)
-        self.assertTrue(handler.run_projection_task(self.scheduled[0])["ok"])
+        self.assertTrue(handler.handler({"projectionTask": self.scheduled[0]}, None)["ok"])
         status = self.status()["projection"]
         self.assertEqual((status["state"], status["jobId"]), (DONE, answer["projection"]["jobId"]))
         self.assertEqual(status["paths"], ["story-1/index.html"])
@@ -227,7 +227,7 @@ class AsynchronousPublishTest(LockTableCase):
         published_story(self.client, "story-3", publish=False)   # a first publish: the newsletter hears of it once the page is live
         answer = self.publish("story-3")
         self.assertEqual(self.status("story-3")["projection"]["state"], QUEUED)
-        result = handler.run_projection_task(self.scheduled[0])
+        result = handler.handler({"projectionTask": self.scheduled[0]}, None)
         self.assertTrue(result["ok"])
         status = self.status("story-3")["projection"]
         self.assertEqual(status["state"], DONE)
@@ -239,7 +239,7 @@ class AsynchronousPublishTest(LockTableCase):
         self.publish()
         self.lease.held_by_other = True
         with self.assertRaises(handler.ProjectionTaskFailed):
-            handler.run_projection_task(self.scheduled[0])
+            handler.handler({"projectionTask": self.scheduled[0]}, None)
         self.assertEqual(self.lease.wait_seconds, handler.QUEUED_LEASE_WAIT_SECONDS)   # a few seconds, not two minutes
         self.assertEqual(self.projected, [])
         self.assertEqual(self.jobs_status()["state"], QUEUED)
@@ -251,12 +251,12 @@ class AsynchronousPublishTest(LockTableCase):
         story_1_task, story_2_task = self.scheduled[0], self.scheduled[1]
         self.lease.held_by_other = True
         with self.assertRaises(handler.ProjectionTaskFailed):
-            handler.run_projection_task(story_2_task)   # busy: story-2 stays queued
+            handler.handler({"projectionTask": story_2_task}, None)   # busy: story-2 stays queued
         self.lease.held_by_other = False
-        handler.run_projection_task(story_1_task)       # builds story-1, then story-2 from the queue, before letting go
+        handler.handler({"projectionTask": story_1_task}, None)       # builds story-1, then story-2 from the queue, before letting go
         self.assertEqual(self.projected, ["story-1", "story-2"])
         self.assertEqual(self.jobs_status("story-2")["state"], DONE)
-        retried = handler.run_projection_task(story_2_task)   # Lambda's retry of the busy build
+        retried = handler.handler({"projectionTask": story_2_task}, None)   # Lambda's retry of the busy build
         self.assertTrue(retried["alreadyBuilt"])
         self.assertEqual(self.projected, ["story-1", "story-2"])
 

@@ -9,6 +9,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from fake_client import FakeAuthoringClient  # noqa: E402
+from tenant_support import dedicated_call  # noqa: E402
 
 HANDLER_PATH = Path(__file__).resolve().parents[3] / "amplify/functions/content-actions/handler.py"
 specification = importlib.util.spec_from_file_location("content_actions_handler", HANDLER_PATH)
@@ -24,7 +25,7 @@ def event(field: str, payload, *, as_string: bool = True) -> dict:
     return {
         "fieldName": field,
         "arguments": {"input": json.dumps(payload) if as_string else payload},
-        "identity": {"username": "editor-one", "sub": "sub-1"},
+        "identity": {"username": "editor-one", "sub": "sub-1", "claims": {"sub": "sub-1"}},
     }
 
 
@@ -55,7 +56,7 @@ class HomePageSnapshotTaskTest(unittest.TestCase):
                 mock.patch.object(content_actions_handler, "home_page_settings_of", return_value=object()), \
                 mock.patch.object(content_actions_handler, "home_page_stores_for", return_value=(state, dirty, batch)), \
                 mock.patch.object(content_actions_handler, "run_home_page_snapshot", return_value=report) as run:
-            result = content_actions_handler.run_home_page_snapshot_task(object(), task or {"task": "home-page-snapshot", "incremental": True, "scope": "abc"})
+            result = content_actions_handler.run_home_page_snapshot_task(FakeAuthoringClient(), task or {"task": "home-page-snapshot", "incremental": True, "scope": "abc"})
         return result, run, dirty, batch, state
 
     def test_a_successful_run_gets_the_state_and_the_batch_and_acknowledges_what_it_read(self) -> None:
@@ -193,6 +194,7 @@ class ContentActionsHandlerTest(unittest.TestCase):
 
 class ContentActionsSiteTriggerTest(unittest.TestCase):
     def setUp(self) -> None:
+        self.enterContext(dedicated_call())   # the tests call the handler's own functions, which act for one call's tenant
         self.client = FakeAuthoringClient()
         patcher = mock.patch.object(
             content_actions_handler, "create_authoring_client", return_value=(self.client, {})
@@ -324,7 +326,7 @@ class ContentActionsSiteTriggerTest(unittest.TestCase):
             content_actions_handler, "project_all", side_effect=self.held()
         ):
             with self.assertRaises(content_actions_handler.ProjectionTaskFailed) as raised:
-                content_actions_handler.run_projection_task({"task": "all"})
+                content_actions_handler.handler({"projectionTask": {"task": "all"}}, None)
         self.assertIn("Projection lease for site-bucket is held by cloud", str(raised.exception))
 
     def test_a_held_projection_lease_at_publish_time_schedules_a_retry_instead_of_losing_the_projection(self) -> None:

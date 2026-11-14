@@ -1,0 +1,22 @@
+{
+  "id": "PPY-01360cc3-523a-45c5-a00e-c59b91c0fa22",
+  "title": "Function tenant context, batch 4: plugin functions (reader-steering, home-page, newsletter function and ops, notifications, signup, alexa) and cli-login-pages",
+  "description": "Move these handlers to the TenantContext. Remove each from PENDING in scripts/test-function-tenant-context.ts. Spec: features_backend/function-tenant-context.feature.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7dc4633f-740e-4a88-a901-9fa4dbbc89ab",
+  "labels": [
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-14T00:26:26.637956Z",
+  "updated_at": "2026-11-14T00:26:26.637987Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

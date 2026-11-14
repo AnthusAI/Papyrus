@@ -7,7 +7,7 @@
     "indexCases": 218,
     "subscriptionCases": 9,
     "operationCases": 133,
-    "functionCases": 31,
+    "functionCases": 62,
     "surfaceCases": 9
   },
   "cases": [
@@ -6048,7 +6048,7 @@
       "kind": "operation",
       "subject": "getEditorialContext",
       "operation": "call-with-foreign-ids",
-      "probe": "alpha calls getEditorialContext with \"beta\"'s ids for publicationKey, sectionId, storyLineageId, assignmentId",
+      "probe": "alpha calls getEditorialContext with \"beta\"'s ids for publicationKey, sectionId, storyLineageId, assignmentId, tenantId",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -6772,12 +6772,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:alexa/function:iam-without-tenant",
+      "kind": "function",
+      "subject": "alexa/function",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/plugins/alexa/function without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:announcements",
       "kind": "function",
       "subject": "announcements",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/announcements (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:announcements:iam-without-tenant",
+      "kind": "function",
+      "subject": "announcements",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/announcements without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:assignment-action",
@@ -6788,12 +6804,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:assignment-action:iam-without-tenant",
+      "kind": "function",
+      "subject": "assignment-action",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/assignment-action without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:automation-view",
       "kind": "function",
       "subject": "automation-view",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/automation-view (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:automation-view:iam-without-tenant",
+      "kind": "function",
+      "subject": "automation-view",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/automation-view without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:category-action",
@@ -6804,12 +6836,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:category-action:iam-without-tenant",
+      "kind": "function",
+      "subject": "category-action",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/category-action without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:cli-login-pages",
       "kind": "function",
       "subject": "cli-login-pages",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/cli-login-pages (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:cli-login-pages:iam-without-tenant",
+      "kind": "function",
+      "subject": "cli-login-pages",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/cli-login-pages without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:console-chat-responder",
@@ -6820,12 +6868,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:console-chat-responder:iam-without-tenant",
+      "kind": "function",
+      "subject": "console-chat-responder",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/console-chat-responder without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:content-actions",
       "kind": "function",
       "subject": "content-actions",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/content-actions (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:content-actions:iam-without-tenant",
+      "kind": "function",
+      "subject": "content-actions",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/content-actions without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:editorial-checks",
@@ -6836,12 +6900,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:editorial-checks:iam-without-tenant",
+      "kind": "function",
+      "subject": "editorial-checks",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/editorial-checks without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:email-submission-processor",
       "kind": "function",
       "subject": "email-submission-processor",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/email-submission-processor (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:email-submission-processor:iam-without-tenant",
+      "kind": "function",
+      "subject": "email-submission-processor",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/email-submission-processor without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:home-page/function",
@@ -6852,12 +6932,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:home-page/function:iam-without-tenant",
+      "kind": "function",
+      "subject": "home-page/function",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/plugins/home-page/function without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:image-service",
       "kind": "function",
       "subject": "image-service",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/image-service (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:image-service:iam-without-tenant",
+      "kind": "function",
+      "subject": "image-service",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/image-service without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:knowledge-query",
@@ -6868,12 +6964,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:knowledge-query:iam-without-tenant",
+      "kind": "function",
+      "subject": "knowledge-query",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/knowledge-query without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:manage-user-role",
       "kind": "function",
       "subject": "manage-user-role",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/manage-user-role (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:manage-user-role:iam-without-tenant",
+      "kind": "function",
+      "subject": "manage-user-role",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/manage-user-role without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:model-attachment-upload",
@@ -6884,12 +6996,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:model-attachment-upload:iam-without-tenant",
+      "kind": "function",
+      "subject": "model-attachment-upload",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/model-attachment-upload without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:monitoring-view",
       "kind": "function",
       "subject": "monitoring-view",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/monitoring-view (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:monitoring-view:iam-without-tenant",
+      "kind": "function",
+      "subject": "monitoring-view",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/monitoring-view without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:newsletter/function",
@@ -6900,12 +7028,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:newsletter/function:iam-without-tenant",
+      "kind": "function",
+      "subject": "newsletter/function",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/plugins/newsletter/function without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:newsletter/ops",
       "kind": "function",
       "subject": "newsletter/ops",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/plugins/newsletter/ops (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:newsletter/ops:iam-without-tenant",
+      "kind": "function",
+      "subject": "newsletter/ops",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/plugins/newsletter/ops without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:newsroom-summary",
@@ -6916,12 +7060,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:newsroom-summary:iam-without-tenant",
+      "kind": "function",
+      "subject": "newsroom-summary",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/newsroom-summary without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:notifications/function",
       "kind": "function",
       "subject": "notifications/function",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/plugins/notifications/function (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:notifications/function:iam-without-tenant",
+      "kind": "function",
+      "subject": "notifications/function",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/plugins/notifications/function without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:procedure-action",
@@ -6932,12 +7092,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:procedure-action:iam-without-tenant",
+      "kind": "function",
+      "subject": "procedure-action",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/procedure-action without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:proposal-actions",
       "kind": "function",
       "subject": "proposal-actions",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/proposal-actions (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:proposal-actions:iam-without-tenant",
+      "kind": "function",
+      "subject": "proposal-actions",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/proposal-actions without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:public-forms",
@@ -6948,12 +7124,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:public-forms:iam-without-tenant",
+      "kind": "function",
+      "subject": "public-forms",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/public-forms without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:reader-settings",
       "kind": "function",
       "subject": "reader-settings",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/reader-settings (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:reader-settings:iam-without-tenant",
+      "kind": "function",
+      "subject": "reader-settings",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/reader-settings without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:reader-steering/function",
@@ -6964,12 +7156,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:reader-steering/function:iam-without-tenant",
+      "kind": "function",
+      "subject": "reader-steering/function",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/plugins/reader-steering/function without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:reference-word-index",
       "kind": "function",
       "subject": "reference-word-index",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/reference-word-index (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:reference-word-index:iam-without-tenant",
+      "kind": "function",
+      "subject": "reference-word-index",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/reference-word-index without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:renditions",
@@ -6980,12 +7188,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:renditions:iam-without-tenant",
+      "kind": "function",
+      "subject": "renditions",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/renditions without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:ses-inbound-receive",
       "kind": "function",
       "subject": "ses-inbound-receive",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/ses-inbound-receive (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:ses-inbound-receive:iam-without-tenant",
+      "kind": "function",
+      "subject": "ses-inbound-receive",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/ses-inbound-receive without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:signup/function",
@@ -6996,6 +7220,14 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:signup/function:iam-without-tenant",
+      "kind": "function",
+      "subject": "signup/function",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/plugins/signup/function without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:slack-delivery",
       "kind": "function",
       "subject": "slack-delivery",
@@ -7004,12 +7236,28 @@
       "expect": "reads and writes nothing of \"beta\""
     },
     {
+      "id": "function:slack-delivery:iam-without-tenant",
+      "kind": "function",
+      "subject": "slack-delivery",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/slack-delivery without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:slack-events",
       "kind": "function",
       "subject": "slack-events",
       "operation": "invoke-with-foreign-tenant-input",
       "probe": "alpha reaches amplify/functions/slack-events (directly or through an operation) with an event naming \"beta\"",
       "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:slack-events:iam-without-tenant",
+      "kind": "function",
+      "subject": "slack-events",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/slack-events without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "surface:s3-presign-foreign-key",

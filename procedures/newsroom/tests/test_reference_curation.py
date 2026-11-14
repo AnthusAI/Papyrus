@@ -611,7 +611,7 @@ def test_the_content_actions_lambda_serves_the_correction_action():
     handler = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(handler)
     client = MemoryClient([reference()])
-    event = {"fieldName": "correctReferenceCapture", "identity": {"username": "editor-one"},
+    event = {"fieldName": "correctReferenceCapture", "identity": {"username": "editor-one", "claims": {}},
              "arguments": {"input": json.dumps({"referenceId": "r1-v1", "text": "Pasted.", "assessment": "incomplete"})}}
     with mock.patch.object(handler, "create_authoring_client", return_value=(client, {})), \
             mock.patch("papyrus_content.reference_curation_store.AttachmentStore", MemoryStore):

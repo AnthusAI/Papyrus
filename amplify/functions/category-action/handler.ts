@@ -5,6 +5,8 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { putJsonModelPayload, putTextModelPayload, readJsonModelPayload } from "../shared/model-payloads";
+import { actingFor, buildEventTenantContext, currentTenantContext } from "../shared/tenant-context";
+import { newsroomSummaryPayloadId, tenantScopedClient } from "../shared/tenant-scoped-client";
 import { curationActorKind, referenceStarFields, referenceVoteFields, validatedCurationSectionId } from "../shared/reference-curation-metadata";
 import {
   delegationExpiry,
@@ -131,7 +133,6 @@ const CATEGORY_PROPOSAL_KINDS = new Set([
   "move-category",
   "archive-category",
 ]);
-const NEWSROOM_SUMMARY_PAYLOAD_ID = "knowledge-raw-payload-newsroom-summary-current";
 const NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND = "knowledgeRawPayload";
 const SUMMARY_STALE_AFTER_MS = 15 * 60 * 1000;
 const REFERENCE_CURATION_ASSIGNMENT_TYPE = "curation.reference-refresh";
@@ -156,6 +157,11 @@ const DEFAULT_REFERENCE_CURATION_POLICY = {
 let clientPromise: Promise<DataClient> | null = null;
 
 export const handler = async (event: CategoryActionEvent) => {
+  const context = buildEventTenantContext(event);   // one context per call; a shared stack refuses before any read
+  return actingFor(context, () => handleField(event));
+};
+
+async function handleField(event: CategoryActionEvent) {
   const fieldName = normalizeOptionalString(event.info?.fieldName) ?? normalizeOptionalString((event as { fieldName?: string | null }).fieldName);
   if (!fieldName) {
     throw new Error("Unsupported steering action: missing GraphQL field name.");
@@ -195,7 +201,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "archiveDraftCategory") return archiveDraftCategory(event as Parameters<ArchiveDraftCategoryHandler>[0]);
   if (fieldName === "reviewReferenceTopicLabel") return reviewReferenceTopicLabel(event as Parameters<ReviewReferenceTopicLabelHandler>[0]);
   throw new Error(`Unsupported steering action ${fieldName}.`);
-};
+}
 
 async function reviewSteeringProposal(event: Parameters<ReviewHandler>[0]) {
   const client = await getDataClient();
@@ -310,7 +316,7 @@ async function reviewReferenceCuration(
         delegation,
         decisionRelationId,
       }),
-      newsroomFeedKey: reference.newsroomFeedKey ?? globalKey(REFERENCE_FEED_KEY),
+      newsroomFeedKey: reference.newsroomFeedKey ?? globalKey(REFERENCE_FEED_KEY, currentTenantContext().tenantId),
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
       // A vote moves the Reference between the unrated and rated feeds; its original prediction and arrival stay as they were.
       feedStateKey: referenceFeedStateKey({ ...reference, curationStatus: nextStatus }),
@@ -810,7 +816,7 @@ async function requestStoryStarsProjection(itemId: string) {
       new InvokeCommand({
         FunctionName: functionName,
         InvocationType: "Event",
-        Payload: new TextEncoder().encode(JSON.stringify({ projectionTask: { task: STORY_STARS_PROJECTION_TASK, itemId } })),
+        Payload: new TextEncoder().encode(JSON.stringify({ projectionTask: { task: STORY_STARS_PROJECTION_TASK, itemId, ...(currentTenantContext().tenantId ? { tenantId: currentTenantContext().tenantId } : {}) } })),
       }),
     );
   } catch (error) {
@@ -903,7 +909,7 @@ async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandl
       curationStatusUpdatedAt: now,
       curationStatusUpdatedBy: actor,
       curationStatusReason: note,
-      newsroomFeedKey: reference.newsroomFeedKey ?? globalKey(REFERENCE_FEED_KEY),
+      newsroomFeedKey: reference.newsroomFeedKey ?? globalKey(REFERENCE_FEED_KEY, currentTenantContext().tenantId),
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
       // A vote moves the Reference between the unrated and rated feeds; its original prediction and arrival stay as they were.
       feedStateKey: referenceFeedStateKey({ ...reference, curationStatus: nextStatus }),
@@ -1234,7 +1240,7 @@ async function createReferenceNote(event: Parameters<ReferenceNoteHandler>[0]) {
       importedAt: now,
       createdAt: now,
       updatedAt: now,
-      newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
+      newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY, currentTenantContext().tenantId),
       metadata: JSON.stringify({
         kind: "reference.note",
         summary,
@@ -1378,7 +1384,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       curationShareable: typeof current.curationShareable === "boolean" ? current.curationShareable : null,
       curationDelegation: current.curationDelegation ?? null,
       curationDecisionRelationId: normalizeOptionalString(current.curationDecisionRelationId),
-      newsroomFeedKey: normalizeOptionalString(current.newsroomFeedKey) ?? globalKey(REFERENCE_FEED_KEY),
+      newsroomFeedKey: normalizeOptionalString(current.newsroomFeedKey) ?? globalKey(REFERENCE_FEED_KEY, currentTenantContext().tenantId),
       reviewedFeedKey: normalizeOptionalString(current.reviewedFeedKey) ?? reviewedFeedKeyForStatus(curationStatus),
       predictedAcceptProbability: typeof current.predictedAcceptProbability === "number" ? current.predictedAcceptProbability : null,
       predictionDecidedAt: normalizeOptionalString(current.predictionDecidedAt),
@@ -1529,7 +1535,7 @@ async function startReferenceCuration(event: Parameters<StartReferenceCurationHa
       importedAt: now,
       createdAt: now,
       updatedAt: now,
-      newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
+      newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY, currentTenantContext().tenantId),
       metadata: JSON.stringify({
         kind: "reference.curation.assignment",
         runId,
@@ -2474,7 +2480,7 @@ function buildAuthoritativeLabelRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY, currentTenantContext().tenantId),
     metadata: JSON.stringify({
       kind: sourceMode === "accepted_prediction"
         ? "classification.authoritative_label.accepted_from_prediction"
@@ -2540,7 +2546,7 @@ function buildReferenceQualityRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY, currentTenantContext().tenantId),
     metadata: JSON.stringify({
       kind: "reference.quality-rating.manual",
       actor,
@@ -2557,7 +2563,7 @@ async function updateNewsroomSummaryForSemanticRelationDelta(
   amount: number,
   now: string,
 ): Promise<void> {
-  const response = await client.models.KnowledgeRawPayload.get({ id: NEWSROOM_SUMMARY_PAYLOAD_ID });
+  const response = await client.models.KnowledgeRawPayload.get({ id: newsroomSummaryPayloadId(currentTenantContext()) });
   assertNoDataErrors(response.errors, "get Newsroom summary snapshot");
   const payload = normalizeSummaryPayload(await readNewsroomSummaryPayload(client), now);
   payload.generatedAt = now;
@@ -2579,7 +2585,7 @@ async function getDataClient(): Promise<DataClient> {
       return generateClient<Schema>();
     })();
   }
-  return clientPromise;
+  return tenantScopedClient(await clientPromise, currentTenantContext());
 }
 
 async function getRequiredRecord(
@@ -2623,7 +2629,7 @@ function normalizeReferenceCurationAction(value: unknown): "accept" | "reject" |
 }
 
 function reviewedFeedKeyForStatus(status: string): string | null {
-  return status === "pending" ? null : globalKey(REFERENCE_REVIEWED_FEED_KEY);
+  return status === "pending" ? null : globalKey(REFERENCE_REVIEWED_FEED_KEY, currentTenantContext().tenantId);
 }
 
 function referenceCurationStatusForAction(action: "accept" | "reject" | "reopen" | "archive"): "accepted" | "rejected" | "pending" | "archived" {
@@ -2702,7 +2708,7 @@ async function updateNewsroomSummaryForReferenceCuration(
   client: DataClient,
   input: { corpusId: string | null; previousStatus: string; nextStatus: string; now: string },
 ): Promise<void> {
-  const response = await client.models.KnowledgeRawPayload.get({ id: NEWSROOM_SUMMARY_PAYLOAD_ID });
+  const response = await client.models.KnowledgeRawPayload.get({ id: newsroomSummaryPayloadId(currentTenantContext()) });
   assertNoDataErrors(response.errors, "get Newsroom summary snapshot");
   const payload = normalizeSummaryPayload(await readNewsroomSummaryPayload(client), input.now);
   payload.generatedAt = input.now;
@@ -2726,7 +2732,7 @@ async function updateNewsroomSummaryForReferenceStatus(
   client: DataClient,
   input: { corpusId: string | null; previousStatus: string; nextStatus: string; now: string },
 ): Promise<void> {
-  const response = await client.models.KnowledgeRawPayload.get({ id: NEWSROOM_SUMMARY_PAYLOAD_ID });
+  const response = await client.models.KnowledgeRawPayload.get({ id: newsroomSummaryPayloadId(currentTenantContext()) });
   assertNoDataErrors(response.errors, "get Newsroom summary snapshot");
   const payload = normalizeSummaryPayload(await readNewsroomSummaryPayload(client), input.now);
   payload.generatedAt = input.now;
@@ -2854,7 +2860,7 @@ async function upsertNewsroomSummaryPayload(
   now: string,
 ): Promise<void> {
   const input = {
-    id: NEWSROOM_SUMMARY_PAYLOAD_ID,
+    id: newsroomSummaryPayloadId(currentTenantContext()),
     ownerType: "newsroom",
     ownerId: "newsroom",
     payloadKind: "summary-snapshot",
@@ -2869,7 +2875,7 @@ async function upsertNewsroomSummaryPayload(
   }
   await putJsonModelPayload(
     client as any,
-    { ownerKind: NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND, ownerId: NEWSROOM_SUMMARY_PAYLOAD_ID, importRunId: input.importRunId },
+    { ownerKind: NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND, ownerId: newsroomSummaryPayloadId(currentTenantContext()), importRunId: input.importRunId },
     "raw_payload",
     "summary-snapshot",
     payload,
@@ -2881,7 +2887,7 @@ async function readNewsroomSummaryPayload(client: DataClient): Promise<Record<st
   return readJsonModelPayload(
     client as any,
     NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND,
-    NEWSROOM_SUMMARY_PAYLOAD_ID,
+    newsroomSummaryPayloadId(currentTenantContext()),
     "raw_payload",
     "summary-snapshot",
   );

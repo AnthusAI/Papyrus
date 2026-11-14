@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 from fake_client import FakeAuthoringClient  # noqa: E402
+from tenant_support import IAM_IDENTITY  # noqa: E402
 
 from papyrus_content import story_commands  # noqa: E402
 from papyrus_content.operator_errors import GraphQLRequestError, OperatorError  # noqa: E402
@@ -167,13 +168,13 @@ class AgentNoteTests(unittest.TestCase):
         client = story_client()
         stored = StoredBodies(client)
         event = {"fieldName": "addStoryAgentNote", "arguments": {"input": json.dumps({"lineageId": LINEAGE, "agent": "ChatGPT", "body": "A note.", "runBy": {"sub": "forged"}})},
-                 "identity": {"username": "editor-one", "sub": "sub-1", "issuer": "https://cognito.example.test/pool"}}
+                 "identity": {"username": "editor-one", "sub": "sub-1", "issuer": "https://cognito.example.test/pool", "claims": {}}}
         with mock.patch.object(handler_module, "create_authoring_client", return_value=(client, {})), \
                 mock.patch("papyrus_content.story_agent_notes.upload_attachment_body", side_effect=stored.upload):
             result = handler_module.handler(event, None)
             self.assertTrue(result["ok"])
             self.assertEqual(json.loads(next(iter(stored.bodies.values())))["runBy"], {"kind": "user", "sub": "sub-1"})
-            anonymous = handler_module.handler({**event, "identity": {}}, None)
+            anonymous = handler_module.handler({**event, "identity": IAM_IDENTITY}, None)
             self.assertFalse(anonymous["ok"])
             self.assertEqual(anonymous["errors"][0]["code"], "not-signed-in")
             refused = handler_module.handler({**event, "arguments": {"input": json.dumps({"lineageId": LINEAGE, "agent": "x", "body": ""})}}, None)

@@ -943,42 +943,73 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
   @isolation-pending
   Scenario Outline: Tenant A cannot reach tenant B through any function
     Given editor sessions for "alpha" and "beta" on the shared stack
-    When the "alpha" session reaches the <function> function with an event naming "beta"
+    When the "alpha" session or the platform operator reaches the <function> function by <call>
     Then it is denied or returns nothing of "beta"
 
     Examples: generated from the schema
-      | function                   | outcome                            |
-      | alexa/function             | reads and writes nothing of "beta" |
-      | announcements              | reads and writes nothing of "beta" |
-      | assignment-action          | reads and writes nothing of "beta" |
-      | automation-view            | reads and writes nothing of "beta" |
-      | category-action            | reads and writes nothing of "beta" |
-      | cli-login-pages            | reads and writes nothing of "beta" |
-      | console-chat-responder     | reads and writes nothing of "beta" |
-      | content-actions            | reads and writes nothing of "beta" |
-      | editorial-checks           | reads and writes nothing of "beta" |
-      | email-submission-processor | reads and writes nothing of "beta" |
-      | home-page/function         | reads and writes nothing of "beta" |
-      | image-service              | reads and writes nothing of "beta" |
-      | knowledge-query            | reads and writes nothing of "beta" |
-      | manage-user-role           | reads and writes nothing of "beta" |
-      | model-attachment-upload    | reads and writes nothing of "beta" |
-      | monitoring-view            | reads and writes nothing of "beta" |
-      | newsletter/function        | reads and writes nothing of "beta" |
-      | newsletter/ops             | reads and writes nothing of "beta" |
-      | newsroom-summary           | reads and writes nothing of "beta" |
-      | notifications/function     | reads and writes nothing of "beta" |
-      | procedure-action           | reads and writes nothing of "beta" |
-      | proposal-actions           | reads and writes nothing of "beta" |
-      | public-forms               | reads and writes nothing of "beta" |
-      | reader-settings            | reads and writes nothing of "beta" |
-      | reader-steering/function   | reads and writes nothing of "beta" |
-      | reference-word-index       | reads and writes nothing of "beta" |
-      | renditions                 | reads and writes nothing of "beta" |
-      | ses-inbound-receive        | reads and writes nothing of "beta" |
-      | signup/function            | reads and writes nothing of "beta" |
-      | slack-delivery             | reads and writes nothing of "beta" |
-      | slack-events               | reads and writes nothing of "beta" |
+      | function                   | call                             | outcome                            |
+      | alexa/function             | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | alexa/function             | iam-call-without-tenant          | refused before any read            |
+      | announcements              | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | announcements              | iam-call-without-tenant          | refused before any read            |
+      | assignment-action          | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | assignment-action          | iam-call-without-tenant          | refused before any read            |
+      | automation-view            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | automation-view            | iam-call-without-tenant          | refused before any read            |
+      | category-action            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | category-action            | iam-call-without-tenant          | refused before any read            |
+      | cli-login-pages            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | cli-login-pages            | iam-call-without-tenant          | refused before any read            |
+      | console-chat-responder     | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | console-chat-responder     | iam-call-without-tenant          | refused before any read            |
+      | content-actions            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | content-actions            | iam-call-without-tenant          | refused before any read            |
+      | editorial-checks           | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | editorial-checks           | iam-call-without-tenant          | refused before any read            |
+      | email-submission-processor | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | email-submission-processor | iam-call-without-tenant          | refused before any read            |
+      | home-page/function         | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | home-page/function         | iam-call-without-tenant          | refused before any read            |
+      | image-service              | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | image-service              | iam-call-without-tenant          | refused before any read            |
+      | knowledge-query            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | knowledge-query            | iam-call-without-tenant          | refused before any read            |
+      | manage-user-role           | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | manage-user-role           | iam-call-without-tenant          | refused before any read            |
+      | model-attachment-upload    | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | model-attachment-upload    | iam-call-without-tenant          | refused before any read            |
+      | monitoring-view            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | monitoring-view            | iam-call-without-tenant          | refused before any read            |
+      | newsletter/function        | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | newsletter/function        | iam-call-without-tenant          | refused before any read            |
+      | newsletter/ops             | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | newsletter/ops             | iam-call-without-tenant          | refused before any read            |
+      | newsroom-summary           | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | newsroom-summary           | iam-call-without-tenant          | refused before any read            |
+      | notifications/function     | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | notifications/function     | iam-call-without-tenant          | refused before any read            |
+      | procedure-action           | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | procedure-action           | iam-call-without-tenant          | refused before any read            |
+      | proposal-actions           | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | proposal-actions           | iam-call-without-tenant          | refused before any read            |
+      | public-forms               | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | public-forms               | iam-call-without-tenant          | refused before any read            |
+      | reader-settings            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | reader-settings            | iam-call-without-tenant          | refused before any read            |
+      | reader-steering/function   | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | reader-steering/function   | iam-call-without-tenant          | refused before any read            |
+      | reference-word-index       | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | reference-word-index       | iam-call-without-tenant          | refused before any read            |
+      | renditions                 | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | renditions                 | iam-call-without-tenant          | refused before any read            |
+      | ses-inbound-receive        | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | ses-inbound-receive        | iam-call-without-tenant          | refused before any read            |
+      | signup/function            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | signup/function            | iam-call-without-tenant          | refused before any read            |
+      | slack-delivery             | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | slack-delivery             | iam-call-without-tenant          | refused before any read            |
+      | slack-events               | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | slack-events               | iam-call-without-tenant          | refused before any read            |
 
   @isolation-pending
   Scenario Outline: Tenant A cannot reach tenant B outside the data API

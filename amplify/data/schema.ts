@@ -1198,6 +1198,7 @@ const definitions = {
       assignmentId: a.id(),
       maxCharacters: a.integer(),
       optionalPublicationDoctrine: a.boolean(),
+      tenantId: a.string(), // an IAM caller (the editorial-checks function) names its tenant; a signed-in caller's comes from its token
     })
     .returns(a.json().required())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])

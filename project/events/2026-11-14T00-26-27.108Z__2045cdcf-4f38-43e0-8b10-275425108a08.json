@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "2045cdcf-4f38-43e0-8b10-275425108a08",
+  "issue_id": "PPY-13c5b3e8-de45-42dd-8f54-19fe98f42cec",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-14T00:26:27.108Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Function tenant context, last PR: stop copying PAPYRUS_TENANT_ID and PAPYRUS_SINGLE_PUBLICATION_BACKEND into functions on shared stacks",
+    "description": "In amplify/site-backend.ts the tenant environment block (about lines 471-491) copies PAPYRUS_TENANT_ID into content-actions, category-action, assignment-action, newsroom-summary and editorial-checks and PAPYRUS_SINGLE_PUBLICATION_BACKEND into content-actions. After every handler is off PENDING, a shared stack gets neither; a dedicated stack keeps PAPYRUS_TENANT_ID (its fixed tenant). Run test-bootstrap-stage (slow, must stay under 2,000 resources).",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-7dc4633f-740e-4a88-a901-9fa4dbbc89ab",
+    "labels": [
+      "multi-tenant"
+    ]
+  }
+}
