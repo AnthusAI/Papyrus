@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from papyrus_content.graphql_authoring import GET_DEFINITIONS, INDEX_DEFINITIONS, LIST_DEFINITIONS, MUTATIONS
+from papyrus_content.graphql_authoring import CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION, GET_DEFINITIONS, INDEX_DEFINITIONS, LIST_DEFINITIONS, MUTATIONS
 
 GRAPHQL_ROOT = re.compile(r"^\s*(query|mutation)\b[^{]*\{\s*(\w+)", re.S)
 
@@ -62,5 +62,7 @@ class FieldRecorder:
             self.fields.add(("Query", INDEX_DEFINITIONS["semanticRelationsByObjectState"]["field"]))
         elif name == "list_reference_attachments_by_lineage":
             self.fields.add(("Query", INDEX_DEFINITIONS["referenceAttachmentsByReferenceLineageAndSortKey"]["field"]))
+        elif name == "create_model_attachment_download":
+            self.fields.add(root_of(CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION))
         elif name == "graphql":
             self.fields.add(root_of(arguments[0]))
