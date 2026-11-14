@@ -7,6 +7,8 @@ purged under every form it answers to, with its Markdown twin. A wildcard is nev
 
 from __future__ import annotations
 
+from ..url_paths import encoded_path
+
 from collections.abc import Iterable
 from urllib.parse import urlsplit
 
@@ -77,10 +79,33 @@ def paths_for_page_keys(keys: Iterable[str], url_style: str = "html") -> list[st
     paths: list[str] = []
     for key in keys:
         name = key.rsplit("/", 1)[-1]
-        paths.append("/" + key)
+        paths.append(encoded_path("/" + key))   # CloudFront takes a non-ASCII path percent-encoded, the form a browser requests
         if name == "index.html":
             directory = key[: -len("index.html")]
-            paths.append("/" + directory)
+            paths.append(encoded_path("/" + directory))
         elif url_style == "clean" and key.endswith(".html"):
-            paths.append("/" + key[: -len(".html")])
+            paths.append(encoded_path("/" + key[: -len(".html")]))
     return list(dict.fromkeys(paths))
+
+
+def normalize_prefixes(prefixes: Iterable[str]) -> list[str]:
+    """URL path prefixes from what an editor typed (a path, or a full URL whose scheme, host, query and fragment are dropped), without duplicates."""
+    return list(dict.fromkeys(clean_site_path(prefix) for prefix in prefixes))
+
+
+def _path_is_under(path: str, prefix: str) -> bool:
+    if prefix.endswith("/"):
+        return path.startswith(prefix)
+    return path == prefix or path.startswith(prefix + "/")   # ``/posts`` stops at a path segment: it is not ``/postscript/``
+
+
+def keys_under(keys: Iterable[str], prefixes: Iterable[str], url_style: str = "html") -> list[str]:
+    """The page keys (sorted) any of whose request paths starts with one of the URL path prefixes.
+
+    The match is on the URL path alone: it never looks at what kind of content a page lists, so no site-specific name appears here. A page
+    matches when any form it is cached under does (``/dir/`` and ``/dir/index.html`` for ``dir/index.html``).
+    """
+    wanted = normalize_prefixes(prefixes)
+    return sorted(
+        {key for key in keys if any(_path_is_under(path, prefix) for path in paths_for_page_keys([key], url_style) for prefix in wanted)}
+    )

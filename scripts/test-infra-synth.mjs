@@ -219,7 +219,7 @@ try {
 
     const productionSpec = buildSpecOf(apps.find((app) => app.Properties.Platform === "WEB_COMPUTE"));
     assert.match(productionSpec, /^backend:/m);
-    assert.match(productionSpec, /npx ampx pipeline-deploy/);
+    assert.match(productionSpec, /npx papyrus-infra backend-deploy/);
     assert.equal(/cp amplify_outputs\.json \.next\/amplify_outputs\.json/.test(productionSpec), isPretext, `${example}: production ships amplify_outputs.json into the compute bundle only for a Pretext site`);
     assert.equal(/PAPYRUS_AMPLIFY_OUTPUTS/.test(productionSpec), false, `${example}: production must not set PAPYRUS_AMPLIFY_OUTPUTS (next build would read a file that does not exist yet)`);
 

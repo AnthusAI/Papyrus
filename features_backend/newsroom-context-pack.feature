@@ -239,7 +239,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
 
   Scenario: The copywriter's layers put the rules first and the publication's voice before the wider record
     When the copywriter's context pack is built for the Story
-    Then the layers are, in order, "editorial_policies, assignment, story, process, audience_lenses, story_references, related_references, story_conversation, prior_research, voice_examples, section_concepts, concept_references, desk_published, desk_references, publication_published, publication_references"
+    Then the layers are, in order, "writing_guidelines, editorial_policies, byline, assignment, story, process, audience_lenses, story_references, related_references, story_conversation, prior_research, voice_examples, section_concepts, concept_references, desk_published, desk_references, publication_published, publication_references"
     And the system text says it is a copywriter and it writes a draft, never publishing
 
   Scenario: The copywriter reads the rules the draft will be checked against
@@ -336,3 +336,77 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
       | a Story and a section         | give one of them        |
       | neither a Story nor a section | give one of them        |
       | an unknown section            | Section not found       |
+
+  # Guidelines as data (PPY-2a2a8a, PPY-de286b): a site's guidelines are an add-only layer after an agent's fixed role text, resolved for the Story's section.
+
+  Scenario: The copywriter's pack holds the section's resolved writing guidelines after its role text
+    Given the site has writing guidelines and the section "law-policy" adds to them
+    When the copywriter's context pack is built for the Story
+    Then the system text starts with the copywriter's role text
+    And the writing guidelines layer comes first in the user text and holds the site's tone, then the section's tone, the audience, the words to avoid and the binding rule
+    And the writing guidelines entry records the slug, the version and the content hash of each layer
+    And the writing guidelines entry says which layer every field came from
+
+  Scenario: The editor's pack holds only the voice, the audience and the binding rules
+    Given the site has writing guidelines and the section "law-policy" adds to them
+    When the editor's context pack is built for the Story
+    Then the writing guidelines layer holds the voice, the audience and the binding rule
+    And the writing guidelines layer does not hold the tone, the words to avoid or the guidelines' own prose
+
+  Scenario: A site's guidelines cannot replace the fixed role text
+    Given the site's writing guidelines try to replace the agent's instructions
+    When the copywriter's context pack is built for the Story
+    Then the system text is the same as for a site with no writing guidelines
+    And the system text starts with the copywriter's role text
+    And the attempt appears only inside the writing guidelines layer, after the role text
+
+  Scenario: Writing guidelines are never shed when the pack is over budget
+    Given the site has writing guidelines and the section "law-policy" adds to them
+    When the copywriter's context pack is built with a budget of 10 characters
+    Then the writing guidelines layer is complete and reports nothing dropped
+    When the copywriter's context pack is built with a budget that only just fits the research
+    Then the writing guidelines layer is complete and reports nothing dropped
+
+  Scenario: A pack built for a site with no writing guidelines carries the missing warning
+    When the copywriter's context pack is built for the Story
+    Then the writing guidelines layer is empty and says the publication has no writing guidelines
+    And the warnings say the writing guidelines are missing, and nothing is invented
+
+  Scenario: The voice examples start with the exemplars the section's guidelines name
+    Given the site has writing guidelines and the section "law-policy" adds to them
+    And a published Story in the section and one in another section, both with their full text
+    And the section's writing guidelines name the other section's Story as an exemplar
+    When the copywriter's context pack is built for the Story
+    Then the voice examples show the exemplar first, with the editors' note, and the section's Story after it
+    And no Story appears twice in the voice examples
+
+  Scenario: The illustrator's image style uses the section's own image guidelines
+    Given the site has an image style and the section "law-policy" has its own image guidelines
+    When the illustrator's context pack is built for the Story
+    Then the visual style layer shows the section's guidance
+    And the visual style entry records the version and hash of both the publication's and the section's image guidelines
+
+  Scenario: Role texts name no publication
+    Then the role texts in the context pack hold no publication-specific wording
+    And the lint fails on a role text that names a site
+
+  # The byline policy (PPY-804b7b): who a story may be credited to is the site's rule, with the honest rule as the default.
+  Scenario: A site with no byline policy gets the honest rule
+    When the copywriter's context pack is built for the Story
+    Then the byline layer says to attribute agent work to AI and never invent an author
+    And the byline layer says it is the default
+
+  Scenario: A satire site publishes under its own pen names
+    Given the site's byline policy is pen names "Chip Hardcastle" and "Dolores Finch"
+    When the copywriter's context pack is built for the Story
+    Then the byline layer lists the pen names "Chip Hardcastle" and "Dolores Finch"
+    And the byline layer says it came from the site
+    And the byline layer does not tell the writer to attribute the work to AI
+
+  Scenario: A pen-names policy with no pen names is refused when saved
+    When an admin saves a pen-names byline policy with no pen names
+    Then the save is refused because a pen-names policy needs at least one pen name
+
+  Scenario: Only the publication has a byline policy
+    When an admin saves a byline policy for the section "law-policy"
+    Then the save is refused because the byline rules belong to the publication

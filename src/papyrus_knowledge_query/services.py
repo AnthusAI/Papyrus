@@ -422,6 +422,15 @@ class S3VectorsProvider:
             return None
         return list((vectors[0].get("data") or {}).get("float32") or []) or None
 
+    def existing_keys(self, keys: list[str]) -> list[str]:
+        """The subset of ``keys`` that has a vector in the index (``GetVectors`` without data, 100 keys to a request)."""
+        client = self._s3vectors_client()
+        found: list[str] = []
+        for start in range(0, len(keys), 100):
+            response = client.get_vectors(indexArn=self.vector_index_arn, keys=keys[start:start + 100], returnData=False)
+            found.extend(str(vector.get("key")) for vector in response.get("vectors") or [])
+        return found
+
     def query_by_vector(self, vector: list[float], top_k: int, metadata_filter: dict[str, Any] | None) -> list[dict[str, Any]]:
         """``QueryVectors`` with a ready vector; each match is ``{key, distance, metadata}``."""
         client = self._s3vectors_client()

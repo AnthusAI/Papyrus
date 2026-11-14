@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c8cdf2e6-f682-42f2-ac6a-600c267440db",
+  "issue_id": "PPY-b5ddec1e-e037-461f-ac2c-8df1c5389bb8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T20:36:49.230Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Hand-made resources in the running Anthus deployments are imported, not replaced",
+    "description": "Design and dry-run only until Ryan has seen each change set. Never create, change or import in the Anthus account without his go-ahead.\n\n```gherkin\nFeature: Existing resources join the pipeline in place\n\n  Scenario: A hand-made zone, role or provider is imported\n    Given a resource that was made by hand and is in use\n    When the pipeline first manages it\n    Then the change set shows Import and no Add, Modify or Remove of that resource\n    And the resource has DeletionPolicy and UpdateReplacePolicy Retain\n    And for a Route 53 zone the name servers are the same before and after\n\n  Scenario: Nothing is imported until a person has seen the change set\n    Given an import of a production resource\n    Then the first run stops at the change set for approval\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+    "labels": []
+  }
+}

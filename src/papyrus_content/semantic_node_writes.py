@@ -4,7 +4,10 @@ A person's edits in the wiki (name, description, aliases, anything else) must su
 either creates a node with ``create_only_record``, or, for a node that exists, writes a partial update of
 ``DERIVED_FIELDS`` only (``derived_fields_patch``; ``pageAnswer`` is the extractor's answer whether the concept has a page, which an editor's own decision, kept in ``changeReason``, outranks). Two exceptions are kept: a ``generated`` node becomes ``accepted``
 when a published Story's front matter names it (``acceptance_patch``), and the acceptance mark in ``changeReason`` of a
-node that same path created (``acceptance_mark_patch``).
+node that same path created (``acceptance_mark_patch``). A third, narrower one is the duplicate check of ``publish-run``
+(``knowledge_snapshot/entity_duplicates.py``): when an extractor candidate is only another spelling of an accepted entity, its name is
+added to that entity as an alias (``entity_review.alias_patches``, recorded as ``aliasedBy`` the extractor resolution actor); nothing else
+of the entity changes and nothing is ever removed.
 """
 
 from __future__ import annotations

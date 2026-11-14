@@ -37,6 +37,11 @@ Feature: A dedicated site reports what each model call used to Prospectus cost a
     When an editorial check reports Jev classifier tokens
     Then nothing is recorded and nothing is sent
 
+  Scenario: A backend built without a cost tag wave runs its model functions with no usage environment
+    Given a site backend built without PAPYRUS_COST_TAG_WAVE, so its functions have no PAPYRUS_SITE_ID or PROSPECTUS_USAGE_QUEUE_URL
+    When the editorial-checks and knowledge-query functions start and flush
+    Then both start, their usage senders are inactive, and nothing is sent
+
   Scenario: A runtime that holds a verified Account reports that Account
     Given a dedicated site "dataparade"
     When the Next.js server, after Prospectus authorized the signed-in person for a verified Account, reports 300 "jev.tokens"

@@ -1,4 +1,5 @@
-[
+{
+"feed": [
   {"name": "a pending, unpredicted Reference sorts as 0.5",
    "reference": {"id": "reference-a-v1", "corpusId": "knowledge-corpus-demo", "curationStatus": "pending", "versionState": "current", "createdAt": "2026-10-28T12:00:00Z"},
    "keys": {"feedStateKey": "knowledge-corpus-demo#unrated", "feedArrivalAt": "2026-10-28T12:00:00.000Z", "predictionSortKey": "0.500000#2026-10-28T12:00:00.000Z#reference-a-v1"}},
@@ -70,4 +71,30 @@
   {"name": "an archived video is in no needs-content partition", "reference": {"corpusId": "knowledge-corpus-demo", "createdAt": "2026-10-28T12:00:00Z", "medium": "video", "id": "reference-c9-v1", "curationStatus": "archived"}, "keys": {"feedStateKey": null, "feedArrivalAt": "2026-10-28T12:00:00.000Z", "predictionSortKey": "0.500000#2026-10-28T12:00:00.000Z#reference-c9-v1"}, "contentNeededKey": null},
   {"name": "a superseded video is in no needs-content partition", "reference": {"corpusId": "knowledge-corpus-demo", "createdAt": "2026-10-28T12:00:00Z", "medium": "video", "id": "reference-c10-v1", "curationStatus": "accepted", "versionState": "superseded"}, "keys": {"feedStateKey": null, "feedArrivalAt": "2026-10-28T12:00:00.000Z", "predictionSortKey": "0.500000#2026-10-28T12:00:00.000Z#reference-c10-v1"}, "contentNeededKey": null},
   {"name": "a page with no medium is in no needs-content partition", "reference": {"corpusId": "knowledge-corpus-demo", "createdAt": "2026-10-28T12:00:00Z", "id": "reference-c11-v1", "curationStatus": "accepted"}, "keys": {"feedStateKey": "knowledge-corpus-demo#rated", "feedArrivalAt": "2026-10-28T12:00:00.000Z", "predictionSortKey": "0.500000#2026-10-28T12:00:00.000Z#reference-c11-v1"}, "contentNeededKey": null}
+],
+"tenant": [
+  {"name": "a dedicated stack keeps the global feed key", "mode": "dedicated", "tenantId": null, "environmentTenantId": null, "call": "globalKey", "input": "references", "key": "references"},
+  {"name": "a dedicated stack with a fixed tenant id keeps the global feed key", "mode": "dedicated", "tenantId": null, "environmentTenantId": "alpha", "call": "globalKey", "input": "references", "key": "references"},
+  {"name": "a dedicated stack with a fixed tenant id keeps the reviewed feed key", "mode": "dedicated", "tenantId": "alpha", "environmentTenantId": "alpha", "call": "globalKey", "input": "references#reviewed", "key": "references#reviewed"},
+  {"name": "a dedicated stack with a fixed tenant id keeps a corpus id", "mode": "dedicated", "tenantId": null, "environmentTenantId": "alpha", "call": "corpusId", "input": "knowledge-corpus-demo", "key": "knowledge-corpus-demo"},
+  {"name": "a dedicated stack with a fixed tenant id keeps the corpus id of a key", "mode": "dedicated", "tenantId": null, "environmentTenantId": "alpha", "call": "corpusIdForKey", "input": "demo", "key": "knowledge-corpus-demo"},
+  {"name": "a shared stack prefixes the Reference feed key with the tenant", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "globalKey", "input": "references", "key": "alpha#references"},
+  {"name": "a shared stack prefixes the reviewed feed key with the tenant", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "globalKey", "input": "references#reviewed", "key": "alpha#references#reviewed"},
+  {"name": "a shared stack prefixes the semantic node feed key with the tenant", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "globalKey", "input": "semanticNodes", "key": "alpha#semanticNodes"},
+  {"name": "a shared stack prefixes the semantic relation feed key with the tenant", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "globalKey", "input": "semanticRelations", "key": "alpha#semanticRelations"},
+  {"name": "a shared stack prefixes the Reference link feed key with the tenant", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "globalKey", "input": "reference-links", "key": "alpha#reference-links"},
+  {"name": "a shared stack never prefixes a key twice", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "globalKey", "input": "alpha#references", "key": "alpha#references"},
+  {"name": "another tenant on the same shared stack gets its own partition", "mode": "shared", "tenantId": "beta", "environmentTenantId": null, "call": "globalKey", "input": "references", "key": "beta#references"},
+  {"name": "a shared stack takes the tenant from the process when the call names none", "mode": "shared", "tenantId": null, "environmentTenantId": "alpha", "call": "globalKey", "input": "references", "key": "alpha#references"},
+  {"name": "a shared stack makes a corpus id tenant-unique", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "corpusId", "input": "knowledge-corpus-demo", "key": "alpha.knowledge-corpus-demo"},
+  {"name": "a shared stack never prefixes a corpus id twice", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "corpusId", "input": "alpha.knowledge-corpus-demo", "key": "alpha.knowledge-corpus-demo"},
+  {"name": "a shared stack builds the corpus id of a key", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "corpusIdForKey", "input": "demo", "key": "alpha.knowledge-corpus-demo"},
+  {"name": "the corpus key of a shared stack's corpus id is the bare key", "mode": "shared", "tenantId": null, "environmentTenantId": null, "call": "corpusKeyOf", "input": "alpha.knowledge-corpus-demo", "key": "demo"},
+  {"name": "the corpus key of a dedicated stack's corpus id is the bare key", "mode": "dedicated", "tenantId": null, "environmentTenantId": null, "call": "corpusKeyOf", "input": "knowledge-corpus-demo", "key": "demo"},
+  {"name": "a shared stack with no tenant refuses a global key", "mode": "shared", "tenantId": null, "environmentTenantId": null, "call": "globalKey", "input": "references", "refused": true},
+  {"name": "a shared stack with no tenant refuses a corpus id", "mode": "shared", "tenantId": null, "environmentTenantId": null, "call": "corpusId", "input": "knowledge-corpus-demo", "refused": true},
+  {"name": "a shared stack refuses a tenant id that is not a tenant id", "mode": "shared", "tenantId": "Alpha Corp", "environmentTenantId": null, "call": "globalKey", "input": "references", "refused": true},
+  {"name": "a shared tenant's Reference lists in its own corpus partition", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "feedKeys", "input": {"id": "reference-a-v1", "corpusId": "alpha.knowledge-corpus-demo", "curationStatus": "pending", "versionState": "current", "createdAt": "2026-10-28T12:00:00Z"}, "key": {"feedStateKey": "alpha.knowledge-corpus-demo#unrated", "feedArrivalAt": "2026-10-28T12:00:00.000Z", "predictionSortKey": "0.500000#2026-10-28T12:00:00.000Z#reference-a-v1"}},
+  {"name": "a shared tenant's star partition starts with its corpus id", "mode": "shared", "tenantId": "alpha", "environmentTenantId": null, "call": "starFeedKey", "input": {"corpusId": "alpha.knowledge-corpus-demo", "stars": 4}, "key": "alpha.knowledge-corpus-demo#stars#4"}
 ]
+}

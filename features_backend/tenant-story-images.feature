@@ -26,6 +26,16 @@ Feature: Pictures saved on a tenant site can be published
     And the only stored file is "media/assets/hello/chart.png"
     And the media row for "assets/hello/chart.png" is stored at "media/assets/hello/chart.png"
 
+  Scenario: The media rows name the key where the file exists, never a tenant folder
+    When the story is saved with the folder of pictures
+    Then the media row for "assets/hello/chart.png" is stored at "media/assets/hello/chart.png" where the file exists
+
+  Scenario: The published media row names the key where the file exists
+    When the story is saved with the folder of pictures
+    And the bucket announces the stored pictures to the site's image function
+    Then the new version can be published
+    And the published media row for "assets/hello/chart.png" is stored at "media/assets/hello/chart.png" where the file exists
+
   Scenario: Save, renditions and publish agree on a tenant site
     When the story is saved with the folder of pictures
     And the bucket announces the stored pictures to the site's image function
@@ -50,6 +60,16 @@ Feature: Pictures saved on a tenant site can be published
     And no file was uploaded again
     When the bucket announces the stored pictures to the site's image function
     Then the publish check of the new version passes
+
+  Scenario: A row left pointing at the tenant key while the file sits at the one key is pointed at the file
+    Given the story's picture was saved at the one key but its media rows name the old tenant key
+    When the repair is planned
+    Then the plan copies nothing and re-points the rows to "media/assets/hello/chart.png"
+    And nothing was changed by the repair
+    When the repair is written
+    Then the story's media rows point at "media/assets/hello/chart.png"
+    And only the rows' storage paths were written
+    And no file was uploaded again
 
   Scenario: A repair whose file is missing leaves the story as it was
     Given the story's picture was saved under the old tenant key

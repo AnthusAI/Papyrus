@@ -1,0 +1,33 @@
+{
+  "id": "PPY-063c7130-5ba4-42da-97da-28d3d5b18037",
+  "title": "Spike: count published Stories and reads per site to size backfill",
+  "description": "From indexes (no table scans), count published Stories per site and their read counts and star ratings, so backfill order (traffic and stars) and its budget can be sized for MoM Spanish. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "cbf9c8e8-3379-4022-9491-c8356aaafb94",
+      "author": "home",
+      "text": "Read-only counts (papyrus stories list --stage published, 2026-11-12): Machines on Machines 138 (66 articles, 71 posts, 85,302 words); Anth.us 120 (119 articles, 145,877 words); Shipped 74 (73 articles, 14,679 words); Threat Intelligence 19 (18 articles, 7,790 words); Pilobolus 11 (10 articles, 15,023 words). Data Parade and p.apyr.us not read (no CLI session). Backfill of all MoM into Spanish and Chinese is estimated well under one dollar before reasoning tokens.",
+      "created_at": "2026-11-12T16:22:39.449301Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-12T15:39:06.058844Z",
+  "updated_at": "2026-11-12T16:22:39.581922Z",
+  "closed_at": "2026-11-12T16:22:39.581343Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

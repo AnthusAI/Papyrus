@@ -35,6 +35,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [newsletter.md](newsletter.md): signup capture, the double opt-in `newsletter` plugin with clean `/newsletter/*` pages, branded email theme, roundups, alerts and SES sending (Live on Shipped).
 - [reader-steering.md](reader-steering.md): the `reader-steering` plugin: votes on any subject, ratings, flags, comments, submissions, moderation, snapshots and Proposals (built; reader writes closed in production until Prospectus returns a site subject).
 - [story-procedure.md](story-procedure.md): the one ordered list of steps a Story moves through, who does each, `papyrus stories next`, the reminders printed after writes, and the per-Story checklist that records what was done, who did it and why a step was skipped (publishing waits for it).
+- [figures.md](figures.md): figures (diagrams, charts, illustrations): the general rules, the design-system seam and the site's design system stored as backend data (`papyrus design-system show|pull|push`), `papyrus figures render`, light and dark, and the dark-picture warning or refusal on `stories save-version`.
 - [story-illustration-typesetting.md](story-illustration-typesetting.md): the illustration and typesetting stages: what each should produce, who does it, what the CLI does today, and what is not built.
 - [automations.md](automations.md): automation records binding a monitor to a procedure, with `enabled`, limits, cost, history and Run now (PPY-9ff95b slices 1 and 2).
 - [feature-names.md](feature-names.md): the recommended names for the showcase features, what each is and is not, where it lives, and the alternatives considered.
@@ -46,6 +47,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [code-map.md](code-map.md): where the main files live.
 - [how-a-publish-flows.md](how-a-publish-flows.md): what happens when an editor saves or publishes, and what to do when it looks wrong.
 - [multi-tenancy.md](multi-tenancy.md): several publications on one backend, with `--tenant`.
+- [plans/multi-tenant-architecture.md](plans/multi-tenant-architecture.md): design for many sites on one shared Papyrus (additive groundwork merged, isolation not built yet), with real tenant isolation (PPY-25ffa3).
 - [content-item-lifecycle.md](content-item-lifecycle.md): one content item and one lifecycle, with a configurable name (default Story).
 - [verification.md](verification.md): what to run before calling a change done, plus the reader browser smoke test.
 - [local-preview.md](local-preview.md): `npm run dev:preview` seeded newsroom Board with no AWS, plus headless screenshots for reviews.
@@ -71,7 +73,9 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [site-hosting.md](site-hosting.md): hosting runbook for Markus (S3 and CloudFront) and Pretext (Amplify) sites.
 - [site-stacks.md](site-stacks.md): ops UI and reader output as independent plugins.
 - [site-theme-packs.md](site-theme-packs.md): theme packs and ops chrome on `SiteBrand`.
+- [brand-pack.md](brand-pack.md): the shared-tier brand pack: roles, fonts from an allow-list, contrast and colour-safe checks, shared vectors.
 - [site-workspace.md](site-workspace.md): the local folder convention for a split reader and CMS.
+- [multilingual-serving.md](multilingual-serving.md): each published language of a Story at its own address (prefixes, public languages, slug policies), language editions with their own listings, feeds and sitemaps, `hreflang`, interface strings and Unicode addresses.
 - [standard-site.md](standard-site.md): the approved design for the standard Papyrus site (design record, 2026-10-05; the packages it calls a spike are now published).
 - [pluggable-publishers.md](pluggable-publishers.md): Pretext and Markus publication front ends.
 - [hosting/edge-under-the-cms-backend.md](hosting/edge-under-the-cms-backend.md): design notes (status: design only) for putting each site edge under its CMS backend.
@@ -100,6 +104,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [automated-processes.md](automated-processes.md): the template every automated process states, an inventory of the real ones with their gaps, and the Reference identity gate.
 - [monitoring-cloud.md](monitoring-cloud.md): the Hacker News and TTAB collectors, the router, the shared Cyclotron routing to several sites, and the Monitoring page.
 - [procedure-runner.md](procedure-runner.md): the cloud Lambda that runs a site's registered Tactus procedure; `papyrus procedures register`.
+- [story-translation-procedure.md](story-translation-procedure.md): `papyrus.story.localize`, one published Story into one language per run; `papyrus stories localize`.
 - [monitoring-hn-pilot.md](monitoring-hn-pilot.md): the local Hacker News monitor worker.
 - [console-chat-runbook.md](console-chat-runbook.md): the editor-only console chat on `/newsroom`.
 - [slack-agent.md](slack-agent.md): the Slack channel for the console agent.
@@ -114,6 +119,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [internal-knowledge-research.md](internal-knowledge-research.md): `knowledgeQuery` context packs for accepted references and the graph.
 - [agent-loop-patterns.md](agent-loop-patterns.md): bounded explorer loops vs one-shot researchers.
 - [cyclotron-priming.md](cyclotron-priming.md): relevance cyclotron, priming examples, the proof number and the publication panel.
+- [reference-auto-section.md](reference-auto-section.md): an accepted Reference gets its Section from the site cyclotron when it is sure enough (a threshold learned from held-out editor choices), never against a person.
 - [cyclotron-ti-end-to-end-check.md](cyclotron-ti-end-to-end-check.md): the runbook that checks delegated Reference approval and Cyclotron training on a deployed site.
 - [cyclotron-chatgpt-test-prompt.md](cyclotron-chatgpt-test-prompt.md): the prompt for a ChatGPT research session that tests the deployed flow.
 - [newsroom-curation-integration.md](newsroom-curation-integration.md): the opt-in References curation seam.
@@ -130,6 +136,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 ## CLI and API
 
 - [operator-cli.md](operator-cli.md): one `papyrus` command over local pod and cloud backends.
+- [console-links.md](console-links.md): console addresses of a Story, Reference, Concept, Assignment and review item, and `papyrus links`.
 - [cli-login.md](cli-login.md): native Google CLI session, secure storage, renewal and required provider configuration.
 - [idea-pipeline.md](idea-pipeline.md): `papyrus ideas digest|synthesize`, private story ideas from a site's recent references (v0).
 - [python-cli-and-testing.md](python-cli-and-testing.md): Poetry setup, CLI recipes, sandbox seeding and BDD suites.

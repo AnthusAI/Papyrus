@@ -14,7 +14,8 @@ from typing import Any
 
 import humanus
 
-from .editorial_checks import PUBLICATION_SCOPE, policy_from_record, policy_record_id, record_from_policy
+from .editorial_checks import PUBLICATION_SCOPE, policy_from_record, policy_identity, policy_language, record_from_policy
+from .editorial_languages import canonical
 
 DEFAULT_ACTOR = "papyrus-cli"
 CONTENT_FIELDS = ("title", "guidance", "severity", "enabled", "detectors", "examples", "rewriteGuidance")
@@ -56,20 +57,22 @@ def _content(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def plan_policies(store, payload: dict[str, Any], *, actor: str = DEFAULT_ACTOR) -> list[dict[str, Any]]:
-    """One step per pack policy: `create`, `update` (next version) or `unchanged`, each with the record to write."""
-    existing = {policy_record_id(r["policyKey"], r["scope"]): r for r in store.list_policies()}
+    """One step per pack policy: `create`, `update` (next version) or `unchanged`, each with the record to write.
+
+    Each policy is written for the pack's language, and matched against the site's policy with the same scope, language and key."""
+    existing = {policy_identity(r): r for r in store.list_policies()}
     source = pack_source(payload["packId"], actor)
     steps = []
     for policy in payload["policies"]:
-        record = record_from_policy(policy, scope=PUBLICATION_SCOPE, source=source)
-        current = existing.get(record["id"])
+        record = record_from_policy(policy, scope=PUBLICATION_SCOPE, language=payload["language"], source=source)
+        current = existing.get(policy_identity(record))
         if current is None:
             steps.append({"action": "create", "key": policy["id"], "record": record})
         elif _content(current) == _content(record):
             steps.append({"action": "unchanged", "key": policy["id"], "version": int(current.get("version") or 1)})
         else:
             version = int(current.get("version") or 1) + 1
-            steps.append({"action": "update", "key": policy["id"], "from": int(current.get("version") or 1), "version": version, "record": {**record, "version": version}})
+            steps.append({"action": "update", "key": policy["id"], "from": int(current.get("version") or 1), "version": version, "record": {**record, "id": current["id"], "version": version}})
     return steps
 
 
@@ -89,14 +92,17 @@ def describe_step(step: dict[str, Any], *, done: bool) -> str:
     return f"{verb}\t{step['key']}\tversion {step.get('version') or step['record']['version']}"
 
 
-def export_pack(store, *, pack_id: str, pack_version: str | None = None) -> tuple[dict[str, Any], int]:
-    """The site's publication policies as a `policy-pack-v1` payload, plus how many desk policies it left out."""
+def export_pack(store, *, pack_id: str, language: str, pack_version: str | None = None) -> tuple[dict[str, Any], int]:
+    """The site's publication policies written for exactly ``language`` as a `policy-pack-v1` payload, plus how many policies it left out
+    (section policies, and policies of other languages: a pack has one language and no section scope)."""
+    language = canonical(language)
     rows = sorted(store.list_policies(), key=lambda row: row["policyKey"])
-    publication = [row for row in rows if row["scope"] == PUBLICATION_SCOPE]
+    publication = [row for row in rows if row["scope"] == PUBLICATION_SCOPE and canonical(policy_language(row)) == language]
     pack = {
         "schemaVersion": 1,
         "packId": pack_id,
         "version": pack_version or str(max([int(row.get("version") or 1) for row in publication] or [1])),
+        "language": language,
         "policies": [policy_from_record(row) for row in publication],
     }
     humanus.load_policy_pack(pack)

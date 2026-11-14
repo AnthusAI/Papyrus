@@ -865,7 +865,7 @@ DOCS: dict[str, dict[str, Any]] = {
             "Inside research harness snippets, use web_search(query) directly. "
             "Outside that harness, call papyrus.reference.web_search{ query = ..., "
             "max_results = ..., provider = ... }. Tavily is the default provider "
-            "(WEB_SEARCH_PROVIDER=tavily); set provider=\"openai\" to use OpenAI web search. "
+            "(WEB_SEARCH_PROVIDERS=tavily); set provider=\"openai\" to use OpenAI web search. "
             "The harness first tries Tactus "
             "stdlib web.search and falls back to papyrus.reference.web_search when "
             "tactus.web is unavailable. Keep web discoveries as reference prospects "

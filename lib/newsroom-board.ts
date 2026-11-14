@@ -12,6 +12,7 @@ import {
 } from "./content-item-lifecycle";
 import { contentItemExcerpt } from "./front-matter-fields";
 import { assignmentStatusLabel } from "./newsroom-assignments";
+import { scheduleFromFields, type StorySchedule } from "./story-schedule";
 import { storyChecklistSummary, type StoryChecklistSummary } from "./story-checklist";
 import { getContentItemName, getContentItemStageDefinitions } from "./site-brand";
 
@@ -29,6 +30,8 @@ export interface NativeBoardIssue extends KanbanIssue {
   starRating?: number | null;
   /** The Story's checklist counts, read from its version's metadata; undefined for a Story with no checklist yet. */
   checklist?: StoryChecklistSummary;
+  /** When the Story's version goes live, if it is scheduled (lib/story-schedule.ts). */
+  schedule?: StorySchedule;
 }
 
 function slugify(text: string): string {
@@ -84,6 +87,11 @@ function safeJson(text: string): unknown {
 const ASSIGNMENT_STATUSES_BEFORE_OTHERS = ["open", "claimed"];
 const ASSIGNMENT_STATUSES_AFTER_OTHERS = ["completed", "canceled"];
 
+function scheduleOf(version: ContentItemVersionRecord): { schedule?: StorySchedule } {
+  const schedule = scheduleFromFields(version);
+  return schedule ? { schedule } : {};
+}
+
 function checklistOf(version: ContentItemVersionRecord): { checklist?: StoryChecklistSummary } {
   const checklist = storyChecklistSummary(version.metadata);
   return checklist ? { checklist } : {};
@@ -115,7 +123,7 @@ export function projectContentItemBoard(records: {
       priority: stage === "idea" ? IDEA_ORIGIN_PRIORITIES[ideaOrigin(version)] : 2, description: workCount ? `${workCount} assignment${workCount === 1 ? "" : "s"} on this ${contentItemType}.` : undefined,
       updated_at: version.updatedAt ?? undefined, href: `/newsroom/articles/${encodeURIComponent(version.id)}`,
       excerpt: contentItemExcerpt(version), displayId: contentItemDisplayId(version), starRating: version.starRating,
-      ...checklistOf(version),
+      ...checklistOf(version), ...scheduleOf(version),
     };
   });
 }

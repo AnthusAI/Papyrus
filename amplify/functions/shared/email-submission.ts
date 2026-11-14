@@ -322,24 +322,64 @@ export function extractUserComposedReplyText(bodyText: string): string {
   return lines.join("\n").trim();
 }
 
-export function parseInboundEmailBody(rawBytes: Uint8Array): { subject: string; text: string } {
+type MimeEntity = { headers: Map<string, string>; body: string };
+
+function splitMimeEntity(raw: string): MimeEntity {
+  const separator = /\r?\n\r?\n/.exec(raw);
+  const headerBlock = separator ? raw.slice(0, separator.index) : raw;
+  const body = separator ? raw.slice(separator.index + separator[0].length) : "";
+  const headers = new Map<string, string>();
+  for (const line of headerBlock.replace(/\r?\n[ \t]+/g, " ").split(/\r?\n/)) {
+    const colon = line.indexOf(":");
+    if (colon <= 0) continue;
+    const name = line.slice(0, colon).trim().toLowerCase();
+    if (!headers.has(name)) headers.set(name, line.slice(colon + 1).trim());
+  }
+  return { headers, body };
+}
+
+function decodeMimeBody(body: string, transferEncoding: string): string {
+  const encoding = transferEncoding.trim().toLowerCase();
+  if (encoding === "base64") return Buffer.from(body.replace(/\s/g, ""), "base64").toString("utf8");
+  if (encoding === "quoted-printable") {
+    return body
+      .replace(/=\r?\n/g, "")
+      .replace(/=([0-9A-F]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+  }
+  return body;
+}
+
+function collectTextParts(raw: string, plain: string[], html: string[]): void {
+  const { headers, body } = splitMimeEntity(raw);
+  const contentType = (headers.get("content-type") ?? "text/plain").toLowerCase();
+  if (contentType.startsWith("multipart/")) {
+    const boundary = /boundary\s*=\s*(?:"([^"]+)"|([^\s;]+))/i.exec(headers.get("content-type") ?? "");
+    const marker = boundary?.[1] ?? boundary?.[2];
+    if (!marker) return;
+    const parts = body.split(new RegExp(`(?:^|\\r?\\n)--${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:--)?[ \\t]*(?=\\r?\\n|$)`));
+    // The first piece is the preamble and the last is the epilogue; neither is a part.
+    for (const part of parts.slice(1, -1)) collectTextParts(part.replace(/^\r?\n/, ""), plain, html);
+    return;
+  }
+  if ((headers.get("content-disposition") ?? "").toLowerCase().startsWith("attachment")) return;
+  const text = decodeMimeBody(body, headers.get("content-transfer-encoding") ?? "").trim();
+  if (!text) return;
+  if (contentType.startsWith("text/plain")) plain.push(text);
+  else if (contentType.startsWith("text/html")) html.push(text);
+}
+
+/** The one MIME reader for inbound mail: the subject and the text/plain and text/html parts that are not attachments. */
+export function collectMimeBodies(rawBytes: Uint8Array): { subject: string; plain: string[]; html: string[] } {
   const raw = Buffer.from(rawBytes).toString("utf8");
-  const subjectMatch = raw.match(/^Subject:\s*(.*)$/im);
-  const subject = subjectMatch?.[1]?.trim() ?? "";
-  const plainMatch = raw.match(/Content-Type:\s*text\/plain[\s\S]*?\r?\n\r?\n([\s\S]*?)(?:\r?\n--|$)/i);
-  let text = plainMatch?.[1]?.trim() ?? "";
-  const htmlMatch = !plainMatch
-    ? raw.match(/Content-Type:\s*text\/html[\s\S]*?\r?\n\r?\n([\s\S]*?)(?:\r?\n--|$)/i)
-    : null;
-  if (!plainMatch && htmlMatch) {
-    text = htmlToText(htmlMatch[1] ?? "");
-  }
-  // For multipart MIME, do not fall back to the raw object (PDF parts may contain DOI-like tokens).
-  if (!plainMatch && !htmlMatch && !/Content-Type:\s*multipart\//i.test(raw)) {
-    const bodyIndex = raw.indexOf("\r\n\r\n");
-    text = bodyIndex >= 0 ? raw.slice(bodyIndex + 4).trim() : raw.trim();
-  }
-  return { subject, text };
+  const plain: string[] = [];
+  const html: string[] = [];
+  collectTextParts(raw, plain, html);
+  return { subject: splitMimeEntity(raw).headers.get("subject") ?? "", plain, html };
+}
+
+export function parseInboundEmailBody(rawBytes: Uint8Array): { subject: string; text: string } {
+  const { subject, plain, html } = collectMimeBodies(rawBytes);
+  return { subject, text: plain.length > 0 ? plain.join("\n\n") : htmlToText(html.join("\n\n")) };
 }
 
 function htmlToText(html: string): string {

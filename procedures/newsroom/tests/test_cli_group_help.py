@@ -47,6 +47,8 @@ def test_group_help_is_not_the_top_level_help():
         assert "Operator groups:" not in run([group, "--help"])
 
 
-def test_stories_create_is_a_command_with_its_flags():
-    text = run(["stories", "--help"])
-    assert "create" in text and "--stage" in text and "--with-assignment" in text
+def test_stories_group_describes_create_and_its_help_has_the_flags():
+    group = run(["stories", "--help"])
+    assert "create" in group and "Create a Story" in group   # one line per command; the flags are in the command's own help
+    text = run(["stories", "create", "--help"])
+    assert "--stage" in text and "--with-assignment" in text and "--dry-run" in text

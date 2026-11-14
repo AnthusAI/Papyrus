@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "24037360-d3f7-4bee-9d8f-1610f6ea20e6",
+  "issue_id": "PPY-4007c86a-102f-42cd-9039-0504f71db285",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T18:41:39.851Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "MoM rollout: schedule, then announce 5-star Stories, test account first",
+    "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md (\"Testing safely\", \"Questions for Ryan\").\n\nGoal: Machines on Machines uses scheduling, then announces 5-star Articles on X: first on a protected test account Ryan owns, with approval required and a budget Ryan enters; then on MoM's real account; then Ryan reviews the rate and the floor.\n\nSteps: set `publication.timeZone`; deploy scheduling; schedule one real Story; Ryan creates MoM's X developer app and buys credits, sets X's console spending limit; connect the protected test account; confirm the Automated label; set rules (Articles, 5 stars, approval required) and the budget; post and review; switch to the real account; after a month, review the rate (about zero today) and decide whether to lower the floor or switch to automatic approval. Only the site under test is bumped; other sites follow in one batch once it works.\n\nDepends on: all other stories in this epic; the notifications plugin on MoM (PPY-824c14).\n\n```gherkin\nFeature: Machines on Machines schedules and announces its best Stories\n  MoM proves the feature: scheduled Stories go out on time and its 5-star Stories\n  are announced on X, safely, within budget.\n\n  Scenario: A test account first\n    Given MoM is connected to a protected X account that Ryan owns\n    When a 5-star Article is published and Sam approves its post\n    Then the post appears only on the protected account\n    And its cost shows in MoM's spend\n\n  Scenario: Switching to the real account\n    Given the test posts looked right to Ryan\n    When Ryan disconnects the test account and connects MoM's account\n    Then the next approved announcement appears on MoM's account\n\n  Scenario: Reviewing the rate\n    Given a month of announcements on MoM\n    Then the admin page shows how many Stories qualified, how many were posted and what they cost\n    And Ryan decides whether to keep 5 stars or include 4\n```\n\nOpen questions: the test account's handle; MoM's budget; when to switch approval to automatic.\n",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+    "labels": []
+  }
+}

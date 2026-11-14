@@ -1,0 +1,31 @@
+{
+  "id": "PPY-cb3753ea-77b6-40f7-9b77-866b4dc70fba",
+  "title": "Optional wide-screen split view with the original",
+  "description": "Later experiment. Record at ingestion whether a source allows framing (X-Frame-Options, CSP frame-ancestors); show the original beside our summary only on wide displays and only when allowed; always keep an Open original link. Measure engagement before keeping it.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "15f49ad1-7257-430a-83e5-db4b5f43f69d",
+      "author": "home",
+      "text": "Ryan 2026-11-09: not doing this. We do things readers appreciate, we do not hijack browsing. No framing of external pages.",
+      "created_at": "2026-11-09T12:32:47.899616Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-09T12:30:10.198049Z",
+  "updated_at": "2026-11-09T12:32:47.900096Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

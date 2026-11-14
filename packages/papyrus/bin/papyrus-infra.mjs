@@ -6,6 +6,7 @@
  * papyrus-infra synth --site infra/site.json --part chat [--chat-lambdas DIR] [--out cdk.out]   (the private chat data stack)
  * papyrus-infra cost amplify [--months 3] [--through YYYY-MM] [--no-apps] [--plan-budget]   (read-only: Cost Explorer for AWS Amplify by usage type and account, per-app build minutes, a budget threshold learned from history; --plan-budget prints, and never runs, the budget commands)
  * papyrus-infra amplify job-log --app-id ID [--branch main] [--job ID | --latest-failed] [--region R]   (read-only: a job's step statuses, log tail, first error and stack failures)
+ * papyrus-infra backend-deploy   (in a site's Amplify build, in place of `npx ampx pipeline-deploy`: the release, then one pass per cost tag wave while the build has time)
  * papyrus-infra deploy --site infra/site.json [--only-branch main] [--only-app-id ID] [--out cdk.out] [--account A] [--region R]
  * Account: --account, else PAPYRUS_AWS_ACCOUNT_ID (verified against the credentials), else CDK_DEFAULT_ACCOUNT, else the caller's STS account.
  * Owning app: --only-app-id, else PAPYRUS_AMPLIFY_APP_ID; give the flag an empty value and the build fails instead of skipping the guard.
@@ -29,6 +30,7 @@ const USAGE = [
   "       papyrus-infra cost amplify [--months 3] [--through YYYY-MM] [--no-apps] [--plan-budget] [--region R]",
   "       papyrus-infra amplify job-log --app-id ID [--branch main] [--job ID | --latest-failed] [--region R]",
   "       papyrus-infra compile-edge-function --static-dir web [--out FILE]",
+  "       papyrus-infra backend-deploy",
   "       papyrus-infra deploy --site infra/site.json [--only-branch main] [--only-app-id ID] [--out cdk.out] [--account A] [--region R]",
 ].join("\n");
 
@@ -56,7 +58,7 @@ const owningAppIdOrExit = (commandName) => {
   }
 };
 const command = args[0];
-if (command !== "synth" && command !== "print-buildspec" && command !== "deploy" && command !== "deploy-edge" && command !== "compile-edge-function" && command !== "cost" && command !== "amplify") {
+if (command !== "synth" && command !== "print-buildspec" && command !== "deploy" && command !== "deploy-edge" && command !== "compile-edge-function" && command !== "cost" && command !== "amplify" && command !== "backend-deploy") {
   console.error(USAGE);
   process.exit(command ? 1 : 0);
 }
@@ -71,6 +73,18 @@ if (command === "cost") {
     runAmplifyCostCommand(opt, (name) => args.includes(`--${name}`));
   } catch (error) {
     console.error(`papyrus-infra cost amplify: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (command === "backend-deploy") {
+  try {
+    const { runBackendDeployCommand } = await import("../src/backend-deploy.mjs");
+    const passes = runBackendDeployCommand();
+    console.log(`papyrus-infra backend-deploy: deployed in ${passes.length} pass(es) (cost tag waves ${passes.map((wave) => wave ?? "none").join(", ")}).`);
+  } catch (error) {
+    console.error(`papyrus-infra backend-deploy: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
   process.exit(0);

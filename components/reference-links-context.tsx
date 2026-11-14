@@ -20,7 +20,7 @@ export type ReferenceLinksStore = {
   /** Accept or reject a link. `note` is the person's words: the explanation of an accepted link (it replaces the earlier words; "" clears them), the reason for a rejection. */
   decide: (input: { relationId: string; decision: "accept" | "reject"; note?: string }) => Promise<void>;
   suggest: (referenceId: string) => Promise<SuggestOutcome>;
-  /** Invents the concept named by a typed hashtag if it does not exist and tags the Reference with it, as one confirmed `related_to` link. Asking twice makes one concept and one link. */
+  /** Invents the concept named by a typed hashtag if it does not exist and tags the Reference with it, as one confirmed `tagged_with` link. Asking twice makes one concept and one link. */
   createConceptAndTag?: (referenceLineageId: string, name: string) => Promise<{ relationId: string; item: RelatedItem }>;
   /** Invents the concept named by a typed hashtag without tagging anything, for a section's list. Absent where the backend has no way to do it yet. */
   createConcept?: (name: string) => Promise<RelatedItem>;
@@ -97,7 +97,7 @@ export function createMemoryReferenceLinksStore(options: {
     const item = itemFor(mine ? otherKind : "reference", otherId);
     if (!item) return null;
     return {
-      relationId: link.id, state: link.state, provenance: link.provenance, predicate: "related_to",
+      relationId: link.id, state: link.state, provenance: link.provenance, predicate: link.objectKind === "semanticNode" ? "tagged_with" : "related_to",
       direction: mine ? "outgoing" : "incoming", item, similarity: link.similarity ?? null, label: labels.get(otherId) ?? null,
       explanation: explanationOfMemory(link),
     };
@@ -129,7 +129,7 @@ export function createMemoryReferenceLinksStore(options: {
         .filter(link => link.objectKind === "semanticNode" && link.objectLineageId === conceptLineageId && link.state === "current" && link.provenance === "human")
         .map(link => ({ link, item: itemFor("reference", link.subjectLineageId) }))
         .filter((found): found is { link: MemoryLink; item: RelatedItem } => Boolean(found.item))
-        .map(({ link, item }) => ({ relationId: link.id, state: "current" as const, provenance: link.provenance, predicate: "related_to", direction: "incoming" as const, item, similarity: null, label: null, explanation: explanationOfMemory(link) }));
+        .map(({ link, item }) => ({ relationId: link.id, state: "current" as const, provenance: link.provenance, predicate: "tagged_with", direction: "incoming" as const, item, similarity: null, label: null, explanation: explanationOfMemory(link) }));
     },
     async searchConcepts(text) {
       const concepts = [...items.values()].filter(item => item.kind === "concept" && item.nodeKey);

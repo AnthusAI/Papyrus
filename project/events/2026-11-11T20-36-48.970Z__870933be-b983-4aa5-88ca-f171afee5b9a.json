@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "870933be-b983-4aa5-88ca-f171afee5b9a",
+  "issue_id": "PPY-2a6d1489-f9d1-454a-9743-61ca0f9a29ac",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T20:36:48.970Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A new deployment's account is seeded from a template, not a script",
+    "description": "```gherkin\nFeature: An account is seeded from a template, not a script\n\n  Scenario: One command seeds a new account\n    Given a new AWS account and a deployment repository\n    When a person applies the account baseline template once, giving the prefix, repository and budget name as parameters\n    Then the account has the GitHub OIDC provider, the plan, deploy, approval and service roles\n    And nothing in the template names AnthusAI, anth.us or another deployment's account\n    And no repository variable of any other repository is written\n\n  Scenario: The seed is the same template the pipeline later updates\n    Given a seeded account\n    When the template changes in Git\n    Then the pipeline updates the same stack and does not create a second one\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+    "labels": []
+  }
+}

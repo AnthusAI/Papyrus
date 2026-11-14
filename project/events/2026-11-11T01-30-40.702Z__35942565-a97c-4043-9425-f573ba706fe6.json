@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "35942565-a97c-4043-9425-f573ba706fe6",
+  "issue_id": "PPY-40b7a4d2-ccc9-419b-b2e5-31d1a77d0c87",
+  "event_type": "comment_added",
+  "occurred_at": "2026-11-11T01:30:40.702Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "ba197cd7-8f6d-4767-8596-9a96ad8c1a8d",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6",
+      "name": "Codex"
+    }
+  }
+}

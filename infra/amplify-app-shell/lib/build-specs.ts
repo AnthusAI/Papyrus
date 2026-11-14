@@ -111,7 +111,8 @@ export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): strin
         NPM_CLEAN_INSTALL,
         ...deployStackCommands,
         "if [ -z \"${PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI:-}\" ]; then export PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD=true; fi",
-        "npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID",
+        // One pass per cost tag wave until the tags are complete (amplify/cost-tag-waves.ts); one pass after that.
+        "npx papyrus-infra backend-deploy",
         ALEXA_SKILL_SYNC,
       ],
       "        ",

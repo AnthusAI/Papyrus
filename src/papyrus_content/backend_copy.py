@@ -19,6 +19,7 @@ from typing import Any, Callable, Iterable, Protocol
 from .tenancy import (
     TENANT_MODELS,
     TENANT_SLUG_FIELD,
+    tenant_media_path,
     tenant_media_prefix,
     tenant_stamped_payload,
     validate_tenant_id,
@@ -400,6 +401,8 @@ def plan_selected_model(
 
     for row in source.iterate_rows(model, [name for name in fetch_fields if name not in stamp_fields]):
         row = tenant_stamped_payload(model, tenant_id, row)
+        if model in ("MediaAsset", "PublishedMediaAsset") and isinstance(row.get("storagePath"), str):
+            row["storagePath"] = tenant_media_path(tenant_id, row["storagePath"])   # the copied objects are stored under the tenant folder (tenant_media_source_store)
         plan.source_rows += 1
         key = row_key(source_schema, row)
         seen_keys.add(key)

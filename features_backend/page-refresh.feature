@@ -93,6 +93,47 @@ Feature: Editors refresh pages at the edge on demand
     And nothing was written to the site
     And the edge was not asked to invalidate anything
 
+  Scenario: Re-rendering the index pages under a URL prefix rebuilds only the pages whose path starts with it
+    Given the editor forces up to 100 paths in the call
+    When the editor re-renders the index pages under "/videos/"
+    Then the re-render wrote "videos/index.html"
+    And the re-render wrote nothing outside "/videos/"
+    And no path invalidated is the home page or under "/articles/"
+    And the re-render outcome is ok and the invalidation outcome is ok
+
+  Scenario: Repeated prefixes rebuild the pages under any of them
+    Given the editor forces up to 100 paths in the call
+    When the editor re-renders the index pages under "/videos/" and "/articles/page/"
+    Then the re-render wrote both "videos/index.html" and "articles/page/2/index.html"
+    And the re-render wrote nothing outside either "/videos/" or "/articles/page/"
+    And "articles/index.html" was not written
+
+  Scenario: A prefix that matches no index page is an error that says so
+    Given the editor forces up to 100 paths in the call
+    When the editor re-renders the index pages under "/nowhere/"
+    Then the request is refused because no index page is under "/nowhere/"
+    And nothing was written to the site
+    And the edge was not asked to invalidate anything
+
+  Scenario: A prefix is matched on the URL path alone, so any section name works
+    Given a site whose sections are called dispatches and notes
+    And the editor forces up to 100 paths in the call
+    When the editor re-renders the index pages under "/dispatches/"
+    Then the re-render wrote "dispatches/index.html"
+    And the re-render wrote nothing outside "/dispatches/"
+
+  Scenario: A URL prefix only goes with the index pages
+    When the editor re-renders the whole site under "/videos/"
+    Then the request is refused as invalid input
+
+  Scenario: A re-render dry run lists the pages it would write and how many
+    Given the editor forces up to 100 paths in the call
+    When an operator runs the page refresh command "rerender --indexes --under /videos/ --dry-run"
+    Then the page refresh command exits with status 0
+    And the page refresh command output says it would write the pages "/videos/index.html" and "/videos/index.md" and gives their count
+    And the page refresh command output does not say it wrote pages
+    And nothing was written to the site
+
   Scenario: A failed invalidation after a good re-render is reported on its own
     Given the editor forces up to 100 paths in the call
     Given the edge rejects invalidations

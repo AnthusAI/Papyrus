@@ -40,6 +40,15 @@ Feature: Signed-in editors refresh pages without AWS credentials
     And the page refresh command output says the re-render was scheduled
     And the scheduled task re-renders the whole site and invalidates what it wrote
 
+  Scenario: A scheduled re-render under a prefix says how many pages it was asked to rebuild
+    Given a content actions backend with an s3-projection publication
+    And the edge reports invalidation ids and statuses
+    And the editor publishes a new article
+    When a signed-in editor runs the page refresh command "rerender --indexes --under / --run"
+    Then the page refresh command exits with status 0
+    And the page refresh command output says the re-render was scheduled for a number of pages
+    And the scheduled task is limited to the prefix "/"
+
   Scenario: The scheduled re-render writes the pages and purges exactly them
     Given a content actions backend with an s3-projection publication
     And the edge reports invalidation ids and statuses

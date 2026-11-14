@@ -318,10 +318,10 @@ def _ref_concept(context, reference, concept, note):
     assert context.error is None, context.error
 
 
-@then('the CLI asks the site for a related-to link from the Reference to "{name}" with that note')
+@then('the CLI asks the site for a tagged-with link from the Reference to "{name}" with that note')
 def _ref_concept_sent(context, name):
     field, variables = sent(context)[-1]
-    assert field == "createReferenceLink" and variables["objectKind"] == "semanticNode" and variables["predicate"] == "related_to", sent(context)
+    assert field == "createReferenceLink" and variables["objectKind"] == "semanticNode" and variables["predicate"] == "tagged_with", sent(context)
     assert variables["objectLineageId"] == "semantic-node-editor_concept--confinement-problem" and variables["note"] == "The sibling problem"
 
 

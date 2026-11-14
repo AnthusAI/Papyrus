@@ -75,14 +75,15 @@ def byline_markdown(authors, origin: str | None = None) -> str:
 
 
 def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None, byline: str | None = None) -> str:
-    """``byline`` is a site hook's complete byline text; it replaces the "By <authors>" line."""
+    """``byline`` is a site hook's complete byline text; it replaces the "By <authors>" line. ``None`` means no hook (the authors are shown); an empty string means the hook says there is no byline."""
     body = drop_machine_credits(body_of(source_text))
     lines = []
     if not _opens_with_heading(body):
         lines += [f"# {entry.title}", ""]
     facts = []
-    if byline:
-        facts.append(byline)
+    if byline is not None:
+        if byline:   # a site hook that returns an empty string says this item has NO byline (a post): the authors are not a fallback
+            facts.append(byline)
     elif entry.author_details:
         facts.append("By " + byline_markdown(entry.author_details, origin))
     if entry.date:

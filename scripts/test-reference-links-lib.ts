@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyAddInput, closeMatchText, editorLinkedReferenceLineages, explanationByline, linkExplanationOf, publishedAddedText, relatedEdgeWords, relatedEntriesFromRelations, suggestFailureText, suggestSkippedText, symmetricSubjectFirst, type RelatedItem } from "../lib/reference-links";
+import { isOpenSuggestion } from "../lib/link-suggestions";
 
 const item = (kind: "concept" | "reference", lineageId: string): RelatedItem => ({ kind, lineageId, title: lineageId, hashtag: null, nodeKey: null, nodeKind: null, host: null, sourceUri: null, sourcePublishedAt: null, addedAt: null });
 
@@ -37,6 +38,23 @@ test("Linked by editors keeps only current human related_to rows from References
   ];
   assert.deepEqual(editorLinkedReferenceLineages("c", rows), [{ relationId: "a", lineageId: "r1", explanation: null }]);
   assert.deepEqual(symmetricSubjectFirst("b", "a"), ["a", "b"]);
+});
+
+test("Linked by editors reads the tagged_with tag as well as the older related_to", () => {
+  const rows = [
+    { id: "t", relationState: "current", predicate: "tagged_with", subjectKind: "reference", subjectLineageId: "r1", objectKind: "semanticNode", objectLineageId: "c", metadata: { provenance: "human" } },
+    { id: "o", relationState: "current", predicate: "related_to", subjectKind: "reference", subjectLineageId: "r2", objectKind: "semanticNode", objectLineageId: "c", metadata: { provenance: "human" } },
+  ];
+  assert.deepEqual(editorLinkedReferenceLineages("c", rows).map(found => found.relationId), ["t", "o"]);
+});
+
+test("An open suggestion to a concept is a tagged_with row or the older related_to; tagged_with between two References is not a suggestion", () => {
+  const row = (predicate: string, objectKind: string) => ({ relationState: "suggested", predicate, subjectKind: "reference", objectKind });
+  assert.equal(isOpenSuggestion(row("tagged_with", "semanticNode")), true);
+  assert.equal(isOpenSuggestion(row("related_to", "semanticNode")), true);
+  assert.equal(isOpenSuggestion(row("related_to", "reference")), true);
+  assert.equal(isOpenSuggestion(row("tagged_with", "reference")), false);
+  assert.equal(relatedEdgeWords("tagged_with", "outgoing"), "relates to");
 });
 
 test("A skip reason from the backend is shown in plain words, and an unknown one never leaks", () => {

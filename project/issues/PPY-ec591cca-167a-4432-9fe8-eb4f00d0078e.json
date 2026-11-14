@@ -1,0 +1,30 @@
+{
+  "id": "PPY-ec591cca-167a-4432-9fe8-eb4f00d0078e",
+  "title": "A countdown banner welcomes visitors into their language on any translated page",
+  "description": "As a visitor, I want any page that also exists in my browser's preferred language to offer that version with a short, friendly countdown, and my choice to be remembered, so I read in my language without being nagged.\n\nDesign (Ryan's decision 6, revised): client-side only, no server redirect, no Vary, no cookie; the CloudFront-function redirect is removed from the design. Applies to home, listings, articles and wiki pages, only when that exact page exists in the preferred language (from the page's hreflang links); no banner otherwise. Banner in the visitor's language: 15-second countdown with progress bar, Switch now, Stay here, Pause; scrolling, typing or selecting text pauses it; announced once with aria-live polite; reduced motion removes the animation; keyboard reachable without moving focus; lang set on its text. Switching uses location.replace (no Back loop). Reading language remembered in localStorage, set only by the visitor's actions (switch, countdown finished, stay, undo, switcher); later pages in another language switch at once with a quiet 'Switched to 中文 · Undo' note; pages not in the reading language do nothing. The countdown never switches toward the site's primary language (search renderers run timers with an English preference); a quiet 'Read in English' link is shown instead. Off switch per site (languages.switchBanner), default on. GA4 language_switch event. Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.\n\nFeature: Welcoming language switch\n\nScenario: A Chinese reader opens a shared English article that has a Chinese version\n  Given an English article with a published Chinese localization\n  And a visitor whose browser prefers Chinese and who has made no choice\n  When they open the English article from a shared link\n  Then a banner in Chinese says the Chinese version will open in 15 seconds\n  And it offers Switch now, Stay here and Pause\n  And when the countdown ends the Chinese article replaces the English one in the browser history\n\nScenario: No banner when the page has no translation\n  Given an English article with no Chinese localization\n  And a visitor whose browser prefers Chinese\n  When they open the article\n  Then no banner appears\n\nScenario: Starting to read pauses the countdown\n  Given the banner is counting down\n  When the visitor scrolls the article\n  Then the countdown stops and the banner keeps Switch now and Stay here\n\nScenario: The choice is remembered on later pages\n  Given a visitor who switched to Chinese once\n  When they open another English page that has a Chinese version\n  Then the Chinese page opens at once with a quiet note offering Undo\n\nScenario: A visitor who stays is not asked again\n  Given a visitor whose browser prefers Chinese chose Stay here on an English page\n  When they open other English pages that have Chinese versions\n  Then no banner appears\n\nScenario: Back does not loop\n  Given a visitor arrived from search results and was switched to Chinese\n  When they press Back\n  Then they return to the search results\n\nScenario: Never counting down toward the primary language\n  Given a Spanish article on a site whose primary language is English\n  And a visitor whose browser prefers English\n  When they open the Spanish article\n  Then a quiet Read in English link appears and no countdown runs\n\nScenario: Reduced motion\n  Given a visitor who prefers reduced motion\n  When the banner appears\n  Then the number counts down in text without an animated bar",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-75649552-f242-4ed9-9b93-d27bbb29e4ce",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-75598618-de2b-48e6-a3b3-f3a729ed56e6",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T15:39:08.497066Z",
+  "updated_at": "2026-11-12T16:22:14.259686Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

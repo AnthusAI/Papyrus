@@ -6,6 +6,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
+from .content_item_lifecycle import HEAD_STAGE_KEY_FIELD, head_stage_fields
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, strip_unsupported_payload_fields
 from .ids import hash_short
 from .model_attachments import expand_private_payload_records, upload_attachment_body
@@ -19,49 +20,6 @@ LOGGER = logging.getLogger(__name__)
 APPEND_ONLY_EXISTING_NOOP_MODELS = frozenset(
     {"Assignment", "AssignmentEvent", "Message", "SteeringDecision"}
 )
-
-OPTIONAL_SCHEMA_MODELS = frozenset({"CategoryKeyword", "LexicalSteeringRule", "ModelAttachment"})
-
-
-def is_missing_graphql_model_error(error: Exception, model_name: str) -> bool:
-    message = str(error)
-    list_field = f"list{model_name}s"
-    get_field = f"get{model_name}"
-    return "FieldUndefined" in message and (list_field in message or get_field in message or model_name in message)
-
-
-def build_record_changes_tolerating_optional_models(
-    client: PapyrusGraphQLAuthoringClient,
-    records: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    pending = list(records)
-    skipped_models: set[str] = set()
-    while True:
-        try:
-            filtered = [record for record in pending if record["modelName"] not in skipped_models]
-            return build_record_changes(client, filtered)
-        except (RuntimeError, KeyError, ValueError) as error:
-            if isinstance(error, KeyError):
-                missing_model = str(error).strip("'\"")
-                if missing_model in OPTIONAL_SCHEMA_MODELS and missing_model not in skipped_models:
-                    skipped_models.add(missing_model)
-                    pending = [record for record in pending if record["modelName"] != missing_model]
-                    print(f"skip\t{missing_model}\tmodel is not deployed in AppSync yet; skipped optional records.")
-                    continue
-            missing_model = next(
-                (
-                    model_name
-                    for model_name in OPTIONAL_SCHEMA_MODELS
-                    if model_name not in skipped_models and is_missing_graphql_model_error(error, model_name)
-                ),
-                None,
-            )
-            if missing_model is None:
-                raise
-            skipped_models.add(missing_model)
-            pending = [record for record in pending if record["modelName"] != missing_model]
-            print(f"skip\t{missing_model}\tmodel is not deployed in AppSync yet; skipped optional records.")
-
 
 def build_steering_config_record_changes(
     client: PapyrusGraphQLAuthoringClient,
@@ -147,6 +105,11 @@ def build_record_change_from_current(
                 next_expected.pop(key, None)
     if current and model_name in APPEND_ONLY_EXISTING_NOOP_MODELS:
         return {"modelName": model_name, "expected": current, "current": current, "action": "noop"}
+    if model_name == "Item":
+        # The head stage key follows the row's stage and version state (docs/plans/story-head-stage-index.md); it rides on the write this change makes.
+        next_expected.update(head_stage_fields({**(current or {}), **next_expected}))
+        if not current and next_expected.get(HEAD_STAGE_KEY_FIELD) is None:
+            next_expected.pop(HEAD_STAGE_KEY_FIELD)
     action = "create" if not current else ("noop" if records_equal_for_model(model_name, current, next_expected) else "update")
     return {
         "modelName": model_name,
@@ -158,6 +121,8 @@ def build_record_change_from_current(
 
 def records_equal_for_model(model_name: str, current: dict[str, Any], expected: dict[str, Any]) -> bool:
     ignored = {"updatedAt", "createdAt", "importedAt", "versionCreatedAt"}
+    if model_name == "Item":
+        ignored.add(HEAD_STAGE_KEY_FIELD)   # derived; a row read from a site without the field must not look changed (the backfill writes it)
     if model_name == "Reference":
         ignored |= {"newsroomFeedKey", "curationStatusUpdatedAt", *KEPT_FEED_FIELDS}
     keys = {key for key in {*current.keys(), *expected.keys()} if key not in ignored}

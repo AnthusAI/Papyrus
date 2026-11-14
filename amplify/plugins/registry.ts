@@ -2,6 +2,7 @@ import type { PapyrusPlugin, PluginRequest, PluginResolveOptions } from "./types
 import { alexaPlugin } from "./alexa/papyrus.plugin";
 import { homePagePlugin } from "./home-page/papyrus.plugin";
 import { newsletterPlugin } from "./newsletter/papyrus.plugin";
+import { notificationsPlugin } from "./notifications/papyrus.plugin";
 import { readerSteeringPlugin } from "./reader-steering/papyrus.plugin";
 import { signupPlugin } from "./signup/papyrus.plugin";
 
@@ -10,6 +11,7 @@ export const KNOWN_PLUGINS: Record<string, PapyrusPlugin<any, any>> = {
   alexa: alexaPlugin,
   "home-page": homePagePlugin,
   newsletter: newsletterPlugin,
+  notifications: notificationsPlugin,
   "reader-steering": readerSteeringPlugin,
   signup: signupPlugin,
 };

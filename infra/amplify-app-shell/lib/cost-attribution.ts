@@ -10,8 +10,6 @@ import { costTags, OWNER, SHARED, type CostTagConfiguration } from "./cost-accou
  * configured anywhere in Papyrus.
  */
 
-export const SITE_ID_VARIABLE = "PAPYRUS_SITE_ID";
-
 /** The cost tags of a dedicated site's resources. */
 export const siteCostTagConfiguration = (siteId: string): CostTagConfiguration => ({ account: OWNER, app: "papyrus", deployment: siteId });
 
@@ -32,6 +30,3 @@ export function applySiteCostTags(scope: IConstruct, siteId: string): Record<str
 export function applySharedCostTags(scope: IConstruct): Record<string, string> {
   return applyCostTags(scope, SHARED_COST_TAGS);
 }
-
-/** The Amplify branch variable that tells the backend build its site ID, its cost deployment (amplify/cost-attribution.ts). */
-export const costAttributionBranchVariables = (siteId: string): Record<string, string> => ({ [SITE_ID_VARIABLE]: siteId });

@@ -8,6 +8,10 @@ description: Use when a Story or Reference needs a picture: finding stock images
 This skill is for any agent that adds a picture to a Story or Reference, through the `papyrus images` commands or the `image_*` MCP tools. They are
 the same operations, with the same input and the same JSON result.
 
+Read the resolved guidelines first. The agent context pack's `visual_style` layer (`papyrus assignments context-pack --story LINEAGE --profile illustrator`) carries the publication's image
+style with the section's own image guidelines laid over it, and the version and hash of each; `papyrus images profile resolve` says the same for a use from the command line. The
+wording of the style is the site's data: do not add style wording of your own.
+
 Start from the publication's style. `image_profile_resolve` says which image types the publication has for a use (`availableTypes`, each with a plain description and its
 allowed sources, best first), which one applies, and where every rule came from. Name an image type for anything inside the article; for a cover or social card you may leave it out
 and the publication's default is used and said so. Write a brief about what the picture should show, never about its style: the style comes from the profile. A publication with no
@@ -31,13 +35,14 @@ Each operation is a command and a tool with the same input and the same JSON res
 | `image_profile_diff` | `papyrus images profile diff` | Show what saving a style document would change, without saving it. | yes | `constraint_conflict` |
 | `image_profile_save` | `papyrus images profile save` | Save a style document as a new profile version. | yes | `human_required`, `stale_version`, `constraint_conflict` |
 | `image_profile_history` | `papyrus images profile history` | List the profile's versions, newest first, with who changed it and why. | yes | only the common ones |
+| `image_profile_init` | `papyrus images profile init` | Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing. | yes | only the common ones |
 | `image_profile_example_add` | `papyrus images profile example add` | Add an example or an avoid-this picture to the profile, as a new version. | yes | `human_required`, `image_type_unknown`, `not_found`, `stale_version` |
 | `image_profile_example_remove` | `papyrus images profile example remove` | Remove an example picture from the profile, as a new version. | yes | `not_found`, `stale_version` |
 | `image_capabilities` | `papyrus images capabilities` | Say which image models this site can use and whether spending is approved. | yes | only the common ones |
 | `image_brief_draft` | `papyrus images brief` | Work out a starting brief and stock search from a Story's title and deck. | yes | `image_type_required`, `not_found` |
 | `image_prompt_preview` | `papyrus images prompt` | Show exactly what would be asked of the image model, and what it would cost, without making anything. | yes | `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `set_needs_person`, `source_not_allowed` |
 | `image_search` | `papyrus images search` | Find stock pictures for a Story, four at a time. | yes | `image_type_required`, `image_type_unknown`, `not_found`, `source_not_allowed` |
-| `image_generate` | `papyrus images generate` | Make pictures from a brief in the publication's style. The pictures arrive later. | yes | `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `provider_busy`, `set_needs_person`, `source_not_allowed` |
+| `image_generate` | `papyrus images generate` | Make pictures from a brief in the publication's style. The pictures arrive later. | yes | `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `provider_busy`, `set_needs_person`, `source_not_allowed`, `spend_ceiling_exceeded` |
 | `image_figure_add` | `papyrus images figure add` | Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing. | yes | `checks_failed`, `image_type_unknown`, `not_found`, `source_not_allowed` |
 | `image_round_get` | `papyrus images round` | Read a round of pictures and say whether they are all done. | yes | `not_found` |
 | `image_candidate_get` | `papyrus images show` | Read one picture's full record, with a short-lived preview address. | yes | `not_found` |
@@ -77,9 +82,14 @@ Success: `{"ok": true, "op": "...", "publication": "...", "result": {...}, "warn
 | `capability_unsupported` | The configured model cannot do what was asked. | no | alternatives lists fallbacks the caller may opt into |
 | `provider_failed` | The image provider refused or failed. | yes | providerMessage, retryable |
 | `provider_busy` | The image provider is busy. Try again shortly. | yes | retryAfterSeconds |
+| `spend_ceiling_exceeded` | The site's spending ceiling for a round or a day is reached, so this picture was not made. | no | the ceiling |
 | `batch_expired` | The picture was not ready within the batch window (24 hours). Nothing was charged. | yes |  |
 | `stale_version` | The Story has a newer version than the one you named. Read it again. | no |  |
 | `candidate_not_ready` | The picture is still being made. | no |  |
 | `candidate_closed` | The picture was already discarded, expired or applied. | no |  |
+| `settings_refused` | The announcement settings break a rule, so nothing was saved. | no | code names the rule |
+| `unknown_kind` | There is no such kind of guidelines. | no | kinds lists the kinds this site knows |
+| `resolver_not_available` | This kind of guidelines is resolved by its own command, not this one. | no | use names the command |
+| `document_hash_mismatch` | The stored guideline document does not match its recorded hash, so it was not used. | no | itemId |
 | `service_unavailable` | A permission or storage check could not be made. Nothing was changed. | yes |  |
 <!-- /generated:image-operations -->

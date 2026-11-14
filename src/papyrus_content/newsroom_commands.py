@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .tenant_knowledge_keys import REFERENCE_FEED_KEY, REFERENCE_REVIEWED_FEED_KEY, SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
 from .env import PAPYRUS_ROOT, storage_bucket_from_amplify_outputs
 from .graphql_authoring import create_authoring_client
 from .tenancy import tenant_id_from_options
@@ -43,7 +44,7 @@ from .editions_commands import (
     build_edition_purge_plan,
 )
 from .options import normalize_non_negative_integer, normalize_string, parse_options, resolve_mutation_apply
-from .records import build_record_change_from_current, is_missing_graphql_model_error
+from .records import build_record_change_from_current
 from .relations_commands import print_category_import_summary
 from .steering import default_corpus_key
 from .model_defaults import DEFAULT_LLM_MODEL
@@ -896,16 +897,7 @@ def newsroom_prune_attachments(flags: list[str]) -> None:
     bucket = normalize_string(options.get("bucket"))
     prefix = normalize_string(options.get("prefix")) or "newsroom/payloads/"
     client, _ = create_authoring_client()
-    try:
-        attachments = client.list_records("ModelAttachment")
-    except RuntimeError as error:
-        if is_missing_graphql_model_error(error, "ModelAttachment"):
-            if options.get("json"):
-                print(json.dumps({"ok": False, "command": "newsroom prune-attachments", "mode": "apply" if apply else "dry-run", "error": "missing_model"}, indent=2))
-            else:
-                print(f"attachment-prune\tmissing-model\tModelAttachment\t{error}")
-            return
-        raise
+    attachments = client.list_records("ModelAttachment")
     owner_ids_by_kind = _load_model_attachment_owner_ids(client, attachments)
     orphan_attachment_records = [
         attachment
@@ -1011,8 +1003,8 @@ def _newsroom_feed_patch_for(model_name: str, record: dict[str, Any]) -> dict[st
         return {
             "createdAt": created_at,
             "updatedAt": record.get("updatedAt") or record.get("curationStatusUpdatedAt") or record.get("importedAt") or created_at,
-            "newsroomFeedKey": "references",
-            "reviewedFeedKey": None if curation_status == "pending" else "references#reviewed",
+            "newsroomFeedKey": global_key(REFERENCE_FEED_KEY),
+            "reviewedFeedKey": None if curation_status == "pending" else global_key(REFERENCE_REVIEWED_FEED_KEY),
             **_reference_feed_patch(record, created_at),
         }
     if model_name == "SemanticNode":
@@ -1020,14 +1012,14 @@ def _newsroom_feed_patch_for(model_name: str, record: dict[str, Any]) -> dict[st
         return {
             "createdAt": created_at,
             "updatedAt": record.get("updatedAt") or created_at,
-            "newsroomFeedKey": "semanticNodes",
+            "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
         }
     if model_name == "SemanticRelation":
         created_at = record.get("createdAt") or record.get("importedAt") or record.get("updatedAt") or now
         return {
             "createdAt": created_at,
             "updatedAt": record.get("updatedAt") or record.get("importedAt") or created_at,
-            "newsroomFeedKey": "semanticRelations",
+            "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         }
     return {}
 
@@ -1098,14 +1090,8 @@ def _load_model_attachment_owner_ids(client, attachments: list[dict[str, Any]]) 
         if not model_name:
             result[str(owner_kind)] = set()
             continue
-        try:
-            rows = client.list_records(model_name)
-            result[str(owner_kind)] = {row["id"] for row in rows if row.get("id")}
-        except RuntimeError as error:
-            if is_missing_graphql_model_error(error, model_name):
-                result[str(owner_kind)] = set()
-                continue
-            raise
+        rows = client.list_records(model_name)
+        result[str(owner_kind)] = {row["id"] for row in rows if row.get("id")}
     return result
 
 
