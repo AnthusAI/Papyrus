@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import quote, urlsplit
 
+from .tenant_knowledge_keys import corpus_key_of
 from .automation_gate import (
     GRACE_SECONDS,
     IN_FLIGHT,
@@ -409,7 +410,7 @@ def validate_router_publications(raw: dict) -> list[dict]:
             **({"tenantId": tenant} if tenant else {}),
             "publicationId": publication_id, "site": site, "appsyncEndpoint": entry["appsyncEndpoint"],
             **({"userPoolId": pool_id} if pool_id else {}),
-            "corpusId": corpus_id, "corpusKey": corpus_id.removeprefix("knowledge-corpus-"),
+            "corpusId": corpus_id, "corpusKey": corpus_key_of(corpus_id),
             "output": str(entry.get("output") or f"{publication_id}-relevance"),
             "positiveLabel": str(entry.get("positiveLabel") or "include"),
             "negativeLabel": str(entry.get("negativeLabel") or "exclude"),

@@ -81,7 +81,7 @@ The twin of an authored page, of the home page when it is an item written as pag
 - `::include{kind="block"}` (a site's own `block` hook, or a `knowledge-` block) is the block's markup reduced to its headings and one list item per distinct link. A block that links to nothing is its text. A hook needs no extra code to appear in the twin.
 - Everything else, including `::image` and `:::` containers, is kept as written.
 
-The twin is rewritten by the path that rewrites the page. Its input digest is the page's (includes' entries, the home-page snapshot, the knowledge snapshot), so an edit to a story an include shows, or a new snapshot, changes both. `home_page_reader_keys` names the twins and `llms-full.txt` with the pages, so `papyrus home-page snapshot` rewrites them too. Nothing scans a corpus to do it.
+The twin is rewritten by the path that rewrites the page. Its input digest is the page's (includes' entries, the References its `references` includes place, the knowledge snapshot), so an edit to a story an include shows, or a snapshot that changes what the page shows, changes both. `home_page_reader_keys` names the twins and `llms-full.txt` with the pages, so `papyrus home-page snapshot` rewrites them too. Nothing scans a corpus to do it.
 
 ## Markdown in a browser
 

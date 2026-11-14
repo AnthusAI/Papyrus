@@ -1,0 +1,14 @@
+{
+  "note": "Which sites have the newsletter sending stack (SES identity and configuration set papyrus-<site>) in the production account, as read on 2026-11-04. Notifications reuse that identity and set. A site with a null sendingDomain has no stack yet: deploy it before turning notifications on there (docs/notifications.md). Keys are the file names under infra/amplify-app-shell/examples (without .site.json); scripts/test-sending-identities.ts fails when a site is missing here.",
+  "sites": {
+    "anth-us": { "sendingDomain": null },
+    "dataparade": { "sendingDomain": "mail.dataparade.anth.us" },
+    "distinctive": { "sendingDomain": "distinctive-mark.com" },
+    "machines-on-machines": { "sendingDomain": "mail.machines-on-machines.anth.us" },
+    "p-apyr-us": { "sendingDomain": "p.apyr.us" },
+    "pilobol-us": { "sendingDomain": "mail.pilobol.us" },
+    "pretext": { "sendingDomain": null },
+    "shipped": { "sendingDomain": "shipped.anth.us" },
+    "threat-intelligence": { "sendingDomain": null }
+  }
+}

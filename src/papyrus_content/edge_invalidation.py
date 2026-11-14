@@ -7,7 +7,7 @@ import time
 import uuid
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
-from urllib.parse import quote
+from .url_paths import url_path
 
 WILDCARD_INVALIDATION_PATH = "/*"
 # CloudFront bills every path in an invalidation ($0.005 after 1,000 a month) but a wildcard counts as one,
@@ -41,7 +41,8 @@ class InvalidationCapped(Exception):
 
 
 def encoded_path(path: str) -> str:
-    return quote(path, safe="/*")
+    """The path as CloudFront takes it: percent-encoded once, whether the caller passed text or an encoded path (url_paths.py)."""
+    return url_path(path)
 
 
 def refuse_wildcards(paths: Iterable[str]) -> None:

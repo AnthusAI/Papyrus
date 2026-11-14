@@ -1,0 +1,20 @@
+{
+  "id": "PPY-552c8695-82f2-4452-9013-3bece15df9e4",
+  "title": "Illustration checklist step demands 'Approved by NAME' in the cover's image line, which conflicts with no credit on generated images",
+  "description": "Reported by the Machines on Machines story-development session on CLI 5.105.0. Priority 1: it blocks publishing.\n\nRelated: PPY-d92e3ba1 (added the Illustration step and publish gate; this is a defect in how that gate reads approval). Dependencies: the guidelines epic PPY-2a2a8a (image rules per site, PPY-cbc0f319) and the image epic PPY-0111742e (provenance on MediaAsset, image_review in PPY-6f9fb906) will eventually own approval records; this issue must not wait for them and needs only a small approval field on the cover.\n\nRule (Ryan, 2026-11-09): generated images get no credit line at all; third-party images are always credited. The Illustration step instead requires the cover's image line to say 'Approved by NAME', which forces a visible credit onto generated covers.\n\nFeature: Cover approval lives in metadata\n  Scenario: A generated cover is approved\n    Given a Story with a generated cover and no credit line\n    When a named person approves the cover\n    Then the approval records who approved it and when, as metadata on the picture\n    And the Illustration step is done\n    And the published page shows no credit and no approval text\n  Scenario: A third-party cover is approved\n    Given a Story with a stock cover that carries its credit line\n    When a named person approves it\n    Then the credit line is unchanged and the approval is stored as metadata\n  Scenario: Nobody has approved\n    Given a Story whose cover has no recorded approval\n    When the publish gate runs\n    Then it blocks with a message to approve the cover, whatever the image line says\n  Scenario: Existing covers with 'Approved by' text\n    Given a cover whose image line contains 'Approved by NAME'\n    When the approval is read\n    Then the gate reads the metadata only; the text is not parsed\n\nDesign: one approval record (approved_by, approved_at) on the picture; the gate reads it; the image line is never parsed. No fallback to the old text.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T16:30:18.373362Z",
+  "updated_at": "2026-11-12T16:30:18.373390Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

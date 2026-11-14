@@ -7,11 +7,9 @@ import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments
 import { loadModelPayloadsForOwner, uploadModelPayloadForOwner } from "../components/news-desk-taxonomy-client";
 
 const USER_POOL_AUTH_MODE = "userPool";
-const API_KEY_AUTH_MODE = "apiKey";
 const DEFAULT_CONSOLE_THREAD_ANCHOR_KEY = "site#papyrus";
-const CONSOLE_NEWSROOM_FEED_KEY = "consoleChat";
-const CONSOLE_MESSAGE_KIND = "console_chat_turn";
-const CONSOLE_MESSAGE_DOMAIN = "conversation";
+const CONSOLE_MAX_MESSAGES = 5000;
+const CONSOLE_PAGE_SIZE = 300;
 const CONSOLE_TOOL_CALL_KIND = "console_tool_call";
 const CONSOLE_TOOL_RESULT_KIND = "console_tool_result";
 
@@ -57,71 +55,6 @@ const CONSOLE_MESSAGE_FIELDS = `
   updatedAt
 `;
 
-const CONSOLE_MESSAGE_FIELDS_LEGACY = `
-  id
-  messageKind
-  messageDomain
-  summary
-  source
-  importRunId
-  authorSub
-  authorUserProfileId
-  authorLabel
-  createdAt
-  updatedAt
-  newsroomFeedKey
-`;
-
-const CONSOLE_MESSAGE_SELECTION_CANDIDATES = [
-  "id",
-  "threadId",
-  "parentMessageId",
-  "sequenceNumber",
-  "role",
-  "messageKind",
-  "messageType",
-  "content",
-  "summary",
-  "responseStatus",
-  "responseOwner",
-  "responseStartedAt",
-  "responseCompletedAt",
-  "responseError",
-  "messageDomain",
-  "source",
-  "importRunId",
-  "authorSub",
-  "authorUserProfileId",
-  "authorLabel",
-  "newsroomFeedKey",
-  "metadata",
-  "body",
-  "createdAt",
-  "updatedAt",
-] as const;
-
-const CONSOLE_MESSAGE_REQUIRED_FIELDS = ["id", "createdAt", "updatedAt", "summary"] as const;
-
-const CONSOLE_SCHEMA_INTROSPECTION = `
-  query ConsoleChatSchemaIntrospection {
-    queryType: __type(name: "Query") {
-      fields {
-        name
-      }
-    }
-    messageType: __type(name: "Message") {
-      fields {
-        name
-      }
-    }
-    createMessageInputType: __type(name: "CreateMessageInput") {
-      inputFields {
-        name
-      }
-    }
-  }
-`;
-
 const LIST_CONSOLE_THREADS = `
   query ListMessageThreads(
     $limit: Int
@@ -139,38 +72,29 @@ const LIST_CONSOLE_THREADS = `
   }
 `;
 
-const LIST_CONSOLE_MESSAGES_LEGACY = `
-  query ListMessages(
+const LIST_CONSOLE_MESSAGES_BY_THREAD = `
+  query ListMessagesByThreadAndSequence(
+    $threadId: ID!
     $limit: Int
     $nextToken: String
   ) {
-    listMessages(
+    listMessagesByThreadAndSequence(
+      threadId: $threadId
       limit: $limit
       nextToken: $nextToken
     ) {
       items {
-        ${CONSOLE_MESSAGE_FIELDS_LEGACY}
+        ${CONSOLE_MESSAGE_FIELDS}
       }
       nextToken
     }
   }
 `;
 
-const LIST_CONSOLE_MESSAGES_BY_FEED_LEGACY = `
-  query ListMessagesByNewsroomFeedAndCreatedAt(
-    $newsroomFeedKey: String!
-    $limit: Int
-    $nextToken: String
-  ) {
-    listMessagesByNewsroomFeedAndCreatedAt(
-      newsroomFeedKey: $newsroomFeedKey
-      limit: $limit
-      nextToken: $nextToken
-    ) {
-      items {
-        ${CONSOLE_MESSAGE_FIELDS_LEGACY}
-      }
-      nextToken
+const UPDATE_CONSOLE_MESSAGE = `
+  mutation UpdateMessage($input: UpdateMessageInput!) {
+    updateMessage(input: $input) {
+      ${CONSOLE_MESSAGE_FIELDS}
     }
   }
 `;
@@ -267,52 +191,16 @@ type GraphQLClient = {
   graphql: (options: {
     query: string;
     variables?: Record<string, unknown>;
-    authMode?: typeof USER_POOL_AUTH_MODE | typeof API_KEY_AUTH_MODE;
+    authMode?: typeof USER_POOL_AUTH_MODE;
   }) => Promise<{
     data?: Record<string, unknown> | null;
     errors?: Array<{ message?: string | null; errorType?: string | null } | string | null> | null;
   }>;
 };
 
-type ConsoleSchemaSnapshot = {
-  queryFields: Set<string>;
-  messageFields: Set<string>;
-  createMessageInputFields: Set<string>;
-};
-
-let consoleSchemaSnapshot: ConsoleSchemaSnapshot | null = null;
-let consoleSchemaSnapshotPromise: Promise<ConsoleSchemaSnapshot> | null = null;
-
 function getGraphQLClient(): GraphQLClient {
   configureAmplifyClient();
   return generateClient<Schema>() as unknown as GraphQLClient;
-}
-
-async function runGraphQLWithAuthModes(options: {
-  query: string;
-  variables?: Record<string, unknown>;
-}): Promise<{
-  data?: Record<string, unknown> | null;
-  errors?: Array<{ message?: string | null; errorType?: string | null } | string | null> | null;
-}> {
-  const client = getGraphQLClient();
-  try {
-    return await client.graphql({
-      query: options.query,
-      variables: options.variables,
-      authMode: USER_POOL_AUTH_MODE,
-    });
-  } catch (firstError) {
-    try {
-      return await client.graphql({
-        query: options.query,
-        variables: options.variables,
-        authMode: API_KEY_AUTH_MODE,
-      });
-    } catch (secondError) {
-      throw normalizeUnknownError(secondError, "graphql", firstError);
-    }
-  }
 }
 
 function formatGraphQLError(error: { message?: string | null; errorType?: string | null } | string | null): string {
@@ -324,12 +212,9 @@ function formatGraphQLError(error: { message?: string | null; errorType?: string
 function assertGraphQL<T>(response: {
   data?: Record<string, unknown> | null;
   errors?: Array<{ message?: string | null; errorType?: string | null } | string | null> | null;
-}, field: string, options?: { allowPartialData?: boolean }): T {
+}, field: string): T {
   const value = response.data?.[field];
   if (response.errors?.length) {
-    if (options?.allowPartialData && value !== undefined && value !== null) {
-      return value as T;
-    }
     throw new Error(response.errors.map(formatGraphQLError).join("; "));
   }
   if (value === undefined || value === null) {
@@ -350,114 +235,6 @@ function readConnectionNextToken(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
   const nextToken = (value as { nextToken?: unknown }).nextToken;
   return typeof nextToken === "string" && nextToken.trim() ? nextToken : null;
-}
-
-function readNameSet(value: unknown): Set<string> {
-  const names = new Set<string>();
-  if (!value || typeof value !== "object") return names;
-  const fields = (value as { fields?: unknown; inputFields?: unknown }).fields
-    ?? (value as { inputFields?: unknown }).inputFields;
-  if (!Array.isArray(fields)) return names;
-  for (const field of fields) {
-    if (!field || typeof field !== "object") continue;
-    const name = (field as { name?: unknown }).name;
-    if (typeof name === "string" && name.trim()) names.add(name.trim());
-  }
-  return names;
-}
-
-function chooseMessageSelectionSet(schemaFields: Set<string> | null): string {
-  if (!schemaFields || !schemaFields.size) return CONSOLE_MESSAGE_FIELDS;
-  const selected = CONSOLE_MESSAGE_SELECTION_CANDIDATES.filter((field) => schemaFields.has(field));
-  for (const field of CONSOLE_MESSAGE_REQUIRED_FIELDS) {
-    if (schemaFields.has(field) && !selected.includes(field)) selected.push(field);
-  }
-  if (!selected.includes("id")) selected.unshift("id");
-  return selected.join("\n  ");
-}
-
-async function loadConsoleSchemaSnapshot(): Promise<ConsoleSchemaSnapshot> {
-  if (consoleSchemaSnapshot) return consoleSchemaSnapshot;
-  if (consoleSchemaSnapshotPromise) return consoleSchemaSnapshotPromise;
-  consoleSchemaSnapshotPromise = (async () => {
-    try {
-      const response = await runGraphQLWithAuthModes({
-        query: CONSOLE_SCHEMA_INTROSPECTION,
-      });
-      if (response.errors?.length) throw new Error(response.errors.map(formatGraphQLError).join("; "));
-      const data = response.data ?? {};
-      const snapshot: ConsoleSchemaSnapshot = {
-        queryFields: readNameSet(data.queryType),
-        messageFields: readNameSet(data.messageType),
-        createMessageInputFields: readNameSet(data.createMessageInputType),
-      };
-      consoleSchemaSnapshot = snapshot;
-      return snapshot;
-    } catch {
-      const snapshot: ConsoleSchemaSnapshot = {
-        queryFields: new Set<string>(),
-        messageFields: new Set<string>(),
-        createMessageInputFields: new Set<string>(),
-      };
-      consoleSchemaSnapshot = snapshot;
-      return snapshot;
-    } finally {
-      consoleSchemaSnapshotPromise = null;
-    }
-  })();
-  return consoleSchemaSnapshotPromise;
-}
-
-function buildListMessagesQuery(
-  field: "listMessages" | "listMessagesByNewsroomFeedAndCreatedAt" | "listMessagesByKindAndCreatedAt" | "listMessagesByDomainAndCreatedAt",
-  selectionSet: string,
-): string {
-  if (field === "listMessages") {
-    return `
-      query ListMessages($limit: Int, $nextToken: String) {
-        listMessages(limit: $limit, nextToken: $nextToken) {
-          items {
-            ${selectionSet}
-          }
-          nextToken
-        }
-      }
-    `;
-  }
-  if (field === "listMessagesByNewsroomFeedAndCreatedAt") {
-    return `
-      query ListMessagesByNewsroomFeedAndCreatedAt($newsroomFeedKey: String!, $limit: Int, $nextToken: String) {
-        listMessagesByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, limit: $limit, nextToken: $nextToken) {
-          items {
-            ${selectionSet}
-          }
-          nextToken
-        }
-      }
-    `;
-  }
-  if (field === "listMessagesByKindAndCreatedAt") {
-    return `
-      query ListMessagesByKindAndCreatedAt($messageKind: String!, $limit: Int, $nextToken: String) {
-        listMessagesByKindAndCreatedAt(messageKind: $messageKind, limit: $limit, nextToken: $nextToken) {
-          items {
-            ${selectionSet}
-          }
-          nextToken
-        }
-      }
-    `;
-  }
-  return `
-    query ListMessagesByDomainAndCreatedAt($messageDomain: String!, $limit: Int, $nextToken: String) {
-      listMessagesByDomainAndCreatedAt(messageDomain: $messageDomain, limit: $limit, nextToken: $nextToken) {
-        items {
-          ${selectionSet}
-        }
-        nextToken
-      }
-    }
-  `;
 }
 
 function truncateSummary(value: string | null): string | null {
@@ -489,18 +266,11 @@ export async function listConsoleThreads(primaryAnchorKeyOrLimit: string | numbe
   const resolvedLimit =
     typeof primaryAnchorKeyOrLimit === "number" ? primaryAnchorKeyOrLimit : limit;
 
-  try {
-    const maxThreads = Math.max(resolvedLimit * 2, 100);
-    const threads = await listConsoleThreadsViaThreadModel(maxThreads);
-    return threads
-      .filter((thread) => thread.threadKind === "console" && (thread.primaryAnchorKey ?? DEFAULT_CONSOLE_THREAD_ANCHOR_KEY) === primaryAnchorKey)
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-      .slice(0, resolvedLimit);
-  } catch (error) {
-    if (!isUnavailableQueryError(error)) throw error;
-    const messages = await listConsoleMessagesRaw(Math.max(resolvedLimit * 20, 500), 5000);
-    return deriveConsoleThreadsFromMessages(messages, primaryAnchorKey).slice(0, resolvedLimit);
-  }
+  const threads = await listConsoleThreadsViaThreadModel(Math.max(resolvedLimit * 2, 100));
+  return threads
+    .filter((thread) => thread.threadKind === "console" && (thread.primaryAnchorKey ?? DEFAULT_CONSOLE_THREAD_ANCHOR_KEY) === primaryAnchorKey)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .slice(0, resolvedLimit);
 }
 
 export async function listConsoleThreadByAnchor(primaryAnchorKey: string): Promise<ConsoleChatThread | null> {
@@ -508,12 +278,8 @@ export async function listConsoleThreadByAnchor(primaryAnchorKey: string): Promi
 }
 
 export async function listConsoleMessagesByThread(threadId: string): Promise<ConsoleChatMessage[]> {
-  const messages = await listConsoleMessagesRaw(300, 5000);
-  const hasExplicitThreadIds = messages.some((message) => typeof message.threadId === "string" && message.threadId.trim());
-  const scoped = hasExplicitThreadIds
-    ? messages.filter((message) => message.threadId === threadId)
-    : messages;
-  return scoped.sort(
+  const messages = await listMessagesByThread(threadId, CONSOLE_MAX_MESSAGES);
+  return messages.sort(
     (left, right) =>
       (left.sequenceNumber ?? 0) - (right.sequenceNumber ?? 0) ||
       left.createdAt.localeCompare(right.createdAt),
@@ -521,54 +287,21 @@ export async function listConsoleMessagesByThread(threadId: string): Promise<Con
 }
 
 export async function createConsoleThread(input: ConsoleChatThread): Promise<ConsoleChatThread> {
-  try {
-    const response = await getGraphQLClient().graphql({
-      query: CREATE_CONSOLE_THREAD,
-      variables: { input },
-      authMode: USER_POOL_AUTH_MODE,
-    });
-    return assertGraphQL<ConsoleChatThread>(response, "createMessageThread");
-  } catch (error) {
-    if (isUnavailableQueryError(error)) return input;
-    throw normalizeUnknownError(error, "createMessageThread");
-  }
+  const response = await getGraphQLClient().graphql({
+    query: CREATE_CONSOLE_THREAD,
+    variables: { input },
+    authMode: USER_POOL_AUTH_MODE,
+  });
+  return assertGraphQL<ConsoleChatThread>(response, "createMessageThread");
 }
 
 export async function updateConsoleThread(input: Pick<ConsoleChatThread, "id"> & Partial<ConsoleChatThread>): Promise<ConsoleChatThread> {
-  try {
-    const response = await getGraphQLClient().graphql({
-      query: UPDATE_CONSOLE_THREAD,
-      variables: { input },
-      authMode: USER_POOL_AUTH_MODE,
-    });
-    return assertGraphQL<ConsoleChatThread>(response, "updateMessageThread");
-  } catch (error) {
-    if (isUnavailableQueryError(error)) {
-      const now = new Date().toISOString();
-      return {
-        id: input.id,
-        threadKind: input.threadKind ?? "console",
-        status: input.status ?? "active",
-        title: input.title ?? "Papyrus Console",
-        summary: input.summary ?? null,
-        primaryAnchorKind: input.primaryAnchorKind ?? "site",
-        primaryAnchorId: input.primaryAnchorId ?? "papyrus",
-        primaryAnchorLineageId: input.primaryAnchorLineageId ?? "papyrus",
-        primaryAnchorKey: input.primaryAnchorKey ?? DEFAULT_CONSOLE_THREAD_ANCHOR_KEY,
-        createdByLabel: input.createdByLabel ?? null,
-        messageCount: input.messageCount ?? null,
-        lastMessageId: input.lastMessageId ?? null,
-        lastMessageAt: input.lastMessageAt ?? null,
-        activeResponseMessageId: input.activeResponseMessageId ?? null,
-        contextDigest: input.contextDigest ?? null,
-        metadata: input.metadata ?? null,
-        createdAt: input.createdAt ?? now,
-        updatedAt: input.updatedAt ?? now,
-        newsroomFeedKey: input.newsroomFeedKey ?? CONSOLE_NEWSROOM_FEED_KEY,
-      };
-    }
-    throw normalizeUnknownError(error, "updateMessageThread");
-  }
+  const response = await getGraphQLClient().graphql({
+    query: UPDATE_CONSOLE_THREAD,
+    variables: { input },
+    authMode: USER_POOL_AUTH_MODE,
+  });
+  return assertGraphQL<ConsoleChatThread>(response, "updateMessageThread");
 }
 
 export type CreateConsoleMessageInput = ConsoleChatMessage & {
@@ -585,75 +318,37 @@ export type CreateConsoleMessageInput = ConsoleChatMessage & {
 };
 
 export async function createConsoleMessage(input: CreateConsoleMessageInput): Promise<ConsoleChatMessage> {
-  const snapshot = await loadConsoleSchemaSnapshot();
-  const selectionSets = snapshot.messageFields.size
-    ? [chooseMessageSelectionSet(snapshot.messageFields)]
-    : [CONSOLE_MESSAGE_FIELDS, CONSOLE_MESSAGE_FIELDS_LEGACY];
   // The backend stamps the author from the signed-in identity (postMessage): the browser names none and sets no timestamps.
   const args = postMessageArguments({ ...input, summary: input.summary ?? truncateSummary(input.content ?? null) } as unknown as Record<string, unknown>);
-  let lastError: unknown = null;
-
-  for (const selectionSet of selectionSets) {
-    try {
-      const response = await getGraphQLClient().graphql({
-        query: postMessageMutation(args, selectionSet),
-        variables: args,
-        authMode: USER_POOL_AUTH_MODE,
-      });
-      const created = normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "postMessage"));
-      await maybeUploadConsoleMessageBody(created.id, input.content);
-      if (messageHasHashtag(input.content)) {
-        void getGraphQLClient()
-          .graphql({ query: LINK_MESSAGE_HASHTAGS_MUTATION, variables: { messageId: created.id }, authMode: USER_POOL_AUTH_MODE })
-          .catch(() => undefined);
-      }
-      return input.content?.trim() ? { ...created, content: input.content } : created;
-    } catch (error) {
-      if (!isUnavailableQueryError(error)) throw normalizeUnknownError(error, "postMessage");
-      lastError = error;
-    }
+  const response = await getGraphQLClient().graphql({
+    query: postMessageMutation(args, CONSOLE_MESSAGE_FIELDS),
+    variables: args,
+    authMode: USER_POOL_AUTH_MODE,
+  });
+  const created = normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "postMessage"));
+  await maybeUploadConsoleMessageBody(created.id, input.content);
+  if (messageHasHashtag(input.content)) {
+    void getGraphQLClient()
+      .graphql({ query: LINK_MESSAGE_HASHTAGS_MUTATION, variables: { messageId: created.id }, authMode: USER_POOL_AUTH_MODE })
+      .catch(() => undefined);
   }
-
-  throw normalizeUnknownError(lastError, "postMessage");
+  return input.content?.trim() ? { ...created, content: input.content } : created;
 }
 
 export async function updateConsoleMessage(
   input: Pick<ConsoleChatMessage, "id"> & Partial<ConsoleChatMessage>,
 ): Promise<ConsoleChatMessage> {
-  const now = new Date().toISOString();
   const normalizedInput: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
     if (value !== undefined) normalizedInput[key] = value;
   }
-  if (!normalizedInput.updatedAt) normalizedInput.updatedAt = now;
-  const snapshot = await loadConsoleSchemaSnapshot();
-  const selectionSets = snapshot.messageFields.size
-    ? [chooseMessageSelectionSet(snapshot.messageFields)]
-    : [CONSOLE_MESSAGE_FIELDS, CONSOLE_MESSAGE_FIELDS_LEGACY];
-  let lastError: unknown = null;
-
-  for (const selectionSet of selectionSets) {
-    const updateMutation = `
-      mutation UpdateMessage($input: UpdateMessageInput!) {
-        updateMessage(input: $input) {
-          ${selectionSet}
-        }
-      }
-    `;
-    try {
-      const response = await getGraphQLClient().graphql({
-        query: updateMutation,
-        variables: { input: normalizedInput },
-        authMode: USER_POOL_AUTH_MODE,
-      });
-      return normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "updateMessage"));
-    } catch (error) {
-      if (!isUnavailableQueryError(error)) throw normalizeUnknownError(error, "updateMessage");
-      lastError = error;
-    }
-  }
-
-  throw normalizeUnknownError(lastError, "updateMessage");
+  if (!normalizedInput.updatedAt) normalizedInput.updatedAt = new Date().toISOString();
+  const response = await getGraphQLClient().graphql({
+    query: UPDATE_CONSOLE_MESSAGE,
+    variables: { input: normalizedInput },
+    authMode: USER_POOL_AUTH_MODE,
+  });
+  return normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "updateMessage"));
 }
 
 export function subscribeConsoleMessages(
@@ -664,13 +359,10 @@ export function subscribeConsoleMessages(
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as {
     models: {
-      Message?: ConsoleMessageSubscriptionModel;
+      Message: ConsoleMessageSubscriptionModel;
     };
   };
   const messageModel = client.models.Message;
-  if (!messageModel || typeof messageModel.onCreate !== "function" || typeof messageModel.onUpdate !== "function") {
-    return () => undefined;
-  }
   const handleEvent = (value: unknown) => {
     const message = normalizeConsoleMessageSubscriptionPayload(value);
     if (!message) return;
@@ -724,7 +416,6 @@ async function listConsoleThreadsViaThreadModel(limit: number): Promise<ConsoleC
 
   do {
     const queryResult: { page: ConsoleChatThread[]; nextCursor: string | null } = await runConsoleReadQuery({
-      field: "listMessageThreads",
       query: LIST_CONSOLE_THREADS,
       variables: {
         limit: pageSize,
@@ -745,138 +436,18 @@ async function listConsoleThreadsViaThreadModel(limit: number): Promise<ConsoleC
   return threads;
 }
 
-async function listConsoleMessagesRaw(pageSize: number, maxMessages: number): Promise<ConsoleChatMessage[]> {
-  const schema = await loadConsoleSchemaSnapshot();
-  const selectionSets = schema.messageFields.size
-    ? [chooseMessageSelectionSet(schema.messageFields)]
-    : [CONSOLE_MESSAGE_FIELDS, CONSOLE_MESSAGE_FIELDS_LEGACY];
-  const attempts: Array<{
-    field: string;
-    query: string;
-    variables: Record<string, unknown>;
-    messageKinds?: string[];
-  }> = [];
-
-  const addDynamicAttempt = (
-    field: "listMessagesByNewsroomFeedAndCreatedAt" | "listMessagesByKindAndCreatedAt" | "listMessagesByDomainAndCreatedAt" | "listMessages",
-    selectionSet: string,
-    variables: Record<string, unknown>,
-  ) => {
-    if (schema.queryFields.size > 0 && !schema.queryFields.has(field)) return;
-    attempts.push({
-      field,
-      query: buildListMessagesQuery(field, selectionSet),
-      variables,
-    });
-  };
-
-  for (const selectionSet of selectionSets) {
-    addDynamicAttempt("listMessagesByNewsroomFeedAndCreatedAt", selectionSet, {
-      newsroomFeedKey: CONSOLE_NEWSROOM_FEED_KEY,
-      limit: pageSize,
-    });
-
-    if (schema.queryFields.size === 0 || schema.queryFields.has("listMessagesByKindAndCreatedAt")) {
-      attempts.push({
-        field: "listMessagesByKindAndCreatedAt",
-        query: buildListMessagesQuery("listMessagesByKindAndCreatedAt", selectionSet),
-        variables: { limit: pageSize },
-        messageKinds: [CONSOLE_MESSAGE_KIND, CONSOLE_TOOL_CALL_KIND, CONSOLE_TOOL_RESULT_KIND],
-      });
-    }
-
-    addDynamicAttempt("listMessagesByDomainAndCreatedAt", selectionSet, {
-      messageDomain: CONSOLE_MESSAGE_DOMAIN,
-      limit: pageSize,
-    });
-
-    addDynamicAttempt("listMessages", selectionSet, {
-      limit: pageSize,
-    });
-  }
-
-  if (!attempts.length) {
-    attempts.push(
-      {
-        field: "listMessagesByNewsroomFeedAndCreatedAt",
-        query: LIST_CONSOLE_MESSAGES_BY_FEED_LEGACY,
-        variables: { newsroomFeedKey: CONSOLE_NEWSROOM_FEED_KEY, limit: pageSize },
-      },
-      {
-        field: "listMessages",
-        query: LIST_CONSOLE_MESSAGES_LEGACY,
-        variables: { limit: pageSize },
-      },
-    );
-  }
-
-  let lastError: unknown = null;
-  for (const attempt of attempts) {
-    try {
-      if (attempt.messageKinds?.length && attempt.field === "listMessagesByKindAndCreatedAt") {
-        return await listMessagesByKindsWithQuery(
-          attempt.field,
-          attempt.query,
-          attempt.variables,
-          attempt.messageKinds,
-          maxMessages,
-        );
-      }
-      return await listMessagesWithQuery(attempt.field, attempt.query, attempt.variables, maxMessages);
-    } catch (error) {
-      if (!isUnavailableQueryError(error)) throw error;
-      lastError = error;
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error("Console chat listMessages failed: no compatible query shape.");
-}
-
-async function listMessagesByKindsWithQuery(
-  field: string,
-  query: string,
-  baseVariables: Record<string, unknown>,
-  messageKinds: string[],
-  maxMessages: number,
-): Promise<ConsoleChatMessage[]> {
-  const byId = new Map<string, ConsoleChatMessage>();
-  for (const messageKind of messageKinds) {
-    const page = await listMessagesWithQuery(field, query, { ...baseVariables, messageKind }, maxMessages);
-    for (const message of page) {
-      byId.set(message.id, message);
-    }
-  }
-  return [...byId.values()].sort(
-    (left, right) =>
-      (left.sequenceNumber ?? 0) - (right.sequenceNumber ?? 0) ||
-      left.createdAt.localeCompare(right.createdAt),
-  );
-}
-
-async function listMessagesWithQuery(
-  field: string,
-  query: string,
-  baseVariables: Record<string, unknown>,
-  maxMessages: number,
-): Promise<ConsoleChatMessage[]> {
+async function listMessagesByThread(threadId: string, maxMessages: number): Promise<ConsoleChatMessage[]> {
   const messages: ConsoleChatMessage[] = [];
   let nextToken: string | null = null;
 
   do {
     const queryResult: { page: ConsoleChatMessage[]; nextCursor: string | null } = await runConsoleReadQuery({
-      field,
-      query,
-      variables: {
-        ...baseVariables,
-        nextToken,
-      },
+      query: LIST_CONSOLE_MESSAGES_BY_THREAD,
+      variables: { threadId, limit: CONSOLE_PAGE_SIZE, nextToken },
       map: (response) => {
-        const connection = assertGraphQL<unknown>(response, field, { allowPartialData: true });
-        const items = readConnectionItems<Record<string, unknown> | null>(connection)
-          .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
-          .map(normalizeConsoleMessageRecord);
+        const connection = assertGraphQL<unknown>(response, "listMessagesByThreadAndSequence");
         return {
-          page: items,
+          page: readConnectionItems<Record<string, unknown>>(connection).map(normalizeConsoleMessageRecord),
           nextCursor: readConnectionNextToken(connection),
         };
       },
@@ -890,118 +461,10 @@ async function listMessagesWithQuery(
 
 async function hydrateConsoleMessageBodies(messages: ConsoleChatMessage[]): Promise<ConsoleChatMessage[]> {
   return Promise.all(messages.map(async (message) => {
-    try {
-      const payloads = await loadModelPayloadsForOwner("message", message.id, ["message_body"]);
-      const body = payloads.find((payload) => payload.attachment.role === "message_body")?.text?.trim();
-      if (body) return { ...message, content: body };
-    } catch {
-      // Fall back to inline field.
-    }
-    return message;
+    const payloads = await loadModelPayloadsForOwner("message", message.id, ["message_body"]);
+    const body = payloads.find((payload) => payload.attachment.role === "message_body")?.text?.trim();
+    return body ? { ...message, content: body } : message;
   }));
-}
-
-function deriveConsoleThreadsFromMessages(messages: ConsoleChatMessage[], primaryAnchorKey: string): ConsoleChatThread[] {
-  const threadlessMessages = messages.filter((message) => message.messageKind === CONSOLE_MESSAGE_KIND || !message.messageKind);
-  const hasThreadIds = threadlessMessages.some((message) => message.threadId?.trim());
-  if (!hasThreadIds) {
-    if (!threadlessMessages.length) return [];
-    const ordered = [...threadlessMessages].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
-    const first = ordered[0];
-    const last = ordered[ordered.length - 1];
-    return [{
-      id: "message-thread-console-default",
-      threadKind: "console",
-      status: "active",
-      title: "Papyrus Console",
-      summary: last.summary ?? last.content ?? null,
-      primaryAnchorKind: "site",
-      primaryAnchorId: "papyrus",
-      primaryAnchorLineageId: "papyrus",
-      primaryAnchorKey: primaryAnchorKey,
-      createdByLabel: null,
-      messageCount: ordered.length,
-      lastMessageId: last.id,
-      lastMessageAt: last.createdAt,
-      contextDigest: null,
-      metadata: null,
-      createdAt: first.createdAt,
-      updatedAt: last.createdAt,
-      newsroomFeedKey: CONSOLE_NEWSROOM_FEED_KEY,
-    }];
-  }
-
-  const byThread = new Map<string, {
-    count: number;
-    firstCreatedAt: string;
-    lastCreatedAt: string;
-    lastMessageId: string;
-    summary: string | null;
-  }>();
-
-  for (const message of messages) {
-    const threadId = message.threadId?.trim();
-    if (!threadId) continue;
-    if (message.messageKind && message.messageKind !== CONSOLE_MESSAGE_KIND) continue;
-    const createdAt = message.createdAt ?? message.updatedAt ?? new Date().toISOString();
-    const existing = byThread.get(threadId);
-    if (!existing) {
-      byThread.set(threadId, {
-        count: 1,
-        firstCreatedAt: createdAt,
-        lastCreatedAt: createdAt,
-        lastMessageId: message.id,
-        summary: (message.summary ?? message.content ?? null),
-      });
-      continue;
-    }
-    existing.count += 1;
-    if (createdAt < existing.firstCreatedAt) existing.firstCreatedAt = createdAt;
-    if (createdAt >= existing.lastCreatedAt) {
-      existing.lastCreatedAt = createdAt;
-      existing.lastMessageId = message.id;
-      existing.summary = (message.summary ?? message.content ?? existing.summary);
-    }
-  }
-
-  return [...byThread.entries()]
-    .map(([threadId, value]) => ({
-      id: threadId,
-      threadKind: "console",
-      status: "active",
-      title: "Papyrus Console",
-      summary: value.summary,
-      primaryAnchorKind: "site",
-      primaryAnchorId: "papyrus",
-      primaryAnchorLineageId: "papyrus",
-      primaryAnchorKey: primaryAnchorKey,
-      createdByLabel: null,
-      messageCount: value.count,
-      lastMessageId: value.lastMessageId,
-      lastMessageAt: value.lastCreatedAt,
-      contextDigest: null,
-      metadata: null,
-      createdAt: value.firstCreatedAt,
-      updatedAt: value.lastCreatedAt,
-      newsroomFeedKey: CONSOLE_NEWSROOM_FEED_KEY,
-    }))
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-}
-
-function isUnavailableQueryError(error: unknown): boolean {
-  const text = (stringifyUnknownError(error) ?? "").toLowerCase();
-  if (!text) return false;
-  return (
-    text.includes("unauthorized") ||
-    text.includes("not authorized") ||
-    text.includes("access denied") ||
-    text.includes("fieldundefined") ||
-    text.includes("cannot query field") ||
-    text.includes("unknown type") ||
-    text.includes("unknowntype") ||
-    text.includes("validation error of type") ||
-    text.includes("is not defined for input object type")
-  );
 }
 
 function normalizeConsoleMessageRecord(record: Record<string, unknown>): ConsoleChatMessage {
@@ -1097,55 +560,15 @@ function readNumber(value: unknown): number | null {
 async function runConsoleReadQuery<T>({
   query,
   variables,
-  field,
   map,
 }: {
   query: string;
   variables?: Record<string, unknown>;
-  field: string;
   map: (response: {
     data?: Record<string, unknown> | null;
     errors?: Array<{ message?: string | null; errorType?: string | null } | string | null> | null;
   }) => T;
 }): Promise<T> {
-  const client = getGraphQLClient();
-  try {
-    const response = await client.graphql({
-      query,
-      variables,
-      authMode: USER_POOL_AUTH_MODE,
-    });
-    return map(response);
-  } catch (firstError) {
-    try {
-      const response = await client.graphql({
-        query,
-        variables,
-        authMode: API_KEY_AUTH_MODE,
-      });
-      return map(response);
-    } catch (secondError) {
-      throw normalizeUnknownError(secondError, field, firstError);
-    }
-  }
-}
-
-function normalizeUnknownError(error: unknown, operation: string, fallback?: unknown): Error {
-  if (error instanceof Error && error.message.trim()) return error;
-  const primary = stringifyUnknownError(error);
-  const secondary = stringifyUnknownError(fallback);
-  const details = [primary, secondary].filter(Boolean).join(" | ");
-  return new Error(details ? `Console chat ${operation} failed: ${details}` : `Console chat ${operation} failed.`);
-}
-
-function stringifyUnknownError(error: unknown): string | null {
-  if (!error) return null;
-  if (typeof error === "string") return error;
-  if (error instanceof Error) return error.message || error.name;
-  try {
-    const text = JSON.stringify(error);
-    return text && text !== "{}" ? text : Object.prototype.toString.call(error);
-  } catch {
-    return Object.prototype.toString.call(error);
-  }
+  const response = await getGraphQLClient().graphql({ query, variables, authMode: USER_POOL_AUTH_MODE });
+  return map(response);
 }

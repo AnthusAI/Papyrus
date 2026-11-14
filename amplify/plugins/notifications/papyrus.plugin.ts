@@ -1,5 +1,5 @@
 import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
-import { Alarm, ComparisonOperator, Metric, TreatMissingData } from "aws-cdk-lib/aws-cloudwatch";
+import { Alarm, ComparisonOperator, MathExpression, Metric, TreatMissingData } from "aws-cdk-lib/aws-cloudwatch";
 import { AttributeType, BillingMode, ProjectionType, Table, TableEncryption } from "aws-cdk-lib/aws-dynamodb";
 import { Rule, Schedule } from "aws-cdk-lib/aws-events";
 import { LambdaFunction as LambdaTarget } from "aws-cdk-lib/aws-events-targets";
@@ -13,7 +13,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pythonLambdaCode } from "../../functions/shared/python-bundle";
 import { SecureStringParameter } from "../newsletter/secure-string-parameter";
-import { functionArn } from "../newsletter/sending";
+import { ALARM_MINIMUM_SENDS, BOUNCE_RATE_THRESHOLD, COMPLAINT_RATE_THRESHOLD } from "../newsletter/papyrus.plugin";
+import { functionArn, postalAddressParameterArns } from "../newsletter/sending";
 import type { PapyrusPlugin, PluginManifest, PluginWiringContext } from "../types";
 import { resolveNotificationsConfig, type NotificationsConfig } from "./config";
 
@@ -28,9 +29,10 @@ export const HANDLERS = {
   email: "papyrus_content.notifications.handler.email",
   flush: "papyrus_content.notifications.handler.flush",
   sesEvents: "papyrus_content.notifications.handler.ses_events",
+  pause: "papyrus_content.notifications.handler.pause",
 } as const;
 /** Caducus is pinned exactly, beside `papyrus_content`: a package change is a Caducus release, then a Papyrus release. */
-export const CADUCUS_REQUIREMENT = "caducus[notify]==0.2.0";
+export const CADUCUS_REQUIREMENT = "caducus[notify]==0.3.0";
 export const NOTIFICATIONS_REQUIREMENTS = [CADUCUS_REQUIREMENT, "PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "Pillow>=11.3,<12"];
 /** Relative to `amplify/functions/`, which is where the shared bundler looks for a function's `handler.py`. */
 const FUNCTION_DIRECTORY = "../plugins/notifications/function";
@@ -59,6 +61,7 @@ export const notificationsFunctionName = (siteId: string) => `papyrus-notificati
 export const notificationsEmailName = (siteId: string) => `papyrus-notifications-email-${siteId}`;
 export const notificationsFlushName = (siteId: string) => `papyrus-notifications-flush-${siteId}`;
 export const notificationsSesEventsName = (siteId: string) => `papyrus-notifications-ses-${siteId}`;
+export const notificationsPauseName = (siteId: string) => `papyrus-notifications-pause-${siteId}`;
 export const notificationsTableName = (siteId: string) => `papyrus-notifications-${siteId}`;
 /** The recipients of operator-class notices: a StringList an operator puts by hand, never in Git. */
 export const notificationsOperatorsParameterName = (siteId: string) => `/papyrus/${siteId}/notifications/operators`;
@@ -67,6 +70,12 @@ export const notificationsKeyParameterName = (siteId: string) => `/papyrus/${sit
 export const notificationsAlarmNames = (siteId: string) => ({
   emailDeadLetters: `papyrus-notifications-${siteId}-email-dlq`,
   routerDeadLetters: `papyrus-notifications-${siteId}-router-dlq`,
+});
+
+/** The pause alarms, created only where the newsletter plugin is absent (python: `pause.alarm_names`). */
+export const notificationsPauseAlarmNames = (siteId: string) => ({
+  bounce: `papyrus-notifications-${siteId}-bounce-rate`,
+  complaint: `papyrus-notifications-${siteId}-complaint-rate`,
 });
 
 /** The configuration set's ARN, and the sending identity's: the email function may send through nothing else. */
@@ -92,6 +101,8 @@ export function notificationsEnvironment(config: NotificationsConfig, names: { t
     ITEM_URL_STYLE: config.itemUrlStyle,
     LISTS_JSON: JSON.stringify(config.lists.map((list) => ({ id: list.id, name: list.name, description: list.description, rule: list.rule, approval: list.approval }))),
     THEME_JSON: JSON.stringify(config.theme),
+    CONSENT: config.consent,
+    CONFIRM_WINDOW_SECONDS: String(config.confirmWindowHours * 3600),
     METRIC_NAMESPACE: `Caducus/papyrus-${config.siteId}`,
   };
 }
@@ -107,6 +118,8 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
     // The CMS routes answer with redirects to pages under the site's base path.
     basePath: config.basePath,
     lists: config.lists.map((list) => ({ id: list.id, name: list.name, description: list.description })),
+    // The subscribe form shows exactly this sentence (state kind=offered); the function refuses any other wording.
+    consent: config.consent,
     theme: config.theme,
   }),
   wire(backend, config, context: PluginWiringContext) {
@@ -135,6 +148,12 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       partitionKey: { name: "recipientKey", type: AttributeType.STRING },
       sortKey: { name: "queuedAt", type: AttributeType.STRING },
       projectionType: ProjectionType.ALL,
+    });
+    // A list's confirmed, unsuppressed subscribers, for the page-by-page fan-out of a public kind (Caducus public audiences).
+    table.addGlobalSecondaryIndex({
+      indexName: "byList",
+      partitionKey: { name: "gsiList", type: AttributeType.STRING },
+      projectionType: ProjectionType.KEYS_ONLY,
     });
     const keyParameter = new SecureStringParameter(stack, "RecipientKeyParameter", {
       parameterName: notificationsKeyParameterName(config.siteId),
@@ -234,14 +253,14 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       handler: HANDLERS.sesEvents,
       timeout: Duration.seconds(30),
       memorySize: 256,
-      description: `Reads SES events of the ${config.siteId} configuration set that Caducus sent`,
+      description: `Records SES events of the ${config.siteId} configuration set for mail this site sent`,
     });
-    // Default bus. Only mail Caducus tagged with a delivery id: the newsletter shares the configuration set and is not ours.
+    // Default bus. Only mail this site tagged with a delivery id: the newsletter shares the configuration set and is not ours.
     new Rule(stack, "SesEventsRule", {
       description: `SES events for ${config.siteId} notification mail`,
       eventPattern: {
         source: ["aws.ses"],
-        detail: { mail: { tags: { "ses:configuration-set": [config.configurationSet], delivery: [{ exists: true }] as unknown as string[] } } },
+        detail: { mail: { tags: { "ses:configuration-set": [config.configurationSet], delivery: [{ exists: true }] as unknown as string[], site: [config.siteId] } } },
       },
       targets: [new LambdaTarget(sesEvents)],
     });
@@ -250,12 +269,17 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       `arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${operatorsParameter}`,
       keyParameter.parameterArn,
     ];
-    for (const fn of [router, email, flush]) {
+    // Every function builds the same runtime (the audience needs the recipient key), and the SES events suppress readers.
+    for (const fn of [router, email, flush, sesEvents]) {
       table.grantReadWriteData(fn); // includes the table key's encrypt and decrypt
       fn.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ssm:GetParameter"], resources: parameterArns }));
     }
+    // A reader who lifts a bounce or complaint by opting in again is cleared from the SES account suppression list too.
+    // The action has no resource-level form (as for the newsletter function).
+    router.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ses:DeleteSuppressedDestination"], resources: ["*"] }));
     emailQueue.grantSendMessages(router);
     emailQueue.grantSendMessages(flush);
+    emailQueue.grantSendMessages(email); // a fan-out page queues its deliveries and the next page
     router.addToRolePolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
@@ -273,15 +297,67 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
     );
     // GetAccount (the send rate) does not support resource-level permissions.
     email.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ses:GetAccount"], resources: ["*"] }));
-    // PutMetricData has no resource-level scope; the namespace condition keeps it to Caducus's.
-    sesEvents.addToRolePolicy(
-      new PolicyStatement({
-        effect: Effect.ALLOW,
-        actions: ["cloudwatch:PutMetricData"],
-        resources: ["*"],
-        conditions: { StringEquals: { "cloudwatch:namespace": `Caducus/papyrus-${config.siteId}` } },
-      }),
-    );
+    // The postal address for the footer of public-class mail: the same two parameters as the newsletter's.
+    email.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ssm:GetParameter"], resources: postalAddressParameterArns(stack, config.siteId) }));
+
+    // Without the newsletter plugin nobody else watches the set's reputation: the same two rate alarms, and a function that
+    // turns sending off for the set when either enters ALARM. With it, the newsletter owns both and a send on a paused set
+    // is simply refused (and logged `failed`). No alarm action: the account's operator listener tells admins.
+    if (!context.enabledPlugins.includes("newsletter")) {
+      const pauseNames = notificationsPauseAlarmNames(config.siteId);
+      const rate = (metricName: string) =>
+        new Metric({
+          namespace: "AWS/SES",
+          metricName,
+          dimensionsMap: { "ses:configuration-set": config.configurationSet },
+          statistic: "Sum",
+          period: Duration.hours(24),
+        });
+      for (const [id, alarmName, metricName, threshold] of [
+        ["BounceRateAlarm", pauseNames.bounce, "Bounce", BOUNCE_RATE_THRESHOLD],
+        ["ComplaintRateAlarm", pauseNames.complaint, "Complaint", COMPLAINT_RATE_THRESHOLD],
+      ] as const) {
+        new Alarm(stack, id, {
+          alarmName,
+          alarmDescription: `${metricName} rate above ${threshold * 100}% of sends in 24 hours (at least ${ALARM_MINIMUM_SENDS} sends): pauses ${config.siteId} notification sending`,
+          metric: new MathExpression({
+            expression: `IF(sent >= ${ALARM_MINIMUM_SENDS}, FILL(events, 0) / sent, 0)`,
+            usingMetrics: { sent: rate("Send"), events: rate(metricName) },
+            period: Duration.hours(24),
+            label: `${metricName} rate`,
+          }),
+          threshold,
+          evaluationPeriods: 1,
+          comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+          treatMissingData: TreatMissingData.NOT_BREACHING,
+        });
+      }
+      const pause = new LambdaFunction(stack, "PauseFunction", {
+        ...common,
+        functionName: notificationsPauseName(config.siteId),
+        handler: HANDLERS.pause,
+        timeout: Duration.seconds(30),
+        memorySize: 256,
+        description: `Turns off sending for the ${config.siteId} configuration set when a rate alarm fires`,
+      });
+      new Rule(stack, "PauseRule", {
+        description: `The ${config.siteId} bounce or complaint rate alarm entered ALARM`,
+        eventPattern: {
+          source: ["aws.cloudwatch"],
+          detailType: ["CloudWatch Alarm State Change"],
+          detail: { alarmName: [pauseNames.bounce, pauseNames.complaint], state: { value: ["ALARM"] } },
+        },
+        targets: [new LambdaTarget(pause)],
+      });
+      // The set's own sending switch; nothing else of SES is writable.
+      pause.addToRolePolicy(
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ["ses:PutConfigurationSetSendingOptions"],
+          resources: [notificationsSesResources(stack, config)[1]],
+        }),
+      );
+    }
 
     // One alarm on each dead letter queue. No alarm action: the account's operator listener reads every alarm on the default bus.
     const alarmNames = notificationsAlarmNames(config.siteId);

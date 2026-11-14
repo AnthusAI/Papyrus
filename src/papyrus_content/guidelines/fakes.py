@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+from papyrus_content.upload_rules_fake import assert_owner_exists, assert_upload_accepted
+
 
 class FakePolicies:
     """The editorial policies of the fake site, with the store calls the derived-policy sync makes. Nothing else is reachable."""
@@ -15,6 +17,9 @@ class FakePolicies:
 
     def list_policies(self) -> list[dict]:
         return copy.deepcopy(self.rows)
+
+    def get_settings(self) -> dict | None:
+        return None   # no stored editorial settings: the defaults (an English site)
 
     def create_policy(self, record: dict) -> None:
         self.writes.append(("create", record["id"]))
@@ -72,6 +77,9 @@ class FakeFiles:
         self.backend = backend
 
     def put(self, attachment: dict, body: bytes) -> dict:
+        assert_upload_accepted(attachment)
+        assert_owner_exists(attachment, self.backend.items)
+        self.backend.attachments = [row for row in self.backend.attachments if row["id"] != attachment["id"]]   # the same slot again replaces its row
         self.backend.attachments.append(copy.deepcopy(attachment))
         self.backend.bodies[attachment["storagePath"]] = bytes(body)
         return attachment

@@ -18,10 +18,11 @@ from __future__ import annotations
 import json
 from typing import Any, Mapping, Sequence
 
+from .tenant_knowledge_keys import SEMANTIC_NODE_FEED_KEY, global_key, tenant_unique_id
 from .catalog import _record, semantic_relation_record
 from .ids import hash_short, safe_id
 from .reference_policy import scope_training_label_for_reference
-from .reference_vote import HUMAN, latest_vote
+from .reference_vote import CYCLOTRON, HUMAN, latest_vote
 
 RELEVANCE_RELATION = "relevance_decision_is"
 DECISION_NODE_KIND = "relevanceDecision"
@@ -34,7 +35,7 @@ def decision_node_key(label: str) -> str:
 
 
 def decision_node_lineage_id(label: str) -> str:
-    return f"semantic-node-{safe_id(decision_node_key(label))}"
+    return tenant_unique_id(f"semantic-node-{safe_id(decision_node_key(label))}")
 
 
 def decision_node_record(label: str, *, now: str) -> dict[str, Any]:
@@ -59,7 +60,7 @@ def decision_node_record(label: str, *, now: str) -> dict[str, Any]:
         "status": "accepted",
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "semanticNodes",
+        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
     })
 
 
@@ -191,9 +192,12 @@ def human_section_for_review(reference: Mapping[str, Any], section_ids: Sequence
 
     Only an explicit human (or delegated) accept that names one of the known
     section ids teaches a section. Agents, unknown actors, rejections and
-    unrecognised ids never produce a section label.
+    unrecognised ids never produce a section label, and neither does a section the site cyclotron set itself
+    (``curationSectionActorKind`` ``cyclotron``, docs/reference-auto-section.md): the machine never learns from its own tags.
     """
     if not curation_was_made_by_a_human(reference):
+        return None
+    if reference.get("curationSectionActorKind") == CYCLOTRON:
         return None
     if reference.get("curationStatus") != "accepted":
         return None

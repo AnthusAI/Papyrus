@@ -67,7 +67,10 @@ def repeat(context):
 
 @then('the same immutable source and provenance are returned')
 def repeated(context):
-    assert context.intake_result['references'] == context.first_intake['references']
+    first, = context.first_intake['references']
+    again, = context.intake_result['references']
+    assert first['created'] is True and again['created'] is False and again['matchedBy'] == ['sourceUri']
+    assert {k: v for k, v in again.items() if k not in ('created', 'matchedBy')} == {k: v for k, v in first.items() if k != 'created'}
     assert context.intake_client.tables == context.first_state
     assert len(context.intake_client.uploads) == 1
 
@@ -127,6 +130,8 @@ class _CatalogClient:
     def __init__(self, timeout_on=None):
         self.calls = []
         self.timeout_on = timeout_on
+        self.recorded = {}   # source id -> status, as the server's table would hold it
+        self.reports_created = True   # False plays a backend that predates the `created` field
 
     def graphql(self, query, variables):
         data = json.loads(variables["input"])
@@ -134,7 +139,14 @@ class _CatalogClient:
         if len(self.calls) == self.timeout_on:
             raise TimeoutError("The read operation timed out")
         # The server derives the id from the source URL, so a repeat returns the same record.
-        references = [{"id": "ref-" + item["source_uri"].rsplit("/", 1)[1], "curationStatus": "pending"} for item in data["items"]]
+        references = []
+        for item in data["items"]:
+            name = "ref-" + item["source_uri"].rsplit("/", 1)[1]
+            existing = name in self.recorded
+            reference = {"id": name, "curationStatus": self.recorded.setdefault(name, "pending")}   # an existing one keeps its status
+            if self.reports_created:
+                reference["created"] = not existing
+            references.append(reference)
         return {"intakePendingReferences": json.dumps({"ok": True, "references": references})}
 
 
@@ -151,6 +163,16 @@ def catalog_file(context, count):
     ]}))
     context.catalog_client = _CatalogClient()
     context.catalog_runs = []
+
+
+@given('the catalog source "{name}" is already recorded and accepted')
+def already_accepted(context, name):
+    context.catalog_client.recorded[f"ref-{name}"] = "accepted"
+
+
+@given('the backend does not report whether a request created a Reference')
+def backend_without_created(context):
+    context.catalog_client.reports_created = False
 
 
 @given('the second request times out')
@@ -198,18 +220,47 @@ def one_each(context, count):
     assert [call["items"][0]["source_uri"] for call in calls] == [f"https://example.test/paper-{n}" for n in range(1, count + 1)]
 
 
-@then('it printed one recorded line per source, numbered "1/{total:d}" to "{last}"')
+@then('it printed one created line per source, numbered "1/{total:d}" to "{last}"')
 def numbered(context, total, last):
     lines = [line.split("\t") for line in context.catalog_runs[-1][0]]
-    recorded = [line for line in lines if line[2] == "recorded"]
+    recorded = [line for line in lines if line[2] == "created"]
+    assert all(line[6] == "pending" for line in recorded), recorded
     assert [line[3] for line in recorded] == [f"{n}/{total}" for n in range(1, total + 1)], recorded
     assert last == f"{total}/{total}"
 
 
-@then('it ended with a summary of {confirmed:d} confirmed and {missing:d} not confirmed')
-def summary(context, confirmed, missing):
+@then('it ended with a summary of {created:d} created, {existed:d} already existed and {missing:d} not confirmed')
+def summary(context, created, existed, missing):
     lines = context.catalog_runs[-1][0]
-    assert lines[-1] == f"references\tcreate-from-catalog\tsummary\tconfirmed={confirmed}\tnot-confirmed={missing}", lines[-1]
+    expected = f"references\tcreate-from-catalog\tsummary\tcreated={created}\talready-existed={existed}\tnot-confirmed={missing}"
+    assert lines[-1] == expected, lines[-1]
+
+
+@then('it printed an already-existed line for "{position}" showing the status {status} and that pending was not applied')
+def already_existed_line(context, position, status):
+    lines = [line.split("\t") for line in context.catalog_runs[-1][0]]
+    existed = [line for line in lines if line[2] == "already-existed"]
+    assert len(existed) == 1 and existed[0][3] == position, existed
+    assert existed[0][6] == f"status={status} (existing; requested pending not applied)", existed
+    assert not [line for line in lines if line[2] == "created" and line[3].startswith(position)], lines
+
+
+@then('the Reference "{name}" is still {status} on the server')
+def still_status(context, name, status):
+    assert context.catalog_client.recorded[f"ref-{name}"] == status
+
+
+@then('it printed that the outcome of "{position}" is unknown because the backend predates this CLI')
+def outcome_unknown(context, position):
+    lines = [line.split("\t") for line in context.catalog_runs[-1][0]]
+    unknown = [line for line in lines if line[2] == "outcome-unknown"]
+    assert len(unknown) == 1 and unknown[0][3] == position and "predates this CLI" in unknown[0][6], unknown
+    assert not [line for line in lines if line[2] in ("created", "already-existed")], lines
+
+
+@then('the summary counts 1 outcome as unknown')
+def unknown_summary(context):
+    assert "outcome-unknown=1" in context.catalog_runs[-1][0][-1].split("\t"), context.catalog_runs[-1][0]
 
 
 @then('it printed a failed line for "{position}" naming the source')
@@ -226,9 +277,10 @@ def failed_run_again(context):
     assert isinstance(failure, ValueError) and "Run the same command again" in str(failure), failure
 
 
-@then('both runs recorded the same Reference ids')
+@then('both runs reported the same Reference ids, the second as already existing')
 def same_ids(context):
-    first, second = ([line.split("\t")[5] for line in lines if "\trecorded\t" in line] for lines, _ in context.catalog_runs)
+    first, second = ([line.split("\t")[5] for line in lines if line.split("\t")[2] in ("created", "already-existed")] for lines, _ in context.catalog_runs)
+    assert [line.split("\t")[2] for line in context.catalog_runs[1][0] if "paper-" in line] == ["already-existed"] * 3
     assert first == second == ["ref-paper-1", "ref-paper-2", "ref-paper-3"], (first, second)
 
 

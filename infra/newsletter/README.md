@@ -19,7 +19,7 @@
 | MailFromSubdomain | bounce | Label for the MAIL FROM domain. |
 | DmarcPolicy | quarantine | `none`, `quarantine` or `reject`. |
 | CreateDmarcRecord | true | Set `false` if the domain already publishes DMARC. |
-| EventTransport | sns | `sns` (the per-site topic), `eventbridge` (the account's default bus, no topic) or `both`. Sites keep `sns`; the operator stack uses `eventbridge`. |
+| EventTransport | sns | `sns` (the per-site topic), `eventbridge` (the account's default bus, no topic) or `both`. Sites keep `sns` until they turn on notifications and then use `both`; the operator stack uses `eventbridge`. |
 
 ## Deploy
 
@@ -55,6 +55,14 @@ aws cloudformation deploy \
 On 2026-11-04 a read-only listing showed no record containing `notify` in the zone, so DKIM (`<token>._domainkey.notify.anth.us`), `bounce.notify.anth.us` (MX, SPF) and `_dmarc.notify.anth.us` collide with nothing. The apex `anth.us` publishes no `_dmarc` record (a separate gap; this stack only creates the subdomain's). With `EventTransport=eventbridge` there is no SNS topic, and delivery events arrive on the default bus as `Email Delivered`, `Email Bounced` and so on. Open and click events are never enabled, and a test fails if either appears.
 
 Before the first deploy, list the zone's records for the sending domain and make sure none collide with the DKIM, MAIL FROM and `_dmarc` names.
+
+### Sites that send notifications (PPY-c522bf)
+
+A site's notifications function sends from this stack's identity and configuration set (`docs/notifications.md`, "Sending as the site"). [newsletter-sending-identities.json](../config/newsletter-sending-identities.json) says which sites have a stack. For each site that will send notifications, a person with the production profile does, after reading the change set:
+
+1. Sites with no stack yet (Anth.us and Threat Intelligence on 2026-11-04): run the deploy command above with the site's `SiteId`, `SendingDomain` and zone, adding `EventTransport=both`, then set the site's `sendingDomain` in `newsletter-sending-identities.json` and the postal address parameter.
+2. Sites with a stack: re-run the same command with the stack's existing parameters plus `EventTransport=both`. The change adds one EventBridge event destination (`eventbridge-events`) to the configuration set and nothing else; the SNS topic and its destination stay as they are.
+3. `aws sesv2 get-email-identity --email-identity <domain>` still reads `True SUCCESS SUCCESS`, and `aws sesv2 get-configuration-set-event-destinations --configuration-set-name papyrus-<siteId>` lists `sns-events`, `eventbridge-events` and `cloudwatch-metrics`.
 
 ## Check verification
 

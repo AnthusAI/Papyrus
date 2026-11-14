@@ -345,6 +345,7 @@ def render_transactional(
     action_url: str | None = None,
     action_label: str | None = None,
     reason: str | None = None,
+    postal_address: str | None = None,
 ) -> RenderedEmail:
     subject = _one_line(subject)
     html_body, plain_body = _body(markus, theme, site_url)
@@ -354,14 +355,17 @@ def render_transactional(
         plain_body += f"\n\n{label}: {action_url}"
     ls = _link_style(theme)
     reason = reason or f"You received this because someone entered this address on {site_name}. If it was not you, ignore this email."
+    address_lines = tuple(line.strip() for line in (postal_address or "").splitlines() if line.strip())
+    address_html = f"<br />{'<br />'.join(escape(line) for line in address_lines)}" if address_lines else ""
     footer_html = (
         f'<p style="margin:0 0 10px 0;">{escape(reason)}</p>'
-        f'<p style="margin:0 0 10px 0;"><a href="{escape(site_url)}" {ls}>{escape(site_name)}</a></p>'
+        f'<p style="margin:0 0 10px 0;"><a href="{escape(site_url)}" {ls}>{escape(site_name)}</a>{address_html}</p>'
     )
-    parts = FooterParts(reason=reason, links=((_site_label(theme, site_url, site_name), site_url),))
+    parts = FooterParts(reason=reason, links=((_site_label(theme, site_url, site_name), site_url),), address_lines=address_lines)
     html = _shell(
         subject=subject, preheader=preheader, theme=theme, site_url=site_url,
         site_name=site_name, content=html_body, footer=footer_html, parts=parts,
     )
-    plain = f"{_plain_header(theme, site_name, '')}{plain_body}\n\n--\n{text_mod.wrap(reason)}\n\n{site_name} - {site_url}\n"
+    address_text = "".join(f"\n{line}" for line in address_lines)
+    plain = f"{_plain_header(theme, site_name, '')}{plain_body}\n\n--\n{text_mod.wrap(reason)}\n\n{site_name} - {site_url}{address_text}\n"
     return RenderedEmail(subject=subject, html=html, text=plain)

@@ -138,7 +138,7 @@ Feature: The map keeps one entity for one thing, however the sources spell its n
     And "Musk" is no longer a current entity
     And "Elon Musk" is mentioned in the item "alpha"
     And no current link touches "Musk"
-    And the merge output says the page is taken down by "wiki sync --retire"
+    And the merge output says the duplicate's page is left as it is because the sync never takes a page down
 
   Scenario: Merging keeps the survivor's own link when both entities were mentioned in the same item
     Given the map holds the accepted person "Elon Musk"

@@ -1,0 +1,30 @@
+{
+  "id": "PPY-9753e611-5910-41ad-adf6-1a58f9251aea",
+  "title": "Write executable multilingual Slice 1 specifications first",
+  "description": "Write the narrative Gherkin for Slice 1 (localization creation, provenance, alignment and pinning, checks and review, preview rendering, labelling) in features_backend/ and features/, and record that they fail for the expected missing-behaviour reasons before production code starts. Fixtures include Spanish, Simplified Chinese and Arabic text and golden HTML for one localized Story and its English twin. Specs describe behaviour, not internal structure. Plan: docs/plans/multilingual-publishing.md (PR #1450).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-dd27549a-62d3-4e0c-b798-83c1d7dedff8",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-9b4f5292-4d35-4ad0-8ca6-c5b1037c671f",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T15:39:06.577585Z",
+  "updated_at": "2026-11-12T15:39:10.481182Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

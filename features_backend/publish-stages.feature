@@ -31,6 +31,15 @@ Feature: Publishing reports each stage on its own
     When the operator runs the publish command
     Then the command exits with code 0
 
+  Scenario: The verdict never says the cache was purged when the purge was skipped
+    Given a saved story and a page-building function that skipped the purge because the site leaves it off
+    And the public address still serves an older version
+    When the operator runs the publish command
+    Then the command exits with code 0
+    And the cache invalidation stage is reported as skipped
+    And the verdict says no purge was made
+    And the verdict does not say the page was purged
+
   Scenario: Waiting for the public page that still shows the old version
     Given a saved story and a page-building function that answers with the pages it wrote
     And the public address still serves an older version

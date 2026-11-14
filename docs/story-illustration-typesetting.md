@@ -32,7 +32,7 @@ Nothing moves a Story into either stage by itself, and no agent or procedure wor
 
 **What it should produce.** (Intent only; the editor review's plan fields name tables on phones, figures and pull-outs.) The reader-facing form of the copy: tables that work on a phone, figures placed, pull-outs chosen, so the Markus body renders as the editor intends before publication.
 
-**Who does it.** An editor, by hand, in the newsroom editor. Publishing follows: `papyrus ops content publish --id ITEM_ID`, which is what makes a Story live; moving a Story to `published` does not.
+**Who does it.** An editor, by hand, in the newsroom editor, or an agent trusted with a whole article under the [editorial improvement skill](../.agents/skills/editorial-improvement/SKILL.md), which places pull quotes, two-column comparisons, notes and figures, publishes and checks the live page. Publishing follows: `papyrus ops content publish --id ITEM_ID`, which is what makes a Story live; moving a Story to `published` does not.
 
 **What the CLI can do today.**
 

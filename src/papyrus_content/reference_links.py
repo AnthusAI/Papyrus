@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .tenant_knowledge_keys import REFERENCE_LINK_FEED_KEY as _REFERENCE_LINK_FEED_KEY, global_key
 from .ids import hash_short
 from .publishing import utc_now_iso
 from .relation_types import semantic_relation_type_fields_for_predicate
@@ -40,7 +41,7 @@ REFERENCE_CONCEPT_KIND = "reference.concept"
 ITEM_CONCEPT_KIND = "item.concept"
 ITEM_LINK_KIND = "item.link"
 ITEM_REFERENCE_LINK_KIND = "item.reference-link"   # story -> Reference see_also, named like its neighbours item.link and item.concept
-REFERENCE_LINK_FEED_KEY = "reference-links"
+REFERENCE_LINK_FEED_KEY = _REFERENCE_LINK_FEED_KEY
 STATE_FOR_PROVENANCE = {"human": "current", "derived": "current", "suggested": "suggested"}
 STATE_FOR_DECISION = {"accepted": "current", "rejected": "rejected"}
 
@@ -174,7 +175,7 @@ def _write_edge(
         "reviewRecommended": state == "suggested",
         "importedAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": REFERENCE_LINK_FEED_KEY,
+        "newsroomFeedKey": global_key(REFERENCE_LINK_FEED_KEY),
         "metadata": json.dumps(metadata, sort_keys=True),
     }
     outcome = client.upsert("SemanticRelation", record)

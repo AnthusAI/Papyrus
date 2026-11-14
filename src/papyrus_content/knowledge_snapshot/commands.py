@@ -922,7 +922,7 @@ def knowledge_entities_merge(flags: list[str]) -> None:
 
     Merge a duplicate entity (--from) into the entity that stays (--into): the duplicate is superseded, its name and aliases become aliases of the survivor, and
     its item mentions and relations move to the survivor (``entity_merge.py``). Needs AWS credentials (``--auth iam``), like ``retype``. Afterwards: ``entities registry``,
-    ``snapshot``, then ``wiki sync --retire`` takes the duplicate's page down."""
+    ``snapshot``, then ``wiki sync``; the duplicate's page is left as it is (the sync never takes a page down)."""
     options = parse_options(flags)
     duplicate_id, survivor_id = normalize_string(options.get("from")), normalize_string(options.get("into"))
     if not duplicate_id or not survivor_id:
@@ -939,7 +939,7 @@ def knowledge_entities_merge(flags: list[str]) -> None:
     print(f"knowledge\tentities\tmerge\t{duplicate['nodeKey']} -> {survivor['nodeKey']}\t{survivor.get('status')}\t{'dry-run' if dry_run else 'apply'}\t{_actor_label(actor)}")
     changes = _migration_changes(client, records, patches)
     _print_changes("merge", changes)
-    print(f"knowledge\tentities\tmerge\tnext\tentities registry, snapshot, then `knowledge wiki sync --retire` takes the page of {duplicate['nodeKey']} down")
+    print(f"knowledge\tentities\tmerge\tnext\tentities registry, snapshot, then `knowledge wiki sync`; the page of {duplicate['nodeKey']} is left as it is, since the sync never takes a page down")
     if not dry_run:
         apply_record_changes(client, changes)
 

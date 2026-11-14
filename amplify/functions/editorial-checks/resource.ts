@@ -13,7 +13,7 @@ const functionDirectory = path.dirname(fileURLToPath(import.meta.url));
 export const EDITORIAL_CHECKS_TIMEOUT_SECONDS = 28;
 
 /** Humanus with the Jev classifier lane; papyrus_content.editorial_checks does the work. */
-export const editorialChecksRequirements = ["humanus[jev]>=0.33,<0.34"];
+export const editorialChecksRequirements = ["humanus[jev]>=0.36,<0.37"];
 
 function installRequirements(outputDir: string): void {
   execFileSync(

@@ -7,6 +7,8 @@ purged under every form it answers to, with its Markdown twin. A wildcard is nev
 
 from __future__ import annotations
 
+from ..url_paths import encoded_path
+
 from collections.abc import Iterable
 from urllib.parse import urlsplit
 
@@ -77,12 +79,12 @@ def paths_for_page_keys(keys: Iterable[str], url_style: str = "html") -> list[st
     paths: list[str] = []
     for key in keys:
         name = key.rsplit("/", 1)[-1]
-        paths.append("/" + key)
+        paths.append(encoded_path("/" + key))   # CloudFront takes a non-ASCII path percent-encoded, the form a browser requests
         if name == "index.html":
             directory = key[: -len("index.html")]
-            paths.append("/" + directory)
+            paths.append(encoded_path("/" + directory))
         elif url_style == "clean" and key.endswith(".html"):
-            paths.append("/" + key[: -len(".html")])
+            paths.append(encoded_path("/" + key[: -len(".html")]))
     return list(dict.fromkeys(paths))
 
 

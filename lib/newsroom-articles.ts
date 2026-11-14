@@ -6,6 +6,8 @@ import {
   saveItemDraft,
   unpublishItem,
   moveStoryStage,
+  scheduleStory,
+  scheduleList,
   createStoryFromReference,
   type ContentActionError,
 } from "./content-actions-client";
@@ -99,6 +101,10 @@ export type ArticlesBackend = {
     publishItem: typeof publishItem;
     unpublishItem: typeof unpublishItem;
     moveStoryStage: typeof moveStoryStage;
+    /** Sets, changes or clears (null) the time this Story's version goes live. */
+    scheduleStory: typeof scheduleStory;
+    /** The Story's schedules (the `schedule_list` operation): the drawer shows what the backend says, not what the loaded row happens to hold. */
+    scheduleList: typeof scheduleList;
     createStoryFromReference: typeof createStoryFromReference;
     /** Saves an editor's rating of a Story (any version id of it; null clears it). A plain update: no new version, nothing republished. */
     setItemStars: (itemId: string, stars: number | null) => Promise<void>;
@@ -341,7 +347,7 @@ export function createLiveArticlesBackend(): ArticlesBackend {
     return client;
   };
   return {
-    actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem, moveStoryStage, createStoryFromReference, setItemStars },
+    actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem, moveStoryStage, scheduleStory, scheduleList, createStoryFromReference, setItemStars },
     listRows: () => loadArticleRows(dataClient()),
     loadArticle: (id) => loadEditableArticle(dataClient(), id),
   };

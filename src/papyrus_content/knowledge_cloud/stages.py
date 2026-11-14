@@ -33,7 +33,6 @@ TREND_WEEKS = "26"
 ENTITY_HREF = "/wiki/{slug}/"
 DELETION_FLAG = "--allow-deletions"
 ARCHIVE_DIRECTORY = "_data/knowledge/history"
-RETIRED_FILE = "retired-wiki-items.json"
 PLAN_FILE = "wiki-sync-plan.json"
 FORBIDDEN_FLAGS = (DELETION_FLAG, "--reconcile", "--replace")  # a run only writes: no cleanup, no replacing an archived week
 
@@ -707,26 +706,24 @@ def wiki_sync(run: Run) -> dict:
     run.pull(site=True, run=bool(run.config.monitor_sources or run.config.reference_documents_on))
     sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options(), *run.reference_options()]
     sync += beats_options(run)
-    sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--retire", "--run-id", run.config.run_id]  # pages of kinds the vocabulary does not declare come down; each page records the run
+    sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--run-id", run.config.run_id]  # each page records the run; the sync never takes a page down
     run.run_dir.mkdir(parents=True, exist_ok=True)
     plan_file = run.run_dir / PLAN_FILE
     run.sh(*sync, "--json", stdout=plan_file)  # the dry run: nothing is written
     plan = read_plan(plan_file.read_text())
     gate = judge_plan(run, plan)
-    print(f"wiki-sync plan: {json.dumps(plan['counts'], sort_keys=True)}; retire {len(plan.get('retired') or [])}; gate: {gate.decision.action} ({gate.decision.reason})", flush=True)
-    for page in plan.get("retired") or []:  # every page the sync would take down is in the task log
-        print(f"wiki-sync would retire {page.get('section')}/{page.get('slug')} ({'live' if page.get('live') else 'draft'})", flush=True)
+    print(f"wiki-sync plan: {json.dumps(plan['counts'], sort_keys=True)}; gate: {gate.decision.action} ({gate.decision.reason})", flush=True)
     run.write_state(heldExecution=run.config.execution_name if gate.decision.hold else None)
     if gate.decision.hold:
         run.push(run=True)  # the plan, for whoever reads the hold
         print(f"wiki-sync HELD, nothing written: {gate.decision.reason}. Review request {gate.request_id}.", flush=True)
         return gate.details()
-    run.sh(*sync, "--apply", "--retired-out", str(run.run_dir / RETIRED_FILE))  # drafts only
+    run.sh(*sync, "--apply")  # drafts only
     # --no-trigger: publishing must not project; the projection stage does that once, under the lease, last.
     run.sh("papyrus", "knowledge", "wiki", "publish", *backend_options(run), "--all-drafts", "--actor", "ai", "--apply", "--no-trigger")
     finish_gate(run, gate)
-    run.push(run=True)  # the retired pages, for the projection stage
-    return {"retired": len(retired_items(run)), "gate": {"reason": gate.decision.reason, "writes": gate.series.get(preview_gate.TOTAL, 0)}}
+    run.push(run=True)
+    return {"gate": {"reason": gate.decision.reason, "writes": gate.series.get(preview_gate.TOTAL, 0)}}
 
 
 def review_client(run: Run) -> Any:
@@ -803,12 +800,6 @@ def finish_gate(run: Run, result: "preview_gate.GateResult") -> None:
     preview_gate.save_history(run.state, result.entries)
 
 
-def retired_items(run: Run) -> list[str]:
-    """The source item ids of the wiki pages this run took down: the projection removes their pages."""
-    path = run.run_dir / RETIRED_FILE
-    return json.loads(path.read_text()) if path.exists() else []
-
-
 def projection(run: Run) -> dict:
     if (idle := run.nothing_to_do()) is not None:
         return idle
@@ -820,17 +811,6 @@ def projection(run: Run) -> dict:
     assert not set(FORBIDDEN_FLAGS) & set(arguments)  # the #565 guard stays on; a bad run must never delete pages
     run.install_pinned_papyrus()
     environment = {**run.command_env(), "PYTHONPATH": str(run.pinned)}
-    taken_down = retired_items(run)
-    if taken_down:
-        # A bulk projection never deletes the pages of an unpublished item, so the retired pages go first, in one pass. The pinned
-        # release may predate `--unpublished-items`; the image's own papyrus does it (the bulk projection after it re-renders with the pin).
-        listed = run.work / RETIRED_FILE
-        listed.write_text(json.dumps(taken_down))
-        run.shell(
-            ["papyrus", "ops", "content", "project", "--unpublished-items", str(listed), "--static-dir", str(run.static_dir), "--bucket", run.config.site_bucket, "--json"],
-            cwd=run.work, env=run.command_env(), stdout=run.work / "retired-projection.json",
-        )
-        print(f"retired wiki pages projected away ({len(taken_down)}): {(run.work / 'retired-projection.json').read_text().strip()[:2000]}", flush=True)
     run.shell(arguments, cwd=run.work, env=environment, stdout=run.work / "projection.json")
     raw = (run.work / "projection.json").read_text()
     print(f"projection report: {raw.strip()}", flush=True)  # the report is the evidence of what a run wrote and deleted

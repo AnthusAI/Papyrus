@@ -36,7 +36,9 @@ MAPPING_FILE = "mapping.json"
 SETTINGS_FILE = "settings.json"        # in a design system folder only: the site's figure settings, kept in the document and not in `files`
 SETTINGS = {
     "requireDarkFigures": "refuse to save a figure that has no dark picture",
-    "illustrationRequiredTypes": "the Story types whose checklist needs an approved cover before publishing (a list; articles when unset)",
+    "illustrationRequiredTypes": "the Story types whose checklist needs a stored cover before publishing (a list; articles when unset)",
+    "publishRequiresRating": "opt in to requiring an editor's star rating (papyrus stories set-stars) before a Story publishes or republishes (off when unset)",
+    "illustrationRequireApprovalCredit": "opt in to requiring a recorded cover approval (coverImage approvedBy) and an 'Approved by NAME' line on the cover's image (off when unset)",
 }
 LIST_SETTINGS = ("illustrationRequiredTypes",)   # the other settings are true or false
 TOP_LEVEL = ("schemaVersion", "publication", "files", "media", "settings")

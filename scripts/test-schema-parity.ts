@@ -9,8 +9,9 @@ const MODEL_NAMES = [
   "Assignment", "KnowledgeRawPayload", "CurationDelegationRecord", "ModelAttachment", "MediaAsset", "PublishedMediaAsset", "NewsroomSection", "Automation", "ProcedureRun", "ReviewRequest", "ReviewReadMark", "ReviewRecipientRule",
 ];
 const REQUIRED_FIELDS: Record<string, string[]> = {
-  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "headStageKey"],
-  PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
+  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "headStageKey", "scheduledPublishAt", "scheduledBy", "scheduledAt", "scheduleState", "scheduleName",
+    "language", "languageGroupId", "sourceLineageId", "sourceVersionNumber", "sourceContentHash", "syncState"],
+  PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug", "language", "languageGroupId"],
   Message: ["editedAt", "deletedAt", "deletedBySub"],
   MediaAsset: ["tenantId"],
   PublishedMediaAsset: ["tenantId"],
@@ -28,6 +29,10 @@ const REQUIRED_INDEXES = [
   'index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt")',
   // The old stage index stays until every reader has moved (docs/plans/story-head-stage-index.md, step 7).
   'index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt")',
+  // Scheduled publishing (docs/scheduled-publishing.md): the sparse index of scheduled versions; the Item's tenth, and the only one in its deploy.
+  'index("scheduleState").sortKeys(["scheduledPublishAt"]).queryField("listItemsByScheduleStateAndScheduledPublishAt")',
+  // A Story's language group (features_backend/item-language.feature): the primary and its localizations, one language by sort key.
+  'index("languageGroupId").sortKeys(["language"]).queryField("listItemsByLanguageGroupAndLanguage")',
 ];
 
 function extractFieldNames(source: string, modelName: string): Set<string> {
@@ -37,8 +42,9 @@ function extractFieldNames(source: string, modelName: string): Set<string> {
     throw new Error(`model ${modelName} not found`);
   }
   const rest = source.slice(startMatch.index);
-  const endIndex = rest.indexOf(".secondaryIndexes");
-  const block = endIndex === -1 ? rest : rest.slice(0, endIndex);
+  // The fields end where the model's indexes or, for a model without indexes, its authorization rules begin.
+  const ends = [rest.indexOf(".secondaryIndexes"), rest.indexOf(".authorization")].filter((index) => index !== -1);
+  const block = ends.length === 0 ? rest : rest.slice(0, Math.min(...ends));
   const names = new Set<string>();
   for (const match of block.matchAll(/^\s{6}(?:\.\.\.\(\w+ \? \{ )?(\w+): a\./gm)) {
     names.add(match[1]);
@@ -160,6 +166,14 @@ const TENANCY_MODELS: Record<string, { fields: string[]; indexes: string[] }> = 
   TenantDomain: {
     fields: ["id", "tenantId", "kind", "status", "verification", "certificateRef"],
     indexes: ['index("tenantId").queryField("listTenantDomainsByTenant")'],
+  },
+  SiteDocument: {
+    fields: ["id", "tenantId", "kind", "currentVersion", "s3Key", "sha256", "schemaVersion", "updatedBy", "updatedAt"],
+    indexes: [],
+  },
+  SiteDocumentVersion: {
+    fields: ["id", "tenantId", "documentId", "version", "s3Key", "sha256", "createdBy", "createdAt", "note"],
+    indexes: ['index("documentId").sortKeys(["version"]).queryField("listSiteDocumentVersionsByDocument")'],
   },
 };
 for (const [modelName, expected] of Object.entries(TENANCY_MODELS)) {

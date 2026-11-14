@@ -69,3 +69,57 @@ assert.equal(intake.citations.length, 1, "expected one direct citation");
 assert.equal(intake.citations[0]?.url, "https://arxiv.org/abs/2605.27882");
 
 console.log("email-mime-intake.test.mjs: ok");
+
+function buildMultipartMime() {
+  const boundary = "outer-boundary";
+  const inner = "inner-boundary";
+  return [
+    "From: Editor <editor@example.org>",
+    "Subject: Newsletter",
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    "",
+    "This is a multi-part message in MIME format.",
+    `--${boundary}`,
+    `Content-Type: multipart/alternative; boundary=${inner}`,
+    "",
+    `--${inner}`,
+    "Content-Type: text/plain; charset=utf-8",
+    "Content-Transfer-Encoding: quoted-printable",
+    "",
+    "Read this: https://example.org/story=3Fid=3D7",
+    `--${inner}`,
+    "Content-Type: text/html; charset=utf-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    Buffer.from('<p><a href="https://example.org/other">other</a></p>').toString("base64"),
+    `--${inner}--`,
+    `--${boundary}`,
+    "Content-Type: application/pdf",
+    "Content-Disposition: attachment; filename=paper.pdf",
+    "",
+    "https://example.org/inside-the-attachment",
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+}
+
+const multipart = parseInboundMimeForIntake(new TextEncoder().encode(buildMultipartMime()));
+assert.equal(multipart.subject, "Newsletter");
+assert.equal(multipart.bodyText, "Read this: https://example.org/story?id=7");
+assert.deepEqual(multipart.citations.map((entry) => entry.url), ["https://example.org/story?id=7", "https://example.org/other"]);
+
+const htmlOnly = parseInboundMimeForIntake(new TextEncoder().encode([
+  "Subject: Html only",
+  "Content-Type: text/html; charset=utf-8",
+  "",
+  '<p>See <a href="https://example.org/a">this</a></p>',
+].join("\r\n")));
+assert.equal(htmlOnly.bodyText, "See this");
+assert.deepEqual(htmlOnly.citations.map((entry) => entry.url), ["https://example.org/a"]);
+
+// A message with no readable text has no body and no links: nothing is read out of the raw bytes.
+const empty = parseInboundMimeForIntake(new TextEncoder().encode(["Subject: Nothing", "Content-Type: application/pdf", "", "https://example.org/in-a-pdf"].join("\r\n")));
+assert.equal(empty.bodyText, "");
+assert.equal(empty.citations.length, 0);
+
+console.log("email-mime-intake.test.mjs: multipart ok");

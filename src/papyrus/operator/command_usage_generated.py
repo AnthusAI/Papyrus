@@ -406,6 +406,7 @@ GENERATED: dict[str, tuple[str | None, str]] = {
   'stories link-concept': ('--story <lineage|slug> --concept <name|#hashtag|nodeKey> [--concept ...] [--note TEXT] [--author-label NAME] [--dry-run] [--json]', 'writes'),
   'stories link-reference': ('--story <lineage> --reference <reference id> --role consulted|cited|based_on [--author-label <name>] [--note <text>] [--citation-key <key>]', 'writes'),
   'stories link-story': ('--story <lineage|slug> (--to <lineage|slug> [--to ...] | --reference <reference id> [--reference ...]) [--note <text>] [--author-label <name>] [--dry-run] [--json]', 'writes'),
+  'stories pull': ('--story <lineage> --body-file <file> --front-matter-file <file> [--version <N>] [--json]', 'reads'),
   'stories list': ('[--stage <stage>] [--section <id|slug|name>] [--type article|post] [--stars N | --min-stars N | --max-stars N]', 'reads'),
   'stories move': ('--story <lineage> --stage <stage> [--reason <text>] [--author-label <name>]', 'writes'),
   'stories next': ('--story <lineage> [--json]', 'reads'),

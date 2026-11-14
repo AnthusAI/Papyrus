@@ -19,6 +19,7 @@ export function signupSchemaDefinitions() {
       .disableOperations(["subscriptions"])
       .secondaryIndexes((index) => [
         index("form").sortKeys(["submittedAt"]).queryField("listSignupEntriesByFormAndSubmittedAt"),
+        index("tenantId").sortKeys(["id"]).queryField("listSignupEntriesByTenant"),
       ])
       .authorization((allow) => [
         allow.group("editor").to(["read"]),

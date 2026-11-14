@@ -16,6 +16,7 @@ import json
 import re
 from typing import Any
 
+from .tenant_knowledge_keys import SEMANTIC_NODE_FEED_KEY, global_key, tenant_unique_id
 from .editorial_context import find_section
 from .graphql_authoring import create_authoring_client
 from .options import normalize_string, parse_options, resolve_mutation_apply
@@ -60,7 +61,7 @@ def editor_concept_key(slug: str) -> str:
 
 
 def editor_concept_lineage_id(slug: str) -> str:
-    return f"semantic-node-{editor_concept_key(slug)}"
+    return tenant_unique_id(f"semantic-node-{editor_concept_key(slug)}")
 
 
 def build_editor_concept_node(name: str, actor: str, now: str, display_name: str | None = None) -> dict[str, Any]:
@@ -72,7 +73,7 @@ def build_editor_concept_node(name: str, actor: str, now: str, display_name: str
         "id": f"{lineage_id}-v1", "lineageId": lineage_id, "versionNumber": 1, "versionState": "current", "versionCreatedAt": now,
         "versionCreatedBy": actor, "changeReason": EDITOR_CONCEPT_CHANGE_REASON, "nodeKey": editor_concept_key(slug),
         "nodeKind": EDITOR_CONCEPT_KIND, "displayName": display_name or slug.replace("-", " "), "status": "accepted", "aliases": [], "createdAt": now,
-        "updatedAt": now, "newsroomFeedKey": "semanticNodes",
+        "updatedAt": now, "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
     }
 
 

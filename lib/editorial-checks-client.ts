@@ -22,10 +22,10 @@ function parsed<T>(value: unknown): T {
   return (typeof value === "string" ? JSON.parse(value) : value) as T;
 }
 
-export async function checkEditorial(body: string, section: string | null): Promise<EditorialCheckResult> {
+export async function checkEditorial(body: string, section: string | null, language: string): Promise<EditorialCheckResult> {
   const data = await call<{ checkEditorial: unknown }>(
-    `query CheckEditorial($body: String!, $format: String, $section: String) { checkEditorial(body: $body, format: $format, section: $section) }`,
-    { body, format: "markus", section },
+    `query CheckEditorial($body: String!, $format: String, $section: String, $language: String!) { checkEditorial(body: $body, format: $format, section: $section, language: $language) }`,
+    { body, format: "markus", section, language },
   );
   return parsed<EditorialCheckResult>(data.checkEditorial);
 }
@@ -33,17 +33,19 @@ export async function checkEditorial(body: string, section: string | null): Prom
 export async function suggestRewrites(
   body: string,
   section: string | null,
+  language: string,
   target: { finding: EditorialFinding } | { selection: Span },
   note: string | null,
 ): Promise<RewriteResult> {
   const data = await call<{ suggestEditorialRewrite: unknown }>(
-    `query SuggestEditorialRewrite($body: String!, $format: String, $section: String, $finding: AWSJSON, $selection: AWSJSON, $note: String) {
-      suggestEditorialRewrite(body: $body, format: $format, section: $section, finding: $finding, selection: $selection, note: $note)
+    `query SuggestEditorialRewrite($body: String!, $format: String, $section: String, $language: String!, $finding: AWSJSON, $selection: AWSJSON, $note: String) {
+      suggestEditorialRewrite(body: $body, format: $format, section: $section, language: $language, finding: $finding, selection: $selection, note: $note)
     }`,
     {
       body,
       format: "markus",
       section,
+      language,
       finding: "finding" in target ? JSON.stringify(target.finding) : null,
       selection: "selection" in target ? JSON.stringify(target.selection) : null,
       note,
@@ -85,6 +87,8 @@ export type EditorialPolicyRecord = {
   id: string;
   policyKey: string;
   scope: string;
+  /** The language the policy is written for: a tag (en, es-419, zh-Hans), or "*" for a language-neutral policy. */
+  language: string;
   version: number;
   title: string;
   guidance: string;
@@ -96,7 +100,7 @@ export type EditorialPolicyRecord = {
   source: string;
 };
 
-const POLICY_FIELDS = "id policyKey scope version title guidance severity enabled detectors examples rewriteGuidance source";
+const POLICY_FIELDS = "id policyKey scope language version title guidance severity enabled detectors examples rewriteGuidance source";
 
 function policyFromRow(row: Record<string, unknown>): EditorialPolicyRecord {
   return {
@@ -183,10 +187,11 @@ export async function listStarterPacks(): Promise<{ humanusVersion?: string | nu
   return parsed(data.listEditorialStarterPacks);
 }
 
-export async function tryPolicy(policy: Record<string, unknown>, text: string): Promise<EditorialCheckResult> {
+/** Try a draft policy on sample text written in `language`. */
+export async function tryPolicy(policy: Record<string, unknown>, text: string, language: string): Promise<EditorialCheckResult> {
   const data = await call<{ tryEditorialPolicy: unknown }>(
-    `query TryEditorialPolicy($policy: AWSJSON!, $text: String!) { tryEditorialPolicy(policy: $policy, text: $text, format: "markus") }`,
-    { policy: JSON.stringify(policy), text },
+    `query TryEditorialPolicy($policy: AWSJSON!, $text: String!, $language: String!) { tryEditorialPolicy(policy: $policy, text: $text, format: "markus", language: $language) }`,
+    { policy: JSON.stringify(policy), text, language },
   );
   return parsed(data.tryEditorialPolicy);
 }

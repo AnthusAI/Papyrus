@@ -50,6 +50,21 @@ Feature: A cited Story never links to a source list that is not on the page, and
     When the site renders a Story with citation markers and a bibliography line
     Then the source "A Page Cited" has no icon and does not open a new tab
 
+  Scenario: A source with both a DOI and a URL keeps them apart
+    Given a Papyrus site whose citations setting is not declared
+    When the site renders a Story citing a paper that has both a DOI and a URL
+    Then the bibliography entry ends with the DOI, a space, and the link to the URL
+
+  Scenario: A source with only a DOI ends with the DOI
+    Given a Papyrus site whose citations setting is not declared
+    When the site renders a Story citing a paper that has only a DOI
+    Then the bibliography entry shows the DOI and no link
+
+  Scenario: A source with only a URL links it after a space
+    Given a Papyrus site whose citations setting is not declared
+    When the site renders a Story citing a paper that has only a URL
+    Then the bibliography entry shows the link to the URL after a space and no DOI
+
   Scenario Outline: A site that links no outside address has none in its bibliography
     Given a Papyrus site whose citations links are "<mode>"
     When the site renders a Story with <bibliography>
