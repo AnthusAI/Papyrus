@@ -113,6 +113,11 @@ def step_unreadable(context):
     context.client_procedure_cache_cleared = getattr(client_of(context), "_papyrus_story_procedure", None) is None
 
 
+@when("the site's procedure document can be read again")
+def step_readable_again(context):
+    context.site_files.get = lambda attachment: context.site_files.bodies.get(attachment["storagePath"])
+
+
 @then("publishing is refused rather than judged against the default list")
 def step_publish_refused(context):
     from papyrus_content.publishing import PublishError, publish_item
@@ -137,6 +142,11 @@ def step_files_idea(context):
         context.refusal = None
     except Exception as error:  # noqa: BLE001 - the step records whatever stopped the filing
         context.refusal = str(error)
+
+
+@when("the monitor files the same idea again")
+def step_files_same_idea_again(context):
+    step_files_idea(context)
 
 
 @then('filing the idea stopped saying "{text}"')

@@ -88,3 +88,12 @@ def test_the_research_workers_checklist_sync_has_no_quiet_path(monkeypatch):
     monkeypatch.setattr(story_checklist, "sync_checklist", refused)
     with pytest.raises(story_checklist.ChecklistError, match="could not be read"):
         assignments_workflow._sync_checklist_of_assignment(object(), {"itemLineageId": "story-1"})
+
+
+@pytest.mark.parametrize("function, role", [("StoryWorkerFunction", "StoryWorkerRole"), ("ResearchWorkerFunction", "ResearchWorkerRole")])
+def test_a_worker_runs_the_routers_code_under_a_role_in_the_same_stack(function, role):
+    """The grant and the code that needs it are one deploy: the release builds the router zip and updates the function and its role in one change set, and
+    CloudFormation updates the role first because the function reads its Arn. A worker is never given code from one place and a role from another."""
+    body = resources()[function]
+    assert f"Role: !GetAtt {role}.Arn" in body
+    assert "S3Key: !Ref RouterCodeKey" in body

@@ -184,9 +184,10 @@ def file_idea_item(
         if gate is not None and result is not None and not result.get("skipped"):
             gate.record(existing, result)
     lineage_id = existing.get("lineageId") or item_id
-    if created:   # every path that makes a Story makes its checklist, and it follows the site's procedure: a role that cannot read it fails here, loudly
-        from ..story_checklist import sync_checklist
+    from ..story_checklist import has_checklist, sync_checklist
 
+    if created or not has_checklist(existing):   # every path that makes a Story makes its checklist, and it follows the site's procedure: a role that cannot read it fails here, loudly
+        # An idea written by an attempt that then failed here (the queue delivers its step again) is not "created" on the retry, but it has no checklist yet: it gets one now.
         sync_checklist(client, lineage_id, story=existing)
     linked = [link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON, actor=actor, now=now, story=existing)["referenceLineageId"] for row in references]
     return {"itemId": item_id, "lineageId": lineage_id, "created": created, "linked": linked, "check": check, "story": existing}

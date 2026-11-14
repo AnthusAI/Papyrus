@@ -124,6 +124,11 @@ def _checklist_meta(row: dict[str, Any]) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def has_checklist(story: dict[str, Any]) -> bool:
+    """True once a sync has written the counts on the Story's version: that write is the last thing ``sync_checklist`` does, so a Story without it has none or a partial one."""
+    return bool(_checklist_meta(story))
+
+
 def _flat(group: list[dict[str, Any]]) -> dict[str, Any]:
     """One step from its versions of the sub-task Item: the newest is the step; every version's entry is its history."""
     ordered = sorted(group, key=lambda row: int(row.get("versionNumber") or 0))

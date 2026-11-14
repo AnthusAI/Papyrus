@@ -83,3 +83,11 @@ Feature: A site defines its own Story procedure
     And a site whose procedure is choose, draft, a step of its own "label_check" at the "copywriting" stage, and publish
     When the monitor files an idea
     Then the filed idea has 4 checklist items
+
+  Scenario: An idea whose first filing stopped for a missing grant gets its checklist when the queue delivers the step again
+    Given an empty newsroom
+    And a site whose procedure document cannot be read
+    When the monitor files an idea
+    And the site's procedure document can be read again
+    And the monitor files the same idea again
+    Then the filed idea has 4 checklist items
