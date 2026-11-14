@@ -881,12 +881,55 @@ GraphQL schema and clients are unchanged.
 (`features` in `papyrus.config.ts` wins over the `PAPYRUS_ENABLE_*` branch
 variable): `consoleResponder` (`PAPYRUS_ENABLE_CONSOLE_RESPONDER`), `inboundEmail`
 (`PAPYRUS_ENABLE_INBOUND_EMAIL`), `slack` (`PAPYRUS_ENABLE_SLACK`) and
-`storageBackups` (`PAPYRUS_ENABLE_STORAGE_BACKUPS`). The app-shell template passes
-whatever is in `cms.environment`, so set all four explicitly in `site.json` (see
-`examples/p-apyr-us.site.json`). A flag that is off creates none of that feature's
-resources. The console responder defaults to ON when nothing is set, so a new site
-must say `"false"`. It also needs a container image that this package does not
-build, so enabling it needs separate work.
+`storageBackups` (`PAPYRUS_ENABLE_STORAGE_BACKUPS`). **All four are off unless a site
+turns them on**, for every site (the original p.apyr.us pipeline included); a flag that
+is off creates none of that feature's resources. Set all four explicitly in `site.json`
+anyway (`papyrus site init` writes them), so a site's choice is readable (see
+`examples/p-apyr-us.site.json`).
+
+A feature that is on must carry what it needs, and the build and `papyrus-infra synth`
+both fail, naming the flag and each missing variable, when it does not (nothing is
+defaulted or skipped): the console responder needs `PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI`,
+a prebuilt ARM64 ECR image, because it runs a container image that this package does not
+build (building it locally is an explicit developer choice,
+`PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD=true`, and no pipeline sets it for you);
+inbound email needs `PAPYRUS_INBOUND_EMAIL_DOMAIN`, `PAPYRUS_INBOUND_EMAIL_CORPUS_KEY` and
+`PAPYRUS_PUBLIC_SITE_BASE_URL`, the site's own, plus its hosted zone
+(`PAPYRUS_ROUTE53_HOSTED_ZONE_ID`, `PAPYRUS_ROUTE53_HOSTED_ZONE_NAME`) when the stack verifies the domain. Slack and storage backups need nothing
+more at synth (Slack's secrets are Amplify secrets). A flag value in `cms.environment` must be
+exactly `"true"` or `"false"`. Code: `assertFeaturePrerequisites` in
+`amplify/site-backend-names.ts`, `assertOptionalFeatures` in
+`infra/amplify-app-shell/lib/site-config.ts`.
+
+**Before bumping to the release that flips these defaults, set the features your site uses in
+its `papyrus.config.ts`.** Until then a site that never wrote `features` got the console
+responder (always), and on the original Papyrus pipeline (the app named by `productionAppId`,
+branch `main`) also inbound email and storage backups. After the bump none of them is built
+unless the site says so, and a deploy that drops one removes its resources: the console
+responder function and its stream trigger, the inbound email receipt rule, functions and
+EventBridge rules, and the backup plan and selection. Nothing in a table or the storage bucket
+is deleted, and the backup vault itself is retained with every recovery point, but mail sent to
+a removed inbound address bounces and the bucket stops being backed up. To keep a feature, write
+it down before the bump:
+
+```ts
+backend: {
+  features: { consoleResponder: false, inboundEmail: false, slack: false, storageBackups: true },
+}
+```
+
+Write all four, `false` included: `features` wins over the branch variables, and an explicit
+`false` is a decision that a person can read.
+
+Papyrus's own legacy backend (`amplify/backend.ts`, the old p.apyr.us Amplify app in the legacy
+account) is the one backend that relies on the old defaults. It does not build on its own
+(auto-build is off for its branches), so nothing changes until someone starts a build of it by hand.
+Before anyone does, set `features: { consoleResponder: true, inboundEmail: true, slack: false,
+storageBackups: true }` in `amplify/backend.ts`, or that deploy removes the console responder, the
+inbound email receipt rule and the storage backups.
+
+A site that already sets all four in
+`papyrus.config.ts`, or in `cms.environment` of `infra/site.json`, changes nothing.
 
 Names that are account-global or region-global are derived in
 `amplify/site-backend-names.ts`. Only the app named by `productionAppId` (the
