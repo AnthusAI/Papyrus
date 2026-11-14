@@ -1,0 +1,22 @@
+{
+  "id": "PPY-0a9b8c54-ea79-4db0-b0dd-a4de1ee33deb",
+  "title": "Function tenant context, batch 5: platform-invoked workers (email-submission-processor, ses-inbound-receive, slack-delivery, slack-events, console-chat-responder) and the schedulers that invoke content-actions tasks",
+  "description": "Move these handlers to the TenantContext, and make every invoker of a content-actions projectionTask (reproject-on-deploy, reader-steering snapshot schedule, home-page stream trigger and schedule) name the tenant in the task on a shared stack. Remove each handler from PENDING in scripts/test-function-tenant-context.ts.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7dc4633f-740e-4a88-a901-9fa4dbbc89ab",
+  "labels": [
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-14T00:26:26.852158Z",
+  "updated_at": "2026-11-14T00:26:26.852194Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

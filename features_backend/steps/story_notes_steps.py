@@ -19,6 +19,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
 
 from papyrus_content import story_commands  # noqa: E402
 from papyrus_content.story_agent_notes import save_agent_note, story_agent_notes  # noqa: E402
+from tenant_support import IAM_IDENTITY  # noqa: E402
 from test_story_notes import LINEAGE, StoredBodies, graphql_posting, handler_module, run_note, story_client  # noqa: E402
 
 
@@ -167,7 +168,7 @@ def _schema_groups(context):
 
 @then("an agent note from a caller with no sign-in is refused")
 def _anonymous(context):
-    event = {"fieldName": "addStoryAgentNote", "arguments": {"input": json.dumps({"lineageId": LINEAGE, "agent": "ChatGPT", "body": "x"})}, "identity": {}}
+    event = {"fieldName": "addStoryAgentNote", "arguments": {"input": json.dumps({"lineageId": LINEAGE, "agent": "ChatGPT", "body": "x"})}, "identity": IAM_IDENTITY}
     with mock.patch.object(handler_module, "create_authoring_client", return_value=(context.client, {})):
         answer = handler_module.handler(event, None)
     assert answer["ok"] is False and answer["errors"][0]["code"] == "not-signed-in"

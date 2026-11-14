@@ -38,7 +38,7 @@ def call_action(context, field: str, payload: dict) -> dict:
     event = {
         "fieldName": field,
         "arguments": {"input": json.dumps(payload)},
-        "identity": {"username": "behave-editor"},
+        "identity": {"username": "behave-editor", "claims": {}},
     }
     with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
         "papyrus_content.rebuild_trigger._create_amplify_client", return_value=context.amplify

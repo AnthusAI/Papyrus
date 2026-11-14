@@ -16,6 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from tenant_support import dedicated_call  # noqa: E402
 from test_publish_jobs import LockTableCase, handler  # noqa: E402
 
 from papyrus_content import story_rerender  # noqa: E402
@@ -64,7 +65,8 @@ class ServerJobTest(LockTableCase):
         super().tearDown()
 
     def ask(self, **arguments) -> dict:
-        return handler.refresh_site_pages_action(arguments)
+        with dedicated_call():
+            return handler.refresh_site_pages_action(arguments)
 
     def test_an_async_story_rerender_answers_with_a_job_and_renders_nothing_itself(self) -> None:
         answer = self.ask(**request(**{"async": True}))
@@ -98,7 +100,7 @@ class ServerJobTest(LockTableCase):
     def test_the_status_follows_the_job_to_done_with_what_it_wrote(self) -> None:
         answer = self.ask(**request(**{"async": True}))
         self.assertEqual(self.ask(operation="site_rerender_pages", jobStatus=True, jobKey=answer["jobKey"])["job"]["state"], QUEUED)
-        handler.run_projection_task(self.scheduled[0])
+        handler.handler({"projectionTask": self.scheduled[0]}, None)
         status = self.ask(operation="site_rerender_pages", jobStatus=True, jobKey=answer["jobKey"])["job"]
         self.assertEqual(status["state"], DONE)
         self.assertEqual(status["rendered"]["count"], 1)
@@ -114,7 +116,7 @@ class ServerJobTest(LockTableCase):
         self.service.outcome = BROKEN
         answer = self.ask(**request(**{"async": True}))
         with self.assertRaises(handler.ProjectionTaskFailed):
-            handler.run_projection_task(self.scheduled[0])
+            handler.handler({"projectionTask": self.scheduled[0]}, None)
         status = self.ask(operation="site_rerender_pages", jobStatus=True, jobKey=answer["jobKey"])["job"]
         self.assertEqual(status["state"], FAILED)
         self.assertEqual(status["error"], "the hook raised")
@@ -122,15 +124,15 @@ class ServerJobTest(LockTableCase):
     def test_a_render_that_raises_ends_the_job_failed(self) -> None:
         answer = self.ask(**request(**{"async": True}))
         with mock.patch.object(self.service, "rerender", side_effect=RuntimeError("boom")), self.assertRaises(RuntimeError):
-            handler.run_projection_task(self.scheduled[0])
+            handler.handler({"projectionTask": self.scheduled[0]}, None)
         status = self.ask(operation="site_rerender_pages", jobStatus=True, jobKey=answer["jobKey"])["job"]
         self.assertEqual((status["state"], status["error"]), (FAILED, "RuntimeError: boom"))
 
     def test_a_retry_of_a_task_whose_job_is_done_does_nothing(self) -> None:
         self.ask(**request(**{"async": True}))
-        handler.run_projection_task(self.scheduled[0])
+        handler.handler({"projectionTask": self.scheduled[0]}, None)
         calls = len(self.service.calls)
-        self.assertTrue(handler.run_projection_task(self.scheduled[0])["alreadyBuilt"])
+        self.assertTrue(handler.handler({"projectionTask": self.scheduled[0]}, None)["alreadyBuilt"])
         self.assertEqual(len(self.service.calls), calls)
 
     def test_a_status_with_neither_key_nor_scope_is_refused(self) -> None:

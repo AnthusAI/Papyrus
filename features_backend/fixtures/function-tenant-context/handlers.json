@@ -1,0 +1,38 @@
+{
+  "note": "Every function directory (scripts/generate-tenant-isolation-cases.ts readFunctions) is moved or pending. A pending function names the board sub-task of PPY-7dc463 that moves it, and the list only shrinks: a function leaves it in the PR that moves it.",
+  "moved": [
+    "assignment-action",
+    "category-action",
+    "content-actions",
+    "editorial-checks",
+    "newsroom-summary"
+  ],
+  "pending": {
+    "procedure-action": "PPY-26d90f",
+    "manage-user-role": "PPY-26d90f",
+    "model-attachment-upload": "PPY-26d90f",
+    "public-forms": "PPY-26d90f",
+    "reader-settings": "PPY-26d90f",
+    "proposal-actions": "PPY-7e3a20",
+    "knowledge-query": "PPY-7e3a20",
+    "monitoring-view": "PPY-7e3a20",
+    "automation-view": "PPY-7e3a20",
+    "image-service": "PPY-7e3a20",
+    "announcements": "PPY-7e3a20",
+    "reference-word-index": "PPY-7e3a20",
+    "renditions": "PPY-7e3a20",
+    "reader-steering/function": "PPY-01360c",
+    "home-page/function": "PPY-01360c",
+    "newsletter/function": "PPY-01360c",
+    "newsletter/ops": "PPY-01360c",
+    "notifications/function": "PPY-01360c",
+    "signup/function": "PPY-01360c",
+    "alexa/function": "PPY-01360c",
+    "cli-login-pages": "PPY-01360c",
+    "email-submission-processor": "PPY-0a9b8c",
+    "ses-inbound-receive": "PPY-0a9b8c",
+    "slack-delivery": "PPY-0a9b8c",
+    "slack-events": "PPY-0a9b8c",
+    "console-chat-responder": "PPY-0a9b8c"
+  }
+}

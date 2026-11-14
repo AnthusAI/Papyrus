@@ -5,6 +5,7 @@
  * site tenant. The tenant never comes from the request body and is never guessed.
  * Python twin: src/papyrus_content/tenant_context.py; both read features_backend/fixtures/tenant-context/vectors.json.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import { isSharedStack, tenantIdFromEnvironment, validateTenantId } from "../../../lib/tenant-keys";
 
 export const ROLE_CLAIMS = [
@@ -96,4 +97,36 @@ export function buildTenantContext(identity: Identity, options: TenantContextOpt
     throw new TenantContextRefusal("foreign_tenant", "The call names a tenant other than this stack's fixed tenant.");
   }
   return { tenantId: fixed, roles, mode, operator: isIam };
+}
+
+export function isIamIdentity(identity: Identity): boolean {
+  return isRecord(identity) && !isRecord(identity.claims) && ("userArn" in identity || "accountId" in identity);
+}
+
+type FieldEvent = { identity?: unknown; arguments?: Record<string, unknown> | null };
+
+/**
+ * The one context of an AppSync field event. A signed-in caller's tenant is its role claim and nothing in the arguments is read for it. An IAM
+ * caller (the platform operator or a worker) names the tenant as the `tenantId` argument; an operation without that argument cannot be called by
+ * IAM on a shared stack, which refuses it before any read.
+ */
+export function buildEventTenantContext(event: FieldEvent, environment: Record<string, string | undefined> = process.env): TenantContext {
+  const identity = event.identity as Identity;
+  const named = isIamIdentity(identity) ? event.arguments?.tenantId : undefined;
+  return buildTenantContext(identity, { explicitTenant: (named ?? null) as string | null, environment });
+}
+
+const acting = new AsyncLocalStorage<TenantContext>();
+
+/** Run one call for `context`: everything it awaits reads the tenant from `currentTenantContext()`, never from the environment. */
+export function actingFor<T>(context: TenantContext, call: () => T): T {
+  return acting.run(context, call);
+}
+
+export function currentTenantContext(): TenantContext {
+  const context = acting.getStore();
+  if (!context) {
+    throw new TenantContextRefusal("unsupported_identity", "No tenant context: a handler builds one from the event before it reads or writes anything.");
+  }
+  return context;
 }

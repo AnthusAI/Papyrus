@@ -1,5 +1,6 @@
 /** Offline integration coverage of the real curation Lambda and its AppSync auth contract. */
 import assert from "node:assert/strict";
+import * as asyncHooks from "node:async_hooks";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -63,6 +64,7 @@ async function main() {
   const modules: Record<string, unknown> = {
     // setItemStars asks content-actions to refresh listings; this test never rates a Story, so the client is never constructed or used.
     "@aws-sdk/client-lambda": { LambdaClient: class { async send() { throw new Error("no network in this test"); } }, InvokeCommand: class {} },
+    "node:async_hooks": asyncHooks,
     "node:crypto": crypto,
     "@aws-amplify/backend/function/runtime": { getAmplifyDataClientConfig: async () => ({ resourceConfig: {}, libraryOptions: {} }) },
     "aws-amplify": { Amplify: { configure: () => undefined } },

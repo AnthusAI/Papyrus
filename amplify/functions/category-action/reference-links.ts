@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { changeReasonAfterNewDescription } from "./knowledge-review";
 import { REFERENCE_LINK_FEED_KEY, SEMANTIC_NODE_FEED_KEY, globalKey } from "../../../lib/tenant-knowledge-keys";
+import { currentTenantContext } from "../shared/tenant-context";
 
 export const REFERENCE_LINK_KIND = "reference.link";
 export const REFERENCE_CONCEPT_KIND = "reference.concept";
@@ -181,7 +182,7 @@ export function buildHumanEdgeRow(input: { relationId: string; kind: string; pre
     reviewRecommended: false,
     importedAt: input.now,
     updatedAt: input.now,
-    newsroomFeedKey: globalKey(REFERENCE_LINK_FEED_KEY),
+    newsroomFeedKey: globalKey(REFERENCE_LINK_FEED_KEY, currentTenantContext().tenantId),
     metadata: JSON.stringify(metadata),
   };
 }
@@ -289,7 +290,7 @@ export async function ensureEditorConcept(store: ReferenceLinkStore, name: strin
   const node = {
     id: `${lineageId}-v1`, lineageId, versionNumber: 1, versionState: "current", versionCreatedAt: now, versionCreatedBy: callerSub, changeReason: options.origin && options.origin !== "newsroom" ? `Invented by an editor with a hashtag (via ${options.origin})` : "Invented by an editor with a hashtag",
     nodeKey: editorConceptKey(slug), nodeKind: EDITOR_CONCEPT_KIND, displayName, status: "accepted", aliases: [], createdAt: now, updatedAt: now,
-    newsroomFeedKey: globalKey(SEMANTIC_NODE_FEED_KEY),
+    newsroomFeedKey: globalKey(SEMANTIC_NODE_FEED_KEY, currentTenantContext().tenantId),
   };
   await store.createSemanticNode(node);   // false: it exists now (a second tap); read it back either way
   const made = await store.getSemanticNode(lineageId);

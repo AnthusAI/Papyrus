@@ -22,6 +22,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
         sys.path.insert(0, str(entry))
 
 from papyrus_content.item_language_backfill import DEPLOY_MARKER_KEY  # noqa: E402
+from procedures.newsroom.tests.tenant_support import dedicated_call  # noqa: E402
 from papyrus_content.projection.engine import ProjectionContext, project  # noqa: E402
 from papyrus_content.projection.source import PublishedContentSource  # noqa: E402
 from papyrus_content.projection.standard.projector import StandardMarkusProjector  # noqa: E402
@@ -129,7 +130,8 @@ def _deploy(context):
     for patch in patches:
         patch.start()
     try:
-        context.result, context.failure = handler.run_deploy_render_task(context.client), None
+        with dedicated_call():
+            context.result, context.failure = handler.run_deploy_render_task(context.client), None
     except Exception as error:  # noqa: BLE001 - the scenario checks what a failed deploy left
         context.result, context.failure = None, error
     finally:

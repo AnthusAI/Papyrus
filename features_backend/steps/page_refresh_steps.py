@@ -489,7 +489,7 @@ class NewsroomClient:
     def graphql(self, query, variables=None):
         field = "refreshSitePages"
         assert field in query, query
-        event = {"fieldName": field, "arguments": {"input": variables["input"]}, "identity": {"username": "behave-editor"}}
+        event = {"fieldName": field, "arguments": {"input": variables["input"]}, "identity": {"username": "behave-editor", "claims": {}}}
         return {field: json.dumps(call_handler(self.context, event))}
 
 
@@ -501,7 +501,7 @@ def signed_in_runs(context, words: str) -> None:
 
 @when("a signed-in editor refreshes the published article through the newsroom")
 def signed_in_story(context) -> None:
-    event = {"fieldName": "refreshSitePages", "arguments": {"input": json.dumps({"operation": "site_refresh_story", "storyLineageId": "item-articles-hello"})}, "identity": {"username": "behave-editor"}}
+    event = {"fieldName": "refreshSitePages", "arguments": {"input": json.dumps({"operation": "site_refresh_story", "storyLineageId": "item-articles-hello"})}, "identity": {"username": "behave-editor", "claims": {}}}
     context.newsroom_answer = call_handler(context, event)
 
 
