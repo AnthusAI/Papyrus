@@ -61,6 +61,12 @@ export type CmsConfig = {
   cognitoDomainPrefix: string;
   applyCognitoDomainPrefix?: boolean;
   buildComputeType?: "STANDARD" | "STANDARD_8GB";
+  /**
+   * How long Amplify lets one build job run, in whole minutes (Amplify's `_BUILD_TIMEOUT`, set on the app so every branch gets it).
+   * Amplify allows 5 to 120 and stops a job at 30 without it. Defaults to the maximum, 120, because a large backend release
+   * can need more than 30 minutes (docs/site-hosting.md, "Build timeout").
+   */
+  buildTimeoutMinutes?: number;
   environment: Record<string, string>;
   stagingDomainName?: string;
   stagingDomainPrefix?: string;
@@ -479,12 +485,26 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
   };
 }
 
+/** Amplify's documented range for `_BUILD_TIMEOUT` (AWS Amplify Hosting user guide, "Troubleshooting build issues"). */
+export const MIN_BUILD_TIMEOUT_MINUTES = 5;
+export const MAX_BUILD_TIMEOUT_MINUTES = 120;
+export const DEFAULT_BUILD_TIMEOUT_MINUTES = MAX_BUILD_TIMEOUT_MINUTES;
+
+/** The build timeout a CMS app gets: the site's setting, else the maximum. */
+export function resolveBuildTimeoutMinutes(cms: Pick<CmsConfig, "buildTimeoutMinutes">): number {
+  return cms.buildTimeoutMinutes ?? DEFAULT_BUILD_TIMEOUT_MINUTES;
+}
+
 function parseCms(value: unknown, environment: Record<string, string | undefined>): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild", "cms", "alarmTopicArn", "cms", "cliOnFederationClient"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "buildTimeoutMinutes", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild", "cms", "alarmTopicArn", "cms", "cliOnFederationClient"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
+  }
+  const buildTimeoutMinutes = cmsRecord.buildTimeoutMinutes;
+  if (buildTimeoutMinutes !== undefined && (!Number.isInteger(buildTimeoutMinutes) || (buildTimeoutMinutes as number) < MIN_BUILD_TIMEOUT_MINUTES || (buildTimeoutMinutes as number) > MAX_BUILD_TIMEOUT_MINUTES)) {
+    fail("cms.buildTimeoutMinutes", `must be a whole number of minutes from ${MIN_BUILD_TIMEOUT_MINUTES} to ${MAX_BUILD_TIMEOUT_MINUTES} (Amplify's range for _BUILD_TIMEOUT), got ${JSON.stringify(buildTimeoutMinutes)}`);
   }
   if (cmsRecord.staging !== undefined && typeof cmsRecord.staging !== "boolean") {
     fail("cms.staging", `must be a boolean, got ${JSON.stringify(cmsRecord.staging)}`);
@@ -528,6 +548,7 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
     ),
     applyCognitoDomainPrefix: cmsRecord.applyCognitoDomainPrefix as boolean | undefined,
     buildComputeType: buildComputeType as "STANDARD" | "STANDARD_8GB" | undefined,
+    buildTimeoutMinutes: buildTimeoutMinutes as number | undefined,
     environment: requireStringRecord(cmsRecord.environment, "cms.environment"),
     stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),
     stagingDomainPrefix: optionalString(cmsRecord.stagingDomainPrefix, "cms.stagingDomainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),

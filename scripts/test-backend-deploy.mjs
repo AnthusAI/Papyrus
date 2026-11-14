@@ -71,6 +71,8 @@ assert.throws(() => parseWaveOutput("two"), /not "W\/N" or "complete"/);
   // The build timeout is Amplify's (30 minutes, or _BUILD_TIMEOUT), less 10 for the frontend build and setup.
   assert.equal(deployMinutes({}), 20);
   assert.equal(deployMinutes({ _BUILD_TIMEOUT: "60" }), 50);
+  // The app shell sets 120 by default (cms.buildTimeoutMinutes): 110 minutes for deploying.
+  assert.equal(deployMinutes({ _BUILD_TIMEOUT: "120" }), 110);
 }
 
 // A backend on a Papyrus without waves leaves no output after a wave pass: refused, not looped.

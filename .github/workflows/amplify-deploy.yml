@@ -60,10 +60,12 @@ on:
         type: string
         default: us-east-1
       timeout-minutes:
-        description: How long to wait for the Amplify job
+        description: >-
+          How long to wait for the Amplify job. The default is 125: the app shell sets Amplify's build timeout (_BUILD_TIMEOUT)
+          to at most 120 minutes (cms.buildTimeoutMinutes), plus 5 minutes for the job to start. Keep it above the site's build timeout.
         required: false
         type: number
-        default: 60
+        default: 125
 
 permissions:
   id-token: write
@@ -72,7 +74,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # The wait plus 10 minutes for the steps around it (OIDC login, the summary), so the wait is what ends a slow job, not this timeout.
+    timeout-minutes: ${{ inputs.timeout-minutes + 10 }}
     steps:
       - name: Work out the app and the role
         id: target
