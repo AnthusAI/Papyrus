@@ -1,0 +1,57 @@
+# Reusable: opens "chore: bump Papyrus to X" on a Papyrus site repository when a newer release exists on both PyPI and npm.
+# A site calls it from a scheduled workflow (see docs/site-hosting.md, "Automated Papyrus bumps"). It opens the pull request and
+# never merges it. Spec: features_backend/consumer-bump-automation.feature.
+#
+# Pull requests and pushes made with GITHUB_TOKEN start no workflow runs, so when `ci-workflow` is given the job dispatches that
+# workflow on the bump branch with workflow_dispatch (the one event GITHUB_TOKEN may start). The checks land on the branch head,
+# which is the pull request head. The site's workflow must list `workflow_dispatch:` under `on:`.
+# The repository setting "Allow GitHub Actions to create and approve pull requests" must be on for the calling repository.
+name: bump-consumer
+
+on:
+  workflow_call:
+    inputs:
+      base:
+        description: The integration branch to bump and open the pull request against.
+        type: string
+        required: true
+      ci-workflow:
+        description: Workflow file in the site to dispatch on the bump branch, for example deploy.yml. Empty dispatches nothing.
+        type: string
+        default: ""
+
+permissions: {}
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.base }}
+          path: site
+      # Tags give the release notes and the schema at each version; only the script and the schema are read from this checkout.
+      - uses: actions/checkout@v4
+        with:
+          repository: AnthusAI/Papyrus
+          ref: main
+          path: papyrus
+          fetch-depth: 0
+          fetch-tags: true
+          filter: blob:none
+          sparse-checkout: |
+            infra/pipeline/bump_consumer.py
+            amplify
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: >
+          python3 papyrus/infra/pipeline/bump_consumer.py --site site --papyrus papyrus
+          --base "${{ inputs.base }}" --ci-workflow "${{ inputs.ci-workflow }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
