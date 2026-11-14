@@ -923,11 +923,7 @@ def byline_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     """Who the story may be credited to: the site's byline policy, or the honest default (agent work is attributed to AI, no invented author)."""
     from .guidelines.byline import byline_policy, byline_text
 
-    try:
-        policy = byline_policy(situation.store, guidelines_store(situation.store))
-    except GuidelineError as error:
-        situation.warnings.append(f"The byline policy could not be read ({error.code}): {error.message}")
-        return [], "the byline policy could not be read"
+    policy = byline_policy(situation.store, guidelines_store(situation.store))   # a policy that cannot be read stops the pack: the writer is never told the default for a site that chose otherwise
     reference = policy["reference"] or {}
     return [_entry("byline", str(reference.get("itemId") or "default"), byline_text(policy["document"]), source=policy["source"],
                    **({"slug": reference["slug"], "versionNumber": reference["versionNumber"], "contentHash": reference["contentHash"]} if reference else {}))], None
