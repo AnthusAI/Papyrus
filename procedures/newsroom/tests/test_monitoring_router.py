@@ -1060,6 +1060,18 @@ def test_intake_rationale_names_the_machine_decision():
     assert ReferenceIntake._machine_decision_note({}) == ""
 
 
+def test_the_router_zip_leaves_out_wheel_files_a_lambda_never_reads():
+    sys.path.insert(0, str(ROOT / "infra" / "monitoring"))
+    try:
+        import build
+    finally:
+        sys.path.pop(0)
+    for kept in ("humanus/check.py", "humanus/languages/zh-Hans.yml", "pydantic-2.12.5.dist-info/METADATA", "humanus-0.36.0.dist-info/entry_points.txt"):
+        assert build.lambda_reads(kept), kept
+    for dropped in ("pydantic-2.12.5.dist-info/RECORD", "pydantic_core/core_schema.pyi", "humanus/py.typed", "jsonschema/tests/test_validators.py"):
+        assert not build.lambda_reads(dropped), dropped
+
+
 def test_router_zip_imports_with_only_the_standard_library(tmp_path):
     sys.path.insert(0, str(ROOT / "infra" / "monitoring"))
     try:

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-13fb8aa8-9cf6-4ffe-9ff2-6af17457e204",
+  "title": "A public page for each accepted Reference",
+  "description": "Our summary, source and date, credited image, concepts, stories based on or citing it, and a read-the-original link with the icon. Start with References that have a summary (388 of 827). Never the source's captured text. Decide indexing: noindex thin pages. Includes the citation fallback to these pages.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T12:30:10.081705Z",
+  "updated_at": "2026-11-09T12:30:10.081731Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

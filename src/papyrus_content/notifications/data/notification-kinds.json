@@ -1,0 +1,12 @@
+{
+  "kinds": {
+    "story.published": {
+      "ack": "none",
+      "channels": [
+        "email"
+      ],
+      "class": "public",
+      "defaultOn": false
+    }
+  }
+}

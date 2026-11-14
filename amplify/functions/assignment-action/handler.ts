@@ -319,7 +319,7 @@ async function listAssignmentsForObject(event: Parameters<Schema["listAssignment
 async function editorialContext(client: DataClient, scope: { publicationKey?: string; sectionId?: string | null; storyLineageId?: string | null; assignmentId?: string | null; maxCharacters?: number | null; optionalPublicationDoctrine?: boolean | null }) {
   if (!editorialEndpoint) throw new Error("Editorial context requires the configured backend endpoint.");
   return resolveEditorialContext(client as unknown as EditorialClient, {
-    ...scope, endpoint: editorialEndpoint, tenantId: tenantIdFromEnvironment(), readAttachment: readEditorialAttachment,
+    ...scope, endpoint: editorialEndpoint, tenantId: tenantIdFromEnvironment(), includeGuidelines: true, readAttachment: readEditorialAttachment,
   });
 }
 
@@ -742,7 +742,7 @@ function runIngestionReferenceRegisterViaCli(input: {
     "input.sourceUri",
   );
   const title = normalizeOptionalString(input.input.title) ?? "Untitled source";
-  const corpusKey = normalizeOptionalString(input.input.corpusKey ?? input.input.corpus_key) ?? "AI-ML-research";
+  const corpusKey = normalizeRequiredString(input.input.corpusKey ?? input.input.corpus_key, "input.corpusKey");
   const ingestionRationale = normalizeOptionalString(input.input.ingestionRationale ?? input.input.ingestion_rationale)
     ?? `Registered from procedure ingestion.reference.register for ${externalItemId}.`;
   const tempDir = mkdtempSync(path.join(tmpdir(), "papyrus-ingestion-reference-register-"));

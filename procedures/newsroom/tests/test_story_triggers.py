@@ -8,7 +8,8 @@ from fake_client import FakeAuthoringClient
 from papyrus_content import automations as au
 from papyrus_content import story_triggers as st
 from papyrus_content.automations import AutomationError, MonitoringReader, MonitoringWriter
-from papyrus_content.story_reporting import latest_story_version, move_story_stage
+from papyrus_content.content_item_lifecycle import head_stage_fields
+from papyrus_content.story_reporting import latest_story_version, move_story_stage, superseding_update
 
 LINEAGE = "content-item-board-refuses-1"
 NOW = "2026-10-24T09:00:00.000000Z"
@@ -73,8 +74,9 @@ class World:
         number = latest["versionNumber"] + 1
         new = {**latest, "id": f"{LINEAGE}-v{number}", "versionNumber": number, "versionState": "current", "previousVersionId": latest["id"],
                "versionCreatedBy": label, "bodyMarkus": f"{label}\n"}
+        new.update(head_stage_fields(new))   # the new version is the head; the old one leaves the head stage index
         self.client.create_record("Item", new)
-        self.client.update_record("Item", {"id": latest["id"], "versionState": "superseded"})
+        self.client.update_record("Item", superseding_update(latest))
         return new["id"]
 
     def chain(self):

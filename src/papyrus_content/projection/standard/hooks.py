@@ -55,6 +55,27 @@ The hooks that shape an item page before and after it is converted (a site whose
 that rendered page, so a site's own card drawing applies to cards loaded later. Those pages read no Story unless ``DEPENDS_ON`` names
 ``"reference_list"`` (or is a list of sections).
 
+``page.concept_links`` and ``page.related_stories`` (item pages) are the Story's public concept pages and its related published Stories, read from its
+relations (see docs/surfable-site.md); a hook that draws them is rendered again when a relation changes.
+
+``page.related_references`` (item pages) is a tuple of the accepted References the Story points a reader to: "read this source too", a looser association
+than citing or consulting (those are the reporting trail and are not shown here). It is read from the Story's current ``see_also`` relations to a Reference
+(``papyrus stories link-story --story S --reference R``), newest linked first. Each is a plain mapping ``{referenceId, lineageId, title, url, host, image,
+summary, medium, acceptedAt, note}``; ``image``, ``summary``, ``medium`` and ``note`` are ``None`` when there is none (``summary`` is the generated card
+summary, ``note`` the editor's or agent's note on the link), and the captured text is never included. Pending, recommended and rejected References are left
+out. It is empty on a wiki page, where the Story has none, and on a build that reads no relations. Adding, removing or retiring a link, or a Reference
+changing status or being edited, renders the pages that show it again. For example::
+
+    def page_finish(html, page):
+        items = "".join(f'<li><a href="{r["url"]}">{r["title"]}</a> ({r["host"]})</li>' for r in page.related_references)
+        return html.replace("</main>", f"<ul class='sources'>{items}</ul></main>") if items else html
+
+Languages (docs/multilingual-serving.md): ``page.language`` is the page's BCP 47 tag and ``page.strings`` the site's interface strings in it
+(``strings/<tag>.json``). On a site that serves several languages, ``page.primary_language`` is the primary, ``page.alternates`` is the page in every
+public language it is published in, itself included, as ``{tag, name, url}`` (empty when it exists in one language), ``page.link_map`` is
+``{page path: {tag: page path}}`` and ``page.link_in_language(path)`` returns ``(path, leaves_the_language)`` for a link on this page. The head's
+``hreflang``, ``x-default``, ``og:locale``, JSON-LD ``inLanguage`` and ``<html lang>`` are core's.
+
 ``page.ranked(entries, bucket=None)`` returns entries (newest first, as ``page.entries`` is) in the Story ranking the home page and listings use
 (the newest rolling bucket first, the editors' stars inside it; ``bucket`` is ``day``, ``week`` or ``none``, default the site's ``listings.bucket``).
 A hook that builds its own listing calls it instead of sorting; with nothing rated it returns the list unchanged. A rating or a new day that

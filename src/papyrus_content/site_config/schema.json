@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://papyrus.anth.us/schemas/site-config-v1.json",
+  "title": "SiteConfig v1",
+  "description": "The settings a tenant on the shared tier can set. Anything not listed here is refused (additionalProperties is false everywhere). A setting enters this schema only when a second site needs it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "name"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "name": {"type": "string", "minLength": 1, "maxLength": 80},
+    "tagline": {"type": "string", "maxLength": 200},
+    "purpose": {"type": "string", "maxLength": 400, "description": "The purpose line (projection site.description)."},
+    "sections": {
+      "type": "array",
+      "description": "Topic sections in display order.",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "slug"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 80},
+          "label": {"type": "string", "maxLength": 80},
+          "slug": {"type": "string", "pattern": "^[a-z0-9][a-z0-9\\-_/]*$", "maxLength": 80},
+          "description": {"type": "string", "maxLength": 400}
+        }
+      }
+    },
+    "nav": {"type": "array", "maxItems": 12, "items": {"$ref": "#/$defs/link"}},
+    "homeTemplate": {"enum": ["latest", "sections"], "description": "The home template id (projection homePage.layout)."},
+    "footer": {
+      "type": "array",
+      "description": "Footer link columns.",
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["links"],
+        "properties": {
+          "title": {"type": "string", "maxLength": 80},
+          "links": {"type": "array", "maxItems": 20, "items": {"$ref": "#/$defs/link"}}
+        }
+      }
+    },
+    "analyticsId": {"type": "string", "pattern": "^G-[A-Z0-9]{4,20}$", "description": "A GA4 measurement id."},
+    "consentRegionPolicy": {"enum": ["standard", "everywhere", "off"]},
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "findings": {"type": "boolean"},
+        "videos": {"type": "boolean"},
+        "conversations": {"type": "boolean"},
+        "concepts": {"type": "boolean"},
+        "readerVotes": {"type": "boolean"}
+      }
+    }
+  },
+  "$defs": {
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "href"],
+      "properties": {
+        "label": {"type": "string", "minLength": 1, "maxLength": 80},
+        "href": {"type": "string", "pattern": "^(/|#|https://|mailto:)", "maxLength": 500}
+      }
+    }
+  }
+}

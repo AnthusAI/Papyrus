@@ -312,6 +312,10 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - { AttributeName: pk, AttributeType: S }
@@ -353,16 +357,27 @@ Resources:
         Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
       Tags:
         - { Key: purpose, Value: "item enrichment - captured article text and GROBID output - private to the router" }
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
 
   CollectorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-monitoring-collector
       RetentionInDays: 30
 
   CollectorRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       ManagedPolicyArns: !If
         - HasBedrockWebSearch
         - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
@@ -400,6 +415,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: CollectorLogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-monitoring-collector
       Runtime: python3.13
       Architectures: [arm64]
@@ -424,12 +443,20 @@ Resources:
   ScheduleDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
 
   ScheduleRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -559,6 +586,24 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt ScheduleDeadLetterQueue.Arn
 
+  FeedMetrCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-feed-metr-collect
+      Description: Run the collector for the METR feed; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"feed-metr"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
   WebCollectSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
@@ -631,12 +676,20 @@ Resources:
   RouterLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-monitoring-router
       RetentionInDays: 30
 
   RouterDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
 
@@ -646,12 +699,20 @@ Resources:
   SuggestDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
 
   SuggestQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       VisibilityTimeout: 1800   # six times the worker's timeout, as the event source mapping advises
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
@@ -662,6 +723,10 @@ Resources:
   SuggestWorkerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-monitoring-suggest-worker
       RetentionInDays: 30
 
@@ -671,6 +736,10 @@ Resources:
   SuggestWorkerRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -726,6 +795,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: SuggestWorkerLogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-monitoring-suggest-worker
       Runtime: python3.13
       Architectures: [arm64]
@@ -740,6 +813,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
 
   SuggestEventSourceMapping:
@@ -782,6 +856,10 @@ Resources:
   StoryDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FifoQueue: true
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
@@ -789,6 +867,10 @@ Resources:
   StoryQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FifoQueue: true
       VisibilityTimeout: 1800
       MessageRetentionPeriod: 1209600   # the plan's rows expire a day after this (PLAN_TTL_SECONDS)
@@ -800,6 +882,10 @@ Resources:
   StoryWorkerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-monitoring-story-worker
       RetentionInDays: 30
 
@@ -811,6 +897,10 @@ Resources:
   StoryWorkerRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       ManagedPolicyArns: !If
         - HasBedrockWebSearch
         - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
@@ -896,6 +986,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: StoryWorkerLogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-monitoring-story-worker
       Runtime: python3.13
       Architectures: [arm64]
@@ -910,6 +1004,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
           EDITORIAL_JUDGMENT_KEY_PARAMETER: !If [HasEditorialJudgmentKey, !Ref EditorialJudgmentKeyParameter, !Ref AWS::NoValue]
@@ -953,6 +1048,10 @@ Resources:
   RouterRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       ManagedPolicyArns: !If
         - HasBedrockWebSearch
         - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
@@ -1068,6 +1167,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: RouterLogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-monitoring-router
       Runtime: python3.13
       Architectures: [arm64]
@@ -1085,6 +1188,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
           SUGGEST_QUEUE_URL: !Ref SuggestQueue
           STORY_QUEUE_URL: !Ref StoryQueue
@@ -1412,6 +1516,10 @@ Resources:
   ResearchWorkerRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       ManagedPolicyArns: !If
         - HasBedrockWebSearch
         - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
@@ -1601,6 +1709,10 @@ Resources:
   ResearchWorkerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-monitoring-research-worker
       RetentionInDays: 30
 
@@ -1608,6 +1720,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: ResearchWorkerLogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-monitoring-research-worker
       Runtime: python3.13
       Architectures: [arm64]
@@ -1624,6 +1740,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
           PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
@@ -1642,6 +1759,10 @@ Resources:
   ResearchWorkerScheduleRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -1686,6 +1807,10 @@ Resources:
   RouterScheduleRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -2521,6 +2646,24 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt RouterDeadLetterQueue.Arn
 
+  FeedMetrRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-feed-metr-route
+      Description: Run the router for the METR feed hourly at minute 14; it routes in the mode stored in the table.
+      ScheduleExpression: cron(14 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"feed-metr"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
   WebAnthUsRouteSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
@@ -2740,6 +2883,10 @@ Resources:
   AlarmTopic:
     Type: AWS::SNS::Topic
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       TopicName: papyrus-monitoring-alarms
 
   AlarmEmailSubscription:
@@ -2761,6 +2908,10 @@ Resources:
     DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       TableName: papyrus-operator-alerts
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
@@ -2789,6 +2940,10 @@ Resources:
   OperatorIngestDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       QueueName: papyrus-operator-ingest-dlq
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
@@ -2796,6 +2951,10 @@ Resources:
   OperatorIngestQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       QueueName: papyrus-operator-ingest
       VisibilityTimeout: 360
       MessageRetentionPeriod: 345600
@@ -2807,6 +2966,10 @@ Resources:
   OperatorEmailDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       QueueName: papyrus-operator-email-dlq
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
@@ -2814,6 +2977,10 @@ Resources:
   OperatorEmailQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       QueueName: papyrus-operator-email
       VisibilityTimeout: 360
       MessageRetentionPeriod: 345600
@@ -2859,6 +3026,10 @@ Resources:
   OperatorRecipientKeyRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -2879,6 +3050,10 @@ Resources:
   OperatorRecipientKeyFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       Runtime: python3.13
       Architectures: [arm64]
       Handler: index.handler
@@ -2919,30 +3094,50 @@ Resources:
   OperatorCoreLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-operator-router
       RetentionInDays: 30
 
   OperatorFlushLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-operator-flush
       RetentionInDays: 30
 
   OperatorReconcileLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-operator-reconcile
       RetentionInDays: 30
 
   OperatorEmailLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-operator-email
       RetentionInDays: 30
 
   OperatorSesEventsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-operator-ses-events
       RetentionInDays: 30
 
@@ -2951,6 +3146,10 @@ Resources:
   OperatorCoreRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -2998,6 +3197,10 @@ Resources:
   OperatorEmailRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -3054,6 +3257,10 @@ Resources:
   OperatorSesEventsRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -3081,6 +3288,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: [OperatorCoreLogGroup, OperatorRecipientKey]
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-operator-router
       Description: Turns each alarm state change (and each heartbeat) into incidents and deliveries. caducus.notify.handlers.router
       Runtime: python3.13
@@ -3109,6 +3320,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: [OperatorFlushLogGroup, OperatorRecipientKey]
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-operator-flush
       Description: Each minute, sends clearing messages that are due and the group messages whose window ended. caducus.notify.handlers.flush
       Runtime: python3.13
@@ -3137,6 +3352,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: [OperatorReconcileLogGroup, OperatorRecipientKey]
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-operator-reconcile
       Description: Opens incidents for alarms already in ALARM, and for any state change the bus lost. caducus.notify.handlers.reconcile
       Runtime: python3.13
@@ -3166,6 +3385,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: [OperatorEmailLogGroup, OperatorRecipientKey]
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-operator-email
       Description: Sends one queued operator email through SES. caducus.notify.handlers.email_sender
       Runtime: python3.13
@@ -3194,6 +3417,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: OperatorSesEventsLogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-operator-ses-events
       Description: Counts the heartbeat's delivery (or failure) from SES events. caducus.notify.handlers.ses_events
       Runtime: python3.13
@@ -3254,6 +3481,10 @@ Resources:
   OperatorScheduleRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -3343,6 +3574,10 @@ Resources:
   OperatorDeadmanSeedRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -3366,6 +3601,10 @@ Resources:
   OperatorDeadmanSeedFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       Runtime: python3.13
       Architectures: [arm64]
       Handler: index.handler

@@ -123,9 +123,14 @@ def _report_inputs(context):
     return refs, [{"id": "node-voice-v1", "lineageId": "node-voice", "versionState": "current", "nodeKind": "topic", "displayName": "Voice"}]
 
 
-@given('the accepted Reference "{reference}" is linked to the concept "{node}" only by an editor\'s related-to link')
+@given('the accepted Reference "{reference}" is linked to the concept "{node}" only by an editor\'s tag')
 def step_given_concept_link(context, reference, node):
     link_concept(state(context).client, reference, state(context).node, "human", actor="editor", now=NOW)
+
+
+@given('the accepted Reference "{reference}" is linked to the concept "{node}" only by an editor\'s legacy related-to tag')
+def step_given_legacy_concept_link(context, reference, node):
+    link_concept(state(context).client, reference, state(context).node, "human", actor="editor", now=NOW, predicate="related_to")
 
 
 @given('the accepted Reference "{second}" is linked to "{first}" by a related-to link')

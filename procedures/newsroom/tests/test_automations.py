@@ -365,7 +365,7 @@ def test_records_still_list_when_the_monitoring_table_cannot_be_read():
 
 def handle(groups=("editor",), arguments=None, reader_factory=None, client_factory=None):
     return automation_view.handle(
-        {"identity": {"groups": list(groups)}, "arguments": arguments or {}},
+        {"fieldName": "automationOverview", "identity": {"groups": list(groups)}, "arguments": arguments or {}},
         env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT}, reader_factory=reader_factory or (lambda: reader()),
         client_factory=client_factory or (lambda: fx.site_client()), now=1_792_756_800.0)
 
@@ -384,7 +384,7 @@ def test_editors_and_admins_read_the_overview_scoped_to_their_site(group):
 
 
 def test_a_site_that_is_not_the_routers_publication_sees_no_runs():
-    result = automation_view.handle({"identity": {"groups": ["editor"]}, "arguments": {}},
+    result = automation_view.handle({"fieldName": "automationOverview", "identity": {"groups": ["editor"]}, "arguments": {}},
                                     env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.OTHER_ENDPOINT}, reader_factory=lambda: reader(),
                                     client_factory=lambda: fx.site_client())
     assert result["automations"][0]["runs"] == [] and result["automations"][0]["notice"] == "other_publication"

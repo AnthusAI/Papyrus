@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .tenant_knowledge_keys import SEMANTIC_RELATION_FEED_KEY, global_key
 from .concept_link_predicates import MENTIONS, is_reference_concept_link
 from .env import PAPYRUS_ROOT
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
@@ -56,6 +57,7 @@ RELATION_WEIGHTS = {
     "supports": 1.0,
     "contradicts": 1.0,
     "related_to": 0.35,
+    "tagged_with": 0.35,   # a story's or Reference's concept tag weighs what it did under its old name, related_to
 }
 DEDUP_RELATION_KEYS = {"same_as", "alias_of"}
 ASSOCIATION_CONFIDENCE_THRESHOLD = 0.86
@@ -504,7 +506,7 @@ def rank_concepts(
         if is_reference_concept_link(relation_key, subject_kind, object_kind):
             weight = max(weight, RELATION_WEIGHTS[MENTIONS])
         weighted_edges[subject_ref][object_ref] += weight
-        if relation_key in {"related_to", "same_as"}:
+        if relation_key in {"related_to", "same_as", "tagged_with"}:
             weighted_edges[object_ref][subject_ref] += weight
         if object_kind == "semanticNode" and object_lineage in node_lineages:
             relation_count_by_node[object_lineage] += 1
@@ -1367,7 +1369,7 @@ def semantic_relation_record(
         "importedAt": imported_at,
         "createdAt": imported_at,
         "updatedAt": imported_at,
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": json.dumps(metadata, sort_keys=True),
     }
     return {"modelName": "SemanticRelation", "expected": expected}

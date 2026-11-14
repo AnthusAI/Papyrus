@@ -37,6 +37,11 @@ def undeclared(context) -> None:
     context.citations_raw = {}
 
 
+@given("a Papyrus site whose citations setting is externalIcon")
+def icon_on(context) -> None:
+    context.citations_raw = {"citations": {"externalIcon": True}}
+
+
 @given('a Papyrus site whose citations links are "{mode}"')
 def declared(context, mode: str) -> None:
     context.citations_raw = {"citations": {"links": mode}}
@@ -45,6 +50,40 @@ def declared(context, mode: str) -> None:
 @when("the site renders a Story with {kind}")
 def renders(context, kind: str) -> None:
     context.page = render(BODIES[kind], context.citations_raw)
+
+
+PAPER = (
+    "title: Hello\ncitations:\n  lemley:\n    type: article\n    title: Foundation Models and Fair Use\n    container-title: SSRN\n"
+    "    author: [{family: Lemley, given: Mark}]\n    issued: {date-parts: [[2026]]}\n"
+)
+PAPER_DOI = "    DOI: 10.2139/ssrn.7682724\n"
+PAPER_URL = "    URL: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7682724\n"
+PAPER_IDENTIFIERS = {"both a DOI and a URL": PAPER_DOI + PAPER_URL, "only a DOI": PAPER_DOI, "only a URL": PAPER_URL}
+
+
+@when("the site renders a Story citing a paper that has {identifiers}")
+def renders_paper(context, identifiers: str) -> None:
+    site = MarkusSiteProjector(settings_from_mapping(context.citations_raw), read_static_files(None, None))
+    front = PAPER + PAPER_IDENTIFIERS[identifiers]
+    context.page = site._fragment(f"---\n{front}---\n" + "As shown [@lemley].\n\n::citations\n", 1)
+
+
+@then("the bibliography entry ends with the DOI, a space, and the link to the URL")
+def doi_then_url(context) -> None:
+    entry = item_of(context.page, "Foundation Models and Fair Use")
+    assert "ssrn.7682724 <a " in entry and "ssrn.7682724<a" not in entry, entry
+
+
+@then("the bibliography entry shows the DOI and no link")
+def doi_only(context) -> None:
+    entry = item_of(context.page, "Foundation Models and Fair Use")
+    assert entry.endswith("ssrn.7682724</li>") and "<a " not in entry, entry
+
+
+@then("the bibliography entry shows the link to the URL after a space and no DOI")
+def url_only(context) -> None:
+    entry = item_of(context.page, "Foundation Models and Fair Use")
+    assert ". <a " in entry and "doi.org" not in entry, entry
 
 
 @then("every citation number links to an entry on the same page")
@@ -61,7 +100,7 @@ def listed_once(context, title: str) -> None:
 
 @then('the source "{title}" links to "{href}"')
 def source_links(context, title: str, href: str) -> None:
-    assert f'<a href="{href}"' in context.page and title in context.page, context.page
+    assert re.search(rf'<a (?:class="[^"]*" )?href="{re.escape(href)}"', context.page) and title in context.page, context.page
 
 
 @then('the page is the same as for a site whose citations links are "{mode}"')
@@ -92,3 +131,25 @@ def refused(context, setting: str, name: str) -> None:
         assert name in str(exc)
     else:
         raise AssertionError("the setting was accepted")
+
+
+def item_of(page: str, title: str) -> str:
+    return re.search(rf'<li id="citation-\d+">(?:(?!</li>).)*?{re.escape(title)}.*?</li>', page, re.S).group(0)
+
+
+@then('the source "{title}" opens in a new tab and carries the external-link icon')
+def outside_marked(context, title: str) -> None:
+    entry = item_of(context.page, title)
+    assert 'target="_blank"' in entry and 'rel="noopener noreferrer"' in entry and 'data-icon="external-link"' in entry, entry
+
+
+@then('the source "{title}" has no icon and does not open a new tab')
+def inside_unmarked(context, title: str) -> None:
+    entry = item_of(context.page, title)
+    assert "<svg" not in entry and "_blank" not in entry, entry
+
+
+@then('the source "{title}" has no icon and opens in a new tab')
+def outside_plain(context, title: str) -> None:
+    entry = item_of(context.page, title)
+    assert "<svg" not in entry and "citation-external" not in entry and 'target="_blank"' in entry, entry

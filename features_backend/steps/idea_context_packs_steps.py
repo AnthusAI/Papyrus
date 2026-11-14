@@ -197,10 +197,10 @@ def step_agent_evidence(context):
     assert generated["origin"] == "context-pack" and generated["evidence"]["packId"] == context.agent_pack.pack_id
 
 
-@then("the idea is linked to the concept with a derived related_to edge")
+@then("the idea is linked to the concept with a derived tagged_with edge")
 def step_agent_concept(context):
     edges = [row for row in context.agent_client.tables["SemanticRelation"].values() if row["objectKind"] == "semanticNode"]
-    assert len(edges) == 1 and edges[0]["predicate"] == "related_to" and json.loads(edges[0]["metadata"])["provenance"] == "derived"
+    assert len(edges) == 1 and edges[0]["predicate"] == "tagged_with" and json.loads(edges[0]["metadata"])["provenance"] == "derived"
 
 
 @then("the idea body ends with an Evidence section")

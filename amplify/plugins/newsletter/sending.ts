@@ -149,7 +149,7 @@ export function wireSending(inputs: SendingInputs): { queue: Queue; deadLetterQu
     }),
   );
   // GetAccount (the send rate) does not support resource-level permissions.
-  worker.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["sesv2:GetAccount"], resources: ["*"] }));
+  worker.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ses:GetAccount"], resources: ["*"] }));
 
   // A roundup list drafts itself on its schedule, in the schedule's own time zone.
   const roundups = config.lists.filter((list): list is RoundupList => list.kind === "roundup");

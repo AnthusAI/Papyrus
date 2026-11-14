@@ -1,0 +1,28 @@
+{
+  "id": "PPY-03666dac-c222-4dd4-a0bf-85c167f7be54",
+  "title": "Reusable workflow account-stacks.yml and the read-only PR plan",
+  "description": "workflow_call for deployment repos: lint, plan on pull requests, deploy on main, approval-gated roles job.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3dc17648-a8fc-4c30-90ac-be9d6985951a",
+      "author": "home",
+      "text": "Merged to Papyrus develop in PR #1404 (merge 179512c6): stack_deploy.py import support, infra/account templates, reusable account-stacks workflow, docs/account-pipeline.md and features/account-pipeline.feature. 179 tests pass; no Papyrus release.",
+      "created_at": "2026-11-11T21:31:17.204112Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-11T20:37:05.481470Z",
+  "updated_at": "2026-11-11T21:31:17.296801Z",
+  "closed_at": "2026-11-11T21:31:17.296769Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

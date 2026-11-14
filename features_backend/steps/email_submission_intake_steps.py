@@ -78,7 +78,10 @@ def email_reference_is_pending(context):
 @then("repeating the import is idempotent and makes no vote, classifier request, or publication")
 def email_reference_import_is_inert(context):
     client = context.email_reference_client
-    assert context.email_reference_retry["references"] == context.email_reference_first["references"]
+    first, retry = context.email_reference_first["references"], context.email_reference_retry["references"]
+    assert [ref["created"] for ref in first] == [True] and [ref["created"] for ref in retry] == [False]
+    unchanged = lambda refs: [{k: v for k, v in ref.items() if k not in ("created", "matchedBy")} for ref in refs]
+    assert unchanged(retry) == unchanged(first)
     assert len(client.tables["Reference"]) == 1
     assert len(client.tables["KnowledgeImportRun"]) == 1
     assert not client.tables.get("Message")

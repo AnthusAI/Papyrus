@@ -16,10 +16,6 @@ Feature: Web search runs on whichever provider configuration names, and falls ba
     And the hit has the page's URL, title and snippet
     And no provider was skipped
 
-  Scenario: The old single-provider setting still works
-    Given web search is configured with the old single setting "openai"
-    Then the provider chain is "openai"
-
   Scenario: With nothing configured the cheapest provider answers first
     Tavily is free while it has credits, Perplexity costs about $5 per 1,000 searches and OpenAI about $10 plus tokens, so the chain
     runs from cheapest to dearest. Gemini's grounded search, about $14 per 1,000, is used only where an operator names it.

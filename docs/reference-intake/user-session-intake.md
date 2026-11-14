@@ -45,6 +45,8 @@ currently carry tenant-level authorization, so shared-publication knowledge data
 is refused (it needs a separately reviewed tenancy design, not a caller-supplied
 publication or corpus field):
 
+**On a dedicated stack** (the default; every site today):
+
 - A token that carries `tenantId` or `custom:tenantId` is always refused.
 - A backend whose content-actions Lambda has `PAPYRUS_TENANT_ID` is refused,
   unless its environment has `PAPYRUS_SINGLE_PUBLICATION_BACKEND=true`. Only the
@@ -52,6 +54,12 @@ publication or corpus field):
   off, so the check fails closed. With no tenant set, nothing changes.
 - The issuer, subject and editor-group checks apply either way, so the flag never
   makes a reader an editor.
+
+**On a shared stack** (`PAPYRUS_TENANCY_MODE=shared`) the knowledge keys carry the tenant (see
+[multi-tenancy](../multi-tenancy.md#knowledge-keys-and-the-tenancy-mode)), so intake acts for the one tenant the
+caller's claims name (`papyrus_tenant_editor` and the other role claims). A call that names no tenant is refused. The
+corpus is `<tenant>.<corpus>`, a corpus of another tenant is refused, and neither the tenant-claim refusal nor the
+single-publication declaration applies.
 
 A site with its own backend and exactly one publication (a tenant id only so its
 sections and stories carry the site's tenant, as on Machines on Machines) sets the
@@ -110,10 +118,13 @@ version and returns the same Reference. A response lost in transit has the same
 recovery path. Full input validation occurs before writes; a later infrastructure
 or legacy-duplicate conflict may leave earlier batch sources persisted. Rerun
 canonical URL lookup after any uncertain result. The CLI prints a flushed `recorded` line for each source as it
-finishes (`references create-from-catalog recorded <n>/<total> <url> <reference id> <status>`), with the actual record ids for
+finishes (`references create-from-catalog created <n>/<total> <url> <reference id> pending` for a Reference this request created, `already-existed <n>/<total> <url> <reference id> status=<current status> (existing; requested pending not applied)` for a URL already recorded in the corpus), with the actual record ids for
 `stories link-reference`. A source that fails or times out prints a `failed` line with the reason and the run carries on with the
-rest; a final `summary` line gives `confirmed=` and `not-confirmed=`, and the command exits non-zero if any source is not
-confirmed. Run the same command again: sources already recorded come back unchanged, and only the missing ones are created.
+rest; a final `summary` line gives `created=`, `already-existed=` and `not-confirmed=`, and the command exits non-zero if any source is not
+confirmed. Run the same command again: sources already recorded come back unchanged and are printed as `already-existed`, and only the missing ones are created.
+The server marks each returned Reference `created: true` or `created: false` (an exact URL match in the corpus also carries `matchedBy: ["sourceUri"]`). It never changes
+the status of a Reference that already exists, so asking for `pending` on a URL a person accepted leaves it accepted. A backend that does not send `created` makes the CLI print
+`outcome-unknown` for that source rather than guess.
 
 ## Deployment and acceptance
 

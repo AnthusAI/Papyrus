@@ -7,6 +7,13 @@ Description: >-
   default EventBridge bus, or both. The operator stack (PPY-bf63d5) uses the bus.
 
 Parameters:
+  CostAccount:
+    Type: String
+    AllowedValues: [owner, shared]
+    Default: owner
+    Description: >-
+      The anthus:account cost tag (Prospectus docs/COST_ACCOUNTING.md). "owner" for a site's stack: Prospectus charges
+      whichever Account holds the papyrus-<SiteId> entitlement. "shared" for the operator stack, which serves every site.
   SiteId:
     Type: String
     AllowedPattern: "^[a-z0-9][a-z0-9-]*$"
@@ -132,6 +139,11 @@ Resources:
     Type: AWS::SNS::Topic
     Condition: UseSns
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: !Ref CostAccount }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:deployment", Value: !Ref SiteId }
+        - { Key: "anthus:cost-key", Value: !Sub "${CostAccount}/papyrus/${SiteId}" }
       TopicName: !Sub papyrus-newsletter-events-${SiteId}
 
   EventTopicPolicy:

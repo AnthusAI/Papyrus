@@ -12,6 +12,8 @@ description: >
 
 # Editorial copy-edit cycle
 
+> **CLI syntax:** the exact `papyrus` commands for this work, with the flags each takes, are in [docs/agent-cli-guide.md](../../../docs/agent-cli-guide.md) (or run `papyrus guide`). `papyrus <group> <command> --help` prints a command's real usage, its lane and whether it writes. Do not guess a flag.
+
 Articles live in the site's **newsroom backend** (AppSync and DynamoDB in AWS),
 not in Git. A site repository holds settings only. If a site repository still
 has a content folder or submodule, it is stale: editing it changes nothing on
@@ -56,6 +58,14 @@ article editor.
   them. A 401 `token_invalidated` means the key was revoked. Say so, and tell the
   person which `.env` needs a new key. Test both before the pass, not forty
   minutes in: run one `check` and one `suggest` on a short draft first.
+- **The dek and the blurb differ on purpose.** The blurb is a short summary for
+  index pages and cards and must stand alone; the dek (subtitle) is read on the
+  article page with the headline and the opening paragraph, so it must read
+  smoothly with them. Do not report a difference in wording, length or content
+  between the dek and the blurb as an inconsistency, a possible error or a
+  mismatch, and do not "harmonise" one to match the other. Report them only when
+  they are identical copies (that is a defect), or when the blurb cannot stand
+  alone or the dek does not read with the headline.
 - Know the article's section: section policies replace publication controls with
   the same key.
 
@@ -73,6 +83,17 @@ article editor.
    ```bash
    papyrus editorial check --draft draft.md --section <section> > check.json
    ```
+
+   The check runs everything a saved version gets, including the cross-story
+   boilerplate check (a passage shared with another story on the site, policy
+   `cross-story-boilerplate`). When the draft revises an existing story, add
+   `--story <lineage>` so that story's own saved version is not reported as
+   another story. A draft check with `--pack` has no site stories and does not
+   run the boilerplate check; the output's `notRun` list says so.
+
+   The draft is checked in the site's primary language unless you pass
+   `--language` (`es-419`, `zh-Hans` ...); Humanus refuses a language it has no
+   pack for instead of reading it as English.
 
    Each finding has `policyId`, `detectorId`, `severity` (`error`/`warn`/`info`),
    `status` (`violation`, or `review` when the model is unsure), `message`,
@@ -127,12 +148,15 @@ article editor.
    `lane: classifier` detectors (one yes/no question per policy, sentence scope,
    `threshold` 0.8, `reviewAt` 0.5), or draft questions with
    `humanus draft-questions`. Try it locally with
-   `humanus check --draft draft.md --pack candidate.json` and show the person the
+   `humanus check --draft draft.md --pack candidate.json --language en` (the pack needs
+   `language` too) and show the person the
    hits. Only after approval, add it to the site:
    `papyrus editorial policies add --file candidate.json --dry-run`, then without
    `--dry-run`.
 
 ## Save and publish
+
+**Required:** after each `save-version`, show the editor the console link of the version you saved (the `console ... story` row, or `papyrus links --story LINEAGE --version N`) before you ask to publish. Say so if the link is unavailable or unopened; never guess one. See [docs/console-links.md](../../../docs/console-links.md).
 
 - **Save** each edited article as a new version. The original version is kept,
   and the front matter carries over:

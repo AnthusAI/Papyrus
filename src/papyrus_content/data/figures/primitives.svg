@@ -1,0 +1,28 @@
+<defs xmlns="http://www.w3.org/2000/svg">
+  <!-- Glyphs draw in the color set on their <use> element: color="{machine-mark}". -->
+  <symbol id="machine" viewBox="0 0 60 60">
+    <rect x="17" y="3" width="26" height="26" rx="5" fill="currentColor"/>
+    <rect x="8" y="33" width="44" height="24" rx="6" fill="currentColor"/>
+  </symbol>
+  <symbol id="person" viewBox="0 0 60 60">
+    <circle cx="30" cy="16" r="13" fill="currentColor"/>
+    <rect x="8" y="33" width="44" height="24" rx="12" fill="currentColor"/>
+  </symbol>
+  <symbol id="file" viewBox="0 0 60 60">
+    <path d="M12 3h24l14 14v40H12z" fill="currentColor"/>
+  </symbol>
+  <symbol id="globe" viewBox="0 0 60 60">
+    <circle cx="30" cy="30" r="26" fill="currentColor"/>
+  </symbol>
+  <marker id="arrow-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="3.6" markerHeight="3.6" orient="auto-start-reverse">
+    <path d="M0 0L10 5L0 10z" fill="context-stroke"/>
+  </marker>
+  <pattern id="hatch-pattern" width="20" height="20" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+    <rect width="20" height="20" fill="{inset}"/>
+    <rect width="8" height="20" fill="{hatch}"/>
+  </pattern>
+  <pattern id="dots-pattern" width="20" height="20" patternUnits="userSpaceOnUse">
+    <rect width="20" height="20" fill="{inset}"/>
+    <circle cx="10" cy="10" r="4" fill="{ink-muted}"/>
+  </pattern>
+</defs>

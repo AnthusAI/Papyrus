@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "3e24b098-196a-409e-8acb-e8fe2cff0c51",
+  "issue_id": "PPY-5377add6-f4f8-4847-9c2f-f7beb92cc2f7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T01:23:00.823Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Generate publication-styled OpenAI illustrations from Claude or Gemini through Papyrus CLI",
+    "description": "As a Claude Code or Gemini editor working from a story ID and a Papyrus sign-in, I want to create, compare, revise and apply an OpenAI illustration using the publication's resolved visual guidelines, so the same workflow works from another agent session without reconstructing the art direction from chat history.\n\nThis is the end-to-end acceptance story for the existing CLI (PPY-40b7a4), generation and review (PPY-6f9fb9), OpenAI adapter (PPY-9087be) and image-work skill (PPY-876957). Consume the published visual guidelines from PPY-2a2a8a and the profile/example records from PPY-6d878b. Claude and Gemini are CLI callers in this story. OpenAI is the image provider, with its credential and spending settings held by Papyrus. The Gemini image provider remains PPY-c7a616.\n\nFeature: Reproduce the publication's illustration workflow from a signed-in terminal\n\n  Scenario: Preview the plan from a story and the publication's visual guidelines\n    Given an agent can edit the story and the publication has a versioned illustration profile with approved style examples\n    When the agent previews an illustration brief with the CLI\n    Then the CLI returns the resolved image type, profile version, the plan for each candidate, example identifiers, allowed output sizes and a cost estimate without spending\n    And the plan includes the publication palette, relevant composition rules and its binding prohibition on realistic or photorealistic generated images\n    And the plan can be inspected from a session with no site checkout or prior chat\n\n  Scenario: Request one image or four alternatives with the appropriate approval\n    Given OpenAI is configured and the publication has approved spending\n    When the agent requests one image under the configured policy or a person authorizes a round of four\n    Then the CLI returns a round ID and one or four candidate IDs respectively\n    And a completed four-option round gives the editor four separately previewable images with distinguishable compositions\n    And an unattended request for four returns the documented approval requirement before any spend\n    And the candidate record identifies the actual model, lane, prompt and profile version used\n\n  Scenario: Refine the chosen candidate and apply the required variants to a draft\n    Given a selected illustration candidate and a publication that requires Day and Night art for this image type\n    When the agent uses the candidate as an image reference and prepares the Night version\n    Then it preserves the composition and follows the publication's Night palette and foreground contrast\n    And both images can be previewed before the pair is applied to the same draft version with alt text and generation provenance\n    And applying the pair records the publication's configured review status and leaves the live story unchanged\n    And the draft's cover and share preview use the publication's designated variants\n\n  Scenario: Explain missing capabilities before any spend\n    Given the provider is disabled, the requested operation is unavailable, or the configured model cannot satisfy the requested output\n    When the agent previews or requests the round\n    Then it gets an actionable machine-readable result naming the missing capability or required approval\n    And no provider or model is silently substituted\n\nThe image-work skill should give one complete example with the real CLI syntax, sample brief, prompt preview, polling and preview URLs, choice or iteration, and draft application. Include a documented fallback using locally generated files and `papyrus stories save-version --images`, with matching Day/Night asset names where required. The existing upload route was used successfully on Machines on Machines. Prove the signed-in CLI flow with recorded provider responses and verify a representative approved Day/Night cover locally. Reuse PPY-99dcfa for rendering and PPY-74ef89 for drawn figures. Do not fold figure rendering or the Gemini image provider into this acceptance story.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6",
+      "name": "Codex"
+    }
+  }
+}

@@ -19,25 +19,15 @@ _SLACK_API_BASE = "https://slack.com/api/"
 _URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
 
 
-def _resolve_secret_env(name: str, *, fallbacks: tuple[str, ...] = ()) -> str:
-    candidates = (name, *fallbacks)
-    for key in candidates:
-        direct = str(os.environ.get(key) or "").strip()
-        if direct and not _is_amplify_secret_placeholder(direct):
-            return direct
-    for key in candidates:
-        resolved = _resolve_amplify_ssm_secret(key)
-        if resolved:
-            return resolved
-    return ""
-
-
-def slack_signing_secret() -> str:
-    return _resolve_secret_env("PAPYRUS_SLACK_SIGNING_SECRET", fallbacks=("SLACK_SIGNING_SECRET",))
+def _resolve_secret_env(name: str) -> str:
+    direct = str(os.environ.get(name) or "").strip()
+    if direct and not _is_amplify_secret_placeholder(direct):
+        return direct
+    return _resolve_amplify_ssm_secret(name) or ""
 
 
 def slack_bot_token() -> str:
-    return _resolve_secret_env("PAPYRUS_SLACK_BOT_TOKEN", fallbacks=("SLACK_BOT_TOKEN",))
+    return _resolve_secret_env("PAPYRUS_SLACK_BOT_TOKEN")
 
 
 def allowed_slack_user_ids() -> set[str]:

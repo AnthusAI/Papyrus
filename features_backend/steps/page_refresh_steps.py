@@ -64,7 +64,18 @@ def state(context):
 
 @given("a site with four articles in two pages of the articles section and one video")
 def a_site(context) -> None:
-    built = DirectorySite(SETTINGS, ITEMS)
+    build_site(context, SETTINGS, ITEMS)
+
+
+@given("a site whose sections are called dispatches and notes")
+def a_site_with_other_sections(context) -> None:
+    other = settings(urls={"style": "directory", "sections": {"dispatches": {"pageSize": 2}, "notes": {}}}, listings={"pageSize": 2, "featuredCount": 0, "tags": False}, agents={"markdown": True})
+    items = [item("d1", section="dispatches", date="2026-01-03"), item("d2", section="dispatches", date="2026-01-02"), item("n1", section="notes", date="2026-01-01")]
+    build_site(context, other, items)
+
+
+def build_site(context, site_settings, items) -> None:
+    built = DirectorySite(site_settings, items)
     context.tmp_dirs.append(built.work)
     projector = StandardMarkusProjector.from_static_directory(built.static, environ=built.environ)
     projection = ProjectionContext(source=DirectoryContentSource(built.content), projector=projector, writer=LocalDirectoryWriter(built.out), keep_state=False)
@@ -153,6 +164,25 @@ def refresh_many(context, count: int) -> None:
 @when("the editor re-renders the index pages")
 def rerender_indexes(context) -> None:
     state(context).result = call_page_refresh_tool("site_rerender_pages", {"scope": "indexes", **guard_args(context)}, service(context))
+
+
+def under_list(text: str) -> list[str]:
+    return quoted(text)
+
+
+@when('the editor re-renders the index pages under "{prefix}" and "{other}"')
+def rerender_indexes_under_two(context, prefix: str, other: str) -> None:
+    state(context).result = call_page_refresh_tool("site_rerender_pages", {"scope": "indexes", "under": [prefix, other], **guard_args(context)}, service(context))
+
+
+@when('the editor re-renders the index pages under "{prefix}"')
+def rerender_indexes_under(context, prefix: str) -> None:
+    state(context).result = call_page_refresh_tool("site_rerender_pages", {"scope": "indexes", "under": [prefix], **guard_args(context)}, service(context))
+
+
+@when('the editor re-renders the whole site under "{prefix}"')
+def rerender_all_under(context, prefix: str) -> None:
+    state(context).result = call_page_refresh_tool("site_rerender_pages", {"scope": "all", "under": [prefix], **guard_args(context)}, service(context))
 
 
 @when('the editor re-renders the Story "{lineage}"')
@@ -287,6 +317,55 @@ def render_ok_invalidation_failed(context) -> None:
 def lists_would_write(context) -> None:
     rendered = state(context).result["rendered"]
     assert rendered["dryRun"] and "articles/a1/index.html" in rendered["wouldWrite"], rendered
+
+
+def written_keys(context) -> list[str]:
+    return state(context).result["rendered"]["written"]
+
+
+@then('the re-render wrote both "{first}" and "{second}"')
+def rerender_wrote_two(context, first: str, second: str) -> None:
+    assert first in written_keys(context) and second in written_keys(context), written_keys(context)
+
+
+@then('the re-render wrote nothing outside "{prefix}"')
+def rerender_wrote_only_under(context, prefix: str) -> None:
+    keys = written_keys(context)
+    assert keys and all(("/" + key).startswith(prefix) for key in keys), keys
+
+
+@then('the re-render wrote nothing outside either "{prefix}" or "{other}"')
+def rerender_wrote_only_under_two(context, prefix: str, other: str) -> None:
+    keys = written_keys(context)
+    assert keys and all(("/" + key).startswith((prefix, other)) for key in keys), keys
+
+
+@then('"{key}" was not written')
+def key_not_written(context, key: str) -> None:
+    assert key not in written_keys(context), written_keys(context)
+
+
+@then('no path invalidated is the home page or under "{prefix}"')
+def paths_not_include(context, prefix: str) -> None:
+    paths = invalidated(context)
+    assert paths and "/" not in paths and not any(path.startswith(prefix) for path in paths), paths
+
+
+@then('the request is refused because no index page is under "{prefix}"')
+def refused_no_match(context, prefix: str) -> None:
+    result = state(context).result
+    assert result["ok"] is False and result["error"]["code"] == "no_pages_match" and prefix in result["error"]["message"], result
+
+
+@then('the page refresh command output says it would write the pages "{first}" and "{second}" and gives their count')
+def command_dry_lists(context, first: str, second: str) -> None:
+    out = context.command_out
+    assert first in out and second in out and "would write 2 pages" in out, out
+
+
+@then("the page refresh command output does not say it wrote pages")
+def command_not_wrote(context) -> None:
+    assert "wrote" not in context.command_out.replace("would write", ""), context.command_out
 
 
 @then("nothing was written to the site")
@@ -451,6 +530,17 @@ def command_scheduled(context) -> None:
 
 def scheduled_tasks(context) -> list[dict]:
     return [call["Payload"]["projectionTask"] for call in context.lambda_client.invocations if "projectionTask" in call["Payload"]]
+
+
+@then("the page refresh command output says the re-render was scheduled for a number of pages")
+def command_scheduled_count(context) -> None:
+    assert re.search(r"scheduled .*asked to rebuild \d+ pages", context.command_out), context.command_out
+
+
+@then('the scheduled task is limited to the prefix "{prefix}"')
+def task_limited(context, prefix: str) -> None:
+    tasks = [task for task in scheduled_tasks(context) if task["task"] == "page-refresh-rerender"]
+    assert tasks and tasks[-1]["scope"] == "indexes" and tasks[-1]["under"] == [prefix], scheduled_tasks(context)
 
 
 @then("the scheduled task re-renders the whole site and invalidates what it wrote")

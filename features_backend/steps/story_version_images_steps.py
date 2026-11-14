@@ -164,6 +164,16 @@ def step_markdown(context, first, second):
     context.body_text = body_with(f"![First]({first})\n\n![Second]({second})")
 
 
+@given('the front matter names the card picture "{image}"')
+def step_front_image(context, image):
+    context.front_text = f"title: Hello\nimage: {image}\n"
+
+
+@given('the front matter names the card pair "{image}" and "{dark}"')
+def step_front_pair(context, image, dark):
+    context.front_text = f"title: Hello\nimage: {image}\nimageDark: {dark}\n"
+
+
 @given("the CLI uses the IAM lane")
 def step_iam(context):
     context.lane = "iam"
@@ -198,6 +208,11 @@ def run_save(context, dry_run: bool = False) -> None:
     body_path = Path(context.tmp) / "body.md"
     body_path.write_text(context.body_text, encoding="utf-8")
     flags = ["--story", LINEAGE, "--body-file", str(body_path), "--reason", "pictures", "--images", str(context.folder), "--no-check"]
+    front_text = getattr(context, "front_text", None)
+    if front_text is not None:
+        front_path = Path(context.tmp) / "front.yml"
+        front_path.write_text(front_text, encoding="utf-8")
+        flags += ["--front-matter-file", str(front_path)]
     if context.lane == "iam":
         flags += ["--author-label", "t"]   # signed in, the session names the author
     if dry_run:
@@ -300,6 +315,23 @@ def step_replace_picture(context, name, width, height):
 def step_text_markdown(context, first, second):
     text = new_version(context)["bodyMarkus"]
     assert f"![First]({first})" in text and f"![Second]({second})" in text, text
+
+
+def saved_front_matter(context) -> dict:
+    import yaml
+
+    return yaml.safe_load(json.loads(new_version(context)["metadata"])["frontMatterYaml"])
+
+
+@then('the saved front matter has the card picture "{image}"')
+def step_saved_front_image(context, image):
+    assert saved_front_matter(context)["image"] == image, saved_front_matter(context)
+
+
+@then('the saved front matter has the card pair "{image}" and "{dark}"')
+def step_saved_front_pair(context, image, dark):
+    saved = saved_front_matter(context)
+    assert (saved["image"], saved["imageDark"]) == (image, dark), saved
 
 
 @then('the new version has media rows for "{first}" and "{second}"')
@@ -450,6 +482,22 @@ PROJECTION = {"PAPYRUS_PUBLICATION_KIND": "s3-projection"}
 def step_tenant(context, tenant):
     context.tenant = tenant
     context.client.tenant_id = tenant
+    stamp_like_the_graphql_client(context.client, tenant)
+
+
+def stamp_like_the_graphql_client(client, tenant):
+    """The real client runs every write through tenant_stamped_payload; the fake does the same for media rows, so a rewritten key shows up here."""
+    from papyrus_content.tenancy import tenant_stamped_payload
+
+    for method in ("upsert", "create_record", "update_record"):
+        original = getattr(client, method)
+
+        def stamped(model_name, payload, _original=original):
+            if model_name in ("MediaAsset", "PublishedMediaAsset") and "storagePath" in payload:
+                payload = {**payload, "storagePath": tenant_stamped_payload(model_name, tenant, payload)["storagePath"]}
+            return _original(model_name, payload)
+
+        setattr(client, method, stamped)
 
 
 @given("an identity pool is configured")
@@ -476,6 +524,28 @@ def step_old_key(context):
         context.client.update_record("MediaAsset", {"id": row["id"], "storagePath": TENANT_KEY})
 
 
+@given("the story's picture was saved at the one key but its media rows name the old tenant key")
+def step_rows_wrong(context):
+    run_save(context)
+    context.s3_events.clear()
+    for row in media_rows(context, new_version(context)["id"]):
+        context.client.tables["MediaAsset"][row["id"]]["storagePath"] = TENANT_KEY
+
+
+@then('the plan copies nothing and re-points the rows to "{new}"')
+def step_plan_repoint(context, new):
+    out = context.command_output
+    assert "\tobject-already-there\t" in out and "\tobject\t" not in out and f"\t{TENANT_KEY}\t->\t{new}" in out, out
+    assert "0 object(s) to copy" in out, out
+
+
+@then("only the rows' storage paths were written")
+def step_only_paths(context):
+    writes = [(m, set(p)) for m, p in context.client.updates if m in ("MediaAsset", "PublishedMediaAsset")][-len(context.client.tables["MediaAsset"]):]
+    assert writes and all(fields == {"id", "storagePath"} for _m, fields in writes), writes
+    assert all(key.startswith("media/assets/") for key in context.s3_objects), sorted(context.s3_objects)
+
+
 @given("the old file is gone from the bucket")
 def step_old_gone(context):
     context.s3_objects.pop(TENANT_KEY)
@@ -484,6 +554,19 @@ def step_old_gone(context):
 @then('the only stored file is "{key}"')
 def step_only_file(context, key):
     assert sorted(context.s3_objects) == [key], sorted(context.s3_objects)
+
+
+@then('the published media row for "{src}" is stored at "{key}" where the file exists')
+def step_published_row_key(context, src, key):
+    rows = [r for r in context.client.list_records("PublishedMediaAsset") if json.loads(r["metadata"])["srcPath"] == src]
+    assert [r["storagePath"] for r in rows] == [key], rows
+    assert key in context.s3_objects, sorted(context.s3_objects)
+
+
+@then('the media row for "{src}" is stored at "{key}" where the file exists')
+def step_row_key_exists(context, src, key):
+    step_row_key(context, src, key)
+    assert key in context.s3_objects, sorted(context.s3_objects)
 
 
 @then('the media row for "{src}" is stored at "{key}"')

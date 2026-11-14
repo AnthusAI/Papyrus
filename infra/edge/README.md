@@ -17,6 +17,10 @@ CloudFormation templates of the hand-run `papyrus-edge-<site>` stacks that front
 
 Update a stack with a change set, never in place, and read the change set before executing it.
 
+## Cost tags
+
+Every costed resource (each distribution) carries the Prospectus cost tags (Prospectus `docs/COST_ACCOUNTING.md`): `anthus:account` = `owner`, `anthus:app` = `papyrus`, `anthus:deployment` = the site ID and `anthus:cost-key` = `owner/papyrus/<site>`. Prospectus charges whichever Account holds the `papyrus-<site>` entitlement. The site ID is the `CostDeployment` parameter, defaulting to the site in the Pilobol.us, p.apyr.us and Shipped templates; `s3-projection-cms.yaml` and the Threat Intelligence templates have no default, so pass `ParameterKey=CostDeployment,ParameterValue=<site>`. Adding the tags updates the distributions in place. `scripts/test-cost-tags.ts` fails CI on an untagged costed resource. The Anth.us templates are left unchanged.
+
 ## Refreshing a template from the live stack
 
 When a stack has been changed outside git, refresh the file from the deployed template (read-only; the template parameters, such as certificate and bucket values, are never written into the file):

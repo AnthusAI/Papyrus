@@ -5,7 +5,7 @@ import { schema } from "../amplify/data/schema";
 import { referenceContentNeededKey, referenceFeedKeys, referenceMediumFeedKey, referenceMediumKeyPatch, referencePublicFeedKeys, referencePublicKeyPatch, starFeedKeyFor, type ReferenceFeedKeyInput, type ReferencePublicKeyInput } from "../lib/reference-feed-keys";
 
 type Vector = { name: string; reference: ReferenceFeedKeyInput & { starRating?: number | null; medium?: string | null; captureState?: string | null; captureReason?: string | null }; mediumFeedKey?: string | null; contentNeededKey?: string | null; keys: ReturnType<typeof referenceFeedKeys>; starFeedKey?: string | null };
-const vectors = JSON.parse(readFileSync(join(process.cwd(), "scripts/fixtures/reference-feed-key-vectors.json"), "utf8")) as Vector[];
+const vectors = (JSON.parse(readFileSync(join(process.cwd(), "scripts/fixtures/reference-feed-key-vectors.json"), "utf8")) as { feed: Vector[] }).feed;
 
 for (const vector of vectors) {
   assert.deepEqual(referenceFeedKeys(vector.reference), vector.keys, vector.name);   // never carries the star key: callers spread it on partial patches

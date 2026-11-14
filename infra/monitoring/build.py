@@ -149,6 +149,18 @@ def locked_wheel_packages(roots=ROUTER_WHEEL_ROOTS) -> dict[str, dict]:
     return {name: seen[name] for name in sorted(seen)}
 
 
+def lambda_reads(member: str) -> bool:
+    """Whether a running Lambda can read this file of an unpacked wheel. Left out: an installer's manifest (``*.dist-info/RECORD``, which only
+    pip reads; ``METADATA`` and entry points stay for ``importlib.metadata``), type stubs (``*.pyi``, ``py.typed``) and a package's own test
+    suite (``<package>/tests/``). They were a tenth of the router zip's headroom under its size cap."""
+    parts = member.split("/")
+    if parts[0].endswith(".dist-info") and parts[-1] == "RECORD":
+        return False
+    if member.endswith(".pyi") or parts[-1] == "py.typed":
+        return False
+    return not (len(parts) > 2 and parts[1] in ("tests", "test"))
+
+
 def _lambda_wheel_entries(packages: dict[str, dict]) -> dict[str, bytes]:
     """Download each locked package's binary wheel for the Lambda platform, check its sha256 against poetry.lock, and return its files."""
     entries: dict[str, bytes] = {}
@@ -166,7 +178,7 @@ def _lambda_wheel_entries(packages: dict[str, dict]) -> dict[str, bytes]:
             assert digest in locked, f"{wheels[0].name} is not in poetry.lock for {name} (sha256 {digest})"
             with zipfile.ZipFile(wheels[0]) as wheel:
                 for member in wheel.namelist():
-                    if not member.endswith("/") and "__pycache__" not in member:
+                    if not member.endswith("/") and "__pycache__" not in member and lambda_reads(member):
                         entries[member] = wheel.read(member)
     return entries
 
@@ -177,7 +189,7 @@ def _host_wheel_entries(packages: dict[str, dict]) -> dict[str, bytes]:
     for name in packages:
         distribution = importlib.metadata.distribution(name)
         for file in distribution.files or ():
-            if "__pycache__" not in file.parts and not file.name.endswith(".pyc") and file.parts[0] != "..":
+            if "__pycache__" not in file.parts and not file.name.endswith(".pyc") and file.parts[0] != ".." and lambda_reads(file.as_posix()):
                 entries[file.as_posix()] = Path(distribution.locate_file(file)).read_bytes()
     return entries
 

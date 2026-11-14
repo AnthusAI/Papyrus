@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .engine import ProjectionContext
+from ..tenancy import TENANT_ID_ENVIRONMENT_VARIABLE
 from .lease import lease_from_environment
 from .plugins import plugin_names_from_environment
 from .projector import MarkusSiteProjector, SiteProjector
@@ -18,20 +19,26 @@ from .source import PublishedContentSource
 from .story_stars import star_store_from_environment
 from .writers import (
     DEFAULT_HTML_S_MAXAGE_SECONDS,
+    DEFAULT_LIVE_S_MAXAGE_SECONDS,
     FALLBACK_HTML_S_MAXAGE_SECONDS,
     CloudFrontInvalidator,
     KeyValueStoreRedirects,
     S3PageWriter,
+    normalize_output_prefix,
     TargetedCloudFrontInvalidator,
 )
 from ..page_refresh.budget import budget_from_environment
 
 PUBLICATION_KIND_ENV = "PAPYRUS_PUBLICATION_KIND"
 SITE_BUCKET_ENV = "PAPYRUS_SITE_BUCKET"
+OUTPUT_PREFIX_ENV = "PAPYRUS_SITE_OUTPUT_PREFIX"   # unset or empty: the site owns its bucket (every dedicated site); set: a shared bucket, this site's folder
 EDGE_DISTRIBUTION_ENV = "PAPYRUS_EDGE_DISTRIBUTION_ID"
 REDIRECTS_KVS_ENV = "PAPYRUS_REDIRECTS_KVS_ARN"
 DEAD_LETTER_QUEUE_ENV = "PAPYRUS_PROJECTION_DLQ_URL"
 HTML_S_MAXAGE_ENV = "PAPYRUS_HTML_S_MAXAGE_SECONDS"
+LIVE_PREFIXES_ENV = "PAPYRUS_HTML_LIVE_PREFIXES"   # comma-separated site-key prefixes; the backend refuses a prefix that holds a comma
+LIVE_S_MAXAGE_ENV = "PAPYRUS_HTML_LIVE_S_MAXAGE_SECONDS"
+LIVE_PREFIX_SEPARATOR = ","
 EDGE_INVALIDATION_ENV = "PAPYRUS_EDGE_INVALIDATION"
 EDGE_INVALIDATION_OFF = "off"
 EDGE_INVALIDATION_TARGETED = "targeted"
@@ -43,6 +50,13 @@ S3_PROJECTION_KIND = "s3-projection"
 SITE_PROJECTOR_FACTORY = "create_projector"
 
 _projector_by_configuration: dict[tuple[str, str, tuple[str, ...]], SiteProjector] = {}
+
+
+def store_name(environment: Mapping[str, str]) -> str:
+    """What names this site's store in the lock table (lease and publish jobs): the bucket, plus the output prefix where the bucket is shared, so each site folder has its own."""
+    bucket = (environment.get(SITE_BUCKET_ENV) or "").strip()
+    prefix = normalize_output_prefix(environment.get(OUTPUT_PREFIX_ENV))
+    return f"{bucket}/{prefix.rstrip('/')}" if prefix else bucket
 
 
 def projection_configured(environ: Mapping[str, str] | None = None) -> bool:
@@ -150,6 +164,16 @@ def html_s_maxage_seconds(environment: Mapping[str, str]) -> int:
     return DEFAULT_HTML_S_MAXAGE_SECONDS if invalidation_enabled(environment) else FALLBACK_HTML_S_MAXAGE_SECONDS
 
 
+def live_prefixes(environment: Mapping[str, str]) -> tuple[str, ...]:
+    configured = environment.get(LIVE_PREFIXES_ENV) or ""
+    return tuple(prefix.strip() for prefix in configured.split(LIVE_PREFIX_SEPARATOR) if prefix.strip())
+
+
+def live_s_maxage_seconds(environment: Mapping[str, str]) -> int:
+    configured = (environment.get(LIVE_S_MAXAGE_ENV) or "").strip()
+    return int(configured) if configured else DEFAULT_LIVE_S_MAXAGE_SECONDS
+
+
 def context_from_environment(
     client: Any,
     environ: Mapping[str, str] | None = None,
@@ -172,15 +196,20 @@ def context_from_environment(
         invalidator = CloudFrontInvalidator(distribution_id, cloudfront_client)
     else:
         invalidator = None
+    output_prefix = normalize_output_prefix(environment.get(OUTPUT_PREFIX_ENV))
     source = PublishedContentSource(client)
     source.star_store = star_store_from_environment(environment)
     return ProjectionContext(
         source=source,
         projector=load_projector(environment),
-        writer=S3PageWriter(bucket, s3_client, html_s_maxage_seconds(environment)),
+        writer=S3PageWriter(
+            bucket, s3_client, html_s_maxage_seconds(environment), output_prefix, live_prefixes(environment), live_s_maxage_seconds(environment)
+        ),
         invalidate=invalidator.invalidate if invalidator else None,
         redirect_store=KeyValueStoreRedirects(kvs_arn, kvs_client) if kvs_arn else None,
-        lease=lease_from_environment(environment, bucket),
+        lease=lease_from_environment(
+            environment, store_name(environment), tenant_id=(environment.get(TENANT_ID_ENVIRONMENT_VARIABLE) or "").strip() or None
+        ),
     )
 
 

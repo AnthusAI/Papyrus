@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .tenant_knowledge_keys import SEMANTIC_RELATION_FEED_KEY, global_key
 from .accession import execute_reference_accession_assignment
 from .assignments import assignment_metadata
 from .corpora import maybe_sync_corpus_from_cloud_before_analysis
@@ -1104,7 +1105,7 @@ def _build_classified_as_relation(
         "importedAt": imported_at,
         "createdAt": imported_at,
         "updatedAt": imported_at,
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": json.dumps(
             {
                 "kind": "reference.curation.topic_prediction",

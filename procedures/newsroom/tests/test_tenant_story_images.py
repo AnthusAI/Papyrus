@@ -134,3 +134,22 @@ def test_signed_in_backfill_requests_every_image_under_media_and_skips_other_fil
     bucket = Bucket([NEW_KEY, "media/notes/readme.txt", "media/payloads/x.json"])
     report = request_renditions_signed_in(S3MediaStore("b", client=bucket), source=None, dry_run=False, tenant_id=None)
     assert report["images"] == 1 and bucket.touched == [NEW_KEY]
+
+
+def test_tenant_stamp_leaves_media_storage_paths_alone():
+    from papyrus_content.tenancy import tenant_stamped_payload
+
+    for model in ("MediaAsset", "PublishedMediaAsset"):
+        assert tenant_stamped_payload(model, TENANT, {"id": "m", "storagePath": NEW_KEY})["storagePath"] == NEW_KEY
+
+
+def test_plan_repoints_media_and_published_rows_whose_object_is_at_the_one_key():
+    plan = plan_image_path_repair([row("m1", OLD_KEY)], [row("p1", OLD_KEY)], exists=lambda key: key == NEW_KEY)
+    assert plan.repoint_only == {OLD_KEY} and plan.row_updates == [("m1", OLD_KEY, NEW_KEY)]
+    assert plan.published_row_updates == [("p1", OLD_KEY, NEW_KEY)]
+    lines = plan_lines("lineage", plan)
+    assert any("object-already-there" in line for line in lines) and any("published-row\tp1" in line for line in lines)
+    bucket, client = Bucket([NEW_KEY]), Rows()
+    apply_image_path_repair(client, S3MediaStore("b", client=bucket), plan)
+    assert client.updates == [("MediaAsset", {"id": "m1", "storagePath": NEW_KEY}), ("PublishedMediaAsset", {"id": "p1", "storagePath": NEW_KEY})]
+    assert bucket.copies == []

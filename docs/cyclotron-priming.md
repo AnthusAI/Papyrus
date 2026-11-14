@@ -118,9 +118,8 @@ poetry run papyrus references decide-relevance --apply --doctrine <path>    # de
 ```
 
 > **Always name the doctrine with `--apply`.** `--doctrine` defaults to
-> `corpora/example-publication-doctrine.yml`, which in this repository is the
-> Threat Intelligence doctrine. A sweep for any other site that fell back to it
-> would seed that site's new cyclotron store with Threat Intelligence's mission
+> `corpora/example-publication-doctrine.yml`, which is a neutral placeholder. A sweep for any other site that fell back to it
+> would seed that site's new cyclotron store with a placeholder mission
 > (this happened to p.apyr.us). So `--apply` refuses to run without an explicit
 > `--doctrine <path>` and exits non-zero before any GraphQL write or model call.
 > The dry run keeps the default but prints which doctrine file it would use and
@@ -690,7 +689,8 @@ kind is not `human`, an auto-rejection is never a training label and never count
 toward the gate's human label count. The result and `--json` output list them as
 `autoRejected` (`lineageId`, `probability`, `proofId`). A dry run lists what
 would be rejected from decisions already recorded, and writes nothing. The Site
-(Section) cyclotron stays shadow-only.
+(Section) cyclotron never accepts or rejects; its only automatic action is the Section of an accepted Reference
+([automatic Section](reference-auto-section.md)).
 
 ### Withdrawn labels
 
@@ -794,6 +794,10 @@ shared. A tenant with no Sections is refused with the command that seeds them:
   and the other classifiers' ML heads refit on the next decision; their labels and
   rubrics are untouched. Withdrawn Section labels are not yet retracted.
 
+The sweep then gives a Section automatically to each Reference accepted since its last pass, when the selector is at least as sure as the
+threshold learned from the approved Section proof's held-out decisions, and never over a person's Section or clear:
+[automatic Section of accepted References](reference-auto-section.md).
+
 ### The Section proof: `references prove-site-sections`
 
 `papyrus_content.section_proof` measures how often the site cyclotron's
@@ -822,5 +826,7 @@ poetry run papyrus references prove-site-sections --proof-id sections-1 --apply 
   classifier lists its own sample-size caveat, such as how many percentage points
   one more correct answer moves recall; under 10 positives (or 30 placed
   References for the selector) the report calls the numbers a rough indication.
+- The selector's report also carries `calibration` (`cyclotron-section-calibration/v1`): one `[confidence, agreed]` pair per held-out
+  Reference, decided with the other folds' teaching. The automatic Section learns its threshold from it ([reference-auto-section.md](reference-auto-section.md)).
 - `--apply` calls the configured decision model once per placed Reference per
   classifier, twice (without and with teaching). Tests use the scripted model.

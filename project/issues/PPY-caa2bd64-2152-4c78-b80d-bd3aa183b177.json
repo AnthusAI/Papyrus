@@ -1,0 +1,35 @@
+{
+  "id": "PPY-caa2bd64-2152-4c78-b80d-bd3aa183b177",
+  "title": "Cost tags in waves under the CloudFormation stack-operation limit; site ID from site.json",
+  "description": "Papyrus 5.99.0 tagged every backend resource at once: the update touched 61 of 62 stacks (2,918 resources on Machines on Machines), over CloudFormation's 2,500-resource limit per stack operation, and rolled back (Amplify job 80, app d260vp72hqglnc). #1337 made the tags opt-in. Fix (Ryan, 2026-11-09, 'fix and retry'): the backend plans its nested stacks into waves of at most 1,000 resources (counting the parent stacks each wave updates); papyrus-infra backend-deploy runs ampx pipeline-deploy once per wave inside one build, reading the wave reached from the root stack output PapyrusCostTagWave, so no step is manual. The site ID comes from the site's own infra/site.json, not a branch variable. Sites switch their amplify.yml backend command to npx papyrus-infra backend-deploy in their pin bump.",
+  "type": "bug",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25e0d79b-8bbf-4321-ae42-f2950a8ef7d4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "d4c30864-0ca7-4724-9231-a7450b216a17",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1343 (branch fix/PPY-25e0d7-staged-cost-tags, 52b24751). Waves of at most 1,800 resources (2 on the engine synth, 4 at 1,000); backend-deploy deploys the release alone, then waves while the build has time (30-minute default timeout less 10). Verified: scripts/test-cost-tags.ts (wave 1 changes 17 stacks, 782 resources, all counted by the plan's 810), scripts/test-backend-deploy.mjs, app-shell harness, cost-accounting-reports.feature, typecheck, lint. Not yet verified: a real multi-pass Amplify build (the Machines on Machines retry). Monitoring stack allowances: #1342 (merged).",
+      "created_at": "2026-11-09T20:45:19.257203Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "a01eb842-e29c-4d7b-b7c0-b38f216a2bb0",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1343 (branch fix/PPY-25e0d7-staged-cost-tags, 52b24751). Waves of at most 1,800 resources (2 on the engine synth, 4 at 1,000); backend-deploy deploys the release alone, then waves while the build has time (30-minute default timeout less 10). Verified: scripts/test-cost-tags.ts (wave 1 changes 17 stacks, 782 resources, all counted by the plan's 810), scripts/test-backend-deploy.mjs, app-shell harness, cost-accounting-reports.feature, typecheck, lint. Not yet verified: a real multi-pass Amplify build (the Machines on Machines retry). Monitoring stack allowances: #1342 (merged).",
+      "created_at": "2026-11-09T20:45:26.139586Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-09T19:57:18.711933Z",
+  "updated_at": "2026-11-09T20:45:26.139793Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

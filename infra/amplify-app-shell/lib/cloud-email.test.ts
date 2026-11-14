@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { App } from "aws-cdk-lib";
-import { Template } from "aws-cdk-lib/assertions";
+import { Match, Template } from "aws-cdk-lib/assertions";
 import { AmplifyAppShellStack } from "./amplify-app-shell";
 import { parseSiteConfig } from "./site-config";
 
@@ -21,6 +21,7 @@ const checks: Record<string, () => void> = {
     const template = synth({ ...base(), email: { mode: "managed", sendingDomain: "news.example.test" } });
     template.resourceCountIs("AWS::SES::EmailIdentity", 1);
     template.resourceCountIs("AWS::SES::ConfigurationSet", 1);
+    template.hasResourceProperties("AWS::SES::ConfigurationSetEventDestination", { EventDestination: { Name: "delivery-events-bus", EventBridgeDestination: Match.anyValue() } });
     template.resourceCountIs("AWS::Route53::RecordSet", 0);
     template.resourceCountIs("AWS::SES::ReceiptRuleSet", 0);
     template.hasResourceProperties("AWS::SES::EmailIdentity", { EmailIdentity: "news.example.test" });

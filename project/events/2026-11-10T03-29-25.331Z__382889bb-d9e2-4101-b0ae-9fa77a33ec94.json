@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "382889bb-d9e2-4101-b0ae-9fa77a33ec94",
+  "issue_id": "PPY-08b045e4-1c8d-498e-b62d-b14be64fe48a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T03:29:25.331Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Capture: show when a Reference's text was cut (400 KB HTML guard) in references show and the console",
+    "description": "Router capture (reference_capture.py via link_exploration.fetch, MAXIMUM_BYTES=400_000 in ideas/excerpt.py) cuts HTML at 400 KB and still stores the result as a completed capture; only signals.responseTruncated and the 'was cut' completeness flag record it. Measured on MoM: 8 of 37 completed pending captures had responseTruncated (e.g. a Tom's Hardware page captured as 65 characters, a Yahoo article cut mid-sentence), and each was summarized. A 306,000-character 10-K would be cut well before its financial notes. Show 'truncated' and total characters in references show and the console card as a first-class field (not only a thin flag); consider following with a ranged or full read for filings (HTML limit by text, not by bytes of markup). PDFs: 8 MB guard fails as too_large (no partial text). Summary window keeps head 100k + tail 20k chars (inputTruncated on the card). Related: papyrus references text (PR feat/references-text).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

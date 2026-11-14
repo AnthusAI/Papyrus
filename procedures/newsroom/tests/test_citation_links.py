@@ -49,10 +49,17 @@ def test_a_body_without_markers_gets_no_bibliography():
     assert "citationslist" not in render("Plain words.\n")
 
 
-def test_default_links_are_external_and_unchanged():
+def test_default_links_are_external_and_unchanged_for_a_source_with_no_page_of_ours():
     page = render(WITH_DIRECTIVE)
     assert page == render(WITH_DIRECTIVE, {"citations": True}) == render(WITH_DIRECTIVE, {"citations": {"links": "external"}})
-    assert '<a href="https://example.org/outside" target="_blank" rel="noopener noreferrer">https://example.org/outside</a>' in page
+    assert '<a href="https://example.net/other" target="_blank" rel="noopener noreferrer">https://example.net/other</a>' in page
+    assert "citation-external" not in page and "<svg" not in page   # the icon is opt-in (citations.externalIcon)
+
+
+def test_a_source_whose_entry_names_a_page_of_ours_links_to_it_in_the_default_mode():
+    """Deliberate change (surfable site): the default mode honours ``internalUrl`` instead of linking out; ``internal`` and ``none`` are as before."""
+    page = render(WITH_DIRECTIVE)
+    assert '<a href="/references/smith/">A Page Cited' in page and "example.org/outside" not in page
 
 
 @pytest.mark.parametrize("body", [WITH_DIRECTIVE, WITHOUT_DIRECTIVE])
@@ -116,3 +123,40 @@ def test_the_checklist_check_names_a_key_that_is_not_among_the_entries():
 
 def test_the_checklist_check_passes_when_every_marker_resolves_and_the_directive_is_present():
     assert lens(WITH_DIRECTIVE)["state"] == "pass"
+
+
+PAPER = {
+    "type": "article",
+    "title": "Foundation Models and Fair Use",
+    "container-title": "SSRN",
+    "author": [{"family": "Lemley", "given": "Mark"}],
+    "issued": {"date-parts": [[2026]]},
+}
+DOI = "10.2139/ssrn.7682724"
+URL = "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7682724"
+
+
+def bibliography_entry(**identifiers: str) -> str:
+    from papyrus_content.markus_renderer.citations import CitationCollector, CitationRendering
+
+    collector = CitationCollector({"lemley": {**PAPER, **identifiers}}, CitationRendering())
+    collector.number_for("lemley")
+    return collector.list_html()
+
+
+def test_a_source_with_a_doi_and_a_url_separates_the_url_link_from_the_doi():
+    entry = bibliography_entry(DOI=DOI, URL=URL)
+    assert f"ssrn.7682724 <a href=\"{URL}\"" in entry
+    assert "ssrn.7682724<a" not in entry
+
+
+def test_a_source_with_only_a_doi_ends_with_the_doi():
+    entry = bibliography_entry(DOI=DOI)
+    assert entry.endswith("ssrn.7682724</li></ol>")
+    assert "<a " not in entry
+
+
+def test_a_source_with_only_a_url_links_it_after_a_space():
+    entry = bibliography_entry(URL=URL)
+    assert f"In SSRN. <a href=\"{URL}\"" in entry
+    assert "doi.org" not in entry

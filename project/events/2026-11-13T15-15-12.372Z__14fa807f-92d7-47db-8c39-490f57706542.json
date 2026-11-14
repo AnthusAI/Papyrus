@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "14fa807f-92d7-47db-8c39-490f57706542",
+  "issue_id": "PPY-fc64437e-fe3f-4533-b409-994f57eefadb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T15:15:12.372Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reference list pages re-project only when what they show changes",
+    "description": "A page that places a references include folded the bytes of the whole home-page snapshot into its input digest, so every snapshot change re-rendered every reader page (96 pages and twins on Machines on Machines), and section fronts with index.references were not among the snapshot run's readers at all. Digest now holds the records each include places (render's own selection) plus a paged list's first-chunk key; section fronts that show a Reference grid are readers. Investigation of MoM /videos/ staleness on 2026-11-13: the public _data/home-page/references.json was last written 2026-11-12 16:19 UTC and lacks the 35 thumbnails, so no page could show them; why the debounced run did not write it needs the content-actions logs.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

@@ -3,9 +3,9 @@
   "title": "notifications plugin: per-site table, function, SES wiring and /api/notifications routes",
   "description": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M3, public email and new stories\n\n**Goal.** A site turns notifications on in `papyrus.config.ts`. The Caducus package runs in the site's own stack. One switch, following `docs/plugins.md`; `amplify/plugins/newsletter/` is the model.\n\n**Build.**\n- `amplify/plugins/notifications/`: `papyrus.plugin.ts`, `config.ts` (site id, origin, base path, sending domain, from address and name, theme, lists with rules, `approval`). Add to `amplify/plugins/registry.ts`. Invalid settings stop the synth, as the newsletter's do.\n- Stack: table retained, customer-managed KMS key, TTL, GSI `byRecipient`, no point-in-time recovery; create-only SecureString for the link key; router, email sender, flush and SES-event functions (Python, arm64), bundled through `pythonLambdaCode` with `caducus[notify]` at a pinned version beside `papyrus_content`; SQS with DLQs and an alarm on each DLQ; default-bus rule for this site's configuration set. Only the CMS role may invoke (a resource policy), as with the newsletter. Env carries `THEME_JSON`, names, kinds file.\n- `papyrus_content/notifications/`: thin adapter passing `email_render` as the renderer.\n- `app/api/notifications/{subscribe,confirm,preferences,unsubscribe,state}/route.ts`, modelled on `app/api/newsletter/*`: same-origin rule, 400 and 303 rather than 403 and 404, because the edge rewrites those to the site's 404. Invoke the site's function, no network API.\n- No alarm listener per site: CloudWatch alarms go to the operator piece only.\n- No GraphQL models with subscriptions; custom operations only, so no AppSync realtime.\n\n**Acceptance.**\nSynth tests; a site without the plugin answers 404 on the routes; the plugin adds a stack only where enabled.\n\n**Depends on:** PPY-e82423\n**Related:** kanbus-ff4727, kanbus-602759, kanbus-9cc7ec, PPY-c522bf\n\n**Specification.**\n```gherkin\nFeature: Notifications plugin\n  Scenario: Enabling it\n    Given a site with the notifications plugin in its config\n    When the site deploys\n    Then its routes answer and its mail carries its own theme\n\n  Scenario: A cross-site post\n    When a subscribe post arrives from another origin\n    Then it is refused with a 400 and nothing is sent\n\n  Scenario: Sites do not share data\n    Given two sites with the plugin\n    When a reader subscribes on one\n    Then the other site's table has no record of them\n```",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
-  "assignee": null,
+  "assignee": "home",
   "creator": null,
   "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
   "labels": [
@@ -17,9 +17,31 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "fddbc87e-1952-4344-8ad5-6bbaa3635ee3",
+      "author": "home",
+      "text": "Started in worktree Papyrus-worktrees/site-notifications (branch feat/site-notifications). Finding: caducus 0.2.0 only routes operator-class kinds to an SSM operator list; no public subscribe/confirm/preferences/consent yet, so the public routes ship as a pass-through that answers 'unavailable' until a Caducus release adds them.",
+      "created_at": "2026-11-09T23:01:52.091092Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b62d7c8b-3e9b-4f73-b96b-fb77af81644d",
+      "author": "home",
+      "text": "Started in worktree Papyrus-worktrees/site-notifications (branch feat/site-notifications). Finding: caducus 0.2.0 only routes operator-class kinds to an SSM operator list; no public subscribe/confirm/preferences/consent exists yet, so the public routes ship as a pass-through that answers unavailable until a Caducus release adds them.",
+      "created_at": "2026-11-09T23:01:58.577646Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "5efb708b-8d64-4b51-b8e6-99c33c089138",
+      "author": "home",
+      "text": "Draft PR https://github.com/AnthusAI/Papyrus/pull/1351 (branch feat/site-notifications). Plugin, stack, routes, synth and route tests, docs/notifications.md done. Limit: Caducus 0.2.0 has no public audiences, so reader routes answer 503 unavailable; operator-class story.published goes to an SSM address list. Off on every site; not deployed.",
+      "created_at": "2026-11-09T23:21:22.591890Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T13:14:30.295467Z",
-  "updated_at": "2026-11-04T17:10:48.230175Z",
+  "updated_at": "2026-11-09T23:21:22.592521Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

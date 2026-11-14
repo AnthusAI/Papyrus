@@ -19,16 +19,25 @@ from .service import RefreshError, RefreshService
 REFRESH_MUTATION = "refreshSitePages"
 EXIT_FAILED = 1
 EXIT_REFUSED = 2
-BOOLEAN_FLAGS = ("fix", "indexes", "all", "dry-run", "json", "no-invalidate", "run")
+EXIT_RUNNING = 5   # the same code ``papyrus ops content publish`` uses for a page that is still being built
+BOOLEAN_FLAGS = ("fix", "indexes", "all", "dry-run", "json", "no-invalidate", "run", "status")
 
 
 def split_flags(flags: list[str]) -> tuple[list[str], dict[str, Any]]:
-    """``--path`` may repeat, so it is taken out before the shared flag parser (which keeps only the last of a repeated flag) sees the rest."""
+    """``--path`` and ``--under`` may repeat, so it is taken out before the shared flag parser (which keeps only the last of a repeated flag) sees the rest."""
     paths: list[str] = []
+    under: list[str] = []
     rest: list[str] = []
     index = 0
     while index < len(flags):
         token = flags[index]
+        if token == "--under":
+            value = flags[index + 1] if index + 1 < len(flags) else None
+            if not value or value.startswith("--"):
+                raise ValueError("--under needs a URL path prefix, for example --under /posts/.")
+            under.append(value)
+            index += 2
+            continue
         if token in ("--path", "--paths"):
             value = flags[index + 1] if index + 1 < len(flags) else None
             if not value or value.startswith("--"):
@@ -42,6 +51,8 @@ def split_flags(flags: list[str]) -> tuple[list[str], dict[str, Any]]:
         rest.append(token)
         index += 1
     options = parse_options(_explicit(rest))
+    if under:
+        options["under"] = under
     return paths, options
 
 
@@ -77,6 +88,10 @@ def operation_for(paths: list[str], options: dict[str, Any], *, rerender: bool, 
         arguments: dict[str, Any] = {"scope": chosen[0], "invalidate": not flag("no-invalidate"), **guard_arguments}
         if story:
             arguments["storyLineageId"] = story
+        if options.get("under"):
+            if chosen[0] != "indexes":
+                raise ValueError("--under limits a re-render of the index pages: use it with --indexes.")
+            arguments["under"] = list(options["under"])
         return "site_rerender_pages", arguments
     if inspect:
         if bool(story) == bool(paths):
@@ -130,7 +145,9 @@ def run_operator(name: str, arguments: dict[str, Any], invoke=None) -> dict[str,
         import boto3
         from botocore.config import Config
 
-        client = boto3.client("lambda", config=Config(read_timeout=120, retries={"max_attempts": 1}))
+        from ..env import graphql_timeout_seconds
+
+        client = boto3.client("lambda", config=Config(read_timeout=graphql_timeout_seconds(120.0), retries={"max_attempts": 1}))
         invoke = lambda body: client.invoke(FunctionName=function_name, InvocationType="RequestResponse", Payload=json.dumps(body).encode("utf-8"))  # noqa: E731
     response = invoke(payload)
     body = response["Payload"].read() if hasattr(response.get("Payload"), "read") else response.get("Payload")
@@ -162,6 +179,9 @@ def render_text(result: dict[str, Any]) -> str:
     if result.get("operation") == "site_inspect" and "verdict" in result:
         return render_inspect(result)
     lines: list[str] = []
+    if result.get("status") in ("still-running", "unknown"):
+        title = "STILL RUNNING, not failed" if result["status"] == "still-running" else "OUTCOME NOT KNOWN, not failed"
+        return "\n".join([f"{result.get('operation')}: {title}", f"  re-render: {result['error']}", f"  check how it ended with: {result['check']}"])
     if "error" in result and not result.get("invalidation"):
         return f"{result.get('operation')}: refused [{result['error']['code']}]: {result['error']['message']}"
     if "error" in result:
@@ -173,9 +193,15 @@ def render_text(result: dict[str, Any]) -> str:
     rendered = result.get("rendered")
     if rendered is not None:
         if rendered.get("scheduled"):
-            lines.append("  re-render: scheduled in the newsroom function; it writes the pages and then purges them (outcome is in its log, not here)")
-        elif rendered.get("dryRun"):
-            lines.append(f"  re-render: would write {rendered['count']} pages")
+            requested = rendered.get("requested")
+            asked = f"asked to rebuild {requested} pages" if requested is not None else "asked to rebuild its pages"
+            lines.append(f"  re-render: scheduled in the newsroom function, {asked}; it writes them and then purges them (the outcome is in its log, not here)")
+        elif rendered.get("dryRun") or result.get("dryRun"):
+            would = rendered.get("wouldWrite") or []
+            lines.append(f"  re-render: would write {rendered.get('count', len(would))} pages (a dry run: nothing was written)")
+            lines.extend(f"    would write /{key}" for key in would[:50])
+            if len(would) > 50:
+                lines.append(f"    ... and {len(would) - 50} more (use --json for the full list)")
         else:
             lines.append(f"  re-render: {'ok' if rendered.get('ok') else 'FAILED'}, wrote {rendered['count']} pages" + (f", deleted {len(rendered['deleted'])}" if rendered.get("deleted") else ""))
             lines.extend(f"    error: {error}" for error in rendered.get("errors", []))
@@ -190,7 +216,9 @@ def render_text(result: dict[str, Any]) -> str:
     status = invalidation.get("status")
     count = invalidation.get("count", 0)
     cost = invalidation.get("cost") or {}
-    if status == "not-requested":
+    if status == "not-run":
+        lines.append("  invalidation: not run (the re-render did not finish)")
+    elif status == "not-requested":
         lines.append("  invalidation: not requested (--no-invalidate); the edge keeps serving the old pages until their cache lifetime ends")
     elif status == "scheduled":
         lines.append("  invalidation: scheduled together with the re-render")
@@ -213,21 +241,94 @@ def render_text(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def unknown_outcome(name: str, error: Exception, check: str) -> dict[str, Any]:
+    """The request to start the re-render got no answer: whether it was scheduled is not known, which is not a failure."""
+    return {"ok": None, "operation": name, "status": "unknown", "check": check,
+            "error": f"{error}. The re-render may or may not have been scheduled; nothing says it failed"}
+
+
+def settle_rerender(name: str, base: dict[str, Any], state: dict[str, Any], key: str | None, seconds: float | None, check: str) -> dict[str, Any]:
+    """The command's result from a job's last known state: done, failed (with the reason), or still running (which is not a failure)."""
+    job = {"jobKey": key, **{field: state[field] for field in ("jobId", "state") if field in state}}
+    ended = state.get("state") in ("done", "failed")
+    result = {key_: value for key_, value in base.items() if key_ != "scheduled"} if ended else dict(base)
+    result.update({"operation": name, "job": job, "check": check})
+    if not ended:
+        waited = f" after {seconds:.0f} s" if seconds is not None else ""
+        where = {"queued": "waiting for the site to be free", "running": "being built"}.get(state.get("state"))
+        if where is None:
+            return {**result, "ok": None, "status": "unknown", "error": f"no record of this re-render's job was found{waited}; it may not have been scheduled, or its record has expired"}
+        return {**result, "ok": None, "status": "still-running", "error": f"the pages are still {where}{waited}, which is not a failure"}
+    invalidation = {**(base.get("invalidation") or {}), **(state.get("invalidation") or {})}
+    rendered = state.get("rendered") or {"ok": False, "count": 0, "errors": [state.get("error") or "the re-render did not finish"]}
+    if "invalidation" not in state:
+        invalidation = {**invalidation, "ok": False, "status": "not-run"}
+    result.update({"ok": state["state"] == "done", "rendered": rendered, "invalidation": invalidation})
+    result.pop("hint", None)
+    return result
+
+
+def rerender_with_job(lane, name: str, arguments: dict[str, Any], *, check: str, sleep=None, clock=None) -> dict[str, Any]:
+    """Run a re-render through ``lane(name, arguments)`` the way the server runs it: scheduled, with a job the answer names, which is asked about until it ends.
+
+    Each question is one short request, so nothing here waits inside a single call longer than AppSync allows. The wait ends when the job has ended or
+    ``PAPYRUS_PROJECTION_TIMEOUT_SECONDS`` have passed (the same budget ``papyrus ops content publish`` uses). A job that has not ended then is reported as still
+    running; a request that got no answer as unknown. Neither is a failure."""
+    from ..operator_errors import GraphQLTimeoutError
+    from ..projection_trigger import SERVER_TIMEOUT, poll_job, projection_timeout_seconds
+
+    try:
+        result = lane(name, arguments if arguments.get("dryRun") else {**arguments, "async": True})   # a dry run writes nothing and answers at once
+    except GraphQLTimeoutError as error:
+        return unknown_outcome(name, error, check)
+    except Exception as error:  # noqa: BLE001
+        if SERVER_TIMEOUT.search(str(error)):
+            return unknown_outcome(name, error, check)
+        raise
+    job, key = result.get("job"), result.get("jobKey")
+    if not (result.get("scheduled") and isinstance(job, dict) and job.get("jobId") and key):
+        return result   # refused, a dry run, or a site that keeps no job records: the answer is all there is
+    seconds = projection_timeout_seconds()
+    state = poll_job(job, lambda: lane(name, {"jobStatus": True, "jobKey": key}).get("job"), seconds=seconds, sleep=sleep, clock=clock)
+    return settle_rerender(name, result, state, key, seconds, check)
+
+
+def rerender_status(lane, name: str, arguments: dict[str, Any], *, check: str) -> dict[str, Any]:
+    """``rerender ... --status``: where the job of this request stands, asked once."""
+    answer = lane(name, {**arguments, "jobStatus": True})
+    if "error" in answer or "job" not in answer:
+        return answer
+    state = answer["job"]
+    return settle_rerender(name, {"ok": True}, state, answer.get("jobKey"), None, check)
+
+
 def _run(flags: list[str], *, rerender: bool, update_live: bool = False, inspect: bool = False) -> None:
     paths, options = split_flags(flags)
+    status_only = parse_boolean_option(options.get("status"), default=False, label="--status")
+    if status_only and not rerender:
+        raise ValueError("--status asks about a re-render: use it with rerender.")
     name, arguments = operation_for(paths, options, rerender=rerender, update_live=update_live, inspect=inspect)
     from ..graphql_authoring import create_authoring_client
     from ..user_auth_mode import user_auth_requested
 
     client, _claims = create_authoring_client()
+    lane = (lambda lane_name, lane_arguments: run_signed_in(client, lane_name, lane_arguments)) if user_auth_requested() else (lambda lane_name, lane_arguments: run_operator(lane_name, lane_arguments))
+    check = "papyrus ops content rerender " + " ".join(token for token in flags if token != "--status") + " --status"
     try:
-        result = run_signed_in(client, name, arguments) if user_auth_requested() else run_operator(name, arguments)
+        if rerender and status_only:
+            result = rerender_status(lane, name, arguments, check=check)
+        elif rerender:
+            result = rerender_with_job(lane, name, arguments, check=check)
+        else:
+            result = lane(name, arguments)
     except RefreshError as error:
         raise ValueError(error.message) from error
     as_json = parse_boolean_option(options.get("json"), default=False, label="--json")
     print(json.dumps(result, indent=2) if as_json else render_text(result))
-    if "error" in result:
+    if "error" in result and result.get("status") not in ("still-running", "unknown"):
         raise SystemExit(EXIT_REFUSED)   # the request could not run at all: nothing was written or invalidated
+    if result.get("status") in ("still-running", "unknown"):
+        raise SystemExit(EXIT_RUNNING)   # not a failure: the server may still be working, and the outcome is not known yet
     if not result.get("ok"):
         if not as_json:
             print("The refresh did not finish: see the invalidation and re-render lines above.", file=sys.stderr)

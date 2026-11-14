@@ -7,6 +7,7 @@ import { addCloudEmail } from "./cloud-email";
 import { parseCloudEmail } from "./cloud-email-config";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
+import { applySiteCostTags } from "./cost-attribution";
 import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, hasReceiptGate, resolveGithubStatusTokenParameterName, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
@@ -108,6 +109,9 @@ export class AmplifyAppShellStack extends Stack {
 
   constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps) {
     super(scope, id, props);
+    // Prospectus cost accounting: every resource carries the site's owner Account, app papyrus and the site ID.
+    // On unless site.json says costAccounting false. These stacks are small; the backend's tags go in waves.
+    if (config.costAccounting) applySiteCostTags(this, config.siteId);
 
     if (!hasCmsApp(config)) {
       if (!config.reader) throw new Error(`site ${config.siteId} has neither a cms section nor a reader`);

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f818435e-9df5-47f0-a9da-254fcb4ac1bb",
+  "title": "Plan amendment: convergence loop replaces the single re-translation step",
+  "description": "As the planner, I want the multilingual plan to describe the convergence loop, so the plan and the procedure say the same thing.\n\nAmend docs/plans/multilingual-publishing.md (plan PR #1450, merged) as follows. This story is the record; do not edit the plan file from the design session.\n\n- Step 6, today a single re-translation, becomes the convergence loop: the check stages repeat on changed blocks only while a round strictly reduces the weighted findings and adds no faithfulness finding; a block whose rewrite makes faithfulness worse reverts to its previous text; the loop ends when a round changes nothing or makes no progress. The hold condition (an error-severity faithfulness finding that remains) is unchanged.\n- Copy-edit rewriting moves inside that loop: the machine may rewrite its own translation (machine-owned blocks), each rewrite re-checked against the English source; human-corrected blocks keep advice only.\n- Evaluation: replace the panel-based evaluation with automated measures only and state that nobody in-house can verify Chinese quality (Ryan 2026-11-13).\n- Record Ryan's other decisions of 2026-11-13: stock phrasing reported back on the English Story; target-locale conventions through the per-language glossary and pack, never omitting or altering a factual claim; a rule may drive rewrites at about 9 in 10 correct on held-out examples per language; Spanish and Chinese packs built together.\n\n```gherkin\nFeature: The plan matches the procedure\n  Scenario: Step 6 is the convergence loop\n    Given the multilingual publishing plan\n    When a reader looks for what happens after the translation is checked\n    Then the plan describes the convergence loop and its stop rule\n    And it no longer describes a single re-translation\n\n  Scenario: The plan has no native-reader panel\n    Given the multilingual publishing plan\n    Then its evaluation uses automated measures only\n    And says plainly that nobody in-house can verify Chinese quality\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-13T14:31:18.762278Z",
+  "updated_at": "2026-11-13T14:31:18.762319Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

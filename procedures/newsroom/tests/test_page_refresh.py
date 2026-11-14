@@ -9,7 +9,7 @@ import pytest
 from papyrus_content.edge_invalidation import invalidate_exact_paths, invalidation_cost_note
 from papyrus_content.page_refresh.mcp import call_page_refresh_tool, page_refresh_descriptions, page_refresh_tools
 from papyrus_content.page_refresh.operations import OPERATIONS, run_operation
-from papyrus_content.page_refresh.paths import InvalidPagePath, expand_site_paths, forms_of_path, paths_for_page_keys
+from papyrus_content.page_refresh.paths import InvalidPagePath, expand_site_paths, forms_of_path, keys_under, normalize_prefixes, paths_for_page_keys
 from papyrus_content.page_refresh.service import RefreshService
 from papyrus_content.projection.directory_source import DirectoryContentSource
 from papyrus_content.projection.engine import ProjectionContext
@@ -196,6 +196,41 @@ def test_a_failed_invalidation_is_not_ok_and_says_why():
 def test_no_distribution_is_a_failed_invalidation_not_a_silent_skip():
     result = RefreshService(None).refresh_pages(["/a/"])
     assert result["ok"] is False and "PAPYRUS_EDGE_DISTRIBUTION_ID" in result["invalidation"]["error"]
+
+
+# ------------------------------------------------------------------ URL prefix filter
+
+PREFIX_KEYS = ["index.html", "index.md", "posts/index.html", "posts/index.md", "posts/page/2/index.html", "postscript/index.html", "tags/index.html", "about.html"]
+
+
+def test_a_prefix_selects_the_pages_whose_url_path_starts_with_it():
+    assert keys_under(PREFIX_KEYS, ["/posts/"]) == ["posts/index.html", "posts/index.md", "posts/page/2/index.html"]
+
+
+def test_repeated_prefixes_select_the_union_in_key_order():
+    assert keys_under(PREFIX_KEYS, ["/tags/", "/posts/page/"]) == ["posts/page/2/index.html", "tags/index.html"]
+
+
+def test_a_prefix_without_a_slash_stops_at_a_path_segment():
+    assert keys_under(PREFIX_KEYS, ["/posts"]) == ["posts/index.html", "posts/index.md", "posts/page/2/index.html"]   # not /postscript/
+
+
+def test_the_root_prefix_selects_every_page():
+    assert keys_under(PREFIX_KEYS, ["/"]) == sorted(PREFIX_KEYS)
+
+
+def test_a_prefix_can_be_a_full_url_or_lack_the_leading_slash():
+    assert normalize_prefixes(["https://example.org/posts/?x=1", "tags/"]) == ["/posts/", "/tags/"]
+
+
+def test_a_prefix_is_a_url_path_only_never_a_wildcard_or_empty():
+    for bad in ("", "  ", "/posts/*"):
+        with pytest.raises(InvalidPagePath):
+            normalize_prefixes([bad])
+
+
+def test_a_clean_url_style_page_matches_by_its_extensionless_path():
+    assert keys_under(["posts/archive.html"], ["/posts/archive"], "clean") == ["posts/archive.html"]
 
 
 # ------------------------------------------------------------------ re-render
@@ -490,3 +525,86 @@ def test_inspect_without_fix_changes_nothing():
     service, _ = inspect_service()
     service.inspect(lineage=LINEAGE, now=NOW)
     assert service.cloudfront.calls == []
+
+
+# ------------------------------------------------------------------ re-render under a URL prefix
+
+
+def test_a_rerender_under_a_prefix_writes_and_purges_only_those_pages(site):
+    built, context = site
+    cloudfront = FakeCloudFront()
+    result = service_for(context, cloudfront).rerender("indexes", under=["/videos/"], confirm=True)
+    written = result["rendered"]["written"]
+    assert "videos/index.html" in written and written and all(key.startswith("videos/") for key in written)
+    assert not (built.out / "index.html").exists() and not (built.out / "articles" / "index.html").exists()
+    assert result["invalidation"]["paths"] and all(path.startswith("/videos/") for path in result["invalidation"]["paths"])
+    assert result["target"]["under"] == ["/videos/"] and result["ok"]
+
+
+def test_repeated_prefixes_rerender_the_union(site):
+    _built, context = site
+    result = service_for(context).rerender("indexes", under=["/videos/", "/articles/page/"], confirm=True)
+    written = result["rendered"]["written"]
+    assert "videos/index.html" in written and "articles/page/2/index.html" in written and "articles/index.html" not in written
+
+
+def test_a_prefix_that_matches_no_index_page_is_an_error_that_says_so(site):
+    built, context = site
+    with pytest.raises(Exception) as caught:
+        service_for(context).rerender("indexes", under=["/nowhere/"], confirm=True)
+    assert getattr(caught.value, "code", None) == "no_pages_match" and "/nowhere/" in caught.value.message
+    assert not (built.out / "index.html").exists()
+    result = run_operation("site_rerender_pages", {"scope": "indexes", "under": ["/nowhere/"]}, service_for(context))
+    assert result["ok"] is False and result["error"]["code"] == "no_pages_match"
+
+
+def test_under_only_goes_with_the_index_pages(site):
+    _built, context = site
+    for scope, extra in (("all", {}), ("story", {"storyLineageId": "file:articles/a1.md"})):
+        result = run_operation("site_rerender_pages", {"scope": scope, "under": ["/articles/"], **extra}, service_for(context))
+        assert result["ok"] is False and result["error"]["code"] == "invalid_input" and "--indexes" in result["error"]["message"]
+
+
+def test_a_dry_run_under_a_prefix_lists_exactly_the_pages_and_their_count(site):
+    built, context = site
+    cloudfront = FakeCloudFront()
+    result = service_for(context, cloudfront).rerender("indexes", under=["/videos/"], dry_run=True)
+    rendered = result["rendered"]
+    assert rendered["dryRun"] and rendered["wouldWrite"] == ["videos/index.html", "videos/index.md"] and rendered["count"] == 2
+    assert cloudfront.calls == [] and not (built.out / "videos").exists()
+
+
+def test_the_prefix_filter_knows_no_site_specific_type_names():
+    import inspect
+
+    from papyrus_content.page_refresh import paths
+
+    source = inspect.getsource(paths.keys_under) + inspect.getsource(paths.normalize_prefixes)
+    for name in ("article", "post", "video", "edition"):
+        assert name not in source.lower()
+
+
+def test_the_cli_text_lists_the_pages_a_dry_run_would_write_and_never_says_wrote():
+    from papyrus_content.page_refresh.cli import render_text
+
+    text = render_text({"ok": True, "operation": "site_rerender_pages", "dryRun": True, "rendered": {"ok": True, "dryRun": True, "wouldWrite": ["videos/index.html", "videos/index.md"], "count": 2, "errors": []},
+                        "invalidation": {"ok": True, "status": "dry-run", "paths": ["/videos/"], "count": 1, "cost": {}}})
+    assert "would write 2 pages" in text and "/videos/index.html" in text and "/videos/index.md" in text and "wrote" not in text.replace("would write", "")
+
+
+def test_the_cli_text_says_how_many_pages_a_scheduled_rerender_was_asked_to_rebuild():
+    from papyrus_content.page_refresh.cli import render_text
+
+    text = render_text({"ok": True, "operation": "site_rerender_pages", "dryRun": False, "scheduled": True, "rendered": {"ok": None, "scheduled": True, "requested": 7, "count": 0, "errors": []},
+                        "invalidation": {"ok": True, "status": "scheduled", "paths": [], "count": 0, "cost": {}}})
+    assert "scheduled" in text and "7 pages" in text and "wrote" not in text
+
+
+def test_the_cli_reads_a_repeated_under_flag():
+    from papyrus_content.page_refresh.cli import operation_for, split_flags
+
+    paths, options = split_flags(["--indexes", "--under", "/posts/", "--under", "/tags/", "--dry-run"])
+    name, arguments = operation_for(paths, options, rerender=True)
+    assert name == "site_rerender_pages" and arguments["scope"] == "indexes" and arguments["under"] == ["/posts/", "/tags/"]
+    with pytest.raises(ValueError):
+        split_flags(["--indexes", "--under"])

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "61f24460-9837-4715-ac82-096af1cb8ae8",
+  "issue_id": "PPY-3c54681d-20a6-4b1a-b5ab-d086d64fb77b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T18:41:39.705Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us page: scheduled publishing and automated announcements",
+    "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md.\n\nGoal: a p.apyr.us feature page explaining scheduling (pick a time, suggested times, the schedule view) and announcements (what qualifies, the owner's own X account and keys, approval, budget and pause), with screenshots from MoM's newsroom, in the site's voice (no speed bragging; no claims of production use we cannot back).\n\nDepends on: the schedule view story and the cost story.\n\n```gherkin\nFeature: Prospective publishers can learn how scheduling and announcements work\n  Every Papyrus feature epic ends with a page on p.apyr.us.\n\n  Scenario: The page explains the feature in plain words\n    When a visitor opens the scheduled publishing page on p.apyr.us\n    Then it explains choosing times, suggested times and the schedule view\n    And it explains that announcements post on the publisher's own X account, only for Stories that meet the publisher's bar, within a budget the publisher sets, with a pause switch\n\n  Scenario: Screenshots show real screens\n    Then each screenshot is from the real newsroom, with any account names and keys hidden\n```\n",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+    "labels": []
+  }
+}

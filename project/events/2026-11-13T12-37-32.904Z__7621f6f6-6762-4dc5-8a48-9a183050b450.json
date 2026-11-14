@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "7621f6f6-6762-4dc5-8a48-9a183050b450",
+  "issue_id": "PPY-cd35ec76-204f-4ae8-92f1-3450a4152fa5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-13T12:37:32.904Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A Story page says which concepts it is about",
+    "description": "As a search or answer engine, I want a Story page to list the concepts it is about by identifier, so that stories connect to the concept pages.\n\n```gherkin\nFeature: Stories name their concepts\n  Scenario: A Story tagged with concepts\n    Given a published Story tagged with two accepted public concepts\n    When the Story page is projected\n    Then its structured data lists both concepts by identifier as what the Story is about\n\n  Scenario: A concept without a public page is not named\n    Given a Story tagged with a concept of a kind that is never public\n    Then the structured data does not mention that concept\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-25fae4b5-5fe6-4ebd-b3fe-34f9a1764edf",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}

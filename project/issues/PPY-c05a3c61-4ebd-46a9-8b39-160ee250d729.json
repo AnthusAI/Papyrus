@@ -1,0 +1,33 @@
+{
+  "id": "PPY-c05a3c61-4ebd-46a9-8b39-160ee250d729",
+  "title": "A site owns the whole text of its agents' role instructions",
+  "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-1cc24f.\n\nThe role text in `newsroom_context_pack.py` and the outline, draft and idea instructions assume evidence-first news and can only be added to. A site must be able to replace them. This reverses the add-only decision of 2026-11-08 (Ryan, 2026-11-11). Related: PPY-7a61ca.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "71ff3bfc-c771-40a5-879d-6e5f7980ae39",
+      "author": "home",
+      "text": "PR #1424. Decision: site-rule kind 'agent-instructions' with roles per context-pack agent (reporter, copywriter, editor, illustrator); a role replaces the default whole. Not done (follow-ups): the Tactus procedures' own system prompts (procedures/newsroom/*.tac) and the router's idea-drafting prompts, which the router cannot read from site documents without new grants.",
+      "created_at": "2026-11-12T11:55:55.456217Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-11T17:15:59.364345Z",
+  "updated_at": "2026-11-12T11:55:55.456434Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Fable 5.2",
+    "name": "Humorus Planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

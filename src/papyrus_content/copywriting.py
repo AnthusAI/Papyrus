@@ -127,8 +127,16 @@ def build_copywriting_run_plan(
             },
         }
     )
+    # The new draft is the head of its lineage; the version it follows is superseded in the same plan, so the story has one row in the head stage
+    # index (docs/plans/story-head-stage-index.md). The superseded row keeps its own updatedAt (the full row is written back).
+    superseded_versions = [
+        {"modelName": "Item", "expected": {**item, "versionState": "superseded"}}
+        for item in existing_items or []
+        if item.get("lineageId") == item_version["lineageId"] and item.get("id") != item_version["id"] and item.get("versionState") != "superseded"
+    ]
     records = [
         {"modelName": "Item", "expected": item_version},
+        *superseded_versions,
         produces_relation,
         {"modelName": "AssignmentEvent", "expected": event},
         metadata_attachment,

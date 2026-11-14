@@ -1,4 +1,11 @@
 export const TENANT_ID_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_ID";
+export const TENANCY_MODE_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANCY_MODE";
+
+/** The only reader of PAPYRUS_TENANCY_MODE in TypeScript. Unset or anything but "shared" means a dedicated stack. */
+export function isSharedStack(environment: Record<string, string | undefined> = process.env): boolean {
+  return environment[TENANCY_MODE_ENVIRONMENT_VARIABLE]?.trim().toLowerCase() === "shared";
+}
+
 const TENANT_KEY_SEPARATOR = "#";
 const TENANT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
@@ -9,7 +16,7 @@ export function validateTenantId(tenantId: string): string {
   return tenantId;
 }
 
-export function tenantIdFromEnvironment(environment: NodeJS.ProcessEnv = process.env): string | undefined {
+export function tenantIdFromEnvironment(environment: Record<string, string | undefined> = process.env): string | undefined {
   const configured = environment[TENANT_ID_ENVIRONMENT_VARIABLE]?.trim();
   return configured ? validateTenantId(configured) : undefined;
 }

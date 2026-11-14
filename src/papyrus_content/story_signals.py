@@ -75,7 +75,7 @@ def signals(item: dict, bucket: str, as_of: date) -> dict[str, Any]:
 def list_stories(client, *, stage: str | None = None, section: str | None = None, story_type: str | None = None, stars: int | None = None,
                  min_stars: int | None = None, max_stars: int | None = None, sort: str = "updated", bucket: str | None = None,
                  limit: int = 50, as_of: date | None = None) -> tuple[list[dict], int]:
-    """``(rows, total)``: Stories (current versions) with their signals. ``stars`` 0 finds unrated Stories; ``min_stars``/``max_stars`` match rated ones only."""
+    """``(rows, total)``: Stories (each one's newest version that is not superseded: current or draft) with their signals. ``stars`` 0 finds unrated Stories; ``min_stars``/``max_stars`` match rated ones only."""
     from .content_item_lifecycle import CONTENT_ITEM_STAGES, SYSTEM_ITEM_TYPES, require_content_item_stage
     from .editorial_context import find_section
     from .projection.standard.config import DEFAULT_STORY_BUCKET, STORY_BUCKETS
@@ -98,11 +98,19 @@ def list_stories(client, *, stage: str | None = None, section: str | None = None
     rows = []
     for name in stages:
         rows += client.list_by_index("itemsByStage", name)
-    rows = [row for row in rows if row.get("versionState", "current") == "current" and row.get("type") not in SYSTEM_ITEM_TYPES
+    # The Story's head is its newest row that is not superseded: `current` once it has been published, `draft` until then (every Story filed from the CLI or
+    # the console starts as a draft). The Stories board filters the same way (`boardStoryFilter`), so the list and the board agree.
+    rows = [row for row in rows if row.get("versionState", "current") != "superseded" and row.get("type") not in SYSTEM_ITEM_TYPES
             and (section_id is None or row.get("section") == section_id) and (not story_type or row.get("type") == story_type)]
     found_items = client.get_records_by_id("Item", [row["id"] for row in rows])   # one batched read; the rating is on these rows
+    heads: dict[str, dict] = {}
+    for row in rows:   # one row per Story: a draft saved over a published version leaves two rows that are not superseded; the higher version is the head
+        item = found_items.get(row["id"])
+        lineage = row.get("lineageId") or row["id"]
+        if item and int(item.get("versionNumber") or 0) >= int((heads.get(lineage) or {}).get("versionNumber") or -1):
+            heads[lineage] = item
     day = as_of or utc_today()
-    stories = [signals(found_items[row["id"]], bucket, day) for row in rows if row["id"] in found_items]
+    stories = [signals(item, bucket, day) for item in heads.values()]
     if stars is not None:
         stories = [story for story in stories if story["stars"] == stars]
     if min_stars is not None:

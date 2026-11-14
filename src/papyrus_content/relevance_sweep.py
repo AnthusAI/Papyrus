@@ -77,13 +77,15 @@ class SweepResult:
     classifier_set: dict[str, Any] | None = None
     auto_rejected: list[dict[str, Any]] = field(default_factory=list)
     sample: dict[str, Any] | None = None
+    auto_section: dict[str, Any] | None = None   # the site sweep's automatic Sections (docs/reference-auto-section.md)
 
     def to_json(self) -> dict[str, Any]:
         return {"applied": self.applied, "pendingReferences": self.pending, "decided": self.decided,
                 "primed": self.primed, "primingFailed": self.priming_failed, "primingRetrying": self.priming_retrying, "reviewsSent": self.reviews, "primedFromHumanReviews": self.primed_from_human_reviews, "retiredLabels": self.retired_labels, "autoRejected": self.auto_rejected, "stoppedBecause": self.stopped_because,
                 "liveAgreement": self.live_agreement, "status": self.status, "warnings": self.warnings,
                 **({"classifierSet": self.classifier_set} if self.classifier_set is not None else {}),
-                **({"sample": self.sample} if self.sample is not None else {})}
+                **({"sample": self.sample} if self.sample is not None else {}),
+                **({"autoSection": self.auto_section} if self.auto_section is not None else {})}
 
 
 class S3SnapshotStore:

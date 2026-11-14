@@ -77,6 +77,7 @@ LINKED = "linked"
 CONFIRMED = "confirmed"
 SUGGESTED = "suggested"
 RELATED_TO = "related_to"
+from ..reference_links import CONCEPT_TAG_PREDICATES  # noqa: E402
 REFERENCE_SUMMARY_VECTOR_KIND = "reference_summary"
 S3_VECTORS_MAXIMUM_TOP_K = 100
 PUBLICATION_BASIS = "publication"
@@ -323,7 +324,7 @@ def context_of(inputs: SignalInputs, lookups: PackLookups, now: datetime, config
         inputs, lookups, now.date(), config, accepted,
         {lineage: tuple(sorted(concepts)) for lineage, concepts in links.items()}, {anchor: tuple(rows) for anchor, rows in by_anchor.items()},
         references, {lineage: tuple(rows) for lineage, rows in edges.items()},
-        {(link.reference_lineage_id, link.concept_id): link.explanation for link in inputs.concept_links if link.explanation and link.predicate == RELATED_TO},
+        {(link.reference_lineage_id, link.concept_id): link.explanation for link in inputs.concept_links if link.explanation and link.predicate in CONCEPT_TAG_PREDICATES},
         interest_from_inputs(inputs),
     )
 

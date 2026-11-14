@@ -15,6 +15,7 @@ export function readerSteeringSchemaDefinitions() {
     ReaderProfile: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         siteSubject: a.string().required(),
         readerId: a.string().required(),
         handle: a.string(),
@@ -22,18 +23,24 @@ export function readerSteeringSchemaDefinitions() {
         karma: a.integer(),
       })
       .disableOperations(["subscriptions"])
-      .secondaryIndexes((index) => [index("readerId").name("profilesByReader").queryField("listReaderProfilesByReader")])
+      .secondaryIndexes((index) => [
+        index("readerId").name("profilesByReader").queryField("listReaderProfilesByReader"),
+        index("tenantId").sortKeys(["id"]).name("profilesByTenant").queryField("listReaderProfilesByTenant"),
+      ])
       .authorization(staffOnly),
     ReaderHandle: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         readerId: a.string().required(),
       })
       .disableOperations(["subscriptions"])
+      .secondaryIndexes((index) => [index("tenantId").sortKeys(["id"]).name("handlesByTenant").queryField("listReaderHandlesByTenant")])
       .authorization(staffOnly),
     ReaderVote: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         subjectKey: a.string().required(),
         subjectType: a.string(),
         readerId: a.string().required(),
@@ -42,10 +49,12 @@ export function readerSteeringSchemaDefinitions() {
         voterRole: a.string().required(),
       })
       .disableOperations(["subscriptions"])
+      .secondaryIndexes((index) => [index("tenantId").sortKeys(["id"]).name("votesByTenant").queryField("listReaderVotesByTenant")])
       .authorization(staffOnly),
     ReaderFlag: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         subjectKey: a.string().required(),
         subjectType: a.string().required(),
         readerId: a.string().required(),
@@ -57,10 +66,12 @@ export function readerSteeringSchemaDefinitions() {
         createdAt: a.datetime().required(),
       })
       .disableOperations(["subscriptions"])
+      .secondaryIndexes((index) => [index("tenantId").sortKeys(["id"]).name("flagsByTenant").queryField("listReaderFlagsByTenant")])
       .authorization(staffOnly),
     ReaderComment: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         subjectKey: a.string().required(),
         readerId: a.string().required(),
         body: a.string().required(),
@@ -81,6 +92,7 @@ export function readerSteeringSchemaDefinitions() {
     ReaderSubmission: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         canonicalUrl: a.string().required(),
         domain: a.string().required(),
         title: a.string().required(),
@@ -111,6 +123,7 @@ export function readerSteeringSchemaDefinitions() {
     ReaderReport: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         targetType: a.string().required(),
         target: a.string().required(),
         reporterReaderId: a.string().required(),
@@ -120,11 +133,15 @@ export function readerSteeringSchemaDefinitions() {
         createdAt: a.datetime().required(),
       })
       .disableOperations(["subscriptions"])
-      .secondaryIndexes((index) => [index("target").sortKeys(["createdAt"]).name("reportsByTarget").queryField("listReaderReportsByTargetAndCreatedAt")])
+      .secondaryIndexes((index) => [
+        index("target").sortKeys(["createdAt"]).name("reportsByTarget").queryField("listReaderReportsByTargetAndCreatedAt"),
+        index("tenantId").sortKeys(["id"]).name("reportsByTenant").queryField("listReaderReportsByTenant"),
+      ])
       .authorization(staffOnly),
     ModerationAction: a
       .model({
         id: a.id().required(),
+        tenantId: a.string(),
         by: a.string().required(),
         actorSub: a.string().required(),
         action: a.string().required(),
@@ -140,7 +157,10 @@ export function readerSteeringSchemaDefinitions() {
         at: a.datetime().required(),
       })
       .disableOperations(["subscriptions"])
-      .secondaryIndexes((index) => [index("target").sortKeys(["at"]).name("actionsByTarget").queryField("listModerationActionsByTargetAndAt")])
+      .secondaryIndexes((index) => [
+        index("target").sortKeys(["at"]).name("actionsByTarget").queryField("listModerationActionsByTargetAndAt"),
+        index("tenantId").sortKeys(["id"]).name("actionsByTenant").queryField("listModerationActionsByTenant"),
+      ])
       .authorization(staffOnly),
     ModerationReceipt: a.customType({
       status: a.string().required(),
