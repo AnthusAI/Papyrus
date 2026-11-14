@@ -63,7 +63,7 @@ def test_a_translation_is_recognised_by_its_group_not_its_language() -> None:
 def test_a_clean_translation_publishes_without_a_checklist_while_its_original_is_published(client) -> None:
     english(client)
     row = translation(client)
-    result = publish_item(client, row["id"], actor="Ryan Porter")
+    result = publish_item(client, row["id"], actor="An Editor")
     assert result.changed and client.tables["PublishedItem"]["published-" + LINEAGE]["language"] == "es-419"
     assert not [step for step in client.tables["Item"].values() if step.get("type") == "sub-task"]
 
@@ -72,7 +72,7 @@ def test_a_translation_is_refused_while_its_original_is_not_published(client) ->
     english(client, published=False)
     row = translation(client)
     with pytest.raises(PublishError) as refused:
-        publish_item(client, row["id"], actor="Ryan Porter")
+        publish_item(client, row["id"], actor="An Editor")
     assert refused.value.code == ORIGINAL_UNPUBLISHED and ORIGINAL in refused.value.message
     assert "published-" + LINEAGE not in client.tables.get("PublishedItem", {})
 
@@ -82,14 +82,14 @@ def test_a_held_translation_publishes_only_after_a_person_approves_or_acknowledg
     english(client)
     row = held(client)
     with pytest.raises(PublishError) as refused:
-        publish_item(client, row["id"], actor="Ryan Porter")
+        publish_item(client, row["id"], actor="An Editor")
     assert refused.value.code == TRANSLATION_HELD and hold_request_id(RUN_KEY) in refused.value.message
-    review_requests.answer_review(client, hold_request_id(RUN_KEY), decision=decision, by="Ryan Porter")
+    review_requests.answer_review(client, hold_request_id(RUN_KEY), decision=decision, by="An Editor")
     if may_publish:
-        assert publish_item(client, row["id"], actor="Ryan Porter").changed
+        assert publish_item(client, row["id"], actor="An Editor").changed
     else:
         with pytest.raises(PublishError) as still:
-            publish_item(client, row["id"], actor="Ryan Porter")
+            publish_item(client, row["id"], actor="An Editor")
         assert still.value.code == TRANSLATION_HELD and "rejected" in still.value.message
 
 
@@ -97,7 +97,7 @@ def test_a_held_translation_whose_review_request_is_missing_is_refused(client) -
     english(client)
     row = translation(client, outcome="held")
     with pytest.raises(PublishError) as refused:
-        publish_item(client, row["id"], actor="Ryan Porter")
+        publish_item(client, row["id"], actor="An Editor")
     assert refused.value.code == TRANSLATION_HELD and "missing" in refused.value.message
 
 
@@ -105,7 +105,7 @@ def test_the_rating_requirement_is_the_originals_and_never_blocks_a_translation(
     english(client)
     row = translation(client)
     with mock.patch("papyrus_content.story_rating.read_required", lambda _client: True):
-        assert publish_item(client, row["id"], actor="Ryan Porter").changed   # no rating of its own, and none is asked for
+        assert publish_item(client, row["id"], actor="An Editor").changed   # no rating of its own, and none is asked for
     assert not row.get("starRating")
 
 
@@ -115,7 +115,7 @@ def test_the_english_checklist_still_gates_a_story_of_its_own(client) -> None:
     client.tables["Item"]["other-v1"] = row
     with mock.patch("papyrus_content.story_checklist.require_checklist_closed", side_effect=__import__("papyrus_content.story_checklist", fromlist=["x"]).ChecklistError("open")) as gate:
         with pytest.raises(PublishError) as refused:
-            publish_item(client, "other-v1", actor="Ryan Porter")
+            publish_item(client, "other-v1", actor="An Editor")
     assert refused.value.code == "checklist-open" and gate.called
 
 

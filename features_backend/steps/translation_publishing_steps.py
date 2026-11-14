@@ -31,7 +31,7 @@ STORY = "story-waymo"
 LINEAGE = "story-waymo--es-419"
 ENGLISH = "articles/waymo-crashes-fall/index.html"
 SPANISH = "es/articles/bajan-los-choques-de-waymo/index.html"
-PERSON = "Ryan Porter"
+PERSON = "An Editor"
 
 
 def _site(context) -> LanguageSite:
