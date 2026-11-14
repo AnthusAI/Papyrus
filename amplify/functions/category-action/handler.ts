@@ -28,7 +28,7 @@ import { referenceContentNeededKey, referenceFeedArrivalAt, referenceFeedKeys, r
 import { claimGroups, hasEditorRights } from "../../../lib/staff-groups";
 import {
   classifyCurationCaller,
-  cliClientIdFromEnvironment,
+  curationClientsFromEnvironment,
   requireDelegationAgent,
   requireDelegationApprover,
   requireDelegationWithdrawer,
@@ -260,7 +260,7 @@ async function reviewReferenceCuration(
   event: Parameters<ReferenceCurationHandler>[0],
   delegation: { delegationId: string; relayedBy: string; instruction: string } | null = null,
 ) {
-  if (!delegation && getIdentitySub(event)) requireEditorGroups(event, "accept, reject or rate");   // a person's session, CLI or Newsroom; operators on AWS credentials have no sub
+  if (!delegation) requireCurationDecisionCaller(event);   // a person's session, CLI or Newsroom; operators on AWS credentials have no sub
   const client = await getDataClient();
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
   const action = normalizeReferenceCurationAction(event.arguments.action);
@@ -338,7 +338,7 @@ async function reviewReferenceCuration(
 }
 
 function curationCaller(event: { identity?: unknown }): CurationCaller {
-  return classifyCurationCaller(event.identity, cliClientIdFromEnvironment());
+  return classifyCurationCaller(event.identity, curationClientsFromEnvironment());
 }
 
 /**
@@ -347,7 +347,7 @@ function curationCaller(event: { identity?: unknown }): CurationCaller {
  */
 function withViaNote(actor: string, event: { identity?: unknown }, agentLabel: string | null | undefined): string {
   const lane = curationCaller(event).lane;
-  const via = lane === "cli-session" ? "cli" : lane === "unseparated-session" || lane === "unreadable-client-session" ? "signed-in" : null;
+  const via = lane === "cli-session" ? "cli" : lane === "unseparated-session" || lane === "unreadable-client-session" || lane === "mcp-session" ? "signed-in" : null;
   if (!via) return actor;
   return `${actor} via ${via}${agentLabel ? ` (${agentLabel})` : ""}`;
 }
@@ -600,7 +600,7 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
  * no `feedArrivalAt` gets one, because the star index sorts by it and a row without it is not in the index.
  */
 async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
-  if (getIdentitySub(event)) requireEditorGroups(event, "accept, reject or rate");
+  requireCurationDecisionCaller(event);
   const client = await getDataClient();
   const actor = withViaNote(
     normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom",
@@ -759,7 +759,7 @@ async function writeReferenceStars(
  * does not republish it. Stars are private editorial signals and are never copied to `PublishedItem` or any projection.
  */
 async function setItemStars(event: Parameters<ItemStarsHandler>[0]) {
-  if (getIdentitySub(event)) requireEditorGroups(event, "accept, reject or rate");
+  requireCurationDecisionCaller(event);
   const client = await getDataClient();
   const itemId = normalizeRequiredString(event.arguments.itemId, "itemId");
   const stars = normalizeReferenceStars(event.arguments.stars);
@@ -1114,6 +1114,14 @@ async function createConceptLinkAction(event: Parameters<CreateConceptLinkHandle
     now: new Date().toISOString(),
     origin: editOriginOfIdentity(event.identity),
   });
+}
+
+/** A malformed user-pool identity is never an IAM operator. */
+function requireCurationDecisionCaller(event: { identity?: unknown }) {
+  const caller = curationCaller(event);
+  if (caller.lane === "iam") return;
+  if (caller.lane === "invalid-identity") throw new Error("A verified caller identity is required.");
+  requireEditorGroups(event, "accept, reject or rate");
 }
 
 /** The schema lets only the editor and admin groups call these routes; this repeats the check, so a rule loosened by mistake still does not open them. */

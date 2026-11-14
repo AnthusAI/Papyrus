@@ -20,6 +20,7 @@ const clone = <T,>(value: T): T => structuredClone(value);
 
 const CLI_CLIENT = "cli-client-example";
 const WEB_CLIENT = "web-client-example";
+const MCP_CLIENT = "mcp-client-example";
 const EDITOR = "editor@example.test";
 const referenceId = "reference-fixture-v1";
 
@@ -38,7 +39,7 @@ const operatorOnAwsCredentials = { accountId: "fixture", cognitoIdentityId: "fix
 async function makeBackend(options: { cliClientId?: string | null } = {}) {
   const rows = new Map<string, Map<string, RecordValue>>();
   const payloads = new Map<string, unknown>();
-  const environment: Record<string, string> = {};
+  const environment: Record<string, string> = { CURATION_WEB_CLIENT_ID: WEB_CLIENT, CURATION_MCP_CLIENT_ID: MCP_CLIENT };
   if (options.cliClientId !== null) environment.CURATION_CLI_CLIENT_ID = options.cliClientId ?? CLI_CLIENT;
   const table = (name: string) => {
     if (!rows.has(name)) rows.set(name, new Map());
@@ -133,6 +134,22 @@ const relay = (backend: Backend, fieldName: string, request: { delegationId: str
   });
 
 const behaviours: Record<string, () => Promise<void>> = {
+  async explicit_client_identity_guards_delegations() {
+    const backend = await makeBackend();
+    const request = await requested(backend);
+    for (const identity of [idToken(MCP_CLIENT, ["editor"]), idToken("unknown-client", ["editor"]), { claims: { sub: "editor-sub-1", "cognito:groups": ["editor"] } }, { claims: { aud: WEB_CLIENT, "cognito:groups": ["editor"] } }]) {
+      await assert.rejects(backend.call("approveCurationDelegation", identity, { userCode: request.userCode }));
+    }
+    const secret = agentSecret();
+    await assert.rejects(backend.call("requestCurationDelegation", { claims: { aud: CLI_CLIENT } }, { delegationId: secret.delegationId, tokenHash: secret.tokenHash, agentLabel: "agent" }));
+    for (const field of ["reviewReferenceCuration", "setReferenceStars", "setItemStars"]) {
+      await assert.rejects(backend.call(field, { claims: { aud: CLI_CLIENT } }, { referenceId, itemId: "item-1", action: "accept", stars: 3 }), /verified caller identity/);
+    }
+    await backend.call("reviewReferenceCuration", idToken(MCP_CLIENT, ["editor"]), { referenceId, action: "accept" });
+    assert.equal(backend.reference().curationActorKind, "human");
+    assert.match(String(backend.reference().curationStatusUpdatedBy), /via signed-in/);
+    assert.equal((await backend.call("approveCurationDelegation", newsroomSession, { userCode: request.userCode })).state, "approved");
+  },
   async the_cli_session_asks_a_person_approves_and_the_agent_relays() {
     const backend = await makeBackend();
     const request = await requested(backend);
@@ -175,13 +192,13 @@ const behaviours: Record<string, () => Promise<void>> = {
     const backend = await makeBackend({ cliClientId: null });
     const secret = agentSecret();
     const asking = { delegationId: secret.delegationId, tokenHash: secret.tokenHash, agentLabel: "Claude", hours: 2 };
-    await assert.rejects(backend.call("requestCurationDelegation", cliSession, asking), /cliOnFederationClient/);
     await assert.rejects(backend.call("requestCurationDelegation", newsroomSession, asking), /cliOnFederationClient/);
-    await assert.rejects(backend.call("getCurationDelegationStatus", cliSession, { delegationId: secret.delegationId }), /cliOnFederationClient/);
+    await assert.rejects(backend.call("requestCurationDelegation", newsroomSession, asking), /cliOnFederationClient/);
+    await assert.rejects(backend.call("getCurationDelegationStatus", newsroomSession, { delegationId: secret.delegationId }), /cliOnFederationClient/);
     assert.equal(backend.table("CurationDelegationRecord").size, 0, "nothing was stored");
     const operator = await requested(backend, operatorOnAwsCredentials);
     assert.equal((await backend.call("approveCurationDelegation", newsroomSession, { userCode: operator.userCode })).state, "approved", "the Newsroom approves as before");
-    await assert.rejects(relay(backend, "recordDelegatedStars", operator, { stars: 3 }, cliSession), /cliOnFederationClient/);
+    await assert.rejects(relay(backend, "recordDelegatedStars", operator, { stars: 3 }, newsroomSession), /cliOnFederationClient/);
   },
 
   async a_newsroom_session_does_not_make_requests() {

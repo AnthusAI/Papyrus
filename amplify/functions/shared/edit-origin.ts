@@ -1,4 +1,4 @@
-import { classifyCurationCaller, cliClientIdFromEnvironment, type CurationCaller } from "./curation-caller"
+import { classifyCurationCaller, curationClientsFromEnvironment, type CurationCaller, type CurationClients } from "./curation-caller"
 
 /**
  * Where an editor's decision was made, written on the record it changes so a later reader can tell them apart.
@@ -9,10 +9,10 @@ import { classifyCurationCaller, cliClientIdFromEnvironment, type CurationCaller
  * anything the caller sends:
  *
  * - `cli`: a session on the CLI client.
- * - `newsroom`: a session on any other client.
+ * - `newsroom`: a session on the configured web client.
  * - `signed-in`: a person's session on a site that has not named a CLI client, so the two cannot be told apart.
- * - `operator`: AWS credentials, no person signed in.
- * - `signed-in` also covers a session whose client cannot be read.
+ * - `operator`: an explicitly identified AWS credentials caller.
+ * - `signed-in` also covers unknown, unreadable or agent clients, and invalid identities.
  *
  * The origin is a plain note, never a gate: a signed-in editor or admin decides as themselves from the CLI or the Newsroom, and an agent working
  * through their session acts for them.
@@ -21,13 +21,13 @@ export type EditOrigin = "cli" | "newsroom" | "signed-in" | "operator"
 
 export function editOriginOf(caller: CurationCaller): EditOrigin {
   // A session whose sign-in client cannot be read is still a signed-in person; `via` is a note, never a gate.
-  if (caller.lane === "unreadable-client-session") return "signed-in"
+  if (caller.lane === "unreadable-client-session" || caller.lane === "mcp-session" || caller.lane === "invalid-identity") return "signed-in"
   if (caller.lane === "iam") return "operator"
   if (caller.lane === "cli-session") return "cli"
   if (caller.lane === "newsroom-session") return "newsroom"
   return "signed-in"
 }
 
-export function editOriginOfIdentity(identity: unknown, cliClientId: string | null = cliClientIdFromEnvironment()): EditOrigin {
-  return editOriginOf(classifyCurationCaller(identity, cliClientId))
+export function editOriginOfIdentity(identity: unknown, clients: CurationClients = curationClientsFromEnvironment()): EditOrigin {
+  return editOriginOf(classifyCurationCaller(identity, clients))
 }

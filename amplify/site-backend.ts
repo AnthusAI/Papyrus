@@ -497,8 +497,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     }
   }
   // The CLI's own sign-in client, so the curation delegation routes can tell a CLI session from the Newsroom's: a token's client is signed by
-  // Cognito, so an agent working in an editor's CLI session can ask for a delegation but cannot approve it. Without this variable (the CLI is on the
-  // web client with the Newsroom) a signed-in session can do neither, and only an operator on AWS credentials can ask (docs/story-reporting.md).
+  // Cognito, so an agent working in an editor's CLI session can ask for a delegation but cannot approve it. Without a separate CLI client,
+  // signed-in sessions cannot ask or relay, while the configured web client can approve an operator's request (docs/story-reporting.md).
+  (backend.categoryAction.resources.lambda as LambdaFunction).addEnvironment("CURATION_WEB_CLIENT_ID", backend.auth.resources.userPoolClient.userPoolClientId);
   if (prospectusGoogleOnlyClient && featureFlags.cliOnFederationClient) {
     (backend.categoryAction.resources.lambda as LambdaFunction).addEnvironment("CURATION_CLI_CLIENT_ID", prospectusGoogleOnlyClient.ref);
   }
