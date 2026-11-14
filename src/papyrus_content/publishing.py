@@ -22,6 +22,7 @@ from .projection.stored import PROJECTION_METADATA_KEY, projection_metadata
 from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
 from .content_item_lifecycle import UNTYPED_ITEM_TYPE, head_stage_fields
 from .item_stars import assert_no_item_stars
+from .item_front_matter import dek_from_front_matter
 from .item_language import ItemLanguageMissing, item_language, item_language_group
 from .wiki_stamp import WIKI_PAGE_ITEM_TYPE, stamp_problems
 
@@ -128,7 +129,7 @@ def columns_from_front_matter(fm: dict) -> dict:
         "title": title,
         "headline": title,
         "sortTitle": title,
-        "deck": _first_text(fm.get("deck"), fm.get("standfirst"), fm.get("description")),
+        "deck": dek_from_front_matter(fm),   # the one derivation: item_front_matter.DEK_KEYS
         "byline": byline,
         "publishedAt": _iso_from_date_value(fm.get("date")),
     }

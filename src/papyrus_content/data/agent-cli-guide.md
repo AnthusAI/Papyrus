@@ -301,6 +301,9 @@ papyrus stories save-version --story LINEAGE --body-file body.md --front-matter-
 
 Front matter keys: `title`, `dek`, `blurb`, `author` (a human's name, only if a person worked on it, or a pen name where the site's byline policy says so), `drafting: {by: AI}` (without it the byline drops "various bots"), `imageAlt`, `citations:` with a key for every `[@key]` in the body, `image:` for the card picture. Quote date values. Signed in, the author is the person who signed in; `--author-label` is ignored (the operator lane requires it). A figure from `papyrus figures render` saved with `--images` but without its `.dark.png` prints a `figure-light-only` warning; the site's `requireDarkFigures` setting (`papyrus design-system`), `--require-dark-figures` or `PAPYRUS_REQUIRE_DARK_FIGURES=1` refuses it instead (`PAPYRUS_REQUIRE_DARK_FIGURES=0` overrides the setting). `--stage STAGE` or `--advance` also moves the Story. It prints `stories save-version console story URL`: **show the editor that link** (the exact version) after every save, before asking for approval (see "Show the editor the console link").
 
+### The dek is stored as the Item's `deck`
+The story's dek is the front matter key **`dek`** (the canonical spelling; write it in every new version). Saving a version derives the Item's `deck` column, which feeds, the newsroom context pack, announcements, reference curation, boards and the published row read, from the front matter with one rule: `dek`, else `deck`, `standfirst`, `description` (the first that is not blank). Never write the column on its own, and do not put two of those keys in one story's front matter. A story saved before this rule can carry an older `deck`: `papyrus stories decks` re-derives it (see "Bring every `deck` to the story's dek").
+
 ### Write the dek and the blurb differently
 The `dek` and the `blurb` are **intentionally different** fields. Write both, and never copy one into the other.
 
@@ -488,6 +491,17 @@ papyrus ops content publish --id LINEAGE--es-419-v1
 - A translation is a Story of its own (`LINEAGE--TAG`) and a person publishes it with the ordinary publish command and the version id; nothing publishes it by itself (docs/story-translation-procedure.md, "Publishing a translation").
 - It has no English checklist and no rating of its own. It is refused with `original-unpublished` unless its original is published, and with `translation-held` when the run held it (a faithfulness error remained) until a person answers the run's flag review request (`localize-...`, named in the refusal) with `approve` or `acknowledge`: an editor in the newsroom's Notification Center, or an operator with `papyrus reviews answer --id ID --decision approve` (docs/review-requests.md). A held translation never holds the English Story.
 - Its page is at `/<prefix>/<its own address>/`, says in its own language that an AI translated it (with a link to the original) and lists the other languages as `hreflang`. `unpublish` takes it off; unpublishing the original takes every translation off the site until the original is published again.
+
+### Bring every `deck` to the story's dek (operators)
+**Lane:** both. **Writes:** yes, unless `--dry-run`.
+
+```sh
+papyrus stories decks --dry-run
+papyrus stories decks
+```
+
+- It re-derives the `deck` column of every Item version and published row from the front matter that row holds (`dek`, else `deck`, `standfirst`, `description`) and writes only the rows whose stored value differs, with each row's own `updatedAt`. It never writes front matter. A row with no front matter (a checklist step, a guideline document) is left alone. It prints one line per row it would write and a summary per model (`rows read`, `rows to write`, `already right`, `without front matter`); a run with `rows to write 0` is the health check.
+- You do not need to run it after a deploy: the post-deploy render runs the same code once per site, before it renders (marker `_papyrus/migrations/item-decks.json` in the site store).
 
 ### Give every Item row its language (operators)
 **Lane:** both. **Version:** the release after 5.109.0. **Writes:** yes, unless `--dry-run`.

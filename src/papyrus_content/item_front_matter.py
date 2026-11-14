@@ -9,6 +9,20 @@ import json
 from typing import Any, Mapping
 
 
+#: The front matter keys that hold a Story's dek, in precedence order. ``dek`` is the canonical spelling (the one the guides, the console editor and
+#: ``papyrus stories save-version`` use); the others are accepted so that a Story written with them keeps its deck. The first non-blank one wins.
+DEK_KEYS = ("dek", "deck", "standfirst", "description")
+
+
+def dek_from_front_matter(front_matter: Mapping[str, Any]) -> str | None:
+    """The one derivation of a Story's dek from its front matter, which is also what the Item's ``deck`` column holds (``None`` when it has none)."""
+    for key in DEK_KEYS:
+        value = front_matter.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 def item_path(section: str | None, slug: str, url_style: str) -> str:
     base = f"/{section}" if section else ""
     if url_style == "directory":

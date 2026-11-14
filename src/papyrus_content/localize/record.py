@@ -16,6 +16,7 @@ import hashlib
 import json
 from typing import Any
 
+from ..item_front_matter import DEK_KEYS
 from ..item_language import localization_lineage_id
 from ..localization_publish import hold_request_id
 from ..publishing import utc_now_iso
@@ -191,7 +192,7 @@ def _front_matter(primary: dict[str, Any], title: str, deck: str) -> str | None:
         return None
     if title:
         loaded["title"] = title
-    for key in ("deck", "standfirst", "description"):
+    for key in DEK_KEYS:
         if key in loaded and deck:
             loaded[key] = deck
     return yaml.safe_dump(loaded, allow_unicode=True, sort_keys=False)
@@ -213,7 +214,7 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
     """Records the translation as the next version of the localization lineage (version 1 the first time) and its provenance. Unpublished,
     no board stage, author AI. Refuses when a newer source was translated meanwhile (an older run never replaces newer work)."""
     from ..model_attachments import build_json_model_payload_attachment, upload_attachment_body
-    from ..publishing import ItemFields, _derive_or_raise, _source_content_hash, _status_keys, _without_server_fields
+    from ..publishing import ItemFields, _derive_or_raise, _load_front_matter, columns_from_front_matter, _source_content_hash, _status_keys, _without_server_fields
     from ..story_reporting import _carry_media_forward, next_version_record_id, story_versions, superseding_update
 
     now = now or utc_now_iso()
@@ -245,7 +246,7 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
         "changeReason": f"translation of version {request.source.version_number} into {request.language}",
         "stage": None, "headStageKey": None, "status": "draft", **_status_keys(fields.type, fields.section, "draft"),
         "title": translation["title"] or None, "headline": translation["title"] or None, "sortTitle": translation["title"] or None,
-        "deck": translation["deck"] or None, "body": [], "bodyMarkus": fields.body_markus, "bodyIr": to_aws_json(envelope),
+        "deck": (columns_from_front_matter(_load_front_matter(front_matter))["deck"] if front_matter else translation["deck"] or None), "body": [], "bodyMarkus": fields.body_markus, "bodyIr": to_aws_json(envelope),
         "metadata": to_aws_json(metadata), "contentHash": _source_content_hash(fields),
         "publishedAt": None, "versionPublishedAt": None, "versionPublishedBy": None,
         "language": request.language, "languageGroupId": request.source.lineage_id, "sourceLineageId": request.source.lineage_id,
