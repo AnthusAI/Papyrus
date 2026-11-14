@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "f8dc28aa-9eef-4612-804f-36ce0b4bf03b",
+  "issue_id": "PPY-6a37357a-d019-484b-85b3-d7356f89e113",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T22:12:07.737Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Projection does not know a section's name",
+    "description": "A site's hooks get a Story's section id, not the NewsroomSection title, so Machines on Machines keeps a hand-written TOPIC_LABELS map. The projection should expose the title.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

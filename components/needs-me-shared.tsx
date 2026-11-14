@@ -7,19 +7,21 @@ import type { ReviewChoice } from "./reference-review-card";
 
 /** References and captures are rated like the References feed: a reason code is asked for on Reject. */
 export function isReferenceLike(item: Pick<NeedsMeEntry, "type">): boolean {
-  return item.type === "reference" || item.type === "incomplete_capture";
+  return item.type === "reference" || item.type === "incomplete_capture" || item.type === "capture_needed";
 }
 
-export function decidedChoiceOf(item: Pick<NeedsMeEntry, "decisionState">): ReviewChoice | null {
+export function decidedChoiceOf(item: Pick<NeedsMeEntry, "decisionState" | "type">): ReviewChoice | null {
+  // An accepted Reference that needs a person to capture it is open as a task, but its Accept is already given.
+  if (item.type === "capture_needed") return "accept";
   return item.decisionState === "accepted" ? "accept" : item.decisionState === "rejected" ? "reject" : null;
 }
 
 /** What was recorded when a non-Reference item was decided: its Why, and whether it was rejected as "not this kind". Shown again whenever the item is reopened. */
 export function recordedAnswer(item: NeedsMeEntry): { why: string | null; notThisKind: boolean } {
   const { payload } = item;
-  if (payload.kind === "draft") return { why: payload.item.decision?.why ?? null, notThisKind: Boolean(payload.item.decision?.notThisKind) };
   if (payload.kind === "request") return { why: payload.request.answer?.feedback ?? null, notThisKind: payload.request.answer?.steer === "not_this_kind" };
   if (payload.kind === "email") return { why: payload.summary.quarantine?.decision?.reason || null, notThisKind: false };
+  if (payload.kind === "link") return { why: payload.note, notThisKind: false };
   return { why: null, notThisKind: false };
 }
 

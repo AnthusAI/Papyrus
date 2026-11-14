@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "080a68e3-e46d-4cbe-9662-b99ef5aa1216",
+  "issue_id": "PPY-b8ce2b27-105a-46cd-9773-32c12e32216b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:32.652Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Add reload and a search target to the picker",
+    "description": "Reload gets four new options with the same target. A text box takes a search target and a button searches with it. Blank means the system works out the target. Candidates shown already don't come back in this run.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

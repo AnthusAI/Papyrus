@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+from papyrus_content.tenancy import TENANCY_MODE_ENVIRONMENT_VARIABLE
 from papyrus_content.reference_intake import intake_references, intake_email_submission_references, IntakeError
 from procedures.newsroom.tests.test_story_reporting import client_with_one_story, LINEAGE
 from papyrus_content.story_reporting import link_reference_to_story, story_references
@@ -36,6 +37,11 @@ class IntakeClient:
             return lambda model: copy.deepcopy(list(self.tables.get(model, {}).values()))
         return getattr(self.story, name)
 
+    def list_by_index(self, index, value):
+        if index != "knowledgeCorporaByRoleAndName":
+            return self.story.list_by_index(index, value)
+        return copy.deepcopy([row for row in self.tables["KnowledgeCorpus"].values() if row.get("role") == value])
+
     def create_record(self, model, record):
         with self.lock:
             table = self.tables.setdefault(model, {})
@@ -51,8 +57,8 @@ class IntakeClient:
         self.uploads[attachment["id"]] = body
 
 
-def submit(client, data=None, identity=None):
-    with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", client.upload):
+def submit(client, data=None, identity=None, env=None):
+    with patch.dict("os.environ", {**ENV, **(env or {})}), patch("papyrus_content.reference_intake.upload_attachment_body", client.upload):
         return intake_references(client, payload() if data is None else data, IDENTITY if identity is None else identity)
 
 
@@ -109,6 +115,31 @@ def test_editor_intake_and_link_preserve_story():
     assert not c.tables.get("PublishedItem")
 
 
+def address_only(url="https://example.test/well-architected-agent"):
+    return {"items": [{"source_uri": url}]}
+
+
+def test_the_add_dialog_sends_only_an_address():
+    c = IntakeClient()
+    c.tables["KnowledgeCorpus"] = {"knowledge-corpus-pub": {"id": "knowledge-corpus-pub", "role": "canonical", "name": "Publication"}}
+    result = submit(c, address_only())
+    ref = c.tables["Reference"][result["references"][0]["id"]]
+    assert ref["corpusId"] == "knowledge-corpus-pub"
+    assert ref["curationStatus"] == "pending"
+    assert ref["title"] == "https://example.test/well-architected-agent"
+    provenance = json.loads(next(iter(c.uploads.values())))
+    assert provenance["rationale"] == "Added by an editor from the Newsroom."
+    assert submit(c, address_only())["references"][0]["id"] == result["references"][0]["id"]
+    assert len(c.tables["Reference"]) == 1
+
+
+def test_an_address_alone_is_refused_when_the_backend_has_no_single_canonical_corpus():
+    c = IntakeClient()   # its only corpus has no canonical role
+    with pytest.raises(IntakeError):
+        submit(c, address_only())
+    assert not c.tables["Reference"]
+
+
 @pytest.mark.parametrize("violation", ["no identity", "a reader role", "another issuer", "another publication", "another corpus", "a caller selected tenant"])
 def test_rejects_before_writes(violation):
     c = IntakeClient(); identity = copy.deepcopy(IDENTITY); data = payload()
@@ -124,20 +155,79 @@ def test_rejects_before_writes(violation):
     assert not c.uploads
 
 
+def refused_message(env, identity=None):
+    c = IntakeClient()
+    with patch.dict("os.environ", {**ENV, **env}), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        with pytest.raises(IntakeError) as error:
+            intake_references(c, payload(), identity or IDENTITY)
+    assert not c.tables["Reference"] and not c.uploads
+    return str(error.value)
+
+
+def tenant_identity(claim):
+    identity = copy.deepcopy(IDENTITY)
+    identity["claims"][claim] = "tenant-a"
+    return identity
+
+
+def test_tenant_backend_with_the_single_publication_flag_accepts_its_editor():
+    c = IntakeClient()
+    with patch.dict("os.environ", {**ENV, "PAPYRUS_TENANT_ID": "tenant-a", "PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"}), \
+            patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        result = intake_references(c, payload(), IDENTITY)
+    assert c.tables["Reference"][result["references"][0]["id"]]["versionCreatedBy"] == "user:editor-sub"
+
+
+def test_tenant_backend_without_the_flag_is_refused_and_the_message_names_the_flag():
+    assert "PAPYRUS_SINGLE_PUBLICATION_BACKEND=true" in refused_message({"PAPYRUS_TENANT_ID": "tenant-a"})
+
+
+@pytest.mark.parametrize("value", ["", "True", "TRUE", "1", "yes", " true", "true ", "false"])
+def test_only_exactly_true_turns_the_flag_on(value):
+    refused_message({"PAPYRUS_TENANT_ID": "tenant-a", "PAPYRUS_SINGLE_PUBLICATION_BACKEND": value})
+
+
+@pytest.mark.parametrize("claim", ["tenantId", "custom:tenantId"])
+@pytest.mark.parametrize("tenant", ["", "tenant-a"])
+def test_a_tenant_bearing_token_is_refused_even_with_the_flag(claim, tenant):
+    refused_message({"PAPYRUS_TENANT_ID": tenant, "PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"}, tenant_identity(claim))
+
+
+def test_a_non_editor_is_refused_with_the_flag():
+    identity = copy.deepcopy(IDENTITY)
+    identity["claims"]["cognito:groups"] = ["reader"]
+    refused_message({"PAPYRUS_TENANT_ID": "tenant-a", "PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"}, identity)
+
+
+def test_the_flag_changes_nothing_on_a_backend_with_no_tenant():
+    c = IntakeClient()
+    with patch.dict("os.environ", {**ENV, "PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"}), \
+            patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        assert intake_references(c, payload(), IDENTITY)["references"]
+
+
+def without_outcome(references):
+    """The Reference fields a repeat must return unchanged, leaving out what says whether this request created it."""
+    return [{k: v for k, v in ref.items() if k not in ("created", "matchedBy")} for ref in references]
+
+
 def test_repeat_and_parallel_intake_preserve_first_actor_and_payload():
     c = IntakeClient(); first = submit(c)
     original = copy.deepcopy(c.tables)
     data = payload("HTTPS://EXAMPLE.TEST:443/report#another")
     data["items"][0].update(title="Overwrite", ingestion_rationale="Overwrite")
     identity = copy.deepcopy(IDENTITY); identity["sub"] = identity["claims"]["sub"] = "another-editor"
-    assert submit(c, data, identity)["references"] == first["references"]
+    repeated = submit(c, data, identity)["references"]
+    assert [r["created"] for r in first["references"]] == [True] and [r["created"] for r in repeated] == [False]
+    assert repeated[0]["matchedBy"] == ["sourceUri"] and "reusedExisting" not in repeated[0]
+    assert without_outcome(repeated) == without_outcome(first["references"])
     assert c.tables == original
     # Patch process globals once: worker-local patch contexts can restore another
     # worker's environment/helper while its intake is still executing.
     with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
         with ThreadPoolExecutor(max_workers=4) as pool:
             results = list(pool.map(lambda _: intake_references(c, payload(), IDENTITY), range(8)))
-    assert all(r["references"] == first["references"] for r in results)
+    assert all(without_outcome(r["references"]) == without_outcome(first["references"]) and r["references"][0]["created"] is False for r in results)
     assert len(c.tables["Reference"]) == len(c.tables["KnowledgeImportRun"]) == len(c.uploads) == 1
 
 
@@ -163,7 +253,8 @@ def test_email_candidate_import_creates_pending_reference_with_private_receipt_p
     c = IntakeClient()
     first = submit_email(c)
     repeated = submit_email(c)
-    assert first["ok"] and repeated["references"] == first["references"]
+    assert first["ok"] and without_outcome(repeated["references"]) == without_outcome(first["references"])
+    assert first["references"][0]["created"] is True and repeated["references"][0]["created"] is False
     assert len(c.tables["Reference"]) == 1
     reference = next(iter(c.tables["Reference"].values()))
     assert reference["curationStatus"] == "pending" and reference["curationStatusReason"].startswith(
@@ -290,7 +381,8 @@ def test_simultaneous_first_intake_uses_conditional_create():
     ):
         results = list(pool.map(request, range(4)))
     assert len(reference_conflicts) == 3
-    assert all(r["references"] == results[0]["references"] for r in results)
+    assert all(without_outcome(r["references"]) == without_outcome(results[0]["references"]) for r in results)
+    assert sorted(r["references"][0]["created"] for r in results) == [False, False, False, True]   # only the request that wrote it created it
     assert len(c.tables["Reference"]) == len(c.tables["KnowledgeImportRun"]) == len(c.uploads) == 1
     winner = next(iter(c.tables["Reference"].values()))
     provenance = json.loads(next(iter(c.uploads.values())))
@@ -304,9 +396,12 @@ def test_handler_uses_validated_identity_and_returns_denials():
     spec = importlib.util.spec_from_file_location("intake_actions", Path(__file__).resolve().parents[3] / "amplify/functions/content-actions/handler.py")
     handler = importlib.util.module_from_spec(spec); spec.loader.exec_module(handler)
     c = IntakeClient()
-    with patch.dict("os.environ", ENV), patch.object(handler, "create_authoring_client", return_value=(c, {})), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+    with patch.dict("os.environ", ENV), patch.object(handler, "create_authoring_client", return_value=(c, {})), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload), \
+            patch("papyrus_content.monitoring_view.default_email_store_factory", return_value=lambda: None):   # no monitoring table here: the prediction request is reported, not raised
         e = {"fieldName": "intakePendingReferences", "arguments": {"input": json.dumps(payload())}, "identity": IDENTITY}
-        assert handler.handler(e, None)["ok"]
+        answer = handler.handler(e, None)
+        assert answer["ok"] and len(c.tables["Reference"]) == 1   # the Reference exists whatever happens to its prediction request
+        assert answer["prediction"]["ok"] is False and "not configured" in answer["prediction"]["error"]
         before = copy.deepcopy(c.tables)
         e["identity"] = {}
         assert handler.handler(e, None)["errors"][0]["code"] == "intake-rejected"
@@ -364,6 +459,31 @@ def test_cli_routes_user_catalog_to_scoped_action_without_generic_writes(tmp_pat
         assert len(c.calls) == 1
         with pytest.raises(ValueError, match="pending only"):
             references_register_catalog(flags[:-1] + ["accepted"])
+
+
+def test_user_catalog_goes_one_source_per_request_reports_each_and_continues_after_a_timeout(tmp_path, capsys):
+    from papyrus_content.cli import references_register_catalog
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"items": [
+        {"source_uri": f"https://example.test/p{n}", "title": f"P{n}", "ingestion_rationale": "Because."} for n in range(3)]}))
+    steering = {"corpora": [{"key": "one", "name": "One", "role": "source"}]}
+
+    class ActionClient:
+        endpoint = ENDPOINT
+        calls = []
+        def graphql(self, query, variables):
+            self.calls.append(json.loads(variables["input"])["items"])
+            if len(self.calls) == 2:
+                raise TimeoutError("The read operation timed out")
+            return {"intakePendingReferences": json.dumps({"ok": True, "references": [{"id": f"r{len(self.calls)}", "curationStatus": "pending", "created": True}]})}
+    c = ActionClient()
+    with patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "user"}), patch("papyrus_content.cli.create_authoring_client", return_value=(c, {})), patch("papyrus_content.reference_intake_cli.require_steering_config", return_value=steering):
+        with pytest.raises(ValueError, match="Run the same command again"):
+            references_register_catalog(["--config", "ignored", "--corpus-key", "one", "--catalog", str(catalog), "--status", "pending"])
+    assert [len(items) for items in c.calls] == [1, 1, 1]
+    lines = capsys.readouterr().out.splitlines()
+    assert [line.split("\t")[2] for line in lines[1:]] == ["created", "failed", "created", "summary"]
+    assert lines[-1].endswith("created=2\talready-existed=0\tnot-confirmed=1")
 
 
 def test_schema_preserves_read_only_models_and_scoped_group_action():
@@ -433,6 +553,67 @@ def test_real_handler_executes_upload_protocol_without_external_credentials():
         first = handler.handler(e, None)
         assert first["ok"]
         second = handler.handler(e, None)
-        assert second["references"] == first["references"]
+        assert without_outcome(second["references"]) == without_outcome(first["references"])
     assert len(slots) == len(completions) == len(requests) == 1
     assert json.loads(requests[0].data)["actorSub"] == "editor-sub"
+
+
+SHARED_ENV = {TENANCY_MODE_ENVIRONMENT_VARIABLE: "shared", "PAPYRUS_TENANT_ID": ""}
+
+
+def shared_identity(tenant="alpha"):
+    identity = copy.deepcopy(IDENTITY)
+    identity["claims"]["papyrus_tenant_editor"] = tenant
+    return identity
+
+
+def shared_client(corpus_id="alpha.knowledge-corpus-demo"):
+    c = IntakeClient()
+    c.tables["KnowledgeCorpus"] = {corpus_id: {"id": corpus_id, "role": "canonical", "name": "Demo"},
+                                   "beta.knowledge-corpus-demo": {"id": "beta.knowledge-corpus-demo", "role": "canonical", "name": "Demo"}}
+    return c
+
+
+def test_a_shared_stack_takes_intake_for_the_tenant_its_claims_name_without_the_single_publication_flag():
+    c = shared_client()
+    with patch.dict("os.environ", {**ENV, **SHARED_ENV}), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        result = intake_references(c, payload(corpusId="alpha.knowledge-corpus-demo"), shared_identity())
+    ref = c.tables["Reference"][result["references"][0]["id"]]
+    assert ref["corpusId"] == "alpha.knowledge-corpus-demo"
+    assert ref["newsroomFeedKey"] == "alpha#references"
+    assert ref["curationStatusKey"] == "alpha.knowledge-corpus-demo#pending"
+
+
+def test_a_shared_stack_finds_the_tenants_own_canonical_corpus_when_the_call_names_none():
+    c = shared_client()
+    data = payload()
+    del data["corpusId"]
+    with patch.dict("os.environ", {**ENV, **SHARED_ENV}), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        result = intake_references(c, data, shared_identity())
+    assert c.tables["Reference"][result["references"][0]["id"]]["corpusId"] == "alpha.knowledge-corpus-demo"
+
+
+def test_a_shared_stack_refuses_another_tenants_corpus_and_a_corpus_with_no_tenant():
+    for corpus_id in ("beta.knowledge-corpus-demo", "knowledge-corpus-demo"):
+        c = shared_client()
+        c.tables["KnowledgeCorpus"][corpus_id] = {"id": corpus_id}
+        with patch.dict("os.environ", {**ENV, **SHARED_ENV}), pytest.raises(IntakeError, match="does not belong"):
+            intake_references(c, payload(corpusId=corpus_id), shared_identity())
+        assert not c.tables["Reference"]
+
+
+def test_a_shared_stack_refuses_a_session_that_names_no_tenant():
+    c = shared_client()
+    with patch.dict("os.environ", {**ENV, **SHARED_ENV}), pytest.raises(IntakeError, match="tenant"):
+        intake_references(c, payload(corpusId="alpha.knowledge-corpus-demo"), IDENTITY)
+    assert not c.tables["Reference"]
+
+
+def test_a_url_already_accepted_stays_accepted_and_is_reported_as_not_created():
+    c = IntakeClient(); first = submit(c)
+    reference_id = first["references"][0]["id"]
+    c.tables["Reference"][reference_id]["curationStatus"] = "accepted"
+    before = copy.deepcopy(c.tables)
+    again = submit(c)["references"][0]
+    assert again["created"] is False and again["curationStatus"] == "accepted" and again["matchedBy"] == ["sourceUri"]
+    assert c.tables == before   # nothing written, status untouched

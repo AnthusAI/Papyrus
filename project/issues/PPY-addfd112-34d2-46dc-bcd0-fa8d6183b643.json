@@ -1,0 +1,23 @@
+{
+  "id": "PPY-addfd112-34d2-46dc-bcd0-fa8d6183b643",
+  "title": "Add papyrus ops site copy to move a site's backend data into a new site",
+  "description": "Copy DynamoDB tables and media from one Papyrus backend to another with explicit key rewrite rules, dry run by default, idempotent re-runs and a verify mode. First use: read.p.apyr.us (p-apyr-us) to Machines on Machines (machines-on-machines). Docs: docs/site-copy.md. Branch feature/site-copy.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-01T16:38:57.621964Z",
+  "updated_at": "2026-11-01T16:39:02.715385Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

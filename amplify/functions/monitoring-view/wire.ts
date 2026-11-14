@@ -79,4 +79,14 @@ export function wireEmailReferenceIntake(lambda: LambdaFunction, emailMonitorId 
       conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": [`MONITOR#${emailMonitorId}`] } },
     }),
   );
+  // A Reference this function creates is queued for one Cyclotron prediction (src/papyrus_content/reference_prediction_queue.py): one conditional
+  // PutItem per Reference in the same partition, which the router's `email-references` task drains. Nothing else is written.
+  lambda.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["dynamodb:PutItem"],
+      resources: monitoringViewTableArns(stack.region, stack.account).slice(0, 1),
+      conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": [`MONITOR#${emailMonitorId}`] } },
+    }),
+  );
 }

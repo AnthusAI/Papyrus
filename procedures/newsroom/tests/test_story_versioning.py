@@ -190,6 +190,7 @@ class SetSlugRedirects(unittest.TestCase):
         with mock.patch("papyrus_content.story_commands.create_authoring_client", return_value=(self.client, {})), \
                 mock.patch("papyrus_content.projection_trigger.projection_enabled", return_value=True), \
                 mock.patch("papyrus_content.projection_trigger.trigger_projection", side_effect=run_projection), \
+                mock.patch("papyrus_content.user_auth_mode.user_auth_requested", return_value=False), \
                 contextlib.redirect_stdout(io.StringIO()):
             stories_set_slug(flags)
 
@@ -275,3 +276,96 @@ class StaleSiblingState(SetSlugRedirects):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+IMAGE_BODY = 'Version {n}.\n\n::image{{src="images/chart.png" alt="A chart"}}\n'
+
+
+def add_media(client: FakeAuthoringClient, item_id: str, src: str = "images/chart.png") -> None:
+    from papyrus_content.markus_import import media_id_for
+
+    client.upsert("MediaAsset", {
+        "id": media_id_for(item_id, src), "itemId": item_id, "type": "image", "role": "body",
+        "sortKey": f"001#{src}", "storagePath": f"media/{src}",
+        "metadata": json.dumps({"srcPath": src, "sha256": "abc", "bytes": 3, "contentType": "image/png"}),
+    })
+
+
+def media_of(client: FakeAuthoringClient, item_id: str) -> list[dict]:
+    return client.list_by_index("mediaAssetsByItemAndSortKey", item_id)
+
+
+class SaveVersionCarriesMedia(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = FakeAuthoringClient()
+        save_item(
+            self.client,
+            ItemFields(type="article", slug="hello", section="articles", front_matter_yaml="title: Hello\n",
+                       body_markus=IMAGE_BODY.format(n=1), aliases=[], id=f"{LINEAGE}-v1"),
+            actor="t", now=NOW,
+        )
+        self.client.update_record("Item", {"id": f"{LINEAGE}-v1", "lineageId": LINEAGE, "versionNumber": 1, "versionState": "current"})
+
+    def save(self, body: str, n: int) -> dict:
+        return save_story_version(self.client, LINEAGE, front_matter_yaml="title: Hello\n", body_markus=body,
+                                  actor="t", change_reason="edit", now=f"2026-10-05T12:0{n}:00Z")
+
+    def test_new_version_keeps_the_image_publishable(self) -> None:
+        add_media(self.client, f"{LINEAGE}-v1")
+        v2 = self.save(IMAGE_BODY.format(n=2), 2)
+        rows = media_of(self.client, v2["id"])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["itemId"], v2["id"])
+        self.assertEqual(rows[0]["storagePath"], "media/images/chart.png")
+        self.assertTrue(rows[0]["id"].startswith(f"media-{v2['id']}-"))
+        self.assertEqual(len(media_of(self.client, f"{LINEAGE}-v1")), 1)
+        self.assertTrue(publish_item(self.client, v2["id"], actor="t", now=NOW).changed)
+
+    def test_version_saved_without_media_is_repaired_by_the_next_save(self) -> None:
+        add_media(self.client, f"{LINEAGE}-v1")
+        broken = self.save("Version 2 without the picture.\n", 2)
+        self.assertEqual(media_of(self.client, broken["id"]), [])
+        v3 = self.save(IMAGE_BODY.format(n=3), 3)
+        self.assertEqual(len(media_of(self.client, v3["id"])), 1)
+        self.assertTrue(publish_item(self.client, v3["id"], actor="t", now=NOW).changed)
+
+    def test_a_body_only_save_carries_both_files_of_a_day_and_night_picture(self) -> None:
+        from papyrus_content.story_illustration import cover_evidence, inputs_for_item, default_policy, DONE
+
+        body = '::image{{src="assets/a-story/chart.png" srcDark="assets/a-story/chart.dark.png" alt="A chart"}}\n\nVersion {n}.\n'
+        front_matter = "title: Hello\nimage: assets/a-story/chart.png\nimageDark: assets/a-story/chart.dark.png\n"
+        for src in ("assets/a-story/chart.png", "assets/a-story/chart.dark.png"):
+            add_media(self.client, f"{LINEAGE}-v1", src)
+        v2 = save_story_version(self.client, LINEAGE, front_matter_yaml=front_matter, body_markus=body.format(n=2), actor="t",
+                                change_reason="body only", now="2026-10-05T12:02:00Z")
+        stored = sorted(json.loads(row["metadata"])["srcPath"] for row in media_of(self.client, v2["id"]))
+        self.assertEqual(stored, ["assets/a-story/chart.dark.png", "assets/a-story/chart.png"])
+        policy = {**default_policy(), "requireDark": True}
+        state, text = cover_evidence(inputs_for_item(self.client, v2, json.loads(v2["metadata"]), policy))
+        self.assertEqual(state, DONE, text)
+        self.assertTrue(publish_item(self.client, v2["id"], actor="t", now=NOW).changed)
+
+    def test_image_on_no_earlier_version_still_blocks_publish(self) -> None:
+        from papyrus_content.publishing import PublishError
+
+        v2 = self.save(IMAGE_BODY.format(n=2), 2)
+        self.assertEqual(media_of(self.client, v2["id"]), [])
+        with self.assertRaises(PublishError) as raised:
+            publish_item(self.client, v2["id"], actor="t", now=NOW)
+        self.assertEqual(raised.exception.code, "image-missing")
+
+
+class SavedColumnsFollowFrontMatter(unittest.TestCase):
+    """A saved version's title and headline columns are the front matter title; the deck column is only the deck."""
+
+    TITLE = "A Home Surveillance Drone with Cloud AI — What Could Go Wrong?"
+    DECK = "Ring's Drone Cam is sold as security. To do its job it has to see every room and send the video to the cloud, which is a privacy risk of its own."
+
+    def test_title_and_deck_land_in_their_own_columns(self) -> None:
+        import yaml
+
+        client = FakeAuthoringClient()
+        make_story(client, versions=1)
+        front = yaml.safe_dump({"title": self.TITLE, "deck": self.DECK, "blurb": "Two or three lines."}, sort_keys=False, allow_unicode=True)
+        record = save_story_version(client, LINEAGE, front_matter_yaml=front, body_markus="Body.\n", actor="t", change_reason="edit", now="2026-10-05T12:09:00Z")
+        self.assertEqual((record["title"], record["headline"], record["sortTitle"], record["deck"]), (self.TITLE, self.TITLE, self.TITLE, self.DECK))

@@ -7,7 +7,6 @@
 import type { ReferenceRecord } from "./category-repository";
 import type { RelevanceDecisionView } from "./relevance-decisions";
 import type { ReferencePreview } from "./reference-preview";
-import type { DraftView } from "./review-drafts";
 import type { ReviewRequest } from "./review-requests";
 
 const FEED_PREFIX = "papyrus.references.feed.v1.";
@@ -129,12 +128,10 @@ export function saveSessionDisplay(siteId: string, display: Omit<SessionDisplay,
   write("session", `${SESSION_PREFIX}${siteId}`, { ...display, savedAt: now });
 }
 
-/** What the Notification Center last showed: review requests (without their history) and the drafts they cover. Display only. */
+/** What the Notification Center last showed: review requests (without their history). Display only. */
 export type NotificationSnapshot = {
   savedAt: number;
   requests: ReviewRequest[];
-  drafts: Record<string, DraftView>;
-  missing: string[];
 };
 
 export function notificationCacheKey(siteId: string): string {
@@ -143,17 +140,15 @@ export function notificationCacheKey(siteId: string): string {
 
 export function loadNotificationSnapshot(siteId: string): NotificationSnapshot | null {
   const snapshot = read<NotificationSnapshot>("local", notificationCacheKey(siteId));
-  if (!snapshot || !Array.isArray(snapshot.requests) || typeof snapshot.drafts !== "object" || !snapshot.drafts) return null;
+  if (!snapshot || !Array.isArray(snapshot.requests) ) return null;
   return snapshot;
 }
 
 /** Saves the newest copy; who did what stays out of storage. Quiet when storage is blocked or full. */
-export function saveNotificationSnapshot(siteId: string, parts: { requests: ReviewRequest[]; drafts: Readonly<Record<string, DraftView>>; missing: Iterable<string> }, now = Date.now()): boolean {
+export function saveNotificationSnapshot(siteId: string, parts: { requests: ReviewRequest[] }, now = Date.now()): boolean {
   const snapshot: NotificationSnapshot = {
     savedAt: now,
     requests: parts.requests.map((request) => ({ ...request, history: [] })),
-    drafts: { ...parts.drafts },
-    missing: [...parts.missing],
   };
   return write("local", notificationCacheKey(siteId), snapshot);
 }

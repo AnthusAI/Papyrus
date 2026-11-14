@@ -5,14 +5,32 @@ import {
   publishItem,
   saveItemDraft,
   unpublishItem,
+  moveStoryStage,
+  scheduleStory,
+  scheduleList,
+  createStoryFromReference,
   type ContentActionError,
 } from "./content-actions-client";
 import { createDemoArticlesBackend } from "./content-actions-demo";
+import { UNTYPED_ITEM_TYPE } from "./content-item-lifecycle";
+import { ALWAYS_PROJECTED, typeForNewStory, siteStoryTypes } from "./site-story-types";
 
 export type ArticleStatus = "draft" | "published";
-export type ArticleType = "article" | "page";
 
-export const ARTICLE_TYPES: ArticleType[] = ["article", "page"];
+/** An Item that is not a Story, which the editor can still edit. It is offered beside the site's Story types. */
+export const PAGE_TYPE = "page";
+
+/** The types the editor offers for an Item of `currentType`: the site's Story types (its projection.json), the page, and the Item's own type when it is neither. */
+export function editorTypeChoices(currentType: string | null | undefined, offered: readonly string[] = siteStoryTypes().types): string[] {
+  return [...new Set([...offered, PAGE_TYPE, ...(currentType && currentType !== UNTYPED_ITEM_TYPE ? [currentType] : [])])];
+}
+
+/** `case_study` as "Case study"; the stored "untyped" as "Not set". */
+export function typeLabel(type: string): string {
+  if (type === UNTYPED_ITEM_TYPE) return "Not set";
+  const words = type.replace(/[-_]+/g, " ").trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : type;
+}
 
 export type NewsroomArticleRow = {
   id: string;
@@ -70,6 +88,10 @@ export type EditableArticle = {
   versionNumber: number | null;
   aliases: string[];
   everPublished: boolean;
+  /** The type of the live published version of this Story's lineage, when there is one. It can differ from `type` after a new version changed the type. */
+  publishedType?: string | null;
+  /** The editors' private 1-5 rating of the Story; null when nobody rated it. */
+  starRating?: number | null;
 };
 
 export type ArticlesBackend = {
@@ -78,6 +100,14 @@ export type ArticlesBackend = {
     saveItemDraft: typeof saveItemDraft;
     publishItem: typeof publishItem;
     unpublishItem: typeof unpublishItem;
+    moveStoryStage: typeof moveStoryStage;
+    /** Sets, changes or clears (null) the time this Story's version goes live. */
+    scheduleStory: typeof scheduleStory;
+    /** The Story's schedules (the `schedule_list` operation): the drawer shows what the backend says, not what the loaded row happens to hold. */
+    scheduleList: typeof scheduleList;
+    createStoryFromReference: typeof createStoryFromReference;
+    /** Saves an editor's rating of a Story (any version id of it; null clears it). A plain update: no new version, nothing republished. */
+    setItemStars: (itemId: string, stars: number | null) => Promise<void>;
   };
   listRows: () => Promise<NewsroomArticleRow[]>;
   loadArticle: (id: string) => Promise<EditableArticle>;
@@ -131,7 +161,7 @@ export function locateError(error: ContentActionError, frontMatterYaml: string |
 export function emptyArticle(): NewsroomArticleEditorState {
   return {
     id: null,
-    type: "article",
+    type: typeForNewStory(),
     section: "",
     slug: "",
     frontMatterYaml: "title: \n",
@@ -208,12 +238,23 @@ export type ArticlesDataClient = {
         input: { typeStatus: string },
         options: ListOptions,
       ) => Promise<ListPage<PublishedItemSummary>>;
+      get: (
+        input: { id: string },
+        options: { authMode: "userPool" },
+      ) => Promise<{ data?: Record<string, unknown> | null; errors?: { message?: string }[] | null }>;
     };
   };
 };
 
-const NEWSROOM_ARTICLE_TYPE_STATUSES = ["article#draft", "article#published", "page#draft", "page#published"];
-const NEWSROOM_PUBLISHED_TYPE_STATUSES = ["article#published", "page#published"];
+/**
+ * The list asks for each of the site's Story types, the Stories with no type yet, and the two types every projection builds pages for (article, page), so
+ * older Items stay listed on a site that declares no types: the Item index is keyed on `<type>#<status>`.
+ */
+function listedTypes(): string[] {
+  return [...new Set([...siteStoryTypes().types, UNTYPED_ITEM_TYPE, ...ALWAYS_PROJECTED, PAGE_TYPE])];
+}
+const articleTypeStatuses = () => listedTypes().flatMap((type) => [`${type}#draft`, `${type}#published`]);
+const publishedTypeStatuses = () => listedTypes().map((type) => `${type}#published`);
 
 async function collectPages<T>(
   fetchPage: (options: ListOptions) => Promise<ListPage<T>>,
@@ -235,12 +276,12 @@ async function collectPages<T>(
 
 export async function loadArticleRows(client: ArticlesDataClient): Promise<NewsroomArticleRow[]> {
   const itemGroups = await Promise.all(
-    NEWSROOM_ARTICLE_TYPE_STATUSES.map((typeStatus) =>
+    articleTypeStatuses().map((typeStatus) =>
       collectPages((options) => client.models.Item.listItemsByTypeStatusAndPublishedAt({ typeStatus }, options)),
     ),
   );
   const publishedGroups = await Promise.all(
-    NEWSROOM_PUBLISHED_TYPE_STATUSES.map((typeStatus) =>
+    publishedTypeStatuses().map((typeStatus) =>
       collectPages((options) =>
         client.models.PublishedItem.listPublishedItemsByTypeStatusAndPublishedAt({ typeStatus }, options),
       ),
@@ -266,6 +307,14 @@ export async function loadEditableArticle(client: ArticlesDataClient, id: string
   if (!record) throw new Error("That article was not found.");
   const metadata = parseJsonObject(record.metadata);
   const status: ArticleStatus = record.status === "published" ? "published" : "draft";
+  const lineage = typeof record.lineageId === "string" ? record.lineageId : String(record.id);
+  let publishedType: string | null = null;
+  try {
+    const published = await client.models.PublishedItem?.get?.({ id: `published-${lineage}` }, { authMode: "userPool" });
+    publishedType = typeof published?.data?.type === "string" ? published.data.type : null;
+  } catch {
+    publishedType = null; // the type of the live version only sharpens a warning
+  }
   return {
     id: String(record.id),
     lineageId: typeof record.lineageId === "string" ? record.lineageId : null,
@@ -279,7 +328,16 @@ export async function loadEditableArticle(client: ArticlesDataClient, id: string
     versionNumber: typeof record.versionNumber === "number" ? record.versionNumber : null,
     aliases: Array.isArray(record.aliases) ? record.aliases.map(String) : [],
     everPublished: status === "published",
+    publishedType,
+    starRating: typeof record.starRating === "number" ? record.starRating : null,
   };
+}
+
+/** An editor's star rating of a Story, saved by `setItemStars` onto its working record. It changes no stage and publishes nothing. */
+export async function setItemStars(itemId: string, stars: number | null): Promise<void> {
+  const response = await generateClient<Schema>().mutations.setItemStars({ itemId, stars }, { authMode: "userPool" });
+  const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+  if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
 }
 
 export function createLiveArticlesBackend(): ArticlesBackend {
@@ -289,7 +347,7 @@ export function createLiveArticlesBackend(): ArticlesBackend {
     return client;
   };
   return {
-    actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem },
+    actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem, moveStoryStage, scheduleStory, scheduleList, createStoryFromReference, setItemStars },
     listRows: () => loadArticleRows(dataClient()),
     loadArticle: (id) => loadEditableArticle(dataClient(), id),
   };
@@ -316,12 +374,4 @@ export function stagingPreviewUrl(
   if (!stagingBaseUrl || !slug || type !== "article") return null;
   const base = stagingBaseUrl.replace(/\/+$/, "");
   return staticSite ? `${base}/articles/${slug}.html` : `${base}/articles/${slug}`;
-}
-
-export function uniqueSections(rows: NewsroomArticleRow[]): string[] {
-  const sections = new Set<string>();
-  for (const row of rows) {
-    if (row.section) sections.add(row.section);
-  }
-  return [...sections].sort();
 }

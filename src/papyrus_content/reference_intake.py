@@ -1,8 +1,13 @@
 """Publication-bound pending source intake; called only by the AppSync action.
 
 A deployment's Cognito pool and AppSync endpoint define the publication boundary.
-Knowledge models do not yet support tenant isolation: shared-tenant intake fails
-closed rather than treating a caller's tenant/corpus claim as authorization.
+On a SHARED stack the knowledge keys carry the tenant (tenant_knowledge_keys), so intake acts for the one
+tenant the caller's claims name: its corpus is ``<tenant>.<corpus>``, its Reference feed keys are the tenant's own,
+and a corpus of another tenant is refused. On a DEDICATED stack nothing about the keys changes, so the old guard
+stays: a token that carries a tenant is refused, and a backend whose Lambda has ``PAPYRUS_TENANT_ID`` set is refused
+unless it declares that it serves one publication with ``PAPYRUS_SINGLE_PUBLICATION_BACKEND=true`` (exactly that
+text; see ``reference_intake_validation._actor`` and docs/multi-tenancy.md). Remove the declaration before a second
+publication is added to such a backend.
 """
 from __future__ import annotations
 
@@ -16,7 +21,9 @@ from typing import Any
 from .catalog import reference_record
 from .model_attachments import build_json_model_payload_attachment, upload_attachment_body
 
-from .reference_intake_validation import IntakeError, _actor, canonical_source_url
+from .reference_identity import IdentityIndex, identity_keys
+from .reference_intake_validation import IntakeError, _actor, canonical_source_url, intake_tenant
+from .tenant_knowledge_keys import tenant_corpus_id
 
 
 def _text(value: Any, field: str, limit: int) -> str:
@@ -72,15 +79,37 @@ def _provenance(client, ref: dict, publication: str) -> None:
     upload_attachment_body(client, entry["attachment"], entry["body"])
 
 
+ADDED_FROM_NEWSROOM = "Added by an editor from the Newsroom."
+
+
 def intake_references(client, arguments: dict, identity: dict) -> dict:
+    """Register pending References for an editor-session caller.
+
+    ``publicationEndpoint`` and ``corpusId`` are optional: the Newsroom's Add dialog sends only the address. Left out, the endpoint is the
+    Lambda's own and the corpus is the backend's single canonical corpus; when given they must still match. An item that names only its
+    ``source_uri`` takes the address as its title (capture replaces it) and a fixed rationale, so an editor never has to invent either.
+    """
     actor = _actor(identity)
+    tenant_id = intake_tenant(identity)
     if set(arguments) - {"publicationEndpoint", "corpusId", "items"}:
         raise IntakeError("Unsupported intake fields; status, actor and tenant cannot be supplied.")
     publication = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").rstrip("/")
-    requested_publication = _text(arguments.get("publicationEndpoint"), "publicationEndpoint", 4096)
-    if not publication or requested_publication.rstrip("/") != publication:
+    if not publication:
         raise IntakeError("Intake is bound to this publication endpoint.")
-    corpus_id = _text(arguments.get("corpusId"), "corpusId", 200)
+    if arguments.get("publicationEndpoint") is not None:
+        requested_publication = _text(arguments.get("publicationEndpoint"), "publicationEndpoint", 4096)
+        if requested_publication.rstrip("/") != publication:
+            raise IntakeError("Intake is bound to this publication endpoint.")
+    if arguments.get("corpusId") is not None:
+        corpus_id = _text(arguments.get("corpusId"), "corpusId", 200)
+        if tenant_corpus_id(corpus_id, tenant_id) != corpus_id:
+            raise IntakeError("The corpus does not belong to this publication.")   # a shared stack's corpus id starts with the caller's tenant
+    else:
+        from .editorial_context import hosted_publication
+        try:
+            corpus_id = hosted_publication(client, tenant_id=tenant_id)["corpusId"]
+        except ValueError as error:
+            raise IntakeError(str(error)) from None
     if not client.get_record("KnowledgeCorpus", corpus_id):
         raise IntakeError("The corpus does not belong to this publication.")
     raw_items = arguments.get("items")
@@ -90,15 +119,18 @@ def intake_references(client, arguments: dict, identity: dict) -> dict:
     for item in raw_items:
         if not isinstance(item, dict) or set(item) - {"source_uri", "item_id", "title", "media_type", "ingestion_rationale"}:
             raise IntakeError("Unsupported source fields.")
-        items.append({"source_uri": canonical_source_url(item.get("source_uri")),
-                      "title": _text(item.get("title"), "title", 1000),
+        source = canonical_source_url(item.get("source_uri"))
+        items.append({"source_uri": source,
+                      "title": _text(item.get("title", source), "title", 1000),
                       "media_type": _text(item.get("media_type", "text/html"), "media_type", 150),
-                      "ingestion_rationale": _text(item.get("ingestion_rationale"), "ingestion_rationale", 4000)})
+                      "ingestion_rationale": _text(item.get("ingestion_rationale", ADDED_FROM_NEWSROOM), "ingestion_rationale", 4000)})
     # Full batch validation precedes all writes. Existing legacy rows participate
     # in URL deduplication without recuration or replacement.
     existing = client.list_records("Reference")
+    identity_index = IdentityIndex(existing)
     results = [
-        find_or_create_source_reference(client, existing, publication=publication, corpus_id=corpus_id, item=item, actor=f"user:{actor}")
+        find_or_create_source_reference(client, existing, publication=publication, corpus_id=corpus_id, item=item, actor=f"user:{actor}",
+                                        identity_index=identity_index, tenant_id=tenant_id)
         for item in items
     ]
     return {"ok": True, "publicationEndpoint": publication, "references": results}
@@ -212,11 +244,19 @@ def intake_email_submission_references(client, arguments: dict, identity: dict, 
     }, identity)
 
 
-def find_or_create_source_reference(client, existing: list[dict], *, publication: str, corpus_id: str, item: dict, actor: str) -> dict:
+def find_or_create_source_reference(client, existing: list[dict], *, publication: str, corpus_id: str, item: dict, actor: str,
+                                    identity_index: IdentityIndex | None = None, tenant_id: str | None = None) -> dict:
     """Returns the current Reference for a source URL in a corpus, creating a pending one when none exists.
 
     ``item`` carries a canonical ``source_uri`` plus ``title``, ``media_type`` and ``ingestion_rationale``;
     ``existing`` is the Reference listing, extended with any record created here.
+
+    A source that is not in this corpus under that exact URL still passes the identity gate (reference_identity.py) at publication scope: when
+    any corpus already holds the same document (another URL form, an arXiv or DOI form, the same address in another corpus) that Reference is
+    returned with ``reusedExisting`` and ``matchedBy``, and nothing is created or changed.
+
+    Every result says whether this request created the Reference: ``created`` is true for the new pending one and false for one that was already
+    recorded (an exact URL match carries ``matchedBy: ["sourceUri"]``). An existing Reference keeps its status; the request never applies a status to it.
     """
     matches = []
     for row in existing:
@@ -237,18 +277,27 @@ def find_or_create_source_reference(client, existing: list[dict], *, publication
             if first is None:
                 raise IntakeError("The initial intake record is missing.")
             _provenance(client, first, publication)
+        created = False
+    elif (held := (identity_index or IdentityIndex(existing)).existing_for({"sourceUri": item["source_uri"]}, corpus_id=corpus_id)):
+        return {**{k: held.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")},
+                "created": False, "reusedExisting": True,
+                "matchedBy": sorted(identity_keys({"sourceUri": item["source_uri"]}) & identity_keys(held))}
     else:
         digest = hashlib.sha256(f"{publication}\n{corpus_id}\n{item['source_uri']}".encode()).hexdigest()
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         plan = reference_record({**item, "item_id": f"url-{digest}", "curation_status": "pending"}, {
             "corpusId": corpus_id, "importRunId": f"reference-user-intake-{digest}",
-            "now": now, "actor": actor,
+            "now": now, "actor": actor, "tenantId": tenant_id,
         })
         proposed = plan["expected"]
         proposed.pop("metadata", None)
         ref = _create_once(client, "Reference", proposed)
+        created = ref is proposed   # an id another request already wrote comes back as that record, not as ours
         _provenance(client, ref, publication)
         existing.append(ref)
+        if identity_index is not None:
+            identity_index.add(ref)
         from .reference_images import attach_preview
         attach_preview(client, ref)   # new References only; never raises
-    return {k: ref.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")}
+    result = {k: ref.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")}
+    return {**result, "created": True} if created else {**result, "created": False, "matchedBy": ["sourceUri"]}

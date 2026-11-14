@@ -23,7 +23,10 @@ from html.parser import HTMLParser
 from typing import Any
 
 from papyrus_content import pdf_text, youtube_transcript
+from papyrus_content.reference_capture_state import AWAITING_TRANSCRIPT
+from papyrus_content.reference_outbound_links import extract_links
 from papyrus_content.link_exploration import Context, Exploration, Response, explore
+from papyrus_content.publication_dates import publication_date_from_html
 
 # Capture failures that say the network or the server had a bad moment, not that the source is unreadable. A later run retries them.
 TRANSIENT_CAPTURE_FAILURES = frozenset({"timeout", "connection", "http_5xx", "dns"})
@@ -71,9 +74,11 @@ class Capture:
     paper: dict[str, Any] = field(default_factory=dict)
     page: dict[str, Any] = field(default_factory=dict)   # what the page declares about itself (title, description, site name)
     preview: dict[str, Any] | None = None   # the page's link-preview metadata (imageUrl, description, siteName, title) read by this same fetch; None when no HTML page was read
+    publication_date: dict[str, str] | None = None   # the date the HTML page declares for itself ({value, precision, source}); None when it declares none
     full_text_url: str | None = None        # the address the text actually came from when it is not the page itself (the PDF the page links)
-    text_via: str | None = None             # YouTube links only: "youtube_transcript", or "youtube_description" when the transcript was unavailable
-    text_reason: str | None = None          # why the transcript was not used: "blocked", "no_transcript", "unavailable", "unreadable", "library_missing"
+    text_via: str | None = None             # YouTube links only: "youtube_description" (the page's text; the transcript is the worker's, not this capture's)
+    text_reason: str | None = None          # why: "awaiting_transcript"; the worker records "no_transcript", "unavailable" or "unsupported_platform" on the card afterwards
+    links: list[dict[str, Any]] = field(default_factory=list)   # the HTML page's outbound links, each with a kind (reference_outbound_links.py); stored, never followed. A fetch that read a page records them even when the capture failed
 
     @property
     def transient(self) -> bool:
@@ -469,22 +474,17 @@ def _pdf_capture(found: Exploration, via: str) -> Capture:
 
 
 def capture_source(source_url: str, *, title: str = "", explorer: Explorer = explore) -> Capture:
-    """The page capture, and for a YouTube video its transcript in place of the page text (``_youtube_capture``)."""
+    """The page capture; for a YouTube video the page's title and description, marked as waiting for the transcript worker (``_youtube_capture``)."""
     captured = _capture_page(source_url, title=title, explorer=explorer)
     identifier = youtube_transcript.video_id(source_url)
     return captured if identifier is None else _youtube_capture(captured, identifier)
 
 
 def _youtube_capture(captured: Capture, identifier: str) -> Capture:
-    """The video's transcript is the text. When YouTube will not give it, the page's title and description stand in, with the reason."""
-    text, reason = youtube_transcript.fetch_transcript(identifier)
-    if text:
-        captured.ok, captured.failure, captured.text = True, None, text
-        captured.source_kind, captured.content_type = "transcript", "text/plain"
-        captured.signals = completeness_signals(text)
-        captured.text_via, captured.text_reason = "youtube_transcript", None
-        return captured
-    captured.text_via, captured.text_reason = "youtube_description", reason
+    """A video's transcript is not fetched here: YouTube refuses cloud addresses (measured: 39 of 40 attempts from the router in 30 days), so the
+    transcript waits for ``papyrus references capture-transcripts`` run on a non-cloud connection. What this capture keeps is the page's own title and
+    description, with the reason, so the Reference is never taken for captured in full (``capture.textReason`` ``awaiting_transcript``)."""
+    captured.text_via, captured.text_reason = "youtube_description", AWAITING_TRANSCRIPT
     if not captured.ok:
         blurb = "\n\n".join(captured.page[key] for key in ("title", "description") if captured.page.get(key))
         if blurb:
@@ -516,8 +516,10 @@ def _capture_page(source_url: str, *, title: str = "", explorer: Explorer = expl
         return Capture(False, "unsupported_media", content_type=response.headers.get("content-type", "").split(";")[0],
                        destination_url=destination)
     html = _decode(response)
+    links = extract_links(html, destination)
     preview = found.metadata.as_dict() if found.metadata else {}
     parsed = parse_html(html)
+    page_publication_date = publication_date_from_html(html)
     metas = parsed["metas"]
     description = metas.get("og:description") or metas.get("description") or metas.get("twitter:description") or ""
     page = {key: value for key, value in (("title", metas.get("og:title") or parsed.get("documentTitle")),
@@ -538,21 +540,18 @@ def _capture_page(source_url: str, *, title: str = "", explorer: Explorer = expl
                 pdf_capture.paper = detect_paper(source_url, destination, metas=metas, text=pdf_capture.text)
                 pdf_capture.page = page
                 pdf_capture.preview = preview
+                pdf_capture.publication_date = page_publication_date
+                pdf_capture.links = links
                 pdf_capture.signals["pageWordCount"] = _words(text)
                 pdf_capture.signals["metaDescriptionWordCount"] = _words(description)
                 return pdf_capture
     if not text:
-        text = _fallback_text(html)
+        text = description   # a page with no body text of its own is what it declares itself to be: its description
     if not text:
         return Capture(False, "no_text", source_kind="html", content_type="text/html", destination_url=destination, page=page,
-                       preview=preview, paper=detect_paper(source_url, destination, metas=metas),
+                       preview=preview, publication_date=page_publication_date, links=links, paper=detect_paper(source_url, destination, metas=metas),
                        signals=completeness_signals("", parsed=parsed, response_truncated=response.truncated, description=description))
     signals = completeness_signals(text, parsed=parsed, response_truncated=response.truncated, description=description)
     return Capture(True, None, text, "html", "text/html", destination, via, pdf_bytes, signals,
-                   detect_paper(source_url, destination, metas=metas, text=text), page, preview=preview)
-
-
-def _fallback_text(html: str) -> str:
-    from papyrus_content.ideas.excerpt import excerpt_from_html
-
-    return excerpt_from_html(html, 10_000_000) or ""
+                   detect_paper(source_url, destination, metas=metas, text=text), page, preview=preview,
+                   publication_date=page_publication_date, links=links)

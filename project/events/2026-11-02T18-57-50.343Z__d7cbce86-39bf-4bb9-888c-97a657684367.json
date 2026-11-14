@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d7cbce86-39bf-4bb9-888c-97a657684367",
+  "issue_id": "PPY-b41e7e74-80d2-4160-bd86-d27ff2aef136",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T18:57:50.343Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Site ids from environment, branch variables and repository variables; literals stay as fallback (implementation)",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-52dd3649-44e1-42d6-a2c7-06d7e5a7b169",
+    "labels": []
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "e16299d9-20aa-4264-a4f0-378fec0e9ad4",
+  "issue_id": "PPY-98eaeeba-0b2e-48d0-ab08-e6c78858f920",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:18.815Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Storage: tenant uploads go through a checked upload URL; no group write on media/*",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

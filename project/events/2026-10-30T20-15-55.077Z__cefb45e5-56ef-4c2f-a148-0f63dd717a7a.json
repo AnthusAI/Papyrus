@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "cefb45e5-56ef-4c2f-a148-0f63dd717a7a",
+  "issue_id": "PPY-98224e7b-58db-4ae2-b156-d73e01109d19",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-30T20:15:55.077Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "papyrus references add: import a Reference from a URL (and link it to a story) in one command",
+    "description": "Rough edge found 2026-10-30 while recording the sources for the Data Parade story on cli-login (43 URLs).\n\nWhat happened: the CLI has no simple way to turn a URL into a Reference. The only intake path is the GraphQL mutation intakePendingReferences, which allows editor groups only (no IAM operator lane) and takes 1 to 20 items as AWSJSON, so an operator or agent has to script find_or_create_source_reference (src/papyrus_content/reference_intake.py) by hand: find the corpus id, fetch each page title, call the function, then call link_reference_to_story. Stories already have link-reference, but there is nothing to create the Reference first.\n\nProposal:\n- papyrus references add <url> [<url> ...] [--file urls.txt] [--title <text>] [--rationale <text>] [--story <lineage> --role consulted|cited|based_on] [--dry-run].\n- Writes by default like other mutation commands; --dry-run shows new versus existing.\n- Reuses find_or_create_source_reference (dedupes by canonical URL within the corpus, creates pending References with provenance and a preview image).\n- Resolves the site's corpus itself.\n- Fetches the page title when --title is not given; falls back to the URL and never fails the batch on one bad fetch.\n- Retries transient network errors.\n- Works in both lanes: user session and IAM.\n\nAcceptance:\n- Gherkin scenarios: add one URL; add a file of URLs, some already present (reused, not duplicated); add and link to a story with a role; a title fetch fails (URL used as title); --dry-run writes nothing.\n- Documented in the CLI docs and on p.apyr.us.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "Papyrus implementation"
+    }
+  }
+}

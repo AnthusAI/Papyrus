@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { IssueCollection, IssueDetailPanel, IssueIdFormatProvider, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
 import "./newsroom-theme";
-import { PlusIcon } from "lucide-react";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import {
   ASSIGNMENT_BOARD_TYPE,
@@ -21,27 +20,32 @@ import {
   projectContentItemBoard,
   type NativeBoardIssue,
 } from "../lib/newsroom-board";
-import type { AssignmentRecord, NewsroomSectionRecord } from "../lib/category-repository";
-import { displayNewsroomSectionShortTitle, newsroomDeskOptions } from "../lib/newsroom-sections";
+import type { AssignmentRecord } from "../lib/category-repository";
+import { newsroomDeskOptions } from "../lib/newsroom-sections";
 import { getContentItemName, getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { loadNewsroomAssignmentPage, loadNewsroomPublishedContentItemVersions, saveNewsroomAssignmentDesk } from "./news-desk-taxonomy-client";
+import { loadNewsroomAssignmentPage, saveNewsroomAssignmentDesk } from "./news-desk-taxonomy-client";
 import { usePagedContentItemVersions } from "./use-paged-content-item-versions";
-import type { ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { NewsroomBoardSkeleton } from "./newsroom-board-skeleton";
+import { NewsroomBoardHeaderActions } from "./newsroom-board-header-actions";
 import { NewsroomArticleEditor } from "./newsroom-article-editor";
+import { resolveArticlesBackend } from "../lib/newsroom-articles";
+import { StoryCardStars, useStoryCardSlots } from "./story-board-stars";
+import { StoryCardChecklist, useStoryChecklistSlots } from "./story-checklist-card";
+import { StoryCardSchedule, useStoryScheduleSlots } from "./story-schedule-card";
+import { StoryChecklistPanel } from "./story-checklist-panel";
+import { useStoryStars } from "./use-story-stars";
 import { NewsroomAssignmentDetail } from "./newsroom-assignment-detail";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
+import { startBoardRefresh } from "../lib/board-refresh";
 import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
 
 /** A board with a story or assignment open lives at `?open=<id>`, distinct from the standalone page for that record. */
 const SELECTED_ISSUE_PARAMETER = "open";
 const STATIC_MOTION = { mode: "static" } as const;
-const BOARD_REFRESH_INTERVAL_MILLISECONDS = 30_000;
-const COLUMN_LOAD_MORE_DISTANCE_PIXELS = 240;
 
 async function loadEveryNewsroomAssignment() {
   const assignments: AssignmentRecord[] = [];
@@ -62,7 +66,6 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const allowed = canReadNewsroomBoard(session?.shell.phase);
   const [lowMotion, setLowMotion] = useState(false);
   const [assignmentBoardIssues, setAssignmentBoardIssues] = useState<NativeBoardIssue[]>([]);
-  const [publishedVersions, setPublishedVersions] = useState<ContentItemVersionRecord[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRecord[]>([]);
   const [view, setView] = useState<"board" | "list">("board");
   const router = useRouter();
@@ -79,6 +82,11 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const [supportingRecordsError, setSupportingRecordsError] = useState<string | null>(null);
   const generation = useRef(0);
   const boardBodyRef = useRef<HTMLDivElement | null>(null);
+  const articlesBackend = useMemo(() => resolveArticlesBackend(isLocalPreviewEnabled()), []);
+  const storyStars = useStoryStars((itemId, stars) => articlesBackend.actions.setItemStars(itemId, stars));
+  const storyCardSlots = useStoryCardSlots(boardBodyRef, allowed && subject !== "assignment");
+  const storyChecklistSlots = useStoryChecklistSlots(boardBodyRef, allowed && subject !== "assignment");
+  const storyScheduleSlots = useStoryScheduleSlots(boardBodyRef, allowed && subject !== "assignment");
   const [typeFilter, setTypeFilter] = useState<string | null>("all");
   const showsContentItems = subject !== "assignment";
   const contentItemColumnKeyPrefix = `${contentItemBoardType()}/`;
@@ -97,58 +105,51 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
     setLowMotion(readLocalReaderSettings().motion === "low");
     return subscribeReaderSettingsChanges(settings => setLowMotion(settings.motion === "low"));
   }, []);
+  const refreshSupportingRecordsRef = useRef<() => Promise<void>>(async () => undefined);
+  const pagedRefreshRef = useRef(pagedContentItems.refresh);
+  pagedRefreshRef.current = pagedContentItems.refresh;
+  const refreshBoardNowRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     const request = ++generation.current;
-    setAssignmentBoardIssues([]); setPublishedVersions([]); setAssignments([]); setSupportingRecordsError(null);
+    setAssignmentBoardIssues([]); setAssignments([]); setSupportingRecordsError(null);
     if (!allowed) { setSupportingRecordsLoading(false); return; }
-    const loadSupportingRecords = () => subject !== "assignment"
-      ? Promise.all([loadNewsroomPublishedContentItemVersions(), loadEveryNewsroomAssignment()]).then(([published, everyAssignment]) => {
-        if (generation.current === request) { setPublishedVersions(published); setAssignments(everyAssignment); }
-      })
-      : loadEveryNewsroomAssignment().then(everyAssignment => {
-        if (generation.current === request) { setAssignments(everyAssignment); setAssignmentBoardIssues(projectAssignmentBoard(everyAssignment)); }
-      });
-    const refresh = (initial: boolean) => {
-      if (initial) setSupportingRecordsLoading(true);
-      loadSupportingRecords().then(() => {
-        if (generation.current === request) setSupportingRecordsError(null);
-      }).catch((reason: unknown) => {
-        if (generation.current === request && initial) setSupportingRecordsError(reason instanceof Error ? reason.message : "Could not load newsroom records.");
-      }).finally(() => { if (generation.current === request && initial) setSupportingRecordsLoading(false); });
-    };
-    refresh(true);
-    const refreshWhenVisible = () => { if (document.visibilityState === "visible") refresh(false); };
-    const interval = window.setInterval(refreshWhenVisible, BOARD_REFRESH_INTERVAL_MILLISECONDS);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => { generation.current = request + 1; window.clearInterval(interval); document.removeEventListener("visibilitychange", refreshWhenVisible); };
+    // Assignments have no index that answers "changed since", so they are still read whole (follow-up: a feed + updatedAt index).
+    const loadSupportingRecords = () => loadEveryNewsroomAssignment().then(everyAssignment => {
+      if (generation.current !== request) return;
+      setAssignments(everyAssignment);
+      if (subject === "assignment") setAssignmentBoardIssues(projectAssignmentBoard(everyAssignment));
+    });
+    refreshSupportingRecordsRef.current = () => loadSupportingRecords().catch(() => undefined);
+    setSupportingRecordsLoading(true);
+    loadSupportingRecords().then(() => {
+      if (generation.current === request) setSupportingRecordsError(null);
+    }).catch((reason: unknown) => {
+      if (generation.current === request) setSupportingRecordsError(reason instanceof Error ? reason.message : "Could not load newsroom records.");
+    }).finally(() => { if (generation.current === request) setSupportingRecordsLoading(false); });
+    // One timer for the whole board, paused while the tab is hidden; the user's own actions refresh through refreshBoardNowRef.
+    const refresher = startBoardRefresh({ refresh: () => Promise.all([refreshSupportingRecordsRef.current(), subject === "assignment" ? undefined : pagedRefreshRef.current()]) });
+    refreshBoardNowRef.current = refresher.refreshNow;
+    return () => { generation.current = request + 1; refresher.stop(); refreshBoardNowRef.current = () => undefined; };
   }, [allowed, subject]);
+  // Closing or switching the open record is the end of the user's edits in the panel, so show what they changed.
+  const previouslySelected = useRef(selected);
+  useEffect(() => {
+    if (previouslySelected.current && previouslySelected.current !== selected) refreshBoardNowRef.current();
+    previouslySelected.current = selected;
+  }, [selected]);
   const issues = useMemo(() => {
     if (subject === "assignment") return assignmentBoardIssues;
-    if (subject === "contentItem") return projectContentItemBoard({ contentItemVersions: [...pagedContentItems.versions, ...publishedVersions], assignments });
-    const versionsOnDesk = [...pagedContentItems.versions, ...publishedVersions].filter(version => deskId && deskContainsContentItem(version, deskId));
+    if (subject === "contentItem") return projectContentItemBoard({ contentItemVersions: pagedContentItems.versions, assignments });
+    const versionsOnDesk = pagedContentItems.versions.filter(version => deskId && deskContainsContentItem(version, deskId));
     return [...projectContentItemBoard({ contentItemVersions: versionsOnDesk, assignments: assignments.filter(assignment => deskId && deskContainsAssignment(assignment, deskId)) }), ...deskAssignmentIssues];
-  }, [assignmentBoardIssues, assignments, deskAssignmentIssues, deskId, pagedContentItems.versions, publishedVersions, subject]);
+  }, [assignmentBoardIssues, assignments, deskAssignmentIssues, deskId, pagedContentItems.versions, subject]);
   const loading = supportingRecordsLoading || (showsContentItems && pagedContentItems.loading);
   const error = supportingRecordsError ?? (showsContentItems ? pagedContentItems.error : null);
   const config = useMemo(() => subject === "contentItem" ? contentItemBoardConfig(issues) : subject === "desk" ? deskBoardConfig(issues) : assignmentBoardConfig(issues), [issues, subject]);
-  const columnStageFromElement = (element: Element | null) => {
-    const columnKey = element?.closest("[data-column-key]")?.getAttribute("data-column-key");
-    return columnKey?.startsWith(contentItemColumnKeyPrefix) ? columnKey.slice(contentItemColumnKeyPrefix.length) : null;
+  const loadMoreWhenColumnIsNearItsEnd = (columnKey: string) => {
+    if (showsContentItems && columnKey.startsWith(contentItemColumnKeyPrefix)) pagedContentItems.loadMoreForStage(columnKey.slice(contentItemColumnKeyPrefix.length));
   };
-  const loadMoreWhenColumnIsNearItsEnd = (columnScroll: HTMLElement) => {
-    const distanceToEnd = columnScroll.scrollHeight - columnScroll.scrollTop - columnScroll.clientHeight;
-    const stage = columnStageFromElement(columnScroll);
-    if (stage && distanceToEnd < COLUMN_LOAD_MORE_DISTANCE_PIXELS) pagedContentItems.loadMoreForStage(stage);
-  };
-  const handleBoardScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    if (showsContentItems && target.classList?.contains("kb-column-scroll")) loadMoreWhenColumnIsNearItsEnd(target);
-  };
-  useEffect(() => {
-    if (!showsContentItems) return;
-    boardBodyRef.current?.querySelectorAll<HTMLElement>(".kb-column-scroll").forEach(loadMoreWhenColumnIsNearItsEnd);
-  });
-  const deskTitle = session?.shell.dashboard?.newsroomSections?.find(section => section.id === deskId)?.title ?? (deskId ? displayNewsroomSectionShortTitle({ id: deskId } as NewsroomSectionRecord) : "Desk");
+  const deskTitle = session?.shell.dashboard?.newsroomSections?.find(section => section.id === deskId)?.title ?? deskId ?? "Desk";
   const pageTitle = subject === "contentItem" ? getContentItemName().plural : subject === "desk" ? deskTitle : "Assignments";
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
   const changeAssignmentDesk = async (record: AssignmentRecord, deskId: string | null) => {
@@ -158,32 +159,44 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
     setAssignmentBoardIssues(current => current.map(candidate => candidate.nativeId === record.id ? { ...candidate } : candidate));
   };
   const issue = issues.find(item => item.id === selected);
+  // Kanbus scrolls the board to its far end when a panel opens, which hides the first columns when the columns do not all fit. Keep the open card in view instead, and the
+  // first column where it is when nothing needs to move.
+  useEffect(() => {
+    if (!selected || !issue) return;
+    const body = boardBodyRef.current;
+    const collection = body?.querySelector<HTMLElement>(".kb-grid");
+    const open = Array.from(body?.querySelectorAll<HTMLElement>(".issue-card[data-issue-id]") ?? []).find(element => element.getAttribute("data-issue-id") === selected);
+    if (!collection || !open) return;
+    const frame = requestAnimationFrame(() => {
+      collection.scrollLeft = 0;
+      const box = collection.getBoundingClientRect();
+      const card = open.getBoundingClientRect();
+      if (card.right > box.right) collection.scrollLeft = card.right - box.right + 8;
+    });
+    return () => cancelAnimationFrame(frame);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, Boolean(issue)]);
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
   return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : subject === "desk" ? "desks" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
-    headerActions={<>
-      {!loading ? <span role="status" className="organizer-board-note">{issues.length} records loaded.</span> : null}
-      <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" className="organizer-header-button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" className="organizer-header-button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
-      {showsContentItems && (
-        <Link className="organizer-header-button" data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
-          <PlusIcon size={14} aria-hidden="true" />
-          {`New ${getContentItemName().singular.toLowerCase()}`}
-        </Link>
-      )}
-    </>}>
+    headerActions={<NewsroomBoardHeaderActions view={view} onViewChange={setView} recordCount={loading ? null : issues.length} showsNewContentItemLink={showsContentItems} />}>
     <IssueIdFormatProvider formatIssueId={formatNativeIssueId}>
     <div className="organizer-native-board">
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
-      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef} onScrollCapture={handleBoardScroll}>
-        {loading && !issues.length ? <NewsroomBoardSkeleton /> : <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
+      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef}>
+        {loading && !issues.length ? <NewsroomBoardSkeleton /> : <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view} onColumnNearEnd={loadMoreWhenColumnIsNearItsEnd}
           motion={lowMotion ? STATIC_MOTION : undefined}
           collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel={pageTitle}
           emptyMessage={error ? "Records could not be loaded." : "No records in this selection."} />}
+        {subject !== "assignment" ? <StoryCardStars issues={issues} slots={storyCardSlots} controller={storyStars} /> : null}
+        {subject !== "assignment" ? <StoryCardChecklist issues={issues} slots={storyChecklistSlots} /> : null}
+        {subject !== "assignment" ? <StoryCardSchedule issues={issues} slots={storyScheduleSlots} /> : null}
         {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[]}>
           {issue.kind === "contentItem"
             ? <>
-              <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded />
+              <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded starsController={storyStars} onScheduleChanged={() => refreshBoardNowRef.current()} />
+              <StoryChecklistPanel key={`checklist-${issue.id}`} lineageId={issue.nativeId} storyIssueId={issue.id} onChanged={() => refreshBoardNowRef.current()} />
               <Link className="organizer-header-button" href={getNewsroomNavHref(issue.href)}>Open full page</Link>
             </>
             : (() => {

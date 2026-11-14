@@ -1,0 +1,54 @@
+{
+  "id": "PPY-06d69241-010d-46d2-8001-a6694eb177ad",
+  "title": "Document sign-in, Accounts and enrollment on p.apyr.us; consolidate docs/cli-login.md",
+  "description": "Repo: **Papyrus-web** (p.apyr.us) and Papyrus `docs/`. Closing task of the enrollment epic.\n\n## Deliverables\n1. p.apyr.us feature page \"Sign in and Accounts\": Google sign-in only (no passwords, ever), what an Account is (\"Account\", never \"Organization\"), one Account or several, how the console and the CLI choose one, what enrollment means for a person (one Google identity across Anthus products through Prospectus), what the site may and may not do with Prospectus (no account creation until kanbus-dbc30a, no memberships until kanbus-2823b5; update as they land).\n2. How-To items: `howto-sign-in-from-the-cli` (`papyrus login`, `--remote`, `whoami`, `account use`), `howto-choose-an-account-in-the-console`, `howto-fix-run-papyrus-login-again` (reenrollment_required explained).\n3. Papyrus `docs/cli-login.md` consolidated (which client, enrollment, accounts, authorization, whoami, alarms from PPY-45efff); `docs/site-hosting.md` gains the `consoleOrigin` and the `/cli/*` routes on the console host (from PPY-d8b616).\n4. Published through the CMS publish path; URLs recorded here. No ids or emails. Blocked by every ready-now task of the epic (the WAIT parts are documented as \"coming\" with their Prospectus ids).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e2a0b8d7-5783-441f-b8e5-0b1c76b8688f",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-fa41f4da-88e5-4efd-be30-979ed6b7b71b",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e64d38b7-95cc-42c0-8d84-0d21db5e0248",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3c755751-a84a-4df6-a7c2-52d5ac6338b3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-098e22e5-ec2c-4a98-addf-4351947fb82d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2d3dd975-6dbd-4fe5-ad76-096920c0b725",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-057e02f2-05cf-47d6-9ffd-206f3566e172",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ab3fce82-374c-4711-8c2b-760b86749b83",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T12:42:39.165910Z",
+  "updated_at": "2026-10-31T12:43:10.413855Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

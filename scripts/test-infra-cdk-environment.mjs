@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveCdkAccount, resolveCdkEnvironment, resolveCdkRegion } from "../packages/papyrus/src/cdk-environment.mjs";
+import { assertCallerMatchesPinnedAccount, resolveCdkAccount, resolveCdkEnvironment, resolveCdkRegion } from "../packages/papyrus/src/cdk-environment.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const legacyAccount = ["3351", "6375", "1236", "77"].join("");
@@ -22,6 +22,25 @@ assert.throws(
 );
 assert.throws(() => resolveCdkAccount({ environment: {}, lookupCallerAccount: () => undefined }), /cannot determine the AWS account/);
 assert.throws(() => resolveCdkAccount({ environment: {}, lookupCallerAccount: () => "not-an-account" }), /cannot determine the AWS account/);
+
+// PAPYRUS_AWS_ACCOUNT_ID pins the account without any site file: below --account, above CDK_DEFAULT_ACCOUNT and STS.
+const exampleAccount = "111122223333";
+const otherAccount = "123456789012"; // AWS documentation example account
+assert.equal(resolveCdkAccount({ explicitAccount: otherAccount, environment: { PAPYRUS_AWS_ACCOUNT_ID: exampleAccount }, lookupCallerAccount: neverCalled }), otherAccount);
+assert.equal(resolveCdkAccount({ environment: { PAPYRUS_AWS_ACCOUNT_ID: exampleAccount, CDK_DEFAULT_ACCOUNT: otherAccount }, lookupCallerAccount: neverCalled }), exampleAccount);
+assert.equal(resolveCdkAccount({ environment: { PAPYRUS_AWS_ACCOUNT_ID: "  " }, lookupCallerAccount: () => resolvedAccount }), resolvedAccount, "a blank pin is ignored");
+assert.throws(() => resolveCdkAccount({ environment: { PAPYRUS_AWS_ACCOUNT_ID: "nope" }, lookupCallerAccount: neverCalled }), /PAPYRUS_AWS_ACCOUNT_ID must be a 12-digit/);
+// A pin is checked against the credentials before a deploy: the wrong account fails clearly, no pin checks nothing.
+assertCallerMatchesPinnedAccount({ environment: { PAPYRUS_AWS_ACCOUNT_ID: exampleAccount }, lookupCallerAccount: () => exampleAccount });
+assertCallerMatchesPinnedAccount({ environment: {}, lookupCallerAccount: neverCalled });
+assert.throws(
+  () => assertCallerMatchesPinnedAccount({ environment: { PAPYRUS_AWS_ACCOUNT_ID: exampleAccount }, lookupCallerAccount: () => otherAccount }),
+  (error) => /wrong AWS account/.test(error.message) && /nothing was deployed/.test(error.message),
+);
+assert.throws(
+  () => assertCallerMatchesPinnedAccount({ environment: { PAPYRUS_AWS_ACCOUNT_ID: exampleAccount }, lookupCallerAccount: () => { throw new Error("Unable to locate credentials"); } }),
+  /cannot be checked: Unable to locate credentials/,
+);
 
 assert.equal(resolveCdkRegion({ explicitRegion: "eu-west-1", environment: { AWS_REGION: "us-west-2" } }), "eu-west-1");
 assert.equal(resolveCdkRegion({ environment: { AWS_REGION: "us-west-2", AWS_DEFAULT_REGION: "us-west-1", CDK_DEFAULT_REGION: "eu-west-2" } }), "us-west-2");

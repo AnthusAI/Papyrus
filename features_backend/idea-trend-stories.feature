@@ -5,7 +5,7 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
   sentences, each naming the signals it rests on. A deterministic citation check then decides which drafts may be filed: every
   sentence must cite a signal that exists in the snapshot, and every number or date in it must appear in the signals it cites. A draft
   that fails is not filed and the run record says which sentence failed and why. A draft that passes is filed as a story draft
-  Proposal in the draft state, proposed by AI, with the cited clusters and entities as its targets and a small chart spec of their
+  idea in the draft state, proposed by AI, with the cited clusters and entities as its targets and a small chart spec of their
   weekly counts stored with it, so an editor approves the copy and the figure together. Nothing is approved, moved or published by the
   run. One soft review request covers the whole run. A dry run shows the drafts and the check without filing anything.
   The entities are chosen by how far their mentions rose above what their own earlier four weeks and the corpus's growth explain, not
@@ -24,43 +24,43 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
     Then the signals are the two clusters, then the two makers, the new concept and the concept that built up slowly
     And each signal names its weekly counts for the 8 weeks ending 2026-10-19
 
-  Scenario: A draft whose sentences all cite signals in the snapshot is filed as a draft story Proposal proposed by AI
+  Scenario: A draft whose sentences all cite signals in the snapshot is filed as an idea proposed by AI
     When the model drafts a trend story citing Hugging Face and Zed
-    And the operator drafts trend stories and files them as Proposals
-    Then 1 trend draft is filed as a "story_draft" Proposal
-    And the draft is proposed by AI and still in the draft state
-    And the Proposal targets the entities "maker--hugging-face" and "maker--zed"
+    And the operator drafts trend stories and files them as ideas
+    Then 1 trend draft is filed as an idea
+    And the draft is proposed by AI and still at the idea stage
+    And the idea targets the entities "maker--hugging-face" and "maker--zed"
     And every sentence of the draft is recorded with the signals it rests on
     And the model asked for was "gpt-6-luna"
 
-  Scenario: The Proposal carries a chart spec drawn from the cited signal's weekly counts
+  Scenario: The idea carries a chart spec drawn from the cited signal's weekly counts
     When the model drafts a trend story citing Hugging Face and Zed
-    And the operator drafts trend stories and files them as Proposals
-    Then the Proposal evidence holds a line chart of Hugging Face with the counts 0, 1, 0, 1, 0, 1, 30, 2
+    And the operator drafts trend stories and files them as ideas
+    Then the idea evidence holds a line chart of Hugging Face with the counts 0, 1, 0, 1, 0, 1, 30, 2
     And the chart's weeks run from 2026-08-31 to 2026-10-19
     And the body lists the signals cited under the sentences that cite them
 
   Scenario: A sentence with no citation blocks the draft
     When the model drafts a trend story with a body sentence that cites nothing
-    And the operator drafts trend stories and files them as Proposals
+    And the operator drafts trend stories and files them as ideas
     Then 0 trend drafts are filed
     And the run record says that sentence failed with "no_citation"
 
   Scenario: A citation of a signal that is not in the snapshot blocks the draft
     When the model drafts a trend story with a body sentence citing a signal that does not exist
-    And the operator drafts trend stories and files them as Proposals
+    And the operator drafts trend stories and files them as ideas
     Then 0 trend drafts are filed
     And the run record says that sentence failed with "unknown_signal:S99"
 
   Scenario: A number the cited signals do not hold blocks the draft
     When the model drafts a trend story stating 40 items for Hugging Face
-    And the operator drafts trend stories and files them as Proposals
+    And the operator drafts trend stories and files them as ideas
     Then 0 trend drafts are filed
     And the run record says that sentence failed with "number_not_in_cited_signals:40"
 
   Scenario: A draft that rests on one signal with two body sentences fails, and the run record keeps its text
     When the model drafts a trend story with two body sentences that cite one signal
-    And the operator drafts trend stories and files them as Proposals
+    And the operator drafts trend stories and files them as ideas
     Then 0 trend drafts are filed
     And the run record says that sentence failed with "fewer_than_three_body_sentences"
     And the run record says that sentence failed with "fewer_than_two_signals_cited"
@@ -68,41 +68,41 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
 
   Scenario: The run never approves, moves or publishes anything
     When the model drafts a trend story citing Hugging Face and Zed
-    And the operator drafts trend stories and files them as Proposals
-    Then no Proposal is moved out of the draft state
-    And no request to publish Proposals is made
+    And the operator drafts trend stories and files them as ideas
+    Then no idea is moved out of the idea stage
+    And no request to publish trend ideas is made
 
   Scenario: One soft review covers the run
     When the model drafts a trend story citing Hugging Face and Zed
-    And the operator drafts trend stories and files them as Proposals with review requests
+    And the operator drafts trend stories and files them as ideas with review requests
     Then one soft review "1 new trend story draft to review" is open for the run's batch
-    And the review links the filed Proposal
+    And the review links the filed idea
 
   Scenario: A dry run shows the drafts and the check and files nothing
     When the model drafts a trend story citing Hugging Face and Zed
     And the model drafts a trend story with a body sentence that cites nothing
     And the operator dry-runs the trend drafts
     Then the dry run lists 1 draft that passed and 1 that failed the citation check
-    And no Proposal is filed, no file is stored and no review is raised
+    And no idea is filed, no file is stored and no review is raised
 
   Scenario: A story draft Proposal with the same targets is not filed again
     Given an editor can read an earlier story draft Proposal with the same targets
     When the model drafts a trend story citing the two clusters
-    And the operator drafts trend stories and files them as Proposals
+    And the operator drafts trend stories and files them as ideas
     Then 0 trend drafts are filed
     And the run record says the draft has the same targets as the earlier Proposal
 
   Scenario: An operator role files drafts under IAM
     Given the operator signs in with IAM and cannot read Proposals
     When the model drafts a trend story citing Hugging Face and Zed
-    And the operator drafts trend stories and files them as Proposals
-    Then 1 trend draft is filed as a "story_draft" Proposal
+    And the operator drafts trend stories and files them as ideas
+    Then 1 trend draft is filed as an idea
 
   Scenario: An operator role dedupes against earlier story drafts through the operator read
     Given the operator signs in with IAM and cannot read Proposals
     And an earlier story draft Proposal with the same targets exists
     When the model drafts a trend story citing the two clusters
-    And the operator drafts trend stories and files them as Proposals
+    And the operator drafts trend stories and files them as ideas
     Then 0 trend drafts are filed
     And the run record says the draft has the same targets as the earlier Proposal
 
@@ -118,23 +118,23 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
     And Zed carries only the release inside the window and not the older one
     And the clusters carry no releases because the snapshot lists no members for them
     When the model drafts a trend story about the Zed-7B release that cites the release and the two entities
-    And the operator drafts trend stories and files them as Proposals
-    Then 1 trend draft is filed as a "story_draft" Proposal
+    And the operator drafts trend stories and files them as ideas
+    Then 1 trend draft is filed as an idea
     And the model was shown the releases with their summaries and dates
     And the body marks the cited signals first and then the cited releases
     And the body lists the cited releases under "Sources" with their titles, dates and addresses
-    And the Proposal targets the entities "maker--hugging-face" and "maker--zed"
+    And the idea targets the entities "maker--hugging-face" and "maker--zed"
 
   Scenario: A release date or number the cited release does not hold blocks the draft
     Given the site publishes the pages of the releases behind its rising entities
     When the model drafts a trend story that gives the Zed-7B release the date of another release
-    And the operator drafts trend stories and files them as Proposals
+    And the operator drafts trend stories and files them as ideas
     Then 0 trend drafts are filed
     And the run record says that sentence failed with "number_not_in_cited_signals:2026-10-14"
 
   Scenario: Citing releases alone does not make a story about two signals
     Given the site publishes the pages of the releases behind its rising entities
     When the model drafts a trend story that cites two releases but only one signal
-    And the operator drafts trend stories and files them as Proposals
+    And the operator drafts trend stories and files them as ideas
     Then 0 trend drafts are filed
     And the run record says that sentence failed with "fewer_than_two_signals_cited"

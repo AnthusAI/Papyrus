@@ -4,15 +4,16 @@
  * records the DynamoDB operation each would send. Nothing is deployed and nothing touches AWS.
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import { test } from "node:test";
+import { resolverEntry } from "../amplify/data/message-actions";
 import { schema } from "../amplify/data/schema";
 import { postMessageArguments, postMessageMutation } from "../lib/post-message";
 
 const root = join(import.meta.dirname, "..");
 const read = (file: string) => readFileSync(join(root, file), "utf8");
-const transformed = (schema as unknown as { transform: () => { schema: string; jsFunctions: Array<{ typeName: string; fieldName: string; handlers: Array<{ dataSource: string; entry: { relativePath: string } }> }> } }).transform();
+const transformed = (schema as unknown as { transform: () => { schema: string; jsFunctions: Array<{ typeName: string; fieldName: string; handlers: Array<{ dataSource: string; entry: string | { relativePath: string } }> }> } }).transform();
 
 function modelBlock(model: string): string {
   const start = transformed.schema.indexOf(`type ${model} @model`);
@@ -60,6 +61,8 @@ test("a post records the signed-in user as the author, whatever the client sends
   assert.equal(op.item!.updatedAt, "2026-10-29T12:00:00.000Z");
   assert.equal(op.item!.responseStatus, "COMPLETED");
   assert.equal(op.item!.status, "active");
+  assert.equal(op.item!.authorKind, "staff", "a post through the console is a staff post");
+  assert.equal("authorReaderId" in op.item!, false);
   assert.equal(op.item!.content, "Hello");
   assert.equal(op.item!.__typename, "Message");
   assert.deepEqual(op.condition, { id: { attributeExists: false } }, "an existing message is never replaced");
@@ -149,7 +152,7 @@ test("the schema offers the five mutations to the right groups, on the right tab
   assert.match(rules, /allow: groups, operations: \[read\], groups: \["editor"\]/);
   assert.match(rules, /allow: groups, operations: \[read\], groups: \["admin"\]/);
   assert.doesNotMatch(rules, /create|update|delete/, "people cannot write a Message through the model");
-  const byField = Object.fromEntries(transformed.jsFunctions.map((fn) => [fn.fieldName, fn.handlers[0]]));
+  const byField = Object.fromEntries(transformed.jsFunctions.filter((fn) => fn.fieldName !== "setPublicHandle").map((fn) => [fn.fieldName, fn.handlers[0]]));
   assert.deepEqual(Object.keys(byField).sort(), ["deleteOwnMessage", "editMessage", "moderateMessage", "postMessage", "renameThread"]);
   for (const name of ["postMessage", "editMessage", "deleteOwnMessage", "moderateMessage"]) assert.equal(byField[name].dataSource, "MessageTable", name);
   assert.equal(byField.renameThread.dataSource, "MessageThreadTable");
@@ -192,7 +195,29 @@ test("the browser writes only through postMessage: no author, no timestamps, on 
   assert.doesNotMatch(forum, /createMessage\(input/, "no createMessage from the news desk client");
   assert.doesNotMatch(forum, /authorSub: author\.sub/, "and no author named");
   const chat = read("lib/console-chat-client.ts");
-  assert.match(chat, /postMessageMutation\(args, selectionSet\)/, "console chat user turns");
+  assert.match(chat, /postMessageMutation\(args, CONSOLE_MESSAGE_FIELDS\)/, "console chat user turns");
   assert.doesNotMatch(chat, /createMessage\(input/, "no createMessage from the console chat client");
   assert.doesNotMatch(chat, /authorSub:/, "and no author named");
+});
+
+test("every message resolver is found by an absolute path, also when a site loads the schema from the package", () => {
+  // A site loads amplify/data from node_modules through a loader whose call sites carry a query (`?tsx-namespace=...`).
+  // Amplify cannot resolve a relative entry from such a call site, so each entry must already be an absolute file path.
+  for (const fn of transformed.jsFunctions) {
+    const entry = fn.handlers[0].entry;
+    assert.equal(typeof entry, "string", `${fn.fieldName} names its resolver by absolute path, not a relative one`);
+    assert.ok(isAbsolute(entry as string) && existsSync(entry as string), `${fn.fieldName}: ${entry} exists`);
+  }
+  const fromPackage = new URL("file:///site/node_modules/@anthusai/papyrus/amplify/data/message-actions.js?tsx-namespace=1");
+  assert.equal(new URL("./resolvers/post-message.js", fromPackage).pathname, "/site/node_modules/@anthusai/papyrus/amplify/data/resolvers/post-message.js",
+    "resolving against a loader URL drops its query and keeps the package directory");
+  assert.equal(resolverEntry("./resolvers/post-message.js"), join(root, "amplify/data/resolvers/post-message.js"));
+});
+
+test("a Message reads as staff unless a reader wrote it, and no reader field reaches the public export", () => {
+  const block = modelBlock("Message");
+  assert.match(block, /authorKind: String @default\(value: "staff"\)/, "an existing Message reads as staff");
+  assert.match(block, /authorReaderId: String/);
+  const publicFields = read("src/papyrus_content/home_page/threads.py").match(/PUBLIC_MESSAGE_FIELDS = \(([^)]*)\)/)![1];
+  assert.doesNotMatch(publicFields, /authorKind|authorReaderId|authorSub|siteSubject/, "the export names no reader or identity field");
 });

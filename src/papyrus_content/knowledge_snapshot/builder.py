@@ -8,11 +8,14 @@ accepted an entity or a cluster, and who edited a description, is public: ``{"ac
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 
+from ..knowledge_wiki.kinds import INTERNAL_KINDS, is_public_kind
+from .cluster_history import history_file, identity_of, valid_weeks, week_entry
 from .monitor_records import provenance_of
-from .keys import contains_email, entity_key, is_public_key, kind_label, kind_key, normalize_name, slug
+from .keys import bounded_slug, concept_name_part, contains_email, entity_key, is_public_key, kind_label, kind_key, normalize_name, slug
 from .model import (
     DESCRIPTION_AI_EDITED,
     DESCRIPTION_REVIEWED,
@@ -42,6 +45,7 @@ SCHEMA_VERSION = 1
 DATA_DIRECTORY = "_data/knowledge"
 INDEX_FILE = f"{DATA_DIRECTORY}/index.json"
 CLUSTERS_FILE = f"{DATA_DIRECTORY}/clusters.json"
+CLUSTERS_HISTORY_FILE = f"{DATA_DIRECTORY}/clusters-history.json"
 ENTITY_DIRECTORY = f"{DATA_DIRECTORY}/entities"
 CO_MENTION = "mentioned_with"
 CLUSTER_NEW = "new"
@@ -77,6 +81,9 @@ class _Entity:
     href: str | None
 
 
+DATE_BASIS = "publication"  # items count in the week of their publication date (a published story's date, a record's sourcePublishedAt); an undated one is left out, never dated by ingestion
+
+
 def _dated_items(items: tuple[PublishedItem, ...], as_of_week: int) -> dict[str, tuple[int, PublishedItem]]:
     dated: dict[str, tuple[int, PublishedItem]] = {}
     for item in items:
@@ -88,12 +95,30 @@ def _dated_items(items: tuple[PublishedItem, ...], as_of_week: int) -> dict[str,
     return dated
 
 
+PLAIN_KEY_KINDS = frozenset({kind_key("editor_concept")})
+PLAIN_KEY = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def plain_key(node: EntityNode) -> str:
+    """The key of a concept an editor invented, without its kind: ``containment``, not ``editor-concept--containment``. The key is also the page's
+    address (``slugify(key)``), and a reader should not see the kind in it. It is the name part of the stored node key (the name the editor typed,
+    as a slug), else the slug of the display name. A name another node's key already holds gets a ``-2`` after it (``_public_keys``)."""
+    named = concept_name_part(node.node_key)
+    if named and PLAIN_KEY.match(named):
+        return named
+    return bounded_slug(node.name)
+
+
 def _public_keys(nodes: list[EntityNode]) -> dict[str, str]:
-    """A public key per node lineage: the stored key when it has the public shape, else the slug of kind and name."""
+    """A public key per node lineage: a plain name for a concept an editor invented, else the stored key when it has the public shape, else the
+    slug of kind and name."""
     taken: set[str] = set()
     keys: dict[str, str] = {}
     for node in sorted(nodes, key=lambda candidate: candidate.lineage_id):
-        base = node.node_key if is_public_key(node.node_key) else entity_key(node.kind or "entity", node.name)
+        if kind_key(node.kind) in PLAIN_KEY_KINDS:
+            base = plain_key(node)
+        else:
+            base = node.node_key if is_public_key(node.node_key) else entity_key(node.kind or "entity", node.name)
         if not base:
             continue
         key, suffix = base, 1
@@ -121,7 +146,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
     eligible = [
         node
         for node in data.nodes
-        if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name)
+        if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name) and kind_key(node.kind) not in INTERNAL_KINDS
     ]
     keys = _public_keys(eligible)
     items_by_node: dict[str, set[str]] = defaultdict(set)
@@ -159,7 +184,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
                 weekly_start=week_monday(min(counts)).isoformat(),
                 change=change_of(values8, history),
                 new=is_new(history),
-                href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template and has_page else None,
+                href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template and has_page and node.has_page and is_public_kind(node.kind, options.public_kinds) else None,
             )
         )
     return sorted(entities, key=lambda entity: (-len(entity.item_keys), entity.key))
@@ -257,7 +282,8 @@ EDITED_STATES = (DESCRIPTION_REVIEWED, DESCRIPTION_AI_EDITED)
 
 
 def _actor(actor) -> dict | None:
-    return actor.to_dict() if actor is not None else None
+    # The public snapshot names who and when; where a decision was made (``via``) stays on the record.
+    return {name: value for name, value in actor.to_dict().items() if name != "via"} if actor is not None else None
 
 
 def _description(node: EntityNode) -> dict:
@@ -277,6 +303,7 @@ def _index_entity(entity: _Entity) -> dict:
         "weeksOfHistory": entity.history,
         "series8": entity.values8,
         "series26": entity.values26,
+        "dateBasis": DATE_BASIS,
         "change": entity.change.to_dict(),
         "isNew": entity.new,
     }
@@ -302,6 +329,7 @@ def _entity_file(entity: _Entity, neighbours: list[dict], related: list[dict], r
         "weeksOfHistory": entity.history,
         "series8": entity.values8,
         "series26": entity.values26,
+        "dateBasis": DATE_BASIS,
         "change": entity.change.to_dict(),
         "neighbours": neighbours,
         "relatedItems": related,
@@ -439,8 +467,29 @@ def _clusters_file(
     }
 
 
-def build_files(data: KnowledgeData, options: SnapshotOptions) -> dict[str, dict]:
-    """Every file of ``_data/knowledge/`` as ``{site key: payload}``."""
+def _clusters_history_file(data: KnowledgeData, options: SnapshotOptions, clusters_file: dict, previous: dict | None) -> dict:
+    """``clusters-history.json``: the weeks of ``previous`` carried forward and this week's entry from the latest run, which is the
+    same set of clusters ``clusters.json`` lists. A run dated in an earlier week is not filed under this one."""
+    weeks = valid_weeks(previous, SCHEMA_VERSION) or []
+    runs = sorted((cluster.run_as_of or "", cluster.run_id) for cluster in data.clusters if cluster.run_id)
+    entry = None
+    if runs:
+        run_as_of, run_id = runs[-1]
+        if not run_as_of or week_number(parse_day(run_as_of)) == week_number(options.as_of):
+            by_uid = {cluster.uid: cluster for cluster in data.clusters if cluster.run_id == run_id}
+            rows = [
+                {"uid": row["uid"], "label": row["name"], "itemCount": row["itemCount"], "identity": identity_of(by_uid[row["uid"]])}
+                for row in clusters_file["clusters"]
+            ]
+            entry = week_entry(options.as_of, run_id, rows)
+    return history_file(SCHEMA_VERSION, options.as_of, weeks, entry)
+
+
+def build_files(data: KnowledgeData, options: SnapshotOptions, previous_history: dict | None = None) -> dict[str, dict]:
+    """Every file of ``_data/knowledge/`` as ``{site key: payload}``.
+
+    ``previous_history`` is the stored ``clusters-history.json`` (or weeks rebuilt from the weekly archive); its weeks are carried
+    into the new file, which adds this week."""
     as_of_week = week_number(options.as_of)
     dated = _dated_items(data.items, as_of_week)
     entities = _entities(data, options, dated, as_of_week)
@@ -466,6 +515,7 @@ def build_files(data: KnowledgeData, options: SnapshotOptions) -> dict[str, dict
         },
         CLUSTERS_FILE: _clusters_file(data, options, set(dated), as_of_week, beat_members, {key for key, (_week, item) in dated.items() if item.is_record}),
     }
+    files[CLUSTERS_HISTORY_FILE] = _clusters_history_file(data, options, files[CLUSTERS_FILE], previous_history)
     for entity in entities:
         files[entity_file(entity.key)] = _entity_file(
             entity, neighbours[entity.key], _related_items(entity, dated, options.related_limit), _related_records(entity, dated, options.related_limit)

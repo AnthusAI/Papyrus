@@ -31,7 +31,7 @@ LOG = logging.getLogger(__name__)
 MONITOR_ID = "hn"
 # The table has no registry of monitors and the view may not Scan, so the monitors it can look at are
 # named here (override with PAPYRUS_MONITORING_MONITOR_IDS, comma separated). A new monitor is added here.
-MONITOR_IDS = ("hn", "ttab", "huggingface", "p-apyr-us-email")
+MONITOR_IDS = ("hn", "ttab", "huggingface", "papers-arxiv-ai", "papers-arxiv-security", "papers-huggingface", "feed-metr", "p-apyr-us-email")
 EMAIL_MONITOR_ID_ENV = "PAPYRUS_EMAIL_MONITOR_ID"
 MONITOR_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 EDITOR_GROUPS = STAFF_GROUPS
@@ -532,6 +532,33 @@ def monitoring_site_overview(stores: dict, *, groups, site_endpoint, scope, now)
             "otherMonitors": others}
 
 
+CYCLOTRON_STATUS_LIST = "cyclotronStatus"
+CYCLOTRON_STATUS_ROW_PREFIX = "CYCLOTRONSTATUS#"   # written by the router's `cyclotron-status` task (monitoring_router.status_row_sk)
+
+
+def cyclotron_status_rows(stores: dict, *, groups, site_endpoint) -> dict:
+    """The Cyclotron classifier status of THIS site's publication, newest snapshot first. Always publication scope: a monitor whose router
+    config does not list the signed-in site's endpoint contributes nothing, and a monitor that lists several publications contributes only
+    the one row for the publication that owns the endpoint. Small and read-only: one get per monitor, no list is walked.
+    Each row carries the latest `status` snapshot and the latest classifier `report` (either may be null: the router keeps the last good read of each)."""
+    if not set(groups or []) & EDITOR_GROUPS:
+        raise Forbidden("monitoring is for editors and admins")
+    rows = []
+    for monitor_id, store in stores.items():
+        own = _Routing(store, store, site_endpoint=site_endpoint, scope="publication").own
+        row = store.get(CYCLOTRON_STATUS_ROW_PREFIX + own["publicationId"]) if own else None
+        status = row.get("status") if row else None
+        report = row.get("report") if row else None
+        if row and row.get("publicationId") == own["publicationId"] and (isinstance(status, dict) or isinstance(report, dict)):
+            # A row may hold a status, a report, or both: the router keeps each one's last good read separately.
+            rows.append({"monitorId": monitor_id, "publicationId": row["publicationId"], "output": row.get("output"),
+                         "asOf": row.get("asOf"), "checkedAt": row.get("checkedAt"),
+                         "status": status if isinstance(status, dict) else None,
+                         "report": report if isinstance(report, dict) else None,
+                         "reportCheckedAt": row.get("reportCheckedAt") if isinstance(report, dict) else None})
+    return {"list": CYCLOTRON_STATUS_LIST, "rows": _newest(rows, "asOf"), "cursor": None}
+
+
 def monitoring_list_page(stores: dict, *, list_name, cursor, groups, site_endpoint, scope, now, held_only=False) -> dict:
     """The next page of one list, across the monitors the cursor still has rows in.
 
@@ -785,7 +812,7 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
     if field_name is not None and nested_field is not None and field_name != nested_field:
         return {"error": "bad_request"}
     field_name = field_name if field_name is not None else nested_field
-    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference", "monitoringDecideEmailSubmission", "monitoringPage"}:
+    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference", "monitoringQueueReferencePredictions", "monitoringDecideEmailSubmission", "monitoringPage"}:
         return {"error": "bad_request"}
     args = event.get("arguments") or {}
     scope = args.get("scope") or "publication"
@@ -796,7 +823,7 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
         return {"error": "bad_request"}
     try:
         make_store = store_factory or default_store_factory(env)
-        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference",
+        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference", "monitoringQueueReferencePredictions",
                           "monitoringDecideEmailSubmission"):
             email_monitor_id = configured_email_monitor_id(env)
             if email_monitor_id == MONITOR_ID and email_store_factory is None:
@@ -825,6 +852,19 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
                                              endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"))
             except IntakeError as error:
                 return {"error": "handoff_rejected", "message": str(error)}
+        if field_name == "monitoringQueueReferencePredictions":
+            from .reference_intake_validation import IntakeError, _actor
+            from .reference_prediction_queue import queue_reference_predictions
+            try:
+                payload = args.get("input")
+                if isinstance(payload, str):
+                    payload = json.loads(payload)
+                if not isinstance(payload, dict) or set(payload) != {"references"}:
+                    raise IntakeError("Name the References to predict as {references: [{referenceId, sourceUri, title}]}.")
+                return queue_reference_predictions(email_store, endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT") or "", references=payload["references"],
+                                                   subject=_actor(event.get("identity") or {}))
+            except IntakeError as error:
+                return {"error": "queue_rejected", "message": str(error)}
         if field_name == "monitoringResolveEmailArticleLink":
             return monitoring_email_resolve_article_link(
                 email_store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
@@ -837,6 +877,10 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
             return {"state": "not_configured"}
         if field_name == "monitoringPage":
             try:
+                if args.get("list") == CYCLOTRON_STATUS_LIST:
+                    if scope != "publication":
+                        return {"error": "bad_request"}
+                    return cyclotron_status_rows(stores, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"))
                 return monitoring_list_page(
                     stores, list_name=args.get("list"), cursor=args.get("cursor"), groups=groups,
                     site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), scope=scope, now=time.time() if now is None else now,

@@ -10,7 +10,7 @@ import { pythonLambdaCode, type SiteBundleFile } from "../shared/python-bundle";
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(dirname, "../../..");
 
-export const contentActionsRequirements = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "Pillow>=11.3,<12", "awscrt>=0.23,<1", "humanus>=0.33,<0.34", "pypdf>=6.12.1,<7", "youtube-transcript-api>=1.2.4,<2"];
+export const contentActionsRequirements = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "latex2mathml>=3.78,<4", "Pillow>=11.3,<12", "awscrt>=0.23,<1", "humanus>=0.36,<0.37", "pypdf>=6.12.1,<7"];
 
 function installCheckoutRequirements(outputDir: string): void {
   const requirementsPath = path.join(projectRoot, "amplify/functions/content-actions/requirements.txt");
@@ -37,7 +37,7 @@ export const contentActions = defineFunction(
       code: pythonLambdaCode(
         {
           functionDir: "content-actions",
-          modules: ["papyrus_content"],
+          modules: ["papyrus_content", "papyrus_knowledge_query"],
           requirements: contentActionsRequirements,
           noDeps: true,
           checkoutExtras: installCheckoutRequirements,
@@ -48,9 +48,10 @@ export const contentActions = defineFunction(
           "-c",
           [
             "set -euo pipefail",
-            "mkdir -p /asset-output/papyrus_content",
+            "mkdir -p /asset-output/papyrus_content /asset-output/papyrus_knowledge_query",
             "cp amplify/functions/content-actions/handler.py /asset-output/handler.py",
             "cp -R src/papyrus_content/. /asset-output/papyrus_content/",
+            "cp -R src/papyrus_knowledge_query/. /asset-output/papyrus_knowledge_query/",
             "python3 -m pip install -r amplify/functions/content-actions/requirements.txt -t /asset-output --no-cache-dir",
           ].join(" && "),
         ],

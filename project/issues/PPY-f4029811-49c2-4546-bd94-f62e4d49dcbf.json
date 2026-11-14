@@ -1,0 +1,25 @@
+{
+  "id": "PPY-f4029811-49c2-4546-bd94-f62e4d49dcbf",
+  "title": "Refresh infra/edge/threat-intelligence.yaml from the live stack (read-only get-template)",
+  "description": "Repo: **Papyrus**, read-only against AWS. `infra/edge/threat-intelligence.yaml` has drifted from the live `papyrus-edge-threat-intelligence` stack (the live one received changes outside the file). Refresh the file from the live template so the next edit starts from the truth.\n\n## Steps\n1. `aws cloudformation get-template --stack-name papyrus-edge-threat-intelligence --template-stage Original --query TemplateBody --output yaml` (read-only; use the papyrus-production profile; if `Original` is not YAML, fetch `Processed` and reformat). Also `describe-stacks` for the current parameter values.\n2. Diff against `infra/edge/threat-intelligence.yaml`. Write the live template into the file, preserving the file's comment header and the README conventions in `infra/edge/README.md`. Parameter VALUES (ids, ARNs, hostnames) stay out of the file where the file uses parameters; do not commit account ids, certificate ARNs or distribution ids that the other edge files keep as parameters.\n3. Record in the PR description, and on this task, each difference found (behaviour added or removed, cache policies, functions) so the owner of the drift can be identified. Check `infra/edge/threat-intelligence-media.yaml` and `threat-intelligence-reader-cache.yaml` the same way while there (same command, same rule).\n4. No `deploy`, `update-stack` or `create-change-set`. If the diff shows the FILE has something the live stack lacks, say so; applying it is a separate task needing Ryan's approval.\n\n## Acceptance\n- `aws cloudformation validate-template --template-body file://infra/edge/threat-intelligence.yaml` passes (read-only call).\n- The diff summary is on this task. No AWS writes.\n- Gherkin: none (no behaviour change); the README's \"refresh from live\" note gets the exact command so this is repeatable.",
+  "type": "chore",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T12:30:43.390209Z",
+  "updated_at": "2026-10-31T12:30:58.089158Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

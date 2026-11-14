@@ -1,0 +1,20 @@
+{
+  "id": "PPY-bcb81f8f-83b1-4af1-a912-322ff8dad7d3",
+  "title": "A signed-in editor can manage concepts from the CLI: names, aliases, descriptions and edges",
+  "description": "Found by the Machines on Machines session, 2026-11-04, creating ten concepts by hand with papyrus-newsroom 5.87.0 signed in. Related to PPY-05f412 and to the rule that Papyrus work goes through the signed-in CLI. Reported, not yet confirmed here: (1) sections concepts add --create fails with Not Authorized to access createSemanticNode, while createEditorConcept works from the same session, so the CLI should call that. (2) It writes displayName as the lowercased slug with hyphens as spaces, losing the person's capitalisation. (3) knowledge entities rename and alias fail on these nodes with Failed to apply update SemanticNode; accept uses the same record path, not run. (4) After describeConcept, knowledge wiki sync --public-kinds editor_concept warns the description is a draft nobody has accepted, and the CLI appears to have no way to accept it. (5) The sync dry run plans slugs like editor-concept-containment, putting the kind in a public address; Ryan may want plain slugs. (6) There is no concept-to-concept edge: createReferenceLink needs a Reference as subject. Ryan wants relates-to between Containment and Confinement problem with an explanation, per the rule that human edge explanations are first-class data. (7) No CLI command for createReferenceLink. Note PR 1209's finding that createReferenceLink and decideReferenceLink are not gated against CLI sessions: a person's decision made through the CLI must be labelled honestly. Ten editor_concept nodes exist on Machines on Machines as core concepts of security; do not change them without telling that session.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T04:49:07.907429Z",
+  "updated_at": "2026-11-05T04:49:07.907568Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

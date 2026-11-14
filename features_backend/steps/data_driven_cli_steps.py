@@ -22,8 +22,10 @@ class BackendClient:
         self.tables = {}
         self.summaries = []
 
-    def list_by_index(self, index, key):
-        assert index == "knowledgeCorporaByRoleAndName"
+    def list_by_index(self, index, key, *, limit=100, sort_eq=None):
+        if index != "knowledgeCorporaByRoleAndName":
+            from papyrus_content.reference_reads_testing import list_by_index_from_records
+            return copy.deepcopy(list_by_index_from_records(self.list_records, index, key, sort_eq))
         return copy.deepcopy([row for row in self.tables.get("KnowledgeCorpus", {}).values() if row.get("role") == key])
 
     def list_records(self, model):
@@ -231,7 +233,7 @@ def refusal_mentions(context, first, second):
 
 @given("a signed-in session for a different publication endpoint")
 def other_publication_session(context):
-    from papyrus_content.cli_user_auth import AuthConfig, Session
+    from papyrus_content.cli_user_auth import AuthConfig, SiteSession
     from procedures.newsroom.tests.test_cli_user_auth import MemoryStore, Provider
 
     config = AuthConfig(
@@ -240,7 +242,7 @@ def other_publication_session(context):
         graphql_endpoint="https://abc.appsync-api.us-east-1.amazonaws.com/graphql",
         callback_uri="http://127.0.0.1:5182/oauth/callback", refresh_lifetime_seconds=172800)
     clock = [1000.0]
-    context.session = Session(config, store=MemoryStore(), provider=Provider(clock), clock=lambda: clock[0],
+    context.session = SiteSession(config, store=MemoryStore(), provider=Provider(clock), clock=lambda: clock[0],
                               receive=lambda *args: "unused")
 
 

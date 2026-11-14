@@ -1,0 +1,120 @@
+# Papyrus's alarm catalog for the operator listener (PPY-e92c8e), read by Caducus (`caducus.notify.catalog`).
+# build.py --operator converts this file to JSON inside the zip, so the Lambda needs no PyYAML.
+#
+# Each entry: `pattern` (Python regex on the whole alarm name, first match wins, so specific entries come first),
+# `product`, `what` (what broke), `impact`, `next` (the first thing to do), and an optional `(?P<site>...)` group naming the
+# site from the alarm name. An alarm with no entry still reaches the operator, labelled "No triage notes yet".
+# Never put an AWS app id, account id or address in this file: app id to site name lives in the SSM parameter
+# /papyrus/monitoring/triage (its `sites` map). Add an entry here, then see docs/operator-alerts.md.
+defaults:
+  holdDownSeconds: 300
+alarms:
+  # --- papyrus-monitoring stack (infra/monitoring/papyrus-monitoring.yaml) ---
+  - pattern: '^papyrus-monitoring-collector-errors$'
+    product: papyrus
+    what: A monitor's collector Lambda reported an error (a failed fetch or a crash).
+    impact: New items from the affected monitors stop arriving until a run succeeds.
+    next: Read the collector's log group. If the failing log line names a monitor (monitorId), read that monitor's latest run receipt first.
+  - pattern: '^papyrus-monitoring-search-provider-failing$'
+    product: papyrus
+    what: A web-search provider refused the collector's key or reported its plan used up.
+    impact: Monitors that search through that provider find nothing new until it answers again.
+    next: Read the search_provider_failing log lines for the provider, kind and monitor, then renew the key or top up the plan on that provider's account.
+  - pattern: '^papyrus-monitoring-router-errors$'
+    product: papyrus
+    what: The router Lambda reported an error (a crash or a timeout).
+    impact: Items wait unrouted, so they do not reach Cyclotron decisions or the newsroom.
+    next: Read the latest ROUTERUN receipt and the router's log group.
+  - pattern: '^papyrus-monitoring-router-dead-letters$'
+    product: papyrus
+    what: A router invocation failed after delivery and was dead-lettered.
+    impact: Those items are parked in the dead-letter queue and are not being routed.
+    next: Inspect the router dead-letter queue, fix the cause, then redrive it.
+  - pattern: '^papyrus-monitoring-decisions-stopped$'
+    product: papyrus
+    what: Cyclotron decisions stopped while items are waiting for them.
+    impact: Items wait for a decision, so nothing new is chosen for the newsroom.
+    next: Check the Cyclotron run status and hand it to the Cyclotron session (docs/monitoring-cloud.md in Papyrus).
+
+  # --- scheduled jobs: knowledge runs name their site; any other job gets the same notes without one ---
+  - pattern: '^papyrus-scheduled-job-knowledge-run-(?P<site>.+)-JobFailureAlarm.*$'
+    product: papyrus
+    what: A scheduled job execution failed, timed out or was aborted.
+    impact: That job's output for the period is missing.
+    next: Open the job's Step Functions state machine, read the failed execution and its task logs, then rerun the job.
+  - pattern: '^papyrus-scheduled-job-knowledge-run-(?P<site>.+)-JobMissedWeekAlarm.*$'
+    product: papyrus
+    what: A scheduled job has had no successful execution for eight days.
+    impact: That job's weekly output is overdue.
+    next: Open the job's Step Functions state machine and read the last executions; start a run once the cause is fixed.
+  - pattern: '^papyrus-scheduled-job-.*JobFailureAlarm.*$'
+    product: papyrus
+    what: A scheduled job execution failed, timed out or was aborted.
+    impact: That job's output for the period is missing.
+    next: Open the job's Step Functions state machine, read the failed execution and its task logs, then rerun the job.
+  - pattern: '^papyrus-scheduled-job-.*JobMissedWeekAlarm.*$'
+    product: papyrus
+    what: A scheduled job has had no successful execution for eight days.
+    impact: That job's weekly output is overdue.
+    next: Open the job's Step Functions state machine and read the last executions; start a run once the cause is fixed.
+
+  # --- newsletter (the alarm also pauses sending through its SNS action) ---
+  - pattern: '^papyrus-newsletter-(?P<site>.+)-bounce-rate$'
+    product: papyrus
+    what: The newsletter bounce rate is above its limit over 24 hours.
+    impact: Newsletter sending for this site is paused automatically to protect the sending reputation.
+    next: Read the site's newsletter event log for the addresses that bounced, remove bad addresses, then resume sending.
+  - pattern: '^papyrus-newsletter-(?P<site>.+)-complaint-rate$'
+    product: papyrus
+    what: The newsletter complaint rate is above its limit over 24 hours.
+    impact: Newsletter sending for this site is paused automatically to protect the sending reputation.
+    next: Read the site's newsletter event log for who complained and check what was sent, then resume sending.
+
+  # --- private email submission intake (infra/email) ---
+  - pattern: '^papyrus-email-(?P<site>.+)-FailureAlarm.*$'
+    product: papyrus
+    what: Private email submission intake used up its asynchronous retries; a submission is in the failure queue.
+    impact: An emailed reference was not turned into a Reference, and the sender was not told.
+    next: Inspect the failure queue and the email-reference monitor's receipts, fix the cause, then redrive the queue.
+
+  # --- site stacks made by Amplify (the app id is the first part of the name; /papyrus/monitoring/triage maps it to a site) ---
+  - pattern: '^amplify-(?P<site>[a-z0-9]+)-.*-DeployRenderDriftAlarm.*$'
+    product: papyrus
+    what: The last post-deploy render of a site found drift between the published content and the site's store (stale pages, orphan pages or redirects).
+    impact: Some pages may be out of date or left over. Nothing was deleted, and the site is still serving.
+    next: "Run `papyrus ops content project --reconcile --dry-run` for that site and read what it would change. Then run it without --dry-run (never with --allow-deletions unless the refusal was reviewed). The alarm clears after a day without drift."
+  - pattern: '^amplify-(?P<site>[a-z0-9]+)-.*-EdgeInvalidationPaths.*$'
+    product: papyrus
+    what: A site's CloudFront invalidation paths are on pace to pass the free 1,000 paths a month (230 paths or more in a week).
+    impact: Past the free allowance each path costs $0.005. Nothing is broken, and readers are not affected.
+    next: Look for what is purging often (every full render becomes one wildcard, so many single-page publishes or a loop is the usual cause). Check the content-actions logs for repeated invalidate tasks. The alarm clears when a week sums below the line.
+  - pattern: '^amplify-(?P<site>[a-z0-9]+)-.*-StartCeilingAlarm.*$'
+    product: papyrus
+    what: The site's CLI login broker refused sign-in starts at its ceiling across all callers.
+    impact: People cannot start `papyrus login` for this site until the flood passes. Already signed-in sessions are not affected.
+    next: Look at the broker's log group for where the starts come from (many addresses points to abuse). The ceiling resets by itself; if it is legitimate load, raise the ceiling.
+  - pattern: '^amplify-(?P<site>[a-z0-9]+)-.*-ThrottledAlarm.*$'
+    product: papyrus
+    what: The site's CLI login broker is being throttled at its reserved concurrency.
+    impact: Some `papyrus login` requests for this site fail and are retried.
+    next: Look at the broker's invocations and log group for a burst. If it is real traffic, raise the broker's reserved concurrency.
+
+  # --- the Prospectus CLI login broker (owned by the Prospectus session) ---
+  - pattern: '^prospectus-cli-broker-StartCeilingAlarm.*$'
+    product: prospectus
+    what: The Prospectus CLI login broker refused starts at its ceiling across all callers.
+    impact: People cannot start a CLI login against Prospectus until the flood passes.
+    next: Look at the broker's log group for where the starts come from. Tell the Prospectus session; the broker is theirs.
+  - pattern: '^prospectus-cli-broker-ThrottledAlarm.*$'
+    product: prospectus
+    what: The Prospectus CLI login broker is being throttled at its reserved concurrency.
+    impact: Some CLI login requests against Prospectus fail and are retried.
+    next: Look at the broker's invocations for a burst. Tell the Prospectus session; the broker is theirs.
+
+  # --- the test alarm (docs/operator-alerts.md): raise it by hand, nothing is actually wrong ---
+  - pattern: '^papyrus-notify-test-alarm$'
+    product: papyrus
+    what: This is a test alarm that someone raised by hand. Nothing is wrong.
+    impact: None.
+    next: Nothing to do. Put it back with `aws cloudwatch set-alarm-state --alarm-name papyrus-notify-test-alarm --state-value OK --state-reason done`.
+    holdDownSeconds: 60

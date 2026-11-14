@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8bd61da5-d271-4421-a369-fed074daf800",
+  "issue_id": "PPY-566e820e-3726-4dfc-8bdd-098521ae24a2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T16:20:08.664Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Follow an aggregation's content links into intake right away",
+    "description": "Ryan, 2026-11-04: follow them right away, with no editor accepting the aggregation first. Each child goes through normal intake and gets its own classification and relevance decision. Link each child to its parent with a new relation type, so an editor can see where it came from. Recursion stops by itself: only aggregations are followed, and a non-aggregation's links stay stored. An aggregation found inside an aggregation is followed too; seen addresses are skipped through the existing URL identity so a loop ends. No fixed depth or count. Safe to repeat. YouTube: a video is a source and a playlist is an aggregation of sources, so a playlist's videos each become a Reference. A watch address with a list parameter names both; handle that, and check canonical_url does not lose the list. Enumerating a playlist needs a working method, to be found and tested. Acceptance test page: https://blog.kjamistan.com/a-deep-dive-into-memorization-in-deep-learning.html, a 348-word hub with 23 links measured 2026-11-04: 17 series articles in an ordered list, 1 category page, 1 YouTube playlist, 3 people's thanks links (two personal sites, one LinkedIn). Expected: the 17 articles and each playlist video become child References, and the thanks links and category page do not.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f8ff4916-268e-45a3-97a6-d6f2d5d780f6",
+    "labels": []
+  }
+}

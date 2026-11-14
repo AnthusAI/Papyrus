@@ -760,14 +760,31 @@ def noticeless(automation: dict[str, Any]) -> str:
     return str(automation.get("notice") or "")
 
 
+def _signed_in_lane() -> bool:
+    """True when `papyrus login` (or PAPYRUS_GRAPHQL_AUTH=user) applies: list, show, runs and run then use the site's API."""
+    from .user_auth_mode import user_auth_requested
+    return user_auth_requested()
+
+
 def run_command(command: str, flags: list[str]) -> None:
-    """`papyrus automations list|show|runs|run|create|update`. Reads use the selected GraphQL lane; the monitoring table uses AWS credentials."""
+    """`papyrus automations list|show|runs|run|create|update`.
+
+    Signed in with `papyrus login`, list|show|runs|run ask the site's `automationOverview` and `runAutomation` (see
+    `automations_signed_in`). Otherwise the reads use the selected GraphQL lane and the monitoring table and the Lambda
+    use AWS credentials. create and update only use the authoring client, on either lane."""
     from .graphql_authoring import create_authoring_client
     from .options import parse_boolean_option, parse_options, resolve_mutation_apply
 
     options = parse_options(flags)
     as_json = parse_boolean_option(options.get("json"), False, "--json")
     limit = int(options["limit"]) if isinstance(options.get("limit"), str) else DEFAULT_RUN_LIMIT
+    if command in {"list", "show", "runs", "run"} and _signed_in_lane():
+        from .automations_signed_in import run_command as signed_in_command
+        apply = resolve_mutation_apply(options, "automations run") if command == "run" else None
+        code = signed_in_command(command, options, as_json=as_json, apply=apply)
+        if code:
+            raise SystemExit(code)
+        return
     if command in {"create", "update"}:
         apply = resolve_mutation_apply(options, f"automations {command}")
         client = create_authoring_client()[0]

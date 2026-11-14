@@ -13,24 +13,35 @@ import { DEFAULT_RESOLVER_WAVE_SIZE, orderModelStacksInWaves } from "./resolver-
 import { resolveSitePublication } from "./publication/default-publication";
 import { REPROJECT_ON_DEPLOY_TIMEOUT_SECONDS, addReprojectOnDeploy, reprojectDeployToken } from "./publication/reproject-on-deploy";
 import { addProjectionRetries, addS3ProjectionPublication, type S3ProjectionPublication } from "./publication/s3-projection";
+import { addScheduledPublishing, MAXIMUM_SITE_ID_LENGTH } from "./publication/scheduled-publishing";
 import { planRenditions } from "./publication/renditions-settings";
 import { addProjectionLeaseAccess } from "./publication/projection-lease";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
-import { assertValidMonitoringConfig, assertValidPublicationConfig } from "./site-backend-config";
+import { assertValidMonitoringConfig, assertValidPublicationConfig, assertValidTenancyConfig, resolveTenancyMode, tenancyFunctionEnvironment } from "./site-backend-config";
 import { revalidateSecretReadStatement } from "./revalidate-secret-policy";
 import {
   revalidateDistributionEnvironment,
   revalidateInvalidationStatement,
   validateRevalidateDistributionIds,
 } from "./revalidate-invalidation-settings";
+import { enablePointInTimeRecoveryOnDataTables } from "./data-table-recovery";
+import { applySiteBackendCostTags, siteCostAttribution, wireSiteUsageSender } from "./cost-attribution";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
-import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, addProspectusGoogleOnlyClient } from "./auth/prospectus-google-client";
+import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, trustClientOnIdentityPool } from "./auth/prospectus-google-client";
+import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
+import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
+import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
+import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
 import { editorialChecks } from "./functions/editorial-checks/resource";
 import { automationView } from "./functions/automation-view/resource";
+import { imageService } from "./functions/image-service/resource";
+import { wireImageService } from "./functions/image-service/wire";
 import { wireAutomationView } from "./functions/automation-view/wire";
+import { announcements } from "./functions/announcements/resource";
+import { wireAnnouncements } from "./functions/announcements/wire";
 import { proposalActions } from "./functions/proposal-actions/resource";
 import { wireProposalActions } from "./functions/proposal-actions/wire";
 import { monitoringView } from "./functions/monitoring-view/resource";
@@ -44,6 +55,7 @@ import { categoryAction } from "./functions/category-action/resource";
 import { ConsoleChatResponderStack } from "./functions/console-chat-responder/resource";
 import { contentActions, setSiteFilesForContentActionsBundle } from "./functions/content-actions/resource";
 import { knowledgeQuery } from "./functions/knowledge-query/resource";
+import { wireReferenceWordIndex } from "./functions/reference-word-index/wire";
 import { manageUserRole } from "./functions/manage-user-role/resource";
 import { modelAttachmentUpload } from "./functions/model-attachment-upload/resource";
 import { newsroomSummary } from "./functions/newsroom-summary/resource";
@@ -57,6 +69,7 @@ import { sesInboundReceive } from "./functions/ses-inbound-receive/resource";
 import { slackDelivery } from "./functions/slack-delivery/resource";
 import { slackEvents } from "./functions/slack-events/resource";
 import { addInboundEmailSesIntake } from "./inbound-email/ses-intake";
+import { inboundDnsRecordName, resolveInboundEmailSettings } from "./inbound-email/settings";
 import { InboundEmailStack } from "./inbound-email/stack";
 import {
   deriveKnowledgeVectorIndexName,
@@ -66,6 +79,7 @@ import {
   isLegacyProductionPipeline,
   planInboundEmailSes,
   resolveSiteBackendFeatureFlags,
+  sanitizeAwsName,
   type SiteBackendIdentity,
 } from "./site-backend-names";
 import { addStorageBackups } from "./storage-backups/construct";
@@ -76,6 +90,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   // `papyrus.config.ts`'s default export. Backend options live under `backend`;
   // the default brand id namespaces account-global resources.
   const site = { brandId: papyrusSite.defaultBrand, ...papyrusSite.backend };
+  // Prospectus cost accounting: on when `papyrus-infra backend-deploy` asks for a cost tag wave (PAPYRUS_COST_TAG_WAVE).
+  // Null, from a plain `ampx pipeline-deploy`, leaves the backend untouched.
+  const costAttribution = siteCostAttribution();
   const knowledgeVectorDimension = 1536;
   const knowledgeEmbeddingModel = "text-embedding-3-small";
 
@@ -111,22 +128,35 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const publication = resolveSitePublication(site, activeBrand?.renderer?.kind);
   if (publication !== undefined) assertValidPublicationConfig(publication);
   assertValidMonitoringConfig(site.monitoring);
+  assertValidTenancyConfig(site.tenancy);
+  const tenancyMode = resolveTenancyMode(site.tenancy);
   const emailMonitorId = site.monitoring?.emailMonitorId ?? "hn";
   const publicationPlan = planS3ProjectionBackend(publication);
   const renditionsPlan = planRenditions(publication, process.cwd());
   setSiteFilesForContentActionsBundle(publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
-  const plugins = resolvePlugins(site.plugins);
+  const plugins = resolvePlugins(site.plugins, { staticDir: publication?.staticDir });
   const pluginDefinitions = Object.assign({}, ...plugins.map(({ plugin }) => plugin.schemaDefinitions()));
   const pluginFunctions: Record<never, never> = Object.assign({}, ...plugins.map(({ plugin }) => plugin.functions()));
+  // Off unless the site turns it on; then it needs the site's origin and compute role (see amplify/cli-login/remote-login.ts).
+  const cliRemoteLoginPlan = planCliRemoteLogin(featureFlags.cliRemoteLogin, process.env);
+  if (cliRemoteLoginPlan && authConfig.disableGoogleOAuth === true) {
+    throw new Error("Remote CLI login signs in through the Cognito hosted UI with Google, so it cannot be enabled when Google sign-in is disabled.");
+  }
+  if (featureFlags.cliOnFederationClient && authConfig.disableGoogleOAuth === true) {
+    throw new Error("The CLI signs in on the Prospectus federation client, which is Google-only, so it cannot be enabled when Google sign-in is disabled.");
+  }
+  const cliFederationCallbackUrls = cliFederationClientCallbackUrls(featureFlags.cliOnFederationClient, process.env);
   const backend = defineBackend({
     ...pluginFunctions,
+    announcements,
     assignmentAction,
     automationView,
-    auth: defineSiteAuth(authConfig),
+    auth: defineSiteAuth(authConfig, cliRemoteLoginPlan ? [cliRemoteLoginPlan.callbackUri] : []),
     categoryAction,
     contentActions,
     editorialChecks,
-    data: defineSiteData(pluginDefinitions, site.excludeModelGroups ?? []),
+    imageService,
+    data: defineSiteData(pluginDefinitions, resolveExcludedModelGroups(site.excludeModelGroups, process.env)),
     knowledgeQuery,
     manageUserRole,
     monitoringView,
@@ -142,6 +172,15 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     slackDelivery,
     storage,
   });
+
+  // Tenancy mode reaches every function; dedicated adds nothing, so an existing site's template is unchanged.
+  for (const resource of Object.values(backend) as Array<{ resources?: { lambda?: unknown }; addEnvironment?: unknown }>) {
+    const lambda = resource?.resources?.lambda;
+    if (!(lambda instanceof LambdaFunction)) continue;
+    for (const [name, value] of Object.entries(tenancyFunctionEnvironment(tenancyMode))) lambda.addEnvironment(name, value);
+  }
+
+  enablePointInTimeRecoveryOnDataTables(backend.data.resources.cfnResources.amplifyDynamoDbTables);
 
   if (authConfig.disableGoogleOAuth !== true) {
     applyGoogleEmailVerifiedMapping(backend.auth.stack);
@@ -164,7 +203,36 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
   const prospectusGoogleOnlyClient = authConfig.disableGoogleOAuth === true
     ? undefined
-    : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig));
+    : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig), cliFederationCallbackUrls, featureFlags.cliOnFederationClient ? CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS : undefined);
+
+  // The CLI's signed-in editors upload story images straight to S3 with identity-pool credentials, so the pool must
+  // trust the CLI's client too (the web client already is trusted). Only when the CLI is on the federation client.
+  if (prospectusGoogleOnlyClient && featureFlags.cliOnFederationClient) {
+    trustClientOnIdentityPool(
+      backend.auth.resources.cfnResources.cfnIdentityPool,
+      backend.auth.resources.cfnResources.cfnIdentityPoolRoleAttachment,
+      prospectusGoogleOnlyClient.ref,
+    );
+  }
+
+  const cliEnrollmentPlan = cliRemoteLoginPlan
+    ? planCliEnrollment(process.env.PAPYRUS_ENABLE_CLI_ENROLLMENT?.trim() === "true")
+    : undefined;
+  const cliRemoteLogin = cliRemoteLoginPlan
+    ? addCliRemoteLogin(backend.createStack("CliRemoteLogin"), {
+        plan: cliRemoteLoginPlan,
+        clientId: prospectusGoogleOnlyClient && featureFlags.cliOnFederationClient
+          ? prospectusGoogleOnlyClient.ref
+          : backend.auth.resources.userPoolClient.userPoolClientId,
+        graphqlEndpoint: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
+        authorizeEndpoint: cognitoAuthorizeEndpoint(backend.auth.stack),
+        product: `Papyrus (${new URL(cliRemoteLoginPlan.origin).host})`,
+        brokerCode: cliLoginBrokerCode(),
+        pagesCode: cliLoginPagesCode(),
+        alarmTopicArn: (process.env.PAPYRUS_ALARM_TOPIC_ARN ?? "").trim() || undefined,
+        ...cliEnrollmentPlan,
+      })
+    : undefined;
 
   const amplifyBackendDir = dirname(fileURLToPath(import.meta.url));
   // Repo root in a Papyrus checkout; package root when installed from npm.
@@ -179,17 +247,15 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   ) {
     process.env.PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD = "true";
   }
-  const inboundEmailDomain = (process.env.PAPYRUS_INBOUND_EMAIL_DOMAIN ?? "p.apyr.us").trim().toLowerCase();
   const inboundEmailLocalParts = (process.env.PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS ?? "submissions,suggestions")
     .split(",")
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
-  const inboundEmailCorpusKey = (process.env.PAPYRUS_INBOUND_EMAIL_CORPUS_KEY ?? "AI-ML-research").trim();
-  const inboundDnsZoneId = (process.env.PAPYRUS_ROUTE53_HOSTED_ZONE_ID ?? "Z10285921B1G7MVRV06W9").trim();
-  const inboundDnsZoneName = (process.env.PAPYRUS_ROUTE53_HOSTED_ZONE_NAME ?? "apyr.us").trim().replace(/\.$/, "");
-  const inboundDnsRecordName = inboundEmailDomain.endsWith(`.${inboundDnsZoneName}`)
-    ? inboundEmailDomain.slice(0, -(inboundDnsZoneName.length + 1))
-    : inboundEmailDomain;
+  const inboundSesPlan = planInboundEmailSes(siteBackendIdentity, enableInboundEmail, site.inboundEmailSes);
+  // Undefined while the site has inbound email off; when it is on, a missing setting stops the synth here.
+  const inbound = enableInboundEmail
+    ? resolveInboundEmailSettings(process.env, { manageDomainIdentity: inboundSesPlan.manageDomainIdentity })
+    : undefined;
 
   let slackEventsUrl: string | undefined;
 
@@ -419,6 +485,28 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   grantNewsroomReadWrite(backend.newsroomSummary.resources.lambda as LambdaFunction);
   const contentActionsLambda = backend.contentActions.resources.lambda as LambdaFunction;
   grantNewsroomReadWriteDelete(contentActionsLambda);
+  // A backend whose editorial records (sections, doctrine, stories) carry a tenant (one copied with --stamp-tenant) is read and written as that tenant:
+  // the editorial check refuses a record whose tenant differs from the Lambda's, so without this a story on such a backend cannot be created or edited.
+  // Set PAPYRUS_TENANT_ID on the site's build (docs/multi-tenancy.md); a site with no tenant sets nothing and is unchanged.
+  const backendTenantId = (process.env.PAPYRUS_TENANT_ID ?? "").trim();
+  if (backendTenantId !== "") {
+    // editorialChecks too: it compares the site's editorial context (a tenant's publication) with its own tenant and refuses a mismatch,
+    // so without the variable every check after a save-version on a tenant site fails with "Editorial context tenant mismatch" (PPY-49303f).
+    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda]) {
+      (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
+    }
+  }
+  // The CLI's own sign-in client, so the curation delegation routes can tell a CLI session from the Newsroom's: a token's client is signed by
+  // Cognito, so an agent working in an editor's CLI session can ask for a delegation but cannot approve it. Without this variable (the CLI is on the
+  // web client with the Newsroom) a signed-in session can do neither, and only an operator on AWS credentials can ask (docs/story-reporting.md).
+  if (prospectusGoogleOnlyClient && featureFlags.cliOnFederationClient) {
+    (backend.categoryAction.resources.lambda as LambdaFunction).addEnvironment("CURATION_CLI_CLIENT_ID", prospectusGoogleOnlyClient.ref);
+  }
+  // A backend that carries a tenant but serves one publication says so (exactly "true"), which lets an editor add References
+  // (docs/multi-tenancy.md). Only content-actions runs Reference intake with the tenant set; the monitoring-view Lambda never gets the tenant.
+  if (backendTenantId !== "" && (process.env.PAPYRUS_SINGLE_PUBLICATION_BACKEND ?? "").trim() === "true") {
+    contentActionsLambda.addEnvironment("PAPYRUS_SINGLE_PUBLICATION_BACKEND", "true");
+  }
   if ((activeBrand?.corpusKey ?? "").trim() !== "") {
     // A deploy creates the publication's canonical corpus from the brand when the backend has none.
     contentActionsLambda.addEnvironment("PAPYRUS_PUBLICATION_CORPUS_KEY", (activeBrand?.corpusKey ?? "").trim());
@@ -465,12 +553,23 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     (contentActionsLambda.node.defaultChild as CfnFunction).memorySize = publicationPlan.contentActionsMemorySize;
     if (publication.reprojectOnDeploy === true) {
       (contentActionsLambda.node.defaultChild as CfnFunction).timeout = REPROJECT_ON_DEPLOY_TIMEOUT_SECONDS;
-      addReprojectOnDeploy(backend.createStack("reproject-on-deploy"), contentActionsLambda, reprojectDeployToken(process.env));
+      // The bootstrap stage leaves out the knowledge models the render reads, so the first deploy of a new site
+      // skips the post-deploy render; the second deploy (variable removed) renders as usual.
+      if (!isBootstrapStage(process.env)) {
+        addReprojectOnDeploy(backend.createStack("reproject-on-deploy"), contentActionsLambda, reprojectDeployToken(process.env));
+      }
     }
   }
   if (s3ProjectionPublication !== undefined) {
     addProjectionRetries(contentActionsLambda, s3ProjectionPublication.deadLetterQueue);
     addProjectionLeaseAccess(contentActionsLambda);
+    if (publication?.timeZone !== undefined) {
+      addScheduledPublishing(contentActionsLambda, { siteId: sanitizeAwsName(siteBackendIdentity.brandId, MAXIMUM_SITE_ID_LENGTH), timeZone: publication.timeZone });
+    }
+    // Rating a Story asks content-actions (one asynchronous call) to re-render the listings whose order the rating changed.
+    const categoryActionLambda = backend.categoryAction.resources.lambda as LambdaFunction;
+    contentActionsLambda.grantInvoke(categoryActionLambda);
+    categoryActionLambda.addEnvironment("PAPYRUS_CONTENT_ACTIONS_FUNCTION", contentActionsLambda.functionName);
   }
   const publicationWiring = contentActionsPublicationWiring(s3ProjectionPublication);
   for (const [name, value] of Object.entries(publicationWiring.environment)) {
@@ -524,7 +623,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     grantNewsroomReadWrite(backend.sesInboundReceive.resources.lambda as LambdaFunction);
   }
 
-  if (enableInboundEmail) {
+  if (inbound) {
     if (!backend.sesInboundReceive || !backend.emailSubmissionProcessor) {
       throw new Error("Inbound email is enabled but sesInboundReceive/emailSubmissionProcessor were not registered.");
     }
@@ -533,6 +632,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     const receiveLambda = inboundReceive.resources.lambda as LambdaFunction;
     const processorLambda = inboundProcessor.resources.lambda as LambdaFunction;
     const graphqlEndpoint = backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl;
+    const inboundEmailDomain = inbound.domain;
+    const inboundEmailCorpusKey = inbound.corpusKey;
     const inboundRecipients = inboundEmailLocalParts.map((localPart) => `${localPart}@${inboundEmailDomain}`);
 
     inboundReceive.addEnvironment(
@@ -551,7 +652,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       "PAPYRUS_INBOUND_FEEDBACK_FROM_EMAIL",
       `Papyrus Submissions <submissions@${inboundEmailDomain}>`,
     );
-    inboundProcessor.addEnvironment("PAPYRUS_PUBLIC_SITE_BASE_URL", "https://p.apyr.us");
+    inboundProcessor.addEnvironment("PAPYRUS_PUBLIC_SITE_BASE_URL", inbound.publicSiteBaseUrl);
     inboundProcessor.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
 
     receiveLambda.addToRolePolicy(
@@ -613,7 +714,6 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
     // SES allows one active receipt rule set per account and region, so a non-legacy site
     // creates its own brand-named rule set and never activates it here.
-    const inboundSesPlan = planInboundEmailSes(siteBackendIdentity, enableInboundEmail, site.inboundEmailSes);
     if (inboundSesPlan.createReceiptRules) {
       addInboundEmailSesIntake(storageStack, {
         storageBucket,
@@ -622,12 +722,12 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         existingRuleSetName: site.inboundEmailSes?.existingReceiptRuleSetName,
         ruleName: deriveReceiptRuleName(siteBackendIdentity),
         activateRuleSet: inboundSesPlan.activateReceiptRuleSet,
-        domainIdentity: inboundSesPlan.manageDomainIdentity
+        domainIdentity: inbound.dnsZone
           ? {
               domain: inboundEmailDomain,
-              hostedZoneId: inboundDnsZoneId,
-              hostedZoneName: inboundDnsZoneName,
-              recordName: inboundDnsRecordName,
+              hostedZoneId: inbound.dnsZone.id,
+              hostedZoneName: inbound.dnsZone.name,
+              recordName: inboundDnsRecordName(inboundEmailDomain, inbound.dnsZone.name),
             }
           : undefined,
       });
@@ -707,6 +807,17 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       resources: [knowledgeVectorIndex.attrIndexArn],
     }),
   );
+  // The References search reads a word table kept current by a stream consumer on the Reference table (docs/reference-search.md#word-index).
+  const referenceWordIndex = wireReferenceWordIndex(backend, knowledgeQueryLambda);
+
+  // suggestReferenceLinks runs in content-actions and reads the Reference's stored summary vector, so it needs the index and no OpenAI key.
+  contentActionsLambda.addEnvironment("PAPYRUS_S3_VECTOR_INDEX_ARN", knowledgeVectorIndex.attrIndexArn);
+  contentActionsLambda.addToRolePolicy(
+    new PolicyStatement({
+      actions: ["s3vectors:GetVectors", "s3vectors:QueryVectors"],
+      resources: [knowledgeVectorIndex.attrIndexArn],
+    }),
+  );
   knowledgeQueryLambda.addToRolePolicy(
     new PolicyStatement({
       actions: ["ssm:GetParameter"],
@@ -743,17 +854,23 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         s3ProjectionPublication !== undefined
           ? { kind: "s3-projection", contentActionsFunction: contentActionsLambda.functionName }
           : null,
+      // Only a site that turned remote CLI login on gets this key; `papyrus-cli.json` then publishes the broker.
+      ...(cliRemoteLogin
+        ? { cliLogin: { brokerEndpoint: cliRemoteLogin.brokerEndpoint, remoteCallbackUri: cliRemoteLogin.remoteCallbackUri, pagesFunctionArn: cliRemoteLogin.pagesFunctionArn, ...(cliEnrollmentPlan && cliRemoteLogin.throttleTableName ? { enrollment: true, throttleTable: cliRemoteLogin.throttleTableName } : {}) } }
+        : {}),
+      ...(featureFlags.cliOnFederationClient ? { cliOnFederationClient: true } : {}),
       prospectusSignIn: prospectusGoogleOnlyClient
         ? { clientId: prospectusGoogleOnlyClient.ref, callbackPath: PROSPECTUS_SIGN_IN_CALLBACK_PATH }
         : null,
-      inboundEmail: enableInboundEmail
+      inboundEmail: inbound
         ? {
-            domain: inboundEmailDomain,
+            domain: inbound.domain,
             localParts: inboundEmailLocalParts,
-            addresses: inboundEmailLocalParts.map((localPart) => `${localPart}@${inboundEmailDomain}`),
-            corpusKey: inboundEmailCorpusKey,
+            addresses: inboundEmailLocalParts.map((localPart) => `${localPart}@${inbound.domain}`),
+            corpusKey: inbound.corpusKey,
           }
         : null,
+      referenceWordIndex: { tableName: referenceWordIndex.tableName },
       knowledgeQuery: {
         s3VectorBucketArn: knowledgeVectorBucket.attrVectorBucketArn,
         s3VectorIndexArn: knowledgeVectorIndex.attrIndexArn,
@@ -778,10 +895,22 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     },
   });
   wireEditorialChecks(backend);
+  // The functions that call models report their tokens to the site's Prospectus usage queue.
+  if (costAttribution) {
+    const editorialChecksLambda = backend.editorialChecks.resources.lambda as LambdaFunction;
+    wireSiteUsageSender(editorialChecksLambda, costAttribution);
+    wireSiteUsageSender(knowledgeQueryLambda, costAttribution);
+    // Every resource in every backend stack carries the anthus: cost tags (Prospectus reads cost by them), in waves that
+    // each fit one CloudFormation operation; the usage senders' stacks change in the first pass, so they go first.
+    applySiteBackendCostTags(backend.stack, costAttribution, [Stack.of(editorialChecksLambda), Stack.of(knowledgeQueryLambda)]);
+  }
   wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);
+  wireImageService(backend);
   wireProposalActions(backend);
-  wirePlugins(backend, plugins, contentActionsLambda);
+  // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
+  wireAnnouncements(backend, siteBackendIdentity.brandId);
+  wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
 
   return backend;
 }

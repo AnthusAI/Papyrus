@@ -1,0 +1,30 @@
+/* The Schedule page's calendar: FullCalendar 7's classic theme with its own palette replaced by the newsroom's tokens, so it follows light and dark with the rest of
+   the console. Flat fills and rounded shapes, no outlines: every border variable is the page background, so the grid keeps its geometry and draws no line. */
+.schedule-calendar{
+  --fc-classic-background:var(--org-paper);--fc-classic-foreground:var(--org-ink);
+  --fc-classic-border:var(--org-paper);--fc-classic-strong-border:var(--org-paper);--fc-classic-border-style:solid;
+  --fc-classic-faint:color-mix(in oklab,var(--org-ink) 4%,var(--org-paper));
+  --fc-classic-muted:color-mix(in oklab,var(--org-ink) 8%,var(--org-paper));
+  --fc-classic-strong:color-mix(in oklab,var(--org-ink) 14%,var(--org-paper));
+  --fc-classic-muted-foreground:var(--org-muted);--fc-classic-faint-foreground:var(--org-muted);
+  --fc-classic-today:color-mix(in oklab,var(--org-accent) 14%,var(--org-paper));
+  --fc-classic-highlight:color-mix(in oklab,var(--org-accent) 20%,var(--org-paper));
+  --fc-classic-now:var(--org-ink);
+  --fc-classic-button:var(--org-control);--fc-classic-button-border:var(--org-control);
+  --fc-classic-button-strong:color-mix(in oklab,var(--org-ink) 24%,var(--org-paper));--fc-classic-button-strong-border:color-mix(in oklab,var(--org-ink) 24%,var(--org-paper));
+  --fc-classic-button-foreground:var(--org-ink);--fc-classic-button-outline:transparent;
+  --fc-classic-primary:var(--org-control);--fc-classic-primary-foreground:var(--org-ink);
+  --fc-classic-event:color-mix(in oklab,var(--org-ink) 12%,var(--org-paper));--fc-classic-event-contrast:var(--org-ink);
+  --fc-classic-background-event:var(--org-control);--fc-classic-background-event-opacity:40%;--fc-classic-background-event-foreground-opacity:60%;
+  --fc-classic-small-dot-width:8px;--fc-classic-large-dot-width:10px;
+  font-family:var(--kb-theme-ui-font);font-size:14px;
+}
+.schedule-calendar .schedule-event{display:flex;align-items:flex-start;gap:5px;min-width:0;padding:2px 4px;border-radius:6px;font:500 12px/1.3 var(--kb-theme-ui-font);color:var(--org-ink);overflow:hidden}
+.schedule-calendar .schedule-event svg{flex:none;margin-top:1px}
+.schedule-calendar .schedule-event-text{min-width:0;display:grid}
+.schedule-calendar .schedule-event-state{font-weight:700}
+.schedule-calendar .schedule-event-title{overflow-wrap:anywhere}
+.schedule-calendar .schedule-event-section{font-weight:400;color:var(--org-muted)}
+.schedule-calendar .schedule-event[data-schedule-kind=overdue]{background:color-mix(in oklab,var(--org-ink) 22%,var(--org-paper))}
+.schedule-calendar .schedule-event[data-schedule-kind=scheduled]{background:color-mix(in oklab,var(--org-accent) 22%,var(--org-paper))}
+.schedule-calendar :focus-visible{outline:2px solid var(--org-ink);outline-offset:1px}

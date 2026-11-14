@@ -27,6 +27,7 @@ import {
   publishingAccountsForSite,
   type PublicationCapability,
 } from "./prospectus-publication-access";
+import { isAllowedOrigin } from "./allowed-origins";
 import { SiteOriginNotConfiguredError, publicSiteOrigin, siteOriginNotConfiguredResponse } from "./site-origin";
 
 /**
@@ -60,6 +61,11 @@ function currentTimeInSeconds(options: ProspectusSignInRouteOptions): number {
 
 function siteOriginFor(request: NextRequest, options: ProspectusSignInRouteOptions): string {
   return publicSiteOrigin(request, options.environment);
+}
+
+/** Whether the request's Origin is the site origin or the console origin, exactly. */
+function requestOriginAllowed(request: NextRequest, options: ProspectusSignInRouteOptions): boolean {
+  return isAllowedOrigin(request.headers.get("origin"), siteOriginFor(request, options), options.environment);
 }
 
 async function signInRuntimeFor(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<ProspectusSignInRuntime | null> {
@@ -142,7 +148,7 @@ async function handleProspectusSignInStartRoute(request: NextRequest, options: P
   const newsroomConnection = request.nextUrl.searchParams.get("newsroomChat") === "true";
   let newsroomSubject: string | undefined;
   if (newsroomConnection) {
-    if (request.method !== "POST" || request.headers.get("origin") !== siteOriginFor(request, options)) {
+    if (request.method !== "POST" || !requestOriginAllowed(request, options)) {
       return signInFailedResponse(403, "same_origin_required", "Connect chat from this newsroom.");
     }
     const identity = await (options.resolveNewsroomIdentity ?? resolveNewsroomChatIdentity)(request).catch(() => null);
@@ -341,7 +347,7 @@ export function handleProspectusAccountSelection(request: NextRequest, options: 
 async function handleProspectusAccountSelectionRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
-  if (request.headers.get("origin") !== siteOriginFor(request, options)) {
+  if (!requestOriginAllowed(request, options)) {
     return signInFailedResponse(403, "cross_origin_selection", "Choose an account from this site.");
   }
   const nowInSeconds = currentTimeInSeconds(options);
@@ -382,7 +388,7 @@ export function handleProspectusPublishingAccountCreation(request: NextRequest, 
 async function handleProspectusPublishingAccountCreationRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
-  if (request.headers.get("origin") !== siteOriginFor(request, options)) {
+  if (!requestOriginAllowed(request, options)) {
     return signInFailedResponse(403, "cross_origin_creation", "Create an account from this site.");
   }
   const nowInSeconds = currentTimeInSeconds(options);

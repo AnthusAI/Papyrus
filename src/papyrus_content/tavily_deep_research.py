@@ -28,6 +28,8 @@ from .records import apply_record_changes, build_record_changes
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 
 from .assignments_workflow import (
+    _assignment_event_record,
+    _produces_assignment_message_relation,
     _utc_now,
     apply_research_packet,
     intake_research_packet_proposals,
@@ -42,6 +44,18 @@ from .assignments_workflow import (
 )
 from .note_forum import derive_note_forum_title, derive_note_packet_lede
 from .steering import default_corpus_key
+
+
+def _own_corpus_key(client) -> str:
+    """The corpus an assignment names no corpus for: the signed-in site's own (its canonical publication corpus), not the tool's packaged default.
+    The IAM lane keeps the steering default."""
+    from .user_auth_mode import user_auth_requested
+
+    if user_auth_requested():
+        from .publication import publication_corpus_key
+
+        return publication_corpus_key(client)
+    return default_corpus_key()
 
 TAVILY_DEEP_ASSIGNMENT_TYPE = "research.tavily-deep"
 TAVILY_TASK_MESSAGE_KIND = "tavily_research_task"
@@ -115,72 +129,6 @@ def load_tavily_task_message(
         return None
     tasks.sort(key=lambda row: str(row.get("createdAt") or ""), reverse=True)
     return tasks[0]
-
-
-def _assignment_event_record(
-    *,
-    assignment: dict[str, Any],
-    event_type: str,
-    note: str,
-    actor_label: str,
-    now: str,
-) -> dict[str, Any]:
-    assignment_id = str(assignment["id"])
-    return {
-        "modelName": "AssignmentEvent",
-        "expected": {
-            "id": f"assignment-event-{safe_id(assignment_id)}-{event_type}-{timestamp_for_path(now)}",
-            "assignmentId": assignment_id,
-            "assignmentTypeKey": assignment.get("assignmentTypeKey"),
-            "queueKey": assignment.get("queueKey"),
-            "eventType": event_type,
-            "fromStatus": assignment.get("status"),
-            "toStatus": assignment.get("status"),
-            "actorLabel": actor_label,
-            "note": note,
-            "createdAt": now,
-        },
-    }
-
-
-def _produces_assignment_message_relation(
-    *,
-    assignment: dict[str, Any],
-    message_id: str,
-    now: str,
-    lifecycle: str,
-    message_kind: str,
-    metadata_kind: str,
-    extra_metadata: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    assignment_id = str(assignment["id"])
-    metadata = {
-        "lifecycle": lifecycle,
-        "messageKind": message_kind,
-        "metadataKind": metadata_kind,
-        "assignmentTypeKey": assignment.get("assignmentTypeKey"),
-        "queueKey": assignment.get("queueKey"),
-        "workProductKind": message_kind,
-    }
-    if extra_metadata:
-        metadata.update(extra_metadata)
-    return semantic_relation_record(
-        {
-            "predicate": "produces",
-            "subjectKind": "assignment",
-            "subjectId": assignment_id,
-            "subjectLineageId": assignment_id,
-            "objectKind": "message",
-            "objectId": message_id,
-            "objectLineageId": message_id,
-            "rank": 1,
-            "confidence": 1,
-            "reviewRecommended": False,
-            "importRunId": assignment.get("importRunId"),
-            "importedAt": now,
-            "metadata": metadata,
-        }
-    )
 
 
 def create_tavily_task_message_records(
@@ -525,7 +473,7 @@ def finalize_tavily_deep_research(
     research_mode = normalize_research_mode(
         options.get("research-mode") or assignment_meta.get("researchMode") or "source_discovery"
     )
-    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(assignment_meta.get("corpusKey")) or default_corpus_key()
+    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(assignment_meta.get("corpusKey")) or _own_corpus_key(client)
     actor_label = normalize_string(options.get("actor-label")) or "Papyrus content CLI"
     assignment_id = str(assignment["id"])
     now = _utc_now()

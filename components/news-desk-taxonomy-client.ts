@@ -2,11 +2,15 @@
 
 import { loadReferenceReviewDetails } from "../lib/reference-review-details";
 import { loadAllPages } from "../lib/newsroom-all-pages";
+import { feedReaderFromRecords, starReaderFromRecords, type FeedStreamReader } from "../lib/reference-feed-pages";
+import { mediumReaderFromRecords } from "../lib/reference-medium-feed";
+import { PREVIEW_SEARCH_MEANING, parseSearchPage, previewSearch, type ReferenceSearchReader } from "../lib/reference-search";
 import { hasEditorRights } from "../lib/staff-groups";
 
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
-import { createLocalPreviewRealPublishedVersions, createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
+import { AUTO_ACCEPTED_PAGE_SIZE, autoAcceptedFromRecords, autoAcceptedServerFilter, collectAutoAcceptedPage, type AutoAcceptedPage } from "../lib/auto-accepted-references";
+import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences, createLocalPreviewScheduledVersions } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
@@ -63,13 +67,17 @@ import {
   type ConversationMessage,
   type ConversationViewer,
 } from "../lib/conversation";
-import { postMessageArguments, postMessageMutation } from "../lib/post-message";
-import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "../lib/post-message";
+import { isStoryItemType, legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { readScheduledRange, SCHEDULE_PAGE_STATES, type ScheduleQueryFetch } from "../lib/story-schedule-query";
+import { readStoryStageChangesSince, readStoryStagePage, STORY_STAGE_PAGE_LIMIT, type StageQueryFetch } from "../lib/story-stage-query";
+import { readWithStoryStageIndex } from "../lib/story-stage-mode";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { isUnauthenticatedError, loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
 import { resolveReaderSettings } from "./reader-settings";
+import { REFERENCE_FEED_KEY, REFERENCE_REVIEWED_FEED_KEY, SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, globalKey } from "../lib/tenant-knowledge-keys";
 
 const USER_POOL_AUTH_MODE = "userPool";
 const USER_POOL_LIST_LIMIT = 500;
@@ -77,7 +85,6 @@ const USER_POOL_PAGE_LIMIT = 50;
 const TEST_EDITOR_STORAGE_KEY = "papyrus:test-editor";
 const TEST_EDITOR_NEWSROOM_MOCK_STORAGE_KEY = "papyrus:test-newsroom-mock";
 const NEWSROOM_PAGE_LIMIT = 50;
-const REFERENCE_REVIEWED_FEED_KEY = "references#reviewed";
 const REFERENCE_STATUS_KEYS = ["pending", "accepted", "rejected", "archived"] as const;
 
 const NEWSROOM_MESSAGE_FEED_QUERY = `
@@ -274,19 +281,10 @@ const NEWSROOM_ASSIGNMENT_FEED_QUERY = `
   }
 `;
 
-const NEWSROOM_REFERENCE_FEED_QUERY = `
-  query ListReferencesByNewsroomFeedAndCreatedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
-    listReferencesByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
-      nextToken
-    }
-  }
-`;
-
 const NEWSROOM_REFERENCE_IMPORTED_FEED_QUERY = `
   query ListReferencesByNewsroomFeedAndImportedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByNewsroomFeedAndImportedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
       nextToken
     }
   }
@@ -295,7 +293,7 @@ const NEWSROOM_REFERENCE_IMPORTED_FEED_QUERY = `
 const LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY = `
   query ListReferencesByCurationStatusAndUpdatedAt($curationStatus: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByCurationStatusAndUpdatedAt(curationStatus: $curationStatus, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
       nextToken
     }
   }
@@ -304,16 +302,7 @@ const LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY = `
 const LIST_REFERENCES_BY_REVIEWED_FEED_AND_UPDATED_AT_QUERY = `
   query ListReferencesByReviewedFeedAndUpdatedAt($reviewedFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByReviewedFeedAndUpdatedAt(reviewedFeedKey: $reviewedFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
-      nextToken
-    }
-  }
-`;
-
-const LIST_REFERENCES_FALLBACK_QUERY = `
-  query ListReferencesFallback($limit: Int, $nextToken: String) {
-    listReferences(limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
       nextToken
     }
   }
@@ -337,7 +326,7 @@ const NEWSROOM_SEMANTIC_RELATION_FEED_QUERY = `
   }
 `;
 
-const LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY = `
+export const LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY = `
   query ListSemanticRelationsBySubjectState($subjectStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelSemanticRelationFilterInput) {
     listSemanticRelationsBySubjectState(subjectStateKey: $subjectStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
       items { id relationState predicate relationTypeId relationTypeKey relationDomain subjectKind subjectId subjectLineageId subjectVersionNumber objectKind objectId objectLineageId objectVersionNumber subjectStateKey objectStateKey objectSubjectStateKey predicateObjectStateKey subjectVersionKey objectVersionKey score confidence rank classifierId modelVersion reviewRecommended sourceSnapshotId importRunId importedAt createdAt updatedAt newsroomFeedKey metadata }
@@ -346,7 +335,7 @@ const LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY = `
   }
 `;
 
-const LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY = `
+export const LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY = `
   query ListSemanticRelationsByObjectState($objectStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelSemanticRelationFilterInput) {
     listSemanticRelationsByObjectState(objectStateKey: $objectStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
       items { id relationState predicate relationTypeId relationTypeKey relationDomain subjectKind subjectId subjectLineageId subjectVersionNumber objectKind objectId objectLineageId objectVersionNumber subjectStateKey objectStateKey objectSubjectStateKey predicateObjectStateKey subjectVersionKey objectVersionKey score confidence rank classifierId modelVersion reviewRecommended sourceSnapshotId importRunId importedAt createdAt updatedAt newsroomFeedKey metadata }
@@ -446,7 +435,7 @@ const MODEL_ATTACHMENTS_BY_OWNER_QUERY = `
 
 /** Matches Reference model fields in amplify/data/resource.ts (no metadata on Reference). */
 const REFERENCE_RECORD_GRAPHQL_FIELDS =
-  "id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt";
+  "id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey captureState medium evidenceLevel playlistUrl discoveredByMonitorId updatedAt";
 
 const LIST_REFERENCES_BY_LINEAGE_AND_VERSION_QUERY = `
   query ListReferencesByLineageAndVersion($lineageId: ID!, $limit: Int, $nextToken: String) {
@@ -915,7 +904,7 @@ export async function loadEditorNewsDeskDashboard({ isAdmin }: { isAdmin: boolea
 
 export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: boolean }): Promise<CategorySteeringDashboard> {
   const procedureDataPromise = isAdmin
-    ? loadEditorProcedureData().catch(() => ({ definitions: [], versions: [], runs: [] }))
+    ? loadEditorProcedureData()
     : Promise.resolve<{ definitions: ProcedureDefinitionRecord[]; versions: ProcedureVersionRecord[]; runs: ProcedureRunRecord[] }>({
       definitions: [],
       versions: [],
@@ -941,24 +930,24 @@ export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: bo
     procedureData,
     userDirectory,
   ] = await Promise.all([
-    loadDashboardSlice("KnowledgeCorpus", () => listUserPoolModel<CategorySteeringCorpus>("KnowledgeCorpus"), [] as CategorySteeringCorpus[]),
-    loadDashboardSlice("KnowledgeImportRun", () => listUserPoolModel<CategorySteeringImportRun>("KnowledgeImportRun"), [] as CategorySteeringImportRun[]),
-    loadDashboardSlice("CategorySet", () => listUserPoolModel<CategorySteeringCategorySet>("CategorySet"), [] as CategorySteeringCategorySet[]),
-    loadDashboardSlice("Category", () => listUserPoolModel<CategorySteeringCategory>("Category"), [] as CategorySteeringCategory[]),
-    loadDashboardSlice("CategoryKeyword", () => listOptionalUserPoolModel<CategoryKeywordRecord>("CategoryKeyword"), [] as CategoryKeywordRecord[]),
-    loadDashboardSlice("LexicalSteeringRule", () => listOptionalUserPoolModel<LexicalSteeringRuleRecord>("LexicalSteeringRule"), [] as LexicalSteeringRuleRecord[]),
-    loadDashboardSlice("SteeringProposal", () => listSteeringProposalsViaGraphql(), [] as CategorySteeringProposal[]),
-    loadDashboardSlice("KnowledgeArtifact", () => listUserPoolModel<CategorySteeringArtifact>("KnowledgeArtifact"), [] as CategorySteeringArtifact[]),
-    loadDashboardSlice("Reference", () => listUserPoolModel<ReferenceRecord>("Reference"), [] as ReferenceRecord[]),
-    loadDashboardSlice("ReferenceAttachment", () => listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"), [] as ReferenceAttachmentRecord[]),
-    loadDashboardSlice("SemanticNode", () => listUserPoolModel<SemanticNodeRecord>("SemanticNode"), [] as SemanticNodeRecord[]),
-    loadDashboardSlice("Message", () => listUserPoolModel<MessageRecord>("Message"), [] as MessageRecord[]),
-    loadDashboardSlice("SemanticRelation", () => listUserPoolModel<SemanticRelationRecord>("SemanticRelation"), [] as SemanticRelationRecord[]),
-    loadDashboardSlice("Assignments", () => loadEditorAssignmentsData(), { assignments: [], assignmentEvents: [] }),
-    loadDashboardSlice("EditionSlot", () => listOptionalUserPoolModel<EditionSlotRecord>("EditionSlot"), [] as EditionSlotRecord[]),
-    loadDashboardSlice("NewsroomSection", () => listOptionalUserPoolModel<NewsroomSectionRecord>("NewsroomSection"), [] as NewsroomSectionRecord[]),
+    listUserPoolModel<CategorySteeringCorpus>("KnowledgeCorpus"),
+    listUserPoolModel<CategorySteeringImportRun>("KnowledgeImportRun"),
+    listUserPoolModel<CategorySteeringCategorySet>("CategorySet"),
+    listUserPoolModel<CategorySteeringCategory>("Category"),
+    listOptionalUserPoolModel<CategoryKeywordRecord>("CategoryKeyword"),
+    listOptionalUserPoolModel<LexicalSteeringRuleRecord>("LexicalSteeringRule"),
+    listSteeringProposalsViaGraphql(),
+    listUserPoolModel<CategorySteeringArtifact>("KnowledgeArtifact"),
+    listUserPoolModel<ReferenceRecord>("Reference"),
+    listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"),
+    listUserPoolModel<SemanticNodeRecord>("SemanticNode"),
+    listUserPoolModel<MessageRecord>("Message"),
+    listUserPoolModel<SemanticRelationRecord>("SemanticRelation"),
+    loadEditorAssignmentsData(),
+    listOptionalUserPoolModel<EditionSlotRecord>("EditionSlot"),
+    listOptionalUserPoolModel<NewsroomSectionRecord>("NewsroomSection"),
     procedureDataPromise,
-    loadDashboardSlice("UserDirectory", () => (isAdmin ? loadUserDirectory() : Promise.resolve([])), [] as UserDirectoryEntry[]),
+    (isAdmin ? loadUserDirectory() : Promise.resolve([])),
   ]);
 
   const sortedCorpora = corpora.sort((left, right) => left.name.localeCompare(right.name));
@@ -1011,15 +1000,6 @@ export async function loadEditorFullNewsDeskDashboard({ isAdmin }: { isAdmin: bo
     procedureRuns: procedureData.runs,
     loadError: null,
   };
-}
-
-async function loadDashboardSlice<T>(label: string, loader: () => Promise<T>, fallback: T): Promise<T> {
-  try {
-    return await loader();
-  } catch (error) {
-    console.warn(`Newsroom dashboard slice failed: ${label}`, error);
-    return fallback;
-  }
 }
 
 export async function loadEditorProcedureData(): Promise<{
@@ -1415,6 +1395,9 @@ async function appendMessageToThread(thread: MessageThreadRecord, build: (sequen
     },
   });
   const createdMessage = normalizeMessageRecord(created.postMessage ?? built!);
+  if (messageHasHashtag(createdMessage.content ?? (built as MessageRecord | null)?.content)) {
+    void runGraphql(LINK_MESSAGE_HASHTAGS_MUTATION, { messageId: createdMessage.id }).catch(() => undefined);
+  }
   const updated = await runGraphql<{ updateMessageThread?: MessageThreadRecord | null }>(
     UPDATE_MESSAGE_THREAD_MUTATION,
     {
@@ -1808,7 +1791,7 @@ async function createCommentRelation(message: MessageRecord, anchor: Conversatio
       importedAt: now,
       createdAt: now,
       updatedAt: now,
-      newsroomFeedKey: "semanticRelations",
+      newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
       metadata: JSON.stringify({ kind: "conversation.comment", messageKind: "comment" }),
     },
   });
@@ -1984,7 +1967,7 @@ function safeForumId(value: string): string {
   return slugifyKey(value).slice(0, 120) || "thread";
 }
 
-async function runGraphql<T extends Record<string, unknown>>(
+export async function runGraphql<T extends Record<string, unknown>>(
   query: string,
   variables: Record<string, unknown>,
 ): Promise<T> {
@@ -2008,40 +1991,264 @@ async function runGraphql<T extends Record<string, unknown>>(
   return (response.data ?? {}) as T;
 }
 
-export async function loadEditorReferencesData(): Promise<{
-  references: ReferenceRecord[];
-  referenceAttachments: ReferenceAttachmentRecord[];
-}> {
+/** How many rows one read of the whole-set list asks for. */
+const ALL_REFERENCES_READ_SIZE = 200;
+
+/**
+ * Every current Reference, status by status, each read a full page at a time. Only the consumers that really need the whole set ask
+ * for it (the List view, the Assignments graph), and only when they are opened: the feed never does. Attachments are not part of it.
+ */
+export async function loadAllEditorReferences(): Promise<ReferenceRecord[]> {
   configureAmplifyClient();
   const testMock = getTestEditorNewsroomMock();
-  if (testMock?.references || testMock?.referenceAttachments) {
-    const referenceAttachments = (testMock.referenceAttachments ?? [])
-      .slice()
-      .sort((left, right) => left.sortKey.localeCompare(right.sortKey));
-    if (testMock.references) {
-      return {
-        references: testMock.references,
-        referenceAttachments,
-      };
-    }
-    return {
-      references: await loadAllNewsroomReferences(),
-      referenceAttachments,
-    };
-  }
-  const [references, referenceAttachments] = await Promise.all([
-    loadAllNewsroomReferences(),
-    listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"),
-  ]);
-  return {
-    references,
-    referenceAttachments: referenceAttachments.sort((left, right) => left.sortKey.localeCompare(right.sortKey)),
-  };
+  if (testMock?.references) return testMock.references;
+  if (isLocalPreviewEnabled()) return createLocalPreviewReferences();
+  const perStatus = await Promise.all(REFERENCE_STATUS_KEYS.map((status) => loadAllPages((token) => loadReferencePageByStatus({
+    status, limit: ALL_REFERENCES_READ_SIZE, nextToken: token,
+  }))));
+  const seen = new Set<string>();
+  return perStatus.flat().filter((reference) => (seen.has(reference.id) ? false : (seen.add(reference.id), true)));
 }
 
-/** Every reference, page by page: the References feed ranks the whole set, so stopping at the first page hid most of it. */
-function loadAllNewsroomReferences(): Promise<ReferenceRecord[]> {
-  return loadAllPages((nextToken) => loadNewsroomReferencePage({ nextToken }));
+/** The corpora whose partitions the feed reads: the site's KnowledgeCorpus rows (a handful), read once per session. */
+let feedCorpusIds: Promise<string[]> | null = null;
+export function discardFeedCorpusIds() { feedCorpusIds = null; }
+export function loadReferenceFeedCorpusIds(extra: readonly string[] = []): Promise<string[]> {
+  feedCorpusIds ??= (async () => {
+    configureAmplifyClient();
+    const testMock = getTestEditorNewsroomMock();
+    if (testMock?.references) return [...new Set(testMock.references.map((reference) => reference.corpusId))];
+    if (isLocalPreviewEnabled()) return [...new Set(createLocalPreviewReferences().map((reference) => reference.corpusId))];
+    const corpora = await listUserPoolModel<{ id: string }>("KnowledgeCorpus");
+    return corpora.map((corpus) => corpus.id);
+  })().catch((error) => { feedCorpusIds = null; throw error; });
+  return feedCorpusIds.then((ids) => [...new Set([...ids, ...extra])]);
+}
+
+const LIST_REFERENCES_BY_FEED_STATE_AND_PREDICTION_QUERY = `
+  query ListReferencesByFeedStateAndPrediction($feedStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listReferencesByFeedStateAndPrediction(feedStateKey: $feedStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items { ${REFERENCE_RECORD_GRAPHQL_FIELDS} }
+      nextToken
+    }
+  }
+`;
+
+const LIST_REFERENCES_BY_FEED_STATE_AND_ARRIVAL_QUERY = `
+  query ListReferencesByFeedStateAndArrival($feedStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listReferencesByFeedStateAndArrival(feedStateKey: $feedStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items { ${REFERENCE_RECORD_GRAPHQL_FIELDS} }
+      nextToken
+    }
+  }
+`;
+
+/** One page of one feed partition, in feed order. No filter, so the database returns exactly `limit` rows (or the end). */
+export const readReferenceFeedStream: FeedStreamReader = async ({ feedStateKey, sort, limit, nextToken }) => {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) return feedReaderFromRecords(testMock.references)({ feedStateKey, sort, limit, nextToken });
+  if (isLocalPreviewEnabled()) return feedReaderFromRecords(createLocalPreviewReferences())({ feedStateKey, sort, limit, nextToken });
+  const field = sort === "best" ? "listReferencesByFeedStateAndPrediction" : "listReferencesByFeedStateAndArrival";
+  const data = await runGraphql<Record<string, { items?: Array<ReferenceRecord | null> | null; nextToken?: string | null } | null>>(
+    sort === "best" ? LIST_REFERENCES_BY_FEED_STATE_AND_PREDICTION_QUERY : LIST_REFERENCES_BY_FEED_STATE_AND_ARRIVAL_QUERY,
+    { feedStateKey, sortDirection: "DESC", limit, nextToken },
+  );
+  const connection = data[field];
+  if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+  return { items: (connection.items ?? []).filter(Boolean) as ReferenceRecord[], nextToken: connection.nextToken ?? null };
+};
+
+const LIST_REFERENCES_BY_STAR_FEED_AND_ARRIVAL_QUERY = `
+  query ListReferencesByStarFeedAndArrival($starFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listReferencesByStarFeedAndArrival(starFeedKey: $starFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items { ${REFERENCE_RECORD_GRAPHQL_FIELDS} }
+      nextToken
+    }
+  }
+`;
+
+/**
+ * One page of one star partition (`<corpusId>#stars#<n>`), newest arrival first, for the Quality sort and the minimum of stars. The query's key is
+ * passed as `feedStateKey` like the feed's own. The index keeps a Reference for as long as it has stars, so the rows can include a superseded or
+ * archived one; `liveStarRows` drops those (docs/reference-feed-indexes.md).
+ */
+export const readReferenceStarStream: FeedStreamReader = async ({ feedStateKey, limit, nextToken }) => {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) return starReaderFromRecords(testMock.references)({ feedStateKey, sort: "newest", limit, nextToken });
+  if (isLocalPreviewEnabled()) return starReaderFromRecords(createLocalPreviewReferences())({ feedStateKey, sort: "newest", limit, nextToken });
+  const data = await runGraphql<Record<string, { items?: Array<ReferenceRecord | null> | null; nextToken?: string | null } | null>>(
+    LIST_REFERENCES_BY_STAR_FEED_AND_ARRIVAL_QUERY,
+    { starFeedKey: feedStateKey, sortDirection: "DESC", limit, nextToken },
+  );
+  const connection = data.listReferencesByStarFeedAndArrival;
+  if (!connection) throw new Error("Missing GraphQL connection payload for listReferencesByStarFeedAndArrival.");
+  return { items: (connection.items ?? []).filter(Boolean) as ReferenceRecord[], nextToken: connection.nextToken ?? null };
+};
+
+const LIST_REFERENCES_BY_MEDIUM_FEED_AND_ARRIVAL_QUERY = `
+  query ListReferencesByMediumFeedAndArrival($mediumFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listReferencesByMediumFeedAndArrival(mediumFeedKey: $mediumFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items { ${REFERENCE_RECORD_GRAPHQL_FIELDS} }
+      nextToken
+    }
+  }
+`;
+
+/**
+ * One page of one medium partition (`<corpusId>#<medium>#<pending|accepted|rejected>`), newest arrival first, for the Medium filter. The query's key is
+ * passed as `feedStateKey` like the feed's own. A Reference is in the index only while it is current, not archived and has a medium, so no row needs
+ * dropping (docs/reference-feed-indexes.md, "The medium index").
+ */
+export const readReferenceMediumStream: FeedStreamReader = async ({ feedStateKey, limit, nextToken }) => {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) return mediumReaderFromRecords(testMock.references)({ feedStateKey, sort: "newest", limit, nextToken });
+  if (isLocalPreviewEnabled()) return mediumReaderFromRecords(createLocalPreviewReferences())({ feedStateKey, sort: "newest", limit, nextToken });
+  const data = await runGraphql<Record<string, { items?: Array<ReferenceRecord | null> | null; nextToken?: string | null } | null>>(
+    LIST_REFERENCES_BY_MEDIUM_FEED_AND_ARRIVAL_QUERY,
+    { mediumFeedKey: feedStateKey, sortDirection: "DESC", limit, nextToken },
+  );
+  const connection = data.listReferencesByMediumFeedAndArrival;
+  if (!connection) throw new Error("Missing GraphQL connection payload for listReferencesByMediumFeedAndArrival.");
+  return { items: (connection.items ?? []).filter(Boolean) as ReferenceRecord[], nextToken: connection.nextToken ?? null };
+};
+
+/**
+ * The References page search box: one `searchReferences` query (words and meaning together, rated or not; docs/reference-search.md). It reads
+ * a page of 24 cards; the opaque cursor continues it. Local preview and the test mock search the records they hold instead.
+ */
+export const searchReferences: ReferenceSearchReader = async (input) => {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) return previewSearch(testMock.references, input);
+  if (isLocalPreviewEnabled()) return previewSearch(createLocalPreviewReferences(), input, { meaning: PREVIEW_SEARCH_MEANING });
+  const client = generateClient<Schema>();
+  const query = client.queries.searchReferences as unknown as (
+    args: { input: string },
+    options: { authMode: typeof USER_POOL_AUTH_MODE },
+  ) => Promise<{ data?: unknown; errors?: unknown[] | null }>;
+  // `captured` is sent only when chosen: a site whose search has not been updated still answers every other request.
+  const { captured, ...rest } = input;
+  const response = await query({ input: JSON.stringify(captured && captured !== "any" ? { ...rest, captured } : rest) }, { authMode: USER_POOL_AUTH_MODE });
+  assertNoGraphQLErrors(response.errors);
+  return parseSearchPage(response.data);
+};
+
+/** Up to this many indexed reads ride in one GraphQL request. */
+const ALIAS_BATCH_SIZE = 25;
+
+/**
+ * Several indexed reads of one query in one request (aliased fields): one round trip for a batch of cards instead of one per card.
+ * Each key is one database query; a key whose result has a next page is returned in `more` for the caller to read on its own.
+ */
+async function runAliasedIndexReads<T>(input: {
+  field: string;
+  keyType: string;
+  keyArg: string;
+  keys: readonly string[];
+  selection: string;
+  limit: number;
+  extraArgs?: string;
+}): Promise<{ results: Map<string, T[]>; more: string[] }> {
+  const results = new Map<string, T[]>();
+  const more: string[] = [];
+  for (let offset = 0; offset < input.keys.length; offset += ALIAS_BATCH_SIZE) {
+    const chunk = input.keys.slice(offset, offset + ALIAS_BATCH_SIZE);
+    const variables = chunk.map((_, index) => `$k${index}: ${input.keyType}`).join(", ");
+    const fields = chunk.map((_, index) => (
+      `r${index}: ${input.field}(${input.keyArg}: $k${index}, limit: ${input.limit}${input.extraArgs ? `, ${input.extraArgs}` : ""}) { items { ${input.selection} } nextToken }`
+    )).join("\n      ");
+    const data = await runGraphql<Record<string, { items?: Array<T | null> | null; nextToken?: string | null } | null>>(
+      `query BatchRead(${variables}) {\n      ${fields}\n    }`,
+      Object.fromEntries(chunk.map((key, index) => [`k${index}`, key])),
+    );
+    chunk.forEach((key, index) => {
+      const connection = data[`r${index}`];
+      results.set(key, ((connection?.items ?? []).filter(Boolean)) as T[]);
+      if (connection?.nextToken) more.push(key);
+    });
+  }
+  return { results, more };
+}
+
+const REFERENCE_ATTACHMENT_SELECTION = "id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath sourceUri filename mediaType byteSize sha256 etag importRunId importedAt metadata";
+
+/** The attachments of several References in one request, for the cards on screen. A Reference with more than one page reads the rest alone. */
+export async function loadReferenceAttachmentsForLineages(lineageIds: readonly string[]): Promise<ReferenceAttachmentRecord[]> {
+  const ids = [...new Set(lineageIds.filter(Boolean))];
+  if (!ids.length) return [];
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.referenceAttachments) {
+    return testMock.referenceAttachments.filter((attachment) => ids.includes(attachment.referenceLineageId));
+  }
+  configureAmplifyClient();
+  const { results, more } = await runAliasedIndexReads<ReferenceAttachmentRecord>({
+    field: "listReferenceAttachmentsByReferenceLineageAndSortKey",
+    keyType: "ID!",
+    keyArg: "referenceLineageId",
+    keys: ids,
+    selection: REFERENCE_ATTACHMENT_SELECTION,
+    limit: 100,
+    extraArgs: "sortDirection: ASC",
+  });
+  const rest = await Promise.all(more.map((lineageId) => loadReferenceAttachmentsForLineageId(lineageId)));
+  const byId = new Map<string, ReferenceAttachmentRecord>();
+  for (const attachment of [...results.values()].flat().concat(rest.flat())) byId.set(attachment.id, attachment);
+  return [...byId.values()].sort((left, right) => left.sortKey.localeCompare(right.sortKey));
+}
+
+/** Message counts for the given References only (their conversation threads by anchor), in one request. */
+export async function loadReferenceConversationCountsFor(lineageIds: readonly string[]): Promise<Map<string, number>> {
+  const ids = [...new Set(lineageIds.filter(Boolean))];
+  const counts = new Map<string, number>();
+  if (!ids.length) return counts;
+  const { results } = await runAliasedIndexReads<MessageThreadRecord>({
+    field: "listMessageThreadsByAnchorAndUpdatedAt",
+    keyType: "String!",
+    keyArg: "primaryAnchorKey",
+    keys: ids.map((id) => `reference#${id}`),
+    selection: "id status messageCount primaryAnchorLineageId",
+    limit: 10,
+    extraArgs: "sortDirection: DESC",
+  });
+  for (const [key, threads] of results) {
+    const thread = threads.find((entry) => entry.status !== "deleted");
+    if (thread && (thread.messageCount ?? 0) > 0) counts.set(key.slice("reference#".length), thread.messageCount ?? 0);
+  }
+  return counts;
+}
+
+/** How many rows one database read looks at while the "Accepted automatically" list walks the accepted partition for matches. */
+const AUTO_ACCEPTED_READ_SIZE = 200;
+
+/**
+ * One page of the "Accepted automatically" list, newest acceptance first (lib/auto-accepted-references.ts). It queries the accepted
+ * partition of the curation-status index with the actor filter applied by the database; it never loads the whole table, and it needs no index
+ * of its own.
+ */
+export async function loadAutoAcceptedReferencePage(
+  options: { nextToken?: string | null; limit?: number; corpusId?: string } = {},
+): Promise<AutoAcceptedPage> {
+  const limit = options.limit ?? AUTO_ACCEPTED_PAGE_SIZE;
+  if (isLocalPreviewEnabled()) {
+    const everything = autoAcceptedFromRecords(createLocalPreviewReferences());
+    const start = options.nextToken ? Number(options.nextToken) || 0 : 0;
+    const items = everything.slice(start, start + limit);
+    const next = start + items.length;
+    return { items, nextToken: next < everything.length ? String(next) : null, hasMore: next < everything.length };
+  }
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) {
+    return { items: autoAcceptedFromRecords(testMock.references), nextToken: null, hasMore: false };
+  }
+  const filter = autoAcceptedServerFilter(options.corpusId);
+  return collectAutoAcceptedPage(
+    (token) => loadReferencePageByStatus({ status: "accepted", limit: AUTO_ACCEPTED_READ_SIZE, nextToken: token, filter }),
+    { nextToken: options.nextToken ?? null, limit },
+  );
 }
 
 export function normalizeNewsroomReferencePageOrder(value?: string | null): NewsroomReferencePageOrder {
@@ -2052,23 +2259,7 @@ export async function loadNewsroomReferencePage(options: NewsroomReferencePageOp
   if (isLocalPreviewEnabled()) return { items: createLocalPreviewReferences(), nextToken: null, hasMore: false };
   configureAmplifyClient();
   const order = normalizeNewsroomReferencePageOrder(options.order);
-  if (order === "imported") {
-    try {
-      const importedPage = await loadReferencePageByImportedFeed(options);
-      if (importedPage.items.length > 0 || options.nextToken) return importedPage;
-    } catch (error) {
-      if (!isMissingGraphQLQueryFieldError(error, "listReferencesByNewsroomFeedAndImportedAt")) {
-        throw error;
-      }
-      console.warn(
-        "listReferencesByNewsroomFeedAndImportedAt is not deployed in this environment; "
-        + "falling back to legacy reference queries with client-side import-date sort.",
-      );
-    }
-    const fallbackPage = await loadReferencePageByFallbackList(options);
-    if (fallbackPage.items.length > 0 || options.nextToken) return fallbackPage;
-    // Continue into status-index loaders below when the table scan is empty.
-  }
+  if (order === "imported") return loadReferencePageByImportedFeed(options);
   const normalizedStatus = normalizeReferenceStatusKey(options.status);
   if (normalizedStatus) {
     const indexedPage = await loadReferencePageByStatus({
@@ -2077,38 +2268,27 @@ export async function loadNewsroomReferencePage(options: NewsroomReferencePageOp
       nextToken: options.nextToken,
       corpusId: options.corpusId,
     });
-    if (indexedPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(indexedPage, order);
-    const legacyPage = await loadReferencePageByLegacyFeed(options);
-    if (legacyPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(legacyPage, order);
-    return loadReferencePageByFallbackList(options);
+    return sortReferencePageByOrder(indexedPage, order);
   }
   if (options.excludePending) {
     // Use the curation-status merge, not reviewedFeedKey. The reviewed-feed GSI is only
     // populated for references that went through backfill; treating it as authoritative
     // capped production at ~100 rows while thousands exist in the status indexes.
-    const mergedReviewedPage = await loadMergedReferenceStatusPage({
+    return loadMergedReferenceStatusPage({
       statuses: ["accepted", "rejected", "archived"],
       limit: options.limit,
       nextToken: options.nextToken,
       corpusId: options.corpusId,
       order,
     });
-    if (mergedReviewedPage.items.length > 0 || options.nextToken) return mergedReviewedPage;
-    const legacyPage = await loadReferencePageByLegacyFeed(options);
-    if (legacyPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(legacyPage, order);
-    return loadReferencePageByFallbackList(options);
   }
-  const mergedPage = await loadMergedReferenceStatusPage({
+  return loadMergedReferenceStatusPage({
     statuses: REFERENCE_STATUS_KEYS,
     limit: options.limit,
     nextToken: options.nextToken,
     corpusId: options.corpusId,
     order,
   });
-  if (mergedPage.items.length > 0 || options.nextToken) return mergedPage;
-  const legacyPage = await loadReferencePageByLegacyFeed(options);
-  if (legacyPage.items.length > 0 || options.nextToken) return sortReferencePageByOrder(legacyPage, order);
-  return loadReferencePageByFallbackList(options);
 }
 
 function referencePageMatchesFilters(
@@ -2124,113 +2304,68 @@ function referencePageMatchesFilters(
   return true;
 }
 
-async function loadReferencePageByLegacyFeed(options: NewsroomReferencePageOptions): Promise<NewsroomRecordPage<ReferenceRecord>> {
-  const normalizedStatus = normalizeReferenceStatusKey(options.status);
-  return loadNewsroomFeedPage<ReferenceRecord>({
-    query: NEWSROOM_REFERENCE_FEED_QUERY,
-    field: "listReferencesByNewsroomFeedAndCreatedAt",
-    newsroomFeedKey: "references",
-    limit: options.limit,
-    nextToken: options.nextToken,
-    matches: (reference) => referencePageMatchesFilters(reference, options, normalizedStatus),
-  });
-}
-
 async function loadReferencePageByImportedFeed(options: NewsroomReferencePageOptions): Promise<NewsroomRecordPage<ReferenceRecord>> {
   const normalizedStatus = normalizeReferenceStatusKey(options.status);
   return loadNewsroomFeedPage<ReferenceRecord>({
     query: NEWSROOM_REFERENCE_IMPORTED_FEED_QUERY,
     field: "listReferencesByNewsroomFeedAndImportedAt",
-    newsroomFeedKey: "references",
+    newsroomFeedKey: globalKey(REFERENCE_FEED_KEY),
     limit: options.limit,
     nextToken: options.nextToken,
     matches: (reference) => referencePageMatchesFilters(reference, options, normalizedStatus),
   });
 }
 
-async function loadReferencePageByFallbackList(options: NewsroomReferencePageOptions): Promise<NewsroomRecordPage<ReferenceRecord>> {
-  const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ReferenceRecord>>;
-  };
-  const limit = Math.max(1, Math.min(options.limit ?? NEWSROOM_PAGE_LIMIT, 200));
-  const normalizedStatus = normalizeReferenceStatusKey(options.status);
-  const items: ReferenceRecord[] = [];
-  let cursor = options.nextToken ?? null;
-  let connectionNextToken: string | null = null;
-  let pageCount = 0;
-
-  do {
-    pageCount += 1;
-    let response: GraphQLConnectionResponse<ReferenceRecord>;
-    try {
-      response = await client.graphql({
-        query: LIST_REFERENCES_FALLBACK_QUERY,
-        variables: {
-          limit,
-          nextToken: cursor,
-        },
-        authMode: USER_POOL_AUTH_MODE,
-      });
-    } catch (error) {
-      throw new Error(normalizeUnknownErrorMessage(error, "Failed to load listReferences fallback"));
-    }
-
-    const connection = response.data?.listReferences;
-    if (!connection) {
-      assertNoGraphQLErrors(response.errors);
-      throw new Error("Missing GraphQL connection payload for listReferences fallback.");
-    }
-    if (response.errors?.length) {
-      console.warn("GraphQL returned partial data for listReferences fallback.", response.errors);
-    }
-
-    connectionNextToken = connection.nextToken ?? null;
-    const pageItems = ((connection.items ?? []).filter(Boolean) as ReferenceRecord[])
-      .filter((reference) => {
-        if (reference.versionState && reference.versionState !== "current") return false;
-        if (options.corpusId && reference.corpusId !== options.corpusId) return false;
-        const status = normalizeReferenceStatusKey(reference.curationStatus) ?? "pending";
-        if (normalizedStatus) return status === normalizedStatus;
-        if (options.excludePending) return status !== "pending";
-        return true;
-      });
-    items.push(...pageItems);
-    cursor = connectionNextToken;
-  } while (items.length < limit && cursor && pageCount < 40);
-
-  const order = normalizeNewsroomReferencePageOrder(options.order);
-  const sorted = sortReferencePageByOrder({
-    items,
-    nextToken: connectionNextToken,
-    hasMore: Boolean(connectionNextToken),
-  }, order);
-  return {
-    ...sorted,
-    items: sorted.items.slice(0, limit),
-  };
+/**
+ * One Reference's current relations (its prediction among them), read by the subject index. The feed calls this for the References
+ * it shows and nothing else: there is no read of the newsroom's whole relation feed, so no page budget to run out of.
+ */
+export function loadEditorReferencePredictions(lineageId: string): Promise<SemanticRelationRecord[]> {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.semanticRelations) {
+    return Promise.resolve(testMock.semanticRelations.filter((relation) => relation.subjectKind === "reference" && relation.subjectLineageId === lineageId));
+  }
+  return new Promise((resolve, reject) => {
+    predictionQueue.push({ lineageId, resolve, reject });
+    predictionTimer ??= setTimeout(flushPredictionQueue, 30);
+  });
 }
 
-export async function loadEditorSemanticRelationsData(): Promise<SemanticRelationRecord[]> {
-  const testMock = getTestEditorNewsroomMock();
-  if (testMock?.semanticRelations) return testMock.semanticRelations;
-  const rows: SemanticRelationRecord[] = [];
-  const seenIds = new Set<string>();
-  let nextToken: string | null | undefined = null;
-  let pageCount = 0;
+// The cards of a page ask for their predictions together: one request carries the indexed reads of every card that asked within a
+// moment, instead of one request per card.
+type PredictionWaiter = { lineageId: string; resolve: (relations: SemanticRelationRecord[]) => void; reject: (error: unknown) => void };
+let predictionQueue: PredictionWaiter[] = [];
+let predictionTimer: ReturnType<typeof setTimeout> | null = null;
+const RELATION_SELECTION = "id relationState predicate relationTypeId relationTypeKey relationDomain subjectKind subjectId subjectLineageId subjectVersionNumber objectKind objectId objectLineageId objectVersionNumber subjectStateKey objectStateKey objectSubjectStateKey predicateObjectStateKey subjectVersionKey objectVersionKey score confidence rank classifierId modelVersion reviewRecommended sourceSnapshotId importRunId importedAt createdAt updatedAt newsroomFeedKey metadata";
 
-  do {
-    const page = await loadNewsroomSemanticRelationPage({ nextToken });
-    for (const relation of page.items) {
-      if (!relation?.id || seenIds.has(relation.id)) continue;
-      seenIds.add(relation.id);
-      rows.push(relation);
+async function flushPredictionQueue() {
+  const waiting = predictionQueue;
+  predictionQueue = [];
+  predictionTimer = null;
+  const lineageIds = [...new Set(waiting.map((entry) => entry.lineageId))];
+  try {
+    const { results, more } = await runAliasedIndexReads<SemanticRelationRecord>({
+      field: "listSemanticRelationsBySubjectState",
+      keyType: "String!",
+      keyArg: "subjectStateKey",
+      keys: lineageIds.map((id) => `reference#${id}#current`),
+      selection: RELATION_SELECTION,
+      limit: 100,
+      extraArgs: "sortDirection: DESC",
+    });
+    const longer = new Set(more);
+    for (const entry of waiting) {
+      const key = `reference#${entry.lineageId}#current`;
+      if (longer.has(key)) {
+        // A Reference with more relations than one page reads the rest on its own.
+        loadSemanticRelationsByState({ field: "listSemanticRelationsBySubjectState", keyName: "subjectStateKey", keyValue: key, query: LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY })
+          .then(entry.resolve, entry.reject);
+      } else entry.resolve(results.get(key) ?? []);
     }
-    nextToken = page.nextToken;
-    pageCount += 1;
-  } while (nextToken && pageCount < 40);
-
-  if (nextToken) throw new Error("The activity feed is incomplete. Select a reference to load its prediction directly.");
-  return rows;
+  } catch (error) {
+    for (const entry of waiting) entry.reject(error);
+  }
 }
 
 /** Selected-reference details use indexes, not the bounded global activity feed. */
@@ -2254,7 +2389,7 @@ export async function loadNewsroomSemanticRelationPage(options: NewsroomSemantic
   return loadNewsroomFeedPage<SemanticRelationRecord>({
     query: NEWSROOM_SEMANTIC_RELATION_FEED_QUERY,
     field: "listSemanticRelationsByNewsroomFeedAndCreatedAt",
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     limit: options.limit,
     nextToken: options.nextToken,
     matches: equalityMatcher({
@@ -2365,30 +2500,35 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
   });
 }
 
-const CONTENT_ITEMS_BY_STAGE_QUERY = `
-  query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
-    listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt }
-      nextToken
-    }
-  }
-`;
-
-export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = 25;
+export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = STORY_STAGE_PAGE_LIMIT;
 
 export type ContentItemStagePage = {
   versions: ContentItemVersionRecord[];
   nextToken: string | null;
 };
 
-/** One newest-updated-first page of the content items in one stage, so a board column can load as it is scrolled. */
+function contentItemStageFetch(): StageQueryFetch {
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as {
+    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
+  };
+  return async ({ query, field, variables }) => {
+    const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({ query, variables, authMode: USER_POOL_AUTH_MODE });
+    assertNoGraphQLErrors(response.errors);
+    const connection = response.data?.[field];
+    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+    return { items: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[], nextToken: connection.nextToken ?? null };
+  };
+}
+
+/** One newest-updated-first page of the stories in one stage, so a board column can load as it is scrolled (lib/story-stage-query.ts). */
 export async function loadNewsroomContentItemStagePage(
   stage: string,
   nextToken: string | null = null,
   limit: number = CONTENT_ITEM_COLUMN_PAGE_LIMIT,
 ): Promise<ContentItemStagePage> {
   if (isLocalPreviewEnabled()) {
-    const versionsInStage = createLocalPreviewContentItemVersions().filter(version => version.stage === stage);
+    const versionsInStage = createLocalPreviewContentItemVersions().filter(version => version.stage === stage && isStoryItemType(version.type));
     const offset = nextToken ? Number(nextToken) : 0;
     const followingOffset = offset + limit;
     return {
@@ -2396,80 +2536,28 @@ export async function loadNewsroomContentItemStagePage(
       nextToken: followingOffset < versionsInStage.length ? String(followingOffset) : null,
     };
   }
-  configureAmplifyClient();
-  const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
-  };
-  const field = "listItemsByStageAndUpdatedAt";
-  const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
-    query: CONTENT_ITEMS_BY_STAGE_QUERY,
-    variables: { stage, sortDirection: "DESC", limit, nextToken },
-    authMode: USER_POOL_AUTH_MODE,
-  });
-  assertNoGraphQLErrors(response.errors);
-  const connection = response.data?.[field];
-  if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
-  return {
-    versions: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[],
-    nextToken: connection.nextToken ?? null,
-  };
+  const fetch = contentItemStageFetch();
+  const page = await readWithStoryStageIndex(mode => readStoryStagePage(fetch, mode, stage, { nextToken, limit }));
+  return { versions: page.items, nextToken: page.nextToken };
 }
 
-const PUBLISHED_ITEMS_QUERY = `
-  query ListPublishedItems($limit: Int, $nextToken: String) {
-    listPublishedItems(limit: $limit, nextToken: $nextToken) {
-      items { sourceItemId itemLineageId versionNumber type status title headline slug section publishedAt }
-      nextToken
-    }
+/**
+ * Every story in one stage whose `updatedAt` is at or after `since`, newest first. This is a key condition on the index's sort key, so
+ * DynamoDB reads only the changed rows: a quiet board costs one small request per stage that returns nothing. `since` is inclusive (a row
+ * written in the same instant as the newest row already shown is read again, and the caller merges by id).
+ */
+export async function loadNewsroomContentItemsChangedSince(stage: string, since: string): Promise<ContentItemVersionRecord[]> {
+  if (isLocalPreviewEnabled()) {
+    return createLocalPreviewContentItemVersions().filter(version => version.stage === stage && isStoryItemType(version.type) && String(version.updatedAt ?? "") >= since);
   }
-`;
+  const fetch = contentItemStageFetch();
+  return readWithStoryStageIndex(mode => readStoryStageChangesSince(fetch, mode, stage, since));
+}
 
-type PublishedItemBoardRow = {
-  sourceItemId: string;
-  itemLineageId: string;
-  versionNumber: number;
-  type: string;
-  status: string;
-  title?: string | null;
-  headline?: string | null;
-  slug: string;
-  section?: string | null;
-  publishedAt?: string | null;
-};
-
-export async function loadNewsroomPublishedContentItemVersions(): Promise<ContentItemVersionRecord[]> {
-  if (isLocalPreviewEnabled()) return createLocalPreviewRealPublishedVersions();
-  configureAmplifyClient();
-  const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<PublishedItemBoardRow>>;
-  };
-  const rows: PublishedItemBoardRow[] = [];
-  let nextToken: string | null = null;
-  do {
-    const response: GraphQLConnectionResponse<PublishedItemBoardRow> = await client.graphql({
-      query: PUBLISHED_ITEMS_QUERY,
-      variables: { limit: NEWSROOM_PAGE_LIMIT, nextToken },
-      authMode: USER_POOL_AUTH_MODE,
-    });
-    assertNoGraphQLErrors(response.errors);
-    const connection = response.data?.listPublishedItems;
-    if (!connection) throw new Error("Missing GraphQL connection payload for listPublishedItems.");
-    rows.push(...((connection.items ?? []).filter(Boolean) as PublishedItemBoardRow[]));
-    nextToken = connection.nextToken ?? null;
-  } while (nextToken);
-  return rows.map(row => ({
-    id: row.sourceItemId,
-    lineageId: row.itemLineageId,
-    versionNumber: row.versionNumber,
-    stage: "published",
-    type: row.type,
-    status: row.status,
-    title: row.title,
-    headline: row.headline,
-    slug: row.slug,
-    section: row.section,
-    updatedAt: row.publishedAt,
-  }));
+/** Every Story version scheduled between two UTC instants, in any state the Schedule page shows, read from the schedule index (lib/story-schedule-query.ts). */
+export async function loadNewsroomScheduledStories(from: string, to: string): Promise<ContentItemVersionRecord[]> {
+  if (isLocalPreviewEnabled()) return createLocalPreviewScheduledVersions(from, to, SCHEDULE_PAGE_STATES);
+  return readScheduledRange(contentItemStageFetch() as ScheduleQueryFetch, from, to);
 }
 
 export async function loadModelPayloadsForOwner(
@@ -2839,11 +2927,28 @@ function parseAttachmentJson(text: string): unknown {
   }
 }
 
+const SEMANTIC_NODE_BY_LINEAGE_QUERY = `
+  query ListSemanticNodesByLineage($lineageId: String!, $sortDirection: ModelSortDirection, $limit: Int) {
+    listSemanticNodesByLineageAndVersion(lineageId: $lineageId, sortDirection: $sortDirection, limit: $limit) {
+      items { id lineageId versionNumber versionState nodeKey nodeKind displayName status }
+    }
+  }
+`;
+
+/** One concept by lineage id: its newest version, one request (no scan of the site's nodes). */
+export async function loadSemanticNodeByLineageId(lineageId: string): Promise<SemanticNodeRecord | null> {
+  const normalized = lineageId.trim();
+  if (!normalized) return null;
+  const data = await runGraphql<{ listSemanticNodesByLineageAndVersion?: { items?: Array<SemanticNodeRecord | null> } }>(
+    SEMANTIC_NODE_BY_LINEAGE_QUERY, { lineageId: normalized, sortDirection: "DESC", limit: 1 });
+  return data.listSemanticNodesByLineageAndVersion?.items?.find((node): node is SemanticNodeRecord => Boolean(node)) ?? null;
+}
+
 export async function loadNewsroomSemanticNodePage(options: NewsroomSemanticNodePageOptions = {}): Promise<NewsroomRecordPage<SemanticNodeRecord>> {
   return loadNewsroomFeedPage<SemanticNodeRecord>({
     query: NEWSROOM_SEMANTIC_NODE_FEED_QUERY,
     field: "listSemanticNodesByNewsroomFeedAndCreatedAt",
-    newsroomFeedKey: "semanticNodes",
+    newsroomFeedKey: globalKey(SEMANTIC_NODE_FEED_KEY),
     limit: options.limit,
     nextToken: options.nextToken,
     matches: equalityMatcher({
@@ -3140,13 +3245,16 @@ async function loadReferencePageByStatus({
   limit = NEWSROOM_PAGE_LIMIT,
   nextToken,
   corpusId,
+  filter: suppliedFilter,
 }: {
   status: ReferenceStatus;
   limit?: number;
   nextToken?: string | null;
   corpusId?: string;
+  /** Replaces the default server filter (current, in the References feed, this corpus). */
+  filter?: Record<string, unknown>;
 }): Promise<NewsroomRecordPage<ReferenceRecord>> {
-  const filter = buildReferenceServerFilter(corpusId);
+  const filter = suppliedFilter ?? buildReferenceServerFilter(corpusId);
   return runReferenceIndexedQuery({
     query: LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY,
     field: "listReferencesByCurationStatusAndUpdatedAt",
@@ -3172,7 +3280,7 @@ async function loadReferencePageByReviewedFeed({
     query: LIST_REFERENCES_BY_REVIEWED_FEED_AND_UPDATED_AT_QUERY,
     field: "listReferencesByReviewedFeedAndUpdatedAt",
     keyName: "reviewedFeedKey",
-    keyValue: REFERENCE_REVIEWED_FEED_KEY,
+    keyValue: globalKey(REFERENCE_REVIEWED_FEED_KEY),
     limit,
     nextToken,
     filter,
@@ -3470,11 +3578,6 @@ async function loadNewsroomFeedPage<T>({
     }
     const connection = response.data?.[field];
     if (!connection) {
-      if (isMissingGraphQLQueryFieldError(response.errors, field)) {
-        throw new Error(
-          `Validation error of type FieldUndefined: Field '${field}' in type 'Query' is undefined @ '${field}'`,
-        );
-      }
       assertNoGraphQLErrors(response.errors);
       throw new Error(`Missing GraphQL connection payload for ${field}.`);
     }
@@ -3496,7 +3599,7 @@ async function loadNewsroomFeedPage<T>({
   };
 }
 
-async function loadSemanticRelationsByState({
+export async function loadSemanticRelationsByState({
   field,
   keyName,
   keyValue,
@@ -3536,8 +3639,7 @@ async function loadSemanticRelationsByState({
       rows.push(item);
     }
     nextToken = connection.nextToken ?? null;
-  } while (nextToken && pageCount < 200);
-  if (nextToken) throw new Error("Reference details are incomplete. Try again before reviewing its prediction.");
+  } while (nextToken);
   return rows;
 }
 
@@ -3965,14 +4067,6 @@ function assertNoGraphQLErrors(errors?: unknown[] | null) {
     })
     .join("; ");
   throw new Error(details);
-}
-
-function isMissingGraphQLQueryFieldError(error: unknown, fieldName: string): boolean {
-  if (Array.isArray(error)) {
-    return error.some((entry) => isMissingGraphQLQueryFieldError(entry, fieldName));
-  }
-  const message = normalizeUnknownErrorMessage(error, "");
-  return message.includes("FieldUndefined") && message.includes(fieldName);
 }
 
 function normalizeUnknownErrorMessage(error: unknown, fallback: string): string {

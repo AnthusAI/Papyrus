@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "69b4d923-b54f-4f5b-bf1f-8b95591561bb",
+  "issue_id": "PPY-c2d7f6fe-79ef-4d86-b57f-4843c41e9299",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T16:29:29.418Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Classify a Reference's medium by rule, and list videos with an index",
+    "description": "Ryan, 2026-11-04. A third attribute, separate from evidence level and voice: medium. Set programmatically from the address, with no model, and only where certain; otherwise left empty. A YouTube, Vimeo or other common video platform video address is medium video. A YouTube or other platform playlist address is an aggregation, and is not listed as a video. Applies at intake to every Reference, with a backfill of existing ones. A sparse GSI lists References by medium quickly, newest first, tenant-aware, with no scan. It exists so public Papyrus sites can add a videos page or content block, and that page or block is part of this story, with screenshot review before it ships. Only accepted References appear on public pages. The new attribute is named per the rule that new meaning names its readers: the GSI, the videos page or block, the Reference card. Relates to the Reference.type idea in PPY-0cd359; say how the two relate rather than adding a duplicate. Gherkin with the change, and p.apyr.us docs at the end.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f8ff4916-268e-45a3-97a6-d6f2d5d780f6",
+    "labels": []
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "7a132569-1a54-4001-ad59-ec56361911f3",
+  "issue_id": "PPY-70213b35-29e5-4d7d-85ca-189343667afd",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-31T12:30:57.930Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "",
+        "to": "Repo: **Papyrus**. Three small follow-ups of the editorial checks feature (#903 made the checks run on every update). One PR, three commits, or three PRs if the console error needs a release of its own.\n\n## 1. Findings panel without outlined boxes (Ryan's no-borders rule)\n- `components/editorial-findings-panel.tsx` (`EditorialFindingsPanel`, `SEVERITY_LABEL`, `CheckStatus`), `components/editorial-finding-card.tsx`, `components/editorial-preview-popover.tsx`.\n- Replace every `border`, `border-*`, `ring-*`, `outline` and `divide-*` class with flat background tones (`bg-muted`, `bg-muted/60`, rounded rectangles `rounded-xl`), as the reference feed cards do (`components/reference-feed.tsx` `FEED_SURFACE_PROPS`). Severity is shown by a Lucide icon plus the `SEVERITY_LABEL` text (`TriangleAlert`, `Info`, `CircleX`), never by colour alone. Buttons stay buttons (Accept / Reject vocabulary, `components/ui/button`), no dropdowns.\n- Gherkin: `features/newsroom-editorial-findings.feature` \"No findings surface has a border\" (a Playwright step that asserts computed `border-width` is `0px` and `outline-style` is `none` on every `[data-editorial-finding]`), following the no-borders step in `features/newsroom-conversations.feature` if it exists, else `features/step_definitions/layout.steps.js`.\n\n## 2. Dev-mode console error on the editor demo page\n- The demo is `app/newsroom/articles/[id]/page.tsx?demo=1`, rendering `NewsroomArticleEditor demo` (`components/newsroom-article-editor.tsx` ~109; it picks `demoEditorialBackend` from `lib/editorial-checks-demo.ts` at ~220 and mounts the panel at ~804).\n- Run `npm run dev`, open `http://localhost:3001/newsroom/articles/demo?demo=1`, read the console. Fix the root cause (likely a hook order / key / hydration warning from `useEditorialChecks` (`components/use-editorial-checks.ts`) or from `markus-body-editor.tsx` decorations); do not silence it. Record the exact message on this task before fixing.\n- Gherkin: in the same feature file, \"The editor demo page logs no console errors\" (Playwright `page.on('console')`, level error, count 0), run in the `features/` cucumber profile that already drives `newsroom-editorial-preview.feature`.\n\n## 3. Live-verify highlights on a real Anth.us Story\n- After the release reaches Anth.us (its `papyrusVersion` bump), open a real Story in https://newsroom.anth.us, trigger a check and confirm the CodeMirror `.cm-editorial-finding` / `.cm-editorial-error` wavy underlines (`components/markus-body-editor.tsx` `decorationsFor()` ~50, `findingField` ~74) appear at the right ranges and the popover opens from them. Screenshot at 1440 px for Ryan, attach a description (not the image) to this task. Read-only on production content: do not accept a suggestion on a real Story.\n\n## Acceptance\n`npm run lint`, `npm run test:features` green; the findings panel has zero borders (step above); console clean on the demo page; live verification recorded."
+      }
+    }
+  }
+}

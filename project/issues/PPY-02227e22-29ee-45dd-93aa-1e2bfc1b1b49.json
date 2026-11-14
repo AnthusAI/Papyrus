@@ -1,0 +1,30 @@
+{
+  "id": "PPY-02227e22-29ee-45dd-93aa-1e2bfc1b1b49",
+  "title": "Documentation on p.apyr.us and the tenant ownership statement",
+  "description": "Why: standing rule: every Papyrus feature epic ends with p.apyr.us documentation. Plus a plain statement of who owns what.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "03e3baa6-df22-416c-988c-4858409cc02e",
+      "author": "home",
+      "text": "docs/multi-tenancy.md rewrite: PPY-bd73b2.",
+      "created_at": "2026-11-08T18:48:46.077086Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-07T21:43:10.555091Z",
+  "updated_at": "2026-11-08T18:48:46.077396Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

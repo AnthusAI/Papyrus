@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "573a87c9-e10e-4e8e-97ea-3a940fd42b33",
+  "issue_id": "PPY-c3f1e018-83b6-4f2e-a8fe-8ebf465df8bb",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-05T12:14:58.210Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Credit every third-party image wherever it appears",
+        "to": "Credit third-party images under them on content pages"
+      },
+      "description": {
+        "from": "Ryan 2026-11-05: third-party images always get a credit, whether or not the licence requires attribution. Show the creator, the source and the licence, linked to the source page, on the article and wherever else the image appears at reading size; decide with Ryan how a small card shows it. The record comes from PPY-0ad0d0. The older rule of no credits except Source and Illustrative still applies to our own drawn figures. A stock image with no known creator or licence can't be chosen. Gherkin specs included.",
+        "to": "Ryan 2026-11-05: third-party images always get a credit on the content page that uses them, under the image, whether or not the licence requires attribution. Show the creator, the source and the licence, linked to the source page. No credits on index pages or cards: Ryan decided that, even where a licence might require it, because it would create too much noise. The record comes from PPY-0ad0d0. The older rule of no credits except Source and Illustrative still applies to our own drawn figures. A stock image with no known creator or licence can't be chosen. Gherkin specs included."
+      }
+    }
+  }
+}

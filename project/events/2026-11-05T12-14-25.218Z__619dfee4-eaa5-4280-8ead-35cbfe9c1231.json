@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "619dfee4-eaa5-4280-8ead-35cbfe9c1231",
+  "issue_id": "PPY-ff3780ac-803a-4452-b943-af1d4d993b07",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-05T12:14:25.218Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Generate cover images when a diagram doesn't make sense and no stock image gets approved. Uses the same four-option picker.\n\nOpen decisions for Ryan: which image model and provider, a per-site cost limit, and whether generated images are labelled for readers. Any model or provider choice needs his explicit approval.",
+        "to": "Generate cover images when a diagram doesn't make sense and no stock image gets approved. Uses the same four-option picker.\n\nOpen decisions for Ryan: which image model and provider, and whether generated images are labelled for readers. Any model or provider choice needs his explicit approval.\n\nOut of scope (Ryan 2026-11-05): quotas, usage limits and billing. Cost accounting belongs to the separate billing initiative. This epic only records each generation's model and prompt on the image, which is already part of PPY-7c3f6a."
+      }
+    }
+  }
+}

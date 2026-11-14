@@ -1,0 +1,35 @@
+{
+  "id": "PPY-c8cb4439-92fc-4f0a-b4ba-35ed2d2a6732",
+  "title": "References feed loads every Reference and attachment before showing anything",
+  "description": "On Machines on Machines (about 7,700 References, 13,000 attachments) the newsroom's References page shows only the skeleton for up to about 2.5 minutes. loadEditorReferencesData pages the whole Reference and ReferenceAttachment tables, and the merged status loader asks each status for about 13 rows per request. The page waits for all of it. The indexes that make this unnecessary exist: listReferencesByFeedStateAndPrediction and its arrival twin, docs/reference-feed-indexes.md. If the load fails, the catch sets actionState but the loading flag stays true, so the skeleton never ends. Other sites have the same cost at smaller size: Shipped about 3,000 References, Threat Intelligence about 2,500.",
+  "type": "bug",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "df4e8d33-ca8e-4953-ab88-6cb99dcdb081",
+      "author": "home",
+      "text": "Fix on branch fix/PPY-c8cb44-feed-load: the feed reads its first page from the feed-state indexes (one page of 24 per corpus partition, merged), pages on scroll, batches attachments and predictions for the shown cards, and shows an error with Retry. All Reference-creating paths set the feed keys (records.py new versions and chat votes fixed). backfill-feed-keys takes --corpus-key a,b,c and --all-corpora. Deferred and filed: message counts per shown card, near-screen observer, whole-table reads on Desks/Topics/Concepts/Administration and the List view.",
+      "created_at": "2026-11-02T22:38:01.337085Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "c6515a13-9e5f-41df-b725-cfb5a1b81077",
+      "author": "home",
+      "text": "Fix on branch fix/PPY-c8cb44-feed-load: feed reads its first page from the feed-state indexes (24 per corpus partition, merged), pages on scroll, batches attachments and predictions for shown cards, error with Retry. All Reference-creating paths set the feed keys (records.py new versions and chat votes fixed). backfill-feed-keys takes --corpus-key a,b,c and --all-corpora. Deferred and filed: message counts per shown card, near-screen observer, whole-table reads on Desks/Topics/Concepts/Administration and List view.",
+      "created_at": "2026-11-02T22:38:04.720325Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-02T21:54:01.054769Z",
+  "updated_at": "2026-11-02T22:38:04.720614Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

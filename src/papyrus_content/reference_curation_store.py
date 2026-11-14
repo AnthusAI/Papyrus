@@ -21,7 +21,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from .ids import hash_short
-from .model_attachments import build_model_payload_attachment, download_attachment_buffer, model_attachment_id, upload_attachment_body
+from .reference_capture_state import sync_capture_state
+from .model_attachments import build_model_payload_attachment, download_attachment_buffer, upload_attachment_body
 
 PIPELINE_VERSION = "reference-curation-v1"
 CARD_SCHEMA_VERSION = 1
@@ -31,6 +32,7 @@ BODY_ROLE = "metadata"
 TEXT_SORT_KEY = "curation-text"
 GROBID_SORT_KEY = "curation-grobid"
 GROBID_TEI_SORT_KEY = "curation-grobid-tei"
+LINKS_SORT_KEY = "curation-links"
 METADATA_SORT_KEY = "metadata"
 EDITOR_PROVENANCE = "edited by editor"
 ASSESSMENTS = ("complete", "incomplete", "incorrect")
@@ -99,6 +101,9 @@ def write_card(client: Any, reference: dict[str, Any], card: dict[str, Any], now
         "role": CARD_ATTACHMENT_TYPE, "sortKey": CARD_SORT_KEY, "sourceUri": None, "filename": "curation.json", "mediaType": "application/json",
         "importedAt": iso(now), "metadata": json.dumps(card, sort_keys=True),
     })
+    # Every path that changes captured text or the card writes the card (the curation run at its start and end, an editor's paste, corrected
+    # text, PDF upload or assessment), so this is where the Reference's stored capture state is kept right (docs/reference-curation-pipeline.md).
+    sync_capture_state(client, reference, card)
 
 
 def compute_status(card: dict[str, Any]) -> str:
@@ -134,8 +139,19 @@ class AttachmentStore:
         upload_attachment_body(self.client, entry["attachment"], entry["body"])
         return entry["attachment"]
 
+    def find(self, reference: dict[str, Any], sort_key: str) -> dict[str, Any] | None:
+        """The active body of ``sort_key`` for this Reference version, found through the owner index (``modelAttachmentsByOwnerRoleAndSortKey``).
+
+        The id is the upload function's to make (TypeScript ``safeId``), so the client does not build one: that disagreed for Reference ids longer than
+        80 characters and made a stored body read as missing (PPY-caa222). The index lists only this Reference's few bodies, never a table.
+        """
+        rows = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", reference["id"])
+        found = [row for row in rows if row.get("ownerKind") == "reference" and row.get("ownerId") == reference["id"] and row.get("role") == BODY_ROLE
+                 and row.get("sortKey") == sort_key and row.get("status") in (None, "", "active") and row.get("storagePath")]
+        return max(found, key=lambda row: str(row.get("updatedAt") or row.get("createdAt") or "")) if found else None
+
     def read(self, reference: dict[str, Any], sort_key: str) -> bytes | None:
-        attachment = self.client.get_record("ModelAttachment", model_attachment_id("reference", reference["id"], BODY_ROLE, sort_key))
+        attachment = self.find(reference, sort_key)
         return download_attachment_buffer(self.client, attachment) if attachment else None
 
     def get_attachment(self, attachment_id: str) -> dict[str, Any] | None:
@@ -234,6 +250,7 @@ def apply_editor_correction(
     store: AttachmentStore | None = None,
     text_source: dict[str, Any] | None = None,
     paper: dict[str, Any] | None = None,
+    capture_reason: str | None = None,
 ) -> dict[str, Any]:
     """Store an editor's correction as a new version, keep the original, and record the label it gives.
 
@@ -242,13 +259,25 @@ def apply_editor_correction(
     ``incorrect``; it is required with ``text`` because replacing the text is itself a judgment of the capture, and it is the training
     label for the future completeness classifier. A correction appends to ``edits`` and ``labels``; it never edits or deletes an earlier
     body. ``text_source`` says where ``text`` came from when it was not typed (an uploaded PDF: ``via`` and the attachment id); it is
-    kept on the edit and as ``current.textVia``. ``paper`` is the paper detection for that text and replaces the card's. The summary of replaced text is marked ``stale`` and is rewritten by the next ``papyrus references curate`` run.
+    kept on the edit and as ``current.textVia``. ``capture_reason`` (``no_transcript``, ``unavailable`` or ``unsupported_platform``, a video only, never with ``text``) records that a person
+    or the transcript worker tried and nothing can be captured automatically; it goes on the card's capture as ``textReason`` and takes the Reference
+    out of the transcript worker's list (``sync_capture_state``). ``paper`` is the paper detection for that text and replaces the card's. The summary of replaced text is marked ``stale`` and is rewritten by the next ``papyrus references curate`` run.
     """
     editor = (editor or "").strip()
     if not editor:
         raise CurationError("A correction needs the editor who made it.")
-    if text is None and grobid is None and assessment is None:
+    if text is None and grobid is None and assessment is None and capture_reason is None:
         raise CurationError("Provide corrected text, corrected GROBID fields or an assessment of the capture.")
+    if capture_reason is not None:
+        from .reference_capture_state import SETTLED_CAPTURE_REASONS
+        from .reference_medium import medium_of
+
+        if capture_reason not in SETTLED_CAPTURE_REASONS:
+            raise CurationError(f"captureReason must be one of {', '.join(SETTLED_CAPTURE_REASONS)}.")
+        if text is not None:
+            raise CurationError("Send either the text or a reason it cannot be captured, not both.")
+        if medium_of(reference.get("sourceUri")) != "video":
+            raise CurationError("A reason for a missing transcript can only be recorded on a video.")
     if assessment is not None and assessment not in ASSESSMENTS:
         raise CurationError(f"assessment must be one of {', '.join(ASSESSMENTS)}.")
     if text is not None and (not isinstance(text, str) or not text.strip()):
@@ -311,6 +340,10 @@ def apply_editor_correction(
             "originalSourceKind": capture.get("sourceKind"), "originalTextSortKey": TEXT_SORT_KEY if original_text_sha else None,
             "originalTextSha256": original_text_sha, "originalSignals": card.get("signals") or {},
             "originalPaper": (card.get("paper") or {}).get("isPaper"), "editSortKeys": [edit["sortKey"] for edit in made]})
+    if capture_reason is not None:
+        capture = dict(card.get("capture") or {})
+        capture.update(textReason=capture_reason, textReasonBy=editor, textReasonAt=stamp)
+        card["capture"] = capture
     card["edits"].extend(made)
     card["status"] = compute_status(card)
     write_card(client, reference, card, now)
@@ -333,14 +366,37 @@ def correct_reference_capture(client: Any, arguments: dict[str, Any], identity: 
     """The AppSync action ``correctReferenceCapture`` (content-actions Lambda): validated request in, stored correction out.
 
     ``arguments`` holds ``referenceId`` and any of ``text``, ``grobid`` (object), ``assessment``, ``note``, or ``pdfAttachmentId`` (the
-    id of a PDF the editor uploaded to this Reference; its text replaces the capture's, instead of ``text``). The editor recorded is the
+    id of a PDF the editor uploaded to this Reference; its text replaces the capture's, instead of ``text``) or ``captureReason``
+    (``no_transcript``, ``unavailable`` or ``unsupported_platform``: the transcript worker found nothing to capture on this video). The editor recorded is the
     signed-in caller (never a field of the request).
     """
-    if set(arguments) - {"referenceId", "text", "grobid", "assessment", "note", "pdfAttachmentId"}:
+    if set(arguments) - {"referenceId", "text", "grobid", "assessment", "note", "pdfAttachmentId", "captureReason", "thumbnail", "pageTitle"}:
         raise CurationError("Unsupported correction fields; the editor is taken from the signed-in session.")
     reference_id = arguments.get("referenceId")
     if not isinstance(reference_id, str) or not _REFERENCE_ID.match(reference_id):
         raise CurationError("referenceId must be a Reference id.")
+    if arguments.get("pageTitle") is not None:
+        # `papyrus references repair-titles` gives a Reference titled with its own address the title its page declares. Only that: a title that is
+        # not an address (an editor's, or the source's own) is kept, and the answer says so.
+        if set(arguments) - {"referenceId", "pageTitle"} or not isinstance(arguments["pageTitle"], str):
+            raise CurationError("A page title is sent alone, as text.")
+        from .reference_titles import record_page_title, usable_title
+
+        if usable_title(arguments["pageTitle"]) is None:
+            raise CurationError("That is not a page title: it is empty, an address or a stock error title.")
+        reference = find_reference(client, reference_id)
+        outcome = record_page_title(client, reference, arguments["pageTitle"])
+        return {"ok": True, "referenceId": reference_id, "title": reference.get("title"), "changed": outcome == "set"}
+    if arguments.get("thumbnail") is not None:
+        # The thumbnail worker (`papyrus references capture-thumbnails`) records a video's own picture, already copied to the media bucket, on the Reference.
+        if set(arguments) - {"referenceId", "thumbnail"} or not isinstance(arguments["thumbnail"], dict):
+            raise CurationError("A thumbnail is sent alone, as an object.")
+        from .reference_thumbnails import Refused, record_thumbnail
+
+        try:
+            return {"ok": True, **record_thumbnail(client, find_reference(client, reference_id), arguments["thumbnail"])}
+        except Refused as refusal:
+            raise CurationError(str(refusal)) from refusal
     editor = str((identity or {}).get("username") or (identity or {}).get("sub") or "").strip()
     note = arguments.get("note") or ""
     if not isinstance(note, str) or len(note) > 4000:
@@ -358,5 +414,5 @@ def correct_reference_capture(client: Any, arguments: dict[str, Any], identity: 
         paper = detect_paper(str(reference.get("sourceUri") or ""), None, text=text)
     result = apply_editor_correction(client, reference, editor=editor, text=text, grobid=arguments.get("grobid"),
                                      assessment=arguments.get("assessment"), note=note, now=now(), store=store,
-                                     text_source=text_source, paper=paper)
+                                     text_source=text_source, paper=paper, capture_reason=arguments.get("captureReason"))
     return {"ok": True, **result}

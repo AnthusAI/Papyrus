@@ -24,6 +24,10 @@ Outputs in `dist-packages/`: `anthusai-papyrus-<v>.tgz` (the only npm tarball),
 | `@anthusai/papyrus/infra` (CDK constructs, optional peers) + `papyrus-infra` bin | stage step in `packages/papyrus/scripts/stage.mjs`, `bin/papyrus-infra.mjs` |
 | `defineSite()`, `papyrus-site` alias | `lib/define-site.ts`, `papyrus.config.ts`, `tsconfig.json` paths |
 
+## Amplify builds only deploy
+
+CI (type-check, lint, tests) runs in GitHub Actions for public repos and locally for private ones, never in Amplify: Amplify build minutes cost money and `next build`'s "Linting and checking validity of types" step ran out of memory there. When `withPapyrus` sees the variables Amplify sets during a build (`AWS_APP_ID` or `AWS_BRANCH`) it defaults `typescript.ignoreBuildErrors` and `eslint.ignoreDuringBuilds` to `true`. A site's own values for those keys win. Outside Amplify (local, GitHub Actions, `scripts/check-consumer-site-typecheck.mjs`) the checks run as before. To debug a type error in Amplify, set `PAPYRUS_NEXT_BUILD_CHECKS=1` in the app's environment variables. Verified by `npm run test:with-papyrus-build-checks` and `features/with-papyrus-build-checks.feature`.
+
 ## Brand packs are site-owned
 
 The npm package ships no publication code (staging refuses to), so a site's `publication/` brand pack is its own copy of a pack like `publications/anth_us/` and `papyrus-app sync` never touches it. Nothing upgrades it either, so it can fall behind the reference pack (a new logo component, CSS or font). After upgrading Papyrus, run `papyrus-app brand diff <brand-id> [--papyrus ../Papyrus]` from the site: it lists files the reference gained, files that differ (imports are normalized, so only real differences show) and site-only files, and exits 1 on drift. Site-specific edits, such as `readerDeployment`, are expected to appear as differences.

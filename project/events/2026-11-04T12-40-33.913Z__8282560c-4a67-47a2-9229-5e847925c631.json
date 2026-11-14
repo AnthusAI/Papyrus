@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8282560c-4a67-47a2-9229-5e847925c631",
+  "issue_id": "PPY-bf97ec20-fb5d-4b93-8520-44edf0d2a675",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T12:40:33.913Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Personal notification settings and subscriptions UI",
+    "description": "Where each person chooses what they receive and on which channels, shared across apps, plus the public subscribe flow for people with no account. Lucide icons, flat fills, no borders, buttons not dropdowns; screenshot review.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7d8a36a2-ce77-450a-bf0a-03c9798a1102",
+    "labels": []
+  }
+}

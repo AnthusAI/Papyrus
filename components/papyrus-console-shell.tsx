@@ -71,7 +71,7 @@ const CONSOLE_MESSAGE_DOMAIN = "conversation";
 const CONSOLE_SEMANTIC_LAYER = "chat_detail";
 const CONSOLE_SEARCH_VISIBILITY = "explicit";
 const CONSOLE_RESPONSE_TARGET = process.env.NEXT_PUBLIC_PAPYRUS_CONSOLE_RESPONSE_TARGET?.trim() || "cloud";
-const DEFAULT_CONSOLE_MODEL = process.env.NEXT_PUBLIC_PAPYRUS_CONSOLE_MODEL?.trim() || "gpt-5.4-mini";
+const DEFAULT_CONSOLE_MODEL = process.env.NEXT_PUBLIC_PAPYRUS_CONSOLE_MODEL?.trim() || "gpt-6-luna";
 const CONSOLE_SELECT_THREAD_EVENT = "papyrus:console-select-thread";
 const ASSISTANT_AVATAR_SIZE_PX = 32;
 const ASSISTANT_AVATAR_DEFAULT_SHADOW_COLOR = "rgb(var(--ink-solid-rgb) / var(--ink-display-alpha))";
@@ -100,6 +100,7 @@ const VultusBotAvatar = dynamic<VultusBotAvatarProps>(
   { ssr: false },
 );
 const CONSOLE_MODEL_OPTIONS = [
+  { value: "gpt-6-luna", label: "GPT 6 Luna", provider: "openai" },
   { value: "gpt-5.5", label: "GPT 5.5", provider: "openai" },
   { value: "gpt-5.4", label: "GPT 5.4", provider: "openai" },
   { value: "gpt-5.4-mini", label: "GPT 5.4 Mini", provider: "openai" },

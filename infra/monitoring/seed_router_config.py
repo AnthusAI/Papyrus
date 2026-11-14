@@ -2,6 +2,8 @@
 """Seed, replace or flip the router config item (`CONFIG#router`). Config is data in the table.
 
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --file router.json [--replace]
+  AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --file router.json \
+      --amplify-outputs anth-us=/path/to/Anth.us-web/amplify_outputs.json --amplify-outputs p-apyr-us=/path/to/Papyrus-web/amplify_outputs.json [--replace]
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --set mode=live
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --set enabled=false
 `--file` is a JSON document of the shape in docs/monitoring-cloud.md (example:
@@ -11,6 +13,12 @@ validator, so a config the router would refuse is never stored. Each publication
 (fallback only, used when a criteria fingerprint is unknown: earliest binding revision whose criteria match the
 current ones; default = current revision; otherwise the criteriaFingerprint comparison decides): editor feedback
 stored under an older revision is dropped as stale, otherwise it is sent under the current revision. Asserts the AWS account.
+`--amplify-outputs PUBLICATION_ID=PATH` (repeatable) fills that publication's `monitorStories.vectorIndexArn` from `custom.knowledgeQuery.s3VectorIndexArn` and
+`monitorStories.storageBucketName` from `storage.bucket_name` in the site's `amplify_outputs.json`, so neither is ever typed; the router's vector pass
+(docs/monitoring-cloud.md#vector-index-and-suggestions) needs both, and a publication without them runs without vectors. A publication named there that is not in the file,
+or an outputs file without the index, is an error.
+A publication's `monitorStories` may carry `enabled`, `singleItem` (default true) and `contextPacks` (`enabled`, default true, and `signals`, a list from
+conversation|acceptance|hub|cluster|resurfaced; omitted means every signal that has data), see docs/monitoring-cloud.md#monitor-stories-daily.
 """
 import argparse
 import json
@@ -23,6 +31,34 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from papyrus_content.monitoring_router import ROUTER_CONFIG_SK, RETIRED_ROUTER_FIELDS, validate_router_config  # noqa: E402
 
 ACCOUNT = "712236451410"
+
+
+def vector_settings_from_outputs(outputs: dict, publication_id: str) -> dict:
+    """The `monitorStories` keys one site's `amplify_outputs.json` supplies: `vectorIndexArn` and `storageBucketName`."""
+    knowledge_query = (outputs.get("custom") or {}).get("knowledgeQuery") or {}
+    arn = knowledge_query.get("s3VectorIndexArn")
+    bucket = (outputs.get("storage") or {}).get("bucket_name")
+    if not isinstance(arn, str) or not arn:
+        raise ValueError(f"{publication_id}: amplify_outputs.json has no custom.knowledgeQuery.s3VectorIndexArn")
+    if not isinstance(bucket, str) or not bucket:
+        raise ValueError(f"{publication_id}: amplify_outputs.json has no storage.bucket_name")
+    return {"vectorIndexArn": arn, "storageBucketName": bucket}
+
+
+def fill_vector_settings(config: dict, outputs_by_publication: dict[str, dict]) -> dict:
+    """The config with each named publication's `monitorStories` carrying the index ARN and bucket from its `amplify_outputs.json`."""
+    known = {entry.get("publicationId") for entry in config.get("publications") or []}
+    unknown = sorted(set(outputs_by_publication) - known)
+    if unknown:
+        raise ValueError(f"--amplify-outputs names publications that are not in the config: {', '.join(unknown)}")
+    publications = []
+    for entry in config.get("publications") or []:
+        outputs = outputs_by_publication.get(entry.get("publicationId"))
+        if outputs is None:
+            publications.append(entry)
+            continue
+        publications.append({**entry, "monitorStories": {**(entry.get("monitorStories") or {}), **vector_settings_from_outputs(outputs, entry["publicationId"])}})
+    return {**config, "publications": publications}
 
 
 def coerce(key: str, value: str):
@@ -41,17 +77,23 @@ def main() -> int:
     parser.add_argument("--monitor-id", default="hn")
     parser.add_argument("--file", help="router config JSON")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE")
+    parser.add_argument("--amplify-outputs", action="append", default=[], metavar="PUBLICATION_ID=PATH",
+                        help="with --file: fill that publication's monitorStories.vectorIndexArn and storageBucketName from the site's amplify_outputs.json")
     parser.add_argument("--replace", action="store_true", help="overwrite an existing router config with --file")
     args = parser.parse_args()
     if bool(args.file) == bool(args.set):
         parser.error("give exactly one of --file or --set")
+    if args.amplify_outputs and not args.file:
+        parser.error("--amplify-outputs goes with --file")
     if boto3.client("sts").get_caller_identity()["Account"] != ACCOUNT:
         print(f"Refusing to write: caller account is not {ACCOUNT}", file=sys.stderr)
         return 2
     table = boto3.resource("dynamodb").Table(args.table)
     key = {"pk": f"MONITOR#{args.monitor_id}", "sk": ROUTER_CONFIG_SK}
     if args.file:
-        item = {**json.loads(Path(args.file).read_text()), **key}
+        document = json.loads(Path(args.file).read_text())
+        outputs = {name: json.loads(Path(path).read_text()) for name, _, path in (pair.partition("=") for pair in args.amplify_outputs)}
+        item = {**fill_vector_settings(document, outputs), **key}
         validate_router_config(item)
         kwargs = {} if args.replace else {"ConditionExpression": "attribute_not_exists(pk)"}
         try:

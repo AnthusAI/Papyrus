@@ -1,0 +1,22 @@
+{
+  "id": "PPY-3daa6c05-8d50-459a-9396-bcb498840fc6",
+  "title": "Hook gap ledger: every hook in use is listed and tracked for promotion",
+  "description": "What: a machine-readable list of hooks used per dedicated site, with the Kanbus issue promoting each into core. Hooks are refused on shared tenants.\nAcceptance:\nScenario: A shared tenant cannot register a hook\n  Given a shared tenant's configuration naming a hook\n  When it is validated\n  Then it is rejected",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:43:09.573231Z",
+  "updated_at": "2026-11-07T21:43:09.573270Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

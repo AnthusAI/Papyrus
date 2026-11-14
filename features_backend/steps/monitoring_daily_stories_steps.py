@@ -24,6 +24,15 @@ from test_monitor_stories import MonitorClient, decision  # noqa: E402
 
 def before_scenario_environment():
     os.environ["PAPYRUS_GRAPHQL_AUTH"] = "iam"   # the router Lambda's setting
+    # The router files ideas through ItemStore; these scenarios read what was filed from the fake backend, so the sink is its recording double.
+    from unittest import mock
+
+    from fake_idea_store import FakeIdeaStore
+
+    from procedures.newsroom.tests.test_idea_items import FakeGate
+
+    mock.patch("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: FakeGate())).start()
+    mock.patch("papyrus_content.ideas.items.ItemStore", lambda client, **options: FakeIdeaStore(client, gate=options.get("gate"))).start()
 
 
 def state(context):
@@ -115,7 +124,7 @@ def step_second(context, publication, count, monitor):
 @given("the Lambda runs out of time after {count:d} drafts")
 def step_time(context, count):
     held = state(context)
-    held.left = lambda: 1e9 if len(held.model.requests) < count else 0
+    held.left = lambda: 1e9 if len(held.model.drafting) < count else 0
 
 
 @given("every draft takes {seconds:d} seconds of a {total:d} second Lambda")
@@ -126,7 +135,7 @@ def step_slow(context, seconds, total):
     held.left = lambda: held.slow.left
 
 
-@given("the backend refuses to file proposals")
+@given("the backend refuses to file ideas")
 def step_refuse(context):
     client = state(context).clients[state(context).publications[0]]
     original = client.graphql
@@ -139,10 +148,38 @@ def step_refuse(context):
     client.graphql = graphql
 
 
-def run(context):
+def run(context, publication_id=None):
     held = state(context)
-    result, lines = tms.run_task(held.store, held.clients, held.slow or held.model, time_left=held.left)
+    held.locks = []
+    original = held.store.acquire_router_lock
+    held.store.acquire_router_lock = lambda *a, **k: (held.locks.append(k.get("sk", "LOCK#router")), original(*a, **k))[1]
+    result, lines = tms.run_task(held.store, held.clients, held.slow or held.model, time_left=held.left, gate=getattr(held, "gate", None),
+                                 publication_id=publication_id)
     held.result, held.lines = result, lines
+
+
+@when('the router runs its daily monitor stories for the publication "{publication}"')
+def step_run_one(context, publication):
+    run(context, publication)
+
+
+@then('{count:d} story drafts are filed for "{publication}" and none for "{other}"')
+def step_filed_for(context, count, publication, other):
+    assert len(filed(context, publication)) == count and not filed(context, other)
+
+
+@then('the run took the lock of "{publication}", not the router lock, and released it')
+def step_lock(context, publication):
+    held = state(context)
+    assert held.locks == [f"LOCK#monitor-stories#{publication}"], held.locks
+    assert not [key for key in held.table.items if str(key[1]).startswith("LOCK#")]
+
+
+@then('the result is an error that names "{publication}", nothing is drafted and nothing stays locked')
+def step_unknown(context, publication):
+    held = state(context)
+    assert held.result["status"] == "error" and publication in held.result["reason"] and not held.locks
+    assert not filed(context) and not [key for key in held.table.items if str(key[1]).startswith("LOCK#")]
 
 
 @when("the router runs its daily monitor stories")
@@ -199,9 +236,40 @@ def step_which(context, first, second):
     assert numbers == [first, second], numbers
 
 
+@given("the backend refuses to file the first idea only")
+def step_refuse_first(context):
+    client = state(context).clients[state(context).publications[0]]
+    original, refused = client.graphql, []
+
+    def graphql(query, variables=None):
+        if "fileProposal" in query and not refused:
+            refused.append(1)
+            raise RuntimeError("one record is bad")
+        return original(query, variables)
+
+    client.graphql = graphql
+
+
+@then("the model was asked exactly twice")
+def step_twice(context):
+    assert len(state(context).model.drafting) == 2, len(state(context).model.drafting)
+
+
+@then('the log line for "{publication}" says 2 filing errors were recorded and why the run stopped')
+def step_two_errors(context, publication):
+    line = state(context).lines[publication]
+    assert line["fileErrors"] == 2 and "twice in a row" in line["fileErrorReason"], line
+
+
+@then('the log line for "{publication}" says drafted 2 and 1 filing error was recorded')
+def step_one_error(context, publication):
+    line = state(context).lines[publication]
+    assert line["drafted"] == 2 and line["fileErrors"] == 1 and line["stoppedBy"] != "file_error", line
+
+
 @then("the model was asked exactly once")
 def step_once(context):
-    assert len(state(context).model.requests) == 1, len(state(context).model.requests)
+    assert len(state(context).model.drafting) == 1, len(state(context).model.drafting)
 
 
 def check(context, publication, expected):
@@ -243,3 +311,71 @@ def step_line_drafted_none(context, publication, drafted):
 @then('the log line for "{publication}" says stoppedBy "{stopped}"')
 def step_line_stopped_only(context, publication, stopped):
     check(context, publication, {"stoppedBy": stopped})
+
+
+def _gate(context, gate):
+    state(context).gate = gate
+
+
+@given('the router\'s editorial check finds an error violation of "{policy}" and a warning')
+def step_gate_error(context, policy):
+    from procedures.newsroom.tests import test_idea_items as support
+
+    _gate(context, support.FakeGate([support.finding("error", policy=policy), support.finding("warn")]))
+
+
+@given("the router's editorial check finds only a warning")
+def step_gate_warning(context):
+    from procedures.newsroom.tests import test_idea_items as support
+
+    _gate(context, support.FakeGate([support.finding("warn")]))
+
+
+@given("the router has no TypeSafe key")
+def step_no_key(context):
+    from papyrus_content.monitoring_stories import lambda_judgment_key
+    from procedures.newsroom.tests import test_idea_items as support
+
+    assert lambda_judgment_key({}) is None   # no parameter configured: the lane is recorded as not run, never an error
+    _gate(context, support.FakeGate(classifier={"status": "unavailable", "reason": "no decision model is configured (set TYPESAFE_API_KEY)"}))
+
+
+@then('the log line for "{publication}" says {count:d} ideas were refused by the editorial check and drafted {drafted:d}')
+def step_refused(context, publication, count, drafted):
+    line = state(context).lines[publication]
+    assert (line["refusedByEditorialCheck"], line["drafted"]) == (count, drafted), line
+
+
+@then("the editorial check ran on both and its result was stored with each idea")
+def step_check_stored(context):
+    held = state(context)
+    assert len(held.gate.seen) == 2 and len(held.gate.recorded) == 2, (held.gate.seen, held.gate.recorded)
+
+
+@then("the stored check says the rules lane ran and the judgment lane did not run, and why")
+def step_lanes(context):
+    [(_, result)] = state(context).gate.recorded
+    assert result["lanes"]["rules"]["status"] == "ran" and result["lanes"]["classifier"]["status"] == "unavailable"
+    assert "TYPESAFE_API_KEY" in result["lanes"]["classifier"]["reason"]
+
+
+@then("no story draft is filed")
+def step_none_filed(context):
+    assert not filed(context), filed(context)
+
+
+@when("the router runs its daily monitor stories without naming a publication")
+def step_fan_out(context):
+    from papyrus_content.monitoring_router import run_router
+
+    held = state(context)
+    held.started = []
+    held.result = run_router(held.store, "hn", now=tms.NOW.timestamp(), task="monitor-stories", fan_out=held.started.append, story_transport=held.model)
+
+
+@then('it starts one run for "{first}" and one for "{second}", takes no lock and files no story draft')
+def step_fanned(context, first, second):
+    held = state(context)
+    assert held.result["status"] == "fanned-out" and held.started == [first, second]
+    assert not filed(context, first) and not filed(context, second)
+    assert not [key for key in held.table.items if str(key[1]).startswith("LOCK#")]

@@ -17,16 +17,45 @@ export function reprojectDeployToken(environment: Record<string, string | undefi
 }
 
 /**
- * Runs inside the deploy: invokes the content-actions Lambda synchronously, so a render that fails fails the
+ * Runs inside the deploy: invokes the content-actions Lambda synchronously, so a render that cannot finish fails the
  * stack update (and with it the Amplify build) with the failure in the build log. The Lambda's result, which
- * includes the drift check, is written to its log and returned as the resource's data.
+ * includes the drift check and the Stories it could not render, is written to its log and returned as the resource's data.
+ *
+ * What fails the deploy and what does not:
+ * - A Story whose own content cannot be rendered does not. The function skips it, renders the others and reports it
+ *   (unrenderable in the result, and in the DeployRenderDrift count the alarm watches). One Story's markup must not
+ *   hold a site's backend deploys hostage.
+ * - A failure of the platform (the function crashes, storage fails, the projector is broken) does, as before: that is a
+ *   bad deploy and the point of the resource is to catch it.
+ * - A rollback never does. CloudFormation rolls back by running an Update with the previous properties, so an Update whose
+ *   deploy token is older than the one it replaces (same kind of token) is a rollback; it renders nothing and succeeds,
+ *   because a rollback that fails leaves the stack in UPDATE_ROLLBACK_FAILED and blocks every later deploy.
+ * - Delete never does.
  */
 export const DEPLOY_RENDER_HANDLER_SOURCE = `
 const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda");
 
+function tokenParts(token) {
+  const match = /^([a-z]+)-(\\d+)$/.exec(String(token || ""));
+  return match ? { kind: match[1], number: Number(match[2]) } : null;
+}
+
+function isRollback(event) {
+  if (event.RequestType !== "Update") return false;
+  const now = tokenParts((event.ResourceProperties || {}).DeployToken);
+  const before = tokenParts((event.OldResourceProperties || {}).DeployToken);
+  return now !== null && before !== null && now.kind === before.kind && now.number < before.number;
+}
+
+exports.isRollback = isRollback;
 exports.handler = async (event) => {
   if (event.RequestType === "Delete") return { PhysicalResourceId: event.PhysicalResourceId };
   const properties = event.ResourceProperties;
+  const physicalId = "reproject-" + properties.DeployToken;
+  if (isRollback(event)) {
+    console.log("deploy render skipped: this update is a rollback to " + properties.DeployToken);
+    return { PhysicalResourceId: physicalId, Data: { Result: "skipped: rollback" } };
+  }
   const client = new LambdaClient({ maxAttempts: 1 });
   const response = await client.send(new InvokeCommand({
     FunctionName: properties.FunctionName,
@@ -38,7 +67,7 @@ exports.handler = async (event) => {
   if (response.FunctionError) {
     throw new Error("The post-deploy render failed (" + response.FunctionError + "): " + text.slice(0, ${FAILURE_MESSAGE_LIMIT}));
   }
-  return { PhysicalResourceId: "reproject-" + properties.DeployToken, Data: { Result: text.slice(0, ${RESULT_SUMMARY_LIMIT}) } };
+  return { PhysicalResourceId: physicalId, Data: { Result: text.slice(0, ${RESULT_SUMMARY_LIMIT}) } };
 };
 `;
 

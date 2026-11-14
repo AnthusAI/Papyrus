@@ -90,7 +90,7 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
 - **GraphQL auth split (do not mix):**
   - **Editorial CLI users** may use the configured native Google/Cognito login
     in [CLI login](cli-login.md), under the same server-checked user permissions
-    as the newsroom. Renewable session material belongs only in macOS Keychain;
+    as the newsroom. Renewable session material belongs only in the platform secure store (macOS Keychain, Linux keyring or memory agent, Windows Credential Manager);
     public publication/client selection metadata may be persisted separately.
     Never scrape browser cookies, log tokens, invent grants, use API-key/guest
     authoring, or fall back to a broader IAM identity when user auth fails.
@@ -105,6 +105,13 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
     not add alternate GraphQL auth paths inside Lambda code. Grant access with
     `allow.resource(<function>)` on the data schema and `appsync:GraphQL` on the
     function role.
+    **One exception (Ryan, 2026-10-31):** the `alexa` plugin's skill relays the
+    linked editor's **own** Cognito access token to AppSync, as the web newsroom
+    does from the browser, so AppSync enforces their groups and records a vote as
+    their human vote (an IAM vote is recorded as `agent` and never trains the
+    Cyclotron). The skill has no AppSync grant of its own and never calls AppSync
+    with its role. See `docs/alexa.md`, "Reviewing references". No other Lambda
+    may do this without the same explicit decision.
 - Production authoring uses the deployed production AppSync endpoint, not the
   sandbox. Authenticate with an AWS profile for the production account's
   authoring role; do not write credentials into `.env`. Follow

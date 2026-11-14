@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "df35b753-526c-4f38-a0f5-95d3c571fb48",
+  "issue_id": "PPY-74e3b53d-25af-4d46-86d2-4cff6765faf1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:47.954Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Web monitors search for tracked concepts",
+    "description": "`monitoring_web_queries.py` drafts one query per section from mission and policy, once. Add tracked concepts and aliases as inputs and redraft on change, so sources on them actually arrive. Spend bound as today. Needs a review of queries before going live, as with the first monitors.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-95b47bd9-5d6f-477e-ad3b-9ea8040b00df",
+    "labels": []
+  }
+}

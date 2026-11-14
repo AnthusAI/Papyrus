@@ -9,6 +9,7 @@ import {
   LIST_PROPOSALS,
   filterProposals,
   proposalReceiptMessage,
+  withoutStoryDrafts,
   type ProposalFilter,
   type ProposalMove,
   type ProposalRow,
@@ -18,7 +19,7 @@ import { performProposalMove } from "../lib/proposals-client";
 type GraphResult = { data?: Record<string, { items?: ProposalRow[]; nextToken?: string | null } | null>; errors?: { message?: string }[] };
 const MAXIMUM_PAGES = 20;
 
-async function loadProposals(): Promise<ProposalRow[]> {
+export async function loadProposals(): Promise<ProposalRow[]> {
   const client = generateClient({ authMode: "userPool" });
   const rows: ProposalRow[] = [];
   let nextToken: string | null | undefined;
@@ -30,7 +31,7 @@ async function loadProposals(): Promise<ProposalRow[]> {
     nextToken = connection?.nextToken;
     if (!nextToken) break;
   }
-  return rows;
+  return withoutStoryDrafts(rows);
 }
 
 /** Core to every site: it does not depend on the reader-steering plugin. */

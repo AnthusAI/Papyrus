@@ -1,0 +1,30 @@
+{
+  "id": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+  "title": "Shared serving stack, custom domains and tenant provisioning",
+  "description": "Why: sign up, pay and have a site, with no repository. One distribution and bucket serve many tenants by host. Provisioning is an API. Custom domains are part of every plan (after the subdomain launch if simpler). Depends on the authorisation epic. Ends with a p.apyr.us page.\nDone when: a second internal test tenant exists by API only and is served from the shared stack.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "9fcf818a-81d2-4a6d-9e9e-ef1526874833",
+      "author": "home",
+      "text": "Serving tasks: PPY-3b3cc3 (spike), PPY-daf673 (the shared stack itself, recommended in its own AWS account), PPY-99e309 (tenant prefixes), PPY-3bbbf9 (host routing), PPY-82de58 (subdomains), PPY-966722 (custom domains), PPY-ca247b (freshness rules), PPY-130eb2 (one newsroom host: Cognito allows 100 callback URLs per client), PPY-04ce84 (cost model). Provisioning, export and deletion moved into tasks of the new epic PPY-cada52; the stories here keep the behaviour.",
+      "created_at": "2026-11-08T18:48:43.913379Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-07T21:42:48.282865Z",
+  "updated_at": "2026-11-08T18:48:43.913622Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

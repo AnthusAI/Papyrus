@@ -3,11 +3,11 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
   References open as a feed in a responsive grid, like a news app: a larger lead card, then cards with a picture, a title, a one-line
   dek, the source and its age, the Cyclotron's prediction (Accept or Reject with its confidence and an icon) and the editor's own
   Accept and Reject. The feed is one list with two choices, each a pair of buttons with an icon and words, never a drop-down and never
-  tabs. Sort is Best bets, the default, or Newest. Best bets is the Cyclotron's own confidence that the editor will Accept, highest
+  tabs. Sort is Predictions, the default, or Newest. Predictions is the Cyclotron's own confidence that the editor will Accept, highest
   first, whatever the age: the items it expects the editor to Accept most surely come first, the items with no prediction sit in the
-  middle, and the strongest predicted Rejects come last. Newest is the latest arrival first. Show is Unrated only, the default, or
-  Include rated, which adds the References that already have a human answer to the same list in the same sort, each showing its
-  recorded vote. Both choices are remembered in this browser. Nothing is hidden because it is old. A card the editor rates stays where
+  middle, and the strongest predicted Rejects come last. Newest is the latest arrival first. Reviewed is No, the default (nobody has answered), or
+  Any, which adds the References that already have a human answer to the same list in the same sort, each showing its
+  recorded vote, or Accepted, which lists only the accepted ones, or Yes, which lists just the answered (accepted or rejected) References so an editor can find one again. The saved values keep their old names (unrated, all, rated), so nobody's choice resets. Both choices are remembered in this browser. Nothing is hidden because it is old. A card the editor rates stays where
   it is for the rest of the visit, showing the answer and whether the Cyclotron matched it, and the order is taken once per visit in
   either sort. The page shows its shell and card skeletons at once instead of a checking screen, and a return visit shows the last
   saved cards while the live read runs. These scenarios use synthetic References in an isolated browser at 375 and 1440 pixels and
@@ -22,21 +22,21 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     And a title shows without the site name a page tacks on its end, such as " | Brookings" or " | Poverty and Development | Al Jazeera"
     And nothing scrolls sideways and there are no drop-downs
 
-  Scenario: Best bets goes by the Cyclotron's original confidence, whatever the age
+  Scenario: Predictions goes by the Cyclotron's original confidence, whatever the age
     Given References of very different ages with predictions
     When the feed is ranked
     Then an old strong Accept still ranks above a new weaker one, and an old Reject never rises above a new Accept
     And ties go to the newest item and then to a stable order
     And a card rated this visit does not move any other card
 
-  Scenario: A rated card stays in place and shows whether the Cyclotron matched, and Unrated only leaves it out on the next visit
+  Scenario: A rated card stays in place and shows whether the Cyclotron matched, and Reviewed No leaves it out on the next visit
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor accepts a card, then rejects it with a written reason, and rejects a card that was predicted Reject
     Then each rated card stays in its place and shows Saved
     And the answered button says Confirmed or Overturned, in words and a marker as well as colour
     And Rejecting asks for a written reason in words and changes nothing until one is given
     And while an answer is being saved the button says Sending, or Updating when it changes a saved answer, and never says it is unrecorded
-    And choosing Include rated keeps the answered cards where they were
+    And choosing Reviewed Any keeps the answered cards where they were
 
   Scenario: The decision is one control: a prediction above one pair of buttons, with the reason under them
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
@@ -62,17 +62,25 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then it stays in the one list where its original confidence puts it, and last when sorted by Newest, with no Earlier section and no tabs
     And an old card can be rated and stays where it is
 
-  Scenario: Best bets is the default, Newest sorts by date, and Unrated only is the default
+  Scenario: Predictions is the default, Newest sorts by date, and Reviewed No is the default
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor opens the feed at 375 and 1440 pixels
-    Then Best bets and Unrated only are pressed, and each choice is a pair of buttons with an icon and words
+    Then Predictions and Reviewed No are pressed, and each choice is a pair of buttons with an icon and words
     And choosing Newest orders the cards by arrival, newest first, whatever the predictions say
 
-  Scenario: Include rated adds the answered cards with their votes, and both choices are remembered
+  Scenario: Reviewed Any adds the answered cards with their votes, and both choices are remembered
     Given a feed with References that were accepted automatically or by an editor
-    When the editor chooses Include rated and reloads the page
+    When the editor chooses Reviewed Any and reloads the page
     Then the answered cards join the same list in the active sort, each showing its recorded vote
-    And the page remembers Newest and Include rated for this browser, with no tabs on the page
+    And the page remembers Newest and Reviewed Any for this browser, with no tabs on the page
+
+  Scenario: Reviewed Yes lists just the answered cards, a page at a time, and finds them again
+    Given a feed with References that were accepted automatically or by an editor
+    When the editor chooses Reviewed Yes
+    Then only the answered cards are listed, in the active sort, each showing its recorded vote, with no large lead card
+    And Predictions there goes by the Cyclotron's original confidence and Newest by arrival, never by the editor's answer
+    And the answered cards are read from the rated partitions alone, a page at a time, and a vote changed there leaves the card where it is
+    And a site with nothing rated yet says "Nothing reviewed yet" in plain words, and the page remembers Reviewed Yes for this browser
 
   Scenario: The feed is flat, rounded and borderless, one list in rank order
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
@@ -110,14 +118,14 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
 
   Scenario: A Reference accepted automatically, by the Cyclotron or by a monitor's rule, says so, in words and an icon, apart from an editor's accept
     Given a Reference the Cyclotron accepted automatically, one a monitor's rule accepted, and another that an editor accepted
-    When the editor chooses Include rated at 375 and 1440 pixels
+    When the editor chooses Reviewed Any at 375 and 1440 pixels
     Then the automatically accepted card says Accepted automatically with a Lucide icon, one accepted by a monitor's rule says so too, and the editor's accept carries no such mark
     And both read as accepted, and the editor can still change either
 
   Scenario: The ranking is explained in plain words with this site's own numbers
     Given the feed is open
     When the editor opens how this feed is ranked
-    Then it explains Best bets, Newest, Unrated only, Include rated and why a rated card stays put
+    Then it explains Predictions, Newest, Reviewed, Captured and why a rated card stays put
     And it says that age does not change the order
 
   Scenario: The detail pane reads top to bottom: what the item is, then the rating, then what was captured
@@ -153,6 +161,27 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a thick ring drawn outside it on every side, which takes no space in the grid and is never cut off at the feed's edge
     And opening a card from the grid selects it too
     And before any card is selected there is no Detail pane and the feed has the whole width
+
+  Scenario: The Previous and Next bar stays in view at the bottom of the detail while the reference scrolls
+    The detail of a long reference scrolls, but the bar with Previous, the position and Next does not go with it. On a phone the
+    bar sits just above the bottom tab bar, which has its own safe-area padding; from the tablet width up it sits at the bottom of the
+    detail pane beside the feed. It has a solid tone of its own, so the text never shows through it, and the end of the content is
+    never hidden behind it.
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor opens a long reference and scrolls its detail to the bottom at 375, 390 and 1440 pixels
+    Then the Previous and Next buttons are still in view, above the tab bar on a phone and at the bottom of the detail pane on a desktop
+    And the bar is in the same place at the top, part way down and at the bottom of the detail
+    And the last of the detail's content ends above the bar, so nothing is covered by it
+
+  Scenario: Selecting a reference by any means opens its detail at the top with the headline in view
+    A reference opened from a card, with Next, with Previous or by the keyboard shortcuts for them, from a link, or as the item after
+    a vote always shows its headline first, wherever the previous reference was scrolled to. The page resets the scroller that really
+    scrolls: the detail pane's own from the tablet width up, and the newsroom's page scroller on a phone. Showing the same
+    reference again, as a background refresh does, leaves the editor's place alone.
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor scrolls a long reference to the bottom and then selects another with a card, with Next and with Previous
+    Then each newly selected reference is scrolled to the top and its headline is in view above the bar, on a phone and on a desktop
+    And a refresh of the reference that stays open does not move its scroll position
 
   Scenario: The grid stays put while the editor selects, rates and the data refreshes
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
@@ -192,9 +221,70 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then a page that sends X-Frame-Options or a frame-ancestors rule that does not allow every site is not framed, and one with neither rule is
     And only public web addresses on the standard ports are ever fetched, so the check cannot be pointed at the server's own network
 
-  Scenario: The feed holds every Reference, not just the first page the backend returns
+  Scenario: The List view, which needs every Reference, reads them all only when it is opened, and each once
     Given a newsroom with more References than one page of the backend's list holds
-    When the editor opens the References feed
-    Then the feed reads page after page until the backend says there are no more
+    When the editor opens the List view
+    Then the list reads page after page until the backend says there are no more
     And each Reference appears once even when two pages overlap
     And a page token that repeats stops the read with a message instead of looping
+
+  # Predictions are read for the References the feed shows, one indexed read each, never from the newsroom's whole relation feed. A
+  # Shipped-sized newsroom holds about 16,000 relations and more arrive every time a monitor runs, so any fixed number of pages would
+  # one day be too few and the feed would fail. The cost follows what is on screen, so the feed keeps working however much the newsroom holds.
+  Scenario: A newsroom with more relations than any page budget still shows predictions for the visible References
+    Given a newsroom with 60 References and 20,000 relation records, more than any fixed page budget could read
+    When the editor opens the feed
+    Then predictions are read for the 24 References on the first page, one read each, and for no other Reference
+    And every one of those cards shows its prediction and confidence
+    And nothing says that predictions are unavailable or that the activity feed is incomplete
+    And scrolling to the end reads the next page's predictions only, and its cards join after the first page without moving it
+
+  Scenario: One Reference's prediction failing shows on that card alone
+    Given a feed where the prediction read for one Reference is refused
+    When the feed has loaded
+    Then that card says Prediction unavailable and offers Retry, in words and an icon
+    And every other card shows its prediction, and no message about predictions appears for the page
+    And choosing Retry reads that one prediction again and the card shows it
+
+  Scenario: The cards render without predictions when every prediction read fails
+    Given a feed where every prediction read is refused
+    When the feed has loaded
+    Then every Reference still shows its title, source, age and its Accept and Reject buttons
+    And each card says Prediction unavailable with Retry, and the feed is never left as grey skeletons
+    And the order is the server's own, newest first, because nothing can rank them yet
+
+  Scenario: The unit rules behind the paged predictions
+    Given a newsroom with about 16,000 relations held by subject
+    When the feed windows its References and reads their predictions
+    Then only the shown References are read, at most a few reads are in flight at once, and one failing read fails only its own Reference
+    And the window is the newest pages of unanswered items plus the answered ones that arrived since, and it only ever grows
+    And a later page is ranked after everything already placed, while a new arrival waits behind the new-items pill
+
+  # The feed reads the feed-state indexes (docs/reference-feed-indexes.md), a page at a time, and nothing else ahead of need. A synthetic
+  # site of 7,000 References in three corpora, with a fake backend that logs every request, shows what the page asks for.
+  Scenario: The first cards come from one round of indexed reads, with no table walked
+    Given a synthetic site of 7,000 References in three corpora, behind a backend that logs every request
+    When the editor opens the References feed at 375 and 1440 pixels
+    Then the requests are one read of the corpora, one indexed page of 24 for each corpus, and one batch of attachments for the 24 cards, and no other
+    And no request walks a whole table or the whole attachment table, and none asks for fewer than a page
+    And the first 24 cards are the top of the merged order of every corpus, highest original confidence first
+
+  Scenario: Scrolling loads the next page, and an unscrolled page asks for nothing more
+    Given a synthetic site of 7,000 References in three corpora, behind a backend that logs every request
+    When the editor opens the References feed and waits without scrolling, then scrolls to the end
+    Then no further request is made while the page is not scrolled
+    And scrolling to the end loads the next 24 cards by itself, with attachments for those 24 cards only and none read twice
+    And one scroll costs at most one more round of indexed reads
+
+  Scenario: A slow read is not "no items", an empty site says so, and a failed read says so with a Retry
+    Given a synthetic site of 7,000 References in three corpora, behind a backend that logs every request
+    When the first read is slow, empty, or refused once
+    Then a slow read shows card skeletons and never the empty message
+    And an empty site shows the empty message and no skeleton
+    And a refused read shows what went wrong in words with a Retry button, never a skeleton that does not end, and Retry reads again and shows the cards
+
+  Scenario: References from a manual Add, from email and from a monitor are in one feed, in order, with no difference by source
+    Given a synthetic site of 7,000 References in three corpora, behind a backend that logs every request
+    When References that arrived by a monitor, a manual Add and email are listed under Newest
+    Then they appear in one list in arrival order, newest first
+    And each has the same Accept and Reject controls whatever its source

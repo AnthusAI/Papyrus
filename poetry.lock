@@ -235,10 +235,9 @@ files = [
 name = "anthus-markus"
 version = "0.7.0"
 description = "Markus: GitHub-flavored Markdown with semantic layout directives."
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"markus\""
 files = [
     {file = "anthus_markus-0.7.0-py3-none-any.whl", hash = "sha256:95d0cacb363415bdc5b963d4a0ffe99fde1c5bb2dfbb173301666e3396ed5172"},
     {file = "anthus_markus-0.7.0.tar.gz", hash = "sha256:568e061415997886af57d130ea30101274cb4743c04b7f7100f9a79ac242ab2a"},
@@ -378,10 +377,9 @@ files = [
 name = "awscrt"
 version = "0.32.2"
 description = "A common runtime for AWS Python projects"
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"markus\" or extra == \"newsroom\""
 files = [
     {file = "awscrt-0.32.2-cp310-cp310-macosx_10_15_universal2.whl", hash = "sha256:a9ed98e20ca6fcad8ef32e3c6779aaa3526a5ff3f0aa99d59e0deeff59640375"},
     {file = "awscrt-0.32.2-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:acb707df280079d21d20ad1735b38a80d4939133cbaecfc2e4927dd8fc0190bc"},
@@ -784,7 +782,6 @@ files = [
     {file = "boto3-1.43.9-py3-none-any.whl", hash = "sha256:5e967292d361482793471bd80fad1e714515b7401f65a0d5b4aa6ef9d009c030"},
     {file = "boto3-1.43.9.tar.gz", hash = "sha256:37dac72f2921095378c0200caf07918d5e10a82b7c1f611abb70e44f69d0b962"},
 ]
-markers = {main = "extra == \"markus\" or extra == \"newsroom\""}
 
 [package.dependencies]
 botocore = [
@@ -808,7 +805,6 @@ files = [
     {file = "botocore-1.43.9-py3-none-any.whl", hash = "sha256:b9bdcd9c87fc552aad30006f00167d9ebb3480e1b06f1902bac5b2c41014fdab"},
     {file = "botocore-1.43.9.tar.gz", hash = "sha256:93e91c7160678182860f5902ee4cfe6d643cac0d9ee84d3eb65becc9f4c00228"},
 ]
-markers = {main = "extra == \"markus\" or extra == \"newsroom\""}
 
 [package.dependencies]
 awscrt = {version = "0.32.2", optional = true, markers = "extra == \"crt\""}
@@ -831,6 +827,29 @@ files = [
     {file = "cachetools-7.1.2-py3-none-any.whl", hash = "sha256:89386be5bece29963e0f22bb7e1aba91c8395c7ad107780e2ce7af3ab315ae40"},
     {file = "cachetools-7.1.2.tar.gz", hash = "sha256:c1373e3cad0933dfb46bb04d04ef67b5204f8220eb906096dd89a76196053d57"},
 ]
+
+[[package]]
+name = "caducus"
+version = "0.3.0"
+description = "CLI for collecting ops events and running reinforcement-memory analysis."
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "caducus-0.3.0-py3-none-any.whl", hash = "sha256:223669d919f46d086d75cce6e79151c37cc95cf1a5ce2c18fccf0e1852a5db7c"},
+    {file = "caducus-0.3.0.tar.gz", hash = "sha256:251e2e15d008f86598b66d56440da60366e395434efc2c81abb2cd9729b5bdc6"},
+]
+
+[package.dependencies]
+boto3 = {version = ">=1.35.8", optional = true, markers = "extra == \"notify\""}
+dnspython = {version = ">=2.6", optional = true, markers = "extra == \"notify\""}
+
+[package.extras]
+dev = ["behave (>=1.2.6)", "black (>=24.0)", "build (>=1.2.2)", "pytest (>=8.0)", "python-semantic-release (>=10.5.3)", "ruff (>=0.4.0)"]
+notify = ["boto3 (>=1.35.8)", "dnspython (>=2.6)"]
+notify-dev = ["PyYAML (>=6.0)", "boto3 (>=1.35.8)", "dnspython (>=2.6)", "jsonschema (>=4.0)", "moto[dynamodb,ses,sqs,ssm] (>=5.0)", "pytest-cov (>=5.0)"]
+radar = ["PyYAML (>=6.0)", "virtuus (>=0.4.0)"]
+reinforcement-memory = ["biblicus (>=1.6.0)", "scikit-learn (>=1.3.0)"]
 
 [[package]]
 name = "catalogue"
@@ -856,7 +875,6 @@ files = [
     {file = "certifi-2026.4.22-py3-none-any.whl", hash = "sha256:3cb2210c8f88ba2318d29b0388d1023c8492ff72ecdde4ebdaddbb13a31b1c4a"},
     {file = "certifi-2026.4.22.tar.gz", hash = "sha256:8d455352a37b71bf76a79caa83a3d6c25afee4a385d632127b6afb3963f1c580"},
 ]
-markers = {main = "extra == \"newsroom\""}
 
 [[package]]
 name = "cffi"
@@ -951,7 +969,7 @@ files = [
     {file = "cffi-2.0.0-cp39-cp39-win_amd64.whl", hash = "sha256:b882b3df248017dba09d6b16defe9b5c407fe32fc7c65a9c69798e6175601be9"},
     {file = "cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529"},
 ]
-markers = {main = "extra == \"newsroom\" and platform_python_implementation != \"PyPy\"", dev = "platform_python_implementation != \"PyPy\""}
+markers = {main = "platform_python_implementation != \"PyPy\" and (extra == \"newsroom\" or sys_platform == \"linux\")", dev = "platform_python_implementation != \"PyPy\""}
 
 [package.dependencies]
 pycparser = {version = "*", markers = "implementation_name != \"PyPy\""}
@@ -1094,7 +1112,6 @@ files = [
     {file = "charset_normalizer-3.4.7-py3-none-any.whl", hash = "sha256:3dce51d0f5e7951f8bb4900c257dad282f49190fdbebecd4ba99bcc41fef404d"},
     {file = "charset_normalizer-3.4.7.tar.gz", hash = "sha256:ae89db9e5f98a11a4bf50407d4363e7b09b31e55bc117b4f7d80aab97ba009e5"},
 ]
-markers = {main = "extra == \"newsroom\""}
 
 [[package]]
 name = "citeproc-py"
@@ -1114,6 +1131,25 @@ lxml = "*"
 [package.extras]
 full = ["citeproc-py-styles"]
 tests = ["citeproc-py-styles", "tox"]
+
+[[package]]
+name = "cli-login"
+version = "0.4.1"
+description = "Browser sign-in for CLIs without long-lived keys: PKCE, remote approval, secure storage and renewal."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "cli_login-0.4.1-py3-none-any.whl", hash = "sha256:b542aec1dd3376f0ebdabf61cea00a3d40531606f42020ed84cb776c4d9b42c5"},
+    {file = "cli_login-0.4.1.tar.gz", hash = "sha256:ab1e85a05ad6840785400996b5ce403c99c69ef1299d77bdd5408a8703372c20"},
+]
+
+[package.dependencies]
+secretstorage = {version = ">=3.3", optional = true, markers = "sys_platform == \"linux\" and extra == \"linux\""}
+
+[package.extras]
+dev = ["behave (>=1.2.6)", "pytest (>=8)", "ruff (>=0.6)"]
+linux = ["secretstorage (>=3.3) ; sys_platform == \"linux\""]
 
 [[package]]
 name = "click"
@@ -1445,7 +1481,7 @@ files = [
     {file = "cryptography-49.0.0-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:be9fcb48a55f023493482827d4f459bd263cc20efde64f204b97c123201850c6"},
     {file = "cryptography-49.0.0.tar.gz", hash = "sha256:f89660a348f4f78a92366240a61404e337586ef7f5909a2fef59ca88ef505493"},
 ]
-markers = {main = "extra == \"newsroom\""}
+markers = {main = "extra == \"newsroom\" or sys_platform == \"linux\""}
 
 [package.dependencies]
 cffi = {version = ">=2.0.0", markers = "platform_python_implementation != \"PyPy\""}
@@ -1717,7 +1753,7 @@ description = "XML bomb protection for Python stdlib modules"
 optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 groups = ["main"]
-markers = "extra == \"newsroom\""
+markers = "extra == \"newsroom\" or extra == \"transcripts\""
 files = [
     {file = "defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61"},
     {file = "defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69"},
@@ -1748,6 +1784,27 @@ files = [
     {file = "distro-1.9.0.tar.gz", hash = "sha256:2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed"},
 ]
 markers = {main = "extra == \"newsroom\""}
+
+[[package]]
+name = "dnspython"
+version = "2.9.2"
+description = "DNS toolkit"
+optional = false
+python-versions = ">=3.11"
+groups = ["dev"]
+files = [
+    {file = "dnspython-2.9.2-py3-none-any.whl", hash = "sha256:af15f7d385a6ae2fb35a796fde2138004c8c42c7389090e2addc83e3b3340fd8"},
+    {file = "dnspython-2.9.2.tar.gz", hash = "sha256:8d4d39a513e649d634004ce4d39ade2352efcea472a0247535a5c2d18a9d7ba9"},
+]
+
+[package.extras]
+dev = ["black (>=26.5)", "coverage (>=7.15)", "hypercorn (>=0.18.0)", "pyright (>=1.1.411)", "pytest (>=9.1)", "pytest-cov (>=7.1)", "quart-trio (>=0.12.0)", "ruff (>=0.16.0)", "sphinx (>=9.1.0) ; python_full_version >= \"3.12.0\"", "sphinx-rtd-theme (>=3.1.0) ; python_full_version >= \"3.12.0\"", "trustme (>=1.2.1)", "ty (>=0.0.85)"]
+dnssec = ["cryptography (>=50)"]
+doh = ["h2 (>=4.4)", "httpcore2 (>=2.13)", "httpx2 (>=2.13)"]
+doq = ["aioquic (>=1.3.0)"]
+idna = ["idna (>=3.20)"]
+trio = ["trio (>=0.34)"]
+wmi = ["wmi (>=1.5.1) ; sys_platform == \"win32\""]
 
 [[package]]
 name = "docker"
@@ -1856,6 +1913,21 @@ files = [
     {file = "et_xmlfile-2.0.0.tar.gz", hash = "sha256:dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54"},
 ]
 markers = {main = "extra == \"newsroom\""}
+
+[[package]]
+name = "execnet"
+version = "2.1.2"
+description = "execnet: rapid multi-Python deployment"
+optional = false
+python-versions = ">=3.8"
+groups = ["dev"]
+files = [
+    {file = "execnet-2.1.2-py3-none-any.whl", hash = "sha256:67fba928dd5a544b783f6056f449e5e3931a5c378b128bc18501f7ea79e296ec"},
+    {file = "execnet-2.1.2.tar.gz", hash = "sha256:63d83bfdd9a23e35b9c6a3261412324f964c2ec8dcd8d3c6916ee9373e0befcd"},
+]
+
+[package.extras]
+testing = ["hatch", "pre-commit", "pytest", "tox"]
 
 [[package]]
 name = "fastapi"
@@ -2252,7 +2324,7 @@ description = "Lightweight in-process concurrent programming"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\") or extra == \"newsroom\" and (platform_machine == \"aarch64\" or platform_machine == \"ppc64le\" or platform_machine == \"x86_64\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\")"
+markers = "extra == \"newsroom\" and (platform_machine == \"aarch64\" or platform_machine == \"ppc64le\" or platform_machine == \"x86_64\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\")"
 files = [
     {file = "greenlet-3.5.0-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:29ea813b2e1f45fa9649a17853b2b5465c4072fbcb072e5af6cd3a288216574a"},
     {file = "greenlet-3.5.0-cp310-cp310-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:804a70b328e706b785c6ef16187051c394a63dd1a906d89be24b6ad77759f13f"},
@@ -2703,13 +2775,14 @@ pyreadline3 = {version = "*", markers = "sys_platform == \"win32\" and python_ve
 
 [[package]]
 name = "humanus"
-version = "0.33.1"
+version = "0.36.0"
 description = "Configurable editorial compliance checks: policy packs, deterministic rules, zero-shot decision models and rewrite suggestions."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "humanus-0.33.1-py3-none-any.whl", hash = "sha256:f521032bcda76f79d18a5c7ef8a9a79737c2b27965a3b71c4a3756d7fe6dce98"},
+    {file = "humanus-0.36.0-py3-none-any.whl", hash = "sha256:0f188958ea32055d7e891047339c86e2614d6cea91d54048353cebc0d5de6e6b"},
+    {file = "humanus-0.36.0.tar.gz", hash = "sha256:495e11411bd174f2ab3d873053a3a5e3e8c8eab200b4f32c636a5d7bf7c4a226"},
 ]
 
 [package.dependencies]
@@ -2732,7 +2805,6 @@ files = [
     {file = "idna-3.15-py3-none-any.whl", hash = "sha256:048adeaf8c2d788c40fee287673ccaa74c24ffd8dcf09ffa555a2fbb59f10ac8"},
     {file = "idna-3.15.tar.gz", hash = "sha256:ca962446ea538f7092a95e057da437618e886f4d349216d2b1e294abfdb65fdc"},
 ]
-markers = {main = "extra == \"priming\" or extra == \"newsroom\""}
 
 [package.extras]
 all = ["mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
@@ -2798,6 +2870,23 @@ files = [
     {file = "isodate-0.7.2-py3-none-any.whl", hash = "sha256:28009937d8031054830160fce6d409ed342816b543597cece116d966c6d99e15"},
     {file = "isodate-0.7.2.tar.gz", hash = "sha256:4cd1aa0f43ca76f4a6c6c0292a85f40b35ec2e43e315b59f06e6d32171a953e6"},
 ]
+
+[[package]]
+name = "jeepney"
+version = "0.9.0"
+description = "Low-level, pure Python DBus protocol wrapper."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+markers = "sys_platform == \"linux\""
+files = [
+    {file = "jeepney-0.9.0-py3-none-any.whl", hash = "sha256:97e5714520c16fc0a45695e5365a2e11b81ea79bba796e26f9f1d178cb182683"},
+    {file = "jeepney-0.9.0.tar.gz", hash = "sha256:cf0e9e845622b81e4a28df94c40345400256ec608d0e55bb8a3feaa9163f5732"},
+]
+
+[package.extras]
+test = ["async-timeout ; python_version < \"3.11\"", "pytest", "pytest-asyncio (>=0.17)", "pytest-trio", "testpath", "trio"]
+trio = ["trio"]
 
 [[package]]
 name = "jinja2"
@@ -2948,7 +3037,6 @@ files = [
     {file = "jmespath-1.1.0-py3-none-any.whl", hash = "sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64"},
     {file = "jmespath-1.1.0.tar.gz", hash = "sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d"},
 ]
-markers = {main = "extra == \"markus\" or extra == \"newsroom\""}
 
 [[package]]
 name = "joblib"
@@ -3052,13 +3140,24 @@ ruff = "0.15.5"
 sphinx = "*"
 
 [[package]]
+name = "latex2mathml"
+version = "3.81.1"
+description = "Pure Python library for LaTeX to MathML conversion"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "latex2mathml-3.81.1-py3-none-any.whl", hash = "sha256:c337668441b71c819b6733905a8058ba9a9d767bae11a0c5fdacb3aff31361bd"},
+    {file = "latex2mathml-3.81.1.tar.gz", hash = "sha256:c95add0c0fcdecad2d70567e0643050d5ea1149fb2e98a5d5792fb1c8eea2ed5"},
+]
+
+[[package]]
 name = "linkify-it-py"
 version = "2.2.0"
 description = "Links recognition library with FULL unicode support."
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"markus\""
 files = [
     {file = "linkify_it_py-2.2.0-py3-none-any.whl", hash = "sha256:3adc40eb5af300b2605fcfdb968c24e1d780a90f1f2221af7c15e5111e94d443"},
     {file = "linkify_it_py-2.2.0.tar.gz", hash = "sha256:907acd2d17ac1fbb9ddb62c8957ccbd6158cac602231a15c3b0cd1e215f03cee"},
@@ -3655,10 +3754,9 @@ files = [
 name = "mdit-py-plugins"
 version = "0.6.1"
 description = "Collection of plugins for markdown-it-py"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"markus\""
 files = [
     {file = "mdit_py_plugins-0.6.1-py3-none-any.whl", hash = "sha256:214c82fb2ac524472ab6a5bcab1de80f73b50443e187f401bfd77efbc7c6481d"},
     {file = "mdit_py_plugins-0.6.1.tar.gz", hash = "sha256:a2bca0f039f39dbd35fb74ae1b5f998608c437463371f0ff7f49a19a17a114d0"},
@@ -4256,7 +4354,7 @@ description = "CUBLAS native runtime libraries"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (sys_platform == \"win32\" or sys_platform == \"linux\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\") and (platform_machine == \"x86_64\" or sys_platform == \"linux\")"
 files = [
     {file = "nvidia_cublas-13.1.1.3-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:b7a210458267ac818974c53038fbec2e969d5c99f305ab15c72522fa9f001dd5"},
     {file = "nvidia_cublas-13.1.1.3-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:37936a16db8fe4ac1f065c2139360608a543a09275cb1a1af612e08cfa065436"},
@@ -4289,7 +4387,7 @@ description = "CUDA profiling tools runtime libs."
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and platform_system == \"Linux\" and extra == \"newsroom\" and (sys_platform == \"win32\" or sys_platform == \"linux\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\") and (platform_machine == \"x86_64\" or sys_platform == \"linux\")"
 files = [
     {file = "nvidia_cuda_cupti-13.0.85-py3-none-manylinux_2_25_aarch64.whl", hash = "sha256:796bd679890ee55fb14a94629b698b6db54bcfd833d391d5e94017dd9d7d3151"},
     {file = "nvidia_cuda_cupti-13.0.85-py3-none-manylinux_2_25_x86_64.whl", hash = "sha256:4eb01c08e859bf924d222250d2e8f8b8ff6d3db4721288cf35d14252a4d933c8"},
@@ -4303,7 +4401,7 @@ description = "NVRTC native runtime libraries"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (sys_platform == \"win32\" or sys_platform == \"linux\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\") and (platform_machine == \"x86_64\" or sys_platform == \"linux\")"
 files = [
     {file = "nvidia_cuda_nvrtc-13.0.88-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl", hash = "sha256:ad9b6d2ead2435f11cbb6868809d2adeeee302e9bb94bcf0539c7a40d80e8575"},
     {file = "nvidia_cuda_nvrtc-13.0.88-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:d27f20a0ca67a4bb34268a5e951033496c5b74870b868bacd046b1b8e0c3267b"},
@@ -4332,7 +4430,7 @@ description = "CUDA Runtime native Libraries"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and platform_system == \"Linux\" and extra == \"newsroom\" and (sys_platform == \"win32\" or sys_platform == \"linux\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\") and (platform_machine == \"x86_64\" or sys_platform == \"linux\")"
 files = [
     {file = "nvidia_cuda_runtime-13.0.96-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:ef9bcbe90493a2b9d810e43d249adb3d02e98dd30200d86607d8d02687c43f55"},
     {file = "nvidia_cuda_runtime-13.0.96-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:7f82250d7782aa23b6cfe765ecc7db554bd3c2870c43f3d1821f1d18aebf0548"},
@@ -4363,7 +4461,7 @@ description = "CUFFT native runtime libraries"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and platform_system == \"Linux\" and extra == \"newsroom\" and (sys_platform == \"win32\" or sys_platform == \"linux\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\") and (platform_machine == \"x86_64\" or sys_platform == \"linux\")"
 files = [
     {file = "nvidia_cufft-12.0.0.61-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:2708c852ef8cd89d1d2068bdbece0aa188813a0c934db3779b9b1faa8442e5f5"},
     {file = "nvidia_cufft-12.0.0.61-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:6c44f692dce8fd5ffd3e3df134b6cdb9c2f72d99cf40b62c32dde45eea9ddad3"},
@@ -4380,7 +4478,7 @@ description = "cuFile GPUDirect libraries"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "sys_platform == \"linux\" and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and sys_platform == \"linux\""
 files = [
     {file = "nvidia_cufile-1.15.1.6-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:08a3ecefae5a01c7f5117351c64f17c7c62efa5fffdbe24fc7d298da19cd0b44"},
     {file = "nvidia_cufile-1.15.1.6-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:bdc0deedc61f548bddf7733bdc216456c2fdb101d020e1ab4b88d232d5e2f6d1"},
@@ -4393,7 +4491,7 @@ description = "CURAND native runtime libraries"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and platform_system == \"Linux\" and extra == \"newsroom\" and (sys_platform == \"win32\" or sys_platform == \"linux\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\") and (platform_machine == \"x86_64\" or sys_platform == \"linux\")"
 files = [
     {file = "nvidia_curand-10.4.0.35-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:133df5a7509c3e292aaa2b477afd0194f06ce4ea24d714d616ff36439cee349a"},
     {file = "nvidia_curand-10.4.0.35-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:1aee33a5da6e1db083fe2b90082def8915f30f3248d5896bcec36a579d941bfc"},
@@ -4407,7 +4505,7 @@ description = "CUDA solver native runtime libraries"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and platform_system == \"Linux\" and extra == \"newsroom\" and (sys_platform == \"win32\" or sys_platform == \"linux\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\") and (platform_machine == \"x86_64\" or sys_platform == \"linux\")"
 files = [
     {file = "nvidia_cusolver-12.0.4.66-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:02c2457eaa9e39de20f880f4bd8820e6a1cfb9f9a34f820eb12a155aa5bc92d2"},
     {file = "nvidia_cusolver-12.0.4.66-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:0a759da5dea5c0ea10fd307de75cdeb59e7ea4fcb8add0924859b944babf1112"},
@@ -4426,7 +4524,7 @@ description = "CUSPARSE native runtime libraries"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and platform_system == \"Linux\" and extra == \"newsroom\" and (sys_platform == \"win32\" or sys_platform == \"linux\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\") and (platform_machine == \"x86_64\" or sys_platform == \"linux\")"
 files = [
     {file = "nvidia_cusparse-12.6.3.3-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:80bcc4662f23f1054ee334a15c72b8940402975e0eab63178fc7e670aa59472c"},
     {file = "nvidia_cusparse-12.6.3.3-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:2b3c89c88d01ee0e477cb7f82ef60a11a4bcd57b6b87c33f789350b59759360b"},
@@ -4470,7 +4568,7 @@ description = "Nvidia JIT LTO Library"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and platform_system == \"Linux\" and extra == \"newsroom\" and (sys_platform == \"win32\" or sys_platform == \"linux\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\") and (platform_machine == \"x86_64\" or sys_platform == \"linux\")"
 files = [
     {file = "nvidia_nvjitlink-13.4.92-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl", hash = "sha256:e0391f24ed94ec879b84e3da4d4ec320c879aff681f2c7a638462f7199284323"},
     {file = "nvidia_nvjitlink-13.4.92-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:25f74fad0d654271c921ac4dca614bd6258bc21791242fc7b2289dad7ae9c099"},
@@ -4498,7 +4596,7 @@ description = "NVIDIA Tools Extension"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (sys_platform == \"linux\" or platform_machine == \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\")"
+markers = "(sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\") and platform_system == \"Linux\" and extra == \"newsroom\" and (sys_platform == \"win32\" or sys_platform == \"linux\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\") and (platform_machine == \"x86_64\" or sys_platform == \"linux\")"
 files = [
     {file = "nvidia_nvtx-13.0.85-py3-none-manylinux1_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:4936d1d6780fbe68db454f5e72a42ff64d1fd6397df9f363ae786930fd5c1cd4"},
     {file = "nvidia_nvtx-13.0.85-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:cb7780edb6b14107373c835bf8b72e7a178bac7367e23da7acb108f973f157a6"},
@@ -4568,7 +4666,7 @@ description = "ONNX Runtime is a runtime accelerator for Machine Learning models
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
-markers = "sys_platform != \"win32\" and extra == \"newsroom\""
+markers = "extra == \"newsroom\" and sys_platform != \"win32\""
 files = [
     {file = "onnxruntime-1.27.0-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:8ba14a38c570087f3cdb8cfba33f7a38a1e826c1e5b29e17c28ceda0cc910016"},
     {file = "onnxruntime-1.27.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:2eb083321af8a236a84c7c140a7f4cecbfa2a987a18c07c78db471c20cd390ef"},
@@ -4871,7 +4969,7 @@ files = [
 [package.dependencies]
 numpy = {version = ">=1.26.0", markers = "python_version < \"3.14\""}
 python-dateutil = ">=2.8.2"
-tzdata = {version = "*", markers = "sys_platform == \"win32\" or sys_platform == \"emscripten\""}
+tzdata = {version = "*", markers = "sys_platform == \"win32\""}
 
 [package.extras]
 all = ["PyQt5 (>=5.15.9)", "SQLAlchemy (>=2.0.36)", "adbc-driver-postgresql (>=1.2.0)", "adbc-driver-sqlite (>=1.2.0)", "beautifulsoup4 (>=4.12.3)", "bottleneck (>=1.4.2)", "fastparquet (>=2024.11.0)", "fsspec (>=2024.10.0)", "gcsfs (>=2024.10.0)", "html5lib (>=1.1)", "hypothesis (>=6.116.0)", "jinja2 (>=3.1.5)", "lxml (>=5.3.0)", "matplotlib (>=3.9.3)", "numba (>=0.60.0)", "numexpr (>=2.10.2)", "odfpy (>=1.4.1)", "openpyxl (>=3.1.5)", "psycopg2 (>=2.9.10)", "pyarrow (>=13.0.0)", "pyiceberg (>=0.8.1)", "pymysql (>=1.1.1)", "pyreadstat (>=1.2.8)", "pytest (>=8.3.4)", "pytest-xdist (>=3.6.1)", "python-calamine (>=0.3.0)", "pytz (>=2020.1)", "pyxlsb (>=1.0.10)", "qtpy (>=2.4.2)", "s3fs (>=2024.10.0)", "scipy (>=1.14.1)", "tables (>=3.10.1)", "tabulate (>=0.9.0)", "xarray (>=2024.10.0)", "xlrd (>=2.0.1)", "xlsxwriter (>=3.2.0)", "zstandard (>=0.23.0)"]
@@ -4991,10 +5089,9 @@ pypdfium2 = ">=4.18.0"
 name = "pillow"
 version = "11.3.0"
 description = "Python Imaging Library (Fork)"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"markus\" or extra == \"newsroom\""
 files = [
     {file = "pillow-11.3.0-cp310-cp310-macosx_10_10_x86_64.whl", hash = "sha256:1b9c17fd4ace828b3003dfd1e30bff24863e0eb59b535e8f80194d9cc7ecf860"},
     {file = "pillow-11.3.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:65dc69160114cdd0ca0f35cb434633c75e8e7fad4cf855177a05bf38678f73ad"},
@@ -5421,7 +5518,7 @@ files = [
     {file = "pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},
     {file = "pycparser-3.0.tar.gz", hash = "sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29"},
 ]
-markers = {main = "extra == \"newsroom\" and platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\"", dev = "platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\""}
+markers = {main = "platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\" and (extra == \"newsroom\" or sys_platform == \"linux\")", dev = "platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\""}
 
 [[package]]
 name = "pydantic"
@@ -5843,6 +5940,27 @@ pygments = ">=2.7.2"
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
 
 [[package]]
+name = "pytest-xdist"
+version = "3.8.0"
+description = "pytest xdist plugin for distributed testing, most importantly across multiple CPUs"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "pytest_xdist-3.8.0-py3-none-any.whl", hash = "sha256:202ca578cfeb7370784a8c33d6d05bc6e13b4f25b5053c30a152269fd10f0b88"},
+    {file = "pytest_xdist-3.8.0.tar.gz", hash = "sha256:7e578125ec9bc6050861aa93f2d59f1d8d085595d6551c2c90b6f4fad8d3a9f1"},
+]
+
+[package.dependencies]
+execnet = ">=2.1"
+pytest = ">=7.0.0"
+
+[package.extras]
+psutil = ["psutil (>=3.0)"]
+setproctitle = ["setproctitle"]
+testing = ["filelock"]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 description = "Extensions to the standard Python datetime module"
@@ -5853,7 +5971,6 @@ files = [
     {file = "python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3"},
     {file = "python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427"},
 ]
-markers = {main = "extra == \"priming\" or extra == \"markus\" or extra == \"newsroom\""}
 
 [package.dependencies]
 six = ">=1.5"
@@ -6338,7 +6455,6 @@ files = [
     {file = "requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0"},
     {file = "requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed"},
 ]
-markers = {main = "extra == \"newsroom\""}
 
 [package.dependencies]
 certifi = ">=2023.5.7"
@@ -6566,7 +6682,6 @@ files = [
     {file = "s3transfer-0.17.0-py3-none-any.whl", hash = "sha256:ce3801712acf4ad3e89fb9990df97b4972e93f4b3b0004d214be5bce12814c20"},
     {file = "s3transfer-0.17.0.tar.gz", hash = "sha256:9edeb6d1c3c2f89d6050348548834ad8289610d886e5bf7b7207728bd43ce33a"},
 ]
-markers = {main = "extra == \"markus\" or extra == \"newsroom\""}
 
 [package.dependencies]
 botocore = ">=1.37.4,<2.0a0"
@@ -6759,6 +6874,23 @@ doc = ["intersphinx_registry", "jupyterlite-pyodide-kernel", "jupyterlite-sphinx
 test = ["Cython", "array-api-strict (>=2.3.1)", "asv", "gmpy2", "hypothesis (>=6.30)", "meson", "mpmath", "ninja ; sys_platform != \"emscripten\"", "pooch", "pytest (>=8.0.0)", "pytest-cov", "pytest-timeout", "pytest-xdist", "scikit-umfpack", "scipy-doctest (>=2.0.0)", "threadpoolctl"]
 
 [[package]]
+name = "secretstorage"
+version = "3.5.0"
+description = "Python bindings to FreeDesktop.org Secret Service API"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "sys_platform == \"linux\""
+files = [
+    {file = "secretstorage-3.5.0-py3-none-any.whl", hash = "sha256:0ce65888c0725fcb2c5bc0fdb8e5438eece02c523557ea40ce0703c266248137"},
+    {file = "secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be"},
+]
+
+[package.dependencies]
+cryptography = ">=2.0"
+jeepney = ">=0.6"
+
+[[package]]
 name = "sentence-transformers"
 version = "6.1.0"
 description = "Embeddings, Retrieval, and Reranking"
@@ -6838,7 +6970,6 @@ files = [
     {file = "six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"},
     {file = "six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81"},
 ]
-markers = {main = "extra == \"priming\" or extra == \"markus\" or extra == \"newsroom\""}
 
 [[package]]
 name = "smart-open"
@@ -8054,7 +8185,6 @@ files = [
     {file = "urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897"},
     {file = "urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c"},
 ]
-markers = {main = "extra == \"markus\" or extra == \"newsroom\""}
 
 [package.extras]
 brotli = ["brotli (>=1.2.0) ; platform_python_implementation == \"CPython\"", "brotlicffi (>=1.2.0.0) ; platform_python_implementation != \"CPython\""]
@@ -8095,7 +8225,7 @@ description = "Fast implementation of asyncio event loop on top of libuv"
 optional = false
 python-versions = ">=3.8.1"
 groups = ["cyclotron"]
-markers = "sys_platform != \"win32\" and sys_platform != \"cygwin\" and platform_python_implementation != \"PyPy\""
+markers = "platform_python_implementation != \"PyPy\" and sys_platform != \"win32\" and sys_platform != \"cygwin\""
 files = [
     {file = "uvloop-0.23.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:ce17bc317d089f361b33521654c13e30eacfd3d2034fd34e613ca9c51c969686"},
     {file = "uvloop-0.23.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:53c2c5d7e2024e46776c2d90e6c637d01102126b61aaf5faa5edaf05f8b5722a"},
@@ -8937,7 +9067,7 @@ description = "This is a python API which allows you to get the transcripts/subt
 optional = true
 python-versions = "<3.15,>=3.8"
 groups = ["main"]
-markers = "extra == \"newsroom\""
+markers = "extra == \"newsroom\" or extra == \"transcripts\""
 files = [
     {file = "youtube_transcript_api-1.2.4-py3-none-any.whl", hash = "sha256:03878759356da5caf5edac77431780b91448fb3d8c21d4496015bdc8a7bc43ff"},
     {file = "youtube_transcript_api-1.2.4.tar.gz", hash = "sha256:b72d0e96a335df599d67cee51d49e143cff4f45b84bcafc202ff51291603ddcd"},
@@ -8969,11 +9099,12 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy"]
 
 [extras]
-markus = ["Pillow", "anthus-markus", "boto3"]
-newsroom = ["biblicus", "boto3", "markitdown", "tactus", "tiktoken", "youtube-transcript-api"]
+markus = []
+newsroom = ["biblicus", "boto3", "markitdown", "tactus", "tiktoken"]
 priming = ["fastapi", "strawberry-graphql", "uvicorn"]
+transcripts = ["youtube-transcript-api"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "54a1badeca4e696301a0b8dc5f50492cef9c7e6bfbbf481d4840e403ded4df69"
+content-hash = "17bd770a67179b82520370be3da65c12d7801c1dc9727e21cc0900485af8b8bd"

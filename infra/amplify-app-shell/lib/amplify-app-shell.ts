@@ -7,7 +7,8 @@ import { addCloudEmail } from "./cloud-email";
 import { parseCloudEmail } from "./cloud-email-config";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix } from "./site-config";
+import { applySiteCostTags } from "./cost-attribution";
+import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, hasReceiptGate, resolveGithubStatusTokenParameterName, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -80,12 +81,37 @@ function repositoryConnectionProperties(config: AmplifyAppShellSiteConfig): { re
   };
 }
 
+/**
+ * Opt-in (`ci.gate: leftblock-receipt`): the GitHub status token the build gate reads, created once by the stack as a
+ * SecureString and readable by the build service role through `ssm:GetParameter` on that one parameter. The generated
+ * placeholder is replaced with a fine-grained read-only token (`aws ssm put-parameter --overwrite`); the stack adopts it
+ * as it is. Nothing is created for any other site.
+ */
+function addCiReceiptGate(scope: Construct, config: AmplifyAppShellSiteConfig, buildServiceRole: iam.Role): void {
+  if (!hasReceiptGate(config)) return;
+  const token = (scope.node.tryFindChild("GithubStatusTokenParameter") as SecureStringParameter | undefined)
+    ?? new SecureStringParameter(scope, "GithubStatusTokenParameter", {
+      parameterName: resolveGithubStatusTokenParameterName(config),
+      description: `GitHub token that lets the Amplify build of ${config.siteId} read the ${config.ci.statusContext} commit status before it deploys`,
+    });
+  buildServiceRole.addToPolicy(
+    new iam.PolicyStatement({
+      sid: "ReadGithubStatusToken",
+      actions: ["ssm:GetParameter"],
+      resources: [token.parameterArn],
+    }),
+  );
+}
+
 export class AmplifyAppShellStack extends Stack {
   public readonly cmsAppId?: string;
   public readonly readerAppId?: string;
 
   constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps) {
     super(scope, id, props);
+    // Prospectus cost accounting: every resource carries the site's owner Account, app papyrus and the site ID.
+    // On unless site.json says costAccounting false. These stacks are small; the backend's tags go in waves.
+    if (config.costAccounting) applySiteCostTags(this, config.siteId);
 
     if (!hasCmsApp(config)) {
       if (!config.reader) throw new Error(`site ${config.siteId} has neither a cms section nor a reader`);
@@ -107,6 +133,8 @@ export class AmplifyAppShellStack extends Stack {
       description: `Backend deploy and staging build service role for Amplify app ${cmsAppName} (AdministratorAccess: documented risk)`,
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName("AdministratorAccess")],
     });
+
+    addCiReceiptGate(this, config, cmsServiceRole);
 
     const computeRole = new iam.Role(this, "AmplifyComputeRole", {
       assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com"),
@@ -215,17 +243,31 @@ export class AmplifyAppShellStack extends Stack {
     // The compute adapter's request URL is https://localhost:3000, so the site names its own public origin.
     // A site served by its own edge (cms.siteOrigin) has no Amplify domain, so the edge host is its origin.
     const siteOrigin = resolveSiteOrigin(config);
+    const consoleOrigin = config.cms.consoleOrigin;
     const productionSiteOrigin = cmsHostName ? `https://${cmsHostName}` : siteOrigin ?? Fn.join("", ["https://main.", cmsApp.attrDefaultDomain]);
     const stagingSiteOrigin = stagingDomainName ? `https://${stagingDomainName}` : Fn.join("", ["https://staging.", cmsApp.attrDefaultDomain]);
     const sharedRootDomain = config.cms.domainPrefix !== undefined;
     const defaultOriginsToAllow = [
       ...(config.cms.domainName ? [] : [productionOrigin]),
       ...(siteOrigin ? [`${siteOrigin}/`] : []),
+      ...(consoleOrigin && consoleOrigin !== siteOrigin ? [`${consoleOrigin}/`] : []),
       ...(stagingEnabled && !stagingDomainName ? [stagingOrigin] : []),
     ];
     const oauthRedirectUrls = defaultOriginsToAllow.length === 0
       ? config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS
       : Fn.join(",", [config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS, ...defaultOriginsToAllow]);
+
+    // The app's own id and compute role, derived here so a site repository never has to carry them: the build's
+    // "is this the owning app" guard compares $AWS_APP_ID with PAPYRUS_AMPLIFY_APP_ID, and the backend plugins that
+    // name the compute role (reader steering, newsletter) read PAPYRUS_COMPUTE_ROLE_ARN. A deploy rewrites a branch's
+    // whole variable list, so PAPYRUS_EDGE_DISTRIBUTION_ARN (not derivable: the edge stack is separate) is carried
+    // through from the environment the deploy runs in, which in the Amplify build is the branch's own variable.
+    const edgeDistributionArn = process.env.PAPYRUS_EDGE_DISTRIBUTION_ARN?.trim();
+    const ownIdentifiers: Record<string, string> = {
+      PAPYRUS_AMPLIFY_APP_ID: cmsApp.attrAppId,
+      PAPYRUS_COMPUTE_ROLE_ARN: computeRole.roleArn,
+      ...(edgeDistributionArn ? { PAPYRUS_EDGE_DISTRIBUTION_ARN: edgeDistributionArn } : {}),
+    };
 
     const productionBranch = new amplify.CfnBranch(this, "Branch", {
       appId: cmsApp.attrAppId,
@@ -242,9 +284,16 @@ export class AmplifyAppShellStack extends Stack {
         ...(config.cms.applyCognitoDomainPrefix ? { PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX: "true" } : {}),
         PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
         PAPYRUS_SITE_BRAND: config.brand,
+        ...ownIdentifiers,
         SITE_ENV: "production",
         PAPYRUS_SITE_ORIGIN: productionSiteOrigin,
+        ...(consoleOrigin ? { PAPYRUS_CONSOLE_ORIGIN: consoleOrigin } : {}),
         PAPYRUS_CONTENT_SOURCE: "published",
+        ...(config.cms.cliRemoteLogin
+          ? { PAPYRUS_ENABLE_CLI_REMOTE_LOGIN: "true", PAPYRUS_CLI_INVOKER_ROLE_ARN: computeRole.roleArn }
+          : {}),
+        ...(config.cms.cliOnFederationClient ? { PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT: "true" } : {}),
+        ...(config.cms.alarmTopicArn ? { PAPYRUS_ALARM_TOPIC_ARN: config.cms.alarmTopicArn } : {}),
         ...(revalidateSecretParameterName ? { PAPYRUS_REVALIDATE_SECRET_PARAMETER: revalidateSecretParameterName } : {}),
         ...prospectusEnvironment,
       }),
@@ -266,6 +315,7 @@ export class AmplifyAppShellStack extends Stack {
           ...(config.cms.applyCognitoDomainPrefix ? { PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX: "true" } : {}),
           PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
           PAPYRUS_SITE_BRAND: config.brand,
+          ...ownIdentifiers,
           SITE_ENV: "staging",
           PAPYRUS_SITE_ORIGIN: stagingSiteOrigin,
           ...stagingMode,
@@ -500,6 +550,7 @@ export class AmplifyAppShellStack extends Stack {
       assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com"),
       description: `Static reader build role for Amplify app ${readerAppName} (reads published media only; content is read as a Cognito guest)`,
     });
+    addCiReceiptGate(this, config, readerServiceRole);
     readerServiceRole.addToPolicy(
       new iam.PolicyStatement({
         sid: "ReadMediaForExport",

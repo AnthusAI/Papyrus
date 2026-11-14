@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b4ebaf5e-8620-4ad2-90ac-f8257363625d",
+  "title": "Work out what to search for when the editor gives no target",
+  "description": "With no search target, derive one from the Story: title, deck, section and body. Each reload moves to new results and never repeats images already shown for this Story. Say in the UI what was searched, so an editor can correct it.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a36ac382-561e-4237-b0b6-5a22965e4ec9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T12:10:32.349372Z",
+  "updated_at": "2026-11-05T12:11:33.945300Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

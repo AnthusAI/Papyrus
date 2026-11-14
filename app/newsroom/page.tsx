@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import { NewsDeskPage } from "../../components/news-desk-page";
+import { getSiteBrand } from "../../lib/site-brand";
 
 export const dynamic = "force-dynamic";
+
+/** The browser title of the newsroom home, which is the page the wordmark opens. */
+export function generateMetadata(): Metadata {
+  return { title: `Newsroom home · ${getSiteBrand().appTitle}` };
+}
 
 export type NewsDeskRootSearchParams = {
   demo?: string | string[];

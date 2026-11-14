@@ -18,7 +18,8 @@ sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, cluster_draft, history_entry, operator_view, read_item_page, release_draft, sentence, snapshot_files, trend_draft  # noqa: E402
 from papyrus_content import review_requests  # noqa: E402
 from papyrus_content.ideas import trends  # noqa: E402
-from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
+from papyrus_content.ideas.store import JsonStore  # noqa: E402
+from procedures.newsroom.tests.fake_idea_store import FakeIdeaStore  # noqa: E402
 
 
 class ListingClient(FakeClient):
@@ -172,16 +173,16 @@ def run_trends(context, *, dry_run=False, reviews=False):
     context.trend_root = directory_of(context) / "ideas"
     context.trend_run = trends.draft_trends(
         snapshot=context.trend_snapshot, site="example-site", context={"sections": [{"title": "Analysis"}, {"title": "News"}], "stories": [], "mission": "Explain.", "policy": "Be careful."},
-        json_store=JsonStore(context.trend_root), transport=context.trend_model, proposal_store=ProposalStore(client), review_client=client if reviews else None, dry_run=dry_run, now=NOW,
+        json_store=JsonStore(context.trend_root), transport=context.trend_model, idea_store=FakeIdeaStore(client), review_client=client if reviews else None, dry_run=dry_run, now=NOW,
         fetch_text=getattr(context, "trend_fetch_text", None), config=getattr(context, "trend_config", None))
 
 
-@when("the operator drafts trend stories and files them as Proposals")
+@when("the operator drafts trend stories and files them as ideas")
 def step_run(context):
     run_trends(context)
 
 
-@when("the operator drafts trend stories and files them as Proposals with review requests")
+@when("the operator drafts trend stories and files them as ideas with review requests")
 def step_run_reviews(context):
     run_trends(context, reviews=True)
 
@@ -203,11 +204,11 @@ def step_signal_weeks(context, weeks, end):
         assert len(signal["series"]) == weeks and signal["weeks"][-1] == end, signal
 
 
-@then('{count:d} trend draft is filed as a "{kind}" Proposal')
-@then('{count:d} trend drafts are filed as a "{kind}" Proposal')
-def step_filed(context, count, kind):
+@then("{count:d} trend draft is filed as an idea")
+@then("{count:d} trend drafts are filed as ideas")
+def step_filed(context, count):
     rows = filed(context)
-    assert len(rows) == count and all(row["kind"] == kind for row in rows), context.trend_run
+    assert len(rows) == count, context.trend_run
 
 
 @then("{count:d} trend drafts are filed")
@@ -216,13 +217,13 @@ def step_filed_none(context, count):
     assert context.trend_run["ideasCreated"] == count
 
 
-@then("the draft is proposed by AI and still in the draft state")
+@then("the draft is proposed by AI and still at the idea stage")
 def step_ai_draft(context):
     record = context.trend_run["drafts"][0]
     assert (record["proposer"], record["proposedBy"], record["state"]) == ("ai", "AI", "draft"), record
 
 
-@then('the Proposal targets the entities "{first}" and "{second}"')
+@then('the idea targets the entities "{first}" and "{second}"')
 def step_targets(context, first, second):
     assert json.loads(filed(context)[0]["targets"]) == [{"type": "entity", "id": first}, {"type": "entity", "id": second}]
 
@@ -238,7 +239,7 @@ def step_model(context, model):
     assert context.trend_model.requests[0]["model"] == model
 
 
-@then("the Proposal evidence holds a line chart of Hugging Face with the counts {counts}")
+@then("the idea evidence holds a line chart of Hugging Face with the counts {counts}")
 def step_figure(context, counts):
     figure = json.loads(filed(context)[0]["evidence"])["figure"]
     assert figure["type"] == "line" and figure["unit"] == "items per week"
@@ -265,12 +266,12 @@ def step_failed(context, reason):
     assert context.trend_run["invalid"][0]["reason"] == "citation_check_failed"
 
 
-@then("no Proposal is moved out of the draft state")
+@then("no idea is moved out of the idea stage")
 def step_not_moved(context):
     assert "transitionProposal" not in json.dumps(context.trend_client.calls)
 
 
-@then("no request to publish Proposals is made")
+@then("no request to publish trend ideas is made")
 def step_not_published(context):
     assert "publish" not in json.dumps(context.trend_client.calls).lower()
 
@@ -283,9 +284,9 @@ def step_review(context, reason):
     context.trend_request = request
 
 
-@then("the review links the filed Proposal")
+@then("the review links the filed idea")
 def step_review_links(context):
-    assert any(link["type"] == "proposal" and link["id"] == context.trend_run["drafts"][0]["proposalId"] for link in context.trend_request["links"])
+    assert any(link["type"] == "story" and link["id"] == context.trend_run["drafts"][0]["itemLineageId"] for link in context.trend_request["links"])
 
 
 @then("the dry run lists {passed:d} draft that passed and {failed:d} that failed the citation check")
@@ -295,7 +296,7 @@ def step_dry_counts(context, passed, failed):
     assert [i["citationCheck"]["status"] for i in run["invalid"]] == ["failed"] * failed
 
 
-@then("no Proposal is filed, no file is stored and no review is raised")
+@then("no idea is filed, no file is stored and no review is raised")
 def step_dry_nothing(context):
     assert filed(context) == [] and not context.trend_root.exists() and context.trend_client.reviews == {}
     assert context.trend_run["review"]["status"] == "skipped"

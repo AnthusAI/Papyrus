@@ -1,0 +1,37 @@
+# Neutral example sections. They belong to no publication. A new site is seeded with them so that the
+# newsroom has somewhere to put the first stories; rename, replace or disable them in the newsroom
+# (Administration) or with `papyrus sections import --config <your file>`.
+schemaVersion: 1
+sections:
+  - id: news
+    title: News
+    shortTitle: News
+    type: canonical
+    editorialMission: Report what happened and why it matters to the publication's readers.
+    editorialPolicy: Lead with the facts a reader needs. Cite the source for every claim that is not common knowledge.
+    assignmentGuidance: Start from one event or announcement. Say what changed and who is affected.
+    killCriteria: Reject pieces that only repeat another outlet's report without adding anything.
+    enabled: true
+    sortOrder: 1
+
+  - id: analysis
+    title: Analysis
+    shortTitle: Analysis
+    type: canonical
+    editorialMission: Connect several developments into a pattern and explain what it means.
+    editorialPolicy: Make one argument and support it with evidence. Say what would change the conclusion.
+    assignmentGuidance: Start from a question a reader would ask. Gather at least two independent sources before answering it.
+    killCriteria: Reject pieces whose argument cannot be checked against the evidence cited.
+    enabled: true
+    sortOrder: 2
+
+  - id: explainers
+    title: Explainers
+    shortTitle: Explainers
+    type: canonical
+    editorialMission: Explain a concept or a process from first principles so a newcomer can follow it.
+    editorialPolicy: Define terms before using them. Prefer one worked example to a list of facts.
+    assignmentGuidance: Pick one idea and explain it end to end. Link to deeper reading.
+    killCriteria: Reject pieces that assume knowledge the reader may not have.
+    enabled: true
+    sortOrder: 3

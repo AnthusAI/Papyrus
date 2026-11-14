@@ -4,8 +4,10 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+from .tenant_knowledge_keys import REFERENCE_FEED_KEY, REFERENCE_REVIEWED_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
 from .ids import hash_short, knowledge_corpus_id, reference_lineage_id_for, safe_id
 from .reference_feed_keys import feed_keys
+from .reference_medium import medium_fields
 from .source_site_plugins import youtube_video_id_from_uri
 from .message_contract import build_canonical_message_expected
 from .reference_vote import CATALOG, vote_fields
@@ -356,8 +358,8 @@ def reference_record(item: dict[str, Any], context: dict[str, Any]) -> dict[str,
             if curation_status == "accepted"
             else _string_or_null(item.get("curation_note") or item.get("ingestion_rationale"))
         ),
-        "newsroomFeedKey": "references",
-        "reviewedFeedKey": None if curation_status == "pending" else "references#reviewed",
+        "newsroomFeedKey": global_key(REFERENCE_FEED_KEY, context.get("tenantId")),
+        "reviewedFeedKey": None if curation_status == "pending" else global_key(REFERENCE_REVIEWED_FEED_KEY, context.get("tenantId")),
         "metadata": json.dumps(metadata, sort_keys=True),
         "updatedAt": context["now"],
     }
@@ -365,6 +367,7 @@ def reference_record(item: dict[str, Any], context: dict[str, Any]) -> dict[str,
     if curation_status == "rejected" and raw_metadata.get("reference_intake_status") == "rejected":
         # A catalog registration that rejects is a vote by the catalog; its details sit on the Reference, not in a Message.
         reference.update(vote_fields(CATALOG, reason_code=raw_metadata.get("curation_reason_code")))
+    reference.update(medium_fields(reference))   # the medium the address certainly says, if any (src/papyrus_content/reference_medium.py)
     reference.update(feed_keys({**reference, "versionState": "current"}))   # nobody has predicted it yet: it sorts as 0.5
     return _record(
         "Reference",
@@ -486,7 +489,7 @@ def semantic_relation_record(input_payload: dict[str, Any]) -> dict[str, Any]:
             "importedAt": input_payload.get("importedAt"),
             "createdAt": input_payload.get("importedAt"),
             "updatedAt": input_payload.get("importedAt"),
-            "newsroomFeedKey": "semanticRelations",
+            "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
             "metadata": json.dumps(input_payload.get("metadata") or {}, sort_keys=True),
         },
     )

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "9f796bdd-a46f-4b6b-847a-8049786cf843",
+  "issue_id": "PPY-e38a2d5f-fb7e-4beb-9e06-d8390d640668",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:29:27.177Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "(written by the plan script; see the comments for the dispatch list and owner questions)"
+      }
+    }
+  }
+}

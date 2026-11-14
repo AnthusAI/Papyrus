@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "1d8a2e91-ae5e-4ebc-a249-75b9b630e1a7",
+  "issue_id": "PPY-4380a65e-0b5a-4544-a048-bbcf55c4b7f3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T18:09:36.081Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "[LeftBlock] `leftblock ci`: run the repo's local CI command on an exact commit and issue a receipt (JSON + GitHub commit status)",
+    "description": "Repo: DataParade-io/LeftBlock (public; ~/Projects/LeftBlock is read-only for agents: work in a fresh clone/worktree, PR to its default branch). Files: `leftblock/cli.py` (new subcommand), new `leftblock/ci.py`, `features/ci_receipt.feature` + steps, `README.md`, `CHANGELOG.md`.\n\nConfiguration (`.leftblock.yml` in the adopting repo):\n```yaml\nci:\n  command: npm test            # one shell command; the repo decides what CI means\n  status_context: leftblock/ci # GitHub status context\n  sign: true                   # optional HMAC with the existing LEFTBLOCK_SECRET_PATH secret\n```\nBehaviour of `leftblock ci [--sha HEAD] [--no-status] [--dry-run]`:\n1. Refuse unless the work tree is clean and `--sha` resolves to HEAD (the receipt is for exactly what was tested). Record `git rev-parse HEAD`, tree hash, `git describe --always`.\n2. Run `ci.command` with output streamed; capture exit status, duration, start/end timestamps, tool versions (`node -v`, `python3 --version`, `leftblock --version`, and `git --version`).\n3. Write receipt JSON to `.git/leftblock/receipts/<sha>.json`: `{sha, tree, checks:[{command, exit_code, duration_s}], result: \"success\"|\"failure\", started_at, finished_at, tools:{...}, leftblock_version, host, signature?: \"hmac-sha256:<hex>\"}`; signature = HMAC over `sha|tree|result|finished_at` with the shared secret (reuse `compute_hmac` shape in `leftblock/core.py`).\n4. Post a commit status via `gh api repos/{owner}/{repo}/statuses/<sha> -f state=success|failure -f context=leftblock/ci -f description=\"<result> <n> checks <duration> sig:<first 12 hex>\" -f target_url=` (gh resolves the repo from `origin`). Failure still posts `failure` so the deploy gate sees red. `--no-status` for offline runs.\n5. Exit code mirrors the CI command.\nTrust model (document in README): guards against mistakes (forgetting to run checks, deploying a red commit), not against a malicious committer; anyone with the gh token can post the status and anyone with the secret can sign. Optional signing lets the deploy gate verify the receipt was minted by a machine holding the secret.\nGherkin scenarios: clean tree success → status success + receipt; failing command → status failure, exit non-zero; dirty tree → refused; `--no-status` → receipt only. Tests with a fake `gh` on PATH.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+    "labels": [
+      "ci",
+      "cost"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-fable-5-1",
+      "name": "plan-ci-cost"
+    }
+  }
+}

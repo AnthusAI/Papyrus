@@ -156,9 +156,9 @@
   "<work>/config/vocabulary.yml"
  ],
  [
-  "biblicus",
-  "extract",
-  "typed-entities",
+  "papyrus",
+  "knowledge",
+  "extract-entities",
   "--corpus",
   "<work>/corpus",
   "--vocabulary",
@@ -168,26 +168,9 @@
   "--extraction-snapshot",
   "pipeline:ext1",
   "--out",
-  "<work>/runs/2026-W44/typed"
- ],
- [
-  "papyrus",
-  "knowledge",
-  "publish-run",
-  "--auth",
-  "iam",
-  "--amplify-outputs",
-  "<work>/config/amplify_outputs.json",
-  "--corpus-key",
-  "shipped",
-  "--actor-name",
-  "Shipped research agent",
-  "--identity",
-  "<work>/corpus/analysis/topic-identity/cur0000000000000000000000000000000000000000000000000000000000000/output.json",
-  "--trends",
-  "<work>/corpus/analysis/topic-governance/trd0000000000000000000000000000000000000000000000000000000000000/output.json",
-  "--entities",
-  "<work>/runs/2026-W44/typed/output.json"
+  "<work>/runs/2026-W44/typed",
+  "--usage-out",
+  "<work>/runs/2026-W44/typed-usage.json"
  ],
  [
   "papyrus",
@@ -207,6 +190,33 @@
   "<work>/corpus/analysis/topic-governance/trd0000000000000000000000000000000000000000000000000000000000000/output.json",
   "--entities",
   "<work>/runs/2026-W44/typed/output.json",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
+  "--stop-words",
+  "<work>/config/stop-words.txt"
+ ],
+ [
+  "papyrus",
+  "knowledge",
+  "publish-run",
+  "--auth",
+  "iam",
+  "--amplify-outputs",
+  "<work>/config/amplify_outputs.json",
+  "--corpus-key",
+  "shipped",
+  "--actor-name",
+  "Shipped research agent",
+  "--identity",
+  "<work>/corpus/analysis/topic-identity/cur0000000000000000000000000000000000000000000000000000000000000/output.json",
+  "--trends",
+  "<work>/corpus/analysis/topic-governance/trd0000000000000000000000000000000000000000000000000000000000000/output.json",
+  "--entities",
+  "<work>/runs/2026-W44/typed/output.json",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
+  "--stop-words",
+  "<work>/config/stop-words.txt",
   "--apply"
  ],
  [
@@ -227,6 +237,10 @@
   "<work>/corpus/analysis/topic-governance/trd0000000000000000000000000000000000000000000000000000000000000/output.json",
   "--entities",
   "<work>/runs/2026-W44/typed/output.json",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
+  "--stop-words",
+  "<work>/config/stop-words.txt",
   "--apply"
  ],
  [
@@ -245,6 +259,8 @@
   "/wiki/{slug}/",
   "--as-of",
   "2026-10-26",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
   "--beats-config",
   "<work>/site/web/scoring.json",
   "--concept-kinds",
@@ -266,6 +282,8 @@
   "/wiki/{slug}/",
   "--as-of",
   "2026-10-26",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
   "--beats-config",
   "<work>/site/web/scoring.json",
   "--concept-kinds",
@@ -281,7 +299,12 @@
   "--amplify-outputs",
   "<work>/config/amplify_outputs.json",
   "--beats-config",
-  "<work>/site/web/scoring.json"
+  "<work>/site/web/scoring.json",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
+  "--run-id",
+  "knowledge-shipped-manual-1",
+  "--json"
  ],
  [
   "papyrus",
@@ -294,6 +317,10 @@
   "<work>/config/amplify_outputs.json",
   "--beats-config",
   "<work>/site/web/scoring.json",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
+  "--run-id",
+  "knowledge-shipped-manual-1",
   "--apply"
  ],
  [

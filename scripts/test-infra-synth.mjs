@@ -118,6 +118,34 @@ try {
   const noPreview = synthesizeSite("pilobol-no-preview", noPreviewSite);
   assert.equal(/upload-preview/.test(buildSpecOf(stagingBranchOf(noPreview))), false, "no reader and no stagingPreview: the staging branch builds the newsroom only");
 
+  // `papyrus login --remote` is off unless cms.cliRemoteLogin is true: the production branch then names the flag and its compute role.
+  const productionBranchOf = (template) => resourcesOfType(template, "AWS::Amplify::Branch").find((branch) => branch.Properties.BranchName === "main");
+  const remoteLoginNames = (template) => productionBranchOf(template).Properties.EnvironmentVariables.map((variable) => variable.Name).filter((name) => /CLI_REMOTE_LOGIN|CLI_INVOKER_ROLE/.test(name));
+  assert.deepEqual(remoteLoginNames(withReader), [], "remote CLI login off by default: the production branch carries neither variable");
+  const remoteLoginSite = structuredClone(pilobolExample);
+  remoteLoginSite.cms.cliRemoteLogin = true;
+  const remoteLogin = synthesizeSite("pilobol-remote-login", remoteLoginSite);
+  assert.deepEqual(remoteLoginNames(remoteLogin).sort(), ["PAPYRUS_CLI_INVOKER_ROLE_ARN", "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN"], "cliRemoteLogin: the production branch names the flag and the invoker role");
+  const invoker = productionBranchOf(remoteLogin).Properties.EnvironmentVariables.find((variable) => variable.Name === "PAPYRUS_CLI_INVOKER_ROLE_ARN");
+  assert.ok(JSON.stringify(invoker.Value).includes("AmplifyComputeRole"), "cliRemoteLogin: the invoker is the Amplify compute role");
+  assert.deepEqual(stagingBranchOf(remoteLogin).Properties.EnvironmentVariables.filter((variable) => /CLI_REMOTE_LOGIN|CLI_INVOKER_ROLE/.test(variable.Name)), [], "cliRemoteLogin: the staging branch is unchanged");
+
+  // Moving the CLI onto the federation client is off unless cms.cliOnFederationClient is true; the production branch then names the flag only.
+  const federationNames = (template) => productionBranchOf(template).Properties.EnvironmentVariables.map((variable) => variable.Name).filter((name) => /CLI_ON_FEDERATION_CLIENT/.test(name));
+  assert.deepEqual(federationNames(withReader), [], "cliOnFederationClient off by default: the production branch is unchanged");
+  const federationSite = structuredClone(pilobolExample);
+  federationSite.cms.cliOnFederationClient = true;
+  const federation = synthesizeSite("pilobol-federation-client", federationSite);
+  assert.deepEqual(federationNames(federation), ["PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT"], "cliOnFederationClient: the production branch names the flag");
+  assert.deepEqual(stagingBranchOf(federation).Properties.EnvironmentVariables.filter((variable) => /CLI_ON_FEDERATION_CLIENT/.test(variable.Name)), [], "cliOnFederationClient: the staging branch is unchanged");
+  const alarmTopicNames = (template) => productionBranchOf(template).Properties.EnvironmentVariables.map((variable) => variable.Name).filter((name) => name === "PAPYRUS_ALARM_TOPIC_ARN");
+  assert.deepEqual(alarmTopicNames(withReader), [], "alarm topic off by default: the production branch carries no variable");
+  const alarmTopicSite = structuredClone(pilobolExample);
+  alarmTopicSite.cms.alarmTopicArn = "arn:aws:sns:us-east-1:111111111111:example-site-alarms";
+  const alarmTopic = synthesizeSite("pilobol-alarm-topic", alarmTopicSite);
+  assert.deepEqual(alarmTopicNames(alarmTopic), ["PAPYRUS_ALARM_TOPIC_ARN"], "alarmTopicArn: the production branch names the topic");
+  assert.deepEqual(stagingBranchOf(alarmTopic).Properties.EnvironmentVariables.filter((variable) => variable.Name === "PAPYRUS_ALARM_TOPIC_ARN"), [], "alarmTopicArn: the staging branch is unchanged");
+
   const anthUsDomains = resourcesOfType(anthUsTemplate, "AWS::Amplify::Domain");
   assert.equal(anthUsDomains.length, 1, "anth-us: one reader domain");
   assert.deepEqual(anthUsDomains[0].Properties.SubDomainSettings.map((setting) => setting.Prefix), ["", "www"]);
@@ -191,7 +219,7 @@ try {
 
     const productionSpec = buildSpecOf(apps.find((app) => app.Properties.Platform === "WEB_COMPUTE"));
     assert.match(productionSpec, /^backend:/m);
-    assert.match(productionSpec, /npx ampx pipeline-deploy/);
+    assert.match(productionSpec, /npx papyrus-infra backend-deploy/);
     assert.equal(/cp amplify_outputs\.json \.next\/amplify_outputs\.json/.test(productionSpec), isPretext, `${example}: production ships amplify_outputs.json into the compute bundle only for a Pretext site`);
     assert.equal(/PAPYRUS_AMPLIFY_OUTPUTS/.test(productionSpec), false, `${example}: production must not set PAPYRUS_AMPLIFY_OUTPUTS (next build would read a file that does not exist yet)`);
 
@@ -336,7 +364,8 @@ try {
   }
   const reusableDeploy = fs.readFileSync(path.join(repo, ".github/workflows/amplify-deploy.yml"), "utf8");
   assert.match(reusableDeploy, /workflow_call:/);
-  assert.match(reusableDeploy, /role-to-assume: \$\{\{ inputs\.role-to-assume \}\}/);
+  assert.match(reusableDeploy, /ROLE_TO_ASSUME: \$\{\{ inputs\.role-to-assume \}\}/, "a full role ARN from the caller still works");
+  assert.match(reusableDeploy, /role-to-assume: \$\{\{ steps\.target\.outputs\.role \}\}/, "the job assumes the role the target step resolved");
   assert.match(reusableDeploy, /--commit-id "\$COMMIT_ID"/, "the job builds the exact commit that passed CI");
   assert.match(reusableDeploy, /get-job/, "the workflow waits for the job");
   assert.match(reusableDeploy, /LimitExceededException/, "back-to-back merges wait for the running job instead of failing");
@@ -531,6 +560,19 @@ try {
   assert.match(edgeVariables, /"Name":"PAPYRUS_SITE_ORIGIN","Value":"https:\/\/shipped\.anth\.us"/);
   assert.match(edgeVariables, /https:\/\/shipped\.anth\.us\//, "siteOrigin joins the OAuth redirect list");
   assert.match(edgeVariables, /DefaultDomain/, "the amplifyapp.com origin stays in the OAuth redirect list");
+  assert.doesNotMatch(edgeVariables, /PAPYRUS_CONSOLE_ORIGIN/, "without consoleOrigin the production branch is unchanged");
+
+  const consoleSite = synthVariant("console-site", "pretext.site.json", (config) => {
+    removeDomains(config);
+    config.cms.siteOrigin = "https://shipped.anth.us";
+    config.cms.consoleOrigin = "https://newsroom.shipped.anth.us";
+  });
+  const consoleMain = resourcesOfType(consoleSite, "AWS::Amplify::Branch").find((branch) => branch.Properties.BranchName === "main");
+  const consoleVariables = JSON.stringify(consoleMain.Properties.EnvironmentVariables);
+  assert.match(consoleVariables, /"Name":"PAPYRUS_SITE_ORIGIN","Value":"https:\/\/shipped\.anth\.us"/, "the site origin stays the public origin");
+  assert.match(consoleVariables, /"Name":"PAPYRUS_CONSOLE_ORIGIN","Value":"https:\/\/newsroom\.shipped\.anth\.us"/);
+  assert.match(consoleVariables, /https:\/\/newsroom\.shipped\.anth\.us\//, "the console origin joins the OAuth redirect list");
+  assert.match(consoleVariables, /https:\/\/shipped\.anth\.us\//, "the site origin stays in the OAuth redirect list");
   const edgeStaging = resourcesOfType(edgeSite, "AWS::Amplify::Branch").find((branch) => branch.Properties.BranchName === "staging");
   assert.match(JSON.stringify(edgeStaging.Properties.EnvironmentVariables), /"Name":"PAPYRUS_SITE_ORIGIN","Value":\{"Fn::Join":\["",\["https:\/\/staging\.",\{"Fn::GetAtt":\["App","DefaultDomain"\]\}\]\]\}/, "staging origin is unchanged");
   assert.doesNotMatch(noDomainRedirects, /"Name":"PAPYRUS_SITE_ORIGIN","Value":"https:\/\/shipped/, "without siteOrigin the origin is still the default domain");

@@ -1,0 +1,25 @@
+{
+  "id": "PPY-22095a57-7e66-4b96-a8a3-c893ae9e1fb4",
+  "title": "Document paged Reference lists on p.apyr.us",
+  "description": "Docs task for PPY-61f941 (Reference lists load more as the reader scrolls). The board does not allow a child under a story, so this is linked by id. Add the p.apyr.us docs page: how a site opts in (homePage.references.paging plus paged=\"true\" on the include), what count means, the data files, the no-script fallback, how a site's page_finish hook applies, freshness, and the twin. Content source: docs/home-page.md, section Paged Reference lists, in the PR for PPY-61f941. Write it after that PR merges.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T05:02:23.939878Z",
+  "updated_at": "2026-11-05T05:02:27.529118Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "reference-list-paging agent"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

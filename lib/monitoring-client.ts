@@ -2,6 +2,7 @@
 
 import { generateClient } from "aws-amplify/data";
 import { emailReferenceBatches } from "./monitoring-overview";
+import { homeCyclotronStateFrom, type HomeCyclotronState } from "./hosted-cyclotron-status";
 import type {
   EmailDecisionResult,
   MonitoringListName,
@@ -47,6 +48,17 @@ export async function loadMonitoringPage(
   return query<MonitoringPage>("monitoringPage",
     `query MonitoringPage($list: String!, $cursor: String, $filter: String, $scope: String) { monitoringPage(list: $list, cursor: $cursor, filter: $filter, scope: $scope) }`,
     { list, cursor, filter: heldOnly ? "held" : null, scope });
+}
+
+/**
+ * The Cyclotron classifier status of this site's own publication: one small read through the same signed-in Monitoring API, never the
+ * overview. The server returns only the snapshot rows that belong to the site's publication.
+ */
+export async function loadCyclotronStatusRows(): Promise<HomeCyclotronState> {
+  const result = await query<unknown>("monitoringPage",
+    `query MonitoringPage($list: String!, $cursor: String, $filter: String, $scope: String) { monitoringPage(list: $list, cursor: $cursor, filter: $filter, scope: $scope) }`,
+    { list: "cyclotronStatus", cursor: null, filter: null, scope: "publication" });
+  return homeCyclotronStateFrom(result);
 }
 
 /** Loads one receipt's safe plain-text rendering and its already extracted candidate links. */

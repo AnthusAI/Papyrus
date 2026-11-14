@@ -1,0 +1,20 @@
+{
+  "id": "PPY-823528c4-2940-4cd7-92b8-f4a23f944ad3",
+  "title": "Docs: concepts, editing, ranks, section concepts, wiki modes",
+  "description": "Public docs in Papyrus-web for what has shipped. p.apyr.us content PRs merge without screenshot approval.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-26e690d5-3d62-46a1-86ae-572a56074f60",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:49.323492Z",
+  "updated_at": "2026-11-04T02:52:49.323523Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

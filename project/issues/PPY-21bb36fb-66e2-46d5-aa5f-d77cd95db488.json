@@ -1,0 +1,35 @@
+{
+  "id": "PPY-21bb36fb-66e2-46d5-aa5f-d77cd95db488",
+  "title": "Citation markers with no citations directive render numbered links to anchors that do not exist",
+  "description": "A hacking article had [@key] citations but no ::citations{} directive. Papyrus rendered numbered links to anchors that did not exist. Before publication, flag a body with citation markers and no bibliography directive (the story checklist citation check), or supply the bibliography automatically. The standard bibliography also adds direct external links; make the format publication-configurable so a site with an internal-links-only policy (Machines on Machines) can render the bibliography without outbound hyperlinks (title, publisher and date as plain text, or links to the site's own Reference pages). Gherkin: marker without directive is flagged; a configured internal-only bibliography has no external href.",
+  "type": "bug",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "383ae059-ff5a-4306-9ce1-5a438c505de5",
+      "author": "home",
+      "text": "Branch fix/PPY-21bb36-citations, PR https://github.com/AnthusAI/Papyrus/pull/1303 (not merged, not released). Verified: test_citation_links.py 22 passed; behave citation-links, lens-check, section-fronts (existing fixtures byte-identical), markus-derive, markus-export, audience-lenses green. Not verified: unrelated suites that need latex2mathml, decision_flywheel, tsx, amplify_outputs.json. Deploy: engine release, then MoM version bump + citations.links=internal in its projection.json.",
+      "created_at": "2026-11-08T17:39:43.488240Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6d0476c2-3a61-446d-a62c-515c52aec4b9",
+      "author": "home",
+      "text": "Branch fix/PPY-21bb36-citations, PR https://github.com/AnthusAI/Papyrus/pull/1303 (not merged, not released). Verified: test_citation_links.py 22 passed; behave citation-links, lens-check, section-fronts (existing fixtures byte-identical), markus-derive, markus-export, audience-lenses green. Not verified: unrelated suites needing latex2mathml, decision_flywheel, tsx, amplify_outputs.json. Deploy: engine release, then MoM version bump + citations.links=internal in its projection.json.",
+      "created_at": "2026-11-08T17:39:50.180500Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T17:09:04.008357Z",
+  "updated_at": "2026-11-08T17:39:50.180745Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

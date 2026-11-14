@@ -43,6 +43,34 @@ def save_payload(**changes) -> dict:
     return values
 
 
+class HomePageSnapshotTaskTest(unittest.TestCase):
+    """The task the stream trigger schedules reads the list of changed rows, runs, and takes out exactly what it read once it succeeded."""
+
+    def run_task(self, report: dict, task: dict | None = None):
+        from papyrus_content.home_page.state_store import DirtyBatch
+
+        batch, dirty, state = DirtyBatch(ids=frozenset({"reference-1-v1"})), mock.Mock(), mock.Mock()
+        self.dirty = dirty
+        with mock.patch.object(content_actions_handler, "projection_context", return_value=mock.Mock()), \
+                mock.patch.object(content_actions_handler, "home_page_settings_of", return_value=object()), \
+                mock.patch.object(content_actions_handler, "home_page_stores_for", return_value=(state, dirty, batch)), \
+                mock.patch.object(content_actions_handler, "run_home_page_snapshot", return_value=report) as run:
+            result = content_actions_handler.run_home_page_snapshot_task(object(), task or {"task": "home-page-snapshot", "incremental": True, "scope": "abc"})
+        return result, run, dirty, batch, state
+
+    def test_a_successful_run_gets_the_state_and_the_batch_and_acknowledges_what_it_read(self) -> None:
+        result, run, dirty, batch, state = self.run_task({"mode": "incremental", "written": []})
+        self.assertTrue(result["ok"])
+        self.assertIs(run.call_args.kwargs["dirty"], batch)
+        self.assertIs(run.call_args.kwargs["state_store"], state)
+        dirty.acknowledge.assert_called_once_with(batch)
+
+    def test_a_run_that_reports_errors_keeps_the_list_for_the_retry(self) -> None:
+        with self.assertRaises(content_actions_handler.ProjectionTaskFailed):
+            self.run_task({"errors": ["a page failed"]})
+        self.dirty.acknowledge.assert_not_called()  # the list is only taken out after success, so the retry reads the same rows
+
+
 class ContentActionsHandlerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.client = FakeAuthoringClient()
@@ -108,6 +136,40 @@ class ContentActionsHandlerTest(unittest.TestCase):
         unpublished = self.call("unpublishItem", {"id": item["id"]})
         self.assertEqual(unpublished, {"ok": True, "changed": True})
         self.assertNotIn(published["publishedId"], self.client.tables.get("PublishedItem", {}))
+
+    def test_a_live_story_cannot_change_type_by_saving_in_place(self) -> None:
+        item = self.call("saveItemDraft", save_payload())["item"]
+        self.call("publishItem", {"id": item["id"]})
+        refused = self.call("saveItemDraft", save_payload(id=item["id"], type="post", expectedContentHash=item["contentHash"]))
+        self.assertFalse(refused["ok"])
+        self.assertEqual(refused["errors"][0]["code"], "type-locked")
+        self.assertIn("new version", refused["errors"][0]["message"])
+        self.assertEqual(self.client.tables["Item"][item["id"]]["type"], "article", "the live row was not touched")
+
+    def test_a_new_version_can_change_the_type_and_the_live_page_waits_for_publish(self) -> None:
+        item = self.call("saveItemDraft", save_payload())["item"]
+        self.call("publishItem", {"id": item["id"]})
+        saved = self.call("saveItemDraft", save_payload(id=item["id"], type="post", newVersion=True, expectedContentHash=item["contentHash"], bodyMarkus="Changed\n"))
+        self.assertTrue(saved["ok"])
+        self.assertEqual(self.client.tables["Item"][saved["item"]["id"]]["type"], "post")
+        self.assertEqual(self.client.tables["Item"][saved["item"]["id"]]["typeStatus"], "post#draft")
+        live = self.client.tables["PublishedItem"]["published-" + item["id"]]
+        self.assertEqual(live["type"], "article", "the live row keeps its type until the new version is published")
+        moved = self.call("publishItem", {"id": saved["item"]["id"]})
+        self.assertEqual(moved["typeChangedFrom"], "article")
+        self.assertEqual(self.client.tables["PublishedItem"]["published-" + item["id"]]["type"], "post")
+
+    def test_a_new_version_refuses_a_system_type(self) -> None:
+        item = self.call("saveItemDraft", save_payload())["item"]
+        refused = self.call("saveItemDraft", save_payload(id=item["id"], type="wiki_page", newVersion=True, expectedContentHash=item["contentHash"]))
+        self.assertFalse(refused["ok"])
+        self.assertIn("not a Story", refused["errors"][0]["message"])
+
+    def test_publishing_the_same_type_reports_no_type_change(self) -> None:
+        item = self.call("saveItemDraft", save_payload())["item"]
+        self.call("publishItem", {"id": item["id"]})
+        saved = self.call("saveItemDraft", save_payload(id=item["id"], newVersion=True, expectedContentHash=item["contentHash"], bodyMarkus="Changed\n"))
+        self.assertNotIn("typeChangedFrom", self.call("publishItem", {"id": saved["item"]["id"]}))
 
     def test_publish_missing_item_is_not_found(self) -> None:
         result = self.call("publishItem", {"id": "item-missing"})

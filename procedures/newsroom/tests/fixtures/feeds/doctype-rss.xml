@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE rss [
+  <!ENTITY payload "expanded">
+]>
+<rss version="2.0">
+  <channel>
+    <title>cs.CR updates on arXiv.org</title>
+    <item>
+      <title>&payload;</title>
+      <link>https://arxiv.org/abs/2611.00001</link>
+      <guid isPermaLink="false">oai:arXiv.org:2611.00001v1</guid>
+    </item>
+  </channel>
+</rss>

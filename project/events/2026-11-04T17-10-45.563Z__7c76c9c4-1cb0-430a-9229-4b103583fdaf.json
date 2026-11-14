@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "7c76c9c4-1cb0-430a-9229-4b103583fdaf",
+  "issue_id": "PPY-d21c7f0c-ef67-4b7b-8248-07aadb03f38e",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-04T17:10:45.563Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "stub",
+        "to": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M1, first slice\n\n**Goal.** What Ryan must still do for the first slice. No account, no SES request, no verification mail, no SNS click.\n\n**Build.**\n1. Say yes to these writes in papyrus-production, each shown first as a change set: stack `papyrus-newsletter-sending-operators` (identity, DNS records under notify.anth.us); change set on `papyrus-monitoring` (listener, queues, table, Lambdas, heartbeat, last-resort alarms; IAM stated in a plain table).\n2. Say which mailbox operator mail goes to. Default: the parameter `/papyrus/shipped/knowledge-run/alarm-email`, already used by the stack, whose subscription to `papyrus-monitoring-alarms` is confirmed. Nothing to do if that is right. Separately, that topic also shows one subscription stuck at PendingConfirmation: click it or tell me to remove it.\n3. PyPI, for `caducus`: confirm the project on PyPI is ours (it holds only 0.1.0), then add a trusted publisher for AnthusAI/Caducus, workflow `release.yml`. Repo secrets show no `PYPI_API_TOKEN`, and the last release run failed. Trusted publishing stores no key, which suits the rule; a token is the fallback. Until it is done the zip can pin a Git tag.\n4. Choose the IAM Identity Center permission set the alarm links should open with (a read-only one if there is one). Its name and the portal address go in the SSM parameter `/papyrus/monitoring/triage`, written by an agent after you say which.\n\n**Acceptance.**\nRecorded yes for each change set; `pip install caducus==<new>` works, or the Git-tag fallback is chosen."
+      }
+    }
+  }
+}

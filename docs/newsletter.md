@@ -78,7 +78,7 @@ Status: Live for Shipped (PPY-874ad4).
 
 Each site that will send newsletters gets its own CloudFormation stack, `papyrus-newsletter-sending-<siteId>`, from `infra/newsletter/papyrus-newsletter-sending.yaml`. It creates the SES identity for the sending domain with Easy DKIM and a custom MAIL FROM domain, the DNS records for them and for DMARC, a configuration set `papyrus-<siteId>` without open or click tracking, and an SNS topic `papyrus-newsletter-events-<siteId>` that carries delivery events. The stack for Shipped sends from `shipped.anth.us`; its identity, DKIM and MAIL FROM checks all pass.
 
-The stack does not send mail and does not lift the SES sandbox. Parameters, the deploy command, verification checks and teardown are in `infra/newsletter/README.md`.
+The stack does not send mail and does not lift the SES sandbox. Parameters, the deploy command, verification checks and teardown are in `infra/newsletter/README.md`. The same identity and configuration set also carry the site's notifications (`docs/notifications.md`): messages are told apart by their tags, the newsletter ignores any event without a valid `sub` tag, and the bounce and complaint alarms and the pause stay with the newsletter plugin where it is enabled.
 
 ## The newsletter plugin: double opt-in
 
@@ -96,7 +96,7 @@ backend: {
       siteId: "shipped",                                   // the sending stack's SiteId
       siteOrigin: "https://shipped.anth.us",               // the public origin; the plugin's links and redirects are built on it
       basePath: "",                                        // projection.json urls.basePath ("/posts" for dataparade.io/posts); omit for a site at the root
-      computeRoleArn: "arn:aws:iam::<account>:role/<the CmsComputeRoleArn output>",
+      computeRoleArn: "arn:aws:iam::<account>:role/<the CmsComputeRoleArn output>", // optional: PAPYRUS_COMPUTE_ROLE_ARN on the Amplify branch wins
       sendingDomain: "shipped.anth.us",
       fromAddress: "newsletter@<sendingDomain>",              // a mailbox name at sendingDomain
       fromName: "Shipped",
@@ -104,7 +104,7 @@ backend: {
       theme: { accent: "#...", text: "#...", background: "#...", fontFamily: "...", logoUrl: "https://..." }, // branding keys: see "Email theme fields"
       lists: [
         { id: "weekly", name: "...", description: "...", kind: "roundup",
-          schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "newsletter_issue", archivePath: "/roundup/" },
+          schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "post", archivePath: "/roundup/" },
         { id: "alerts-x", name: "...", description: "...", kind: "alert", rule: { sections: ["..."], tags: ["..."], types: ["..."] }, approval: "admin" },
       ],
       // configurationSet and eventTopicName default to papyrus-<siteId> and papyrus-newsletter-events-<siteId>.
@@ -230,7 +230,7 @@ The sender (PPY-3ae3b9) writes `gsiHid` on every ledger row, as above, so erasur
 
 Status: Built (PPY-3ae3b9). The newsroom Newsletter panel (below) drives these operations.
 
-A roundup issue is an `Item` of the list's `issueType` (default `newsletter_issue`), so editors write it in the ordinary newsroom editor (open it at `/newsroom/articles/<itemId>`; the article list does not show other types yet). The newsletter table holds its send state in `ISSUE#` rows. When the send finishes, the Item is published through `content-actions` (`publishItem`), so the standard front end gives it a page, a Markdown twin and an `llms.txt` entry, and lists it on the archive page.
+A roundup issue is an ordinary Story of the list's `issueType`, which a site must set (there is no default: it is the Story type the site uses for its periodic email, usually `post`), so editors write it in the ordinary newsroom editor (it is a card on the Stories board; open it at `/newsroom/articles/<itemId>`; the article list does not show other types yet). The newsletter table holds its send state in `ISSUE#` rows. When the send finishes, the Item is published through `content-actions` (`publishItem`), so the standard front end gives it a page, a Markdown twin and an `llms.txt` entry, and lists it on the archive page.
 
 ### Issue lifecycle
 
@@ -263,13 +263,13 @@ The projector decides a page by section, and which Item types it projects by `li
       "roundup": { "base": "roundup", "label": "Roundup", "description": "Every weekly issue.", "feed": false }
     }
   },
-  "listings": { "types": ["article", "newsletter_issue"] }
+  "listings": { "types": ["article", "post"] }
 }
 ```
 
 Core change (PPY-3ae3b9): until now only `article` and `page` Items were projected whatever the settings; the projector now also projects every type in `listings.types` (`StandardMarkusProjector.projectable_types`, `PublishedContentSource.extra_types`). Sites that do not list a type project nothing for it, as before. `feed: false` keeps issues out of the site feed. The plugin setting `itemUrlStyle` (`html`, `directory` or `clean`, default `html`) must equal `urls.style`: roundup drafts link to published items with it. `archivePath` is one path segment because it is also the Item section and the `urls.sections` key.
 
-Item `type` is a free string in the Item model and in `saveItemDraft`; the newsroom article editor's Type menu offers only `article` and `page` and its list loads only those types, so an issue is opened by id. Epic PPY-cf5e4c (publication-defined shapes) names "newsletter issue" as a shape; `newsletter_issue` is that string.
+The issue type is a Story type like any other: the site lists it in `urls.types` or `listings.types` so the projector builds its pages, and the board, the Type buttons and the Stories list all include it. A site whose stored issues carry another type string keeps it by naming that string as `issueType`; nothing rewrites stored types.
 
 ### Drafting the roundup
 
@@ -337,7 +337,7 @@ Read at send time from SSM String parameters: `/papyrus/<siteId>/email/postal-ad
 ### Operator notes
 
 - Environment (all set by the plugin): `FUNCTION_ARN`, `SCHEDULER_ROLE_ARN`, `QUEUE_URL`, `CONTENT_ACTIONS_FUNCTION`, `PAPYRUS_GRAPHQL_ENDPOINT`, `ITEM_URL_STYLE`, plus those of the double opt-in. `LISTS_JSON` also carries a roundup's `issueType`, `archivePath` and `timezone`.
-- IAM: `newsletter` may create, update and delete schedules named `papyrus-nl-<siteId>-*`, pass the one scheduler role, send to the queue, read the two postal parameters, invoke `content-actions`, and call five AppSync fields (`Query.getItem`, `Query.getPublishedItem`, `Query.listPublishedItems`, `Mutation.createItem`, `Mutation.updateItem`). The worker may read and write the table, receive from and send to the queue, invoke `content-actions`, read the key parameter, send through the site identity and configuration set, and call `sesv2:GetAccount` (no resource-level form exists). The AppSync function may only invoke `newsletter`.
+- IAM: `newsletter` may create, update and delete schedules named `papyrus-nl-<siteId>-*`, pass the one scheduler role, send to the queue, read the two postal parameters, invoke `content-actions`, and call five AppSync fields (`Query.getItem`, `Query.getPublishedItem`, `Query.listPublishedItems`, `Mutation.createItem`, `Mutation.updateItem`). The worker may read and write the table, receive from and send to the queue, invoke `content-actions`, read the key parameter, send through the site identity and configuration set, and call `ses:GetAccount` (no resource-level form exists). The AppSync function may only invoke `newsletter`.
 - To stop a send in progress, an admin calls `newsletterStopIssue`: workers drop the remaining messages and the counts stay as they were.
 - A message in the dead letter queue (`papyrus-newsletter-send-<siteId>-dlq`) is a batch that failed three times (a missing render, SES unreachable). The ledger makes it safe to redrive: addresses already handled are skipped.
 - A `blocked` issue needs its cause fixed (create the postal address parameter, resume the site) and an admin to approve it again; approval accepts `blocked`.
@@ -393,6 +393,7 @@ flowchart LR
 
 - Newsroom: `publish_item_action` passes the published item id to `project_item_action` when `changed`. The announcement goes out once the page is live. If the projection failed, the scheduled retry carries the same marker and announces when it succeeds.
 - CLI: `papyrus content publish` marks its projection task with the published item id when `changed`; `run_projection_task` announces after the projection succeeds. A task without the marker (a plain reprojection, `--no-trigger`, an unchanged republish) announces nothing.
+- `announce_published` also invokes the `notifications` plugin's router when `PAPYRUS_NOTIFICATIONS_FUNCTION` is set ([notifications.md](notifications.md)); each plugin is told independently.
 - No `PAPYRUS_NEWSLETTER_FUNCTION` (the plugin is off): a no-op. Any error is logged and swallowed, with 2 and 3 second timeouts, so an alert problem never fails or slows a publish.
 
 The plugin sets `PAPYRUS_NEWSLETTER_FUNCTION` on `content-actions` and grants it `lambda:InvokeFunction` on `papyrus-newsletter-<siteId>` only.

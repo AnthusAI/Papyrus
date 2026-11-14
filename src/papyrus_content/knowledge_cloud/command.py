@@ -31,10 +31,15 @@ class AwsServices:
         self._lambda = boto3.client("lambda", region_name=region)
         self._amplify = boto3.client("amplify", region_name=region)
         self._s3 = boto3.client("s3", region_name=region)
+        self._appsync = boto3.client("appsync", region_name=region)
         self._max_calls = max_calls
 
     def api_key(self, parameter: str) -> str:
         return self._ssm.get_parameter(Name=parameter, WithDecryption=True)["Parameter"]["Value"]
+
+    def appsync_endpoint(self, api_id: str) -> str:
+        """The GraphQL address of an AppSync API; its host is not derived from the API id."""
+        return self._appsync.get_graphql_api(apiId=api_id)["graphqlApi"]["uris"]["GRAPHQL"]
 
     def deployed_environment(self, function: str) -> dict[str, str]:
         configuration = self._lambda.get_function_configuration(FunctionName=function)

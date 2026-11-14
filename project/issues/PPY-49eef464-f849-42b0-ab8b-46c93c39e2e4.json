@@ -1,0 +1,28 @@
+{
+  "id": "PPY-49eef464-f849-42b0-ab8b-46c93c39e2e4",
+  "title": "One published Story can wedge a site's infrastructure stack: post-deploy re-render failure fails the deploy and its rollback",
+  "description": "2026-11-04, Machines on Machines. A Story with ::image lines saved fine, then publish wrote the published data but could not project the page, because the site had no images setting (PPY-c69e7b). The next deploy's reproject-on-deploy custom resource rendered that published Item and failed with MarkusValidationError Unknown directive 'image'. The update failed, the rollback ran the same render and failed too, and the root stack went to UPDATE_ROLLBACK_FAILED. Every later deploy on the site now fails at once. The public site and newsroom stayed up.\n\nFixes wanted: a render failure on one Item must never fail a CloudFormation custom resource, let alone its rollback: report it, skip that Item and keep going. The custom resource should do nothing on rollback. Publish should validate that the page can project before writing published data, not after. Document the recovery for a stack in this state.",
+  "type": "bug",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3017d61b-acb4-4165-83c6-3b93578b6dbf",
+      "author": "home",
+      "text": "Merged to develop in #1188, not yet released or on a site. Keep open until tested on Machines on Machines.",
+      "created_at": "2026-11-04T19:12:55.926257Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T18:11:26.051702Z",
+  "updated_at": "2026-11-04T19:12:55.927025Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

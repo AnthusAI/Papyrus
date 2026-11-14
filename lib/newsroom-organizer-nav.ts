@@ -6,13 +6,14 @@ export type OrganizerDestination = {
   key: string; label: string; description: string; path: string;
   access?: "admin"; primary?: boolean; unavailable?: string; alsoActiveOnPaths?: readonly string[];
 };
+/** The Schedule page. A site that has not turned scheduling on gets a page that says so. */
+export const SCHEDULE_DESTINATION: OrganizerDestination = { key: "schedule", label: "Schedule", description: "See what is scheduled to publish, and when, by day, week or month.", path: "/newsroom/schedule" };
 export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly OrganizerDestination[] }[] = [
   { title: "Editorial work", items: [
-    { key: "overview", label: "Needs me", description: "See what needs you: Proposed Stories, references and reviews.", path: "/newsroom", primary: true },
-    { key: "articles", label: getContentItemName().plural, description: `Follow ${contentItemPluralLowercase} across their stages and open one to write or revise it.`, path: `/newsroom/${contentItemBoardPathSegment()}`, alsoActiveOnPaths: ["/newsroom/articles"], primary: true },
+    { key: "articles", label: getContentItemName().plural, description: `Follow ${contentItemPluralLowercase} across their stages, from the Idea column on, and open one to write or revise it.`, path: `/newsroom/${contentItemBoardPathSegment()}`, alsoActiveOnPaths: ["/newsroom/articles", "/newsroom/administration/proposals"], primary: true },
     { key: "assignments", label: "Assignments", description: "Follow research and reporting work across its statuses and claim it.", path: "/newsroom/assignments" },
-    { key: "drafts", label: "Proposed Stories", description: "Read the Proposed Stories that AI suggests, then accept or reject them.", path: "/newsroom/administration/proposals" },
     { key: "messages", label: "Messages", description: "Read and reply to newsroom conversations.", path: "/newsroom/messages", primary: true },
+    SCHEDULE_DESTINATION,
   ] },
   { title: "Research & knowledge", items: [
     { key: "references", label: "References", description: "Inspect sources and make editorial inclusion decisions.", path: "/newsroom/references", primary: true },
@@ -25,7 +26,7 @@ export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly Org
   ] },
 ];
 const all = ORGANIZER_NAV_GROUPS.flatMap(group => group.items);
-export const ORGANIZER_PRIMARY_NAV = ["overview", "articles", "references", "messages"].map(key => all.find(item => item.key === key)!);
+export const ORGANIZER_PRIMARY_NAV = ["articles", "references", "messages"].map(key => all.find(item => item.key === key)!);
 
 export const ORGANIZER_SETTINGS_DESTINATION = {
   label: "Settings", path: "/newsroom/settings", description: "Theme, motion and interface preferences.",

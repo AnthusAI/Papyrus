@@ -406,7 +406,7 @@ def test_a_published_page_without_a_valid_stamp_says_it_is_a_draft(client, made_
     client.tables["PublishedItem"][published_item_id_for(page["lineageId"])] = {
         "id": published_item_id_for(page["lineageId"]), "sourceItemId": page["id"], "itemLineageId": page["lineageId"], "versionNumber": 1, "type": "wiki_page",
         "status": "published", "slug": page["slug"], "section": "wiki", "title": "Acme Loom", "bodyMarkus": page["bodyMarkus"], "bodyIr": page["bodyIr"],
-        "aliases": [], "publishedAt": NOW, "metadata": page["metadata"],
+        "aliases": [], "publishedAt": NOW, "metadata": page["metadata"], "language": page["language"], "languageGroupId": page["languageGroupId"],
     }
     site = made_site().project()
     assert "Draft, not yet reviewed" in site.text(f"wiki/{ACME_SLUG}/index.html") and 'data-state="draft"' in site.text(f"wiki/{ACME_SLUG}/index.html")
@@ -636,3 +636,167 @@ def test_an_entity_only_monitor_records_mention_gets_no_wiki_page_and_is_no_page
     assert sorted(spec.key for spec in specs) == ["maker--acme", "model--acme-base"]
     related = related_keys(data)
     assert all("moon" not in other for others in related.values() for other in others)  # no page links to a data-only entity
+
+
+# ------------------------------------------------------------------ public kinds and retiring
+
+AUTHOR = "personauthor--aaroncohen"
+AUTHOR_SLUG = "personauthor-aaroncohen"
+COMMENT = "commentconcept--general-comment"
+COMMENT_SLUG = "commentconcept-general-comment"
+VOCABULARY = "version: 1\npublication: t\nentity_kinds:\n  - {key: maker, label: \"company, or developer\"}\n  - {key: tool, label: tool}\n"
+
+
+@pytest.fixture
+def mixed(client):
+    """Acme Loom and Beta Spool plus a paper author and an editorial comment concept, all accepted, as a copied graph has them."""
+    publish_article(client, "delta", entities=[("personAuthor", "AaronCohen"), ("commentConcept", "General comment"), ("maker", "Acme Loom")])
+    snapshot_commands.knowledge_publish_run(["--apply"])
+    return client
+
+
+def vocabulary(tmp_path, text=VOCABULARY):
+    path = tmp_path / f"vocabulary-{abs(hash(text))}.yml"
+    path.write_text(text, encoding="utf-8")
+    return str(path)
+
+
+def live(client, slug):
+    page = pages(client)[slug]
+    return client.get_record("PublishedItem", published_item_id_for(page["lineageId"])) is not None
+
+
+def test_without_a_vocabulary_neither_bookkeeping_kinds_nor_paper_authors_get_a_page(mixed):
+    sync(mixed, "--apply")
+    assert set(pages(mixed)) == {ACME_SLUG, SPOOL_SLUG}
+
+
+def test_a_vocabulary_names_the_only_kinds_that_get_a_page(mixed, tmp_path):
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY.replace("  - {key: tool, label: tool}\n", "")))
+    assert set(pages(mixed)) == {ACME_SLUG}
+
+
+def test_bookkeeping_kinds_stay_private_even_when_a_vocabulary_names_them(mixed, tmp_path):
+    named = VOCABULARY + "  - {key: commentConcept, label: comment}\n  - {key: personAuthor, label: author}\n"
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, named))
+    assert set(pages(mixed)) == {ACME_SLUG, SPOOL_SLUG, AUTHOR_SLUG}
+
+
+def test_a_compacted_person_name_is_spaced_on_its_page_and_the_key_is_unchanged(mixed, tmp_path):
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
+    front = front_matter_of(pages(mixed)[AUTHOR_SLUG])
+    assert front["title"] == "Aaron Cohen" and front["entityKey"] == AUTHOR and pages(mixed)[AUTHOR_SLUG]["bodyMarkus"].startswith("# Aaron Cohen\n")
+
+
+def test_display_names_of_people_are_spaced_and_other_names_are_left_alone():
+    from papyrus_content.knowledge_wiki.kinds import display_name
+
+    assert display_name("AaronCohen", "personAuthor") == "Aaron Cohen"
+    assert display_name("AlexanderMRush", "personAuthor") == "Alexander M Rush"
+    assert display_name("AKrizhevsky", "personAuthor") == "A Krizhevsky"
+    assert display_name("AlexanderD'yakonov", "personAuthor") == "Alexander D'yakonov"
+    assert display_name("EmmaMcDonald", "person") == "Emma McDonald"
+    assert display_name("Aaron Cohen", "personAuthor") == "Aaron Cohen"
+    assert display_name("DeepSeek", "organization") == "DeepSeek" and display_name("OpenAI", "model") == "OpenAI"
+
+
+def test_the_kinds_of_a_vocabulary_are_read_in_one_form_and_a_file_without_kinds_is_refused(tmp_path):
+    from papyrus_content.knowledge_wiki.kinds import is_public_kind, vocabulary_kinds
+
+    assert vocabulary_kinds(VOCABULARY + "  - {key: model_family, label: family}\n") == ("maker", "tool", "model_family")
+    assert is_public_kind("model-family", ("model_family",)) and not is_public_kind("commentConcept", ("commentConcept",))
+    with pytest.raises(ValueError, match="declares no entity kinds"):
+        sync(None, "--vocabulary", vocabulary(tmp_path, "version: 1\n"))
+
+
+def test_sync_reports_but_never_takes_down_a_page_nothing_generates_any_more(mixed, tmp_path, capsys):
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    assert live(mixed, AUTHOR_SLUG)
+    before = len(mixed.write_calls())
+    out = sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path), capsys=capsys)
+    assert f"warning\twiki/{AUTHOR_SLUG}: no longer generated; left as it is" in out and "retire" not in out
+    assert len(mixed.write_calls()) == before and live(mixed, AUTHOR_SLUG)
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    assert live(mixed, AUTHOR_SLUG) and "retired" not in front_matter_of(pages(mixed)[AUTHOR_SLUG])
+
+
+def test_a_page_an_undo_retired_stays_down_through_a_sync_and_a_publish(mixed, tmp_path):
+    from papyrus_content.machine_writes import RETIRED_STAGE
+
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path))
+    page = pages(mixed)[ACME_SLUG]
+    mixed.update_record("Item", {"id": page["id"], "stage": RETIRED_STAGE})
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path))
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    assert pages(mixed)[ACME_SLUG]["stage"] == RETIRED_STAGE and not live(mixed, ACME_SLUG) and live(mixed, SPOOL_SLUG)
+
+
+def test_a_page_marked_retired_by_an_earlier_run_comes_back_as_a_draft_when_its_entity_is_eligible_again(mixed, tmp_path):
+    named = vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n")
+    sync(mixed, "--apply", "--vocabulary", named)
+    page = pages(mixed)[AUTHOR_SLUG]
+    marked = {**front_matter_of(page), "retired": True}
+    save_item(mixed, ItemFields(type="wiki_page", slug=AUTHOR_SLUG, section="wiki", front_matter_yaml=yaml.safe_dump(marked, sort_keys=False), body_markus=page["bodyMarkus"], aliases=[], id=page["id"]), actor="t", now=NOW)
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    assert not live(mixed, AUTHOR_SLUG)
+    sync(mixed, "--apply", "--vocabulary", named)
+    assert "retired" not in front_matter_of(pages(mixed)[AUTHOR_SLUG])
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    assert live(mixed, AUTHOR_SLUG)
+
+
+def test_the_snapshot_links_only_public_kinds_and_leaves_bookkeeping_kinds_out(mixed, tmp_path):
+    out = tmp_path / "snapshot"
+    snapshot_commands.knowledge_snapshot(["--out", str(out), "--as-of", "2026-10-19", "--entity-href", "/wiki/{slug}/", "--vocabulary", vocabulary(tmp_path)])
+    index = json.loads((out / "_data" / "knowledge" / "index.json").read_text())
+    entities = {entity["key"]: entity for entity in index["entities"]}
+    assert COMMENT not in entities and entities[ACME]["href"] == f"/wiki/{ACME_SLUG}/"
+    assert entities[AUTHOR]["href"] is None
+
+
+# ------------------------------------------------------------------ publish check and projection report
+
+PROJECTION_ENV = {"PAPYRUS_PUBLICATION_KIND": "s3-projection"}
+
+
+def run_preflight(client, page_id, tmp_path):
+    from unittest import mock
+
+    from papyrus_content.projection import runtime
+
+    projector = StandardMarkusProjector.from_static_directory(static_directory(tmp_path, SETTINGS), environ={"PAPYRUS_SITE_PUBLIC_URL": ""})
+    with mock.patch.object(runtime, "load_projector", lambda environ=None, **kw: projector):
+        runtime.render_preflight(client, page_id, PROJECTION_ENV)
+
+
+def test_a_wiki_page_that_places_knowledge_blocks_passes_the_publish_check(client, tmp_path):
+    describe(client, ACME, "Acme Loom makes small looms.")
+    sync(client, "--apply")
+    page = pages(client)[ACME_SLUG]
+    assert "::include" in page["bodyMarkus"]
+    run_preflight(client, page["id"], tmp_path)
+
+
+def test_a_page_that_places_an_unknown_include_is_refused_by_name_not_crashed(client, tmp_path):
+    describe(client, ACME, "Acme Loom makes small looms.")
+    sync(client, "--apply")
+    page = pages(client)[ACME_SLUG]
+    page["bodyMarkus"] += '\n::include{kind="nonsense" name="nothing"}\n'
+    with pytest.raises(PublishError) as refusal:
+        run_preflight(client, page["id"], tmp_path)
+    assert refusal.value.code == "page-not-renderable" and ACME_SLUG in refusal.value.message and "Nothing was published" in refusal.value.message
+
+
+def test_the_wiki_publish_command_reports_a_projection_that_failed(client, capsys, monkeypatch):
+    describe(client, ACME, "Acme Loom makes small looms.")
+    sync(client, "--apply")
+    page_id = pages(client)[ACME_SLUG]["id"]
+    failed = {"projection": {"ok": False, "error": "ValueError: boom", "retry": f"papyrus ops content publish --id {page_id}"}}
+    monkeypatch.setattr(wiki_commands, "run_site_triggers", lambda *args, **kwargs: failed)
+    capsys.readouterr()
+    with pytest.raises(SystemExit):
+        run(wiki_commands.knowledge_wiki_publish, page_id, "--actor", "ai", "--apply", "--on", DAY)
+    out = capsys.readouterr().out
+    assert f"item {page_id} is published but its page was not projected: ValueError: boom" in out and f"retry: papyrus ops content publish --id {page_id}" in out
+    assert client.get_record("PublishedItem", published_item_id_for(pages(client)[ACME_SLUG]["lineageId"])) is not None

@@ -2,6 +2,7 @@
 from copy import deepcopy
 from decimal import Decimal
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -127,6 +128,46 @@ class FakeTable:
         return [v for k, v in sorted(self.items.items()) if k[1].startswith(prefix)]
 
 
+def status_answer(pub, **snapshot):
+    """The lab's answer to the `status` operation: the binding's envelope, with one snapshot per bound output under `classifiers`."""
+    return {"contractVersion": mr.CONTRACT_VERSION, "accountId": "account-1", "bindingId": pub, "bindingRevision": "1", "outputs": [{"id": f"{pub}-relevance"}],
+            "classifiers": {f"{pub}-relevance": status_snapshot(pub, **snapshot)}}
+
+
+def status_snapshot(pub, as_of="2026-11-02T10:00:00.000Z", refits=0, labels=0):
+    """One output's cyclotron-status/v1 snapshot."""
+    return {"schema": "cyclotron-status/v1", "asOf": as_of,
+            "cyclotron": {"id": f"{pub}-relevance", "classifier": "relevant", "version": 3, "refits": refits, "fingerprint": f"fp-{pub}"},
+            "alignment": {"window": 200, "labels": labels, "accuracy": None, "precision": None, "recall": None,
+                          "positiveLabel": "include", "measuredOn": "reviews selected by the cyclotron"},
+            "calibration": {"saysSure": None, "isRight": None, "gapPoints": None, "curve": []},
+            "reviewRate": {"state": "onboarding", "rate": 1, "reason": "Getting started", "auditFloor": 0.05, "confidenceThreshold": None,
+                           "override": None, "nextCheckAfterDecisions": 99, "nextStep": None, "expectedReviewsPerWeek": None},
+            "lastChange": None, "pending": {"decisionsAwaitingReview": 0, "staleSince": None}}
+
+
+def report_answer(pub, **overrides):
+    """The lab's answer to the `report` operation, in the real shape of Cyclotron's classifier_report(): the binding's envelope with `schema`,
+    `generatedAt` and `scope`, and one report per bound output under `outputs` (a dict here, where the status envelope's `outputs` is a list)."""
+    output = f"{pub}-relevance"
+    section = {
+        "classifier": {"id": output, "revision": 2, "question": "Would a security engineer want to read this?", "criteriaFingerprint": f"cfp-{pub}",
+                       "rubric": "Include practical security news.", "classes": ["include", "exclude"]},
+        "learning": {"state": "not_active", "reason": "standing runs do not train on votes yet; votes are stored and change no classifier", "version": 3,
+                     "refits": 0, "lastChange": None, "asOf": "2026-11-03T17:00:00.000Z", "unavailableReason": None},
+        "agreementWithEditors": {"votes": 5, "compared": 4, "agreed": 3,
+                                 "byClassifierRevision": [{"classifierRevision": "2", "votes": 5, "compared": 4, "agreed": 3}],
+                                 "byDay": [{"day": "2026-11-02", "votes": 2, "compared": 1, "agreed": 1}, {"day": "2026-11-03", "votes": 3, "compared": 3, "agreed": 2}]},
+        "heldOut": {"accuracy": None, "reason": "standing runs do not produce held-out evaluations yet"},
+        "counts": {"labels": {"include": 3, "exclude": 2}, "reviewedDecisions": 4, "primedExamples": 30, "decisionsAwaitingReview": 1},
+        "model": {"features": None, "weights": None, "reason": "no machine-learning model has been fitted for this classifier"},
+    }
+    section.update(overrides)
+    return {"contractVersion": mr.CONTRACT_VERSION, "accountId": "account-1", "bindingId": pub, "bindingRevision": "1",
+            "schema": "cyclotron-classifier-report/v1", "operation": "report", "generatedAt": "2026-11-03T18:00:00.000000+00:00",
+            "scope": "votes recorded on this run", "outputs": {output: section}}
+
+
 class FakeCyclotron:
     """Scriptable machine API: records every call; decisions share one id per item."""
 
@@ -136,6 +177,8 @@ class FakeCyclotron:
         self.confidence = {}                  # (itemId, pub) -> confidence the machine API reports
         self.post_override, self.poll_override = {}, {}
         self.feedback_override = None
+        self.status_answers = {}              # pub -> (status, body) for the read-only `status` operation; default is a fresh snapshot
+        self.report_answers = {}              # pub -> (status, body) for the read-only `report` operation; default is a fresh report
         self.pending_polls = 0
         self.polls_needed = 0                 # each job answers "running" this many times before it completes
         self.job_gets = {}
@@ -203,6 +246,10 @@ class FakeCyclotron:
         pub = path.split("/")[3]
         if method == "POST":
             data = json.loads(body)
+            if data["operation"] == "status":
+                return self.status_answers.get(pub) or (200, status_answer(pub))
+            if data["operation"] == "report":
+                return self.report_answers.get(pub) or (200, report_answer(pub))
             if data["operation"] == "feedback":
                 return self.feedback_override or (200, {"status": "recorded", "feedbackId": "fb-" + data["requestId"][:8]})
             if pub in self.post_override:
@@ -648,6 +695,11 @@ class FakeAppSync:
         assert model == "Reference"
         return self.references.get(record_id)
 
+    def list_by_index(self, index, key):
+        """The References of the status named at the end of the key. Every publication sees all of them; a delivery row picks its own."""
+        assert index == "referencesByCurationStatusKey"
+        return [{"id": record_id, **record} for record_id, record in self.references.items() if record.get("curationStatus") == key.rsplit("#", 1)[1]]
+
 
 def delivered_table(table, labels=None):
     store, cyclotron = setup_router(table)
@@ -672,7 +724,7 @@ def test_feedback_maps_accepted_and_rejected_to_labels_with_deterministic_reques
                   "reference-p-apyr-us-101": ref("rejected", "user:sub-2"),
                   "reference-threat-intelligence-101": ref("pending", "papyrus-monitoring-worker")}
     result = feedback_run(table, store, cyclotron, references)
-    assert result["feedback"]["sent"] == 2 and result["feedback"]["pending"] == 1
+    assert result["feedback"]["sent"] == 2 and result["feedback"]["pending"] == 0   # the worker's pending Reference is not a vote
     sent = {c[1].split("/")[3]: c[2] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
     assert sent["anth-us"]["payload"] == {"bindingRevision": "1", "itemId": "hn-101", "itemRevision": 2,
                                           "output": "anth-us-relevance", "label": "include",
@@ -684,9 +736,10 @@ def test_feedback_maps_accepted_and_rejected_to_labels_with_deterministic_reques
     assert {f["outcome"] for f in fb} == {"sent"} and len(fb) == 2
     done = table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]
     assert done["feedback"] == "sent" and "gsi1pk" not in done
-    # rerun: sent rows are out of the queue, the pending one is checked again, nothing is re-sent
+    # rerun: both votes have receipts, so nothing is re-sent
     again = feedback_run(table, store, cyclotron, references, now=6000)
-    assert again["feedback"]["sent"] == 0 and len([c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]) == 2
+    assert again["feedback"]["sent"] == 0 and again["feedback"]["unchanged"] == 2
+    assert len([c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]) == 2
 
 
 def test_held_decisions_send_no_decide_request_and_say_so_in_the_receipt(table):
@@ -771,13 +824,12 @@ def test_feedback_is_still_sent_while_decisions_are_held(table):
 @pytest.mark.parametrize("record", [
     ref("accepted", None), ref("accepted", ""), ref("accepted", "papyrus-monitoring-worker"),
     ref("accepted", "system:auto"), ref("accepted", "user:")])
-def test_feedback_skips_missing_or_non_human_actors_and_records_why(table, record):
+def test_feedback_skips_missing_or_non_human_actors(table, record):
     store, cyclotron = delivered_table(table)
     result = feedback_run(table, store, cyclotron, {"reference-anth-us-101": record})
-    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] >= 1
+    assert result["feedback"]["sent"] == 0 and result["feedback"]["failed"] == 0   # not a person's vote: never a candidate
     assert not [c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
-    row = table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]
-    assert "not a human" in row["lastNote"] and row["gsi1pk"] == "FEEDBACK#hn#pending"
+    assert not [k for k in table.items if k[1].startswith("FB#")]
 
 
 def test_feedback_is_off_unless_live_and_a_stored_switch_is_ignored(table):
@@ -798,9 +850,9 @@ def test_feedback_refusal_stops_cleanly_and_uncertain_is_retried_later(table):
     cyclotron.feedback_override = (503, {"code": "provider_key_unavailable"})
     result = feedback_run(table, store, cyclotron, refs)
     assert result["feedback"]["status"] == "stopped" and result["feedback"]["stoppedBy"] == "provider_key_unavailable"
-    assert table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]["gsi1pk"] == "FEEDBACK#hn#pending"
+    assert not [k for k in table.items if k[1].startswith("FB#")]          # nothing final was recorded: the next run asks again
     cyclotron.feedback_override = (500, {})
-    assert feedback_run(table, store, cyclotron, refs, now=6000)["feedback"]["failed"] == 1
+    assert feedback_run(table, store, cyclotron, refs, now=6000)["feedback"]["pending"] == 1
     cyclotron.feedback_override = None
     assert feedback_run(table, store, cyclotron, refs, now=7000)["feedback"]["sent"] == 1
     request_ids = {c[2]["requestId"] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
@@ -854,7 +906,7 @@ def test_feedback_binding_changed_is_retried_next_run_instead_of_stopping_the_sw
     cyclotron.feedback_override = (409, {"detail": "publication binding changed"})
     result = feedback_run(table, store, cyclotron, refs)
     assert result["feedback"]["status"] == "complete" and result["feedback"]["failed"] == 2
-    assert table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]["gsi1pk"] == "FEEDBACK#hn#pending"
+    assert not [k for k in table.items if k[1].startswith("FB#")]
     cyclotron.feedback_override = None
     assert feedback_run(table, store, cyclotron, refs, now=6000)["feedback"]["sent"] == 2
 
@@ -865,8 +917,137 @@ def test_feedback_for_a_publication_missing_from_the_config_is_skipped_without_p
     cfg["publications"] = [p for p in cfg["publications"] if p["publicationId"] != "anth-us"]
     table.put_item(cfg)
     result = feedback_run(table, store, cyclotron, {"reference-anth-us-101": ref("accepted", "user:s")})
-    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] >= 1
+    assert result["feedback"]["sent"] == 0 and result["feedback"]["failed"] == 0
     assert not [c for c in cyclotron.posts() if c[2]["operation"] == "feedback" and "anth-us" in c[1]]
+
+
+def sent_feedback(cyclotron):
+    return [c[2] for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
+
+
+def explained(status, actor, why, at="2026-10-21T01:00:00Z"):
+    return ref(status, actor, at) | {"curationStatusReason": why}
+
+
+def test_feedback_sends_the_editors_explanation_as_the_comment(table):
+    store, cyclotron = delivered_table(table)
+    refs = {"reference-anth-us-101": explained("rejected", "user:s", "  Just a product announcement.  "),
+            "reference-p-apyr-us-101": ref("accepted", "user:t")}
+    assert feedback_run(table, store, cyclotron, refs)["feedback"]["sent"] == 2
+    sent = {c[1].split("/")[3]: c[2] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
+    assert sent["anth-us"]["payload"]["comment"] == "Just a product announcement."
+    assert "comment" not in sent["p-apyr-us"]["payload"]                   # no explanation: the field is left out, never sent empty
+    from hashlib import sha256
+    plain = sha256("\n".join(["reference-p-apyr-us-101", "accepted", "2026-10-21T01:00:00Z"]).encode()).hexdigest()
+    assert sent["p-apyr-us"]["requestId"] == plain                         # a vote without an explanation keeps the id it always had
+    withwhy = sha256("\n".join(["reference-anth-us-101", "rejected", "2026-10-21T01:00:00Z", "Just a product announcement."]).encode()).hexdigest()
+    assert sent["anth-us"]["requestId"] == withwhy
+    receipts = {v["publicationId"]: v for k, v in table.items.items() if k[1].startswith("FB#")}
+    assert receipts["anth-us"]["explained"] is True and receipts["p-apyr-us"]["explained"] is False
+    assert "Just a product" not in json.dumps(receipts, default=str)       # the receipt does not copy the text
+
+
+def test_a_changed_explanation_on_a_sent_vote_is_sent_again_as_a_new_request(table):
+    store, cyclotron = delivered_table(table)
+    refs = {"reference-anth-us-101": ref("accepted", "user:s")}
+    feedback_run(table, store, cyclotron, refs)
+    assert feedback_run(table, store, cyclotron, refs, now=5500)["feedback"]["unchanged"] == 1
+    refs = {"reference-anth-us-101": explained("accepted", "user:s", "Agent platforms.")}   # same status, same time: only the explanation is new
+    again = feedback_run(table, store, cyclotron, refs, now=6000)
+    assert again["feedback"]["sent"] == 1
+    first, second = sent_feedback(cyclotron)
+    assert first["requestId"] != second["requestId"] and "comment" not in first["payload"] and second["payload"]["comment"] == "Agent platforms."
+    assert feedback_run(table, store, cyclotron, refs, now=7000)["feedback"]["sent"] == 0      # and then it is settled
+    assert len(sent_feedback(cyclotron)) == 2
+
+
+def test_an_editor_changing_a_sent_vote_reaches_the_cyclotron_as_a_correction(table):
+    store, cyclotron = delivered_table(table)
+    feedback_run(table, store, cyclotron, {"reference-anth-us-101": ref("accepted", "user:s")})
+    undone = explained("rejected", "user:s", "Not for us after all.", at="2026-10-22T01:00:00Z")   # Accept, then un-accept
+    assert feedback_run(table, store, cyclotron, {"reference-anth-us-101": undone}, now=6000)["feedback"]["sent"] == 1
+    first, second = sent_feedback(cyclotron)
+    assert (first["payload"]["label"], second["payload"]["label"]) == ("include", "exclude") and second["payload"]["comment"] == "Not for us after all."
+    assert len({first["requestId"], second["requestId"]}) == 2
+
+
+def test_feedback_reads_the_votes_not_the_deliveries(table):
+    """The pass starts from the editors' votes; it does not read each delivered Reference (a site has thousands, a few dozen are voted)."""
+    store, cyclotron = delivered_table(table)
+    reads = []
+
+    class Counting(FakeAppSync):
+        def get_record(self, model, record_id):
+            reads.append(record_id)
+            return super().get_record(model, record_id)
+
+    config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+    client = CyclotronClient(config, sign=lambda m, u, b: {}, http=cyclotron.http, sleep=lambda s: None, clock=lambda: 0)
+    refs = {"reference-anth-us-101": ref("accepted", "user:s"), "reference-p-apyr-us-101": ref("pending", "papyrus-monitoring-worker")}
+    result = run_router(store, "hn", now=5000, task="feedback", cyclotron=client, appsync=lambda e: Counting(refs), deliver=Delivery())
+    assert result["feedback"]["sent"] == 1 and reads == []
+
+
+def test_feedback_reaches_a_vote_however_many_deliveries_came_before_it(table):
+    store, cyclotron = delivered_table(table)
+    for number in range(500):                                              # a long history of delivered, never-voted References
+        key = f"DELIV#anth-us#reference-anth-us-old-{number}"
+        table.items[("MONITOR#hn", key)] = {"pk": "MONITOR#hn", "sk": key, "publicationId": "anth-us", "referenceId": f"reference-anth-us-old-{number}",
+                                            "itemId": "hn-1", "source": {"revision": 1}, "output": "anth-us-relevance", "bindingRevision": "1",
+                                            "gsi1pk": "FEEDBACK#hn#pending", "gsi1sk": f"2026-10-01T00:00:00Z#{number}"}
+    result = feedback_run(table, store, cyclotron, {"reference-anth-us-101": ref("accepted", "user:s")})
+    assert result["feedback"]["sent"] == 1
+
+
+def test_a_routing_run_no_longer_runs_auto_accept_inline(table):
+    store, cyclotron = delivered_table(table)
+    result = go(table, store, cyclotron, now=6000)
+    assert result["autoAccept"] == {}                                      # its own task, so a routing run can never starve it
+
+
+def test_auto_accept_without_a_publication_fans_out_one_run_per_publication_and_does_nothing_itself(table):
+    store, _ = setup_router(table)
+    cfg = table.items[("MONITOR#hn", "CONFIG#router")]
+    cfg["publications"][1]["autoAccept"] = {"enabled": False}
+    started = []
+    result = run_router(store, "hn", now=1, task="auto-accept", fan_out=started.append)
+    expected = [p["publicationId"] for p in cfg["publications"] if p["publicationId"] != cfg["publications"][1]["publicationId"]]
+    assert result["status"] == "fanned-out" and result["publications"] == expected == started
+    assert not [k for k in table.items if k[1].startswith(("LOCK#", "ROUTERUN#"))]
+
+
+def test_an_auto_accept_run_naming_a_publication_takes_its_own_lock_and_validates_the_name(table):
+    store, _ = setup_router(table)
+    cfg = table.items[("MONITOR#hn", "CONFIG#router")]
+    pid = cfg["publications"][0]["publicationId"]
+    assert run_router(store, "hn", now=1, task="route", publication_id=pid)["status"] == "error"
+    assert run_router(store, "hn", now=1, task="auto-accept", publication_id="nowhere")["status"] == "error"
+    assert store.acquire_router_lock("hn", "other", now=1000, sk=f"LOCK#auto-accept#{pid}")
+    assert run_router(store, "hn", now=1010, task="auto-accept", publication_id=pid)["status"] == "locked"
+    assert store.acquire_router_lock("hn", "route", now=1010)              # the routing lock and the other publications are not held
+    assert store.acquire_router_lock("hn", "stories", now=1010, sk=f"LOCK#monitor-stories#{pid}")
+
+
+def test_an_auto_accept_run_runs_only_the_named_publication(table, monkeypatch):
+    store, cyclotron = setup_router(table)
+    cfg = table.items[("MONITOR#hn", "CONFIG#router")]
+    seen = []
+    monkeypatch.setattr(mr, "run_auto_accept", lambda client, publication, policy, **kw: seen.append(publication["publicationId"]) or {
+        "publicationId": publication["publicationId"], "status": "ran", "accepted": 0})
+    pid = cfg["publications"][1]["publicationId"]
+    result = run_router(store, "hn", now=1, task="auto-accept", publication_id=pid, cyclotron=object(), appsync=lambda e: object(), deliver=Delivery(),
+                        time_left=lambda: 600)
+    assert seen == [pid] and list(result["autoAccept"]) == [pid]
+
+
+def test_auto_accept_has_its_own_hourly_schedules_for_hn_and_distinctive():
+    resources = _template()["Resources"]
+    hn, distinctive = resources["AutoAcceptSchedule"]["Properties"], resources["DistinctiveAutoAcceptSchedule"]["Properties"]
+    assert json.loads(hn["Target"]["Input"]) == {"task": "auto-accept", "monitorId": "hn"}
+    assert json.loads(distinctive["Target"]["Input"]) == {"task": "auto-accept", "monitorId": "web-distinctive"}
+    for schedule in (hn, distinctive):
+        assert schedule["ScheduleExpression"].startswith("cron(") and schedule["Target"]["RetryPolicy"]["MaximumRetryAttempts"] == 0
+        assert schedule["Target"]["Arn"] == ("GetAtt", "RouterFunction.Arn")
 
 
 # --- intake provenance, packaging, template --------------------------------------------------------------------
@@ -879,6 +1060,18 @@ def test_intake_rationale_names_the_machine_decision():
     assert ReferenceIntake._machine_decision_note({}) == ""
 
 
+def test_the_router_zip_leaves_out_wheel_files_a_lambda_never_reads():
+    sys.path.insert(0, str(ROOT / "infra" / "monitoring"))
+    try:
+        import build
+    finally:
+        sys.path.pop(0)
+    for kept in ("humanus/check.py", "humanus/languages/zh-Hans.yml", "pydantic-2.12.5.dist-info/METADATA", "humanus-0.36.0.dist-info/entry_points.txt"):
+        assert build.lambda_reads(kept), kept
+    for dropped in ("pydantic-2.12.5.dist-info/RECORD", "pydantic_core/core_schema.pyi", "humanus/py.typed", "jsonschema/tests/test_validators.py"):
+        assert not build.lambda_reads(dropped), dropped
+
+
 def test_router_zip_imports_with_only_the_standard_library(tmp_path):
     sys.path.insert(0, str(ROOT / "infra" / "monitoring"))
     try:
@@ -889,7 +1082,11 @@ def test_router_zip_imports_with_only_the_standard_library(tmp_path):
         sys.path.pop(0)
     root = tmp_path / "task"
     zipfile.ZipFile(out).extractall(root)
-    assert out.stat().st_size < 1_500_000  # PyYAML plus youtube-transcript-api and its pure-Python imports (requests, urllib3, certifi ...), and the monitor-stories drafting modules
+    names = zipfile.ZipFile(out).namelist()
+    assert not [name for name in names if name.split("/")[0] in {"youtube_transcript_api", "defusedxml", "requests", "urllib3", "certifi", "charset_normalizer"}], \
+        "the router zip carries no YouTube transcript package, nor the packages only it needed"
+    assert any(name.startswith("yaml/") for name in names) and any(name.startswith("idna/") for name in names)
+    assert out.stat().st_size < 6_000_000  # PyYAML, the drafting modules, and the editorial gate's wheels (Humanus, the Jev client, pydantic-core, rpds); no YouTube transcript package (PPY-d294d8: YouTube refuses cloud addresses)
     code = (
         "import sys; sys.path.insert(0, sys.argv[1])\n"
         "import papyrus_content.monitoring_router as r, papyrus_content.monitoring_intake as i, papyrus_content.editorial_context as e\n"
@@ -897,7 +1094,6 @@ def test_router_zip_imports_with_only_the_standard_library(tmp_path):
         "from papyrus_content.newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND\n"
         "assert load_semantic_relation_type_seeds() and DOCTRINE_DEFINITION_BY_KIND\n"
         "import yaml; assert not yaml.__with_libyaml__\n"
-        "import youtube_transcript_api, requests, charset_normalizer\n"
         "assert not any(m in sys.modules for m in ('pydantic', 'biblicus', 'httpx', 'tiktoken'))\n")
     env = {"PAPYRUS_ROOT": str(root), "PATH": "/usr/bin:/bin"}
     done = subprocess.run([sys.executable, "-S", "-c", code, str(root)], capture_output=True, text=True, env=env, cwd=tmp_path)
@@ -930,7 +1126,7 @@ def test_collector_zip_imports_everything_it_needs(tmp_path):
     result = subprocess.run([sys.executable, "-I", "-c", "import papyrus_content.monitoring_cloud"],
                             cwd=tmp_path / "unzipped", capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    assert "web_structured_metadata" not in build.router_modules() and "monitoring_router" in build.router_modules()
+    assert "web_structured_metadata" in build.router_modules() and "biblicus_runner" not in build.router_modules() and "monitoring_router" in build.router_modules()
 
 
 def _template():
@@ -946,7 +1142,7 @@ def test_router_role_is_least_privilege():
     template = _template()
     statements = template["Resources"]["RouterRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {s["Sid"] for s in statements} == {"MonitoringTable", "OwnLogs", "FailedInvocations", "CyclotronMachineInvoker",
-                                              "PublicationReferenceIntake"}
+                                              "PublicationReferenceIntake", "SuggestQueueSend", "StoryQueueSend"}
     by_sid = {s["Sid"]: s for s in statements}
     assert by_sid["CyclotronMachineInvoker"]["Action"] == "sts:AssumeRole" and by_sid["CyclotronMachineInvoker"]["Resource"] == ("Ref", "CyclotronInvokerRoleArn")
     assert template["Parameters"]["CyclotronInvokerRoleArn"]["Default"] == "arn:aws:iam::682849160744:role/cyclotron-machine-invoker"
@@ -960,11 +1156,13 @@ def test_router_role_is_least_privilege():
     assert all(len([r for r in resources if f"${{{p}}}" in r]) == len(fields) for p in ("AnthUsApiId", "PapyrusApiId", "ThreatIntelApiId"))
     distinctive = template["Resources"]["RouterDistinctiveIntakePolicy"]["Properties"]
     assert distinctive["Roles"] == [("Ref", "RouterRole")]
-    (statement,) = distinctive["PolicyDocument"]["Statement"]
-    assert statement["Action"] == "appsync:GraphQL"
-    distinctive_resources = [r[1] for r in statement["Resource"]]
-    assert {r.split("apis/")[1].split("/")[0] for r in distinctive_resources} == {"${DistinctiveApiId}"}
-    assert {r.rsplit("/", 1)[1] for r in distinctive_resources} == fields and "*" not in "".join(distinctive_resources)
+    # RouterRole is at IAM's 20-managed-policy limit, so Machines on Machines shares this policy in a statement of its own.
+    distinctive_statement, machines_statement = distinctive["PolicyDocument"]["Statement"]
+    for statement, api in ((distinctive_statement, "DistinctiveApiId"), (machines_statement, "MachinesOnMachinesApiId")):
+        assert statement["Action"] == "appsync:GraphQL"
+        site_resources = [r[1] for r in statement["Resource"]]
+        assert {r.split("apis/")[1].split("/")[0] for r in site_resources} == {"${" + api + "}"}
+        assert {r.rsplit("/", 1)[1] for r in site_resources} == fields and "*" not in "".join(site_resources)
     # Lab decisions are written as relevance_decision_is relations (a SemanticNode per label; the old relation is superseded).
     # Every cyclotron-decided publication gets those grants, Distinctive too: its web monitor has its own Cyclotron (the TTAB monitor stays `direct`).
     relations = _template()["Resources"]["RouterDecisionRelationPolicy"]["Properties"]
@@ -974,8 +1172,8 @@ def test_router_role_is_least_privilege():
     assert relation_statement["Action"] == "appsync:GraphQL" and "*" not in "".join(relation_resources)
     assert {r.rsplit("/", 1)[1] for r in relation_resources} == {
         "getSemanticNode", "listSemanticRelationsBySubjectState", "createSemanticNode", "updateSemanticRelation"}
-    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}"}
-    assert len(relation_resources) == 4 * 7
+    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}", "${MachinesOnMachinesApiId}"}
+    assert len(relation_resources) == 4 * 8
     assert len(json.dumps(statements).replace(" ", "")) < 9_500    # IAM inline policy limit is 10,240 characters
     assert all(a != "dynamodb:Scan" for a in by_sid["MonitoringTable"]["Action"])
 
@@ -1723,12 +1921,29 @@ def test_a_failed_combined_job_is_reposted_once_under_a_new_id(table):
     assert any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.combined_calls)
 
 
-def test_a_combined_job_that_fails_again_after_the_repost_errors_the_story(table):
+def test_a_combined_job_that_fails_again_after_the_repost_backs_the_story_off(table):
     store, cyclotron = combined_setup(table)
     stale_combined_job(table, store, cyclotron)
     cyclotron.combined_poll_override = (200, {"status": "failed"})
     go(table, store, cyclotron, now=2100)
-    assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "error"
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "collected"
+    assert "final" not in route and route["nextAttemptAt"] == 2100 + mr.REFUSAL_BACKOFF_FIRST
+    assert "failed again" in route["lastRefusal"]["message"]
+
+
+def test_a_story_backed_off_by_failed_jobs_is_decided_once_the_lab_recovers(table):
+    store, cyclotron = combined_setup(table)
+    stale_combined_job(table, store, cyclotron)
+    cyclotron.combined_poll_override = (200, {"status": "failed"})
+    go(table, store, cyclotron, now=2100)
+    posted = post_ids(cyclotron)
+    go(table, store, cyclotron, now=2101)
+    assert post_ids(cyclotron) == posted   # inside its backoff: no call about this story
+    cyclotron.combined_poll_override = None
+    result = go(table, store, cyclotron, now=2100 + mr.REFUSAL_BACKOFF_FIRST + 1)
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    assert len(set(post_ids(cyclotron))) == len(post_ids(cyclotron))   # every attempt under its own id
 
 
 def test_a_reconciled_combined_job_is_reposted_once_under_a_new_id(table):
@@ -1742,12 +1957,12 @@ def test_a_reconciled_combined_job_is_reposted_once_under_a_new_id(table):
     assert any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.combined_calls)
 
 
-def test_a_second_reconciliation_required_is_not_reposted_again(table):
+def test_a_second_reconciliation_required_is_not_reposted_again_in_that_run(table):
     store, cyclotron = combined_setup(table)
     stale_combined_job(table, store, cyclotron)
     cyclotron.combined_poll_override = (409, {"code": "reconciliation_required"})
     go(table, store, cyclotron, now=2100)
-    assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "error"
+    assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "collected"
     assert "combinedJob" not in table.items[("MONITOR#hn", "ROUTE#101#000001")]
 
 
@@ -1759,13 +1974,13 @@ def test_another_409_on_a_combined_poll_still_backs_off_without_a_repost(table):
     assert post_ids(cyclotron) == [] and routing_of(table)["DISC#101#000001"] == "collected"
 
 
-def test_a_reconciled_single_publication_job_is_reposted_once_and_a_repeat_errors_the_story(table):
+def test_a_reconciled_single_publication_job_is_reposted_once_and_a_repeat_backs_off(table):
     store, cyclotron = setup_router(table)
     cyclotron.poll_override["p-apyr-us"] = (409, {"code": "reconciliation_required"})
     go(table, store, cyclotron)
     ids = [c[2]["requestId"] for c in cyclotron.calls if c[0] == "POST" and "/p-apyr-us/" in c[1] and c[2]["payload"]["item"]["id"] == "hn-101"]
     assert len(ids) == 2 and ids[0] != ids[1]
-    assert routing_of(table)["DISC#101#000001"] == "error"
+    assert routing_of(table)["DISC#101#000001"] == "collected"
 
 
 def test_combined_jobs_are_marked_and_never_polled_on_the_per_publication_route(table):
@@ -2193,7 +2408,8 @@ def test_feedback_skips_machine_and_missing_actors(table):
                   "reference-p-apyr-us-101": ref("accepted", "papyrus-monitoring-worker"),
                   "reference-threat-intelligence-101": ref("accepted", "Papyrus newsroom")}
     result = feedback_run(table, store, cyclotron, references)
-    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] == 3
+    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] == 0   # machines' acceptances are not votes: never candidates
+    assert not [c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
     for actor in ("", "user:", "system:monitor", "worker:abc", "papyrus-relevance", "demo-import", "behave-x"):
         assert not mr.human_actor(actor)
 
@@ -2434,13 +2650,14 @@ def test_a_per_publication_request_conflict_reposts_once_under_a_new_id(table):
     assert routing_of(table)["DISC#101#000001"] == "routed"
 
 
-def test_a_failed_single_publication_job_is_reposted_once_and_a_repeat_errors_the_story(table):
+def test_a_failed_single_publication_job_is_reposted_once_and_a_repeat_backs_off(table):
     store, cyclotron = setup_router(table)
     cyclotron.poll_override["p-apyr-us"] = (200, {"status": "failed"})
     go(table, store, cyclotron)
     ids = [c[2]["requestId"] for c in cyclotron.calls if c[0] == "POST" and "/p-apyr-us/" in c[1] and c[2]["payload"]["item"]["id"] == "hn-101"]
     assert len(ids) == 2 and ids[0] != ids[1]
-    assert routing_of(table)["DISC#101#000001"] == "error"
+    assert routing_of(table)["DISC#101#000001"] == "collected"
+    assert table.items[("MONITOR#hn", "ROUTE#101#000001")]["refusals"] == 1
 
 
 # --- pacing under the API Gateway stage limit ------------------------------------------------------------
@@ -2599,7 +2816,297 @@ def test_auto_accept_grant_covers_every_publication_api_including_distinctive():
     assert policy["Roles"] == [("Ref", "RouterRole")]
     (statement,) = policy["PolicyDocument"]["Statement"]
     resources = [r[1] for r in statement["Resource"]]
-    apis = {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}"}
+    apis = {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}", "${MachinesOnMachinesApiId}"}
     assert {r.split("apis/")[1].split("/")[0] for r in resources} == apis
     assert {r.rsplit("/", 1)[1] for r in resources} == {"listReferencesByCurationStatusKeyAndUpdatedAt", "updateReference"}
     assert len(resources) == 2 * len(apis) and "*" not in "".join(resources)
+
+
+def test_router_can_deliver_to_every_configured_publication_api():
+    """Every *ApiId parameter of the stack is a routed publication: the router needs the intake, enrichment read-back, decision-relation, auto-accept
+    and monitor-stories grants on it, and the vector index and storage bucket parameters of the same site. Adding a publication means adding it to all of them."""
+    template = _template()
+    parameters = template["Parameters"]
+    apis = sorted(name for name in parameters if name.endswith("ApiId"))
+    assert "MachinesOnMachinesApiId" in apis and "PapyrusApiId" in apis          # the old backend keeps its grants until it is retired
+    assert parameters["MachinesOnMachinesApiId"]["Default"] == "lxyzo2l2pjftjdha7egy73wndu"
+    granted = {}
+    inline = template["Resources"]["RouterRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+    statements = list(inline)
+    for resource in template["Resources"].values():
+        props = resource.get("Properties") or {}
+        if resource["Type"] == "AWS::IAM::ManagedPolicy" and ("Ref", "RouterRole") in (props.get("Roles") or []):
+            statements += props["PolicyDocument"]["Statement"]
+    for statement in statements:
+        entries = statement["Resource"] if isinstance(statement.get("Resource"), list) else [statement.get("Resource")]
+        for entry in entries:
+            text = str(entry[1] if isinstance(entry, tuple) else entry)
+            match = re.search(r"apis/\$\{(\w+ApiId)\}/types/(Query|Mutation)/fields/(\w+)$", text)
+            if match:
+                granted.setdefault(match.group(1), set()).add((match.group(2), match.group(3)))
+    required = {("Mutation", "createReference"), ("Mutation", "createSemanticRelation"), ("Mutation", "createModelAttachmentDownload"),
+                ("Query", "getSemanticNode"), ("Mutation", "createSemanticNode"), ("Mutation", "updateSemanticRelation"), ("Mutation", "updateReference"),
+                ("Query", "listReferencesByCurationStatusKeyAndUpdatedAt")}
+    assert set(apis) <= set(granted), sorted(set(apis) - set(granted))
+    for api in apis:
+        assert required <= granted[api], (api, sorted(required - granted[api]))
+    text = TEMPLATE.read_text()
+    for api in apis:
+        site = api[: -len("ApiId")]
+        for suffix in ("VectorIndexArn", "StorageBucketName"):
+            if site + suffix in parameters or api == "MachinesOnMachinesApiId":
+                assert f"{site}{suffix}" in parameters and text.count(f"${{{site}{suffix}}}") + text.count(f"!Ref {site}{suffix}") >= 1, site + suffix
+
+
+# --- the read-only cyclotron-status task ---------------------------------------------------------------
+
+def status_run(table, store, cyclotron, **kwargs):
+    return go(table, store, cyclotron, task="cyclotron-status", **kwargs)
+
+
+def status_rows(table):
+    return {k[1].removeprefix("CYCLOTRONSTATUS#"): v for k, v in table.items.items() if k[1].startswith("CYCLOTRONSTATUS#")}
+
+
+def test_the_status_task_keeps_one_row_per_publication_in_the_monitors_own_partition(table):
+    store, cyclotron = setup_router(table)
+    result = status_run(table, store, cyclotron)
+    assert result["status"] == "complete" and {r["status"] for r in result["publications"].values()} == {"written"}
+    rows = status_rows(table)
+    assert sorted(rows) == sorted(PUBS)
+    for pub, row in rows.items():
+        assert row["pk"] == "MONITOR#hn" and row["publicationId"] == pub and row["output"] == f"{pub}-relevance"
+        assert row["status"]["cyclotron"]["id"] == f"{pub}-relevance"   # this publication's snapshot, nobody else's
+        assert row["asOf"] == "2026-11-02T10:00:00.000Z" and row["checkedAt"]
+
+
+def test_the_status_task_sends_the_contract_status_and_report_bodies_with_no_request_id_and_nothing_else(table):
+    store, cyclotron = setup_router(table)
+    status_run(table, store, cyclotron)
+    assert len(cyclotron.calls) == 6
+    for method, path, body in cyclotron.calls:
+        assert method == "POST" and path.startswith("/machine/bindings/") and path.endswith("/operations")
+        assert body in ({"contractVersion": mr.CONTRACT_VERSION, "operation": "status", "payload": {}},
+                        {"contractVersion": mr.CONTRACT_VERSION, "operation": "report", "payload": {}})
+        assert "requestId" not in body
+        mr.validate_request(body)   # the same check every machine-API body passes
+    assert sorted(b["operation"] for _, _, b in cyclotron.calls) == ["report"] * 3 + ["status"] * 3
+
+
+def test_the_request_check_knows_report_and_refuses_a_request_id_or_a_payload_on_a_read():
+    read = {"contractVersion": mr.CONTRACT_VERSION, "operation": "report", "payload": {}}
+    mr.validate_request(read)
+    for bad in ({**read, "requestId": "req-12345678"}, {**read, "payload": {"x": 1}}, {**read, "operation": "other"}):
+        with pytest.raises(ValueError):
+            mr.validate_request(bad)
+    with pytest.raises(ValueError):
+        mr.validate_request({**read, "operation": "status", "requestId": "req-12345678"})
+
+
+def test_the_report_is_stored_with_the_status_in_the_same_row_under_its_own_attributes(table):
+    store, cyclotron = setup_router(table)
+    result = status_run(table, store, cyclotron)
+    assert {r["status"] for r in result["reports"].values()} == {"written"} and {r["status"] for r in result["publications"].values()} == {"written"}
+    rows = status_rows(table)
+    assert sorted(rows) == sorted(PUBS) and len([k for k in table.items if k[1].startswith("CYCLOTRONSTATUS#")]) == 3   # no new row, no new table
+    for pub, row in rows.items():
+        assert row["status"]["cyclotron"]["id"] == f"{pub}-relevance" and row["asOf"] == "2026-11-02T10:00:00.000Z" and row["checkedAt"]
+        report = row["report"]
+        assert report["schema"] == "cyclotron-classifier-report/v1" and report["generatedAt"] == "2026-11-03T18:00:00.000000+00:00"
+        assert report["classifier"]["id"] == f"{pub}-relevance"   # this publication's output, whole and as the lab sent it
+        assert report["agreementWithEditors"] == report_answer(pub)["outputs"][f"{pub}-relevance"]["agreementWithEditors"]
+        assert report["heldOut"]["accuracy"] is None and report["model"]["weights"] is None and row["reportCheckedAt"]
+        assert "outputs" not in report and "bindingId" not in report   # the envelope is not stored
+
+
+def test_a_report_with_floats_is_stored_and_read_back(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.report_answers["anth-us"] = (200, report_answer("anth-us", heldOut={"accuracy": 0.8125, "reason": None},
+                                                              model={"features": ["a"], "weights": [0.25], "reason": None}))
+    status_run(table, store, cyclotron)
+    row = store.get_any("hn", mr.status_row_sk("anth-us"))
+    assert row["report"]["heldOut"]["accuracy"] == 0.8125 and row["report"]["model"]["weights"] == [0.25]
+
+
+def test_a_report_is_kept_even_when_status_is_503_and_the_row_holds_only_the_report(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.status_answers["anth-us"] = (503, {"detail": "no verified publication status snapshot yet"})
+    before = report_answer("anth-us", learning={"state": "not_active", "reason": "r", "version": None, "refits": None, "lastChange": None, "asOf": None,
+                                               "unavailableReason": "no decision has completed for this binding yet"})
+    cyclotron.report_answers["anth-us"] = (200, before)
+    result = status_run(table, store, cyclotron)
+    assert result["publications"]["anth-us"] == {"status": "no_snapshot"} and result["reports"]["anth-us"] == {"status": "written"}
+    row = status_rows(table)["anth-us"]
+    assert "status" not in row and "asOf" not in row and row["report"]["learning"]["unavailableReason"] and row["reportCheckedAt"]
+    assert ("MONITOR#hn", mr.LAB_BACKOFF_SK) not in table.items
+
+
+def test_a_failed_report_keeps_the_last_report_and_a_failed_status_keeps_the_last_status(table):
+    store, cyclotron = setup_router(table)
+    status_run(table, store, cyclotron)
+    first = deepcopy(status_rows(table)["anth-us"])
+    first_other = deepcopy(status_rows(table)["p-apyr-us"])
+    cyclotron.report_answers["anth-us"] = (500, {"detail": "boom"})
+    cyclotron.status_answers["anth-us"] = (200, status_answer("anth-us", as_of="2026-11-03T12:00:00.000Z", refits=1))
+    cyclotron.report_answers["p-apyr-us"] = (200, {"pendingOutputs": ["x"]})   # not a report: nothing is stored from it
+    cyclotron.status_answers["p-apyr-us"] = (500, {"detail": "boom"})
+    result = status_run(table, store, cyclotron, now=3000)
+    assert result["reports"]["anth-us"]["status"] == "unavailable" and result["reports"]["p-apyr-us"] == {"status": "unavailable", "reason": "not a classifier report"}
+    rows = status_rows(table)
+    assert rows["anth-us"]["report"] == first["report"] and rows["anth-us"]["reportCheckedAt"] == first["reportCheckedAt"]   # the last report, not relabelled as fresh
+    assert rows["anth-us"]["status"]["cyclotron"]["refits"] == 1 and rows["anth-us"]["asOf"] == "2026-11-03T12:00:00.000Z"
+    assert rows["p-apyr-us"] == first_other   # both reads failed: the row is exactly as it was
+    # and the other way round
+    cyclotron.report_answers["anth-us"] = (200, report_answer("anth-us", heldOut={"accuracy": 0.5, "reason": None}))
+    cyclotron.status_answers["anth-us"] = (500, {"detail": "boom"})
+    status_run(table, store, cyclotron, now=4000)
+    row = status_rows(table)["anth-us"]
+    assert row["report"]["heldOut"]["accuracy"] == 0.5 and row["status"]["cyclotron"]["refits"] == 1 and row["asOf"] == "2026-11-03T12:00:00.000Z"
+
+
+def test_a_report_that_cannot_be_reached_or_fails_to_be_a_report_stores_nothing_and_stops_nothing(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.status_answers = {p: (503, {"detail": "no snapshot"}) for p in PUBS}
+    cyclotron.report_answers["anth-us"] = (500, {"detail": "boom"})
+    cyclotron.report_answers["p-apyr-us"] = (200, {"schema": "cyclotron-classifier-report/v2", "outputs": {"p-apyr-us-relevance": {}}})
+    result = status_run(table, store, cyclotron)
+    assert result["reports"]["anth-us"]["status"] == "unavailable" and result["reports"]["p-apyr-us"]["reason"] == "not a classifier report"
+    assert result["reports"]["threat-intelligence"] == {"status": "written"} and sorted(status_rows(table)) == ["threat-intelligence"]
+
+
+def test_a_503_report_is_an_ordinary_failed_read_and_sets_no_lab_pause(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.report_answers = {p: (503, {"detail": "busy"}) for p in PUBS}
+    result = status_run(table, store, cyclotron)
+    assert {r["status"] for r in result["reports"].values()} == {"unavailable"} and {r["status"] for r in result["publications"].values()} == {"written"}
+    assert ("MONITOR#hn", mr.LAB_BACKOFF_SK) not in table.items
+    config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+    client = CyclotronClient(config, sign=lambda m, u, b: {}, http=cyclotron.http, sleep=lambda s: None, clock=lambda: 0)
+    mr.run_cyclotron_status(store, config, client, monitor_id="hn", now=5000)
+    assert client.rate_limited is None and client.refusals == []   # no lab-wide pause was asked for, and no refusal was logged as the lab's
+    assert all("report" not in row for row in status_rows(table).values())   # the status rows are unchanged by it
+    swept = go(table, store, cyclotron, now=2100)
+    assert swept["status"] != "stopped" and len(cyclotron.posts()) > 3
+
+
+def test_a_report_for_another_output_is_never_stored(table):
+    store, cyclotron = setup_router(table)
+    answer = report_answer("anth-us")
+    answer["outputs"]["p-apyr-us-relevance"] = report_answer("p-apyr-us")["outputs"]["p-apyr-us-relevance"]
+    cyclotron.report_answers["anth-us"] = (200, answer)
+    status_run(table, store, cyclotron)
+    assert status_rows(table)["anth-us"]["report"]["classifier"]["id"] == "anth-us-relevance"
+    cyclotron.report_answers["anth-us"] = (200, {**answer, "outputs": {"p-apyr-us-relevance": answer["outputs"]["p-apyr-us-relevance"]}})
+    result = status_run(table, store, cyclotron, now=3000)
+    assert result["reports"]["anth-us"] == {"status": "unavailable", "reason": "not a classifier report"}
+    mislabelled = report_answer("anth-us")
+    mislabelled["outputs"]["anth-us-relevance"]["classifier"]["id"] = "p-apyr-us-relevance"   # an entry under this output that is another classifier's
+    cyclotron.report_answers["anth-us"] = (200, mislabelled)
+    assert status_run(table, store, cyclotron, now=4000)["reports"]["anth-us"]["status"] == "unavailable"
+    assert status_rows(table)["anth-us"]["report"]["classifier"]["id"] == "anth-us-relevance"
+
+
+def test_a_report_too_large_for_the_row_is_cut_down_and_says_so(table):
+    store, cyclotron = setup_router(table)
+    big = {f"feature {n}": 0.5 for n in range(20000)}
+    days = [{"day": f"2020-{n // 28 % 12 + 1:02d}-{n % 28 + 1:02d}-{n}", "votes": 1, "compared": 1, "agreed": 1} for n in range(9000)]
+    section = report_answer("anth-us", model={"features": list(big), "weights": big, "reason": None})
+    section["outputs"]["anth-us-relevance"]["agreementWithEditors"]["byDay"] = days
+    cyclotron.report_answers["anth-us"] = (200, section)
+    result = status_run(table, store, cyclotron)
+    assert result["reports"]["anth-us"] == {"status": "written", "trimmed": ["model", "byDay"]}
+    stored = status_rows(table)["anth-us"]["report"]
+    assert stored["trimmed"] == ["model", "byDay"] and stored["model"]["weights"] is None and "too large" in stored["model"]["reason"]
+    kept = stored["agreementWithEditors"]["byDay"]
+    assert 0 < len(kept) < 9000 and kept[-1] == days[-1]   # the oldest days go first
+    assert len(json.dumps(stored, default=str).encode()) <= mr.REPORT_ROW_LIMIT_BYTES < 400 * 1024
+    small, cut = mr.fit_report(report_answer("anth-us")["outputs"]["anth-us-relevance"])
+    assert cut == [] and "trimmed" not in small
+
+
+def test_the_report_read_honours_the_time_budget_and_a_status_only_row_stays_as_it_was(table):
+    store, cyclotron = setup_router(table)
+    left = iter([1e9, 10] + [1e9] * 10)   # time runs out between the first publication's status and its report
+    result = status_run(table, store, cyclotron, time_left=lambda: next(left))
+    assert result["reports"]["anth-us"] == {"status": "skipped", "reason": "time budget"} and result["publications"]["anth-us"]["status"] == "written"
+    assert "report" not in status_rows(table)["anth-us"] and "report" in status_rows(table)["p-apyr-us"]
+
+
+def test_a_503_is_no_snapshot_yet_for_that_publication_and_never_a_lab_pause_or_a_stopped_sweep(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.status_answers["anth-us"] = (503, {"detail": "no verified publication status snapshot yet"})
+    cyclotron.report_answers["anth-us"] = (503, {"detail": "busy"})   # no report either: nothing at all is stored for it
+    result = status_run(table, store, cyclotron)
+    assert result["publications"]["anth-us"] == {"status": "no_snapshot"}
+    assert sorted(status_rows(table)) == ["p-apyr-us", "threat-intelligence"]
+    assert ("MONITOR#hn", mr.LAB_BACKOFF_SK) not in table.items
+    swept = go(table, store, cyclotron, now=2100)   # the deciding sweep that follows is not paused
+    assert swept["status"] != "stopped" and len(cyclotron.posts()) > 3
+
+
+def test_a_status_refusal_or_a_reply_that_is_not_a_snapshot_is_recorded_for_that_publication_and_stops_nothing(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.status_answers["anth-us"] = (500, {"detail": "boom"})
+    cyclotron.status_answers["p-apyr-us"] = (200, {"pendingOutputs": ["x"]})
+    cyclotron.status_answers["threat-intelligence"] = (200, status_snapshot("threat-intelligence"))   # a bare snapshot is not the lab's answer
+    cyclotron.report_answers = {p: (503, {"detail": "busy"}) for p in PUBS}   # and no report: a row needs one of the two
+    result = status_run(table, store, cyclotron)
+    assert result["publications"]["anth-us"]["status"] == "unavailable"
+    assert result["publications"]["p-apyr-us"] == {"status": "unavailable", "reason": "not a status snapshot"}
+    assert result["publications"]["threat-intelligence"] == {"status": "unavailable", "reason": "not a status snapshot"}
+    assert status_rows(table) == {}
+
+
+def test_the_status_task_keeps_only_this_publications_output_from_the_answer(table):
+    store, cyclotron = setup_router(table)
+    answer = status_answer("anth-us")
+    answer["classifiers"]["p-apyr-us-relevance"] = status_snapshot("p-apyr-us")
+    cyclotron.status_answers["anth-us"] = (200, answer)
+    status_run(table, store, cyclotron)
+    assert status_rows(table)["anth-us"]["status"]["cyclotron"]["id"] == "anth-us-relevance"
+    cyclotron.status_answers["anth-us"] = (200, {**answer, "classifiers": {"p-apyr-us-relevance": status_snapshot("p-apyr-us")}})
+    assert status_run(table, store, cyclotron, now=3000)["publications"]["anth-us"] == {"status": "unavailable", "reason": "not a status snapshot"}
+
+
+def test_a_newer_snapshot_replaces_the_row_and_the_old_one_is_kept_when_the_lab_has_no_snapshot(table):
+    store, cyclotron = setup_router(table)
+    status_run(table, store, cyclotron)
+    cyclotron.status_answers["anth-us"] = (200, status_answer("anth-us", as_of="2026-11-02T12:00:00.000Z", refits=1, labels=12))
+    cyclotron.status_answers["p-apyr-us"] = (503, {"detail": "no verified publication status snapshot yet"})
+    status_run(table, store, cyclotron, now=3000)
+    rows = status_rows(table)
+    assert rows["anth-us"]["asOf"] == "2026-11-02T12:00:00.000Z" and rows["anth-us"]["status"]["cyclotron"]["refits"] == 1
+    assert rows["p-apyr-us"]["asOf"] == "2026-11-02T10:00:00.000Z"   # still the last real snapshot, with its own asOf, never relabelled as fresh
+
+
+def test_the_status_task_honours_a_pause_the_lab_already_asked_for_and_does_not_call_it(table):
+    store, cyclotron = setup_router(table)
+    table.put_item({"pk": "MONITOR#hn", "sk": mr.LAB_BACKOFF_SK, "until": 9999, "strikes": 1, "status": 503, "retryAfter": 60})
+    result = status_run(table, store, cyclotron)
+    assert result["status"] == "skipped" and result["reason"] == "lab_backoff" and cyclotron.calls == [] and status_rows(table) == {}
+
+
+def test_the_status_task_has_its_own_lock_so_a_sweep_and_a_status_read_never_wait_for_each_other(table):
+    store, cyclotron = setup_router(table)
+    assert store.acquire_router_lock("hn", "sweep", now=2000)   # a routing sweep is running
+    result = status_run(table, store, cyclotron)
+    assert result["status"] == "complete" and len(status_rows(table)) == 3
+    assert store.acquire_router_lock("hn", "status", now=2000, sk=mr.CYCLOTRON_STATUS_LOCK_SK)   # released after the run
+
+
+def test_the_status_task_takes_no_decision_and_writes_no_receipt(table):
+    store, cyclotron = setup_router(table)
+    before = set(table.items)
+    status_run(table, store, cyclotron)
+    added = {k[1].split("#")[0] for k in set(table.items) - before}
+    assert added == {"CYCLOTRONSTATUS"}
+
+
+def test_the_stack_schedules_the_status_task_hourly_for_hn_and_distinctive_without_retries():
+    resources = _template()["Resources"]
+    inputs = {name: r["Properties"]["Target"]["Input"] for name, r in resources.items() if r["Type"] == "AWS::Scheduler::Schedule"}
+    found = {json.loads(inputs[name])["monitorId"]: resources[name]["Properties"] for name in inputs
+             if isinstance(inputs[name], str) and json.loads(inputs[name]).get("task") == "cyclotron-status"}
+    assert sorted(found) == ["hn", "web-distinctive"]
+    for properties in found.values():
+        assert properties["ScheduleExpression"].endswith(" * * ? *)") and properties["Target"]["RetryPolicy"]["MaximumRetryAttempts"] == 0

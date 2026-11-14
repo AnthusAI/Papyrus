@@ -33,7 +33,19 @@ at `articles/call-criteria.html`; an already-lowercase name is unchanged.
 Names starting with `_` or `.` are not pages. The build fails if two files
 derive the same slug (both are named) or a name leaves no slug at all.
 
-## Both capabilities are opt-in
+## On by default for a site, opt-in for the library
+
+A Papyrus **site** (a `projection.json`, or none) has both capabilities without declaring them. Set `"images": false` or
+`"citations": false` to turn one off; declare `"images"` as an object (`widths`, `formats`, `layouts`, ...) to configure the
+pipeline. Without a declaration the pipeline's own defaults apply, `::image` is rendered from the renditions made when the
+picture is uploaded, and plain Markdown images are left as written (declaring `images` as an object also upgrades them). A
+site with no media bucket cannot show a picture: `::image` is refused at save, with that reason.
+
+Save and publish read the same site settings: a body the page cannot be made from (`::image` on a site that turned images off,
+a citation key that does not exist, a picture whose renditions were never made) is refused when it is saved or published,
+before any published data is written. See `docs/standard-site.md`, "Images and citations".
+
+The rest of this section is the library call, `build_markus_site`, where both are opt-in.
 
 ```python
 from papyrus_content.markus_renderer import (
@@ -116,9 +128,10 @@ On a line of its own:
 | `alt` | — | Alt text. Use `alt=""` for decoration. |
 | `layout` | — | Named layout; drives the CSS class and the `sizes` attribute. Defaults to `inline`. |
 | `caption` | — | Renders a `<figcaption>`. |
-| `credit` | — | Appended to the caption in `<span class="papyrus-image-credit">`. |
+| `credit` | — | Appended to the caption in `<span class="papyrus-image-credit">`. A generated image has no credit line at all; leave credit off. A credit that only says a machine made the picture ("Illustration generated with AI", "Drafted by AI.", "Generated") is dropped: the page shows the caption alone and the Markdown copy has no `credit` attribute on that `::image`. |
 | `sizes` | — | Override the layout's `sizes` for this one image. |
 | `loading` | — | `lazy` (default) or `eager`. `eager` also sets `fetchpriority="high"`. |
+| `srcDark` | — | The dark-mode picture of `src`. See [Light and dark pictures](#light-and-dark-pictures). `srcDark="none"` turns off name pairing for this one image. |
 
 Any other attribute is a build error that names the offender.
 
@@ -140,6 +153,47 @@ multi-line JSX element produces anyway, and is more readable for a long `alt`:
 The closing `}` must end its own line. An attribute value containing a literal
 `}` is not supported. Whitespace in `alt`, `caption` and `credit` is collapsed
 to single spaces, so wrapping does not leak newlines into the HTML attribute.
+
+### Light and dark pictures
+
+A figure can carry a second picture for dark mode:
+
+```markdown
+::image{src="images/botspy-1.png" srcDark="images/botspy-1.dark.png" alt="…"}
+```
+
+You can leave `srcDark` out. When `images/botspy-1.dark.png` exists next to
+`images/botspy-1.png` (the name with `.dark` before the extension; any image
+extension), an `::image{}` pairs them automatically. `srcDark` is the explicit
+override for any other file name.
+
+- **Same pipeline.** The dark file gets its own widths, WebP/AVIF renditions and
+  intrinsic size, exactly like the light one. An `.svg` or `.gif` dark file is
+  passed through, like any `.svg` or `.gif` (vector and animated files are never
+  re-encoded).
+- **Same proportions.** The light file's `width` and `height` size the figure.
+  The dark file must have the same aspect ratio (within 0.5%, which absorbs a
+  one-pixel rounding difference), or the build fails and names the image, so a
+  theme switch never moves the page. A missing dark file, or a `srcDark` that is
+  a URL, is a build error too.
+- **Markup.** Both pictures are in the page, each in its own wrapper:
+  `<div class="papyrus-image-light">` and `<div class="papyrus-image-dark">`
+  (`<span>` for an inline image). The dark one is always `loading="lazy"` and
+  hidden with `display:none`, so a browser does not download the picture that is
+  not showing. A `<source media="(prefers-color-scheme: dark)">` cannot see a
+  site's theme toggle, which is why the swap is done with CSS on the wrappers.
+- **The theme hook.** The first figure on a page emits a small `<style>` block
+  (`DARK_VARIANT_CSS`). It follows the **site's theme setting** first:
+  `data-theme="dark"` or `data-theme="light"` on the root element (`<html>`)
+  decides, whatever the operating system prefers. A site whose toggle sets a
+  `dark` class on the root (and no `data-theme`) works too. With neither set,
+  the reader's `prefers-color-scheme` decides. **A site's toggle only has to set
+  `data-theme` on `<html>`.** There is no per-site code or configuration. Set it
+  as early as possible (a script in `<head>`) so the hidden picture is never
+  fetched.
+- **Plain Markdown cannot express a pair**, so `![alt](…)` and `:::figure{src=…}`
+  never get a dark picture, even when a `.dark` file exists. Use `::image{}`.
+- **Feeds and other readers** that ignore CSS show both pictures.
 
 ### Plain Markdown images are upgraded too
 
@@ -282,6 +336,47 @@ publications that have not opted in do not need it. WebP works on Pillow 10.3;
 (`pip install "Pillow>=11.3,<12"`). Configuring `avif` on an older Pillow
 raises `ImagePipelineError`.
 
+## Videos
+
+### `::video{…}`
+
+A video is written like an image, on a line of its own:
+
+```
+::video{src="https://youtu.be/UytYrhYLOKI" title="Aircraft sound localisation demonstration" caption="Two microphones, one jet." credit="Example Channel" start="90"}
+```
+
+| Attribute | Required | Meaning |
+|-----------|----------|---------|
+| `src` | yes | The address of the video. YouTube (`watch?v=`, `youtu.be`, `shorts`, `live`, `embed`), Vimeo (`vimeo.com/ID`, `player.vimeo.com/video/ID`) and Instagram (`/p/`, `/reel/`, `/tv/`) are known. |
+| `title` | yes | The frame's accessible name (the iframe `title`). |
+| `credit` | yes | Who made the video. Third-party media is always credited; the credit links to the video. |
+| `caption` | no | What the reader will see before pressing play. |
+| `start` | no | Whole seconds to start from. Refused for a provider that cannot start part way (Instagram). |
+| `layout` | no | `inline` (default) or `full`, the same classes as `::image`. |
+| `poster` | no | Accepted and ignored. The provider draws its own thumbnail, so older lines that carry it keep working. |
+
+**The provider's own embed.** A video is the provider's standard `<iframe>` (YouTube through `youtube-nocookie.com`, Vimeo with `dnt=1`, Instagram's own embed address), lazy-loaded,
+in a responsive 16:9 wrapper (Instagram is portrait with a minimum height). The provider draws its own thumbnail and play button; there is no poster, no placeholder and no script of ours,
+and no poster-capture step. **Privacy:** the provider loads with the page, so it may set its own cookies or measure the visit as soon as the page opens. A site that does not want that
+leaves `embeds.providers` empty. The credit line under the frame links to the video on the provider.
+
+**The provider registry is data** (`markus_renderer/video.py`, `REGISTRY`): for each provider, its hosts and address shapes, the plain address, the iframe
+address, and the origins the Content-Security-Policy must allow. Adding a provider is adding a row.
+
+**Which providers play** is a setting of the site, `embeds.providers` in `projection.json` (see [the standard front end](standard-site.md#video-embeds-embeds)):
+
+* No `embeds`, or an empty `providers` list (the default): the feature is **absent**. Core does not read `::video` at all, so a site's own hooks see the line exactly as before,
+  the site publishes exactly the files it did, and a Story saves with no list of videos.
+* A provider listed: its `::video` is the provider's embed, as above.
+* Another registered provider that the site does not list, while some provider is listed: a plain linked credit line, `Video: <title linked to the video>. <caption>. Credit: <credit>.`,
+  with no frame and no picture.
+* An address of a host that is not in the registry is never core's: the line is left for the site's hooks.
+
+The Markdown copy of the Story keeps the directive exactly as written.
+
+**Checks.** The four-lens review has P16 (title and credit, a problem that blocks), P17 (caption), P18 (the site lists the video's provider) and A15 (a credited video is among the Story's citations).
+
 ## Citations
 
 ### Data lives in front matter
@@ -355,17 +450,57 @@ instead).
 ```
 
 `format` is optional and defaults to `CitationRendering.default_format`
-(`apa`). Renders:
+(`apa`). The source's URL is appended as its own link, after a space. When the source has a DOI, APA prints the DOI as its link and the URL follows it. A source with no URL ends with the formatted text. Renders:
 
 ```html
 <ol class="citationslist">
-  <li id="citation-1">Gundlach, H., Lynch, J., Mertens, M., &amp; Thompson, N. (2025). The Price of Progress… arXiv. https://doi.org/10.48550/arXiv.2511.23455<a href="https://arxiv.org/abs/2511.23455" target="_blank" rel="noopener noreferrer">https://arxiv.org/abs/2511.23455</a></li>
+  <li id="citation-1">Gundlach, H., Lynch, J., Mertens, M., &amp; Thompson, N. (2025). The Price of Progress… arXiv. https://doi.org/10.48550/arXiv.2511.23455 <a href="https://arxiv.org/abs/2511.23455" target="_blank" rel="noopener noreferrer">https://arxiv.org/abs/2511.23455</a></li>
 </ol>
 ```
 
-Omit `::citations{}` and no list is rendered — the inline markers still get
-numbers, they just link to anchors that are not on the page. That matches what
-the Gatsby site did for the one article with no `<CitationsList>`.
+Omit `::citations{}` and Papyrus **appends the bibliography at the end of the
+article** (inside the `<article>`, formatted as `::citations` would be), so a
+marker never links to an anchor that is not on the page (PPY-21bb36). The Gatsby
+site left such markers pointing nowhere; that parity is deliberately dropped. A
+body with no `[@key]` marker gets no list. The Story checklist's citation check
+(A5 in [four-lens-review.md](four-lens-review.md)) tells the editor before
+publishing, in plain words, which markers have no `::citations{}` line and which
+keys are not among the Story's entries.
+
+### How the bibliography links a source
+
+A publication chooses in `web/projection.json`:
+
+```json
+{ "citations": { "links": "internal", "externalIcon": false } }
+```
+
+`citations` is `true` / `false` (as before: `false` turns citations off) or an
+object with the keys `links` and (optional, default `false`) `externalIcon`:
+
+| `links` | Bibliography entry |
+| --- | --- |
+| `external` (default; also what `true` or no setting gives) | The formatted entry plus the source's own URL as a link, exactly as above, (outside links already open in a new tab with `target="_blank" rel="noopener noreferrer"`). With `"citations": {"externalIcon": true}` an outside link also gets the class `citation-external` and ends with the Lucide `external-link` icon (`svg.citation-external-icon`, `data-icon="external-link"`, drawn in `currentColor`); without it the markup is byte-identical to before. An entry whose CSL-JSON carries `internalUrl` links to that page of this site instead: the formatted entry is the link text, with no icon and no new tab. |
+| `internal` | No outside address, linked or printed. An entry is linked only to the site's own page for it when its CSL-JSON carries `internalUrl` (a path starting with `/` on this site), otherwise it is plain text. |
+| `none` | Plain text: title, publisher and date. No link of any kind in the list. |
+
+`URL` and `DOI` are left out of the entry text for `internal` and `none`. An
+`internalUrl` that is an address (`https://...`, `//...`, `javascript:`) is never
+linked. The inline markers link to `#citation-N` on the same page in every mode,
+which is not an outbound link.
+
+#### Where `internalUrl` comes from
+
+A page's own front matter may name it. The standard front end also fills it
+when a published Story is `based_on` the accepted Reference whose `sourceUri`
+is the entry's `URL` (matched with `story_from_reference.url_key`, which
+ignores tracking parameters, the fragment, `www.` and a trailing slash). The
+link goes to the newest published Story based on that Reference, never to the
+page being rendered; a withdrawn or unpublished Story does not count. The order
+for an entry is: our Story, then (not built yet, PPY-13fb8aa8) our page for the
+Reference, then the outside address. The data and its cost are described in
+[surfable site](surfable-site.md). Machines on Machines used `internal` while no
+page existed to link to; with the lookup it can use `external`.
 
 ### Formatting
 
@@ -467,6 +602,80 @@ Unknown format names are a build error that lists the known ones.
 | `anchor_prefix` | `citation-` |
 | `formatters` | `{}` (merged over the built-ins) |
 | `strict` | `True` |
+
+## Equations
+
+Equations are written as TeX, inside Markdown that Markus already understands, and drawn as MathML when the page is built.
+Nothing runs in the reader's browser: no script, no web font, no KaTeX or MathJax. Implementation:
+`src/papyrus_content/markus_renderer/equations.py` (converter: [`latex2mathml`](https://pypi.org/project/latex2mathml/), MIT, pure Python).
+Tests: `procedures/newsroom/tests/test_markus_equations.py`, `features_backend/story-math.feature`.
+
+| Form | Write | Becomes |
+| --- | --- | --- |
+| Display | a fenced block whose info string is `math` | `<div class="papyrus-math"><math display="block">`... |
+| Inline | a code span with a dollar sign on each side: ``$`m / 2^k`$`` | `<math display="inline">` inside the sentence |
+
+````markdown
+The attacker's chance of guessing a $`k`$-bit key in one try is at most $`m / 2^k`$.
+
+```math
+H_\infty(X) = -\log_2 \max_x \Pr[X = x]
+```
+````
+
+Why this spelling:
+
+- **A bare `$` is never math.** Stored articles contain prices ("$5 or $6"), so the dollar sign alone cannot open an equation.
+  Only a code span with a `$` directly on each side counts, and `` `$HOME` `` or `` $5 `flat` $6 `` are left alone.
+- **The code span protects the TeX.** Markdown reads `_`, `*`, `\` and `{}` in running text, so `a_i * b_j` outside a code span
+  loses characters to emphasis and escaping. Inside a code span nothing needs escaping except a literal backtick.
+- **It is already portable.** `` ```math `` and ``$`...`$`` are the spellings GitHub and GitLab render, so the Markdown twin, `llms.txt`
+  readers and a repository view all show the same equation.
+- **Markus is unchanged.** It sees an ordinary fenced block and an ordinary code span (the stored `bodyIr` keeps them, with
+  `lang: "math"` on the block). Papyrus swaps them for MathML after Markus has converted the page, the way Mermaid fences are handled.
+
+What is supported is what `latex2mathml` supports: fractions, roots, sub- and superscripts, sums and limits, Greek letters,
+`\text{...}`, `\left`/`\right`, matrices, `cases`, and `align`/`aligned` (`aligned` is mapped to the unnumbered `align*`). Known gaps: a
+`\mathrm{d}` is a plain letter (the browser may set it in italic), and a `<` or `&` inside `\text{...}` is not supported: that
+equation falls back to its source (put the symbol outside `\text`).
+
+### When the TeX is wrong
+
+A page never breaks and never loses text. An equation that cannot be converted keeps the author's source, shown as code
+(`<pre><code class="language-math">` or `$<code>...</code>$`). Saving the Story still succeeds, but `derive_body` returns a
+non-blocking **warning** with code `equation-tex`, the line number and the reason; `papyrus content markus-derive` prints it under
+`warnings`, and the publish path logs it.
+
+### Safety
+
+`latex2mathml` does not escape what an author types: `\text{</mtext><script>...}` would become a real `<script>` element and
+`\href{javascript:...}` or `\style{...}` would become attributes. Its output is therefore never trusted. It is parsed, every
+element and attribute is checked against a MathML whitelist (no `href`, `style`, `on*`, no `mathcolor`), and the markup is written out
+again with every text and value escaped. An equation that fails is shown as source, as above. The renderer also rejects unknown
+commands (`\notacommand`) instead of printing the backslash.
+
+### Output contract
+
+- `<math xmlns=... display="block|inline" alttext="TeX source">`. `alttext` is the accessible fallback for assistive technology
+  that does not read MathML.
+- Display equations sit in `<div class="papyrus-math">` (scrolls sideways instead of overflowing a narrow screen).
+- Colour is inherited (`currentColor`), so light and dark themes both work; there are no rules or borders. The CSS lives in
+  `markus-components.css`.
+- **Math font.** `math { font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Libertinus Math", "Noto Sans Math", "Asana Math", math }`.
+  No font is shipped. The generic `math` family alone can resolve to a text font with no OpenType MATH table (seen in Chromium on macOS):
+  the display sum sign then stays text-sized with its limits touching it, and `\mid` shrinks. With a real math font the same page
+  gets a 24 px sum sign and 5 px / 4 px gaps to its limits. A reader whose system has none of the listed fonts falls back to `math`
+  and sees the tighter layout; the equation is still correct and readable.
+- **Named operators.** `Pr`, `max`, `lim` (an `<mo>` in the converter's output) get `lspace="0em" rspace="0.1667em"`, and
+  `log`/`sin` (an `<mi>`) get a thin `<mspace>` after them, so `\Pr[X]` and `\log_2 \max_x` read as words, not as infix signs.
+
+### Other places an equation appears
+
+| Place | Shows |
+| --- | --- |
+| Markdown twin (`index.md`), `llms-full.txt` | the TeX source, verbatim (they are built from the source, not the HTML) |
+| Newsletter email | the TeX source in code styling (`render_fragment_text(..., equations="source")`); Gmail ignores MathML |
+| Editor preview (`components/markus-ir-preview.tsx`) | a block labelled "Equation (TeX source; drawn on the published page)"; inline equations show as `$` + code + `$`. The preview does not draw MathML because that would need a JavaScript TeX converter. |
 
 ## Why not build on Papyrus's existing reference machinery
 

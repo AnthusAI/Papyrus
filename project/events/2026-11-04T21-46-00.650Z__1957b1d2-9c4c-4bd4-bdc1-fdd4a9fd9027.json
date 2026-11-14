@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1957b1d2-9c4c-4bd4-bdc1-fdd4a9fd9027",
+  "issue_id": "PPY-d5a54574-8492-4781-a1a8-e1f261a064b7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T21:46:00.650Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Move Machines on Machines' article figures into the backend and out of Git",
+    "description": "After the storage decision, move the six approved figures of the first article with their sources and approvals, then remove design/figures/gallery article content from the repo and keep at most reference examples. Coordinate with the session working on Machines on Machines figures. The live Story's pictures must not change.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-cd458570-88d5-4372-bd22-86f89a397e5c",
+    "labels": []
+  }
+}

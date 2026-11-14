@@ -1,0 +1,20 @@
+{
+  "id": "PPY-476c6af9-81dd-4fc9-a99e-7475154f1e1f",
+  "title": "Link concepts by hand: synonyms, broader, narrower, related, with a note",
+  "description": "On the concept page: type a concept, choose the relationship by buttons (same as, broader, narrower, related, distinct from via `disambiguates`), optional note, Accept and Reject in the standard form. Uses existing relation types and `decideReferenceLink` semantics, extended to concept pairs. A fact starts as this: a typed link plus a note. Standalone claims with sources are out of scope until a need appears. Knowledge run neighbours already read accepted relations. Test case: confinement problem related to containment problem. Screenshot review.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-46d70d7c-891b-4332-8819-012cf0b24628",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:46.454996Z",
+  "updated_at": "2026-11-04T02:52:46.455017Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

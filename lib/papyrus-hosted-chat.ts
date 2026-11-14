@@ -2,6 +2,7 @@ import { resolveNewsroomChatIdentity, type NewsroomChatIdentityResolver } from "
 import { createHash } from "node:crypto";
 import type { EmbeddedChatAppDependencies } from "chatticus/chat-server";
 import type { NextRequest } from "next/server";
+import { isAllowedOrigin } from "./allowed-origins";
 import { publicSiteOrigin } from "./site-origin-value";
 
 const NO_STORE_HEADERS = { "cache-control": "no-store" };
@@ -104,7 +105,7 @@ export async function handlePapyrusHostedChatRequest(
     } catch {
       return jsonFailure(503, "chat_site_origin_unavailable");
     }
-    if (request.headers.get("origin") !== origin) return jsonFailure(403, "same_origin_required");
+    if (!isAllowedOrigin(request.headers.get("origin"), origin, options.environment ?? process.env)) return jsonFailure(403, "same_origin_required");
   }
 
   const environment = options.environment ?? process.env;

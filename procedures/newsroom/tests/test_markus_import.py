@@ -16,6 +16,7 @@ from unittest import mock
 from papyrus_content.markus_import import DirMediaStore, ImportOptions, plan_import, run_import
 from papyrus_content.markus_import_commands import content_import_markus, parse_draft_dirs
 from papyrus_content.publishing import ItemFields, save_item
+from papyrus_content.content_item_lifecycle import without_sub_tasks
 from fake_client import FakeAuthoringClient  # noqa: E402
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "markus-content"
@@ -83,7 +84,7 @@ class ImportTests(ImportTestCase):
         report = self.run_import(options={"publish": False})
         self.assertEqual(report.published, 0)
         self.assertEqual(self.client.list_records("PublishedItem"), [])
-        self.assertTrue(all(row["status"] == "draft" for row in self.client.list_records("Item")))
+        self.assertTrue(all(row["status"] == "draft" for row in without_sub_tasks(self.client.list_records("Item"))))
 
     def test_dry_run_writes_nothing(self) -> None:
         report = self.run_import(apply=False)

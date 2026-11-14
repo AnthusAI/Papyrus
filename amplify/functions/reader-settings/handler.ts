@@ -24,6 +24,7 @@ type UserProfileRecord = {
   id: string;
   email?: string | null;
   displayName?: string | null;
+  publicHandle?: string | null;
   settings?: unknown;
   status?: string | null;
   mergedIntoProfileId?: string | null;
@@ -59,6 +60,7 @@ export const handler = async (event: ReaderSettingsEvent) => {
   if (operation === "getReaderSettings") {
     return {
       userProfileId: profile.id,
+      publicHandle: profile.publicHandle ?? null,
       email: profile.email ?? null,
       settings: hasStoredReaderSettings(profile.settings) ? normalizeReaderSettings(profile.settings) : null,
       avatarHash: computeAvatarHash(profile.email),
@@ -79,6 +81,7 @@ export const handler = async (event: ReaderSettingsEvent) => {
     );
     return {
       userProfileId: profile.id,
+      publicHandle: profile.publicHandle ?? null,
       email: profile.email ?? null,
       settings: nextSettings,
       avatarHash: computeAvatarHash(profile.email),

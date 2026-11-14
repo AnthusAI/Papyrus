@@ -1,0 +1,20 @@
+{
+  "id": "PPY-74e3b53d-25af-4d46-86d2-4cff6765faf1",
+  "title": "Web monitors search for tracked concepts",
+  "description": "`monitoring_web_queries.py` drafts one query per section from mission and policy, once. Add tracked concepts and aliases as inputs and redraft on change, so sources on them actually arrive. Spend bound as today. Needs a review of queries before going live, as with the first monitors.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-95b47bd9-5d6f-477e-ad3b-9ea8040b00df",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:47.954908Z",
+  "updated_at": "2026-11-04T02:52:47.954936Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

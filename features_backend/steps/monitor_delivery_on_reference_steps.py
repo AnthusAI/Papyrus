@@ -164,3 +164,55 @@ def real(context):
 def backfilled(context):
     row = context.backend.references[0]
     assert row["discoveredByMonitorId"] == "huggingface" and json.loads(row["discoveryDetails"]) == DETAILS
+
+
+@given("a publication that already holds {size:d} References")
+def publication_holding(context, size):
+    context.size = size
+    context.tmp = Path("/tmp/monitor-state-unused")
+
+
+@when("a run delivers {count:d} new items through one shared listing")
+def deliver_through_shared_listing(context, count):
+    from papyrus_content.monitoring_intake import ReferenceListing
+
+    context.count = count
+    context.each = intake_tests.CountingClient(context.size)
+    context.shared = intake_tests.CountingClient(context.size)
+    intake_tests.deliveries(context.each, None, count, context.tmp)
+    context.receipts = intake_tests.deliveries(context.shared, ReferenceListing(context.shared), count, context.tmp)
+
+
+@then("the table was read {pages:d} requests in all")
+def table_read(context, pages):
+    assert context.shared.requests == pages, context.shared.requests
+
+
+@then("a run that read the table for each delivery would have made more than {pages:d} requests")
+def per_delivery_cost(context, pages):
+    assert context.each.requests > pages, (context.each.requests, pages)
+    print(f"\n  {context.size} References, {context.count} deliveries: {context.each.requests} requests before, {context.shared.requests} now")  # noqa: T201
+
+
+@then("the {count:d} items became {created:d} References")
+def items_became_references(context, count, created):
+    assert len({receipt["referenceId"] for receipt in context.receipts}) == created and len(context.shared.writes) == created
+
+
+@when("a run delivers the same document twice through one shared listing")
+def deliver_twice(context):
+    from papyrus_content.monitoring_intake import ReferenceListing
+
+    context.shared = intake_tests.CountingClient(context.size)
+    listing = ReferenceListing(context.shared)
+    monitor = Monitor("hn", "publication", "knowledge-corpus-publication", context.shared.endpoint, context.tmp)
+    context.receipts = []
+    for number in (1, 2):
+        item = SourceItem(str(number), "Same document", "https://example.org/same", f"https://news.ycombinator.com/item?id={number}", None)
+        context.receipts.append(ReferenceIntake(context.shared, monitor, auth_mode="iam", persist=lambda rows: None, listing=listing)(item, _provenance(monitor, item)))
+
+
+@then("there is one new Reference and the second delivery reused it")
+def one_new_reference(context):
+    assert len(context.shared.writes) == 1 and context.receipts[1]["referenceReused"] is True
+    assert context.receipts[0]["referenceId"] == context.receipts[1]["referenceId"]

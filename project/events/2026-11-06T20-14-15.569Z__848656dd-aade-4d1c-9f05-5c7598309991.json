@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "848656dd-aade-4d1c-9f05-5c7598309991",
+  "issue_id": "PPY-a3fca713-cf1d-47d2-bd34-61709e4dc139",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T20:14:15.569Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Research other ways readers encounter a Story",
+    "description": "Explore feeds and newsletters, assistive technology, audio and voice, syndication and other plausible contexts. Document how these relate to the four proposed lenses, assess whether any deserves a distinct future lens, and bring back options. This is discovery, not a commitment to add mandatory review gates.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+    "labels": []
+  }
+}

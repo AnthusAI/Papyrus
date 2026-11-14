@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ddd8fe5a-786a-43e1-ba60-8b1401ffc550",
+  "issue_id": "PPY-e92c8e52-6a3f-4c82-b1b6-cf153ba2431c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T17:10:44.712Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Operator piece in papyrus-monitoring: alarms to triage-ready email",
+    "description": "stub",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+    "labels": [
+      "m1"
+    ]
+  }
+}

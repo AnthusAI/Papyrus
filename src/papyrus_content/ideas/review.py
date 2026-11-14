@@ -1,11 +1,13 @@
 """Human review of a synthesis run, through review requests (docs/review-requests.md).
 
-A run that creates ideas raises ONE soft review for the batch ("N new story ideas to review", no deadline), idempotent per run.
-The next run reads what editors said (``steering_for``), shows it to the model as reviewer feedback and records that it used it
-(``mark_applied``). ``--feedback FILE`` stays as a manual override.
+A run that creates ideas raises ONE soft review for the batch ("N new story ideas to review", no deadline), idempotent per run. Its links are the
+ideas filed in that run (Items at the ``idea`` stage), so the console shows ONE card that opens the Idea column of the Stories board. Editors decide the
+ideas there: moving one forward accepts it, moving it to spiked with a reason declines it. The next run reads those stage moves as reviewer feedback
+(``ItemStore.feedback``) and what editors said on the request itself (``steering_for``), shows it to the model and records that it used the request's
+note (``mark_applied``). ``--feedback FILE`` stays as a manual override.
 
 A site that has not deployed the review models cannot take a request. That never fails a run: the ideas are already stored, and the
-run records ``review: {status: not_raised, error}``. The review's links name the Proposal ids when ideas are Proposals; ideas kept as
+run records ``review: {status: not_raised, error}``. The review's links name the idea Items; ideas kept only as
 JSON are linked by idea id (the console cannot open those), which is a known limit of the JSON store.
 """
 
@@ -31,20 +33,118 @@ def request_human_review(client: Any, run: dict[str, Any], ideas: list[dict[str,
     elif client is None:
         review = {"status": "pending", "requested": False, "ideas": len(ideas), "note": "No review client was given."}
     else:
-        identifiers = [idea.get("proposalId") or idea["ideaId"] for idea in ideas]
+        from .items import review_order
+
+        ideas = review_order(ideas)   # clean ones first (ideas with no editorial check keep their place)
+        identifiers = [idea.get("itemLineageId") or idea["ideaId"] for idea in ideas]
+        as_items = all(idea.get("itemLineageId") for idea in ideas)
         try:
-            request = review_requests.raise_batch_review(client, raised_by=RAISED_BY, batch_id=run["runId"], proposal_ids=identifiers, noun=noun)
+            request = review_requests.raise_batch_review(client, raised_by=RAISED_BY, batch_id=run["runId"], idea_ids=identifiers, noun=noun, link_type="story" if as_items else "idea")
         except Exception as error:  # noqa: BLE001 - the ideas are stored; a site without review requests must not fail the run
             review = {"status": "not_raised", "requested": False, "ideas": len(ideas), "error": f"{type(error).__name__}: {error}"[:300]}
         else:
             review = {
                 "status": "requested", "requested": True, "ideas": len(ideas), "requestId": request["id"], "deadline": request.get("deadline"),
-                "linkedAs": "proposal" if all(idea.get("proposalId") for idea in ideas) else "idea",
+                "linkedAs": "story" if as_items else "idea",
             }
     review["ideaIds"] = [idea["ideaId"] for idea in ideas]
     log.info("review %s: %d new story ideas from run %s", review["status"], len(ideas), run.get("runId"))
     run["review"] = review
     return review
+
+
+CURATION_SUBJECT_PREFIX = "ideas-curation:"
+SKIPPED_TITLES_SHOWN = 5   # a sentence in a card, not a limit on the work: the card names the first few so an editor knows where to start
+SAID_NOTHING_MORE = ("already_rejected", "no_point_offered")   # skipped reasons: a draft was rejected for adding nothing, now or on an earlier run
+REJECTED_FOR_ADDING_NOTHING = ("point_check_failed",)   # invalid reasons of the same kind
+
+
+def settle_curation_flag(client: Any, run: dict[str, Any], site: str, *, open_flags: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """The one curation flag of a publication's monitor-story run (docs/idea-context-packs.md, "More than a summary"). Never raises.
+
+    * The run filed ideas: an open flag of this publication is acknowledged (ideas are flowing again).
+    * The run filed nothing because a Reference had nothing to add (``nothing_to_add``), a draft added nothing beyond its source (``point_check_failed``,
+      ``no_point_offered``, or ``already_rejected`` on an earlier run with nothing new known since) or there were no candidates at all: ONE flag, mode
+      ``flag`` (Notification Center, acknowledge only), is raised, unless one is already open for this publication. It says what would help: accept reasons
+      missing, suggested links waiting in Related, the first skipped titles. It is quiet when the run did not get through its candidates (stopped by time or
+      cost, so the empty result says nothing about curation), when the suggested links its connections come from are still being written
+      (``suggestionsWaiting``), and when it failed to file.
+
+    ``open_flags`` is the publication's open flags when the caller already knows them (a queued step reads the one it raised by id); without it the review
+    requests are listed, which a step must not do.
+
+    Needs ``listReviewRequests``, ``updateReviewRequest`` and ``createReviewRequest`` on the site's API (``RouterIdeaPolicy`` and the review policies of
+    ``infra/monitoring/papyrus-monitoring.yaml``).
+    """
+    subject = f"{CURATION_SUBJECT_PREFIX}{site}"
+    if client is None:
+        return {"status": "not_raised", "note": "No review client was given."}
+    try:
+        opened = list(open_flags) if open_flags is not None else [request for request in review_requests.list_reviews(client, state="open", raised_by=RAISED_BY, mode="flag", subject_id=subject, sweep=False)]
+        if run["drafts"]:
+            acknowledged = []
+            for request in opened:
+                review_requests.answer_review(client, request["id"], decision="acknowledge", by=RAISED_BY, feedback=f"Ideas are flowing again: run {run['runId']} filed {len(run['drafts'])}.")
+                acknowledged.append(request["id"])
+            return {"status": "acknowledged" if acknowledged else "not_needed", "requestIds": acknowledged}
+        waiting = [row for row in run["skipped"] if row["reason"] in ("nothing_to_add", *SAID_NOTHING_MORE)]
+        rejected_now = [row for row in run["invalid"] if row.get("reason") in REJECTED_FOR_ADDING_NOTHING]
+        no_candidates = run["inputs"]["candidates"] == 0
+        rated = run.get("ratedNoIdea") or []
+        if run.get("stoppedBy") == "file_error" or not (waiting or rejected_now or no_candidates or rated):
+            return {"status": "not_needed"}
+        if run.get("stoppedBy") in ("time", "cost") or run.get("suggestionsWaiting"):
+            return {"status": "not_needed", "note": f"Not raised: the run stopped by {run['stoppedBy']}." if run.get("stoppedBy") in ("time", "cost") else "Not raised: suggested links are still being written."}
+        if opened:
+            return {"status": "already_open", "requestId": opened[0]["id"]}
+        reason, ask = curation_flag_text(run, [*waiting, *rejected_now])
+        request = review_requests.raise_review(client, subject={"type": "batch", "id": subject}, mode="flag", reason=reason, ask=ask, raised_by=RAISED_BY)
+        return {"status": "raised", "requestId": request["id"], "reason": reason}
+    except Exception as error:  # noqa: BLE001 - the run is done; a site without review requests must not fail it
+        return {"status": "not_raised", "error": f"{type(error).__name__}: {error}"[:300]}
+
+
+def curation_flag_text(run: dict[str, Any], skipped: list[dict[str, Any]]) -> tuple[str, str]:
+    """(the reason, the ask) of the curation flag: what the run could not connect, and what would help most. Says "ideas", never a stage word.
+
+    ``skipped`` holds the rows that kept the run from filing anything: a Reference with nothing to connect to (``nothing_to_add``), one whose draft said no more
+    than its source (``SAID_NOTHING_MORE``, ``REJECTED_FOR_ADDING_NOTHING``), and a pack with only titles."""
+    rated = run.get("ratedNoIdea") or []
+    rated_ask = ""
+    if rated:
+        named = "; ".join(f"{row['title'] or row['referenceId']} ({row['stars']} stars: {row.get('explanation') or row['reason']})" for row in rated[:SKIPPED_TITLES_SHOWN])
+        rated_ask = f" You rated {len(rated)} {'Reference' if len(rated) == 1 else 'References'} highly and no idea came of {'it' if len(rated) == 1 else 'them'}: {named}."
+    if not skipped:
+        pending = run["inputs"].get("notAccepted", 0)
+        waiting = f" {pending} pending References are waiting to be accepted." if pending else ""
+        return ("No ideas today: no accepted References are waiting to be written about.", f"Accept References to give the ideas something to work from.{waiting}{rated_ask}")
+    said_nothing = [row for row in skipped if row.get("reason") in (*SAID_NOTHING_MORE, *REJECTED_FOR_ADDING_NOTHING)]
+    singles = [row for row in skipped if row not in said_nothing and "found" in row and "referencesWithSummary" not in row["found"]]   # a skipped pack has no accept reason or links of its own
+    packs = [row for row in skipped if row not in singles and row not in said_nothing]
+    parts, help_with = [], []
+    if singles:
+        parts.append(f"{len(singles)} accepted {'Reference' if len(singles) == 1 else 'References'} had nothing to connect to")
+    if said_nothing:
+        parts.append(f"{len(said_nothing)} {'idea' if len(said_nothing) == 1 else 'ideas'} would have said no more than its sources")
+    counted = [row for row in [*singles, *said_nothing] if "found" in row]
+    if singles or said_nothing:
+        unreasoned = sum(not row["found"].get("acceptReason") for row in counted)
+        waiting_links = sum(bool(row["found"].get("suggestedLinks")) for row in counted)
+        if unreasoned:
+            help_with.append(f"add a reason when you accept ({unreasoned} of {len(counted)} have none)")
+        if waiting_links:
+            help_with.append(f"confirm the suggested links waiting in Related ({waiting_links} {'has' if waiting_links == 1 else 'have'} close matches)")
+        help_with.append("comment on the ones you care about")
+    if packs:
+        parts.append(f"{len(packs)} {'theme' if len(packs) == 1 else 'themes'} had only titles to go on")
+    titles = [str(row["title"]) for row in [*singles, *said_nothing][:SKIPPED_TITLES_SHOWN] if row.get("title")]
+    more = f", and {len(singles) + len(said_nothing) - len(titles)} more" if len(singles) + len(said_nothing) > len(titles) else ""
+    ask = ("What would help most: " + "; ".join(help_with) + "." if help_with else "") + (f" Waiting: {'; '.join(titles)}{more}." if titles else "")
+    if said_nothing:
+        ask += " One is written again as soon as there is something new to connect it to: a comment, a link, an explanation on a link, or a related Reference."
+    if packs:
+        ask += " A theme is written from the summaries of its References, and too few of them have one yet; it is looked at again on the next run."
+    return (f"No ideas today: {' and '.join(parts)}, so the ideas would only have summarised them.", (ask + rated_ask).strip())
 
 
 def feedback_from_steering(notes: list[dict[str, Any]], prior_ideas: dict[str, list[str]]) -> list[dict[str, Any]]:

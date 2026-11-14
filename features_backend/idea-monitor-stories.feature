@@ -7,9 +7,11 @@ Feature: A site writes about the items its monitors find
   items the Cyclotron scored the same. For each chosen item the command reads the linked page (HTML, or a PDF such as a decision or a paper, directly or through a short page that links to it), asks the repository's default model
   (GPT-6 Luna) once for a story written as single sentences, and runs the same deterministic citation check as Cited Trends: every
   sentence must cite the source, and every number and date in it must appear in what the source says. A draft that fails is not
-  filed. A draft that passes is filed as a story draft Proposal in the draft state, proposed by AI, with the source's address in its
+  filed. A draft that passes is filed as an idea at the idea stage, proposed by AI, with the source's address in its
   body and the monitor named as its provenance. A Reference is never drafted twice. Every undrafted item is considered, however old: there is no default window, and an older item is only ranked lower, by a freshness weight learned from how quickly the site's editors accepted items. Nothing is approved, moved or published by the run;
-  one soft review request covers the batch. Turning a draft into a story is a later step.
+  one soft review request covers the batch. Turning a draft into a story is a later step. A draft must also meet the standard of
+  idea-more-than-summary.feature: it rests on something the newsroom knows beyond the source and it makes a claim of its own. These scenarios are about reading, ranking,
+  checking and filing, so every accepted Reference in them was accepted by an editor with a reason, and the model's point check finds that the story adds something.
 
   Background:
     Given a site "example-site" with the sections "Analysis" and "Tools"
@@ -43,7 +45,7 @@ Feature: A site writes about the items its monitors find
     When the operator drafts monitor stories with the default limit
     Then 0 stories are drafted
 
-  Scenario: Only monitored, current, accepted items are candidates
+  Scenario: Only current, accepted items are candidates, monitored or not
     Given the monitors of the site delivered these items:
       | monitor | title                  | verdict       | days ago | status   |
       | hn      | Pending and recent     | include 0.80  | 1        | pending  |
@@ -54,8 +56,8 @@ Feature: A site writes about the items its monitors find
     And a Reference that no monitor delivered arrived 1 day ago
     And every linked page can be read
     When the operator drafts monitor stories with the default limit
-    Then the stories drafted are "Old but still wanted" and "Accepted and recent"
-    And the run record counts 1 item judged not relevant and 1 that no monitor delivered
+    Then the three stories drafted are "Old but still wanted", "Accepted and recent" and "Added by hand"
+    And the run record counts 1 item judged not relevant
     And the run record counts 1 pending item that was not read because it was not accepted
 
   Scenario: Pending items are not written about by default, however confident the Cyclotron is
@@ -76,7 +78,7 @@ Feature: A site writes about the items its monitors find
     When the operator drafts monitor stories with the default limit
     Then the stories drafted are "Accepted by the system"
 
-  Scenario: The status option brings pending items back in
+  Scenario: Pending items are never candidates, even when the status option names them
     Given the monitors of the site delivered these items:
       | monitor | title                  | verdict      | days ago | status   |
       | hn      | Pending and recent     | include 0.80 | 1        | pending  |
@@ -84,7 +86,7 @@ Feature: A site writes about the items its monitors find
       | hn      | Rejected by an editor  | include 0.99 | 1        | rejected |
     And every linked page can be read
     When the operator drafts monitor stories reading the statuses "accepted,pending"
-    Then the stories drafted are "Pending and recent" and "Accepted and recent"
+    Then the stories drafted are "Accepted and recent"
     And the run record counts 0 pending items that were not read because they were not accepted
 
   Scenario: There is no default window, so an old, highly relevant item is still considered
@@ -228,8 +230,8 @@ Feature: A site writes about the items its monitors find
       | hn      | Uncited      | include 0.80 | 1        |
     And every linked page can be read
     And the model writes a story for "Uncited" whose dek cites nothing
-    When the operator drafts monitor stories and files them as Proposals with a limit of 1
-    Then no Proposal is filed
+    When the operator drafts monitor stories and files them as ideas with a limit of 1
+    Then no idea is filed
     And the run record says the dek failed with "no_citation"
 
   Scenario Outline: A sentence that states something the source does not say fails the citation check
@@ -238,8 +240,8 @@ Feature: A site writes about the items its monitors find
       | hn      | Unsupported  | include 0.80 | 1        |
     And every linked page can be read
     And the model writes a story for "Unsupported" with the body sentence "<sentence>"
-    When the operator drafts monitor stories and files them as Proposals with a limit of 1
-    Then no Proposal is filed
+    When the operator drafts monitor stories and files them as ideas with a limit of 1
+    Then no idea is filed
     And the run record says a sentence failed with "<reason>"
 
     Examples:
@@ -256,19 +258,22 @@ Feature: A site writes about the items its monitors find
       | hn      | Passes the check | include 0.80 | 1        |
     And every linked page can be read
     And the model writes a story for "Fails the check" whose dek cites nothing
-    When the operator drafts monitor stories and files them as Proposals with a limit of 1
-    Then the Proposals filed are for "Passes the check"
+    When the operator drafts monitor stories and files them as ideas with a limit of 1
+    Then the ideas filed are for "Passes the check"
 
-  Scenario: A passing story is filed as a draft Proposal that cites its source and names the monitor
+  Scenario: A passing story is filed as an idea that cites its source, names the monitor and rests on something the newsroom knows
     Given the monitors of the site delivered these items:
       | monitor     | title                     | verdict      | days ago |
       | huggingface | A tool that checks claims | include 0.80 | 1        |
+    And the editors accepted "A tool that checks claims" and wrote "Claim checking matters to our sourcing coverage."
+    And the model writes a story for "A tool that checks claims" that rests on the editors' reason
     And every linked page can be read
-    When the operator drafts monitor stories and files them as Proposals with a limit of 1
-    Then 1 "story_draft" Proposal is filed and it is proposed by AI and still in the draft state
-    And the Proposal body cites the address of the item
-    And the Proposal evidence names the "huggingface" monitor and the address of the item
-    And the Proposal targets the Reference it is about
+    When the operator drafts monitor stories and files them as ideas with a limit of 1
+    Then 1 idea is filed and it is proposed by AI and still at the idea stage
+    And the idea body cites the address of the item
+    And the idea evidence names the "huggingface" monitor and the address of the item
+    And the idea evidence records the connection "acceptReason"
+    And the idea targets the Reference it is about
     And model "gpt-6-luna" was the only model asked
     And one soft review request covers the run
 
@@ -278,20 +283,43 @@ Feature: A site writes about the items its monitors find
       | hn      | First item | include 0.80 | 1        |
       | hn      | Next item  | include 0.70 | 1        |
     And every linked page can be read
-    When the operator drafts monitor stories and files them as Proposals with a limit of 1
-    And the operator drafts monitor stories and files them as Proposals with a limit of 1
-    And the operator drafts monitor stories and files them as Proposals with a limit of 1
-    Then the Proposals filed are for "First item" and "Next item"
+    When the operator drafts monitor stories and files them as ideas with a limit of 1
+    And the operator drafts monitor stories and files them as ideas with a limit of 1
+    And the operator drafts monitor stories and files them as ideas with a limit of 1
+    Then the ideas filed are for "First item" and "Next item"
     And the model was asked exactly 2 times in all
+
+  Scenario: The same address delivered as two References is drafted once
+    Given the monitors of the site delivered these items:
+      | monitor | title             | verdict      | days ago |
+      | hn      | Shared item       | include 0.80 | 1        |
+      | email   | Shared item again | include 0.70 | 1        |
+    And "Shared item again" links to the same address as "Shared item"
+    And every linked page can be read
+    When the operator drafts monitor stories and files them as ideas with a limit of 3
+    And the operator drafts monitor stories and files them as ideas with a limit of 3
+    Then the ideas filed are for "Shared item"
+    And the model was asked exactly 1 times in all
+    And the run record counts 1 item skipped for sharing an address with a drafted one
+
+  Scenario: A Reference that another run drafted while this one was working is not filed again
+    Given the monitors of the site delivered these items:
+      | monitor | title      | verdict      | days ago |
+      | hn      | First item | include 0.80 | 1        |
+    And every linked page can be read
+    And another run files an idea for "First item" after this run has read the existing ones
+    When the operator drafts monitor stories and files them as ideas with a limit of 3
+    Then no idea is filed by this run
+    And the run record says "First item" was already drafted
 
   Scenario: A draft an editor declined is not drafted again
     Given the monitors of the site delivered these items:
       | monitor | title      | verdict      | days ago |
       | hn      | First item | include 0.80 | 1        |
     And every linked page can be read
-    When the operator drafts monitor stories and files them as Proposals with a limit of 3
-    And an editor declines the Proposal
-    And the operator drafts monitor stories and files them as Proposals with a limit of 3
+    When the operator drafts monitor stories and files them as ideas with a limit of 3
+    And an editor declines the idea
+    And the operator drafts monitor stories and files them as ideas with a limit of 3
     Then the model was asked exactly 1 times in all
 
   Scenario: An item an editor already promoted to a draft item is not drafted
@@ -323,7 +351,7 @@ Feature: A site writes about the items its monitors find
     And every linked page can be read
     When the operator drafts monitor stories as a dry run
     Then 1 story is drafted
-    And no Proposal is filed
+    And no idea is filed
     And no review was requested
 
   Scenario: The cost cap stops the run before a call that would pass it

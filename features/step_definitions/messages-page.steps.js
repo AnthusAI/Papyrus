@@ -16,6 +16,7 @@ for (const given of [
 for (const when of [
   "the editor opens the page",
   "the editor taps List and reloads the page",
+  "the editor opens a thread in the grid and in the list inside the newsroom's own stylesheet at 1024 and 1440 pixels",
   "the editor looks at the Reference and Story threads",
   "the editor taps References, Stories, Chats and Other in turn",
   "the editor selects a Reference thread at 375, 768, 834, 1024 and 1440 pixels",
@@ -37,6 +38,7 @@ for (const when of [
 
 // Each outcome runs the named browser scenario in scripts/test-messages-page.ts (at the widths the scenario names).
 const outcomes = [
+  ["noEdgeMark", ["neither the open card nor its title has a bar along its edge, the card keeps its tone, and the ring is its only mark"]],
   ["all", [
     "All is selected, the threads are in order of their last activity, and the machine record is not listed",
     "the sections are buttons with icons and there are no drop-downs",

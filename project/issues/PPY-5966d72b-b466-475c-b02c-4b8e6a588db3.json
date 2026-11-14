@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5966d72b-b466-475c-b02c-4b8e6a588db3",
+  "title": "Use Story stars to rank and feature published Stories",
+  "description": "Blocked by the Stories star task. Listing includes and the featured slot can order by recency bucket then stars, reading private stars at projection time without publishing them. A rating change re-renders only the affected pages. PublishedItem must not gain a public star field unless Ryan decides stars are public.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-97e016ea-6af5-49f6-978a-f9bbd46c68f7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T14:32:44.263367Z",
+  "updated_at": "2026-11-03T14:32:44.263389Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

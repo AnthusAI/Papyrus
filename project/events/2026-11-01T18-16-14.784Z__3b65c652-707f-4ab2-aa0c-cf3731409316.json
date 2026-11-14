@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "3b65c652-707f-4ab2-aa0c-cf3731409316",
+  "issue_id": "PPY-0b40ca61-d357-47cc-9d81-6627b05f6303",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:14.784Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Ideas flow again: conversation and acceptance context packs, signal-ranked single-item ideas",
+    "description": "Slice 1 of PPY-2e9064. Make monitor-stories file theme ideas from recent human activity, using only data that exists today, and choose single-item ideas by signals instead of \"every accepted, monitored, undrafted Reference\".\n\nWhy: the 2026-11-01 run filed 0 ideas on all seven sites. collect_monitored_items (src/papyrus_content/ideas/monitor_stories.py) only takes accepted + monitor-delivered + undrafted References; Anth.us used its backlog on 10-29/30, new monitor arrivals stay pending (auto-accept Wilson bound 78.5% < 0.9), and hand-added/email/imported References have no discoveredByMonitorId. Nothing reads Messages, votes, concepts or edges.\n\nRyan's decisions (2026-11-01) that bind this slice: pending References may appear in packs as \"not yet accepted\" context, never as cited evidence; single-item ideas keep running beside packs but are chosen by signals; both kinds are balanced by the same signal score, not a fixed split.\n\nDeploy: Papyrus release + one papyrus-monitoring change set (Ryan executes). No site deploy, no schema change.\n\nDone when: every sub-task is closed; on Anth.us a dry run shows at least one pack; a real run files ideas that each cite at least two References and pass the Humanus gate; the router log line names each pack's statistic.\nDesign: the design comment on the epic PPY-2e9064 (copied to docs/idea-context-packs.md by S1.0).\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2e906437-368b-49fa-b003-1369f1f7cae7",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

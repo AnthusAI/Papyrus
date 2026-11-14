@@ -1,0 +1,20 @@
+{
+  "id": "PPY-56b30874-3780-4395-993e-58f2358fd092",
+  "title": "Story plan still scans every Item in the duplicate cut and decided ideas",
+  "description": "Found 2026-11-08 while fixing the story steps' whole-Item scan (AnthusAI/Papyrus#1293). The daily story plan still reads Items without an index in two places: duplicate_cut and labels.decided_ideas. It runs once a day, not per step, but it is still a whole-table read that grows with the Item table. Replace it with indexed reads (the stage indexes or a purpose-built index) and add the call sites to the whole-table ratchet's downward count. Also decide whether published generated stories should be text-deduped again: #1293 stopped that, relying on based_on links and recent_published_stories titles.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T11:05:02.004412Z",
+  "updated_at": "2026-11-08T11:05:02.004499Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

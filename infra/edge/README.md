@@ -6,15 +6,29 @@ CloudFormation templates of the hand-run `papyrus-edge-<site>` stacks that front
 | --- | --- | --- |
 | `pilobol-us.yaml` | `papyrus-edge-pilobol-us` | Pilobol.us S3 projection bucket (OAC), with the directory-index and redirect function |
 | `anth-us-s3.yaml` | `papyrus-edge-anth-us` | Anth.us S3 projection bucket (OAC), redirect and header functions |
-| `threat-intelligence.yaml` | `papyrus-edge-threat-intelligence` | The Threat Intelligence Amplify app (main and staging distributions). The deployed version, kept as a rollback reference |
+| `threat-intelligence.yaml` | `papyrus-edge-threat-intelligence` | The Threat Intelligence Amplify app (main and staging distributions). The deployed version (refreshed from the live stack 2026-10-31, PPY-f40298), kept as a rollback reference. It already takes the site bucket and redirects key-value store as parameters and serves the default behavior from the S3 projection; the media and reader-cache proposals below are older and still describe the Amplify-default shape |
 | `threat-intelligence-media.yaml` | `papyrus-edge-threat-intelligence` (proposed) | Same stack plus a `/api/media/media/*` behavior that serves the media bucket through an origin access control. Not deployed. See `docs/video-loading.md` |
 | `threat-intelligence-reader-cache.yaml` | `papyrus-edge-threat-intelligence` (proposed) | The deployed template plus a `ReaderPagesCachePolicy` on the main distribution's default behavior (honours the origin `s-maxage` and `stale-while-revalidate`, keys on the Next RSC headers, ignores cookies and query strings). `/newsroom*`, `/api/*` and `/_next/image*` keep CachingDisabled. The staging distribution is unchanged because staging serves drafts. Not deployed (PPY-79e668) |
 | `p-apyr-us-reader-cache.yaml` | `papyrus-edge-p-apyr-us` (proposed) | The same change for the p.apyr.us production distribution. Not deployed (PPY-79e668) |
 | `../../docs/hosting/p-apyr-us-edge.yaml` | `papyrus-edge-p-apyr-us` (proposed) | The full intended p.apyr.us edge: the stack's own production and staging distributions, plus the two live distributions that sit outside the stack today (`E17ZRAI87DN065` marketing, `E2EM0JLBC2W9WW` reader) and the `papyrus-reader-edge` function. The reader function only redirects `/newsroom` to the CMS host and forwards the host header; the legacy `/information` redirect function is gone and the marketing default behavior uses the stack's forward-host function for the apex redirect. Not deployed |
-| `s3-projection-cms.yaml` | `papyrus-edge-<site>` (reference) | An S3 projection bucket (OAC) on the default behavior and the site's CMS Amplify app on `/newsroom*`, `/_next/*` and `/api/*`, on one host. The shape of the Shipped, Distinctive Mark, DataParade and Threat Intelligence edges. Carries the 404 handling described below |
+| `s3-projection-cms.yaml` | `papyrus-edge-<site>` (reference) | An S3 projection bucket (OAC) on the default behavior and the site's CMS Amplify app on `/newsroom*`, `/_next/*`, `/api/*`, `/cli/*` and `/.well-known/papyrus-cli.json`, on one host. The shape of the Shipped, Distinctive Mark, DataParade and Threat Intelligence edges. Carries the 404 handling described below |
+| `shipped-console.yaml` | `papyrus-edge-shipped-console` | The Shipped newsroom console host: own ACM certificate, one CloudFront distribution to the CMS Amplify app, alias records. Not deployed |
 | `anth-us.yaml` | `papyrus-edge-anth-us` (rollback) | The retired Anth.us Amplify reader. Updating the stack with this template moves the origin back, and only works while the Amplify reader app exists |
 
 Update a stack with a change set, never in place, and read the change set before executing it.
+
+## Cost tags
+
+Every costed resource (each distribution) carries the Prospectus cost tags (Prospectus `docs/COST_ACCOUNTING.md`): `anthus:account` = `owner`, `anthus:app` = `papyrus`, `anthus:deployment` = the site ID and `anthus:cost-key` = `owner/papyrus/<site>`. Prospectus charges whichever Account holds the `papyrus-<site>` entitlement. The site ID is the `CostDeployment` parameter, defaulting to the site in the Pilobol.us, p.apyr.us and Shipped templates; `s3-projection-cms.yaml` and the Threat Intelligence templates have no default, so pass `ParameterKey=CostDeployment,ParameterValue=<site>`. Adding the tags updates the distributions in place. `scripts/test-cost-tags.ts` fails CI on an untagged costed resource. The Anth.us templates are left unchanged.
+
+## Refreshing a template from the live stack
+
+When a stack has been changed outside git, refresh the file from the deployed template (read-only; the template parameters, such as certificate and bucket values, are never written into the file):
+
+```bash
+AWS_PROFILE=papyrus-production aws cloudformation get-template --stack-name papyrus-edge-threat-intelligence --template-stage Original --query TemplateBody --output text > infra/edge/threat-intelligence.yaml
+AWS_PROFILE=papyrus-production aws cloudformation validate-template --template-body file://infra/edge/threat-intelligence.yaml
+```
 
 ## The 404 page and the CMS behaviors
 
@@ -32,6 +46,10 @@ Why Lambda@Edge, not a CloudFront Function: a CloudFront Function cannot read or
 Changing the function code needs a new immutable version: edit the `Description` of `NotFoundPageVersion` along with the code. The version resources are `Retain`, because Lambda cannot delete a replicated version for some hours after it is detached. Apply to an existing stack with a change set: the diff must show the removal of `CustomErrorResponses` and the addition of the role, function, version and the default behavior's `LambdaFunctionAssociations`, and nothing else.
 
 A pure S3 distribution without CMS behaviors (`anth-us-s3.yaml`, `pilobol-us.yaml`, the distribution the site backend creates) has nothing to mask, and keeps its error responses.
+
+## The console on its own host
+
+A site can serve its newsroom console from a separate host (`newsroom.<site host>`). That host gets its own small distribution: one default behavior to the site's CMS Amplify app, uncached, all methods, the `x-forwarded-host` viewer-request function, no S3 origin and no `CustomErrorResponses`. The stack creates its own ACM certificate (DNS validation in the Route 53 zone) and the alias records, so no Amplify domain association is needed, which matters where `create-domain-association` is throttled. The Shipped template is `shipped-console.yaml` here (stack `papyrus-edge-shipped-console`; parameters `HostedZoneId`, `CmsAppId`, `ConsoleHost`). The site's app-shell `site.json` names the host as `cms.consoleOrigin`.
 
 ## New sites
 
@@ -73,3 +91,9 @@ Expected change set: one added `AWS::CloudFront::CachePolicy`, and a modify of t
 Expected diff in step 2: `ReaderEdgeFunction` code, one `FunctionAssociations` entry on `MarketingDistribution`'s default behavior. Nothing is replaced.
 
 The p.apyr.us site runs this adoption from its own Amplify build with `papyrus-infra deploy-edge`. A template parameter the live stack does not have yet takes its template default, so adding a parameter never blocks the change set.
+
+## Consent region function (reference, not deployed)
+
+`consent-region-function.js` is a CloudFront Function (runtime `cloudfront-js-2.0`, viewer-request) that answers the consent address (`/_papyrus/consent`) from the edge with `{"country":"DE","notice":true}` and `cache-control: private, no-store`. With no usable `cloudfront-viewer-country` header it answers `{"country":"","notice":true}`. It is not associated with any distribution and no template here references it. The design, the fail-closed rules and the open questions are in [region-aware consent](../../docs/region-aware-consent.md).
+
+The country list inside it is generated, never hand-edited: `PYTHONPATH=src python infra/edge/generate_consent_region_function.py --write` (add `--settings web/projection.json` for a site's own overrides). A CloudFormation template would inline the file with `Fn::Sub` or `Fn::Join` into `AWS::CloudFront::Function.FunctionCode`. Test: `node --test scripts/test-consent-region-function.mjs`.

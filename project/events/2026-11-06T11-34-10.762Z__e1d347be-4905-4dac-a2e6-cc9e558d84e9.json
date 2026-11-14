@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e1d347be-4905-4dac-a2e6-cc9e558d84e9",
+  "issue_id": "PPY-a45a7f86-3eb8-428f-a3f6-7978cf0fdb8b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T11:34:10.762Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Let the verified owner view and disconnect Papyrus MCP connections",
+    "description": "## Intent\n\nExpose an explicit way to see and revoke the owner’s authorized agent connections without changing ordinary browser logout. Depends on PPY-ca57a5 and the authenticated return path in PPY-cf2ab5. It uses the same revocation state as /api/mcp/oauth/revoke.\n\n## Steps\n\n1. Add an owner projection to the private grant service keyed by configured publication and the verified subject plus identity kind. Use a sparse same-table owner index for grant records only. An opaque owner-derived index key is preferred. Return client display label, approved time, fixed deadline and state, never token material. Limit to 50 entries with opaque pagination, and verify every row belongs to the same site/Account and principal. Keep human and reader owner resolution on their existing login mechanisms.\n2. Add a clean /mcp/connections page on the configured origin and link it from the corresponding signed-in site UI. Render separate staff/reader views when both sessions are present. List only through the private service and authorize Disconnect POST with same Origin, CSRF and fresh owner session. Re-read ownership on revoke. Do not identify a principal from query or form values.\n3. Revoke one grant with its version check and immediately invalidate access/refresh. Drop its upstream credentials from the usable record and attempt provider revocation server-side when that path is available. Return success only when local revocation is durable. An upstream revocation failure is a redacted diagnostic and must not restore access. A repeat disconnect is idempotent. An unauthorized owner lookup or mutation fails closed.\n4. Keep normal browser logout separate. Explicit Disconnect affects only this connection. Confirmed account disable or loss of authority is enforced at the current-role gate and cannot silently resurrect a revoked grant. Follow the one-new-GSI release constraint before site activation.\n\n## Gherkin acceptance\n\nFeature: Manage my agent connections\nScenario: A person disconnects one of two connections\n  Given two active connections owned by the same verified person\n  When the person disconnects the first\n  Then its next access and refresh fail\n  And the second connection remains active\n\nScenario: One person attempts to disconnect another person's grant\n  Given a member knows another connection's public identifier\n  When the member submits Disconnect\n  Then the other connection remains active\n  And no private connection information is returned\n\n## Verification\n\nTest owner/site/kind separation, logged-out and foreign Origin refusal, race with refresh, idempotency, and failed provider revocation. Reuse the existing site role and app build checks. The pilot must show no plugin deletion is needed to authorize again on the same endpoint.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9bf332ad-6651-4358-883c-dcd601e22d9b",
+    "labels": []
+  }
+}

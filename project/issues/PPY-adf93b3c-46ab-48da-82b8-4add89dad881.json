@@ -1,0 +1,28 @@
+{
+  "id": "PPY-adf93b3c-46ab-48da-82b8-4add89dad881",
+  "title": "Interactive Papyrus MCP App",
+  "description": "Optional Reference and Story cards use the same tools as chat. Verify both paths and record compatibility across hosts.",
+  "type": "epic",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e7ad4f9f-7a57-415d-8ff3-cba9d40f5207",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "fd9f234a-2c6d-4346-ae93-fafc3fc4fe73",
+      "author": "home",
+      "text": "Draft PR #1244: https://github.com/AnthusAI/Papyrus/pull/1244. Seeded browser checks cover navigation, stale refresh, Story ratings and review actions. Actual host iframe trials pending.",
+      "created_at": "2026-11-05T20:38:12.614074Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-05T20:04:41.466311Z",
+  "updated_at": "2026-11-05T20:38:12.614322Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -25,6 +25,7 @@ from .reference_curation import SummaryFailed, Summarizer, _write_reference_summ
 from .reference_curation_store import (
     GROBID_SORT_KEY,
     GROBID_TEI_SORT_KEY,
+    LINKS_SORT_KEY,
     PIPELINE_VERSION,
     TEXT_SORT_KEY,
     AttachmentStore,
@@ -35,6 +36,7 @@ from .reference_curation_store import (
     sha256_text,
     write_card,
 )
+from .reference_outbound_links import links_document, summarize_links
 from .reference_grobid import (
     SKIP_REASONS_RETRYABLE,
     GrobidUnavailable,
@@ -198,6 +200,10 @@ def enrich_item(row: dict[str, Any], disc: dict[str, Any], monitor_id: str, enri
                 capture.update(reason=captured.failure, transient=captured.transient)
             curation["capture"] = {k: v for k, v in capture.items() if v is not None}
             curation.update(signals=captured.signals, paper=captured.paper, page=captured.page)
+            if captured.links:   # every outbound link of the page, kind by kind (reference_outbound_links.py); the body goes to the text store, the counts stay on the row
+                enricher.texts.put(text_key(disc, monitor_id, "links.json"), links_document(captured.links, captured.destination_url))
+                row["linksKey"] = text_key(disc, monitor_id, "links.json")
+                curation["links"] = summarize_links(captured.links)
             if captured.preview is not None:   # the page's link-preview metadata, so delivery can attach the preview without a second fetch
                 curation["preview"] = captured.preview
         _summary_stage(curation, disc, enricher, text, now)
@@ -288,10 +294,11 @@ def decision_inputs(row: dict[str, Any] | None, texts: Any) -> dict[str, Any]:
 # --- delivery: copy the item's curation onto a Reference -----------------------------------------------------------------------
 
 
-def copy_curation(client: Any, reference: dict[str, Any], row: dict[str, Any], texts: Any, now: datetime) -> str:
+def copy_curation(client: Any, reference: dict[str, Any], row: dict[str, Any], texts: Any, now: datetime, *, note: str | None = None) -> str:
     """Write the item's curation onto `reference` in the shape `papyrus.reference.curate` uses (a `curation` ReferenceAttachment card
     plus `curation-*` ModelAttachment bodies), so the newsroom shows exactly what was decided and the post-delivery procedure only
-    fills gaps. A Reference that already has a card keeps it. Returns `copied` or `kept`."""
+    fills gaps. A Reference that already has a card keeps it (a person's or an earlier correction always wins). `note` labels the copy as automated and
+    not checked for completeness (the way a `correctReferenceCapture` note labels an agent's text); a monitor's delivery passes none. Returns `copied` or `kept`."""
     if read_card(client, reference) is not None:
         return "kept"
     curation = row["curation"]
@@ -302,6 +309,8 @@ def copy_curation(client: Any, reference: dict[str, Any], row: dict[str, Any], t
                 completedAt=row.get("completedAt"),
                 origin={"kind": "item-enrichment", "version": ENRICHMENT_VERSION, "sourceId": row["sourceId"],
                         "revision": row["revision"], "enrichedAt": row.get("completedAt")})
+    if note:
+        card["origin"].update(note=note, completenessChecked=False)
     text = texts.get(row["textKey"]) if row.get("textKey") else None
     if text:
         store.write(reference, TEXT_SORT_KEY, "curation-text.md", "text/markdown", text, now)
@@ -313,6 +322,12 @@ def copy_curation(client: Any, reference: dict[str, Any], row: dict[str, Any], t
             card["current"]["grobidSortKey"] = GROBID_SORT_KEY
         if tei:
             store.write(reference, GROBID_TEI_SORT_KEY, "curation-grobid.tei.xml", "text/plain", tei, now)
+    links = texts.get(row["linksKey"]) if row.get("linksKey") else None
+    if links:
+        store.write(reference, LINKS_SORT_KEY, "curation-links.json", "application/json", links, now)
+        card["current"]["linksSortKey"] = LINKS_SORT_KEY
+        if curation.get("links"):
+            card["links"] = curation["links"]
     summary = curation["summary"]
     if summary.get("text"):
         try:   # the Reference's metadata.json is where every earlier summary lives; the card holds it either way

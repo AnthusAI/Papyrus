@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8111b12d-99a7-40bd-a3a5-6519a37a2a57",
+  "issue_id": "PPY-dbfcbcb5-8b66-4760-b6db-3eea62a35514",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T18:38:52.771Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Papyrus MCP image tools, generated from the shared operations",
+    "description": "The MCP image tools, one per shared image operation, generated from the single operation table, forwarding with the caller's own identity so authorization matches the CLI and the newsroom. Depends on the hosted MCP server (PPY-2bc3e8, PR 1244) merging; its story_save_draft refuses drafts with images, so applying an image through MCP needs the image-safe conditional Story save. Design: project/wiki/image-toolchain.md (sections 3 and 9, PR 8).",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
+    "labels": []
+  }
+}

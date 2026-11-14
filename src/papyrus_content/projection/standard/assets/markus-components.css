@@ -9,6 +9,16 @@
 .markus-pager { display: flex; justify-content: space-between; gap: 1rem; margin: 2rem 0; }
 .markus-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 1.5rem; }
 .markus-card-image { max-width: 100%; height: auto; }
+/* A card whose figure has a Night version carries both pictures; one shows by theme. No script: the reader's system setting decides
+   unless a theme was picked by hand, which sets dark/light classes (or data-theme) on the root. The hidden one is display:none, so it is not fetched. */
+.markus-card-image-day, .markus-card-image-night { display: contents; }
+.markus-card-image-night { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]):not(.light):not(.light-theme) .markus-card-image-day { display: none; }
+  :root:not([data-theme=light]):not(.light):not(.light-theme) .markus-card-image-night { display: contents; }
+}
+:root[data-theme=dark] .markus-card-image-day, :root.dark .markus-card-image-day, :root.dark-theme .markus-card-image-day { display: none; }
+:root[data-theme=dark] .markus-card-image-night, :root.dark .markus-card-image-night, :root.dark-theme .markus-card-image-night { display: contents; }
 .markus-tags { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; }
 .markus-nav-toggle { display: none; }
 .markus-nav-js .markus-nav-toggle { display: inline-block; }
@@ -84,6 +94,17 @@
 .markus-actions-status { min-width: 6rem; font-size: .875rem; }
 .markus-actions-fallback { width: 100%; min-height: 6rem; }
 .markus-page-actions-aside { margin-top: 2rem; }
+.markus-page-actions-icons { gap: .25rem; }
+.markus-page-actions-icons .markus-actions-icons { display: flex; flex-wrap: wrap; gap: .25rem; margin: 0; padding: 0; list-style: none; }
+.markus-page-actions-icons :is(.markus-icon-action, .markus-actions-menu-button) { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 2.75rem; height: 2.75rem; padding: 0; border: 0; border-radius: .5rem; background: var(--papyrus-action-bg, rgba(127,127,127,.14)); color: inherit; }
+.markus-page-actions-icons :is(.markus-icon-action, .markus-actions-menu-button):hover { background: var(--papyrus-hover, rgba(127,127,127,.28)); }
+.markus-page-actions-icons .markus-actions-menu-button[aria-expanded="true"] { background: var(--papyrus-hover, rgba(127,127,127,.28)); }
+.markus-action-icon { display: block; flex: none; }
+.markus-page-actions-icons .markus-actions-links a { display: inline-flex; align-items: center; min-height: 2.75rem; box-sizing: border-box; padding: 0 .875rem; border: 0; border-radius: .5rem; background: var(--papyrus-action-bg, rgba(127,127,127,.14)); color: inherit; }
+.markus-page-actions-icons :is(a, button):focus-visible { outline: 3px solid var(--papyrus-focus, currentColor); outline-offset: 2px; }
+.markus-page-actions-icons .markus-actions-menu { position: static; }
+.markus-page-actions-icons .markus-actions-menu [role="menu"] { left: 0; width: min(18rem, 100%); min-width: 0; box-sizing: border-box; padding: .375rem; border: 0; border-radius: .5rem; background: var(--papyrus-menu-bg, color-mix(in srgb, var(--papyrus-bg, Canvas) 88%, currentColor 12%)); }
+.markus-page-actions-icons .markus-actions-menu [role="menuitem"] { display: block; box-sizing: border-box; width: 100%; padding: .75rem; border: 0; border-radius: .375rem; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .papyrus-wiki-stamp, .papyrus-wiki-superseded { margin: 0 0 1rem; padding: .5rem .75rem; border: 1px solid var(--papyrus-rule, currentColor); border-radius: .25rem; font-size: .9375rem; }
 .papyrus-wiki-stamp p, .papyrus-wiki-superseded p { margin: 0; }
 .papyrus-wiki-stamp[data-state="draft"] { border-style: dashed; }
@@ -99,3 +120,28 @@
 .markus-newsletter-list { display: flex; gap: .6rem; align-items: flex-start; margin: .6rem 0; padding: .6rem .8rem; border: 1px solid var(--papyrus-rule, currentColor); border-radius: var(--papyrus-radius, .5rem); }
 .markus-newsletter-list input { flex: none; width: 1.1rem; height: 1.1rem; margin-top: .2rem; accent-color: var(--papyrus-button-bg, currentColor); }
 .markus-newsletter-notice { padding: .5rem .75rem; border-left: 4px solid var(--papyrus-button-bg, currentColor); background: var(--papyrus-band-muted-bg, transparent); font-weight: 600; }
+/* The notifications plugin's reader pages (PPY-f361ee): flat fills and rounded rectangles, no outlines. State is a word and a Lucide mark, never colour alone. Both themes: fills mix the text colour into the page. */
+.markus-notifications-page [hidden] { display: none; }
+.markus-notifications-form { max-width: 36rem; margin: 1.5rem 0; }
+papyrus-notifications { display: block; max-width: 36rem; margin: 1.5rem 0; }
+.markus-notifications-label { display: block; margin: 0 0 .4rem; font-weight: 600; }
+.markus-notifications-input { box-sizing: border-box; width: 100%; padding: .7rem .9rem; border: 0; border-radius: var(--papyrus-radius, .5rem); background: color-mix(in srgb, currentColor 9%, transparent); color: inherit; font: inherit; }
+.markus-notifications-lists { margin: 1rem 0; }
+.markus-notifications-list { margin: .6rem 0; }
+.markus-notifications-list p { margin: .3rem .9rem 0; font-size: .9375rem; }
+.markus-notifications-toggle { display: flex; align-items: center; gap: .6rem; box-sizing: border-box; width: 100%; padding: .75rem .9rem; border: 0; border-radius: var(--papyrus-radius, .5rem); background: color-mix(in srgb, currentColor 9%, transparent); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.markus-notifications-toggle[aria-pressed="true"] { background: color-mix(in srgb, var(--papyrus-button-bg, currentColor) 28%, transparent); }
+.markus-notifications-name { flex: 1; font-weight: 600; }
+.markus-notifications-state { font-weight: 700; min-width: 2rem; text-align: right; }
+.markus-notifications-mark, .markus-notifications-icon { flex: none; display: inline-flex; vertical-align: middle; }
+.markus-notifications-button { display: inline-flex; align-items: center; gap: .5rem; }
+.markus-notifications-status, .markus-notifications-notice, .markus-notifications-back { display: flex; align-items: flex-start; gap: .5rem; }
+.markus-notifications-status, .markus-notifications-notice { padding: .6rem .8rem; border-radius: var(--papyrus-radius, .5rem); background: color-mix(in srgb, currentColor 9%, transparent); font-weight: 600; }
+.markus-notifications-status:empty { display: none; }
+.markus-notifications-consent { font-size: .9375rem; }
+.markus-notifications-toggle:focus-visible, .markus-notifications-input:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+/* Equations (PPY-e1de14): MathML written while the page is built. Colour is inherited, so both themes work; no rules or borders. */
+.papyrus-math { margin: 1.25rem 0; overflow-x: auto; }
+.papyrus-math math { font-size: 1.15em; }
+/* The generic `math` family can resolve to a text font with no OpenType MATH table: the large sum sign then comes out text-sized and its limits touch it, and \mid shrinks. Ask for real math fonts that ship with the system first (no web fonts). */
+math { color: inherit; font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Libertinus Math", "Noto Sans Math", "Asana Math", math; }

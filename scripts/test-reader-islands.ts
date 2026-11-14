@@ -446,8 +446,10 @@ test("submit: the form posts the link, the title, the kind and the note, then sa
   await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
   await fillSubmit(page, "https://example.com/post#top", "A small tool", "Worked well for me");
   await page.getByLabel("tool").check();
+  await page.evaluate(() => { const w = window as unknown as { submitted: unknown[] }; w.submitted = []; document.addEventListener("papyrus-reader:submitted", (event) => w.submitted.push((event as CustomEvent).detail)); });
   await page.getByRole("button", { name: "Submit link" }).click();
   await page.locator("#submit").getByText("Pending \u2014 we\u2019re reading the link.").waitFor();
+  assert.deepEqual(await page.evaluate(() => (window as unknown as { submitted: unknown[] }).submitted), [{ subject: "sub-abc", title: "A small tool" }], "a new submission is announced to the page");
   assert.deepEqual(state.writes, [{ path: "/api/reader/submit", body: { url: "https://example.com/post#top", title: "A small tool", kind: "tool", note: "Worked well for me" } }]);
   await page.locator("#submit .papyrus-reader-similar a").getByText("<b>Older</b> post").waitFor();
   assert.equal(await page.locator("#submit .papyrus-reader-similar b").count(), 0, "titles are text, never markup");
@@ -512,6 +514,7 @@ test("submit: the server's duplicate, rate limit and handle answers are shown in
   const page = await open(context, fake({ writeAnswer: () => answers.shift()! }), { page: SUBMIT_PAGE });
   await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
   await fillSubmit(page, "https://example.com/x", "Try");
+  await page.evaluate(() => { const w = window as unknown as { submitted: unknown[] }; w.submitted = []; document.addEventListener("papyrus-reader:submitted", (event) => w.submitted.push((event as CustomEvent).detail)); });
   const send = page.getByRole("button", { name: "Submit link" });
   await send.click();
   await page.locator("#submit .papyrus-reader-status").getByText(/Already submitted as .The first one. \(pending\)/).waitFor();
@@ -522,6 +525,7 @@ test("submit: the server's duplicate, rate limit and handle answers are shown in
   await send.click();
   await page.locator("#submit .papyrus-reader-status").getByText("Send the link as an http or https address.").waitFor();
   assert.equal(await page.getByLabel("Link").inputValue(), "https://example.com/x", "a refused submission keeps what was typed");
+  assert.deepEqual(await page.evaluate(() => (window as unknown as { submitted: unknown[] }).submitted), [], "a duplicate names a submission that may be another reader's, so nothing is announced");
   await context.close();
 });
 

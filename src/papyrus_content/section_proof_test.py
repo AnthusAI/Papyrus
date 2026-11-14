@@ -131,3 +131,12 @@ def test_every_placed_reference_is_held_out_exactly_once_per_classifier(tmp_path
     assert report["selector"]["folds"] == 5
     for entry in [report["selector"], *[item for item in report["fitClassifiers"] if item["status"] == "proven"]]:
         assert entry["withoutTeaching"]["decided"] == 11
+
+
+def test_the_selector_report_carries_its_held_out_confidence_pairs_for_calibration(tmp_path):
+    report, _model = prove(eleven_placements_client(), prepared(tmp_path))
+    calibration = report["selector"]["calibration"]
+    assert calibration["schema"] == "cyclotron-section-calibration/v1" and calibration["arm"] == "withTeaching"
+    assert len(calibration["pairs"]) == 11 and sum(1 for _confidence, agreed in calibration["pairs"] if agreed) == 10
+    assert all(isinstance(confidence, float) and 0 <= confidence <= 1 for confidence, _agreed in calibration["pairs"])
+    assert all("calibration" not in entry for entry in report["fitClassifiers"]), "only the selector names a Section"

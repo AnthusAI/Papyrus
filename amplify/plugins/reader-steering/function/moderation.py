@@ -256,7 +256,7 @@ def clean_reason(value: Any) -> tuple[str, Outcome | None]:
 
 @dataclass
 class ModerationSettings:
-    item_type: str = "brief"
+    item_type: str = "untyped"  # UNTYPED_ITEM_TYPE
     section: str = "unsectioned"
     extra: dict[str, Any] = field(default_factory=dict)
 

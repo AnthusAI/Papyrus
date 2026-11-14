@@ -30,6 +30,8 @@ record-plan builders. The older compatibility shims under
 `procedures/newsroom/tools/` still exist for path-based tooling, but the
 canonical implementation now lives in `src/papyrus_newsroom/`.
 
+The copy-edit gate tool `papyrus_copy_edit_story_version` (same module) applies only the mechanical fixes the site's policies declare as a new version by AI, attaches rewrite options to the other findings, and returns `hold` when an error finding survives; see [editorial checks](editorial-checks.md#editorial-checks).
+
 Story tools in `src/papyrus_newsroom/tactus_tools.py` (a procedure loads the
 module as a plugin toolset; every public function is a tool) include
 `papyrus_check_story_version`, which a copy-edit procedure uses to run the
@@ -83,7 +85,7 @@ and excludes live-agent scenarios.
 `npm run test:bdd:agent-live` runs only the backend live-agent Gherkin smoke
 suite via Behave (Python).
 The live-agent suite is sandbox-only (a dedicated sandbox checkout, never a production workspace)
-and defaults the chat-agent model policy to `gpt-5-nano`.
+and defaults the chat-agent model policy to `gpt-6-luna`.
 Live scenarios persist tagged test records by default for dogfooding
 (`behave-live-agent-*` prefixes); set `PAPYRUS_LIVE_AGENT_CLEANUP=1` to delete
 records after each run.
@@ -127,7 +129,7 @@ poetry run papyrus ops corpora status --config corpora/papyrus-steering.yml --co
 poetry run papyrus ops corpora sync-from-cloud --config corpora/papyrus-steering.yml --corpus-key <key> --dry-run
 poetry run papyrus ops corpora sync-to-cloud --config corpora/papyrus-steering.yml --corpus-key <key> --dry-run
 poetry run papyrus ops categories import-config --config corpora/papyrus-steering.yml
-poetry run papyrus sections import --config corpora/papyrus-newsroom-sections.yml
+poetry run papyrus sections import --config corpora/example-newsroom-sections.yml
 poetry run papyrus ops categories import-steering --config corpora/papyrus-steering.yml --corpus-key <key>
 poetry run papyrus assignments research-packets --assignment <assignment-id>
 poetry run papyrus knowledge signals trend-report --corpus-key <key> --topic "<topic>" --sections culture,methods --json

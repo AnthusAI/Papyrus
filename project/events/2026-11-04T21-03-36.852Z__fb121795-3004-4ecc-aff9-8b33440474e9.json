@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fb121795-3004-4ecc-aff9-8b33440474e9",
+  "issue_id": "PPY-9683455a-ddfc-44d1-9f04-11e7fb3adaa8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T21:03:36.852Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Suggest related items once, when a Reference is created or changes, and never on a schedule",
+    "description": "Ryan, 2026-11-04: 'We should do ONE check for related items when a Reference is created, and possibly when it's updated, but we should never just keep redoing it over and over and over.' The hourly suggest-backlog schedules were disabled by hand on 2026-11-04 (drift until the template changes). Measured on Machines on Machines: one run wrote 7,153 suggestions, S3 Vectors reached 72,621 requests on 11-03, and later hourly runs wrote nothing while re-reading References to plan.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

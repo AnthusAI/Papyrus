@@ -21,9 +21,11 @@ from pathlib import Path
 from typing import Any
 
 from . import cost as costs
+from . import preview_gate
 from .config import PROJECTION_STAGE, STAGES, CloudRunConfig
-from .defaults import OUTPUTS_FILE, VOCABULARY_FILE, default_outputs, default_vocabulary
+from .defaults import VOCABULARY_FILE, default_outputs
 from .ledger import SUCCEEDED, RunLedger
+from .settings import load_settings
 from .state import StateStore
 
 IDENTITY_THRESHOLD = "0.5"
@@ -31,6 +33,7 @@ TREND_WEEKS = "26"
 ENTITY_HREF = "/wiki/{slug}/"
 DELETION_FLAG = "--allow-deletions"
 ARCHIVE_DIRECTORY = "_data/knowledge/history"
+PLAN_FILE = "wiki-sync-plan.json"
 FORBIDDEN_FLAGS = (DELETION_FLAG, "--reconcile", "--replace")  # a run only writes: no cleanup, no replacing an archived week
 
 
@@ -52,7 +55,20 @@ def run_shell(args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Pat
     else:
         result = subprocess.run(args, cwd=cwd, env=dict(env), check=False)
     if result.returncode != 0:
+        if stdout is not None:  # a command that fails on stdout (Biblicus's failure envelope) would otherwise leave no reason in the task log
+            print(f"{args[0]} failed; its standard output:\n{stdout.read_text(errors='replace')[-4000:]}", file=sys.stderr, flush=True)
         raise StageFailed(f"`{args[0]} {args[1] if len(args) > 1 else ''}` exited with {result.returncode}")
+
+
+class Usage:
+    """The model calls a command made in another process, read from the file it wrote: ``usage`` as cost accounting reads it."""
+
+    def __init__(self) -> None:
+        self.usage: list[dict] = []
+
+    def read(self, path: Path) -> None:
+        if path.exists():
+            self.usage = json.loads(path.read_text())
 
 
 @dataclass
@@ -67,6 +83,7 @@ class Run:
     task_info: Callable[[], dict] = field(default_factory=lambda: dict)  # the Fargate task's size and start (cost accounting)
     clock: Callable[[], float] = time.monotonic
     now: Callable[[], dt.datetime] = field(default_factory=lambda: lambda: dt.datetime.now(dt.timezone.utc))
+    settings_loaded: bool = False  # the task's ``config/`` is filled once, and said so once, however many times a stage pulls
 
     @property
     def work(self) -> Path:
@@ -101,14 +118,16 @@ class Run:
         env.setdefault("PAPYRUS_GRAPHQL_AUTH", "iam")
         env["PAPYRUS_ALLOW_CROSS_ROOT"] = "1"
         env["PAPYRUS_PROJECTION_LEASE_PURPOSE"] = "cloud-run projection"
+        env["KNOWLEDGE_RUN_ID"] = self.config.run_id
         if self.outputs.exists():
             from ..knowledge_snapshot.commands import endpoint_of_outputs  # noqa: PLC0415
 
             env["PAPYRUS_GRAPHQL_ENDPOINT"] = endpoint_of_outputs(str(self.outputs))
         return env
 
-    def sh(self, *args: str, stdout: Path | None = None) -> None:
-        self.shell(list(args), cwd=self.work, env=self.command_env(), stdout=stdout)
+    def sh(self, *args: str, stdout: Path | None = None, env: Mapping[str, str] | None = None) -> None:
+        """Run one command; ``env`` adds variables for this command only (a key that must not be written to the task's environment or log)."""
+        self.shell(list(args), cwd=self.work, env={**self.command_env(), **(env or {})}, stdout=stdout)
 
     def read_state(self) -> dict:
         path = self.run_dir / "state.json"
@@ -122,7 +141,6 @@ class Run:
 
     # -- state transfer ---------------------------------------------------------------------------------------------
     def pull(self, *, corpus: bool = False, run: bool = False, site: bool = False) -> None:
-        self.state.download("config/", self.config_dir)
         self.seed_config()
         if corpus:
             self.state.download("corpus/", self.corpus)
@@ -132,21 +150,21 @@ class Run:
             self.clone_site()
 
     def seed_config(self) -> None:
-        """Write the default of every operator file that is missing from ``config/``, locally and into the state, never over a file that exists.
+        """Fill ``config/`` for this task from the site's committed settings (``settings.py``); nothing is read from, or seeded into, the run state.
 
-        A site that has not written a vocabulary gets the generic one (organization, product, person, topic); a site whose state has no
-        ``amplify_outputs.json`` gets one built from ``appSyncApiId``. Stop words and review guidance are optional and have no default file."""
-        seeds = {VOCABULARY_FILE: default_vocabulary(self.config.publication)}
+        A file the committed settings carry is used as is; a site with none gets the generic vocabulary and no stop words or review guidance.
+        ``amplify_outputs.json`` is generated, not maintained: it holds the endpoint AppSync reports for ``appSyncApiId`` (only that is read)."""
+        if self.settings_loaded:
+            return
+        self.settings_loaded = True
+        load_settings(self.config, self.config_dir, self.services.read_object)
+        stale = self.state.names("config/")
+        if stale:
+            print(f"the run state still holds config/ files, which a run no longer reads: {', '.join(stale)}; the committed settings above are what this run used", flush=True)
         if self.config.appsync_api_id:
-            seeds[OUTPUTS_FILE] = default_outputs(self.config.appsync_api_id, self.config.region)
-        for name, text in seeds.items():
-            target = self.config_dir / name
-            if target.exists():
-                continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(text)
-            self.state.write_text(f"config/{name}", text)
-            print(f"config/{name} was not in the run state; seeded the default", flush=True)
+            # An AppSync API id is not its endpoint host, so the address is asked of AppSync.
+            self.config_dir.mkdir(parents=True, exist_ok=True)
+            self.outputs.write_text(default_outputs(self.services.appsync_endpoint(self.config.appsync_api_id)))
 
     def push(self, *, corpus: bool = False, run: bool = False) -> None:
         if corpus:
@@ -168,16 +186,30 @@ class Run:
         """``--monitor-records FILE`` for a command that counts the records, or nothing when the site has no monitor source."""
         return ["--monitor-records", str(self.monitor_records)] if self.config.monitor_sources else []
 
+    @property
+    def reference_documents(self) -> Path:
+        """The Reference documents ``corpus-sync`` wrote for this week (a site that sets ``referenceDocuments``)."""
+        return self.run_dir / "reference-documents.json"
+
+    def reference_options(self) -> list[str]:
+        """``--reference-documents FILE`` for a command that links or counts the Reference documents, or nothing when the site has none."""
+        return ["--reference-documents", str(self.reference_documents)] if self.config.reference_documents_on else []
+
+    def candidate_filter_options(self) -> list[str]:
+        """``--vocabulary`` and, when the site wrote one, ``--stop-words``: what ``publish-run`` filters the extractor's candidates with (``candidate_filter.py``)."""
+        stop_words = self.config_dir / "stop-words.txt"
+        return ["--vocabulary", str(self.config_dir / VOCABULARY_FILE), *(["--stop-words", str(stop_words)] if stop_words.exists() else [])]
+
     def import_options(self) -> list[str]:
         """The monitor options of the commands that import the records: the records, the ledger that lets a run skip what it wrote before, and
         ``--monitor-full`` (``KNOWLEDGE_MONITOR_FULL=true``) to import every record again."""
         if not self.config.monitor_sources:
-            return []
-        return [*self.monitor_options(), "--monitor-ledger", str(self.monitor_ledger), *(["--monitor-full"] if self.config.monitor_full else [])]
+            return self.reference_options()
+        return [*self.monitor_options(), *self.reference_options(), "--monitor-ledger", str(self.monitor_ledger), *(["--monitor-full"] if self.config.monitor_full else [])]
 
     def prepare_site(self) -> None:
         """The site checkout plus the plugin check, for every stage that writes to the site."""
-        self.pull(site=True, run=bool(self.config.monitor_sources))
+        self.pull(site=True, run=bool(self.config.monitor_sources or self.config.reference_documents_on))
         self.verify_plugins()
 
     def nothing_to_do(self, *, needs_documents: bool = False) -> dict | None:
@@ -310,11 +342,12 @@ def knowledge_options(run: Run) -> list[str]:
         "--static-dir", str(run.static_dir),
         "--entity-href", ENTITY_HREF,
         "--as-of", run.config.monday.isoformat(),
+        "--vocabulary", str(run.config_dir / VOCABULARY_FILE),  # only the vocabulary's kinds get wiki pages and links
     ]
     options += beats_options(run)
     if run.config.concept_kinds:
         options += ["--concept-kinds", run.config.concept_kinds]
-    return options + run.monitor_options()
+    return options + run.monitor_options() + run.reference_options()
 
 
 def backend_options(run: Run) -> list[str]:
@@ -340,6 +373,17 @@ def corpus_sync(run: Run) -> dict:
             "--monitor-sources", ",".join(run.config.monitor_sources),
             *(["--monitor-weeks", str(run.config.monitor_weeks)] if run.config.monitor_weeks is not None else []),  # optional; absent means all history
             "--corpus-key", run.config.corpus_key, "--as-of", run.config.monday.isoformat(), "--monitor-records-out", str(run.monitor_records),
+        ]
+    if run.config.reference_documents_accepted:  # the accepted References are the documents, whatever monitor delivered them; zero of them fails the stage
+        export += [
+            *([] if run.config.monitor_sources else ["--corpus-key", run.config.corpus_key]),
+            "--reference-documents-accepted", "--reference-documents-out", str(run.reference_documents),
+        ]
+    elif run.config.reference_documents_bucket:  # the corpus's References with extracted text are documents too (records stay data)
+        export += [
+            *([] if run.config.monitor_sources else ["--corpus-key", run.config.corpus_key]),  # one key for both
+            "--reference-documents-bucket", run.config.reference_documents_bucket,
+            "--reference-documents-extractor", run.config.reference_documents_extractor, "--reference-documents-out", str(run.reference_documents),
         ]
     run.sh(*export)
     documents = len(list((run.corpus / "raw" / "papyrus").glob("*.md")))
@@ -418,11 +462,20 @@ def typed_extraction(run: Run) -> dict:
         "papyrus", "knowledge", "entities", "registry", *backend_options(run),
         "--out", str(run_dir / "registry.json"), "--vocabulary", str(run.config_dir / "vocabulary.yml"),
     )
-    run.sh(
-        "biblicus", "extract", "typed-entities", "--corpus", str(run.corpus), "--vocabulary", str(run.config_dir / "vocabulary.yml"),
-        "--registry", str(run_dir / "registry.json"), "--extraction-snapshot", f"pipeline:{state['extraction']}",
-        "--out", str(run_dir / "typed"), stdout=run_dir / "typed-stdout.json",
-    )
+    usage = run_dir / "typed-usage.json"
+    calls = Usage()
+    run.llm_sources.append(calls)  # read for the stage's cost even if the extraction fails half way
+    try:
+        run.sh(
+            "papyrus", "knowledge", "extract-entities", "--corpus", str(run.corpus), "--vocabulary", str(run.config_dir / "vocabulary.yml"),
+            "--registry", str(run_dir / "registry.json"), "--extraction-snapshot", f"pipeline:{state['extraction']}",
+            "--out", str(run_dir / "typed"), "--usage-out", str(usage), env={"TYPESAFE_API_KEY": run.services.api_key(run.config.decision_parameter)},
+        )
+    except BaseException:
+        run.push(corpus=True)  # Jev's answers so far are in the corpus's cache; the retry must not pay for them again
+        raise
+    finally:
+        calls.read(usage)
     run.push(corpus=True, run=True)
     return {"typed": str(run_dir / "typed" / "output.json")}
 
@@ -436,7 +489,7 @@ def import_arguments(run: Run) -> list[str]:
         "--corpus-key", run.config.corpus_key, "--actor-name", run.config.actor_name, *run.import_options(),
         "--identity", str(run.corpus / "analysis" / "topic-identity" / state["current"] / "output.json"),
         "--trends", str(run.corpus / "analysis" / "topic-governance" / state["trends"] / "output.json"),
-        "--entities", str(run.run_dir / "typed" / "output.json"),
+        "--entities", str(run.run_dir / "typed" / "output.json"), *run.candidate_filter_options(),
     ]
 
 
@@ -491,28 +544,53 @@ def ai_review(run: Run) -> dict:
     labels = review.vocabulary_labels((run.config_dir / "vocabulary.yml").read_text())
 
     def mentions_of(node: dict) -> list[dict]:
-        return [row for row in c.relations_of_nodes(client, [node]) if c.is_item_mention(row)]
+        return [row for row in c.relations_of_nodes(client, [node]) if c.is_extractor_mention(row)]
 
     patches: list[dict] = []
     decisions: list[review.Decision] = []
+    workers = dict(workers=c.DEFAULT_WORKERS, client_factory=getattr(run.services, "worker_client", None))
 
     nodes = c.current_nodes(client.list_records("SemanticNode"))
     generated = [node for node in nodes if node.get("status") == "generated"]
-    found, made = review.review_entities(generated, typed, mentions_of, model, actor, now=now, vocabulary=labels)
-    patches += found
-    decisions += made
-
     titles = {}
     for item in c.published_items(client.list_published_item_summaries(), c._no_url):
         titles[item.key] = titles[item.item_id] = item.title or ""
     if run.config.monitor_sources:  # a cluster of Hub models can be named from their ids
         for record in read_records(run.monitor_records):
             titles[record.lineage_id] = titles[record.reference_id] = record.title
-    found, made = review.review_clusters(
-        client.list_records("SteeringProposal"), lambda ids: [titles[i] for i in ids if titles.get(i)], model, actor, now=now
-    )
+    titles_of = lambda ids: [titles[i] for i in ids if titles.get(i)]  # noqa: E731
+    proposals = client.list_records("SteeringProposal")
+    accepted_before = [node for node in nodes if node.get("status") == "accepted"]
+    relations = {row["id"]: row for row in c.relations_of_nodes(client, accepted_before, **workers)}
+    before_by_lineage = {str(node.get("lineageId") or node["id"]): node for node in accepted_before}
+
+    # The call budget: every kind of work is owed what it needs up to a max-min fair share (``review.fair_shares``), and each stage may use
+    # every call that is left except what the stages after it are owed, so entities, which come first and are the most numerous, cannot use
+    # the whole budget and leave the clusters and relations unreviewed.
+    needs = {
+        "entities": review.calls_needed(len(review.entity_candidates(generated, typed)), review.BATCH_SIZE),
+        "clusters": review.calls_needed(len(review.cluster_candidates(proposals, titles_of)), review.CLUSTER_BATCH_SIZE),
+        "relations": review.calls_needed(len(review.relation_candidates(list(relations.values()), before_by_lineage, typed)), review.BATCH_SIZE),
+    }
+    shares = review.fair_shares(needs, model.max_calls)
+    used: dict[str, int] = {}
+
+    model.limit_stage(shares["clusters"] + shares["relations"])
+    duplicate_proposals: list[dict] = []
+    found, made = review.review_entities(generated, typed, mentions_of, model, actor, now=now, vocabulary=labels, accepted=accepted_before, proposals=duplicate_proposals)
     patches += found
     decisions += made
+    used["entities"] = model.calls
+
+    model.limit_stage(shares["relations"])
+    found, made = review.review_clusters(proposals, titles_of, model, actor, now=now)
+    patches += found
+    decisions += made
+    used["clusters"] = model.calls - used["entities"]
+
+    filed = review.proposal_changes(duplicate_proposals, client.get_record) if duplicate_proposals else []  # nodes held back as possible duplicates: a proposal for a person each
+    if filed:
+        apply_record_changes(client, filed)
 
     # Entities accepted just now count as accepted for the relation review below.
     accepted_now = {patch["expected"]["id"] for patch in patches if patch["modelName"] == "SemanticNode" and patch["expected"].get("status") == "accepted"}
@@ -522,14 +600,19 @@ def ai_review(run: Run) -> dict:
         nodes = c.current_nodes(client.list_records("SemanticNode"))
     accepted = [node for node in nodes if node.get("status") == "accepted"]
     by_lineage = {str(node.get("lineageId") or node["id"]): node for node in accepted}
-    relations = c.relations_of_nodes(client, accepted, workers=c.DEFAULT_WORKERS, client_factory=getattr(run.services, "worker_client", None))
-    found, made = review.review_relations(relations, by_lineage, typed, model, actor, now=now)
+    before_ids = {node["id"] for node in accepted_before}
+    new_nodes = [node for node in accepted if node["id"] not in before_ids]
+    relations.update({row["id"]: row for row in c.relations_of_nodes(client, new_nodes, **workers)} if new_nodes else {})
+    model.limit_stage(0)
+    before_relations = model.calls
+    found, made = review.review_relations(list(relations.values()), by_lineage, typed, model, actor, now=now)
     patches += found
     decisions += made
+    used["relations"] = model.calls - before_relations
     if patches:
         apply_record_changes(client, review.record_changes(patches))
 
-    log = {"week": run.config.week, "model": model.model, "calls": model.calls, "summary": review.summary_of(decisions), "decisions": [d.to_dict() for d in decisions], "acceptedNow": len(accepted_now)}
+    log = {"week": run.config.week, "model": model.model, "calls": model.calls, "budget": {"calls": model.max_calls, "needed": needs, "owed": shares, "used": used}, "summary": review.summary_of(decisions), "decisions": [d.to_dict() for d in decisions], "acceptedNow": len(accepted_now), "duplicateProposals": len(filed)}
     if run.config.monitor_sources and run.config.monitor_suggestions:
         log["monitorSuggestions"] = suggest_promotions(run, client)
     run.run_dir.mkdir(parents=True, exist_ok=True)
@@ -597,27 +680,138 @@ def archive(run: Run) -> dict:
     return {"asOf": run.config.monday.isoformat()}
 
 
+def read_plan(text: str) -> dict:
+    """The wiki sync's ``--json`` plan: the first JSON object in its output that has counts and pages."""
+    decoder = json.JSONDecoder()
+    start = text.find("{")
+    while start != -1:
+        try:
+            value, end = decoder.raw_decode(text[start:])
+        except ValueError:
+            start = text.find("{", start + 1)
+            continue
+        if isinstance(value, dict) and "counts" in value and "pages" in value:
+            return value
+        start = text.find("{", start + end)
+    raise StageFailed("The wiki sync printed no plan (a JSON object with `counts` and `pages`).")
+
+
 def wiki_sync(run: Run) -> dict:
+    """Plan the sync, ask the preview gate (``preview_gate.py``), and write only if it says proceed.
+
+    A first run, or one that differs sharply from the site's history, is held: a hard-gate review request goes to the Notification Center, nothing is
+    written, and ``projection`` skips this execution. The next run plans again and goes through once a person accepted a plan like it."""
     if (idle := run.nothing_to_do()) is not None:
         return idle
-    run.pull(site=True, run=bool(run.config.monitor_sources))
-    sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options()]
+    run.pull(site=True, run=bool(run.config.monitor_sources or run.config.reference_documents_on))
+    sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options(), *run.reference_options()]
     sync += beats_options(run)
-    run.sh(*sync)
+    sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--run-id", run.config.run_id]  # each page records the run; the sync never takes a page down
+    run.run_dir.mkdir(parents=True, exist_ok=True)
+    plan_file = run.run_dir / PLAN_FILE
+    run.sh(*sync, "--json", stdout=plan_file)  # the dry run: nothing is written
+    plan = read_plan(plan_file.read_text())
+    gate = judge_plan(run, plan)
+    print(f"wiki-sync plan: {json.dumps(plan['counts'], sort_keys=True)}; gate: {gate.decision.action} ({gate.decision.reason})", flush=True)
+    run.write_state(heldExecution=run.config.execution_name if gate.decision.hold else None)
+    if gate.decision.hold:
+        run.push(run=True)  # the plan, for whoever reads the hold
+        print(f"wiki-sync HELD, nothing written: {gate.decision.reason}. Review request {gate.request_id}.", flush=True)
+        return gate.details()
     run.sh(*sync, "--apply")  # drafts only
     # --no-trigger: publishing must not project; the projection stage does that once, under the lease, last.
     run.sh("papyrus", "knowledge", "wiki", "publish", *backend_options(run), "--all-drafts", "--actor", "ai", "--apply", "--no-trigger")
-    return {}
+    finish_gate(run, gate)
+    run.push(run=True)
+    return {"gate": {"reason": gate.decision.reason, "writes": gate.series.get(preview_gate.TOTAL, 0)}}
+
+
+def review_client(run: Run) -> Any:
+    return run.services.record_client({"auth": "iam", "amplify-outputs": str(run.outputs)})
+
+
+def judge_plan(run: Run, plan: dict) -> "preview_gate.GateResult":
+    """Compare the plan with the site's history; on a hold, raise (once) the hard-gate request that asks a person."""
+    from .. import review_requests  # noqa: PLC0415
+
+    series, fingerprint = preview_gate.series_of(plan), preview_gate.fingerprint_of(plan)
+    entries = preview_gate.load_history(run.state)
+    client = review_client(run) if entries or series.get(preview_gate.TOTAL) else None
+
+    def read_request(request_id: str) -> dict:
+        try:
+            return review_requests.get_review(client, request_id, sweep=False)
+        except review_requests.ReviewError:  # deleted by an admin: not an approval
+            return {"state": "withdrawn"}
+
+    if client is not None and preview_gate.settle(entries, read_request):
+        preview_gate.save_history(run.state, entries)
+    decision = preview_gate.decide(
+        series, fingerprint,
+        [entry["series"] for entry in entries if entry.get("outcome") in preview_gate.LEARNED],
+        {entry["fingerprint"] for entry in entries if entry.get("outcome") == preview_gate.APPROVED},
+        {entry["fingerprint"] for entry in entries if entry.get("outcome") == preview_gate.REJECTED},
+    )
+    result = preview_gate.GateResult(decision, series, fingerprint, entries=entries)
+    if client is not None:
+        withdraw_stale(client, entries, keep=fingerprint if decision.hold else None)
+    if not decision.hold:
+        return result
+    result.request_id = preview_gate.request_id(run.config.publication, fingerprint)
+    if decision.reason != "rejected_plan":
+        reason, ask = preview_gate.describe(plan, series, decision, publication=run.config.publication)
+        try:
+            review_requests.raise_review(
+                client, subject={"type": "batch", "id": f"wiki-sync-{run.config.publication}-{run.config.week}-{fingerprint}"}, mode="hard_gate", reason=reason, ask=ask,
+                raised_by=preview_gate.RAISED_BY, request_id=result.request_id,
+            )
+        except Exception as error:  # noqa: BLE001 - a hold nobody can see is worse than a failed stage: the failure alarm reaches a person
+            raise StageFailed(f"The run is held ({decision.reason}) but its review request could not be raised: {type(error).__name__}: {error}") from error
+        preview_gate.record(entries, history_entry(run, result, preview_gate.HELD))
+    preview_gate.save_history(run.state, entries)
+    (run.run_dir / "wiki-sync-preview.json").write_text(json.dumps({"decision": result.details(), "plan": plan}, indent=2, sort_keys=True))
+    return result
+
+
+def withdraw_stale(client: Any, entries: list[dict], *, keep: str | None) -> None:
+    """Older open requests of held plans are superseded by this run's plan: take them back so the Notification Center shows one."""
+    from .. import review_requests  # noqa: PLC0415
+
+    for entry in entries:
+        if entry.get("outcome") == preview_gate.HELD and entry.get("fingerprint") != keep:
+            try:
+                review_requests.withdraw_review(client, entry["requestId"], by=preview_gate.RAISED_BY, note="A newer run planned different pages.")
+            except review_requests.ReviewError:
+                pass  # answered meanwhile: the next settle reads it
+            else:
+                entry["outcome"] = "superseded"
+
+
+def history_entry(run: Run, result: "preview_gate.GateResult", outcome: str) -> dict:
+    return {
+        "runId": run.config.run_id, "week": run.config.week, "at": run.now().strftime("%Y-%m-%dT%H:%M:%SZ"), "fingerprint": result.fingerprint,
+        "series": result.series, "outcome": outcome, **({"requestId": result.request_id} if result.request_id else {}),
+    }
+
+
+def finish_gate(run: Run, result: "preview_gate.GateResult") -> None:
+    """A run that wrote joins the site's history, so the next run is compared with it (a run that wrote nothing counts too: zero is a count)."""
+    preview_gate.record(result.entries, history_entry(run, result, preview_gate.WRITTEN))
+    preview_gate.save_history(run.state, result.entries)
 
 
 def projection(run: Run) -> dict:
     if (idle := run.nothing_to_do()) is not None:
         return idle
+    if run.read_state().get("heldExecution") == run.config.execution_name:  # wiki-sync held this execution for a person: no page was written, so nothing goes live
+        print("projection skipped: this execution is held for a person's review (see the Notification Center)", flush=True)
+        return {"status": "held", "reason": "the run is held for review; nothing was written"}
     run.prepare_site()
     arguments = ["papyrus", "ops", "content", "project", "--all", "--static-dir", str(run.static_dir), "--bucket", run.config.site_bucket, "--json"]
     assert not set(FORBIDDEN_FLAGS) & set(arguments)  # the #565 guard stays on; a bad run must never delete pages
     run.install_pinned_papyrus()
-    run.shell(arguments, cwd=run.work, env={**run.command_env(), "PYTHONPATH": str(run.pinned)}, stdout=run.work / "projection.json")
+    environment = {**run.command_env(), "PYTHONPATH": str(run.pinned)}
+    run.shell(arguments, cwd=run.work, env=environment, stdout=run.work / "projection.json")
     raw = (run.work / "projection.json").read_text()
     print(f"projection report: {raw.strip()}", flush=True)  # the report is the evidence of what a run wrote and deleted
     return first_json_object(raw)

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "278352d4-492c-47c9-a5a0-b325705b5ad2",
+  "issue_id": "PPY-abed3e1b-2c9a-4a58-bfd2-b26ce6c10856",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:37:54.958Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "One handle registry: fold reader-steering ReaderHandle into PublicHandleClaim, one rule set, reader authors in the export",
+    "description": "Repo: **Papyrus**. Decision 2 of PPY-452419 (Ryan 2026-10-31: one handle concept, decided). Fold reader-steering's `ReaderHandle` into the `PublicHandleClaim` registry that PPY-5f0bc7 creates for staff, so one handle names one person per site.\n\n## Today\n- Staff: `UserProfile.publicHandle`, rules `lib/public-handle.ts` + `src/papyrus_content/home_page/handles.py` (`[a-z0-9-]{3,24}`, reserved `[admin,editor,ai,papyrus,anonymous]`), vectors `scripts/fixtures/public-handle-vectors.json`; after PPY-5f0bc7, claims in `PublicHandleClaim {id=lowercase handle, ownerKind, ownerId, claimedAt}`.\n- Readers: `ReaderProfile {siteSubject, readerId, handle, state, karma}` and `ReaderHandle {id=lowercase handle, readerId}` (`amplify/data/schema.ts`, staff-only auth); `READER_HANDLE_NAME = /^[a-z0-9_-]{3,24}$/` and `reservedHandles` in `amplify/plugins/reader-steering/config.ts`; `HANDLE`, `RESERVED_HANDLES` (includes \"prospectus\"), `set_handle()` (~391, set once, rate limited) and `claim_handle` (~1015, conditional put) in `function/handler.py`; route `app/api/reader/handle`.\n\n## Change\n1. `claim_handle` writes to `PublicHandleClaim` with `ownerKind: \"reader\"`, `ownerId: readerId` (same conditional put); `ReaderHandle` keeps being written for one release (dual write) so the reader-steering UI and snapshot keep working, then is removed in a follow-up PR after the backfill.\n2. One rule set: `lib/public-handle.ts` and `handles.py` become the only validators; the reader-steering TypeScript config imports `lib/public-handle.ts` and the Python handler copies `handles.py`'s regex (the two files already share vectors). New reader handles follow the staff rule (no `_`); an existing reader handle with `_` is grandfathered: the claim is written as-is, and the rule file's `normalise()` accepts `_` for lookup only. Reserved list = union of both lists, in both files, with a vector per entry.\n3. Lookup for the export: `home_page/threads.py` `HandleLookup` resolves authors by `authorUserProfileId` (staff) OR by reader identity (the reader-post task writes `authorKind: \"reader\"` and `authorReaderId`): both end in `author: {\"handle\": ...}`; a reader without a handle shows `author: {\"label\": \"Reader\"}` (`homePage.threads.readerLabel`, default \"Reader\").\n4. Backfill script `scripts/backfill-public-handle-claims.ts` (from PPY-5f0bc7) gains a `--readers` pass over `ReaderHandle`; conflicts (a staff and a reader with the same handle) are reported, not resolved by the script; Ryan decides per conflict. **No AWS writes by the implementer.**\n5. Console: `components/settings-page.tsx` (staff handle) and the reader `/api/reader/handle` route both say \"Taken\" from the same Conflict error; copy says \"handle\", never \"username\".\n\n## Gherkin (`features_backend/public-handle.feature` and `features_backend/reader-steering.feature`, extend)\n  Scenario: A reader cannot claim a handle a staff member holds\n  Scenario: A staff member cannot claim a handle a reader holds\n  Scenario: An existing reader handle with an underscore keeps working\n  Scenario: A new reader handle with an underscore is refused with the rule text\n  Scenario: The threads export shows a reader's handle or the reader label, never a readerId or siteSubject\n\n## Acceptance\n- Schema diff adds no new table (the claim table comes from PPY-5f0bc7); `ReaderHandle` removal is a separate PR after the backfill report.\n- Docs: `docs/reader-steering.md` \"Handles\" and `docs/home-page.md` \"Public handles\" say there is one registry.\n- Blocked by PPY-5f0bc7 only.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

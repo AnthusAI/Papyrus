@@ -1,0 +1,35 @@
+{
+  "id": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "title": "A Papyrus deployment needs no hand-made cloud resources",
+  "description": "Ryan's rule (2026-11-11): nobody creates a cloud resource by hand. Every resource is defined in Git and applied by a pipeline on merge; agents read with the AWS CLI and never create or change. Person-only steps: the one seed apply, registrar name servers, the Google OAuth client, and secret values (CloudFormation cannot create SecureString parameters). Humorus issue: HUM-be87f4 (design draft in its comments). Must not regress the running Anthus deployments: the papyrus-pipeline-approver stack, the AWS_ACCOUNT_ID variable and the role-change approval workflow keep working. New pieces are additive: infra/account/ (account baseline and account stack templates), stack_deploy.py with --config, CloudFormation IMPORT, the reusable workflow account-stacks.yml.",
+  "type": "epic",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "e391348a-8eb7-4fd0-9f38-1aaeacabd762",
+      "author": "home",
+      "text": "Progress 2026-11-11: mechanism merged to develop (PR #1404). First real use on Humorus: the seed update executed (UPDATE_COMPLETE, trust unchanged) after review-only change sets showed Modify/Add and a single Import each for the zone and budget. Findings: (1) an IMPORT change set cannot add Outputs (fixed in #1404); (2) AWS::Budgets::Budget NotificationsWithSubscribers and BudgetName are create-only, so an adopted budget must declare its live subscriber exactly (read from SSM at deploy time); (3) a repository with immutable OIDC subject claims is refused by roles trusting repo:<owner>/<repo> (fix in PR #1405: GithubSubjectPrefix). Anthus imports remain design and dry-run only.",
+      "created_at": "2026-11-11T21:31:17.559190Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "fe3f4958-aecd-421a-8c30-19bc732a799a",
+      "author": "home",
+      "text": "2026-11-11 evening: Ryan's rule extended: nothing in GitHub may require his approval. The account-stacks roles job now needs no approval (environment keeps a main-only branch policy). Added: when.delegated gate and the delegation command (PR 1409), SES MAIL FROM/SPF/DMARC, placeholder-site stack (CloudFront Function), ssm:GetParameters for SSM parameter types. Remaining: PPY-b5ddec (Anthus imports, design/dry-run), PPY-1f6e73 (client account), PPY-a41df9 (org seeding, design).",
+      "created_at": "2026-11-11T23:15:41.716858Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-11T20:36:48.824244Z",
+  "updated_at": "2026-11-11T23:15:41.717116Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

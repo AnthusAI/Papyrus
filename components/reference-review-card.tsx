@@ -38,6 +38,8 @@ export function predictionFromDecision(decision: { label: string; positiveLabel:
  */
 export function ReviewCard({
   children,
+  createStory,
+  confirmsAutomatic = false,
   decided,
   dek,
   disabledReason,
@@ -55,6 +57,10 @@ export function ReviewCard({
   ratings,
 }: {
   children?: ReactNode;
+  /** The Create Story control, under the decision. Optional: the card works without it. */
+  createStory?: ReactNode;
+  /** True while the item stands accepted automatically: Accept then confirms it, and offers the reason box first. */
+  confirmsAutomatic?: boolean;
   /** A shared rating store, so the grid card and this card stay in step. Optional: the card works alone without it. */
   ratings?: RatingController;
   /** The saved human answer, or null while the item is undecided. */
@@ -83,11 +89,13 @@ export function ReviewCard({
     save: (_id, choice, detail) => onDecide(choice, detail),
     saved: () => decided,
     seed: () => ({ note: initialNote, reasonCode: initialReason }),
+    confirms: () => confirmsAutomatic,
   });
   const store = ratings ?? local;
   const item = store.get(itemId);
   const note = item.note ?? initialNote;
   const chosen = item.pending ?? decided;
+  const starValue = store.stars(itemId);
   const choose = (choice: ReviewChoice) => { if (!disabledReason) store.choose(itemId, choice); };
   const commitNote = () => { if (!disabledReason) store.commitNote(itemId); };
 
@@ -140,8 +148,11 @@ export function ReviewCard({
         reason={note}
         reasonRequiredFor="reject"
         size="large"
+        stars={starValue === undefined ? undefined : { value: starValue, onChange: (tapped) => { if (!disabledReason) store.setStars(itemId, tapped); }, feedback: store.starsFeedback(itemId) }}
         surface="card"
       />
+
+      {createStory}
 
       {children}
 

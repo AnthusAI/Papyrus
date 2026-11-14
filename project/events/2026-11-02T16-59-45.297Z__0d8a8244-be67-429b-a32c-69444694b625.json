@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "0d8a8244-be67-429b-a32c-69444694b625",
+  "issue_id": "PPY-11f81b1b-bc51-4fdd-a3c9-c1246778e606",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T16:59:45.297Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Votes and explanations reach the Cyclotron; automatic acceptance runs reliably and can be undone",
+    "description": "Feedback walked every delivery and starved the time budget; explanations were never sent as comment; auto-accept was skipped on the time budget. Feedback now starts from the editors' votes and sends the explanation; auto-accept is its own hourly task per publication. Branch fix/vote-feedback-auto-accept.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "monitoring",
+      "cyclotron"
+    ]
+  }
+}

@@ -1,5 +1,4 @@
 import type { MonitoringEmailDetails, MonitoringEmailSummary } from "./monitoring-overview";
-import type { DraftRow } from "./review-drafts";
 import type { ReviewRequest } from "./review-requests";
 
 /** Demo and test data: one of each mode, a timed-out soft review, and an answered one whose steering was applied. */
@@ -12,13 +11,13 @@ export const FIXTURE_REVIEW_REQUESTS: ReviewRequest[] = [
   },
   {
     id: "rr-soft-2", subject: { type: "batch", id: "2026-W43" }, mode: "soft_review", reason: "3 new story ideas to review",
-    ask: "Accept or reject each draft.", raisedBy: "idea-pipeline", raisedAt: "2026-10-23T07:00:00Z",
-    deadline: "2026-10-30T07:00:00Z", state: "open", answer: null,
-    links: [{ type: "proposal", id: "proposal-1", label: "story idea 1" }, { type: "proposal", id: "proposal-2", label: "story idea 2" }, { type: "proposal", id: "proposal-3", label: "story idea 3" }],
+    ask: "Move an idea forward to accept it, or move it to Spiked with a reason to decline it.", raisedBy: "idea-pipeline", raisedAt: "2026-10-23T07:00:00Z",
+    deadline: null, state: "open", answer: null,
+    links: [{ type: "story", id: "idea-1", label: "story idea 1" }, { type: "story", id: "idea-2", label: "story idea 2" }, { type: "story", id: "idea-3", label: "story idea 3" }],
     history: [], appliedIn: null, updatedAt: "2026-10-23T07:00:00Z",
   },
   {
-    id: "rr-soft-1", subject: { type: "proposal", id: "proposal-9" }, mode: "soft_review", reason: "A trend Proposed Story is ready",
+    id: "rr-soft-1", subject: { type: "story", id: "story-trend-1" }, mode: "soft_review", reason: "A trend story is ready for a second look",
     ask: null, raisedBy: "trend-pipeline", raisedAt: "2026-10-22T07:00:00Z", deadline: "2026-10-25T07:00:00Z", state: "open", answer: null,
     links: [], history: [], appliedIn: null, updatedAt: "2026-10-22T07:00:00Z",
   },
@@ -51,32 +50,12 @@ export const FIXTURE_REVIEW_REQUESTS: ReviewRequest[] = [
   },
 ];
 
-const TREND_BODY = (dek: string, section: string) => [
-  `${dek} [1][3]`, "", "## Signals cited", "",
-  "1. Sparse attention: technique, 32 items in the last 2 weeks against 9 in the 6 weeks before (about 4 expected; p=0.001 after correcting for 40 windows tried) `entity:sparse-attention`",
-  "2. Open weights: cluster, steady, 58 items `cluster:open-weights`", "", "## Sources", "",
-  "3. A sparse-attention model ships open weights (2026-10-20) https://example.org/sparse-attention",
-  "4. Benchmarks for long-context models (2026-10-18) https://example.org/long-context", "", `Section: ${section}. Drafted by AI from the knowledge snapshot; an editor approves the copy and the figure before anything is published.`, "",
-].join("\n");
-
-/** Demo and test drafts for the batch fixtures: a trend story, a monitor story and a draft that already has a decision. */
-export const FIXTURE_DRAFTS: DraftRow[] = [
-  {
-    id: "proposal-1", kind: "story_draft", title: "Sparse attention goes open", summary: "Open-weight models are adopting sparse attention faster than closed labs reported.",
-    body: TREND_BODY("Open-weight models are adopting sparse attention faster than closed labs reported.", "Research"), state: "draft", held: false,
-    evidence: { signals: 2, source: "knowledge snapshot 2026-10-23 (shipped), papyrus ideas trends" }, history: [], createdAt: "2026-10-23T07:00:00Z",
-  },
-  {
-    id: "proposal-2", kind: "story_draft", title: "A new quantisation paper challenges 4-bit defaults", summary: "A preprint argues that 3-bit weights match 4-bit accuracy on long-context tasks.",
-    body: ["A preprint argues that 3-bit weights match 4-bit accuracy on long-context tasks. [1]", "", "## Source", "", "1. Rethinking 4-bit defaults (2026-10-22) https://example.org/quantisation", "",
-      "Section: Research. Drafted by AI from an item the arxiv-cs monitor found. An editor approves the copy before anything is published.", ""].join("\n"),
-    state: "draft", held: false, evidence: { signals: 1, source: "arxiv-cs monitor: https://example.org/quantisation" }, history: [], createdAt: "2026-10-23T07:00:00Z",
-  },
-  {
-    id: "proposal-3", kind: "story_draft", title: "Eight new models this week", summary: "A list of the week's releases.",
-    body: TREND_BODY("A list of the week's releases.", "News"), state: "editor_review", held: false,
-    evidence: { signals: 2, source: "knowledge snapshot 2026-10-23 (shipped), papyrus ideas trends" }, history: [], createdAt: "2026-10-23T07:00:00Z",
-  },
+/** Demo and test ideas for the batch fixture: generated story ideas, by lineage id, with the stage each is in (two wait in the Idea column, one was already spiked). */
+export type FixtureIdea = { id: string; title: string; stage: string };
+export const FIXTURE_IDEAS: FixtureIdea[] = [
+  { id: "idea-1", title: "Sparse attention goes open", stage: "idea" },
+  { id: "idea-2", title: "A new quantisation paper challenges 4-bit defaults", stage: "idea" },
+  { id: "idea-3", title: "Eight new models this week", stage: "spiked" },
 ];
 
 /** Demo and test data: email submissions held for review (placeholders only, no real addresses). */

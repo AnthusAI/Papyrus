@@ -16,9 +16,11 @@ corpora/*
 !corpora/papyrus-semantic-concepts.yml
 !corpora/papyrus-semantic-relation-types.yml
 !corpora/papyrus-lexical-steering.yml
-!corpora/papyrus-newsroom-sections.yml
+!corpora/example-newsroom-sections.yml
+!corpora/threat-intelligence-newsroom-sections.yml
 !corpora/papyrus-public-topics.yml
-!corpora/papyrus-publication-doctrine.yml
+!corpora/example-publication-doctrine.yml
+!corpora/threat-intelligence-publication-doctrine.yml
 !corpora/papyrus-required-procedures.json
 !corpora/pilobol-us-steering.yml
 !corpora/pilobol-us-analysis-profiles.yml
@@ -62,3 +64,6 @@ preview-screenshots/
 
 # Local feed preview data (real exports; never committed)
 .local-preview/
+
+# Federation review packets hold client and pool ids; never committed
+federation-packet-*.md

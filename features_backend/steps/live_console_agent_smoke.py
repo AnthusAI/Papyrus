@@ -22,7 +22,7 @@ CONSOLE_MESSAGE_DOMAIN = "conversation"
 CONSOLE_RESPONSE_TARGET_CLOUD = "cloud"
 CONSOLE_RESPONSE_TARGET_LOCAL = "local"
 LIVE_AGENT_MARKER = "behave-live-agent"
-DEFAULT_AGENT_MODEL = "gpt-5-nano"
+DEFAULT_AGENT_MODEL = "gpt-6-luna"
 EXPECTED_SNIPPET_CONTRACT_VERSION = "execute_tactus_snippet_contract_v1"
 EDITORIAL_CURATION_SCENARIOS = {
     "review-reference-curation-accept": {

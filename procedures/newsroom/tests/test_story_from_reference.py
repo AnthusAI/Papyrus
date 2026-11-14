@@ -20,6 +20,7 @@ from papyrus_content.story_from_reference import (
 )
 from papyrus_content.story_reporting import stories_based_on_reference, link_reference_to_story, story_references
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient
+from papyrus_content.content_item_lifecycle import without_sub_tasks
 
 NOW = "2026-10-29T12:00:00Z"
 ARTICLE_URL = "https://blog.example.com/clef-decision-models"
@@ -71,7 +72,7 @@ def test_a_story_is_linked_to_its_reference_by_lineage_ids_and_keeps_our_own_bod
     assert (link["referenceLineageId"], link["role"]) == ("reference-clef", "based_on")
     [relation] = client.tables["SemanticRelation"].values()
     assert (relation["predicate"], relation["subjectLineageId"], relation["objectLineageId"]) == ("uses_evidence", result["lineageId"], "reference-clef")
-    assert stories_based_on_reference(client, "reference-clef") == [{"relationId": relation["id"], "storyLineageId": result["lineageId"], "role": "based_on"}]
+    assert stories_based_on_reference(client, "reference-clef") == [{"relationId": relation["id"], "storyLineageId": result["lineageId"], "role": "based_on", "assignmentId": None}]
 
 
 def test_without_a_body_the_story_starts_from_a_brief_that_carries_none_of_the_source_text():
@@ -237,5 +238,5 @@ def test_stories_create_links_each_reference_as_based_on(monkeypatch, capsys):
     monkeypatch.setattr(story_commands, "create_authoring_client", lambda: (client, {}))
     monkeypatch.setattr("papyrus_content.story_triggers.deliver_from_environment", lambda *a, **k: None)
     story_commands.stories_create(["--title", "From a reference", "--section", "articles", "--reference", "reference-clef-v1"])
-    [lineage] = {row["lineageId"] for row in client.tables["Item"].values()}
+    [lineage] = {row["lineageId"] for row in without_sub_tasks(client.tables["Item"].values())}
     assert [(row["referenceLineageId"], row["role"]) for row in story_references(client, lineage)] == [("reference-clef", "based_on")]

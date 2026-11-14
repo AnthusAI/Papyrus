@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "faceca02-40b6-4629-93c1-4d56c5a6f27f",
+  "issue_id": "PPY-41a63f40-b56e-4896-9d47-3c625b2ac0ad",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:46.272Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Create a concept in the wiki",
+    "description": "A Create button on the concepts page: name, kind by buttons, optional description and aliases. Same record as `ensureEditorConcept`, kind `editor_concept` unless a kind is chosen. If the name or an alias exists, go to that concept rather than make a second. Also `papyrus concepts create`. Screenshot review.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-46d70d7c-891b-4332-8819-012cf0b24628",
+    "labels": []
+  }
+}

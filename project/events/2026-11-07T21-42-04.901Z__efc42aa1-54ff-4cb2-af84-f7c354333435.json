@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "efc42aa1-54ff-4cb2-af84-f7c354333435",
+  "issue_id": "PPY-414b18aa-858d-46d0-a4a2-e782cbe8ca5f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:04.901Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Concepts rank globally with associations computed once, and carry a ranked order",
+    "description": "What: the knowledge snapshot computes each concept's association count once on change and the wiki index sorts globally before paging, giving concept pages a ranked order under the one rule where it applies. Delivers the ordering parts of PPY-c63f18; do not duplicate that story's views, link to it.\nWhy: MoM sorts concepts after rendering because core exposes no global order.\nAcceptance:\nScenario: Page two never holds a more connected concept than page one\n  Given 500 concepts with known association counts\n  When the wiki index is paged\n  Then ordering is global across pages\nScenario: A change recomputes only what it touches\n  Given one Reference is added\n  When the snapshot updates\n  Then only the affected concepts' counts are recomputed",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c446fe56-1b96-4fe5-8a17-af8be3a2b68b",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

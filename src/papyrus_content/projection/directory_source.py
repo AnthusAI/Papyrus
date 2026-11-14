@@ -21,6 +21,7 @@ import yaml
 
 from ..markus_export import EXPORTED_TYPES
 from .model import ProjectedItem, SiteIndex
+from .site_relations import EMPTY as EMPTY_RELATIONS, SiteRelations
 from .source import ProjectionSourceError, projected_item_from_row, summary_from_row
 
 _FRONT_MATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?(.*)\Z", re.S)
@@ -93,6 +94,15 @@ class DirectoryContentSource:
         row = self._load().get(item_id)
         return projected_item_from_row(row) if row is not None else None
 
+    def story_stars(self, summaries) -> dict[str, int]:
+        """Files carry no editors' ratings."""
+        return {}
+
+    def site_relations(self, summaries) -> SiteRelations:
+        """Files carry no relations."""
+        return EMPTY_RELATIONS
+
     def site_index(self) -> SiteIndex:
         summaries = [summary_from_row(row) for row in self._load().values()]
-        return SiteIndex(items=tuple(sorted(summaries, key=lambda summary: summary.output_path)), load_item=self.load_item)
+        ordered = tuple(sorted(summaries, key=lambda summary: summary.output_path))
+        return SiteIndex(items=ordered, load_item=self.load_item, relations=self.site_relations(ordered))

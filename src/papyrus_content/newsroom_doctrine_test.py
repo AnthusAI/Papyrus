@@ -32,7 +32,7 @@ def test_describing_no_file_reports_the_default_and_its_first_mission_line():
 
     assert choice["isDefault"] is True
     assert choice["path"] == str(DEFAULT_PUBLICATION_DOCTRINE_PATH.resolve())
-    assert choice["firstMissionLine"].startswith("Anthus Threat Intelligence publishes")
+    assert choice["firstMissionLine"].startswith("An example publication")
 
 
 def test_import_doctrine_without_a_config_file_exits_before_any_write(capsys):

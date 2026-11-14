@@ -21,6 +21,10 @@ class FakeEditorialStore:
         self.missions = 1               # current publication mission records (the doctrine the judgment lane reads)
         self.items: dict[str, dict] = {}
         self.check_runs: list[dict] = []
+        self.story_versions: list[dict] = []
+
+    def list_story_versions(self):
+        return [dict(row) for row in self.story_versions]
 
     def list_policies(self):
         return [dict(record) for record in self.policies.values()]
@@ -28,17 +32,15 @@ class FakeEditorialStore:
     def get_editorial_context(self, section):
         """The contract the GraphQL store gets from getEditorialContext with optional publication doctrine."""
         from papyrus_content.editorial_context import build_context
-        if self.missions > 1:
-            raise ValueError(f"Publication mission: expected exactly one current record, found {self.missions}.")
         entries = [{'scope': 'publication', 'kind': 'policy', 'text': 'Synthetic private guidance',
                     'source': {'id': 'synthetic-policy'}}]
-        if self.missions == 1:
+        if self.missions == 1:  # none, or more than one current record, means no usable mission (the resolver logs a warning)
             entries.insert(0, {'scope': 'publication', 'kind': 'mission', 'text': 'Synthetic mission',
                                'source': {'id': 'synthetic-mission'}})
         missing_section = bool(section) and self.unconfigured_section
         scope = {'sectionId': None, 'requestedSection': section} if missing_section else {'sectionId': section}
         return build_context({'key': 'synthetic'}, scope, entries, mode='cloud',
-                             missing_publication_doctrine=[] if self.missions else ['mission'],
+                             missing_publication_doctrine=[] if self.missions == 1 else ['mission'],
                              missing_section_configuration=[section] if missing_section else [])
 
     def publication_key(self):
@@ -48,7 +50,14 @@ class FakeEditorialStore:
         return self.items.get(item_id)
 
     def put_check_run(self, record):
-        self.check_runs.append(record)
+        self.check_runs = [run for run in self.check_runs if run["id"] != record["id"]] + [record]
+
+    def get_check_run(self, item_id):
+        return next((run for run in self.check_runs if run["id"] == item_id), None)
+
+    def list_check_runs_by_lineage(self, lineage_id, limit):
+        runs = sorted((run for run in self.check_runs if run["lineageId"] == lineage_id), key=lambda run: -run["versionNumber"])
+        return runs[:limit]
 
     def get_settings(self):
         return self.settings
@@ -83,7 +92,12 @@ def _phrase_policy(key: str, scope: str, severity: str, enabled: bool, phrase: s
         "enabled": enabled,
         "detectors": [{"id": f"{key}-phrase", "lane": "rules", "kind": "phrase", "phrases": [phrase]}],
     }
-    return editorial.record_from_policy(policy, scope=scope, source="test")
+    return editorial.record_from_policy(policy, scope=scope, language="en", source="test")
+
+
+def stored_policy(context, key, scope="publication", language="en"):
+    """The stored policy with this scope, language and key (its id is opaque)."""
+    return next(record for record in context.store.policies.values() if (record["scope"], record.get("language"), record["policyKey"]) == (scope, language, key))
 
 
 def _services(context):
@@ -145,7 +159,7 @@ def step_check(context, body, section):
     context.body = body
     context.check_error = None
     try:
-        context.check_result = editorial.handle("checkEditorial", {"body": body, "format": "markus", "section": section}, context.services)
+        context.check_result = editorial.handle("checkEditorial", {"body": body, "format": "markus", "section": section, "language": "en"}, context.services)
     except (editorial.EditorialChecksDisabled, ValueError) as error:
         context.check_error = error
 
@@ -193,7 +207,7 @@ def step_suggest_finding(context, key):
     finding = next(f for f in context.check_result["findings"] if f["policyId"] == key)
     context.suggest_result = editorial.handle(
         "suggestEditorialRewrite",
-        {"body": context.body, "format": "markus", "section": "engineering", "finding": json.dumps(finding)},
+        {"body": context.body, "format": "markus", "section": "engineering", "language": "en", "finding": json.dumps(finding)},
         _services(context),
     )
 
@@ -203,7 +217,7 @@ def step_suggest_selection(context, selected, body, note):
     start = body.index(selected)
     context.suggest_result = editorial.handle(
         "suggestEditorialRewrite",
-        {"body": body, "format": "markus", "section": "engineering", "selection": json.dumps({"start": start, "end": start + len(selected)}), "note": note},
+        {"body": body, "format": "markus", "section": "engineering", "language": "en", "selection": json.dumps({"start": start, "end": start + len(selected)}), "note": note},
         _services(context),
     )
 
@@ -233,7 +247,7 @@ def step_import_again(context, name, count):
 @when('an admin tries a policy with phrase "{phrase}" on "{text}"')
 def step_try(context, phrase, text):
     policy = editorial.policy_from_record(json.loads(json.dumps(editorial.policy_input(_phrase_policy("draft", "publication", "warn", True, phrase)))))
-    context.try_result = editorial.handle("tryEditorialPolicy", {"policy": json.dumps(policy), "text": text}, _services(context))
+    context.try_result = editorial.handle("tryEditorialPolicy", {"policy": json.dumps(policy), "text": text, "language": "en"}, _services(context))
 
 
 @then('the try result has 1 finding with excerpt "{excerpt}"')
@@ -263,7 +277,7 @@ def step_draft_result(context):
 
 @given('policy "{key}" also has a sentence classifier detector "{detector_id}"')
 def step_add_classifier(context, key, detector_id):
-    record = context.store.policies[editorial.policy_record_id(key, "publication")]
+    record = stored_policy(context, key)
     detectors = json.loads(record["detectors"])
     detectors.append({"id": detector_id, "lane": "classifier", "scope": "sentence", "question": {"type": "noul", "instructions": "Hype?"}, "violation": {"answer": "yes"}, "threshold": 0.8})
     record["detectors"] = json.dumps(detectors)
@@ -284,14 +298,14 @@ def step_recalibrate(context):
 
 @then('policy "{key}" detector "{detector_id}" has an "{method}" calibration')
 def step_calibrated(context, key, detector_id, method):
-    record = context.store.policies[editorial.policy_record_id(key, "publication")]
+    record = stored_policy(context, key)
     detector = next(d for d in json.loads(record["detectors"]) if d["id"] == detector_id)
     assert detector["calibration"]["method"] == method, detector
 
 
 @then('policy "{key}" is now version {version:d}')
 def step_version(context, key, version):
-    assert context.store.policies[editorial.policy_record_id(key, "publication")]["version"] == version
+    assert stored_policy(context, key)["version"] == version
 
 
 # --- papyrus editorial (CLI) ------------------------------------------------------
@@ -332,6 +346,7 @@ def step_pack_file(context, key, phrase):
         "schemaVersion": 1,
         "packId": "file",
         "version": "1",
+        "language": "en",
         "policies": [editorial.policy_from_record(_phrase_policy(key, "publication", "warn", True, phrase))],
     }
     handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
@@ -440,7 +455,7 @@ def step_no_section_record(context):
 @then('the section is recorded as skipped because there is "{text}"')
 def step_section_skipped(context, text):
     lane = context.check_result["lanes"]["section"]
-    assert lane["status"] == "skipped" and lane["reason"] == f"no section configuration for engineering" and text in lane["reason"], lane
+    assert lane["status"] == "skipped" and lane["reason"].startswith("no section configuration for ") and text in lane["reason"], lane
 
 
 @then("the stored check run records the section lane as skipped")
@@ -462,12 +477,150 @@ def step_classifier_skipped(context):
     assert lane["status"] == "skipped" and "mission" in lane["reason"], lane
 
 
+def _saved_version(context, number, body, *, section="engineering", content_hash=None):
+    item_id = f"story-v{number}"
+    context.store.items[item_id] = {"id": item_id, "lineageId": "story", "versionNumber": number, "language": "en", "section": section,
+                                    "bodyMarkus": body, "contentHash": content_hash or f"hash-of:{section}:{body}"}
+    return item_id
+
+
+def _check_saved(context, item_id):
+    context.services = _services(context)  # a new request: nothing asked of Humanus yet
+    context.version_result = editorial.handle("checkItemVersion", {"itemId": item_id}, context.services)
+
+
 @when('the saved version of a story with "{body}" is checked')
 def step_check_version(context, body):
-    context.store.items["story-v1"] = {"id": "story-v1", "lineageId": "story", "versionNumber": 1,
-                                        "section": "engineering", "bodyMarkus": body}
-    context.services = _services(context)
-    context.version_result = editorial.handle("checkItemVersion", {"itemId": "story-v1"}, context.services)
+    _check_saved(context, _saved_version(context, 1, body))
+
+
+@step('version {number:d} of the story is saved with "{body}" and checked')
+def step_save_and_check(context, number, body):
+    _check_saved(context, _saved_version(context, number, body))
+
+
+@step('version {number:d} of the story is saved in section "{section}" with "{body}" and checked')
+def step_save_in_section_and_check(context, number, section, body):
+    _check_saved(context, _saved_version(context, number, body, section=section))
+
+
+@step("version {number:d} of the story is saved with the same content as version {earlier:d} and checked")
+def step_save_same_content(context, number, earlier):
+    previous = context.store.items[f"story-v{earlier}"]
+    _check_saved(context, _saved_version(context, number, previous["bodyMarkus"], section=previous["section"], content_hash=previous["contentHash"]))
+
+
+@step("version {number:d} of the story is checked again")
+def step_check_again(context, number):
+    _check_saved(context, f"story-v{number}")
+
+
+@given("the stored check of version {number:d} did not finish its judgment lane")
+def step_unfinished_lane(context, number):
+    context.store.check_runs = [
+        {**run, "lanes": {**(run.get("lanes") or {}), "classifier": {"status": "partial", "reason": "the check ran out of time"}}} if run["id"] == f"story-v{number}" else run
+        for run in context.store.check_runs
+    ]
+
+
+@given('a "{key}" policy for "{phrase}" is added to the publication')
+def step_policy_added(context, key, phrase):
+    context.store.create_policy(_phrase_policy(key, "publication", "warn", True, phrase))
+
+
+@given('the "{key}" policy is edited in place to flag "{phrase}"')
+def step_policy_edited_in_place(context, key, phrase):
+    for record in context.store.policies.values():
+        if record["policyKey"] == key:
+            record["detectors"] = json.dumps([{"id": f"{key}-phrase", "lane": "rules", "kind": "phrase", "phrases": [phrase]}])
+
+
+@given("the editorial check settings turn the judgment lane off")
+def step_judgment_off(context):
+    context.store.settings = {"id": "settings", "settings": json.dumps({"lanes": {"rules": True, "classifier": False}})}
+
+
+@given("another story's version {number:d} is saved with \"{body}\" and checked")
+def step_other_story_checked(context, number, body):
+    item_id = f"other-v{number}"
+    context.store.items[item_id] = {"id": item_id, "lineageId": "other", "versionNumber": number, "language": "en", "section": "engineering",
+                                    "bodyMarkus": body, "contentHash": f"hash-of:engineering:{body}"}
+    _check_saved(context, item_id)
+    context.other_run_before = dict(context.store.get_check_run(item_id))
+
+
+@then("the other story's stored check is still the one made before the policy was added")
+def step_other_untouched(context):
+    assert context.store.get_check_run("other-v1") == context.other_run_before
+
+
+@given("the stored check of version {number:d} was made under the old pack version")
+def step_old_pack_version(context, number):
+    context.store.check_runs = [{**run, "packVersion": "engineering-0123456789ab-oldcontext"} if run["id"] == f"story-v{number}" else run for run in context.store.check_runs]
+
+
+@then("the check says it was reused from the check made at the stored time")
+def step_says_reused(context):
+    stored = context.store.get_check_run("story-v1")
+    assert context.version_result.get("reused") is True, context.version_result
+    assert context.version_result.get("checkedAt") == stored["checkedAt"], (context.version_result, stored)
+
+
+@then("the check summary line says it was not checked again")
+def step_line_reused(context):
+    from papyrus_content.editorial_commands import check_summary_line
+    line = check_summary_line(context.version_result)
+    stored = context.store.get_check_run("story-v1")
+    assert "reused: not checked again" in line and stored["checkedAt"] in line, line
+
+
+@then("the stored check run records the classifier lane as unavailable")
+def step_run_unavailable(context):
+    run = context.store.get_check_run("story-v1")
+    assert run["lanes"]["classifier"]["status"] == "unavailable", run["lanes"]
+
+
+@then("the check summary line says the judgment questions did not run")
+def step_line_not_run(context):
+    from papyrus_content.editorial_commands import check_summary_line
+    line = check_summary_line(context.version_result)
+    assert "judgment questions did not run (unavailable" in line and "checked now" in line, line
+
+
+@then("the stored check is not reused on the next check")
+def step_not_reused_next(context):
+    _check_saved(context, "story-v1")
+    assert context.services.last_check_request is not None, "an unavailable judgment lane was reused"
+
+
+@then("version {number:d} has a stored check with {count:d} finding for policy \"{policy}\"")
+def step_stored_findings(context, number, count, policy):
+    run = context.store.get_check_run(f"story-v{number}")
+    assert run is not None, context.store.check_runs
+    matching = [f for f in run["findings"] if f["policyId"] == policy]
+    assert len(matching) == count, run["findings"]
+
+
+@then('version {number:d} has a stored finding for policy "{policy}" with severity "{severity}"')
+def step_stored_severity(context, number, policy, severity):
+    run = context.store.get_check_run(f"story-v{number}")
+    assert any(f["policyId"] == policy and f["severity"] == severity for f in run["findings"]), run["findings"]
+
+
+@then("the check was skipped as unchanged")
+def step_skipped_unchanged(context):
+    assert context.version_result.get("skipped") == "unchanged", context.version_result
+
+
+@then("Humanus was not asked again")
+def step_not_asked_again(context):
+    assert context.services.last_check_request is None, "Humanus was asked to check identical content again"
+
+
+@then("Humanus was asked to check")
+def step_asked_to_check(context):
+    assert context.services.last_check_request is not None
+    assert context.version_result.get("skipped") is None, context.version_result
 
 
 @then("the stored check run records the classifier lane as skipped")
@@ -492,7 +645,7 @@ def _run_policies(context, **options):
 
     from papyrus_content.editorial_commands import editorial_policies_pack
 
-    args = argparse.Namespace(**{"dry_run": False, "publication": None, "actor": None, **options})
+    args = argparse.Namespace(**{"dry_run": False, "publication": None, "actor": None, "language": None, **options})
     out = io.StringIO()
     context.policies_error = None
     context.store.writes = 0
@@ -561,13 +714,13 @@ def step_export_round_trip(context):
 
 @then('policy "{key}" is stored as version {version:d} with source "{source}"')
 def step_stored_with_source(context, key, version, source):
-    record = context.store.policies[editorial.policy_record_id(key, "publication")]
+    record = stored_policy(context, key)
     assert record["version"] == version and record["source"] == source, record
 
 
 @then('policy "{key}" keeps its classifier question, "{answer}" violation, threshold {threshold:g}, review threshold {review:g} and message')
 def step_classifier_saved(context, key, answer, threshold, review):
-    detector = json.loads(context.store.policies[editorial.policy_record_id(key, "publication")]["detectors"])[0]
+    detector = json.loads(stored_policy(context, key)["detectors"])[0]
     assert detector["lane"] == "classifier" and detector["scope"] == "document", detector
     assert detector["question"]["type"] == "noul" and detector["question"]["instructions"].startswith("Does this document"), detector
     assert detector["violation"] == {"answer": answer} and detector["threshold"] == threshold and detector["reviewAt"] == review, detector
@@ -595,3 +748,245 @@ def step_refused(context, text):
 def step_same_detectors(context):
     after = {key: json.loads(r["detectors"]) for key, r in context.store.policies.items()}
     assert after == context.before, (after, context.before)
+
+
+# --- cross-story boilerplate ---------------------------------------------------------------------------------------------
+
+
+CLOSING = (
+    "We run this for clients at scale and we keep the source open so every client owns the whole thing "
+    "and can read exactly how it works before they ever pay us"
+)
+
+
+def _site_story(context, lineage, body, *, number=1, state="current", slug=None):
+    context.store.story_versions.append({
+        "id": f"{lineage}-v{number}", "lineageId": lineage, "versionNumber": number, "versionState": state,
+        "slug": slug or lineage, "bodyMarkus": body,
+    })
+
+
+@given('the site has a current story "{slug}" that ends with the standard closing')
+def step_other_story_closing(context, slug):
+    _site_story(context, slug, f"Something unique about {slug} goes here and nowhere else.\n\n{CLOSING}.")
+
+
+@given('the site has a current story "{slug}" that says "{body}"')
+def step_other_story_says(context, slug, body):
+    _site_story(context, slug, body)
+
+
+@given('the site has a superseded version of the story "{slug}" that ends with the standard closing')
+def step_superseded_story(context, slug):
+    _site_story(context, slug, f"Older text.\n\n{CLOSING}.", state="superseded")
+
+
+@when('the saved version of the story "{slug}" ends with the standard closing and is checked')
+def step_check_story_with_closing(context, slug):
+    context.slug = slug
+    item_id = _saved_version(context, 1, f"A different opening for {slug} appears here.\n\n{CLOSING}.")
+    context.store.items[item_id].update({"lineageId": slug, "id": f"{slug}-v1"})
+    context.store.items[f"{slug}-v1"] = context.store.items.pop(item_id)
+    _check_saved(context, f"{slug}-v1")
+
+
+@when('version 2 of the story "{slug}" is saved with its own earlier closing and checked')
+def step_check_own_earlier(context, slug):
+    _site_story(context, slug, f"Earlier opening.\n\n{CLOSING}.", number=1)
+    item = _saved_version(context, 2, f"Newer opening.\n\n{CLOSING}.")
+    context.store.items[f"{slug}-v2"] = {**context.store.items.pop(item), "id": f"{slug}-v2", "lineageId": slug}
+    _check_saved(context, f"{slug}-v2")
+
+
+@when('the saved version of the story "{slug}" with "{body}" is checked')
+def step_check_story_with_body(context, slug, body):
+    item = _saved_version(context, 1, body)
+    context.store.items[f"{slug}-v1"] = {**context.store.items.pop(item), "id": f"{slug}-v1", "lineageId": slug}
+    _check_saved(context, f"{slug}-v1")
+
+
+@then('the story "{slug}" has a stored "cross-story-boilerplate" finding naming "{other}"')
+def step_xstory_names(context, slug, other):
+    run = context.store.get_check_run(f"{slug}-v1")
+    found = [f for f in run["findings"] if f["policyId"] == "cross-story-boilerplate"]
+    assert found and all(f["severity"] == "warn" for f in found), run["findings"]
+    assert any(other in f["message"] for f in found), found
+
+
+@then('the story "{slug}" has no stored "cross-story-boilerplate" finding')
+def step_no_xstory(context, slug):
+    run = context.store.get_check_run(f"{slug}-v{2 if context.store.get_check_run(f'{slug}-v2') else 1}")
+    assert not [f for f in run["findings"] if f["policyId"] == "cross-story-boilerplate"], run["findings"]
+
+
+@then('the "cross-story-boilerplate" finding does not name "{other}"')
+def step_xstory_not_naming(context, other):
+    for run in context.store.check_runs:
+        for finding in run["findings"]:
+            if finding["policyId"] == "cross-story-boilerplate":
+                assert other not in finding["message"], finding
+
+
+def _run_draft_check(context, body, story=None):
+    import contextlib
+    import io
+    import tempfile
+    from unittest import mock
+
+    from papyrus_content import editorial_commands
+
+    draft = tempfile.NamedTemporaryFile("w", suffix=".md", delete=False)
+    draft.write(body)
+    draft.close()
+    flags = ["--draft", draft.name] + (["--story", story] if story else [])
+    output = io.StringIO()
+    context.cli_error = None
+    with mock.patch.object(editorial_commands, "_store", return_value=context.store), contextlib.redirect_stdout(output):
+        try:
+            editorial_commands.editorial_check(flags)
+        except ValueError as error:
+            context.cli_error = str(error)
+            return
+    context.cli_result = json.loads(output.getvalue())
+
+
+@when("an operator runs papyrus editorial check on a draft that ends with the standard closing")
+def step_cli_draft_closing(context):
+    _run_draft_check(context, f"A different opening for the draft appears here.\n\n{CLOSING}.")
+
+
+@when('an operator runs papyrus editorial check on a draft that ends with the standard closing and revises "{slug}"')
+def step_cli_draft_closing_revises(context, slug):
+    _run_draft_check(context, f"A different opening for the draft appears here.\n\n{CLOSING}.", story=slug)
+
+
+@when('an operator runs papyrus editorial check on a draft that revises "{slug}"')
+def step_cli_draft_revises(context, slug):
+    _run_draft_check(context, f"A short draft.\n\n{CLOSING}.", story=slug)
+
+
+@then('the printed check result has a "cross-story-boilerplate" finding naming "{other}"')
+def step_cli_xstory_names(context, other):
+    found = [f for f in context.cli_result["findings"] if f["policyId"] == "cross-story-boilerplate"]
+    assert found and any(other in f["message"] for f in found), context.cli_result["findings"]
+
+
+@then('the printed check result has no "cross-story-boilerplate" finding')
+def step_cli_no_xstory(context):
+    assert not [f for f in context.cli_result["findings"] if f["policyId"] == "cross-story-boilerplate"], context.cli_result["findings"]
+
+
+@then('the printed check result has the same "cross-story-boilerplate" finding as the stored check of "{slug}"')
+def step_cli_same_xstory(context, slug):
+    def key(finding):
+        return (finding["policyId"], finding["severity"], finding["message"], finding["excerpt"])
+
+    printed = sorted(key(f) for f in context.cli_result["findings"] if f["policyId"] == "cross-story-boilerplate")
+    stored = sorted(key(f) for f in context.store.get_check_run(f"{slug}-v1")["findings"] if f["policyId"] == "cross-story-boilerplate")
+    assert printed and printed == stored, (printed, stored)
+
+
+@then('the printed check result lists "{check}" as not run because "{reason}"')
+def step_cli_not_run(context, check, reason):
+    assert context.cli_result["notRun"] == [{"check": check, "reason": reason}], context.cli_result.get("notRun")
+
+
+@then("the printed check result lists no checks as not run")
+def step_cli_none_not_run(context):
+    assert context.cli_result["notRun"] == [], context.cli_result.get("notRun")
+
+
+@then('the draft check is refused with "{text}"')
+def step_draft_check_refused(context, text):
+    assert context.cli_error and text in context.cli_error, context.cli_error
+
+
+# --- command-line findings and whole-story judgments ---------------------------------------------------------------------
+
+def _finding(**values):
+    return {"id": "f-0", "policyId": "p", "severity": "warn", "status": "review", "message": "m", "excerpt": "", "segmentId": "s1", **values}
+
+
+@given('a stored check of version 1 with a violation of "{violation}" on "{excerpt}" and a judgment for review of "{review}" on "{reviewed}"')
+def step_stored_check(context, violation, excerpt, review, reviewed):
+    context.stored_run = {"findings": [
+        _finding(id="f-review", policyId=review, status="review", probability=0.53, message="Is this measured or modeled?", excerpt=reviewed),
+        _finding(id="f-violation", policyId=violation, severity="error", status="violation", probability=0.91, message="Avoid hype.", excerpt=excerpt),
+    ], "violations": 1, "reviews": 1}
+
+
+def _run_check_version(context, flags):
+    import contextlib
+    import io
+    from unittest import mock
+
+    from papyrus_content import editorial_commands as commands
+
+    summary = {"itemId": "story-v1", "violations": 1, "reviews": 1}
+    output = io.StringIO()
+    with mock.patch.object(commands, "request_item_check", return_value=summary), \
+            mock.patch.object(commands, "read_item_check_run", return_value=context.stored_run), \
+            contextlib.redirect_stdout(output):
+        commands.editorial_check_version(["--item", "story-v1", *flags])
+    context.printed = output.getvalue()
+
+
+@when("an operator runs papyrus editorial check-version on version 1")
+def step_check_version_cli(context):
+    _run_check_version(context, [])
+
+
+@when("an operator runs papyrus editorial check-version on version 1 with --json")
+def step_check_version_json(context):
+    _run_check_version(context, ["--json"])
+
+
+@then('the printed summary says "{violations}" and "{reviews}"')
+def step_printed_summary(context, violations, reviews):
+    first = context.printed.splitlines()[0]
+    assert violations in first and reviews in first, first
+
+
+@then("each finding is printed with its policy, severity, probability, message, excerpt and id")
+def step_printed_findings(context):
+    for expected in ("no-hype", "error", "p=0.91", "Avoid hype.", "game-changing", "f-violation",
+                     "measured-or-model", "warn", "p=0.53", "Is this measured or modeled?", "Sales doubled.", "f-review"):
+        assert expected in context.printed, (expected, context.printed)
+
+
+@then("the violation is printed before the finding for review")
+def step_violation_first(context):
+    assert context.printed.index("f-violation") < context.printed.index("f-review"), context.printed
+
+
+@then("the printed JSON lists both findings with their ids, probabilities and excerpts")
+def step_printed_json(context):
+    payload = json.loads(context.printed)
+    assert [(f["id"], f["probability"], f["excerpt"]) for f in payload["findings"]] == [
+        ("f-review", 0.53, "Sales doubled."), ("f-violation", 0.91, "game-changing")], payload
+    assert payload["summary"]["violations"] == 1
+
+
+@given('Humanus returns a judgment finding for the whole story and one for the sentence "{sentence}"')
+def step_humanus_judgments(context, sentence):
+    from unittest import mock
+
+    result = {"findings": [
+        _finding(id="f-doc", segmentId="doc", message="Claims are measured or modeled.", excerpt=""),
+        _finding(id="f-sentence", segmentId="s1", message="Claim lacks a source.", excerpt=sentence),
+    ], "lanes": {}}
+    patcher = mock.patch.object(editorial.humanus, "check", return_value=result)
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+
+
+@then('the whole-story finding\'s message starts with "{prefix}"')
+def step_whole_story_message(context, prefix):
+    finding = next(f for f in context.check_result["findings"] if f["id"] == "f-doc")
+    assert finding["message"].startswith(prefix) and finding["excerpt"] == "", finding
+
+
+@then('the sentence finding keeps its excerpt "{excerpt}" and its message unchanged')
+def step_sentence_unchanged(context, excerpt):
+    finding = next(f for f in context.check_result["findings"] if f["id"] == "f-sentence")
+    assert finding["excerpt"] == excerpt and finding["message"] == "Claim lacks a source.", finding

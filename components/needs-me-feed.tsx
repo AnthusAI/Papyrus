@@ -1,14 +1,17 @@
 "use client";
 
+import { CardSuggestions } from "./card-suggestions";
+import type { ReferenceRecord } from "../lib/category-repository";
 import {
-  CheckIcon, ChevronDownIcon, CircleCheckBigIcon, CircleCheckIcon, CircleXIcon, ClipboardCheckIcon, FileTextIcon, FileWarningIcon, FlagIcon, InfoIcon, LightbulbIcon,
-  Loader2Icon, LockIcon, MailIcon, NewspaperIcon, SlidersHorizontalIcon, Undo2Icon, type LucideIcon,
+  CheckIcon, ChevronDownIcon, CircleCheckBigIcon, CircleCheckIcon, CircleXIcon, ClipboardCheckIcon, FileUpIcon, FileWarningIcon, FlagIcon, InfoIcon, LayoutPanelLeftIcon, LightbulbIcon,
+  LinkIcon, Loader2Icon, LockIcon, MailIcon, NewspaperIcon, SlidersHorizontalIcon, Undo2Icon, type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { CAPTURE_NEEDED_FEED_PATH } from "../lib/reference-feed-view";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { FULL_SCREEN_SHEET, FULL_SCREEN_SHEET_HEADER, Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { ReferenceAttachmentRecord } from "../lib/category-repository";
 import type { MonitoringEmailDetails } from "../lib/monitoring-overview";
@@ -17,14 +20,15 @@ import {
   type ConfidenceThreshold, type NeedsMeFilter, type NeedsMeSnapshot, type NeedsMeType, type ShapingStats,
 } from "../lib/needs-me-ranking";
 import { waitingTextFor, type NeedsMeEntry } from "../lib/needs-me-items";
-import { cannotMoveReason } from "../lib/review-drafts";
 import type { CyclotronEntry } from "../lib/review-requests";
 import { referenceReasonCode, REFERENCE_REJECTION_REASON_CODES, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { formatFeedAge } from "../lib/reference-preview";
 import { buildNeedsMeItemPath, parseNeedsMeItemIdFromNewsroomPathname } from "../lib/newsroom-index-filters";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import type { RecentDecision } from "../lib/notification-feed";
+import { IDEA_STAGE, type RecentDecision } from "../lib/notification-feed";
 import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
+import { HomeCyclotronPanel } from "./home-cyclotron-panel";
+import type { HomeCyclotronState } from "../lib/hosted-cyclotron-status";
 import { NeedsMeDetail, type DecisionExtras } from "./needs-me-detail";
 import { FlagFooter, decidedChoiceOf, isReferenceLike, recordedAnswer } from "./needs-me-shared";
 import { NotificationSkeleton, RecentDecisions } from "./notification-cards";
@@ -40,9 +44,9 @@ import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 export type NeedsMeDecision = { choice: ReviewChoice; reasonCode: ReferenceRejectionReasonCode | null; why: string; notThisKind: boolean };
 
 const TYPE_ICON: Record<NeedsMeType, LucideIcon> = {
-  reference: NewspaperIcon, draft: FileTextIcon, stage_review: ClipboardCheckIcon, held_email: MailIcon, incomplete_capture: FileWarningIcon, concept_proposal: LightbulbIcon, flag: FlagIcon,
+  reference: NewspaperIcon, idea_batch: LightbulbIcon, stage_review: ClipboardCheckIcon, held_email: MailIcon, incomplete_capture: FileWarningIcon, capture_needed: FileUpIcon, concept_proposal: LightbulbIcon, flag: FlagIcon, link_suggestion: LinkIcon,
 };
-const TYPE_HUE: Record<NeedsMeType, number> = { reference: 215, draft: 150, stage_review: 270, held_email: 25, incomplete_capture: 45, concept_proposal: 330, flag: 190 };
+const TYPE_HUE: Record<NeedsMeType, number> = { reference: 215, idea_batch: 150, stage_review: 270, held_email: 25, incomplete_capture: 45, capture_needed: 35, concept_proposal: 330, flag: 190, link_suggestion: 100 };
 
 function cardPrediction(item: NeedsMeEntry, predictionLoading: boolean): CardPrediction {
   if (item.payload.kind === "reference" && item.payload.decision) return predictionFromDecision(item.payload.decision);
@@ -53,7 +57,6 @@ function cardPrediction(item: NeedsMeEntry, predictionLoading: boolean): CardPre
 /** Words for why an item cannot be decided right now, or null. */
 export function disabledFor(item: NeedsMeEntry, session: string | null, referenceReason: string | null): string | null {
   if (session) return session;
-  if (item.payload.kind === "draft") return item.payload.loading ? "Loading the draft…" : item.payload.item.view ? cannotMoveReason(item.payload.item.view) : null;
   if (isReferenceLike(item)) return referenceReason;
   return null;
 }
@@ -86,6 +89,18 @@ function TypeBadge({ item }: { item: NeedsMeEntry }) {
   );
 }
 
+/** An idea batch is decided on the board, so its footer is a link to the Idea column and says how many of its ideas still wait there. */
+function IdeaBatchFooter({ boardHref, count, total }: { boardHref: string; count: number; total: number }) {
+  return (
+    <div className="space-y-2" data-idea-batch-footer>
+      <Link className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[var(--feed-control)] px-3 text-sm font-semibold text-foreground outline-none transition-colors hover:bg-[var(--feed-control)]/70 focus-visible:ring-2 focus-visible:ring-ring" data-idea-batch-open href={boardHref}>
+        <LayoutPanelLeftIcon aria-hidden="true" className="size-4" />Open the Idea column
+      </Link>
+      {total ? <p className="text-center text-xs text-muted-foreground" data-idea-batch-count>{count} of {total} still in the Idea column</p> : null}
+    </div>
+  );
+}
+
 export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, selected, disabledReason }: {
   item: NeedsMeEntry;
   now: number;
@@ -110,9 +125,10 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
   const time = item.payload.kind === "reference" ? item.payload.displayTime ?? item.createdAt : item.createdAt;
   const age = formatFeedAge(time, now);
   const picture = item.image || item.host ? <FeedImage host={item.host} lead={false} name={item.source} src={item.image} /> : <TypeTile type={item.type} />;
-  const draftId = item.payload.kind === "draft" ? item.payload.item.draftId : undefined;
-  const requestId = item.payload.kind === "draft" ? item.payload.item.request.id : item.payload.kind === "request" ? item.payload.request.id : undefined;
+  const requestId = item.payload.kind === "ideas" || item.payload.kind === "request" ? item.payload.request.id : undefined;
   const flag = item.type === "flag";
+  const ideaBatch = item.payload.kind === "ideas" ? item.payload : null;
+  const captureNeeded = item.type === "capture_needed";
 
   return (
     <article
@@ -129,7 +145,6 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
       data-needs-me-card={item.type}
       data-needs-me-state={item.decisionState}
       data-newsroom-card-id={item.id}
-      data-review-draft={draftId}
       data-review-request={requestId}
     >
       <button
@@ -165,7 +180,19 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
       </button>
 
       <div className="relative bg-[var(--feed-footer)] p-3" data-feed-actions>
-        {flag ? (
+        {captureNeeded ? (
+          // The Reference is already accepted: what is wanted is a person's capture, so the footer says so and opens the capture controls.
+          <button
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[var(--feed-control)] px-3 text-sm font-semibold text-foreground outline-none transition-colors hover:bg-[var(--feed-control)]/70 focus-visible:ring-2 focus-visible:ring-ring"
+            data-capture-needed-open
+            onClick={onOpen}
+            type="button"
+          >
+            <FileUpIcon aria-hidden="true" className="size-4" />Upload a PDF or paste the text
+          </button>
+        ) : ideaBatch ? (
+          <IdeaBatchFooter boardHref={ideaBatch.boardHref} count={ideaBatch.ideas.filter((idea) => idea.stage === null || idea.stage === IDEA_STAGE).length} total={ideaBatch.ideas.length} />
+        ) : flag ? (
           <FlagFooter busy={rating.feedback.phase === "saving"} disabledReason={disabledReason} done={item.decisionState === "acknowledged"} error={rating.feedback.phase === "error" ? rating.feedback.message ?? null : null} onAcknowledge={() => ratings.choose(item.id, "accept")} />
         ) : (
           <DecisionControl
@@ -184,9 +211,11 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
             reasonRequiredFor={refLike ? "reject" : null}
             showPrediction={refLike}
             showReason={refLike}
+            stars={ratings.stars(item.id) === undefined ? undefined : { value: ratings.stars(item.id) ?? null, onChange: (tapped) => { if (!disabledReason && !locked) ratings.setStars(item.id, tapped); }, feedback: ratings.starsFeedback(item.id) }}
           />
         )}
       </div>
+      {item.payload.kind === "reference" ? <CardSuggestions disabled={Boolean(disabledReason) || locked} inset="bg-[var(--feed-footer)] px-3 pb-3" lineageId={item.payload.lineageId} /> : null}
     </article>
   );
 }
@@ -204,7 +233,7 @@ export function ShapingStrip({ stats }: { stats: ShapingStats }) {
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-[20px] bg-[var(--feed-card)] px-4 py-3 text-sm" data-shaping-strip role="status">
       <span className="inline-flex items-center gap-1.5 font-semibold"><SlidersHorizontalIcon aria-hidden="true" className="size-4" />You&rsquo;re shaping this</span>
       {none ? (
-        <span className="text-muted-foreground" data-shaping-empty>Nothing decided yet this week. Each answer teaches the Cyclotron and reorders what comes next.</span>
+        <span className="text-muted-foreground" data-shaping-empty>Nothing decided yet this week. Each answer is saved as a label for the Cyclotron.</span>
       ) : (
         <>
           <span className="text-muted-foreground">This week</span>
@@ -225,6 +254,7 @@ export function NeedsMeRecipe({ threshold }: { threshold: ConfidenceThreshold })
       <ol className="list-decimal space-y-2.5 pl-5">
         <li><strong>Hard gates first.</strong> Nothing continues until you decide one.</li>
         <li><strong>Then where your answer matters most.</strong> Each item is scored by how unsure the Cyclotron is, times how much it matters. Age does not change it. A coin toss scores highest; a sure thing scores lowest; no prediction counts as halfway.</li>
+        <li><strong>Accepted but not collected.</strong> A Reference you accepted whose content we could not collect (a page that blocked us, say) is listed under To capture, three at a time, until someone uploads a PDF or pastes the text. Most stars first, then the most recent; one without stars comes after every starred one. See all opens the References page on Reviewed Accepted, Captured No, sorted by Quality. A capture still running is not listed.</li>
         <li><strong>A mix, not a run.</strong> Never more than two of one kind in a row while something else is waiting.</li>
         <li><strong>Confident items do not ask for you.</strong> {threshold.threshold !== null
           ? <>Items the Cyclotron is surer about than {Math.round((1 - threshold.threshold) * 100)}% (the median of the {threshold.examples} predictions you confirmed) wait under Decided automatically. You can overrule any of them.</>
@@ -250,6 +280,8 @@ export type NeedsMeViewProps = {
   recent: RecentDecision[];
   /** Read-only classifications the Cyclotron made on its own, other than the confident items above. */
   legacyAuto?: CyclotronEntry[];
+  /** The Cyclotron classifier behind this site's predictions: top right of the header (above the list on a phone). Absent: no panel. */
+  cyclotron?: HomeCyclotronState;
   /** True once every source has been read: the order is taken then, and not before. */
   settled: boolean;
   demo?: boolean;
@@ -259,17 +291,20 @@ export type NeedsMeViewProps = {
   referencesLoading?: boolean;
   predictionLoading?: boolean;
   referenceDisabledReason?: string | null;
-  draftsFailed?: boolean;
-  missingDraftCount?: number;
   initialFilter?: NeedsMeFilter;
   referenceAttachments?: ReferenceAttachmentRecord[];
   captureTeaserLine?: number;
   onCorrectCapture?: CorrectCaptureAction;
   onDecide: (item: NeedsMeEntry, decision: NeedsMeDecision) => Promise<void>;
-  /** Changes only the Why of an item that is already decided (an AI draft, a review request, a held email). Throws a sentence when it cannot. */
+  /** Changes only the Why of an item that is already decided (a review request, a held email). Throws a sentence when it cannot. */
   onEditReason?: (item: NeedsMeEntry, why: string) => Promise<void>;
-  onRetryDrafts?: () => void;
+  /** Saves a Reference's star rating (null clears it). Stars sit beside Accept and Reject and never change the vote. */
+  onSetStars?: (reference: ReferenceRecord, stars: number | null) => Promise<void> | void;
   onOpened?: (item: NeedsMeEntry) => void;
+  /** More suggested links wait to be read; `onLoadMoreLinks` reads the next page. */
+  moreLinks?: boolean;
+  loadingMoreLinks?: boolean;
+  onLoadMoreLinks?: () => Promise<void> | void;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
   /** Other sections of the page (open assignments, sections). They scroll inside the feed, below the cards, so the feed and the detail keep the viewport's full height. */
   below?: ReactNode;
@@ -281,8 +316,9 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 
 /** The CMS console home: one feed that mixes everything that may need a person, with the References feed's cards and detail pane. */
 export function NeedsMeView({
-  loadState, entries, threshold, now, shaping, recent, legacyAuto = [], settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
-  referenceDisabledReason = null, draftsFailed = false, missingDraftCount = 0, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onRetryDrafts, onOpened, loadEmail, below,
+  loadState, entries, threshold, now, shaping, recent, legacyAuto = [], cyclotron, settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
+  referenceDisabledReason = null, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onSetStars, onOpened, loadEmail, below,
+  moreLinks = false, loadingMoreLinks = false, onLoadMoreLinks,
 }: NeedsMeViewProps) {
   const themeMode = useResolvedPapyrusTheme();
   const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
@@ -307,6 +343,11 @@ export function NeedsMeView({
   if (!snapshot.current && settled && entries.length > 0) snapshot.current = takeNeedsMeSnapshot(live);
   const placed = snapshot.current ? applyNeedsMeSnapshot(snapshot.current, live) : { feed: live.feed, auto: live.auto, newCount: 0 };
   const showNewItems = () => { snapshot.current = takeNeedsMeSnapshot(live); bumpOrder((count) => count + 1); };
+  // Asking for more link suggestions is asking to see them: the page that arrives is placed at once instead of waiting behind the pill.
+  const revealNew = useRef(false);
+  useEffect(() => {
+    if (revealNew.current && placed.newCount > 0) { revealNew.current = false; showNewItems(); }
+  });
 
   const byId = useMemo(() => new Map(entries.map((item) => [item.id, item])), [entries]);
   const latest = useRef({ byId, extras });
@@ -318,7 +359,7 @@ export function NeedsMeView({
       const typed = latest.current.extras[id] ?? NO_EXTRAS;
       await onDecide(item, { choice, reasonCode: detail.reasonCode, why: detail.note, notThisKind: choice === "reject" && typed.notThisKind });
     },
-    // The Why of an AI draft, a review request or a held email is typed in either order and edited after the decision, onto that decision.
+    // The Why of a review request or a held email is typed in either order and edited after the decision, onto that decision.
     sticky: (id) => { const item = latest.current.byId.get(id); return item ? !isReferenceLike(item) : false; },
     saveNote: async (id, note) => {
       const item = latest.current.byId.get(id);
@@ -337,9 +378,18 @@ export function NeedsMeView({
       return { note: pending ? "" : reference.curationStatusReason ?? "", reasonCode: referenceReasonCode(reference) ?? null };
     },
     needsReason: (id) => { const item = latest.current.byId.get(id); return item ? isReferenceLike(item) : true; },
+    ...(onSetStars ? {
+      saveStars: async (id: string, next: number | null) => {
+        const item = latest.current.byId.get(id);
+        if (!item || item.payload.kind !== "reference") throw new Error("This item cannot be rated.");
+        await onSetStars(item.payload.reference, next);
+      },
+      savedStars: (id: string) => { const item = latest.current.byId.get(id); return item && item.payload.kind === "reference" ? item.payload.reference.starRating ?? null : undefined; },
+    } : {}),
   });
 
   const counts = useMemo(() => countNeedsMe(placed.feed), [placed.feed]);
+  const captureCount = counts.tocapture;
   const visible = placed.feed.filter((item) => matchesFilter(item, filter));
   const queue = visible.map((item) => item.id);
   const selected = byId.get(selectedId) ?? null;
@@ -413,9 +463,13 @@ export function NeedsMeView({
     <div className="flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-notification-center {...FEED_SURFACE_PROPS}>
       <div className="@container min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto px-1.5 pt-1.5 md:pr-2.5" data-needs-me-main data-needs-me-scroll>
         <header className="space-y-4">
-          <div className="space-y-1.5">
-            <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl" data-notification-title>What needs me?</h1>
-            <p className="text-lg text-muted-foreground" data-notification-summary role="status">{waitingTextFor(counts)}</p>
+          {/* The newsroom home: the Cyclotron classifier panel is the top right of this header, beside the title block. */}
+          <div className="flex flex-col gap-4 @3xl:flex-row @3xl:items-start @3xl:justify-between">
+            <div className="min-w-0 space-y-1.5">
+              <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl" data-notification-title>What needs me?</h1>
+              <p className="text-lg text-muted-foreground" data-notification-summary role="status">{waitingTextFor(counts)}</p>
+            </div>
+            {cyclotron ? <HomeCyclotronPanel cyclotron={cyclotron} /> : null}
           </div>
           <ShapingStrip stats={shaping} />
           {linkedGone ? <Note data-needs-me-link-gone role="status">The item in this link is not waiting for you any more: it was decided, or it is not yours to decide.</Note> : null}
@@ -476,17 +530,9 @@ export function NeedsMeView({
           <div className="flex flex-col items-center gap-2 rounded-[20px] bg-[var(--feed-card)] px-6 py-12 text-center" data-notification-caught-up>
             <CircleCheckBigIcon aria-hidden="true" className="size-10 text-primary" />
             <h2 className="text-2xl font-bold tracking-tight">All caught up</h2>
-            <p className="max-w-md text-sm text-muted-foreground">Nothing needs you right now. New Proposed Stories, references, emails and reviews will appear here as they arrive.</p>
+            <p className="max-w-md text-sm text-muted-foreground">Nothing needs you right now. New ideas, references, emails and reviews will appear here as they arrive.</p>
           </div>
         ) : null}
-
-        {draftsFailed ? (
-          <Note role="alert">
-            <p>The Proposed Stories could not be loaded right now.</p>
-            <button className={cn(PILL, "mt-3 bg-[var(--feed-control)] text-foreground")} onClick={onRetryDrafts} type="button">Try again</button>
-          </Note>
-        ) : null}
-        {missingDraftCount ? <p className="text-sm text-muted-foreground" data-needs-me-missing-drafts>{missingDraftCount} of these Proposed Stories {missingDraftCount === 1 ? "is" : "are"} not in Proposals on this site, so they cannot be opened here.</p> : null}
 
         {referencesLoading && !placed.feed.length ? (
           <NotificationSkeleton count={3} bare />
@@ -500,6 +546,26 @@ export function NeedsMeView({
                 />
               ))}
             </div>
+            {captureCount > 0 && (filter === "all" || filter === "tocapture") ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-[20px] bg-[var(--feed-card)] px-4 py-3 text-sm" data-capture-needed-strip>
+                <span className="inline-flex items-center gap-2"><FileUpIcon aria-hidden="true" className="size-4 shrink-0" />Accepted References we could not collect: upload a PDF or paste the text, best first.</span>
+                <Link className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-capture-needed-see-all href={getNewsroomNavHref(CAPTURE_NEEDED_FEED_PATH, demo)}>See all</Link>
+              </div>
+            ) : null}
+            {moreLinks && (filter === "all" || filter === "links") ? (
+              <div className="mt-4 flex justify-center">
+                <button
+                  className={cn(PILL, "min-h-11 bg-[var(--feed-card)] px-5 text-sm font-medium text-foreground")}
+                  data-needs-me-more-links
+                  disabled={loadingMoreLinks}
+                  onClick={() => { revealNew.current = true; void onLoadMoreLinks?.(); }}
+                  type="button"
+                >
+                  {loadingMoreLinks ? <Loader2Icon aria-hidden="true" className="size-4 animate-spin" /> : <LinkIcon aria-hidden="true" className="size-4" />}
+                  {loadingMoreLinks ? "Reading…" : "Load more link suggestions"}
+                </button>
+              </div>
+            ) : null}
             {!nothing && visible.length === 0 && !referencesLoading ? <Note data-filter-empty>Nothing in {NEEDS_ME_FILTER_LABELS[filter]} needs you right now.</Note> : null}
           </section>
         )}
@@ -568,14 +634,18 @@ export function NeedsMeView({
 
       {isMobile ? (
         <Sheet onOpenChange={(open) => { if (!open) closeDetail(); else setSheetOpen(true); }} open={(sheetOpen && Boolean(selected)) || caughtUp}>
-          <SheetContent className="gap-0 rounded-t-[length:var(--feed-radius-xl)] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" initialFocus={false} side="bottom" {...themeAttributes}>
-            <SheetHeader className="px-4 py-3"><SheetTitle className="text-left text-base">{selected ? NEEDS_ME_TYPE_LABELS[selected.type] : "Detail"}</SheetTitle></SheetHeader>
+          {/* A phone's detail is its own full screen: header at the top, the body filling the space and scrolling, Previous / Next pinned at the bottom, the notch and home bar respected. */}
+          <SheetContent
+            className={cn(FULL_SCREEN_SHEET, "grid-rows-[auto_minmax(0,1fr)_auto] bg-[var(--feed-card)] pb-0")}
+            data-feed-flat="" data-feed-surface="" data-needs-me-sheet="fullscreen" initialFocus={false} side="bottom" {...themeAttributes}
+          >
+            <SheetHeader className={FULL_SCREEN_SHEET_HEADER}><SheetTitle className="text-left text-base">{selected ? NEEDS_ME_TYPE_LABELS[selected.type] : "Detail"}</SheetTitle></SheetHeader>
             {selected ? (
-              <div className="min-w-0" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>
-                <ScrollArea className="max-h-[70dvh]"><div key={selected.id}>{detailBody(selected)}</div></ScrollArea>
+              <div className="min-h-0 min-w-0" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>
+                <ScrollArea className="h-full" data-needs-me-sheet-body><div key={selected.id}>{detailBody(selected)}</div></ScrollArea>
               </div>
-            ) : caughtUp ? caughtUpPanel : null}
-            {queueBar}
+            ) : caughtUp ? <div className="min-h-0 overflow-y-auto">{caughtUpPanel}</div> : <div />}
+            {queueBar ? <div className="bg-[var(--feed-card)] pb-[env(safe-area-inset-bottom)]" data-needs-me-sheet-footer>{queueBar}</div> : null}
           </SheetContent>
         </Sheet>
       ) : null}

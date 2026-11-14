@@ -4,6 +4,12 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from .staff_groups import claim_groups, has_editor_rights
+from .tenancy import TenantError, is_shared_stack
+
+# Set (exactly "true") on a backend that carries a PAPYRUS_TENANT_ID but serves one publication only: its knowledge data
+# is then that publication's, so the tenant does not mean the data is shared. Remove it if a second publication is ever added.
+SINGLE_PUBLICATION_FLAG = "PAPYRUS_SINGLE_PUBLICATION_BACKEND"
+
 
 class IntakeError(ValueError):
     pass
@@ -45,7 +51,30 @@ def _actor(identity: dict[str, Any]) -> str:
             "`papyrus references create-from-catalog --status pending` with IAM credentials "
             "(PAPYRUS_GRAPHQL_AUTH=iam), then curate the pending references through delegated curation."
         )
-    if os.environ.get("PAPYRUS_TENANT_ID") or claims.get("tenantId") or claims.get("custom:tenantId"):
-        raise IntakeError("Shared-tenant Reference intake is not supported.")
+    if is_shared_stack():
+        return subject   # the tenant is the one the call's claims name (intake_tenant); the keys carry it, so the single-publication declaration is not needed
+    if claims.get("tenantId") or claims.get("custom:tenantId"):
+        raise IntakeError(
+            "Reference intake is refused for a session that carries a tenant: knowledge data has no tenant isolation."
+        )
+    if os.environ.get("PAPYRUS_TENANT_ID") and os.environ.get(SINGLE_PUBLICATION_FLAG) != "true":
+        raise IntakeError(
+            "This backend is configured with a tenant, so Reference intake is refused unless the backend serves exactly "
+            f"one publication. If it does, set {SINGLE_PUBLICATION_FLAG}=true in the site's cms.environment and redeploy; "
+            "an operator can instead run `papyrus references create-from-catalog --status pending` with IAM credentials "
+            "(PAPYRUS_GRAPHQL_AUTH=iam)."
+        )
     return subject
 
+
+
+def intake_tenant(identity: dict[str, Any]) -> str | None:
+    """The tenant a Reference intake call acts for: the one its claims name on a shared stack (a call that names none is refused),
+    None on a dedicated stack, whose keys never carry a tenant."""
+    if not is_shared_stack():
+        return None
+    from .tenant_context import build_tenant_context
+    try:
+        return build_tenant_context(identity).tenant_id
+    except TenantError as error:
+        raise IntakeError(str(error)) from error

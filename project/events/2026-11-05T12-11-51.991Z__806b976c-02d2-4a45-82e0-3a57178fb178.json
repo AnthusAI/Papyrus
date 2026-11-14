@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "806b976c-02d2-4a45-82e0-3a57178fb178",
+  "issue_id": "PPY-51ad9c2e-dbea-4aba-9fa2-578115ece228",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:11:51.991Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "stories create --brief drops the brief unless --with-assignment is passed",
+    "description": "Reported by the Machines on Machines session, 2026-11-05: papyrus stories create --brief silently drops the brief unless --with-assignment is also given, with no warning. It should keep the brief, or refuse with a clear message. Also from today: papyrus references capture-thumbnails --site does not reach the upload step, so with several sites signed in it fails with an AuthError unless papyrus --site is given before the group.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

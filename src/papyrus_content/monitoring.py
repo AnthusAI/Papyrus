@@ -1,7 +1,8 @@
 """Bounded monitor collection through existing intake; never curates or trains.
 
 A monitor reads one source type (`SOURCE_TYPES`): the Hacker News RSS feed, the USPTO TTAB
-Reading Room's decision search, the Hugging Face Hub model list (`monitoring_huggingface.py`) or a web search of
+Reading Room's decision search, the Hugging Face Hub model list (`monitoring_huggingface.py`), the Hugging Face daily papers
+(`monitoring_hf_papers.py`), any RSS or Atom feed on an allowed host (`monitoring_feed.py`) or a web search of
 queries through Tavily (`monitoring_web.py`). Each type turns its source into `SourceItem`s; everything after
 that (fingerprints, revisions, routing, intake) is shared.
 """
@@ -14,6 +15,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import sqlite3
 import time
@@ -32,13 +34,40 @@ MAX_FEED_BYTES = 2_000_000
 USER_AGENT = "Papyrus-Monitor/0.2 (+https://github.com/AnthusAI/Papyrus)"
 
 
+#: Parameters that name a visitor's session, not a document. They differ on every visit, so they defeat de-duplication of the same page.
+SESSION_PARAMETERS = frozenset({"jsessionid", "phpsessid", "sessionid", "session_id", "aspsessionid", "cfid", "cftoken"})
+_SESSION_PATH_PARAMETER = re.compile(r";(?:jsessionid|phpsessid|sessionid)=[^/?#;]*", re.IGNORECASE)
+
+
+#: Parameters that say how a reader arrived, not which document they asked for. The one list: every URL cleaner and the identity gate read it.
+TRACKING_PARAMETERS = frozenset({
+    "fbclid", "gclid", "dclid", "gbraid", "wbraid", "msclkid", "yclid", "twclid", "igshid", "li_fat_id", "mc_cid", "mc_eid",
+    "_hsenc", "_hsmi", "__hssc", "__hstc", "__hsfp", "mkt_tok", "vero_id", "vero_conv", "oly_enc_id", "oly_anon_id", "_bhlid",
+    "bhlid", "ck_subscriber_id", "s_cid", "cmpid", "ref_src", "ss_source", "ss_campaign_id", "trk", "trkcampaign", "wickedid",
+    "elqtrackid", "sg_uid", "rb_clickid", "ito", "__s", "_ga", "_gl", "pk_campaign", "pk_kwd", "sc_cid", "mbid",
+})
+TRACKING_PREFIXES = ("utm_", "mc_", "hsa_", "elq", "vero_", "sg_", "oly_", "pk_")
+
+
+def is_tracking_parameter(name: str) -> bool:
+    lowered = name.lower()
+    return lowered in TRACKING_PARAMETERS or lowered.startswith(TRACKING_PREFIXES)
+
+
+def without_session_junk(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Query pairs without session identifiers and without the ``error=cookies_not_supported&code=<id>`` pair a publisher adds when it could not set a cookie."""
+    cookie_error = any(key.lower() == "error" and "cookie" in value.lower() for key, value in pairs)
+    return [(key, value) for key, value in pairs
+            if key.lower() not in SESSION_PARAMETERS and not (cookie_error and key.lower() in {"error", "code"})]
+
+
 def canonical_url(value: str) -> str:
     url = urlsplit(value.strip())
     if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password:
         raise ValueError("An HTTP(S) source URL without credentials is required")
-    query = [(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
-             if not k.lower().startswith("utm_") and k.lower() not in {"fbclid", "gclid"}]
-    return urlunsplit((url.scheme.lower(), url.netloc.lower(), url.path or "/", urlencode(query), ""))
+    query = without_session_junk([(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
+                                  if not is_tracking_parameter(k)])
+    return urlunsplit((url.scheme.lower(), url.netloc.lower(), _SESSION_PATH_PARAMETER.sub("", url.path) or "/", urlencode(query), ""))
 
 
 def _digest(value) -> str:
@@ -226,6 +255,9 @@ SOURCE_TYPES = {
     "ttab-decisions": {"host": "ttab-reading-room.uspto.gov", "name": "TTAB Reading Room", "media": "json-search"},
     "huggingface-models": {"host": "huggingface.co", "name": "Hugging Face Hub", "media": "json-list"},
     "web-search": {"host": "api.tavily.com", "name": "Web search", "media": "json-search"},
+    "huggingface-papers": {"host": "huggingface.co", "name": "Hugging Face Papers", "media": "json-list"},
+    # Any RSS or Atom feed on a host in monitoring_feed.FEED_HOSTS (the address is the monitor's sourceUrl), so no one host here.
+    "feed": {"host": None, "name": "Feed", "media": "rss"},
 }
 
 

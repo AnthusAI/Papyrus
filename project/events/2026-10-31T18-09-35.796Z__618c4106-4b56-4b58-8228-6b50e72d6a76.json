@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "618c4106-4b56-4b58-8228-6b50e72d6a76",
+  "issue_id": "PPY-1bf64a30-9f47-4315-8055-273eff78f29a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T18:09:35.796Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Papyrus build specs and withPapyrus() must not run any check inside an Amplify build",
+    "description": "Repo: AnthusAI/Papyrus. Files: `infra/amplify-app-shell/lib/build-specs.ts`, `infra/amplify-app-shell/lib/build-specs.test.ts` (or sibling tests), `packages/papyrus/src/with-papyrus.mjs`, `features/` (Gherkin), `docs/site-hosting.md`, repo-root `amplify.yml`.\n\nSteps:\n1. Land/verify the in-flight `withPapyrus()` change: when `AWS_APP_ID` (Amplify) is set, Next config gets `eslint.ignoreDuringBuilds = true` and `typescript.ignoreBuildErrors = true`. Outside Amplify (Actions, local) checks stay on. Unit test both branches.\n2. Audit `cmsProductionBuildSpec`, `cmsStagingBuildSpec`, `readerBuildSpec`: the only allowed commands are install (`npm ci --cache .npm --prefer-offline`), `ampx pipeline-deploy` / `generate outputs`, `papyrus-app sync`, `npm run build`, content export/upload, and the outputs copy. Add a test that fails if any generated spec contains `test`, `lint`, `tsc`, `typecheck`, `behave`, `pytest`, `unittest`.\n3. Repo-root `amplify.yml` in Papyrus deploys legacy apps only (not in papyrus-production). Either delete it (preferred, after confirming no live app uses the Papyrus repo: `aws amplify list-apps` in legacy shows repo=Papyrus apps with auto-build now off) or make it deploy-only too. Record which in docs/site-hosting.md.\n4. Gherkin: `features/amplify-deploy-only.feature`: \"Given a site built inside Amplify, when the build runs, then no lint, type-check or test command runs and the build still fails on a compile error\" (Next's compile still catches syntax errors).\n5. Document in docs/site-hosting.md: \"Amplify deploys; CI runs in Actions (public) or locally with a LeftBlock receipt (private)\".\n\nAcceptance: build-spec tests pass; `npm run typecheck && npm run lint` locally; generated specs contain no check commands; PR → CI → merge to develop; released in the next Papyrus version (sites pick it up with the bump in the next story).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+    "labels": [
+      "ci",
+      "cost"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-fable-5-1",
+      "name": "plan-ci-cost"
+    }
+  }
+}

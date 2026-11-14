@@ -226,6 +226,45 @@ Feature: The scheduled cloud knowledge run
     Then the stage succeeded
     And the commands include "--monitor-sources routed --monitor-weeks 26"
 
+  Scenario: A site that sets no Reference documents bucket exports its own items only
+    When the stages "corpus-sync", "topic-model", "typed-extraction", "publish-run", "snapshot" run
+    Then no command was given "--reference-documents"
+
+  Scenario: A site that sets a Reference documents bucket exports the texts of its References as documents
+    Given the site sets the Reference documents bucket "media-bucket" with the extractor "markitdown"
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--reference-documents-bucket media-bucket --reference-documents-extractor markitdown"
+    And the commands include "--corpus-key shipped"
+    And the state in S3 holds "runs/2026-W44/reference-documents.json"
+
+  Scenario: A site that asks for its accepted References as documents needs no bucket
+    Given the site asks for its accepted References as the Reference documents
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--reference-documents-accepted --reference-documents-out"
+    And the commands include "--corpus-key shipped"
+    And no command was given "--reference-documents-bucket"
+
+  Scenario: A site that asks for its accepted References has them read by the import, the snapshot, the archive and the wiki
+    Given the site asks for its accepted References as the Reference documents
+    And the stages "corpus-sync", "topic-model", "typed-extraction" have run
+    When the stages "publish-run", "snapshot", "archive", "wiki-sync" run
+    Then each of the commands "knowledge publish-run", "knowledge snapshot", "knowledge archive", "knowledge wiki sync" was given "--reference-documents" with the week's Reference documents file
+
+  Scenario: The import, the snapshot, the archive and the wiki read the same Reference documents file
+    Given the site sets the Reference documents bucket "media-bucket" with the extractor "markitdown"
+    And the stages "corpus-sync", "topic-model", "typed-extraction" have run
+    When the stages "publish-run", "snapshot", "archive", "wiki-sync" run
+    Then each of the commands "knowledge publish-run", "knowledge snapshot", "knowledge archive", "knowledge wiki sync" was given "--reference-documents" with the week's Reference documents file
+
+  Scenario: Reference documents and monitor records are separate sources
+    Given the site sets the monitor sources "routed" for 26 weeks and the Reference documents bucket "media-bucket"
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-records-out"
+    And the commands include "--reference-documents-out"
+
   Scenario: The import, the snapshot, the archive and the wiki read the same records file
     Given the site sets the monitor sources "huggingface" for 26 weeks
     And the stages "corpus-sync", "topic-model", "typed-extraction" have run
@@ -238,3 +277,10 @@ Feature: The scheduled cloud knowledge run
     When the stages "typed-extraction", "publish-run", "snapshot" run
     Then the command "knowledge publish-run" was given "--monitor-ledger" with the corpus's import ledger
     And no command "knowledge snapshot" was given "--monitor-ledger"
+
+  Scenario: A publication that belongs to a tenant runs every papyrus command under that tenant
+    The run writes the wiki and the knowledge records of a tenant's publication. A command with no tenant would
+    write rows the tenant's readers never see, so the tenant the site names is part of every command's environment.
+    Given the site sets the tenant "machines-on-machines"
+    When the stages "wiki-sync", "projection" run
+    Then every papyrus command ran with the tenant "machines-on-machines"

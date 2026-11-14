@@ -32,3 +32,11 @@ Feature: Reports, ontology runs, story moves, form triage and email agents write
     Then the tools include listing Reference notes
     But the tools do not include creating a Reference note
     And the email agent is told that notes come only from people
+
+  Scenario: An AI agent's note is an attachment owned by the Story and is never a Message
+    Given a Story with two saved versions
+    When an AI agent named "ChatGPT" saves a note on the Story
+    Then the only record written is a model attachment owned by the Story with the role "agent_note"
+    And no Message and no conversation thread is written
+    And the note names "ChatGPT" as a label and the signed-in editor who ran the agent
+    And the Story's agent notes list the note labelled as AI

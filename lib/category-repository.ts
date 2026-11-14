@@ -5,6 +5,7 @@ import { createEmptyCategorySteeringDashboard } from "./category-dashboard";
 import { applyPilobolusDemoDashboardContent } from "./newsroom-demo-dashboard";
 import { getNewsroomDemoProfile, isPilobolusDemoBrand } from "./newsroom-demo-profile";
 import { resolveSiteBrandId, type SiteBrandId } from "./site-brand";
+import { corpusIdForKey } from "./tenant-knowledge-keys";
 
 export { createEmptyCategorySteeringDashboard };
 
@@ -140,6 +141,8 @@ export type NewsroomSectionRecord = {
   assignmentGuidance?: string | null;
   killCriteria?: string | null;
   visualGuidance?: string | null;
+  /** The section's core concepts, as stored (a JSON string; see lib/section-concepts.ts). */
+  coreConcepts?: unknown;
   createdAt?: string | null;
   updatedAt?: string | null;
 };
@@ -287,8 +290,40 @@ export type ReferenceRecord = {
   curationShareable?: boolean | null;
   curationDelegation?: unknown;
   curationDecisionRelationId?: string | null;
+  /** An editor's optional 1-5 star interest (separate from the vote; never a Cyclotron label). */
+  starRating?: number | null;
+  starRatedAt?: string | null;
+  starRatedBy?: string | null;
   newsroomFeedKey?: string | null;
   reviewedFeedKey?: string | null;
+  /** The feed-state keys the References page reads through (docs/reference-feed-indexes.md). */
+  feedStateKey?: string | null;
+  feedArrivalAt?: string | null;
+  predictedAcceptProbability?: number | null;
+  predictionDecidedAt?: string | null;
+  predictionSortKey?: string | null;
+  /** `<corpusId>#stars#<n>` while the Reference has stars: the star index's partition (docs/reference-feed-indexes.md). */
+  starFeedKey?: string | null;
+  /** How much content is held: `full`, `thin`, `none` or `running`; empty means `none` (`storedCaptureState` in lib/reference-capture.ts). */
+  captureState?: string | null;
+  /** What kind of thing the address is, by rule and only where certain: `video`, or empty (src/papyrus_content/reference_medium.py). The card says it in words with an icon. */
+  medium?: string | null;
+  /** `evidenceLevel` is `primary`, `secondary`, `aggregation` or `unknown` (the medium rule writes only `aggregation`); `playlistUrl` is the playlist a video address also names. */
+  evidenceLevel?: string | null;
+  playlistUrl?: string | null;
+  /** `<corpusId>#<medium>#<status>` while the Reference has a medium: the medium index's partition. */
+  mediumFeedKey?: string | null;
+  /** `no_transcript`, `unavailable` or `unsupported_platform` once the transcript worker found nothing to capture on a video; else empty. */
+  captureReason?: string | null;
+  /** `<corpusId>#<medium>#needs_content#<status>` while the content of a video is missing: the content-needed index's partition. */
+  contentNeededKey?: string | null;
+  /** The public blocks' index keys and card copies (docs/plans/public-blocks-from-indexes.md). Null unless the row can be public. */
+  publicFeedKey?: string | null;
+  publicOrderKey?: string | null;
+  cardImage?: string | null;
+  cardSummary?: string | null;
+  cardSiteName?: string | null;
+  cardPageTitle?: string | null;
   /** The monitor that delivered this Reference (set at intake; the Reference is the record, no Message). */
   discoveredByMonitorId?: string | null;
   /** What the monitor's source said about it (a Hub model's structured fields, say). */
@@ -672,8 +707,8 @@ export type CategorySteeringDashboard = {
   isDemo?: boolean;
   /** Local preview only: the demo newsroom is showing a real export (scripts/export-reference-feed-fixture.py), so it must not say "synthetic". */
   realDataPreview?: boolean;
-  /** Local preview only: review requests and their drafts from scripts/export-notification-center-fixture.py. */
-  notificationFixture?: { requests: import("./review-requests").ReviewRequest[]; drafts: import("./review-drafts").DraftRow[] } | null;
+  /** Local preview only: review requests from scripts/export-notification-center-fixture.py. */
+  notificationFixture?: { requests: import("./review-requests").ReviewRequest[] } | null;
   isPublicSkeleton?: boolean;
   summaryStatus?: "loading" | "missing" | "ready";
   summary?: NewsroomSummaryRecord | null;
@@ -785,7 +820,7 @@ function stringArray(value: unknown): string[] {
 
 function knowledgeCorpusIdFromKey(corpusKey: string): string {
   const safeKey = String(corpusKey || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "unknown";
-  return `knowledge-corpus-${safeKey}`;
+  return corpusIdForKey(safeKey);
 }
 
 export async function loadCategorySteeringDashboard(): Promise<CategorySteeringDashboard> {

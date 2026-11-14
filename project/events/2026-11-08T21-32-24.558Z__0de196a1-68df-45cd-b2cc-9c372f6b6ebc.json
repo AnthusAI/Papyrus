@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "0de196a1-68df-45cd-b2cc-9c372f6b6ebc",
+  "issue_id": "PPY-ee1e0260-a035-4348-bf0d-c4e4647a5a3b",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:32:24.558Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Write the v1 SiteConfig JSON schema (the allowed and refused settings listed in the parent task) and one converter from a site's projection.json; prove with TI's and MoM's projection.json copied as fixtures that conversion validates and renders the same pages through the existing projector. TypeScript twin is part 2. Size: one agent session. Worktree Papyrus-worktrees/ (beside the Papyrus checkout) site-config-schema, branch feature/<this issue id>-site-config-schema from origin/develop (spikes: branch spike/<this issue id>-site-config-schema, sandbox only, no PR needed beyond notes).\n\nTouches (verified at origin/develop 23fabe1d): new src/papyrus_content/site_config/ (schema.json, convert.py, tests), fixtures copied from the TI and MoM repositories (read-only).\n\nAcceptance (Gherkin feature file: features_backend/site-config-schema.feature):\nScenario: TI's settings convert and render the same\n    Given TI's projection.json\n    When it is converted to a SiteConfig and back\n    Then validation passes and the rendered home page is unchanged\n\nDependencies: blocked by nothing. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: poetry run pytest src/papyrus_content/site_config; poetry run behave features_backend/site-config-schema.feature.\nRollout: Merge to develop by PR when green (not a release; the newsroom automation session owns releases). Record branch, PR and verification on this issue.\nRisk and mitigation: Low; scoped to one session.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

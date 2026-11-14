@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "474cdc02-3f18-4263-827d-1033c52f7d11",
+  "issue_id": "PPY-fd6a77ac-becf-4d96-9428-fe25a7ced935",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:50.054Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Enable, certify and publish each remaining site; Anth.us last",
+    "description": "Turn on the plugin, deploy, certify and publish per site. Anth.us only after Ryan's explicit go-ahead. Track each site's status on this task.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-eea7adcb-1dd0-43df-ab0d-b1ebb2a48b59",
+    "labels": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b080c86d-a74a-4b74-ac44-b3daf11688ce",
+  "title": "Per-section trending pages",
+  "description": "Trending list for each section, from the same precomputed data.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0f0282f-0949-4f47-93ba-a9839e98154c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T16:56:49.423100Z",
+  "updated_at": "2026-11-08T16:56:49.423127Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

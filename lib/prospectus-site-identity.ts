@@ -132,8 +132,8 @@ export function signedProspectusTransport(options: SignedProspectusTransportOpti
 export class ProspectusSiteAccounts {
   constructor(private readonly transport: ProspectusTransport) {}
 
-  requestGoogleSignInChallenge(): Promise<{ challengeId: string; nonce: string; expiresAt: number; challengeToken?: string }> {
-    return this.transport({ path: "/v1/identities/google/challenge", method: "POST", body: {} }) as Promise<{
+  requestGoogleSignInChallenge(loginStateDigest?: string): Promise<{ challengeId: string; nonce: string; expiresAt: number; challengeToken?: string }> {
+    return this.transport({ path: "/v1/identities/google/challenge", method: "POST", body: loginStateDigest ? { loginStateDigest } : {} }) as Promise<{
       challengeId: string;
       nonce: string;
       expiresAt: number;
@@ -154,6 +154,22 @@ export class ProspectusSiteAccounts {
       path: "/v1/identities/google/resolve",
       method: "POST",
       body: challenge.challengeToken ? { challengeToken: challenge.challengeToken } : { challengeId: challenge.challengeId },
+      humanAccessToken,
+      identityToken,
+    }) as Promise<{ person: ProspectusPerson }>;
+  }
+
+  /** A CLI login's enrollment: the challenge token the broker handed over and the broker transaction as the login state. */
+  resolveCliEnrollment(
+    challengeToken: string,
+    loginState: string,
+    humanAccessToken: string,
+    identityToken: string,
+  ): Promise<{ person: ProspectusPerson }> {
+    return this.transport({
+      path: "/v1/identities/google/resolve",
+      method: "POST",
+      body: { challengeToken, loginState },
       humanAccessToken,
       identityToken,
     }) as Promise<{ person: ProspectusPerson }>;

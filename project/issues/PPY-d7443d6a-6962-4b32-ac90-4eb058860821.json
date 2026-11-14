@@ -1,0 +1,27 @@
+{
+  "id": "PPY-d7443d6a-6962-4b32-ac90-4eb058860821",
+  "title": "Your notifications: personal settings in the console",
+  "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** As an editor or admin, I choose per kind and channel, and can turn off a whole class.\n\n**Build.**\n`components/your-notifications.tsx`, reached from the account menu, not the console home (that page is review requests). Buttons in a grid of kinds by channels, with a word and a Lucide mark for on and off. Send a test per channel; my history below. Screenshot review.\n\n**Acceptance.**\nRyan's screenshot approval.\n\n**Depends on:** PPY-44721a\n**Related:** kanbus-ff4727, kanbus-222bcf\n\n**Specification.**\n```gherkin\nFeature: My notification settings\n  Scenario: Turning off a class\n    Given an admin on their settings\n    When they turn off admin alerts\n    Then the control says Off in words\n    And they stop getting those alerts\n\n  Scenario: Seeing why\n    When they open their history\n    Then each entry shows the kind, channel and result\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m3"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-44721afe-c320-47fd-96cf-1e227300b170",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-04T13:14:30.791816Z",
+  "updated_at": "2026-11-04T13:14:33.171954Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

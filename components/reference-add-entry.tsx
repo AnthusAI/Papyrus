@@ -2,15 +2,13 @@
 
 import { useState } from "react";
 import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
-import { ReferenceCyclotronPriming, type PrimingFormInput } from "./reference-cyclotron-priming";
+import { ReferenceAddUrl } from "./reference-add-url";
+import type { AddReferenceInput, AddReferenceOutcome } from "../lib/add-reference";
 import { ReferencePriming } from "./reference-priming";
-import type { PrimingRequestView } from "../lib/relevance-status";
 import { Button } from "./ui/button";
 
 export type ReferenceUrlOption = {
-  labels: readonly string[];
-  requests: PrimingRequestView[];
-  onRequest: (input: PrimingFormInput) => Promise<void> | void;
+  onAdd: (input: AddReferenceInput) => Promise<AddReferenceOutcome>;
 };
 
 type Option = "url" | "file";
@@ -54,7 +52,7 @@ export function ReferenceAddEntry({
       </div>
       {url ? (
         <div hidden={option !== "url"}>
-          <ReferenceCyclotronPriming labels={url.labels} onRequestPriming={url.onRequest} requests={url.requests} />
+          <ReferenceAddUrl onAdd={url.onAdd} />
         </div>
       ) : null}
       {importOptions && (fileOpened || !url) ? (

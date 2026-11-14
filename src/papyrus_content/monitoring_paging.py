@@ -105,7 +105,8 @@ class Page:
     retry: bool = False
 
 
-def read_feed(fetch_page: Callable, process_page: Callable, reading: Reading, resume=(), *, stop_at_seen: bool = True) -> list:
+def read_feed(fetch_page: Callable, process_page: Callable, reading: Reading, resume=(), *, stop_at_seen: bool = True,
+              keep: Callable | None = None) -> list:
     """Page one feed. `fetch_page(cursor)` returns `(rows, next_cursor)` (cursor None starts the feed; a None
     next cursor ends it) and `process_page(rows)` returns a `Page`. Returns the resume cursors for the next pass
     (empty when the feed is finished).
@@ -114,7 +115,10 @@ def read_feed(fetch_page: Callable, process_page: Callable, reading: Reading, re
     item that was already collected, and each resume cursor is then read until a page of only already-collected
     items closes the gap (pages of items the rule filtered out say nothing and are read through). A feed in any
     other order (by likes, say) has no such mark, so it is read until the source's own end and resumes at its
-    one cursor."""
+    one cursor.
+
+    `keep(cursor, rows)` (optional) turns the cursor of a page that could not be written in time into the cursor to resume
+    with, so a page already paid for is read again from the cursor and not asked of the source a second time."""
     phases = [None, *resume] if stop_at_seen else [resume[0] if resume else None]
     for index, start in enumerate(phases):
         cursor, head, found_unseen = start, index == 0, False
@@ -132,6 +136,8 @@ def read_feed(fetch_page: Callable, process_page: Callable, reading: Reading, re
             reading.requests += 1
             page = process_page(rows)
             if page.retry:
+                if keep is not None:
+                    return [keep(cursor, rows)] + rest
                 return ([cursor] if cursor is not None else []) + rest
             found_unseen = found_unseen or page.unseen > 0
             cursor = following

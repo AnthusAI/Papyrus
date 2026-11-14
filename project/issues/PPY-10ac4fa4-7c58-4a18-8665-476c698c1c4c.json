@@ -1,0 +1,20 @@
+{
+  "id": "PPY-10ac4fa4-7c58-4a18-8665-476c698c1c4c",
+  "title": "Document AWS identifiers outside Git (site variables, migration recipe) on p.apyr.us",
+  "description": "Add to the p.apyr.us hosting docs the content of docs/site-hosting.md section 'AWS identifiers outside Git': the variable table (PAPYRUS_AWS_ACCOUNT_ID, PAPYRUS_AMPLIFY_APP_ID, PAPYRUS_COMPUTE_ROLE_ARN, PAPYRUS_EDGE_DISTRIBUTION_ARN, PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN, vars.AWS_ACCOUNT_ID, vars.AMPLIFY_APP_ID), the fail-closed owning-app guard, and the per-site migration recipe. Placeholder ids only (account 111122223333). Do not edit Papyrus-web from the engine PR.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-52dd3649-44e1-42d6-a2c7-06d7e5a7b169",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T18:57:50.444302Z",
+  "updated_at": "2026-11-02T18:57:50.444334Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

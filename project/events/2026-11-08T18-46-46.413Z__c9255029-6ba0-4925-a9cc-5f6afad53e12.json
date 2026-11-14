@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "c9255029-6ba0-4925-a9cc-5f6afad53e12",
+  "issue_id": "PPY-70a4296d-b01e-4ba6-90a0-0493512e6744",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:46.413Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Implements PPY-8bb56d. When Prospectus says an Account holds a paid shared-tier site (the event or route named by PPY-6d9a6d), one workflow, keyed by a replay id, creates: the Tenant row (state active), the first TenantMembership (the buyer as admin), the TenantDomain for the chosen subdomain and its KVS entry, the default SiteDocuments from the starter template (PPY-3aa10f), the tenant's NewsroomSections, its canonical KnowledgeCorpus (\"<tenant>.canonical\"), its Cyclotron id (\"<cyclotronId>-<tenant>\", docs/multi-tenancy.md \"Site cyclotron\"), zeroed usage counters, and queues the first full projection. Each step is idempotent; a failure resumes from the last finished step. Payment comes first: no tenant exists before it.\n\nTouches (verified at origin/develop 23fabe1d): new amplify/functions/tenant-provisioning/ (a Step Functions state machine or a resumable Lambda), src/papyrus_content/tenancy.py, the Prospectus events consumer (amplify/plugins/prospectus-events/, as specified in PPY-a1e75a part C).\n\nAcceptance (Gherkin feature file: features_backend/tenant-provisioning.feature):\nScenario: A paid sign-up creates one tenant even when the event repeats\n    Given Prospectus sends the paid-site event for \"harbour-news\" twice\n    When provisioning runs\n    Then one Tenant, one admin membership and one subdomain exist and the first projection was queued once\n\nScenario: A half-finished provisioning resumes\n    Given provisioning stopped after creating the sections\n    When the event is delivered again\n    Then it continues from the corpus step and finishes\n\nDependencies: blocked by PPY-6d9a6d, PPY-31c45c, PPY-c020ce, PPY-3aa10f, PPY-82de58, PPY-0bb0fd. Blocks PPY-810f42. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-8bb56d, PPY-e54eca.\n\nTesting: Behave with a fake Prospectus event source; staging end to end.\nRollout: Staging first; production only for internal tenants until M8.\nRisk and mitigation: Risk: a tenant is created without payment through a replayed or forged event. Mitigation: the consumer verifies the event's signature or source and re-reads the entitlement from Prospectus before creating.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged (runs with the platform provisioning role).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

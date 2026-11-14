@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "dd1ba60b-ce52-40e7-a399-6c78c979dad2",
+  "issue_id": "PPY-3b99c1a0-7183-4516-9710-8f6072b6603c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:49.945Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Concept page: 'Linked by editors' and add from the concept side",
+    "description": "/newsroom/concepts/<key>: list References linked by humans (related_to, provenance human) above extracted mentions, each with both dates; the same Add textarea to link a Reference from the concept side; generated ideas linked to the concept (S1.5). Screenshot review.\nUI rules: Lucide icons; buttons + textarea, no dropdowns or popovers; one Accept/Reject vocabulary; a text label beside every mark (never colour alone); no AppSync subscriptions; screenshot review by Ryan on a local dev server before merging.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

@@ -16,6 +16,15 @@ const sideClasses: Record<SheetSide, string> = {
   right: "inset-y-0 right-0 h-full w-[min(100vw,20rem)] border-l data-open:slide-in-from-right data-closed:slide-out-to-right",
 };
 
+/**
+ * className overrides that turn a bottom sheet into a full-screen detail on a phone: the whole dynamic viewport, header at the top
+ * (below the notch), the body filling the rest, the home bar respected. Row 1 is the header, row 2 the body that scrolls; a sheet with a
+ * pinned footer puts `grid-rows-[auto_minmax(0,1fr)_auto]` after it. A detail sheet uses this; a menu sheet (newsroom-ops-shell) does not.
+ */
+export const FULL_SCREEN_SHEET =
+  "top-0 h-dvh max-h-dvh grid-rows-[auto_minmax(0,1fr)] gap-0 rounded-none border-0 p-0 pb-[env(safe-area-inset-bottom)] [&>button]:top-[max(0.75rem,env(safe-area-inset-top))]";
+export const FULL_SCREEN_SHEET_HEADER = "px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]";
+
 function Sheet({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="sheet" {...props} />;
 }

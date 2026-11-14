@@ -79,6 +79,10 @@ papyrus automations create --id distinctive.ruling.copy-edit --title "Copy-edit 
   --procedure distinctive.ruling.copy-edit
 ```
 
+A generic editor-review bot (`procedures/newsroom/editor_review.tac`) is meant for the same `copywriting` stage, in
+place of or after a copy-edit bot: it records a review on the version and holds or advances the story. See
+[editor agents](editor-agents.md#editor-review-stage-bot-beta).
+
 The stored record is an `event` automation, `trigger.config` = `{"event": "story.stage_entered", "onStage", "nextStage",
 "monitorId", "publicationId"}`; `limits.maxHops` is the hop limit. `monitorId` names the monitoring-table partition that holds
 the run rows, and `publicationId` the router publication that supplies the site's endpoint and model key (the same two things a
@@ -260,10 +264,13 @@ papyrus automations update --id distinctive.ttab [--enabled false] [--title T] [
   [--timeout-seconds N] [--max-concurrent N] [--budget-usd N] [--dry-run]
 ```
 
-`create`, `update` and `run` use the normal sign-in lane (`papyrus login`, editor or admin); operators can use
-`PAPYRUS_GRAPHQL_AUTH=iam`. `runs`, `run` (and the run column of `show`) also need AWS credentials that can read the
-monitoring table, found through the SSM parameter `/papyrus/monitoring/table-name`. Without them the records
-still list.
+Signed in with `papyrus login` (editor or admin), `list`, `show`, `runs` and `run` need no AWS credentials: they ask the
+site's `automationOverview` and `runAutomation`, the same operations the console uses, and the site reads the monitoring
+table and starts the run with its own role. `--input` works. Two things the site has no equivalent for are refused in one
+line on this lane: `run --dry-run`, and `runs --limit` above the site's default of the most recent runs. Choose the AWS
+lane (`PAPYRUS_GRAPHQL_AUTH=iam`, with credentials that can read the monitoring table through the SSM parameter
+`/papyrus/monitoring/table-name` and invoke the procedure runner) for those. `create` and `update` use the authoring client
+on either lane.
 
 ## Console
 
@@ -292,7 +299,7 @@ through `automationOverview` and acts through `runAutomation`, both served by th
 
 Distinctive's record (`distinctive.ttab`) exists already. Releasing this change involves, in this order:
 
-1. **Release Papyrus and deploy the site backend** (the pipeline does this on a merge to main). The backend gains the
+1. **Release Papyrus and deploy the site backend** (the pipeline does this on a release to main). The backend gains the
    `usage` and `costUsd` fields on `ProcedureRun`, the `runAutomation` mutation and the wider function role.
 2. **Check `distinctive.ttab`'s limits** before the router starts reading the record. The record was created with
    `maxConcurrent: 1` (the slice 1 default). With this change that would run TTAB decisions one at a time, deferring the

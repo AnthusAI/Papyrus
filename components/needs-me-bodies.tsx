@@ -1,18 +1,20 @@
 "use client";
 
 import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
-import { CheckIcon, CircleCheckIcon, CircleXIcon, ExternalLinkIcon, FileSearchIcon, Loader2Icon, LockIcon, MailIcon } from "lucide-react";
+import { CheckIcon, CircleCheckIcon, CircleXIcon, HashIcon, LayoutPanelLeftIcon, LinkIcon, SparklesIcon, LightbulbIcon, Loader2Icon, LockIcon, MailIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { ReferenceAttachmentRecord } from "../lib/category-repository";
 import { QUARANTINE_LABELS, type MonitoringEmailDetails } from "../lib/monitoring-overview";
-import { sourceHost, requestCaption } from "../lib/notification-feed";
+import { IDEA_STAGE, requestCaption } from "../lib/notification-feed";
 import { NEEDS_ME_TYPE_LABELS } from "../lib/needs-me-ranking";
 import type { NeedsMeEntry } from "../lib/needs-me-items";
-import { answerWords, formatWhen, nextText, steeringText, subjectHref, subjectLabel } from "../lib/review-requests";
+import { closeMatchText } from "../lib/reference-links";
+import { IDEA_BATCH_HOW, answerWords, formatWhen, nextText, steeringText, subjectHref, subjectLabel } from "../lib/review-requests";
 import { DecidedLine } from "./notification-cards";
 import { SourceMark } from "./reference-feed";
+import { ReferenceCard } from "./related-section";
 import { DecisionControl } from "./decision-control";
 import type { RatingController } from "./use-reference-ratings";
 import { FlagFooter, decidedChoiceOf, recordedAnswer } from "./needs-me-shared";
@@ -49,7 +51,7 @@ export function Heading({ item }: { item: NeedsMeEntry }) {
 }
 
 function chipLabel(item: NeedsMeEntry): string | null {
-  return item.type === "draft" ? "Not this kind of story" : item.type === "stage_review" ? "Not this kind of thing" : null;
+  return item.type === "stage_review" ? "Not this kind of thing" : null;
 }
 
 /** The save state of a Why edited after the decision, in words and a tick: never colour alone. */
@@ -134,6 +136,7 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
               showPrediction={false}
               showReason={false}
               size="large"
+              stars={ratings.stars(item.id) === undefined ? undefined : { value: ratings.stars(item.id) ?? null, onChange: (tapped) => { if (!disabledReason) ratings.setStars(item.id, tapped); }, feedback: ratings.starsFeedback(item.id) }}
               surface="footer"
             />
           )}
@@ -145,7 +148,7 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
         data-needs-me-why
         onBlur={() => { if (!disabledReason) ratings.commitNote(item.id); }}
         onChange={(event) => ratings.setNote(item.id, event.target.value)}
-        placeholder={flag ? "Why? Optional. Tell the step what to do differently." : "Why? Optional. Your note teaches the AI."}
+        placeholder={flag ? "Why? Optional. Tell the step what to do differently." : item.type === "link_suggestion" ? "How are these connected, or why not? Optional. Your explanation stays with the link." : "Why? Optional. Your note teaches the AI."}
         value={note}
       />
       {locked ? <ReasonStatus feedback={rating.feedback} hasReason={Boolean(recorded.why)} unsaved={unsaved} /> : null}
@@ -159,53 +162,45 @@ export function DefaultOutcome({ item }: { item: NeedsMeEntry }) {
 
 // --- one body per type -----------------------------------------------------------------------------------------------
 
-export function DraftBody(props: DetailProps & { payload: Extract<NeedsMeEntry["payload"], { kind: "draft" }> }) {
+/** A batch of generated story ideas. They are decided on the Stories board, so this body lists them and links to the Idea column; it asks nothing here. */
+export function IdeaBatchBody(props: DetailProps & { payload: Extract<NeedsMeEntry["payload"], { kind: "ideas" }> }) {
   const { item, payload } = props;
-  const { item: draft } = payload;
-  const view = draft.view;
-  if (!view) {
-    return <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground" role="status"><Loader2Icon aria-hidden="true" className="size-4 animate-spin" />Loading the Proposed Story…</p>;
-  }
+  const { request, ideas, boardHref } = payload;
+  const waiting = ideas.filter((idea) => idea.stage === null || idea.stage === IDEA_STAGE).length;
   return (
-    <div className="space-y-4" data-draft-detail={draft.draftId}>
+    <div className="space-y-4" data-idea-batch-detail={request.id} data-review-request={request.id}>
       <header className="space-y-1.5">
-        <p className="text-xs font-medium text-muted-foreground">AI {view.kindLabel.toLowerCase()}{view.section ? ` · Section: ${view.section}` : ""}</p>
-        <h2 className="break-words text-xl font-bold leading-tight tracking-tight text-foreground" data-draft-headline>{view.headline}</h2>
-        {view.dek && !view.bodyText.startsWith(view.dek.replace(/\s*\[\d+\]$/, "").slice(0, 60)) ? <p className="break-words text-base text-muted-foreground" data-draft-dek>{view.dek}</p> : null}
+        <h2 className="break-words text-xl font-bold leading-tight tracking-tight text-foreground">{request.reason}</h2>
+        <p className="break-words text-base text-muted-foreground">They wait in the Idea column of the Stories board.</p>
       </header>
-      {view.bodyText ? <div className="max-h-96 space-y-3 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed" data-draft-body tabIndex={0}>{view.bodyText}</div> : null}
-      {view.evidence.length ? (
-        <p aria-label="Evidence" className="flex items-start gap-1.5 break-words text-xs" data-draft-evidence>
-          <FileSearchIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-          <span><span className="font-semibold">Evidence:</span> {view.evidence.join(" ")}</span>
-        </p>
-      ) : null}
-      {view.sources.length ? (
-        <section aria-label="Citations" className="space-y-2">
-          <h3 className="text-sm font-medium text-foreground">Citations</h3>
-          <ul className="flex flex-wrap gap-1.5" data-draft-sources>
-            {view.sources.map((source, index) => {
-              const host = source.url ? sourceHost(source.url) : null;
+      <p className="text-sm" data-idea-batch-how>{IDEA_BATCH_HOW} Nothing is published.</p>
+      {ideas.length ? (
+        <section aria-label="The ideas in this batch" className="space-y-2">
+          <h3 className="text-sm font-medium text-foreground" data-idea-batch-count>{waiting} of {ideas.length} still in the Idea column</h3>
+          <ul className="space-y-1.5" data-idea-batch-list>
+            {ideas.map((idea) => {
+              const moved = idea.stage !== null && idea.stage !== IDEA_STAGE;
+              const Icon = idea.stage === "spiked" ? CircleXIcon : moved ? CircleCheckIcon : LightbulbIcon;
               return (
-                <li className="min-w-0 max-w-full" key={`${source.title}-${index}`}>
-                  {source.url ? (
-                    <a aria-label={`Source: ${source.title}${source.date ? ` (${source.date})` : ""}`} className={CHIP} data-draft-source href={source.url} rel="noreferrer" target="_blank" title={source.title}>
-                      <SourceMark host={host} /><span className="truncate">{host ?? source.title}</span><ExternalLinkIcon aria-hidden="true" className="size-3 shrink-0 opacity-60" />
-                    </a>
-                  ) : <span className={CHIP} data-draft-source><span className="truncate">{source.title}</span></span>}
+                <li data-idea-batch-idea={idea.id} data-idea-stage={idea.stage ?? "unknown"} key={idea.id}>
+                  <Link className="flex items-start gap-2 rounded-[16px] bg-[var(--feed-control)] p-3 text-sm outline-none transition-colors hover:bg-[var(--feed-control)]/70 focus-visible:ring-2 focus-visible:ring-ring" href={idea.href}>
+                    <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                    <span className="min-w-0">
+                      <span className="block break-words font-medium leading-snug">{idea.title}</span>
+                      <span className="block text-xs text-muted-foreground">{idea.stage === null ? "In the Idea column" : idea.stage === IDEA_STAGE ? "In the Idea column" : idea.stage === "spiked" ? "Declined: spiked" : `Accepted: moved to ${idea.stage.replace(/[-_]+/g, " ")}`}</span>
+                    </span>
+                  </Link>
                 </li>
               );
             })}
-            {view.moreSources ? <li className="self-center text-xs text-muted-foreground">and {view.moreSources} more in the full Proposed Story</li> : null}
           </ul>
         </section>
       ) : null}
-      <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span data-draft-caption>{requestCaption(draft.request)}</span>
-        <Link className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline" data-draft-open href={view.href}>Open full Proposed Story<ExternalLinkIcon aria-hidden="true" className="size-3.5 shrink-0" /></Link>
-      </p>
+      <Link className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[var(--primary)] px-4 text-sm font-semibold text-[var(--primary-foreground)] outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring" data-idea-batch-open href={boardHref}>
+        <LayoutPanelLeftIcon aria-hidden="true" className="size-4" />Open the Idea column
+      </Link>
+      <p className="text-xs text-muted-foreground" data-draft-caption>{requestCaption(request)}</p>
       <DefaultOutcome item={item} />
-      <DecisionPanel {...props} lockedNote={<>To change it, <Link className="text-primary underline underline-offset-4" href={view.href}>open the Proposed Story in Proposals</Link>.</>} />
     </div>
   );
 }
@@ -286,6 +281,51 @@ export function EmailBody(props: DetailProps & { payload: Extract<NeedsMeEntry["
       )}
       <DefaultOutcome item={item} />
       <DecisionPanel {...props} lockedNote={summary.quarantine?.decision ? `${summary.quarantine.decision.action === "accept" ? "Accepted" : "Rejected"}${summary.quarantine.decision.at ? ` on ${formatWhen(summary.quarantine.decision.at)}` : ""}.` : "Decided here. Monitoring shows what became of it."} />
+    </div>
+  );
+}
+
+/**
+ * A suggested link: the two References (or the Reference and the concept) side by side on a wide pane, stacked on a narrow one, each
+ * with its title, host and both dates, then the one Accept / Reject control with its optional Why. Deciding calls the same decide-link
+ * action the Related section uses, so the decision and its reason are recorded the same way.
+ */
+export function LinkSuggestionBody(props: DetailProps & { payload: Extract<NeedsMeEntry["payload"], { kind: "link" }> }) {
+  const { item, payload } = props;
+  const { suggestion } = payload;
+  const match = closeMatchText(suggestion.similarity);
+  const { object } = suggestion;
+  return (
+    <div className="space-y-4" data-link-suggestion-detail={suggestion.relationId}>
+      <header className="space-y-1.5">
+        <p className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><SparklesIcon aria-hidden="true" className="size-3.5" />Suggested{match ? <span data-link-close-match> · {match}</span> : null}</p>
+        <h2 className="break-words text-xl font-bold leading-tight tracking-tight text-foreground">Should these be linked?</h2>
+        <p className="break-words text-sm text-muted-foreground">{object.kind === "concept" ? "This Reference and concept look like they belong together." : "These two References look like they are about the same thing."}</p>
+      </header>
+      <div className="@container"><div className="grid grid-cols-1 gap-3 @sm:grid-cols-2" data-link-suggestion-ends>
+        <div className="grid content-start gap-1.5" data-link-end="subject">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><LinkIcon aria-hidden="true" className="size-3.5" />Reference</span>
+          <ReferenceCard item={suggestion.subject} />
+        </div>
+        <div className="grid content-start gap-1.5" data-link-end="object">
+          {object.kind === "concept" ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><HashIcon aria-hidden="true" className="size-3.5" />Concept</span>
+              <span className="inline-flex w-fit items-center gap-1.5 rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-control)] px-3 py-2 text-sm font-semibold text-foreground" data-related-concept={object.lineageId}>
+                <HashIcon aria-hidden="true" className="size-3.5" /><span data-related-hashtag>{object.hashtag ?? object.title}</span>
+              </span>
+              {object.hashtag && object.title !== object.hashtag.replace(/^#/, "") ? <span className="text-xs text-muted-foreground">{object.title}{object.nodeKind ? ` · ${object.nodeKind.replace(/_/g, " ")}` : ""}</span> : null}
+            </>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><LinkIcon aria-hidden="true" className="size-3.5" />Reference</span>
+              <ReferenceCard item={object} />
+            </>
+          )}
+        </div>
+      </div></div>
+      <DefaultOutcome item={item} />
+      <DecisionPanel {...props} lockedNote="Decided here. The link and your reason are saved, and the site learns from them." />
     </div>
   );
 }

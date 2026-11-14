@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2352b6f5-a56e-4b41-894a-fc02ee709469",
+  "issue_id": "PPY-e6e82b61-7bde-4bc3-be9f-a1855419d3ab",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:45.790Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Raw material: mined concepts reach References, and References reach sections",
+    "description": "Ranking and section views depend on two links that barely exist today: Reference to concept, and Reference to section. Comes first.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-17d05702-569a-41fd-bfc8-4e11eca9792e",
+    "labels": []
+  }
+}

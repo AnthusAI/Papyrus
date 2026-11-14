@@ -65,6 +65,8 @@ Ryan, 2026-10-05 (epic PPY-1f1489 comments):
 
 ## 1. The standard site
 
+A site that serves several languages is projected as one edition per public language: see [multilingual-serving.md](multilingual-serving.md).
+
 ### 1.1 Parts
 
 ```text
@@ -182,7 +184,7 @@ bundling is unaffected: it installs with `--python-version 3.12
 
 **Removing a local `tactus @ file:///...` checkout path (done in PR #100).**
 `tactus >=0.52,<1` from PyPI (0.52.0) replaces it; the wheel metadata has no
-`file:` or `git+` requirement. `humanus` is pinned to one minor release (`humanus >=0.33,<0.34`): Humanus is
+`file:` or `git+` requirement. `humanus` is pinned to one minor release (`humanus >=0.36,<0.37`): Humanus is
 below 1.0, so a minor release may change its contracts; move the pin deliberately.
 Local Tactus development uses a dev-only override
 (`[tool.uv.sources]` or a local `pip install -e`), never the published
@@ -259,6 +261,8 @@ patch the lock when a Papyrus bump breaks `npm ci`.
   promotion PR is the checkpoint.
 
 ### 1.6 The per-site backend, repo connection and CI auth
+
+A new AWS account first needs the one-time pipeline approver setup, run by a person (`infra/pipeline/bootstrap.sh --approver-only`; later role changes go through the `role-stack-deploy` workflow and are approved in GitHub, [why and when](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github)).
 
 `@anthusai/papyrus/infra` (the CDK constructs, run from the site's own `infra/` app) provisions the container; `ampx pipeline-deploy`
 (run by the Amplify build) creates the backend inside it. Today the shell
@@ -454,9 +458,70 @@ unless `SITE_ENV=production` **and** branch `main`; the build fails if any page
 contradicts the mode). `customHttp.yml` stays app-wide and never carries
 `X-Robots-Tag`.
 
-**Deploy on push.** Push to `main` deploys production and `staging` deploys
+**Deploy on release.** Merging into `develop` builds nothing; a release (`develop` merged into `main`) deploys production, and `staging` deploys
 staging, for every app. No manual zips. CI (GitHub Actions) validates: brand
 config, `markus validate` on content, `check-guards` for staging and production.
+
+### Videos on a public page
+
+A site shows its accepted videos with the references include it already has for the home page ([home page](home-page.md#the-references-include)), filtered by medium:
+
+```
+::include{kind="references" select="recent" medium="video" count="12" heading="Videos" empty="No videos yet."}
+```
+
+Place it on any authored page (a `videos` page, a home page band, a section front). `medium` takes `video` (anything else is a build error that names the page); `select="recent"` is the accepted ones, newest accepted first; `count`, `heading`, `empty`, `more`, `card="tile|row"`, `section` and the page ledger work as for any references include. Each card shows the video's own thumbnail: a copy in the site's own storage that `papyrus references capture-thumbnails` made, published as `image` in the snapshot at `/assets/reference-thumbnails/<name>` (below `urls.basePath` when there is one), never an address on the video platform, so a reader's browser does not contact it. The site needs `"media": { "originals": true }` in `projection.json` so the renditions function publishes the copy at that path, and a video with no copy yet shows no image ([the curation pipeline](reference-curation-pipeline.md#4e-video-thumbnails-2026-11-04)), the title as a link out to the source, the host, the dates, and no per-card "Video" label (every card in the block is one; a block that mixes media keeps the label, a small word with a Lucide `video` icon, never colour alone); flat tones, rounded corners, no borders. **Nothing is embedded and no third-party script is loaded**: the link goes to the platform. An editor's stars may order cards (`select="confident"`) but are never printed or published: only `rank` is in the snapshot. A Reference with no preview image shows no image.
+
+**Off by default, per site.** Nothing appears until a site adds the include to a page; a site without `homePage` fails the build naming the page, exactly as any references include does. To turn it on for a site: 1. have `homePage` in its `projection.json` (and `references.fields` either `"all"` or a list that includes `medium`, which is a public field now: the snapshot gains it, so the first snapshot after the engine ships rewrites every page that places a references include, once); 2. the engine release that carries the medium (the snapshot reads `medium` from the Reference, or from its address when the Reference has none stored yet, so **the block works before the backfill**); 3. add the include to a page, and a nav or section entry if it should be linked; 4. (optional) run `papyrus references backfill-medium` so the newsroom card shows the label and the medium index is filled. The home-page trigger watches `medium`, so a backfill reaches the pages through the usual debounce. No data API deploy is needed for the public block; it is needed for the stored fields and the index.
+
+Tests: `features_backend/reference-medium.feature` (the page lists only accepted videos, newest first; the stars never appear in any file; no embeds or scripts; unknown medium is a build error) and `src/papyrus_content/projection/standard` card markup in `procedures/newsroom/tests/test_home_page_references.py`.
+
+### Video embeds (`embeds`)
+
+`::video{...}` in a Story ([the markup](markus-content-markup.md#videos)) is the provider's standard iframe embed: the provider draws its own thumbnail and play button, and we ship no poster, placeholder or script. Which providers play is one setting in `projection.json`:
+
+```json
+"embeds": { "providers": ["youtube", "vimeo", "instagram"] }
+```
+
+`providers` names any of the registry's providers (`youtube`, `vimeo`, `instagram`); it is empty by default. **With no `embeds`, or an empty list, nothing about the
+site changes**: core does not read `::video`, the site publishes the same files, and the site's own hooks keep the line. With providers listed, the site also publishes
+`_config/content-security-policy.txt`, a one-line fragment such as
+`frame-src https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com`, with the frame origins of each listed provider and nothing else, for the site's edge (`customHttp.yml` or the
+CloudFront response-headers policy) to include. A known provider that is not listed shows as a plain linked credit line.
+
+**Privacy.** The iframe loads with the page (YouTube through `youtube-nocookie.com`, Vimeo with `dnt=1`), so the provider is contacted when a reader opens the page, not when they press play. A site that wants no such contact leaves `embeds.providers` empty.
+
+**Migrating a site that embeds with its own hooks (Pilobolus).** Pilobolus lifts `::video{src="https://www.instagram.com/..." title="..."}` lines in its `hooks.py`
+(`source`, then `item_decorator`) and draws Instagram's `blockquote` embed, which loads Instagram's own script on every page view. Nothing changes until the site opts in, so it can move one step at a time:
+(1) for each Instagram line add `credit="..."` (required),
+(2) delete the Instagram handling from `hooks.py` and the loading of Instagram's script, (3) add `"embeds": {"providers": ["instagram"]}` to `projection.json`, (4) add the published
+`_config/content-security-policy.txt` fragment (`frame-src https://www.instagram.com`) to the site's headers and drop Instagram's script and the `script-src` entries it needed,
+(5) check the Stories with `papyrus stories lens-check` (P16 and P18). Steps 1 to 3 go in one deploy, because a line without a credit is refused at save once Instagram is listed.
+
+Tests: `features_backend/video-embed.feature`.
+
+### Images and citations
+
+Every site has `::image{...}` (responsive pictures from renditions), `[@key]` and `::citations` without declaring anything in
+`web/projection.json`. A site opts out with `"images": false` or `"citations": false`, sets `"citations": {"links": "external" | "internal" | "none"}` to change how
+the bibliography links a source (default `external`; see [markus-content-markup.md](markus-content-markup.md#how-the-bibliography-links-a-source)), and configures pictures by declaring
+`"images": { ... }` (`widths`, `formats`, `quality`, `layouts`, `gatsby_parity`, `listing_max_width`; Anth.us declares
+`gatsby_parity`, `placeholder` and `listing_max_width` only to match its earlier Gatsby site). With nothing declared the
+renditions are the pipeline defaults: widths 480, 768, 1024, 1366 and 1920, WebP, a 1024 px fallback, lazy loading, no
+`listing_max_width`; renditions are made at upload by the renditions function and stored under `assets/responsive/` (under
+`urls.basePath` when the site has one).
+
+What a body may contain is one value, `BodyFeatures` (`markus_renderer/body_features.py`), taken from the site projector
+(`body_features()`): images on or off, citations on or off, and whether the site has a media store. `derive_body` validates a
+body with it at save, the content-actions function installs it for every save and publish, the CLI asks the site for it
+(`deriveMarkus` answers with `features`), and the projector renders with the same settings and the same directive registry.
+A site with no media bucket (`PAPYRUS_SITE_BUCKET`) refuses `::image` at save ("no media store"). A publish also renders the
+page's body first (`render_preflight`), so a body that only the site's store can reject (renditions never made) is refused
+before published data is written.
+
+A page that uses neither feature is rendered exactly as before. Plain Markdown images are only upgraded when `images` is
+declared as an object.
 
 ### 1.11 Capabilities Papyrus provides to every site
 
@@ -553,7 +618,7 @@ Classification of the fork's diff against merge-base `95df656` (126 files,
 | `lib/graphql-content-repository.ts`, `cached-content-repository.ts`, `content-repository.ts`, `content-types.ts`, `amplify-server-runtime.ts`, `amplify-client-provider.tsx` | **Upstream, check first** | Develop already reads with guest IAM (`authMode: identityPool`); port only what is missing |
 | `lib/blog-feature-solver.ts`, `blog-rhythm.ts`, `components/presentation-header.tsx`, `presentation-shell.tsx`, `article-page.tsx`, `archive-shell.tsx`, `presentation-rhythm-hrule.tsx`, `use-rhythm-overlay.ts`, `lib/newspaper-layout.ts`, `pretext-layout.ts`, `edition-sections.ts`, `app/**` | **Upstream: Pretext `blog` layout** | Largest and riskiest. Generic engine into `renderers/pretext/`; TI header art and obstacles to the brand. Component by component |
 | `.storybook/**`, `src/stories/**` | Drop | Scaffold |
-| `components/topic-steering-workspace.tsx`, `corpora/papyrus-newsroom-sections.yml`, `src/papyrus_content/{cli,papyrus_config,seed_edition}.py`, `procedures/**`, `features/**`, `scripts/ensure-sandbox-amplify-outputs.mjs`, `package.json` | Mixed | Review individually; most are stale versions of files develop reworked |
+| `components/topic-steering-workspace.tsx`, `corpora/example-newsroom-sections.yml`, `src/papyrus_content/{cli,papyrus_config,seed_edition}.py`, `procedures/**`, `features/**`, `scripts/ensure-sandbox-amplify-outputs.mjs`, `package.json` | Mixed | Review individually; most are stale versions of files develop reworked |
 | `AGENTS.md`, `README.md`, `.env.example`, `.gitignore` | Rewrite | Standard skeleton |
 
 Method: no 210-commit rebase. Fresh publication-repo history from the standard

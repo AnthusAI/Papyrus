@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "16c0c2c8-3f9c-4076-b61b-2a55c9651a06",
+  "issue_id": "PPY-f0af422f-da31-4d42-b6ba-e0c8b4af71d6",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-05T12:14:25.374Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Compare candidates on quality, cost per image, rights in the output and terms. Bring Ryan a recommendation. No provider is used before he approves it.",
+        "to": "Compare candidates on quality, price, rights in the output and terms. Bring Ryan a recommendation. No provider is used before he approves it."
+      }
+    }
+  }
+}

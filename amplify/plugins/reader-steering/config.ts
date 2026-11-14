@@ -1,3 +1,4 @@
+import { COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE, environmentOrConfigured } from "../../deploy-identifiers";
 import type { PluginRequest } from "../types";
 
 export const READER_DIMENSION_NAME = /^[a-z][a-z0-9-]{0,23}$/;
@@ -63,6 +64,16 @@ export type ReaderSteeringConfig = {
     itemType: string;
     /** The section of that draft. */
     section: string;
+    /**
+     * Off unless set. When set, the snapshot worker reads each visible submission's link and asks a model which model, maker and task it is
+     * about (docs/reader-steering.md, Extraction). The plugin only grants read access to the key and lengthens the worker's timeout.
+     */
+    extraction?: {
+      /** The SSM SecureString that holds the API key: `/papyrus/<site>/openai-api-key`. */
+      apiKeyParameter: string;
+      /** The time a run may spend on extraction, in seconds. The worker's timeout is this plus a minute. */
+      seconds: number;
+    };
   };
   /**
    * The kinds of subject a signed-in reader may vote on and flag, by `{type, id}`. Default: items and submissions, which is
@@ -186,9 +197,9 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   const raw = typeof request === "string" ? { name: request } : request;
   const unknown = Object.keys(raw).filter((key) => !KNOWN_KEYS.has(key));
   if (unknown.length > 0) throw new Error(`Unknown reader-steering plugin settings: ${unknown.join(", ")}`);
-  const computeRoleArn = raw.computeRoleArn;
+  const computeRoleArn = environmentOrConfigured(COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE, raw.computeRoleArn);
   if (typeof computeRoleArn !== "string" || !COMPUTE_ROLE_ARN.test(computeRoleArn)) {
-    throw new Error("reader-steering plugin computeRoleArn must be the IAM role ARN of the CMS app's compute role (the CmsComputeRoleArn output)");
+    throw new Error(`reader-steering plugin computeRoleArn must be the IAM role ARN of the CMS app's compute role (the CmsComputeRoleArn output); set the ${COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE} branch environment variable or the plugin's computeRoleArn`);
   }
   const dimensions = names(raw.dimensions, "dimensions", READER_DIMENSION_NAME);
   const reserved = dimensions.filter((dimension) => RESERVED_DIMENSIONS.includes(dimension));
@@ -202,7 +213,11 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   if (combination !== "blend" && combination !== "shrinkage") throw new Error("reader-steering plugin ranking.combination must be blend or shrinkage");
   const shrinking = combination === "shrinkage";
   const snapshot = object(raw.snapshot, "snapshot", ["schedule", "intervalHours", "hypeMinimum"]);
-  const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds", "itemType", "section"]);
+  const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds", "itemType", "section", "extraction"]);
+  const extraction = object(submissions.extraction, "submissions.extraction", ["apiKeyParameter", "seconds"]);
+  if (submissions.extraction !== undefined && (typeof extraction.apiKeyParameter !== "string" || !AI_KEY_PARAMETER.test(extraction.apiKeyParameter))) {
+    throw new Error("reader-steering plugin submissions.extraction.apiKeyParameter must be the SSM SecureString name /papyrus/<site>/openai-api-key");
+  }
   const moderation = object(raw.moderation, "moderation", ["mode", "preModeration", "reportsPerDay", "ai"]);
   const mode = moderation.mode === undefined ? "human" : moderation.mode;
   if (!MODERATION_MODES.includes(mode as (typeof MODERATION_MODES)[number])) {
@@ -266,8 +281,11 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       perDay: integer(submissions.perDay, "submissions.perDay", 10, 1, 1000),
       similarHours: integer(submissions.similarHours, "submissions.similarHours", 48, 1, 24 * 30),
       kinds: kinds.length > 0 ? kinds : ["link"],
-      itemType: lowercaseName(submissions.itemType, "submissions.itemType", "brief"),
+      itemType: lowercaseName(submissions.itemType, "submissions.itemType", "untyped"),
       section: lowercaseName(submissions.section, "submissions.section", "unsectioned"),
+      ...(submissions.extraction === undefined
+        ? {}
+        : { extraction: { apiKeyParameter: extraction.apiKeyParameter as string, seconds: integer(extraction.seconds, "submissions.extraction.seconds", 240, 60, 840) } }),
     },
     subjects: { types: [...new Set(subjectTypes)] as (typeof SUBJECT_TYPES)[number][] },
     moderation: {

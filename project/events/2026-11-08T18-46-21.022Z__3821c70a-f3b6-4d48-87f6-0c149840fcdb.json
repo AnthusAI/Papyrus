@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "3821c70a-f3b6-4d48-87f6-0c149840fcdb",
+  "issue_id": "PPY-8f2c4ff5-758b-4fc1-8ea4-de1800ac219d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:21.022Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "GSI ledger check: CI refuses two new indexes on one table in one release, and warns near the table limit",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

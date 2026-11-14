@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "75ed57f0-f8d4-40e3-95ff-a921dc149c63",
+  "issue_id": "PPY-39ed301e-ccbf-40d3-82a0-28a6cb382ef1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:48.643Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Validate tokens in the handler and send LinkAccount cards for signed-in intents",
+    "description": "JWT validation against the pool JWKS (cached), with a mapping to the Papyrus user and groups. Signed-in intents without a valid token reply with a LinkAccount card and fall back to public content. Gherkin: linked, unlinked, expired and revoked, against a fake JWKS.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-ef1e52d9-dc78-4c85-9c03-5d7c70d3aff8",
+    "labels": []
+  }
+}

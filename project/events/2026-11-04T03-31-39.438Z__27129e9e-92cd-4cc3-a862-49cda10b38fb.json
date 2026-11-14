@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "27129e9e-92cd-4cc3-a862-49cda10b38fb",
+  "issue_id": "PPY-80825520-252c-4dc9-af0f-dd99ce32716f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T03:31:39.438Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "CLI reference reads use another publication's corpus and cannot find a Story's References",
+    "description": "Found 2026-11-03 on Machines on Machines with CLI 5.83.0, signed in with --site newsroom.machines-on-machines.anth.us.\n\n1. references list defaults to corpusKey=threat-intelligence, which comes from the steering file (operator/config.py _default_corpus_from_steering), not the signed-in site. It prints an empty table, which looks like an empty corpus.\n2. references show has no way out: backends/cloud.py show_reference always searches config.default_corpus_key and ignores --corpus-key.\n3. stories show prints lineage ids; references list uses item ids ending -v1. Neither references show form could find the 18 References stories show had just printed.\n4. The corpus key is ai-ml-research here, but projection.json calls it knowledge-corpus-ai-ml-research, which returns an empty list with no error.\n\nIntake is not affected: it resolves the corpus from the routed publication.\n\nExpected: with a signed-in site, reads use that site's corpus, an unknown corpus is an error, and references show accepts any id stories show prints. Workaround: assignments context-pack --story <lineage>. Related: PPY-3b3f50.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

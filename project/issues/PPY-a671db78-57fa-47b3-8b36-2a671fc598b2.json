@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a671db78-57fa-47b3-8b36-2a671fc598b2",
+  "title": "Collapse groups in curation; count groups as one; review the cleanup",
+  "description": "Curation list collapses a group: one card with \"and 5 more\" showing the sources, a vote per work or for the group. Same-document copies don't each need a vote. A vote on one copy applies to its copies, and Cyclotron feedback sends one label per work. Reporter pack, ideas and fact-check source strength count a group as one for independence. Story shows coverage. Cleanup of the 310 URL duplicates and 7,237 pending backlog as a reviewed step. Screenshot review before merge.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-24fdf421-e5cb-4b83-856c-92a8ac73fd22",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T17:06:55.857601Z",
+  "updated_at": "2026-11-03T17:06:55.857623Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

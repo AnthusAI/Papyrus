@@ -1,0 +1,28 @@
+{
+  "id": "PPY-a6acd285-236d-4fed-bab0-b6bc4e2f2170",
+  "title": "Story type is separate from section; URLs key on type",
+  "description": "Ryan 11-02: sections are categories of articles or posts; the type of a Story is a separate attribute. Item.type already exists (article, page, wiki_page, doctrine) but public URLs and collections key on section: Anth.us's 131 articles carry section \"articles\" and projection.json maps articles and platform as sections. Work: URLs and collections key on type, add post as a type where wanted, keep every published URL unchanged and add a test proving it, move stored section strings to real section ids (TI uses titles like \"AWS\" alongside ids like \"ai\"), and clear Anth.us's \"articles\" section string only after the projection no longer needs it. Anth.us is production: dry-run projection comparison before any deploy. Responder rule (PPY-1bdb98) reads the section, never the type. Gherkin specs and p.apyr.us docs.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "b304c61c-4c45-4dfc-96b8-636bb06eeedc",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1053 (not merged): urls.types, aliases, post story type, section_migration (dry run) and url_compare. Anth.us: empty path/sitemap/feed/redirect diff on 119 published articles. Site changes are patches in the scratchpad, not pushed. Docs follow-up: PPY-4142e8.",
+      "created_at": "2026-11-02T19:43:03.119690Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-02T17:39:06.735208Z",
+  "updated_at": "2026-11-02T19:43:03.120317Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

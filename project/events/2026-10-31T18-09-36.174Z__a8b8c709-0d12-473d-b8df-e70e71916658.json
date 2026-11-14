@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "a8b8c709-0d12-473d-b8df-e70e71916658",
+  "issue_id": "PPY-466bdd03-4954-4549-ad7c-d7f6d7002797",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T18:09:36.174Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "[LeftBlock] `leftblock verify-ci` and a pre-push guard: no push to main without a receipt for the pushed SHA",
+    "description": "Repo: DataParade-io/LeftBlock. Files: `leftblock/ci.py`, `leftblock/hooks.py` (pre-push hook template, installed by `leftblock install --local --check-only --pre-push` or a new `--ci-guard` flag), `features/ci_guard.feature`, README.\n\n`leftblock verify-ci --sha <sha> [--require-signature] [--status-only]`:\n- Looks up the local receipt `.git/leftblock/receipts/<sha>.json`; if absent, queries `gh api repos/{owner}/{repo}/commits/<sha>/status` for context `leftblock/ci` (`--status-only` skips the local file; this is the mode the Amplify build uses with a token instead of gh — provide `--token-env GITHUB_TOKEN` or plain `curl` fallback so it runs without gh).\n- `--require-signature` recomputes the HMAC with `LEFTBLOCK_SECRET_PATH` and fails on mismatch.\n- Exit 0 only for `success`; print the receipt summary.\n\nPre-push guard (`.git/hooks/pre-push`): for each ref being pushed to `refs/heads/main`, run `leftblock verify-ci --sha <local sha>`; refuse with a message that says exactly what to run (`leftblock ci`). Merges done through the GitHub UI create a new SHA without a receipt, so the README states the private-repo rule: merge locally (fast-forward or local merge), run `leftblock ci` on the result, push. Protected branch list configurable (`ci.protected_branches: [main]`).\nGherkin: push to main with receipt passes; without receipt refused; push to a feature branch never checked; verify-ci against a fake status API.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+    "labels": [
+      "ci",
+      "cost"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-fable-5-1",
+      "name": "plan-ci-cost"
+    }
+  }
+}

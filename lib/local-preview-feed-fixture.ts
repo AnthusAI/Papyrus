@@ -34,7 +34,7 @@ export type NotificationCenterFixture = NonNullable<CategorySteeringDashboard["n
 
 /**
  * Local preview only: when PAPYRUS_NOTIFICATION_FIXTURE names a JSON file written by scripts/export-notification-center-fixture.py,
- * the demo Notification Center shows those review requests and their drafts instead of the invented sample.
+ * the demo Notification Center shows those review requests instead of the invented sample.
  */
 export function loadNotificationCenterFixture(env: NodeJS.ProcessEnv = process.env): NotificationCenterFixture | null {
   const configured = env.PAPYRUS_NOTIFICATION_FIXTURE?.trim();
@@ -42,7 +42,7 @@ export function loadNotificationCenterFixture(env: NodeJS.ProcessEnv = process.e
   try {
     const parsed = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), configured), "utf8"));
     if (parsed?.schema !== "papyrus-notification-center-fixture/1" || !Array.isArray(parsed.requests)) return null;
-    return { requests: parsed.requests.map(normalizeReviewRow), drafts: Array.isArray(parsed.drafts) ? parsed.drafts : [] };
+    return { requests: parsed.requests.map(normalizeReviewRow) };
   } catch {
     return null;
   }

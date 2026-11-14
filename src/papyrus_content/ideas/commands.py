@@ -1,19 +1,21 @@
 """``papyrus ideas digest|synthesize|trends|monitor-stories``: the first version of the idea pipeline (docs/idea-pipeline.md).
 
 Both run on this machine against the site named by PAPYRUS_GRAPHQL_ENDPOINT, with the operator's IAM credentials
-(PAPYRUS_GRAPHQL_AUTH=iam) or a `papyrus login` session. ``synthesize --store proposals`` files draft Proposals either way: an
-IAM operator role of the site's own account may file AI proposals (it cannot read earlier Proposals, so dedupe skips them).
+(PAPYRUS_GRAPHQL_AUTH=iam) or a `papyrus login` session. Generated ideas are filed as Items at the ``idea``
+stage (``--store items``, the default; ``--store json`` keeps them as local files only). An IAM operator role of the site's own account may file them.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from ..graphql_authoring import create_authoring_client
+from ..machine_writes import run_id_from_environment
 from ..options import normalize_string, parse_options
 from .excluded_hosts import normalize_hosts
 from ..papyrus_config import resolve_openai_api_key
@@ -21,26 +23,30 @@ from . import digest as digest_module
 from ..knowledge_snapshot.trends import TrendConfig
 from . import monitor_stories, synthesis, trends
 from .context import corpus_ids_for, hosted_corpora, load_context
-from .dedupe import DEFAULT_THRESHOLD
 from .digest import parse_window
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, render_report, synthesize
 from .review import load_feedback
-from .store import JSON, PROPOSALS, STORES, JsonStore, ProposalStore, assert_private, default_root
+from .items import ItemStore
+from .store import ITEMS, STORES, JsonStore, assert_private, default_root, legacy_story_drafts
 
 USAGE = (
     "Usage:\n"
     "  papyrus ideas digest --publication KEY [--since 7d] [--status accepted[,pending]] [--max-references N] [--excerpts]\n"
     "      [--out DIR] [--json]\n"
     "  papyrus ideas synthesize --publication KEY [--digest ID|PATH | --since 7d [--status ...] [--excerpts]] [--max 5]\n"
-    "      [--store json|proposals] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
-    "      [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
-    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
-    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
+    "      [--store items|json (default items)] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50]\n"
+    "      [--story-days N (default: every story the site has)] [--out DIR] [--report FILE] [--json]\n"
+    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store items|json (default items)] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
+    "      [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50] [--story-days N (default: every story the site has)] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
-    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--status accepted[,pending] (default: accepted only)] [--store json|proposals] [--dry-run] [--model gpt-6-luna]\n"
-    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
-    "      (drafts one cited story for each of the top --limit items the site's monitors found, ranked by the relevance Cyclotron's verdict)\n"
-    "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or draft story_draft Proposals with --store proposals."
+    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--status accepted[,pending] (default: accepted only)] [--store items|json (default items)] [--dry-run] [--model gpt-6-luna]\n"
+    "      [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50] [--story-days N (default: every story the site has)] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
+    "      [--packs-only | --single-only]\n"
+    "      (with --store items, one queue of context packs and single items ranked by the newsroom's own signals; --packs-only drafts only theme ideas from packs,\n"
+    "       --single-only is the single-item path ranked by the relevance Cyclotron's verdict, with no packs; --dry-run prints the packs and writes nothing)\n"
+    "  papyrus ideas migrate-proposals [--write] [--json]   (open story_draft Proposals to Items at the idea stage; a dry run unless --write; needs an editor session)\n"
+    "  papyrus ideas labels [--out FILE]   (editors' accept and decline decisions on generated ideas as JSON Lines for a Cyclotron; read-only)\n"
+    "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or Items at the idea stage with --store items, the default (the editors accept an idea by moving it forward and decline it by spiking it with a reason)."
 )
 
 
@@ -76,6 +82,14 @@ def _integer(options: dict[str, Any], key: str, default: int) -> int:
     if not value.isdigit() or int(value) < 1:
         raise ValueError(f"--{key} must be a positive whole number.")
     return int(value)
+
+
+def _optional_integer(options: dict[str, Any], key: str) -> int | None:
+    return None if normalize_string(options.get(key)) is None else _integer(options, key, 1)
+
+
+def _optional_number(options: dict[str, Any], key: str) -> float | None:
+    return None if normalize_string(options.get(key)) is None else _number(options, key, 0.0)
 
 
 def _number(options: dict[str, Any], key: str, default: float) -> float:
@@ -116,10 +130,19 @@ def digest_command(flags: list[str]) -> None:
         print(f"group\t{group['section']}\t{group['label']}\t{group['count']}")
 
 
+def _idea_store(name: str, client: Any):
+    """The store a run files into: Items at the idea stage (they also see the older story draft Proposals when readable), or none for ``json``."""
+    if name == ITEMS:
+        from .gate import HumanusGate
+
+        return ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=HumanusGate.for_site(), run_id=run_id_from_environment(os.environ))
+    return None
+
+
 def synthesize_command(flags: list[str]) -> None:
     options = parse_options(flags)
     publication = _publication(options)
-    store_name = normalize_string(options.get("store")) or JSON
+    store_name = normalize_string(options.get("store")) or ITEMS
     if store_name not in STORES:
         raise ValueError(f"--store must be {' or '.join(STORES)}.")
     json_store = JsonStore(_root(options, publication))
@@ -130,7 +153,7 @@ def synthesize_command(flags: list[str]) -> None:
         raise ValueError(f"Digest {digest['digestId']} is for {digest['publication']}, not {publication}.")
     json_store.save_digest(digest)
     now = datetime.now(timezone.utc)
-    context = load_context(client, now=now, story_days=_integer(options, "story-days", 90))
+    context = load_context(client, now=now, story_days=_optional_integer(options, "story-days"))
     api_key = resolve_openai_api_key()
     if not api_key:
         raise ValueError("Synthesis needs OPENAI_API_KEY (or openai.apiKey in the Papyrus config).")
@@ -140,12 +163,12 @@ def synthesize_command(flags: list[str]) -> None:
             context=context,
             json_store=json_store,
             transport=synthesis.openai_transport(api_key),
-            proposal_store=ProposalStore(client) if store_name == PROPOSALS else None,
+            idea_store=_idea_store(store_name, client),
             review_client=client,
             feedback=load_feedback(normalize_string(options.get("feedback"))),
             model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
             maximum=_integer(options, "max", synthesis.DEFAULT_MAXIMUM_IDEAS),
-            threshold=_number(options, "dedupe-threshold", DEFAULT_THRESHOLD),
+            threshold=_optional_number(options, "dedupe-threshold"),
             maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
             now=now,
         )
@@ -188,7 +211,7 @@ def trends_command(flags: list[str]) -> None:
     source = normalize_string(options.get("snapshot"))
     if not site or not source:
         raise ValueError("ideas trends needs --site KEY and --snapshot PATH|URL.")
-    store_name = normalize_string(options.get("store")) or JSON
+    store_name = normalize_string(options.get("store")) or ITEMS
     if store_name not in STORES:
         raise ValueError(f"--store must be {' or '.join(STORES)}.")
     dry_run = bool(options.get("dry-run"))
@@ -196,7 +219,7 @@ def trends_command(flags: list[str]) -> None:
     json_store = JsonStore(_root(options, site))
     client, _ = create_authoring_client()
     now = datetime.now(timezone.utc)
-    context = load_context(client, now=now, story_days=_integer(options, "story-days", 90))
+    context = load_context(client, now=now, story_days=_optional_integer(options, "story-days"))
     api_key = resolve_openai_api_key()
     if not api_key:
         raise ValueError("Trend drafting needs OPENAI_API_KEY (or openai.apiKey in the Papyrus config).")
@@ -207,11 +230,11 @@ def trends_command(flags: list[str]) -> None:
             context=context,
             json_store=json_store,
             transport=synthesis.openai_transport(api_key),
-            proposal_store=ProposalStore(client) if store_name == PROPOSALS else None,
+            idea_store=_idea_store(store_name, client),
             review_client=client,
             model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
             maximum=_integer(options, "max", trends.DEFAULT_MAXIMUM_DRAFTS),
-            threshold=_number(options, "dedupe-threshold", DEFAULT_THRESHOLD),
+            threshold=_optional_number(options, "dedupe-threshold"),
             maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
             dry_run=dry_run,
             now=now,
@@ -242,7 +265,7 @@ def trends_command(flags: list[str]) -> None:
     print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
     for draft in run["drafts"]:
         check = draft["citationCheck"]
-        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\tcitation check {check['status']} ({check['sentences']} sentences, {len(draft['citedSignalIds'])} signals, {len(draft.get('citedItemIds', []))} sources)" + (f"\t{draft['proposalId']}" if draft.get("proposalId") else ""))
+        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\tcitation check {check['status']} ({check['sentences']} sentences, {len(draft['citedSignalIds'])} signals, {len(draft.get('citedItemIds', []))} sources)" + (f"\t{draft['itemLineageId']}" if draft.get("itemLineageId") else ""))
         if dry_run:
             print(draft["body"].rstrip() + "\n")
     for failed in run["invalid"]:
@@ -258,7 +281,7 @@ def monitor_stories_command(flags: list[str]) -> None:
     site = normalize_string(options.get("site"))
     if not site:
         raise ValueError("ideas monitor-stories needs --site KEY.")
-    store_name = normalize_string(options.get("store")) or JSON
+    store_name = normalize_string(options.get("store")) or ITEMS
     if store_name not in STORES:
         raise ValueError(f"--store must be {' or '.join(STORES)}.")
     dry_run = bool(options.get("dry-run"))
@@ -267,25 +290,38 @@ def monitor_stories_command(flags: list[str]) -> None:
     if since:
         parse_window(since)
     statuses = digest_module.parse_statuses(normalize_string(options.get("status")))
+    packs_only, single_only = bool(options.get("packs-only")), bool(options.get("single-only"))
+    if packs_only and single_only:
+        raise ValueError("--packs-only and --single-only cannot be used together.")
+    if packs_only and store_name != ITEMS:
+        raise ValueError("--packs-only needs --store items: pack ideas are filed as Items.")
     json_store = JsonStore(_root(options, site))
     client, _ = create_authoring_client()
     now = datetime.now(timezone.utc)
-    context = load_context(client, now=now, story_days=_integer(options, "story-days", 90))
+    context = load_context(client, now=now, story_days=_optional_integer(options, "story-days"))
     api_key = resolve_openai_api_key()
     if not api_key:
         raise ValueError("Monitor story drafting needs OPENAI_API_KEY (or openai.apiKey in the Papyrus config).")
+    idea_store = _idea_store(store_name, client)
+    signal_run = None
+    if store_name == ITEMS and not single_only:
+        from .signal_queue import prepare_signal_run
+
+        signal_run = prepare_signal_run(
+            client, site=normalize_string(options.get("corpus-key")) or site, context=context, now=now, signals=None, single_items=not packs_only,
+            gate=idea_store.gate)
     run = monitor_stories.draft_monitor_stories(
         client=client,
         site=site,
         context=context,
         json_store=json_store,
         transport=synthesis.openai_transport(api_key),
-        proposal_store=ProposalStore(client) if store_name == PROPOSALS else None,
+        idea_store=idea_store,
         review_client=client,
         model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
         limit=limit,
         since=since,
-        threshold=_number(options, "dedupe-threshold", DEFAULT_THRESHOLD),
+        threshold=_optional_number(options, "dedupe-threshold"),
         maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
         dry_run=dry_run,
         now=now,
@@ -294,6 +330,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         corpus_key=normalize_string(options.get("corpus-key")),
         excluded_hosts=_excluded_hosts(flags),
         statuses=statuses,
+        signal_run=signal_run,
     )
     report = normalize_string(options.get("report"))
     if report:
@@ -305,15 +342,24 @@ def monitor_stories_command(flags: list[str]) -> None:
         return
     inputs, usage = run["inputs"], run.get("usage") or {}
     print(f"ideas\tmonitor-stories\t{run['runId']}\t{run['store']}")
-    print(f"items\tstatuses {','.join(run['statuses'])}\tread {inputs['inWindow']}\tpending not read {inputs.get('notAccepted', 0)}\tnot monitored {inputs['notMonitored']}\tjudged not relevant {inputs['judgedNotRelevant']}\talready drafted {inputs['alreadyDrafted']}\tpromoted {inputs['promoted']}\texcluded host {inputs.get('excludedHost', 0)}\thandled by automation {inputs.get('handledByAutomation', 0)}\tcandidates {inputs['candidates']}")
+    print(f"items\tstatuses {','.join(run['statuses'])}\tread {inputs['inWindow']}\tpending not read {inputs.get('notAccepted', 0)}\tnot monitored {inputs['notMonitored']}\tjudged not relevant {inputs['judgedNotRelevant']}\talready drafted {inputs['alreadyDrafted']}\tsame source {inputs.get('sameSource', 0)}\tpromoted {inputs['promoted']}\texcluded host {inputs.get('excludedHost', 0)}\thandled by automation {inputs.get('handledByAutomation', 0)}\tcandidates {inputs['candidates']}")
     fresh = run["freshness"]
     print("freshness\t" + (f"tau {fresh['tauDays']} days\texamples {fresh['examples']}" if fresh["tauDays"] else f"none\texamples {fresh['examples']}"))
     print(f"drafts\tattempted {run['attempted']}\tfailed the citation check {len(run['invalid'])}\tskipped {len(run['skipped'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")
+    print(f"standard\t{run['minimumStandard']}\tnothing to add {run['nothingToAdd']}\talready rejected {run['alreadyRejected']}\tconnections used {run['connectionsUsed']}\tcuration flag {run['curationFlag']['status']}")
     print(f"llm\t{run['model']}\tcalls {usage.get('calls', 0)}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
     review = run["review"]
     print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
+    if "packs" in run:
+        print(f"packs\toffered {len(run['packs'])}\tskipped for no new evidence {run['packsSkippedNoNewEvidence']}")
+        if dry_run:
+            for pack in run["packs"]:
+                print(f"pack\t{pack['signal']}\t{pack['anchor']}\tcorrected p {pack['correctedPValue']:.3g}\t{pack['acceptedReferences']} accepted References\tdates: {pack['dateBasis']}\t" + (f"{pack['ideas']} ideas would be filed" if pack["attempted"] else "not reached"))
     for draft in run["drafts"]:
-        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\t{draft['monitorId']}\t{draft['citedItems'][0]['url']}" + (f"\t{draft['proposalId']}" if draft.get("proposalId") else ""))
+        if draft.get("origin") == "context-pack":
+            print(f"draft\t{draft['ideaId']}\tcontext-pack\t{draft['title']}\t{draft['packId']}\tcites {len(draft['citedReferences'])} References" + (f"\t{draft['itemLineageId']}" if draft.get("itemLineageId") else ""))
+            continue
+        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\t{draft['monitorId']}\t{draft['citedItems'][0]['url']}" + (f"\t{draft['itemLineageId']}" if draft.get("itemLineageId") else ""))
         if dry_run:
             print(draft["body"].rstrip() + "\n")
     for failed in run["invalid"]:
@@ -328,7 +374,47 @@ def monitor_stories_command(flags: list[str]) -> None:
         print(f"stopped\t{run['stoppedForCost']}")
 
 
-COMMANDS = {"digest": digest_command, "synthesize": synthesize_command, "trends": trends_command, "monitor-stories": monitor_stories_command}
+def migrate_proposals_command(flags: list[str]) -> None:
+    """``ideas migrate-proposals [--write] [--json]``: open story draft Proposals to Items at the idea stage. A dry run unless ``--write``."""
+    from ..proposals_commands import list_proposals
+    from .migrate import migrate
+
+    options = parse_options(flags)
+    client, _ = create_authoring_client()
+    result = migrate(client, list_proposals(client), write=bool(options.get("write")))
+    if options.get("json"):
+        print(json.dumps({"ok": True, "command": "ideas migrate-proposals", **result}, indent=2))
+        return
+    print(f"ideas\tmigrate-proposals\t{'written' if result['write'] else 'dry run (nothing was written; pass --write)'}\t" + ", ".join(f"{key} {count}" for key, count in sorted(result["counts"].items())))
+    for entry in result["entries"]:
+        print("\t".join(str(part) for part in (entry["action"], entry["proposalId"], entry.get("reason") or entry.get("itemLineageId") or "", entry["title"])))
+
+
+def labels_command(flags: list[str]) -> None:
+    """``ideas labels [--out FILE]``: the editors' decisions on generated ideas as JSON Lines for a Cyclotron's import (read-only)."""
+    from ..priming_export import encode_lines, summary_of
+    from .labels import export_rows
+
+    options = parse_options(flags)
+    client, _ = create_authoring_client()
+    rows = export_rows(client)
+    out = normalize_string(options.get("out"))
+    if out:
+        Path(out).expanduser().write_text(encode_lines(rows), encoding="utf-8")
+    else:
+        sys.stdout.write(encode_lines(rows))
+    print(f"ideas\tlabels\t{len(rows)}\t{out or 'stdout'}", file=sys.stderr)
+    for key, count in sorted(summary_of(rows).items()):
+        print(f"  {key}\t{count}", file=sys.stderr)
+
+
+def select_command(flags: list[str]) -> None:
+    from ..story_selection import select_command as run
+
+    run(flags)
+
+
+COMMANDS = {"select": select_command, "digest": digest_command, "synthesize": synthesize_command, "trends": trends_command, "monitor-stories": monitor_stories_command, "migrate-proposals": migrate_proposals_command, "labels": labels_command}
 
 
 def ideas_command(command: str, flags: list[str]) -> None:

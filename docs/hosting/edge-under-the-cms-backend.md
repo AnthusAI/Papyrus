@@ -4,7 +4,7 @@ Status: design only. Nothing in this document has been executed. Every CloudForm
 
 ## Goal
 
-Each site's CloudFront edge (`papyrus-edge-<site>`) was a hand-run CloudFormation stack at cutover. The goal is that one CMS Amplify app owns everything a site needs, so that merging to `main` deploys the edge together with the backend, with no personal AWS credentials, no downtime, no replaced distribution, no alias change and no certificate change (and no Amplify domain re-association, which is throttled).
+Each site's CloudFront edge (`papyrus-edge-<site>`) was a hand-run CloudFormation stack at cutover. The goal is that one CMS Amplify app owns everything a site needs, so that a release (`develop` merged into `main`) deploys the edge together with the backend, with no personal AWS credentials, no downtime, no replaced distribution, no alias change and no certificate change (and no Amplify domain re-association, which is throttled).
 
 ## What exists for Anth.us (read-only inspection, papyrus-production, 2026-10-14)
 

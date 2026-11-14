@@ -1,61 +1,25 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
+from .content_item_lifecycle import HEAD_STAGE_KEY_FIELD, head_stage_fields
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, strip_unsupported_payload_fields
 from .ids import hash_short
 from .model_attachments import expand_private_payload_records, upload_attachment_body
+from .reference_capture_state import EXTRACTED_TEXT_ROLES, sync_capture_state
+from .reference_reads import REFERENCE_BY_LINEAGE, RELATIONS_BY_SUBJECT_STATE, reference_state_key
+from .reference_feed_keys import CARD_FIELDS, feed_keys, prediction_sort_key, star_feed_key
+
+LOGGER = logging.getLogger(__name__)
 
 
 APPEND_ONLY_EXISTING_NOOP_MODELS = frozenset(
     {"Assignment", "AssignmentEvent", "Message", "SteeringDecision"}
 )
-
-OPTIONAL_SCHEMA_MODELS = frozenset({"CategoryKeyword", "LexicalSteeringRule", "ModelAttachment"})
-
-
-def is_missing_graphql_model_error(error: Exception, model_name: str) -> bool:
-    message = str(error)
-    list_field = f"list{model_name}s"
-    get_field = f"get{model_name}"
-    return "FieldUndefined" in message and (list_field in message or get_field in message or model_name in message)
-
-
-def build_record_changes_tolerating_optional_models(
-    client: PapyrusGraphQLAuthoringClient,
-    records: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    pending = list(records)
-    skipped_models: set[str] = set()
-    while True:
-        try:
-            filtered = [record for record in pending if record["modelName"] not in skipped_models]
-            return build_record_changes(client, filtered)
-        except (RuntimeError, KeyError, ValueError) as error:
-            if isinstance(error, KeyError):
-                missing_model = str(error).strip("'\"")
-                if missing_model in OPTIONAL_SCHEMA_MODELS and missing_model not in skipped_models:
-                    skipped_models.add(missing_model)
-                    pending = [record for record in pending if record["modelName"] != missing_model]
-                    print(f"skip\t{missing_model}\tmodel is not deployed in AppSync yet; skipped optional records.")
-                    continue
-            missing_model = next(
-                (
-                    model_name
-                    for model_name in OPTIONAL_SCHEMA_MODELS
-                    if model_name not in skipped_models and is_missing_graphql_model_error(error, model_name)
-                ),
-                None,
-            )
-            if missing_model is None:
-                raise
-            skipped_models.add(missing_model)
-            pending = [record for record in pending if record["modelName"] != missing_model]
-            print(f"skip\t{missing_model}\tmodel is not deployed in AppSync yet; skipped optional records.")
-
 
 def build_steering_config_record_changes(
     client: PapyrusGraphQLAuthoringClient,
@@ -99,11 +63,33 @@ def build_record_changes_targeted_by_id(
     changes: list[dict[str, Any]] = []
     for record in records:
         current = client.get_record(record["modelName"], record["expected"]["id"])
-        changes.append(build_record_change_from_current(record["modelName"], record["expected"], current))
+        if record.get("createOnly"):
+            changes.append(create_only_change(record["modelName"], record["expected"], current))
+        else:
+            changes.append(build_record_change_from_current(record["modelName"], record["expected"], current))
     return changes
 
 
 KEPT_FEED_FIELDS = ("predictedAcceptProbability", "predictionDecidedAt", "predictionSortKey", "feedArrivalAt")
+
+
+def _feed_keys_for_new_version(next_reference: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    """A new version of a Reference is in the feed like the one it replaces: the original prediction, arrival and an editor's stars and its capture state carry over."""
+    carried = {key: current[key] for key in ("predictedAcceptProbability", "predictionDecidedAt", "feedArrivalAt") if current.get(key) is not None}
+    # The capture state carries too (the curation card and the captured text belong to the old version's id, but the newsroom reads a Reference's
+    # attachments by lineage), and with it the settled reason and the content-needed key that derive from it. A new version whose own batch writes
+    # extracted text has that state re-derived afterwards by apply_record_changes.
+    # The card copies (picture, description, site name) come from the preview, which is read by lineage, so they carry too: the new version is a card
+    # like the old one, and the public keys below are made from its own facts.
+    capture = {key: current[key] for key in ("captureState", "captureReason", "thumbnailPath", *CARD_FIELDS) if current.get(key) and not next_reference.get(key)}
+    keys = feed_keys({**next_reference, **carried, **capture})
+    if carried.get("feedArrivalAt"):
+        keys["feedArrivalAt"] = carried["feedArrivalAt"]
+        keys["predictionSortKey"] = prediction_sort_key(carried.get("predictedAcceptProbability"), carried["feedArrivalAt"], str(next_reference["id"]))
+    stars = {key: current[key] for key in ("starRating", "starRatedAt", "starRatedBy") if current.get(key) is not None}
+    if stars.get("starRating") is not None:
+        stars["starFeedKey"] = star_feed_key(next_reference.get("corpusId"), stars["starRating"])
+    return {**carried, **keys, **stars, **capture}
 
 
 def build_record_change_from_current(
@@ -119,6 +105,11 @@ def build_record_change_from_current(
                 next_expected.pop(key, None)
     if current and model_name in APPEND_ONLY_EXISTING_NOOP_MODELS:
         return {"modelName": model_name, "expected": current, "current": current, "action": "noop"}
+    if model_name == "Item":
+        # The head stage key follows the row's stage and version state (docs/plans/story-head-stage-index.md); it rides on the write this change makes.
+        next_expected.update(head_stage_fields({**(current or {}), **next_expected}))
+        if not current and next_expected.get(HEAD_STAGE_KEY_FIELD) is None:
+            next_expected.pop(HEAD_STAGE_KEY_FIELD)
     action = "create" if not current else ("noop" if records_equal_for_model(model_name, current, next_expected) else "update")
     return {
         "modelName": model_name,
@@ -130,6 +121,8 @@ def build_record_change_from_current(
 
 def records_equal_for_model(model_name: str, current: dict[str, Any], expected: dict[str, Any]) -> bool:
     ignored = {"updatedAt", "createdAt", "importedAt", "versionCreatedAt"}
+    if model_name == "Item":
+        ignored.add(HEAD_STAGE_KEY_FIELD)   # derived; a row read from a site without the field must not look changed (the backfill writes it)
     if model_name == "Reference":
         ignored |= {"newsroomFeedKey", "curationStatusUpdatedAt", *KEPT_FEED_FIELDS}
     keys = {key for key in {*current.keys(), *expected.keys()} if key not in ignored}
@@ -164,12 +157,26 @@ def build_record_changes(
         model_name = record["modelName"]
         expected = record["expected"]
         current = existing_by_model.get(model_name, {}).get(expected["id"])
-        change = build_record_change_from_current(model_name, expected, current)
+        if record.get("createOnly"):
+            change = create_only_change(model_name, expected, current)
+        else:
+            change = build_record_change_from_current(model_name, expected, current)
         if "attachmentBody" in record:
             change["attachmentBody"] = record["attachmentBody"]
         changes.append(change)
     changes.extend(prepared["postChanges"])
     return changes
+
+
+def create_only_change(
+    model_name: str,
+    expected: dict[str, Any],
+    current: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """A record that must never overwrite: created when missing, left alone when it exists."""
+    if current:
+        return {"modelName": model_name, "expected": current, "current": current, "action": "noop", "createOnly": True}
+    return {"modelName": model_name, "expected": strip_unsupported_payload_fields(model_name, dict(expected)), "current": None, "action": "create", "createOnly": True}
 
 
 def list_existing_records_by_model(
@@ -231,7 +238,13 @@ def prepare_versioned_knowledge_records(
     if not reference_records:
         return {"records": records, "postChanges": []}
 
-    existing_references = client.list_records("Reference")
+    # Only the lineages being written matter: read each one's versions through the lineage index, not the whole table.
+    written_lineages = list(dict.fromkeys(
+        str(record["expected"]["lineageId"]) for record in reference_records if record["expected"].get("lineageId")
+    ))
+    existing_references = [
+        row for lineage in written_lineages for row in client.list_by_index(REFERENCE_BY_LINEAGE, lineage)
+    ]
     current_by_lineage: dict[str, dict[str, Any]] = {}
     for reference in existing_references:
         lineage_id = reference.get("lineageId")
@@ -277,6 +290,7 @@ def prepare_versioned_knowledge_records(
             "previousVersionId": current["id"],
             "versionState": "current",
         }
+        next_reference.update(_feed_keys_for_new_version(next_reference, current))
         reference_id_map[expected["id"]] = next_reference
         changed_lineages.add(expected["lineageId"])
         prepared_records.append({**record, "expected": next_reference})
@@ -287,6 +301,9 @@ def prepare_versioned_knowledge_records(
                     "id": current["id"],
                     "versionState": "superseded",
                     "feedStateKey": None,   # a superseded version is in no feed
+                    **({"mediumFeedKey": None} if current.get("mediumFeedKey") else {}),   # nor in a medium list
+                    **({"contentNeededKey": None} if current.get("contentNeededKey") else {}),   # nor in the list of videos waiting for content
+                    **({"publicFeedKey": None, "publicOrderKey": None} if current.get("publicFeedKey") else {}),   # nor in the public index
                     "updatedAt": expected.get("updatedAt") or expected.get("importedAt"),
                 },
                 current,
@@ -313,7 +330,10 @@ def prepare_versioned_knowledge_records(
             mapped_records.append(record)
 
     if changed_lineages:
-        existing_relations = client.list_records("SemanticRelation")
+        # A superseded version's current relations start at its lineage: read them by the subject state key of each changed lineage.
+        existing_relations = [
+            row for lineage in sorted(changed_lineages) for row in client.list_by_index(RELATIONS_BY_SUBJECT_STATE, reference_state_key(lineage))
+        ]
         for relation in existing_relations:
             if relation.get("relationState") == "current" and relation.get("subjectLineageId") in changed_lineages:
                 post_changes.append(
@@ -437,12 +457,33 @@ def apply_record_changes(
         if errors:
             raise errors[0]
 
+    _sync_capture_states_after(client, owner_changes)
     for change in attachment_changes:
         # createModelAttachmentUpload/completeModelAttachmentUpload already upserts
         # the ModelAttachment record. Avoid a second direct model mutation here,
         # because ModelAttachment writes may be intentionally restricted to the
         # upload handlers.
         upload_attachment_body(client, change["expected"], change["attachmentBody"])
+
+
+def _sync_capture_states_after(client: PapyrusGraphQLAuthoringClient, changes: list[dict[str, Any]]) -> None:
+    """Older captured text is a ``ReferenceAttachment`` with role ``extracted_text`` or ``extracted_text_raw`` (``papyrus references
+    process-fetch-url-text`` / ``attach-extracted-text``, assignment registration and the text filter all apply their plans here): keep the
+    stored ``Reference.captureState`` of each Reference they belong to right. A failure to do so never fails the write that caused it."""
+    written: dict[str, list[dict[str, Any]]] = {}
+    for change in changes:
+        expected = change.get("expected") or {}
+        if (change.get("modelName") == "ReferenceAttachment" and change.get("action") in {"create", "update", "upsert"}
+                and expected.get("role") in EXTRACTED_TEXT_ROLES and expected.get("referenceId")):
+            written.setdefault(str(expected["referenceId"]), []).append(expected)
+    for reference_id, rows in sorted(written.items()):
+        try:
+            reference = client.get_record("Reference", reference_id)
+            # The index may not show a row written a moment ago, so the rows just written are passed along.
+            if reference and reference.get("versionState", "current") == "current":
+                sync_capture_state(client, reference, extra_attachments=rows)
+        except Exception as error:   # noqa: BLE001 - the text is written; the state is repaired by the next write or the backfill
+            LOGGER.warning("captureState of %s could not be updated: %s", reference_id, error)
 
 
 def _apply_change(client: PapyrusGraphQLAuthoringClient, change: dict[str, Any]) -> None:
@@ -455,6 +496,8 @@ def _apply_change(client: PapyrusGraphQLAuthoringClient, change: dict[str, Any])
         else:
             client.upsert(change["modelName"], change["expected"])
     except RuntimeError as error:
+        if action == "create" and change.get("createOnly") and _is_conditional_conflict_error(error):
+            return
         if action == "create" and _is_conditional_conflict_error(error):
             try:
                 client.update_record(change["modelName"], change["expected"])

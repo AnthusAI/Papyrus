@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8142ef09-6c95-4bcf-8ff0-63ba6ff6645d",
+  "issue_id": "PPY-3a770bec-da6a-4f49-9563-9d06809135dc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:33.572Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Replace near-identical covers on Machines on Machines",
+    "description": "Once stock images work, use the picker on the six Machines on Machines draft articles, whose figures look nearly the same, so there's a real test of variety. Keep the containment Story's diagram, which Ryan likes. Site content work, done in the newsroom.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

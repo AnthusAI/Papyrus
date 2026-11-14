@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5978b415-7cf1-483d-9aa9-79c2bd311122",
+  "title": "Console preview shows broken image for pictures saved with save-version --images on a tenant site: MediaAsset.storagePath is re-prefixed with the tenant",
+  "description": "Seen: MoM draft content-item-anonymous-data-can-still-give-you-away-the-test-what-changes-0ee6754f2905b8b0 v4: the newsroom story preview shows an empty box with a '?' where ::image{src=\"assets/<slug>/leave-average.png\"} is. Markup is correct.\n\nCause: the object is in S3 at media/assets/<slug>/leave-average.png (and .dark.png), exactly where story_images.py puts it (renditions.media_key_for_source, one-key rule, 706bb332). But the MediaAsset rows that save-version wrote (v4 and v5, ids media-<item id>-c83b7d3a46 / -c278029c70) have storagePath media/machines-on-machines/assets/<slug>/leave-average.png, a key that does not exist. Cause of the rewrite: PapyrusGraphQLAuthoringClient._prepared_payload (src/papyrus_content/graphql_authoring.py:1210) calls tenancy.tenant_stamped_payload (src/papyrus_content/tenancy.py:123-124), which for TENANT_MEDIA_PATH_MODELS (MediaAsset, PublishedMediaAsset; tenancy.py:28) re-prefixes any media/ storagePath with media/<tenant>/. 706bb332 fixed the upload key and the plan but not this stamp, so rows and objects disagree on every tenant site (MoM has a tenantId, so the CLI is in tenant mode).\n\nConsole: components/newsroom-article-editor.tsx:208-216 signs asset.storagePath from listMediaAssets (lib/newsroom-media-backend.ts imageUrl -> getUrl) and keys the result by srcPath metadata, so it signs the nonexistent key and the <img> 404s.\n\nFix: stop tenant_stamped_payload rewriting storagePath (drop the TENANT_MEDIA_PATH_MODELS branch, or make tenant_media_path a no-op for media/assets/), add a Gherkin spec that a save-version --images row on a tenant site has storagePath == media/<srcPath> and the object exists there; extend stories repair-image-paths to also re-point rows whose storagePath has the tenant prefix but whose object is at media/<srcPath> (today it only copies objects). Affected rows for this story: v4, v5 (repair without upload). Published page is NOT affected: projector/publish check use srcPath (publishing.py:_require_images_present) and renditions at /assets/responsive/assets/<slug>/ already return 200. Risk: PublishedMediaAsset copies carry the bad storagePath; reader code lib/graphql-content-repository.ts:435 and :1085 signs storagePath when present.\nRelated: PPY-a96347 (P0, same one-key rule). Not the card-image bug on fix/card-image-src (that is raw /assets/<slug>/<file> originals 404 on the CDN; here the original returns 200).",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-10T01:25:50.386786Z",
+  "updated_at": "2026-11-10T01:25:50.387329Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

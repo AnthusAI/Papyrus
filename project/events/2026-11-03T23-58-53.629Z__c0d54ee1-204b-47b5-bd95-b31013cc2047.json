@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "c0d54ee1-204b-47b5-bd95-b31013cc2047",
+  "issue_id": "PPY-6f0fc6a8-3825-431d-bb09-3f0d9ab31731",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T23:58:53.629Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "papyrus stories note fails for a signed-in user: not authorized for createMessage",
+    "description": "2026-11-03, Machines on Machines, papyrus 5.81, signed in through the CLI: stories note fails with: Not Authorized to access createMessage on type Mutation. Exit code 2. Stories create, assign-research and the stage move all worked in the same session, so the reporting trail is the piece an agent cannot write. The command prints a 'write' line even though nothing was saved. Fails with and without PAPYRUS_TENANT_ID. docs/story-reporting.md presents this as the way to record everything said during reporting. Cause not yet traced.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "cli"
+    ]
+  }
+}

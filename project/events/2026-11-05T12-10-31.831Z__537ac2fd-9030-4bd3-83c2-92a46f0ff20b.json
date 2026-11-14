@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "537ac2fd-9030-4bd3-83c2-92a46f0ff20b",
+  "issue_id": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:31.831Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Image illustration options: more ways to make a Story's cover image",
+    "description": "Ryan 2026-11-05. Story lists look monotonous: nearly every Story has a diagram in almost the same style, so readers can't tell Stories apart by their pictures, which defeats the point of having them. The diagram for the Machines on Machines containment Story works well. We need other ways to make cover images, for variety.\n\nOrder of preference for a cover: a diagram when one makes sense (usually first choice), then royalty-free stock images an editor approves, and generation only as the last choice, when neither works.\n\nShared interaction for stock and generation: the editor sees four options, and can pick one or press reload for four new ones. An optional search target (a prompt or search words) guides it; with none, the system works out what to look for from the Story. Editors can keep going in groups of four until they find one they like, or give up and move on.\n\nExisting related work: PPY-74ef89 (figures). Rules that apply: buttons and a text box, no dropdowns; Accept and Reject vocabulary; Lucide icons; no borders; marks and words, never colour alone; Gherkin specs with every behaviour change; each epic ends with a p.apyr.us docs task.",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

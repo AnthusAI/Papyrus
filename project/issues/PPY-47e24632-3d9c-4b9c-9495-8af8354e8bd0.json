@@ -1,0 +1,20 @@
+{
+  "id": "PPY-47e24632-3d9c-4b9c-9495-8af8354e8bd0",
+  "title": "Add a Reference from the newsroom: create the record and run full ingestion",
+  "description": "Ryan, 2026-11-02: the newsroom needs a user interface for submitting new References. Today the console's Paste a URL and Import a file create no Reference at all, only Cyclotron priming data. Required: an editor submits a URL or a file. That creates a real Reference record with feed keys set, so it shows at the top of Newest straight away. It then runs the same ingestion as other sources: fetch the content, extract text, summarize and generate metadata, attachments, and the Cyclotron decision. The editor can see ingestion progress and failures on the card, and the failure can be retried. A duplicate URL links to the existing Reference rather than creating a second. No difference by source afterwards. Reuse the existing email and monitor ingestion path rather than a new one. Must work signed in with no AWS login (epic PPY-2069d6). Gherkin specs; p.apyr.us docs when released; buttons and textarea, no dropdowns, Lucide icons, no borders.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T22:47:39.104531Z",
+  "updated_at": "2026-11-02T22:47:39.104583Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

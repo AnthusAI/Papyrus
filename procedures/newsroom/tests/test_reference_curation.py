@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 
-from curation_support import (ARTICLE_PARAGRAPHS, NOW, TEI, Explorer, Grobid, MemoryClient, Summarizer, article_html, page, paper_pdf,
+from curation_support import (ARTICLE_PARAGRAPHS, NOW, TEI, Explorer, Grobid, MemoryClient, Summarizer, article_html, directed_world, page, stored_attachment_bodies, paper_pdf,
                               reference, services)
 from pdf_fixtures import make_pdf
 from papyrus_content import reference_capture, reference_curation as curation
@@ -296,6 +296,72 @@ def test_the_summary_model_is_gpt_6_luna_with_the_source_voice_prompt_of_the_pro
             assert line.strip() in tac, line
 
 
+def test_the_directed_rule_and_version_are_the_same_in_the_procedure_and_the_summarizer():
+    tac = (ROOT / "procedures/newsroom/reference_summarization.tac").read_text()
+    for sentence in curation.SUMMARY_PURPOSE_RULE.strip().replace("{block}", "%s").split(". "):
+        assert sentence.strip().rstrip(".") in tac, sentence
+    assert curation.SUMMARY_DIRECTED_PROMPT_VERSION in tac and "purpose_context_text" in tac
+
+
+def _prompt_sent(request):
+    seen = {}
+
+    def transport(url, headers, payload):
+        seen.update(payload=payload)
+        return {"output_text": "Summary.", "usage": {"input_tokens": 10, "output_tokens": 5}}
+
+    made = curation.openai_summarizer("key", transport=transport)({"text": "Body.", "title": "T", "sourceUri": "https://x.test/a", **request})
+    return seen["payload"]["input"], made
+
+
+def test_a_summary_with_no_purpose_sends_exactly_the_general_prompt():
+    sent, made = _prompt_sent({})
+    assert sent == curation.SUMMARY_MESSAGE.format(tokens=curation.SUMMARY_MAX_TOKENS, title="T", source_uri="https://x.test/a", text="Body.")
+    assert made["promptVersion"] == curation.SUMMARY_PROMPT_VERSION
+
+
+def test_a_summary_with_a_purpose_leads_with_the_rule_and_keeps_the_general_prompt_after_it():
+    sent, made = _prompt_sent({"purposeContext": "Assignment: Synthetic assignment"})
+    general = curation.SUMMARY_MESSAGE.format(tokens=curation.SUMMARY_MAX_TOKENS, title="T", source_uri="https://x.test/a", text="Body.")
+    assert sent == curation.SUMMARY_PURPOSE_RULE.format(block="Assignment: Synthetic assignment") + general
+    assert "It is not evidence" in sent and made["promptVersion"] == curation.SUMMARY_DIRECTED_PROMPT_VERSION
+
+
+def test_a_reference_with_no_assignment_and_no_story_has_no_purpose():
+    ref = reference()
+    assert curation.reference_purpose_context(MemoryClient([ref]), ref) is None
+
+
+def test_the_purpose_names_the_assignment_direction_and_every_story_newest_first_without_any_body():
+    ref = reference()
+    client = MemoryClient([ref])
+    directed_world(client, ref, direction="Find other synthetic cases of the same failure.", found_by="assignment-1", stories=[
+        ("story-old", "Older headline", "Older deck", "news", "consulted", "2026-10-01T00:00:00Z"),
+        ("story-new", "Newer headline", "Newer deck", "features", "cited", "2026-11-01T00:00:00Z")])
+    with stored_attachment_bodies():
+        purpose = curation.reference_purpose_context(client, ref)
+    text = purpose["text"]
+    assert "Editor's direction: Find other synthetic cases of the same failure." in text and "Assignment: Synthetic assignment" in text
+    assert text.index("Newer headline") < text.index("Older headline")
+    assert "Newer deck" in text and "Older deck" in text and "Section features" in text and "BODY-SENTINEL" not in text
+    assert purpose["assignmentId"] == "assignment-1" and purpose["storyLineageIds"] == ["story-new", "story-old"]
+    assert len(purpose["contextHash"]) == 64
+
+
+def test_a_research_run_records_its_assignment_on_the_story_link_and_the_purpose_reads_it_back():
+    from papyrus_content.story_reporting import link_found_references_as_consulted
+
+    ref = reference()
+    client = MemoryClient([ref])
+    directed_world(client, ref, direction="Find other synthetic cases.", stories=[("story-1", "Headline", "Deck", "news", "cited", "2026-10-01T00:00:00Z")])
+    client.tables["SemanticRelation"].clear()
+    link_found_references_as_consulted(client, "story-1", [ref["id"]], actor="tester", note="Found by research assignment assignment-1", assignment_id="assignment-1")
+    relation = next(iter(client.tables["SemanticRelation"].values()))
+    assert json.loads(relation["metadata"])["assignmentId"] == "assignment-1" and "Found by" in json.loads(relation["metadata"])["note"]
+    with stored_attachment_bodies():
+        assert curation.reference_purpose_context(client, ref)["assignmentId"] == "assignment-1"
+
+
 def test_the_summarizer_posts_to_the_responses_api_with_gpt_6_luna():
     seen = {}
 
@@ -553,3 +619,62 @@ def test_the_content_actions_lambda_serves_the_correction_action():
         refused = handler.handler({**event, "arguments": {"input": json.dumps({"referenceId": "r1-v1"})}}, None)
     assert accepted["ok"] and accepted["edits"][0]["editedBy"] == "editor-one" and accepted["edits"][0]["provenance"] == "edited by editor"
     assert refused["ok"] is False and refused["errors"][0]["code"] == "correction-rejected"
+
+
+# --- a video: the cloud capture keeps the page, the worker's transcript completes it ---------------------------------------------------------
+
+WATCH_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+WATCH_PAGE = ("<html><head><title>Talk</title><meta property='og:description' content='"
+              + " ".join(["The speaker explains steerable feeds."] * 80) + "'></head><body></body></html>")   # a long description: still not the video's words
+
+
+def curated_video():
+    ref = reference(sourceUri=WATCH_URL, curationStatus="accepted", medium="video", mediumFeedKey="knowledge-corpus-site#video#accepted")
+    client = MemoryClient([ref])
+    svc = services(client, pages={WATCH_URL: page(WATCH_PAGE)})
+    curation.curate_reference(client, ref, services=svc)
+    return client, svc, ref
+
+
+def test_a_video_curated_in_the_cloud_is_thin_and_waits_in_the_content_needed_list_however_long_its_description():
+    client, _, ref = curated_video()
+    row = client.get_record("Reference", ref["id"])
+    assert client.card(ref["id"])["capture"]["textReason"] == "awaiting_transcript"
+    assert row["captureState"] == "thin" and row["contentNeededKey"] == "knowledge-corpus-site#video#needs_content#accepted"
+
+
+def test_the_workers_transcript_completes_it_through_the_capture_action_and_marks_the_summary_for_the_next_run():
+    client, svc, ref = curated_video()
+    result = correct_reference_capture(client, {"referenceId": ref["id"], "text": "Today we talk about feeds.", "assessment": "incomplete",
+                                                "note": "Transcript read from YouTube."}, {"username": "editor-1"}, now=lambda: NOW, store=svc.store)
+    row = client.get_record("Reference", ref["id"])
+    assert result["ok"] and row["captureState"] == "full" and row["contentNeededKey"] is None
+    assert svc.store.text(row, "curation-edit-0001-text") == "Today we talk about feeds."
+    assert client.card(ref["id"])["edits"][0]["editedBy"] == "editor-1"   # the signed-in caller, never a field of the request
+    assert result["summaryStale"] is True
+
+
+def test_no_transcript_is_recorded_on_the_card_and_the_reference_and_takes_the_video_out_of_the_list_but_not_out_of_to_capture():
+    client, svc, ref = curated_video()
+    result = correct_reference_capture(client, {"referenceId": ref["id"], "captureReason": "no_transcript"}, {"username": "editor-1"}, now=lambda: NOW, store=svc.store)
+    row = client.get_record("Reference", ref["id"])
+    assert result["ok"] and row["captureReason"] == "no_transcript" and row["contentNeededKey"] is None
+    assert row["captureState"] == "thin"   # not captured: the To capture queue still lists it
+    assert client.card(ref["id"])["capture"]["textReason"] == "no_transcript"
+    assert client.card(ref["id"])["capture"]["textReasonBy"] == "editor-1"
+
+
+@pytest.mark.parametrize("arguments,message", [
+    ({"captureReason": "because"}, "captureReason must be one of"),
+    ({"captureReason": "no_transcript", "text": "x", "assessment": "incomplete"}, "not both"),
+])
+def test_a_bad_reason_is_refused(arguments, message):
+    client, svc, ref = curated_video()
+    with pytest.raises(CurationError, match=message):
+        correct_reference_capture(client, {"referenceId": ref["id"], **arguments}, {"username": "e"}, store=svc.store)
+
+
+def test_a_reason_can_only_be_recorded_on_a_video():
+    client = MemoryClient([reference()])
+    with pytest.raises(CurationError, match="only be recorded on a video"):
+        correct_reference_capture(client, {"referenceId": "r1-v1", "captureReason": "no_transcript"}, {"username": "e"}, store=services(client).store)

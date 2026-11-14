@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "aa211d40-2a7c-47a3-a96e-b91682c0d111",
+  "issue_id": "PPY-56cf58a7-82e2-44f4-a81e-b64bbdcfe30c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:47.099Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Ship slice 1: release, change set, dry run and first real run",
+    "description": "1. Merge to develop, then main after green (merge-to-develop-fix-there); release.\n2. Build and upload the router zip; create a papyrus-monitoring change set (code + RouterIdeaPolicy fields); Ryan reads and executes it.\n3. Dry run on Anth.us: papyrus ideas monitor-stories --dry-run; must show >= 1 pack. Paste pack signals in the ticket.\n4. Invoke monitor-stories for hn and web-distinctive; read the per-site log lines; report ideas filed / refused, Jev lane used (generated.check.judgment), cost.\nAcceptance: ideas filed on at least Anth.us, each citing >= 2 References, all in the Idea stage.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0b40ca61-d357-47cc-9d81-6627b05f6303",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

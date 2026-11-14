@@ -58,7 +58,7 @@ const outcomes = [
     "both read as accepted, and the editor can still change either",
   ]],
   ["popover", [
-    "it explains Best bets, Newest, Unrated only, Include rated and why a rated card stays put",
+    "it explains Predictions, Newest, Reviewed, Captured and why a rated card stays put",
     "it says that age does not change the order",
   ]],
   ["cached", [
@@ -70,11 +70,11 @@ const outcomes = [
     "the answered button says Confirmed or Overturned, in words and a marker as well as colour",
     "Rejecting asks for a written reason in words and changes nothing until one is given",
     "while an answer is being saved the button says Sending, or Updating when it changes a saved answer, and never says it is unrecorded",
-    "choosing Include rated keeps the answered cards where they were",
+    "choosing Reviewed Any keeps the answered cards where they were",
   ]],
 ];
 When("the editor opens the feed at 375 and 1440 pixels", function () { this.feedResult = ""; });
-When("the editor chooses Include rated at 375 and 1440 pixels", function () { this.feedResult = ""; });
+When("the editor chooses Reviewed Any at 375 and 1440 pixels", function () { this.feedResult = ""; });
 for (const action of [
   "the editor opens each of them",
   "the editor opens the full-text one at 375 pixels and shows all of the captured text",
@@ -84,6 +84,8 @@ for (const action of [
   "the editor types a reason in the detail pane before voting, then votes",
   "the editor rejects on the card and chooses the reason in the detail pane",
   "the editor opens a card and steps through the queue with Next and Previous",
+  "the editor opens a long reference and scrolls its detail to the bottom at 375, 390 and 1440 pixels",
+  "the editor scrolls a long reference to the bottom and then selects another with a card, with Next and with Previous",
   "the editor selects five items in turn, rates two, and a background refresh changes the predictions and adds a new item",
 ]) When(action, function () { this.feedResult = ""; });
 const syncOutcomes = [
@@ -119,6 +121,15 @@ const syncOutcomes = [
     "the column count stays fixed while the detail pane is open: from the tablet width up the pane appears beside the grid with the first selection and then holds its place, so moving between items moves nothing, while below that the detail is a sheet",
     'the feed order is taken once per visit, so a re-rank never happens, and the new item waits behind a quiet "1 new item: show" pill until the editor shows it',
   ]],
+  ["detail_bar_fixed", [
+    "the Previous and Next buttons are still in view, above the tab bar on a phone and at the bottom of the detail pane on a desktop",
+    "the bar is in the same place at the top, part way down and at the bottom of the detail",
+    "the last of the detail's content ends above the bar, so nothing is covered by it",
+  ]],
+  ["detail_opens_at_top", [
+    "each newly selected reference is scrolled to the top and its headline is in view above the bar, on a phone and on a desktop",
+    "a refresh of the reference that stays open does not move its scroll position",
+  ]],
   ["previous_next_selects", [
     "the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a thick ring drawn outside it on every side, which takes no space in the grid and is never cut off at the feed's edge",
     "opening a card from the grid selects it too",
@@ -146,16 +157,23 @@ for (const [name, texts] of outcomes) {
 
 // "the editor opens the feed at 375 and 1440 pixels" opens every scenario that uses it; the outcomes below each run their own browser scenario.
 When("the feed is ranked", { timeout: 60_000 }, async function () { this.feedResult = await ranking(); });
-Then("an old strong Accept still ranks above a new weaker one, and an old Reject never rises above a new Accept", function () { assert.match(this.feedResult, /Best bets is the Cyclotron's own confidence: age never changes it/); });
-Then("ties go to the newest item and then to a stable order", function () { assert.match(this.feedResult, /Ties in Best bets go to the newest item/); });
+Then("an old strong Accept still ranks above a new weaker one, and an old Reject never rises above a new Accept", function () { assert.match(this.feedResult, /Predictions is the Cyclotron's own confidence: age never changes it/); });
+Then("ties go to the newest item and then to a stable order", function () { assert.match(this.feedResult, /Ties in Predictions go to the newest item/); });
 Then("a card rated this visit does not move any other card", function () { assert.match(this.feedResult, /The feed order is taken once and kept, in both sorts/); });
 Then("it stays in the one list where its original confidence puts it, and last when sorted by Newest, with no Earlier section and no tabs", async function () { assert.ok((await browser("aged")).includes("passed: aged")); });
 Then("an old card can be rated and stays where it is", async function () { assert.ok((await browser("aged")).includes("passed: aged")); });
-Then("Best bets and Unrated only are pressed, and each choice is a pair of buttons with an icon and words", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+Then("Predictions and Reviewed No are pressed, and each choice is a pair of buttons with an icon and words", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("choosing Newest orders the cards by arrival, newest first, whatever the predictions say", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("the answered cards join the same list in the active sort, each showing its recorded vote", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
-Then("the page remembers Newest and Include rated for this browser, with no tabs on the page", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
-When("the editor chooses Include rated and reloads the page", function () { this.feedResult = ""; });
+Then("the page remembers Newest and Reviewed Any for this browser, with no tabs on the page", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+When("the editor chooses Reviewed Yes", function () { this.feedResult = ""; });
+for (const text of [
+  "only the answered cards are listed, in the active sort, each showing its recorded vote, with no large lead card",
+  "the answered cards are read from the rated partitions alone, a page at a time, and a vote changed there leaves the card where it is",
+  "a site with nothing rated yet says \"Nothing reviewed yet\" in plain words, and the page remembers Reviewed Yes for this browser",
+]) Then(text, async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+Then("Predictions there goes by the Cyclotron's original confidence and Newest by arrival, never by the editor's answer", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+When("the editor chooses Reviewed Any and reloads the page", function () { this.feedResult = ""; });
 Then("the pictures are lazy, in a fixed frame and requested with no referrer", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("a missing or failing picture shows a soft gradient tile with the source's mark and name", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("the page header, the sort and show buttons and card skeletons are on screen and no text says it is checking credentials", async function () { assert.ok((await browser("skeleton")).includes("passed: skeleton")); });
@@ -184,9 +202,62 @@ for (const text of [
 
 // Paging: scripts/test-newsroom-all-pages.ts drives the loader the feed uses with three overlapping pages and a looping token.
 Given("a newsroom with more References than one page of the backend's list holds", function () { this.pagingResult = ""; });
-When("the editor opens the References feed", async function () { this.pagingResult = await run("scripts/test-newsroom-all-pages.ts"); });
+When("the editor opens the List view", async function () { this.pagingResult = await run("scripts/test-newsroom-all-pages.ts"); });
 for (const then of [
-  "the feed reads page after page until the backend says there are no more",
+  "the list reads page after page until the backend says there are no more",
   "each Reference appears once even when two pages overlap",
   "a page token that repeats stops the read with a message instead of looping",
 ]) Then(then, function () { assert.match(this.pagingResult, /newsroom all-pages: ok/); });
+
+// Predictions per visible Reference: the browser scenario "predictions" (390 and 1440) and scripts/test-reference-predictions.ts.
+const predictionUnit = async () => (await promisify(execFile)(process.execPath, ["--import", "tsx", "--test", "scripts/test-reference-predictions.ts"], { cwd: root, maxBuffer: 8 * 1024 * 1024 })).stdout;
+for (const given of [
+  "a newsroom with 60 References and 20,000 relation records, more than any fixed page budget could read",
+  "a feed where the prediction read for one Reference is refused",
+  "a feed where every prediction read is refused",
+  "a newsroom with about 16,000 relations held by subject",
+]) Given(given, function () { this.predictionResult = ""; });
+When("the editor opens the feed", { timeout: 300_000 }, async function () { this.predictionResult = await browser("predictions"); });
+When("the feed has loaded", { timeout: 300_000 }, async function () { this.predictionResult = await browser("predictions"); });
+When("the feed windows its References and reads their predictions", { timeout: 120_000 }, async function () { this.predictionResult = await predictionUnit(); });
+for (const then of [
+  "predictions are read for the 24 References on the first page, one read each, and for no other Reference",
+  "every one of those cards shows its prediction and confidence",
+  "nothing says that predictions are unavailable or that the activity feed is incomplete",
+  "scrolling to the end reads the next page's predictions only, and its cards join after the first page without moving it",
+  "that card says Prediction unavailable and offers Retry, in words and an icon",
+  "every other card shows its prediction, and no message about predictions appears for the page",
+  "choosing Retry reads that one prediction again and the card shows it",
+  "every Reference still shows its title, source, age and its Accept and Reject buttons",
+  "each card says Prediction unavailable with Retry, and the feed is never left as grey skeletons",
+  "the order is the server's own, newest first, because nothing can rank them yet",
+]) Then(then, function () { assert.match(this.predictionResult, /Reference feed scenario passed: predictions/); });
+for (const then of [
+  "only the shown References are read, at most a few reads are in flight at once, and one failing read fails only its own Reference",
+  "the window is the newest pages of unanswered items plus the answered ones that arrived since, and it only ever grows",
+  "a later page is ranked after everything already placed, while a new arrival waits behind the new-items pill",
+]) Then(then, function () { assert.match(this.predictionResult, /(^|\n)ℹ fail 0/); });
+
+// Indexed paging, with a synthetic site of 7,000 References in three corpora: the browser scenarios "indexed", "indexedStates" and "sources".
+Given("a synthetic site of 7,000 References in three corpora, behind a backend that logs every request", function () { this.indexedResult = ""; });
+When("the editor opens the References feed at 375 and 1440 pixels", { timeout: 300_000 }, async function () { this.indexedResult = await browser("indexed"); });
+When("the editor opens the References feed and waits without scrolling, then scrolls to the end", { timeout: 300_000 }, async function () { this.indexedResult = await browser("indexed"); });
+When("the first read is slow, empty, or refused once", { timeout: 300_000 }, async function () { this.indexedResult = await browser("indexedStates"); });
+When("References that arrived by a monitor, a manual Add and email are listed under Newest", { timeout: 300_000 }, async function () { this.indexedResult = await browser("sources"); });
+for (const then of [
+  "the requests are one read of the corpora, one indexed page of 24 for each corpus, and one batch of attachments for the 24 cards, and no other",
+  "no request walks a whole table or the whole attachment table, and none asks for fewer than a page",
+  "the first 24 cards are the top of the merged order of every corpus, highest original confidence first",
+  "no further request is made while the page is not scrolled",
+  "scrolling to the end loads the next 24 cards by itself, with attachments for those 24 cards only and none read twice",
+  "one scroll costs at most one more round of indexed reads",
+]) Then(then, function () { assert.match(this.indexedResult, /Reference feed scenario passed: indexed\b/); });
+for (const then of [
+  "a slow read shows card skeletons and never the empty message",
+  "an empty site shows the empty message and no skeleton",
+  "a refused read shows what went wrong in words with a Retry button, never a skeleton that does not end, and Retry reads again and shows the cards",
+]) Then(then, function () { assert.match(this.indexedResult, /Reference feed scenario passed: indexedStates/); });
+for (const then of [
+  "they appear in one list in arrival order, newest first",
+  "each has the same Accept and Reject controls whatever its source",
+]) Then(then, function () { assert.match(this.indexedResult, /Reference feed scenario passed: sources/); });

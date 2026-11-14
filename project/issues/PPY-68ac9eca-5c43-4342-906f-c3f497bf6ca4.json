@@ -1,0 +1,20 @@
+{
+  "id": "PPY-68ac9eca-5c43-4342-906f-c3f497bf6ca4",
+  "title": "The SES account stack also creates a configuration set and event topic",
+  "description": "The Humorus site.json uses email mode existing with configurationSet and eventTopicName that nothing creates yet. Extend infra/account/stacks/ses.yaml with an AWS::SES::ConfigurationSet and the SNS topic for events (names as parameters), so newsletter sending works without a managed second identity.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T04:14:47.668217Z",
+  "updated_at": "2026-11-12T04:14:47.668255Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

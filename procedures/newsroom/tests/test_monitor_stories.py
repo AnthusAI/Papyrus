@@ -25,7 +25,8 @@ from papyrus import cli as papyrus_cli  # noqa: E402
 from papyrus_content import proposals_commands  # noqa: E402
 from papyrus_content.link_exploration import Exploration  # noqa: E402
 from papyrus_content.ideas import commands, monitor_stories as stories  # noqa: E402
-from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
+from papyrus_content.ideas.store import JsonStore  # noqa: E402
+from fake_idea_store import FakeIdeaStore  # noqa: E402
 
 SITE = "example-site"
 PAGE_TEXT = "The tool, released on 2026-10-20, reads a draft, finds each claim and links it to the source page it came from. It is written in Rust and has 42 contributors."
@@ -71,6 +72,14 @@ class MonitorClient(FakeClient):
             return list(self.automations)
         return list(self.items) if model == "Item" else super().list_records(model)
 
+    def list_by_index(self, index, key):
+        if index == "itemsByStage":
+            return [row for row in self.items if row.get("stage") == key]
+        return super().list_by_index(index, key)
+
+    def get_records_by_id(self, model, ids):
+        return {row["id"]: row for row in self.items if row["id"] in ids}
+
     def list_semantic_relations_by_object_state(self, key):
         self.calls.append(("incoming", key))
         return self.incoming.get(key.split("#")[1], [])
@@ -103,33 +112,56 @@ SUBJECTS = [("Foo", "claims", "sources"), ("Quill", "quotations", "archives"), (
             ("Orchid", "citations", "journals"), ("Basalt", "headlines", "bulletins"), ("Cobalt", "figures", "registries"), ("Juniper", "timelines", "ledgers")]
 
 
-def good_story(url, headline=None, cites=("I1",), number=1):
-    name, thing, place = SUBJECTS[(number - 1) % len(SUBJECTS)]
+REASON = "Claim checking matters to our sourcing coverage."
+VERDICT_ADDS = {"verdict": "adds", "claim": "It joins what the tool does to what the publication needs.", "repeats_itself": False, "exposes_process": False, "reason": "It makes a claim the source does not."}
 
-    def sentence(text):
-        return {"text": text, "cites": list(cites)}
+
+def good_story(url, headline=None, cites=("I1",), number=1):
+    """A draft that passes the citation rules and the standard's rules: the dek and one body sentence rest on the accept reason (E1) as well as the source."""
+    name, thing, place = SUBJECTS[(number - 1) % len(SUBJECTS)]
+    with_reason = (*cites, "E1") if cites else ()
+
+    def sentence(text, handles=cites):
+        return {"text": text, "cites": list(handles)}
 
     return {
+        "point": f"{name} gives claim checking in sourcing a tool for {thing}.",
         "headline": sentence(headline or f"{name} checks {thing} against {place}"),
-        "dek": sentence(f"{name} links each of the {thing} in a draft to the {place} page it came from."),
+        "dek": sentence(f"{name} links each of the {thing} in a draft to the {place} page it came from, which bears on claim checking.", with_reason),
         "section": "Tools",
         "paragraphs": [{"sentences": [
-            sentence(f"{name} is an open tool that checks {thing} against their {place}."),
+            sentence(f"{name} is an open tool that checks {thing} against their {place}, work that bears on claim checking and sourcing.", with_reason),
             sentence("It was released on 2026-10-20 and has 42 contributors."),
         ]}],
     }
 
 
-class StoryModel(FakeModel):
-    """Answers each request with the story its source URL maps to (the default story otherwise) and records the requests."""
+def is_point_check(payload):
+    return payload["instructions"].startswith("You are a sceptical editor")
 
-    def __init__(self, by_url=None, default=None, **kwargs) -> None:
+
+class StoryModel(FakeModel):
+    """Answers each drafting request with the story its source URL maps to (the default story otherwise), each point check with ``verdict`` (it adds
+    something, unless the test says otherwise), and records the requests. ``drafting`` holds the drafting requests and ``checks`` the point checks."""
+
+    def __init__(self, by_url=None, default=None, verdict=None, **kwargs) -> None:
         super().__init__([], **kwargs)
         self.by_url = by_url or {}
         self.default = default
+        self.verdict = verdict or VERDICT_ADDS
+
+    @property
+    def drafting(self):
+        return [payload for payload in self.requests if not is_point_check(payload)]
+
+    @property
+    def checks(self):
+        return [payload for payload in self.requests if is_point_check(payload)]
 
     def __call__(self, url, headers, payload):
         self.requests.append(payload)
+        if is_point_check(payload):
+            return {"status": "completed", "output_text": json.dumps(self.verdict), "usage": self.usage}
         source = json.loads(payload["input"])["source"]
         number = int(re.search(r"example(\d+)\.org", source["url"]).group(1))
         story = self.by_url.get(source["url"], self.default or good_story(source["url"], number=number))
@@ -144,9 +176,17 @@ def context():
     return {"mission": "Explain how AI systems fail.", "policy": "Prefer primary sources.", "sections": [{"id": "Analysis", "title": "Analysis"}, {"id": "Tools", "title": "Tools"}], "stories": []}
 
 
-def draft(client, model, *, fetch=None, limit=3, dry_run=False, json_store=None, proposal_store=None, **options):
+def with_editors_reasons(client):
+    """Every accepted Reference has an editor's reason for the idea to rest on (the fixtures' own reasons are not a person's)."""
+    for row in client.references:
+        if row.get("curationStatus") == "accepted" and row.get("curationActorKind") != "human":
+            row.update(curationActorKind="human", curationStatusReason=REASON)
+
+
+def draft(client, model, *, fetch=None, limit=3, dry_run=False, json_store=None, idea_store=None, **options):
+    with_editors_reasons(client)   # these tests are about reading, ranking, checking and filing; the standard has its own tests (test_idea_more_than_summary.py)
     return stories.draft_monitor_stories(
-        client=client, site=SITE, context=context(), json_store=json_store, transport=model, proposal_store=proposal_store, review_client=client,
+        client=client, site=SITE, context=context(), json_store=json_store, transport=model, idea_store=idea_store, review_client=client,
         limit=limit, dry_run=dry_run, now=NOW, fetch=fetch or pages(1, 2, 3, 4), **options,
     )
 
@@ -162,12 +202,12 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(by_id[rows[0]["lineageId"]].verdict["score"], 0.5)
         self.assertEqual(counts["inWindow"], 2)
 
-    def test_a_reference_no_monitor_delivered_is_not_a_monitored_item(self) -> None:
+    def test_an_accepted_reference_no_monitor_delivered_is_still_a_candidate(self) -> None:
         rows, client = world(2)
         del client.references[1]["discoveredByMonitorId"]
         items, counts = stories.collect_monitored_items(client, site=SITE, since="7d", now=NOW)
-        self.assertEqual([item.lineage_id for item in items], [rows[0]["lineageId"]])
-        self.assertEqual(counts["notMonitored"], 1)
+        self.assertEqual(sorted(item.lineage_id for item in items), sorted(row["lineageId"] for row in rows))
+        self.assertIsNone({item.lineage_id: item for item in items}[rows[1]["lineageId"]].monitor_id)
 
     def test_rejected_references_are_not_read_and_a_given_window_leaves_out_older_ones(self) -> None:
         rows, client = world(3)
@@ -296,7 +336,7 @@ class DraftingTests(unittest.TestCase):
         rows, client = world(4, verdicts={1: 0.5, 2: 0.9, 3: 0.7, 4: 0.6})
         model = StoryModel()
         run = draft(client, model, limit=2)
-        self.assertEqual(len(model.requests), 2)
+        self.assertEqual((len(model.drafting), len(model.checks)), (2, 2))   # one drafting call and one point check for each
         self.assertEqual([entry["referenceId"] for entry in run["ranking"][:2]], [rows[1]["id"], rows[2]["id"]])
         self.assertEqual(len(run["drafts"]), 2)
         for record in run["drafts"]:
@@ -306,6 +346,14 @@ class DraftingTests(unittest.TestCase):
             self.assertEqual(record["monitorId"], "hn")
             self.assertIn("hn monitor", record["body"])
             self.assertEqual(record["evidence"]["source"], f"hn monitor: {record['citedItems'][0]['url']}")
+
+    def test_an_ordered_candidate_list_replaces_the_ranking_and_leaves_out_the_rest(self) -> None:
+        rows, client = world(4, verdicts={1: 0.5, 2: 0.9, 3: 0.7, 4: 0.6})
+        model = StoryModel()
+        order = [rows[0]["lineageId"], rows[3]["lineageId"]]
+        run = draft(client, model, limit=None, ordered_candidates=order)
+        self.assertEqual([entry["referenceId"] for entry in run["ranking"]], [rows[0]["id"], rows[3]["id"]])
+        self.assertEqual(len(run["drafts"]), 2)
 
     def test_the_model_is_shown_the_source_and_the_page_text_and_not_the_verdict(self) -> None:
         rows, client = world(1, details={1: {"points": 120, "author": "pat", "summary": "A Show item."}})
@@ -336,7 +384,7 @@ class DraftingTests(unittest.TestCase):
         _, client = world(2)
         model = StoryModel()
         run = draft(client, model, fetch=pages(2))
-        self.assertEqual(len(model.requests), 1)
+        self.assertEqual(len(model.drafting), 1)
         self.assertEqual([entry["reason"] for entry in run["skipped"]], ["no_source_text"])
         self.assertEqual(len(run["drafts"]), 1)
 
@@ -370,9 +418,9 @@ class DraftingTests(unittest.TestCase):
         rows, client = world(3, verdicts={1: 0.9, 2: 0.8, 3: 0.7})
         bad = good_story("", cites=())
         model = StoryModel(by_url={rows[0]["sourceUri"]: bad})
-        store = ProposalStore(client)
-        run = draft(client, model, limit=1, proposal_store=store)
-        self.assertEqual(len(model.requests), 2)
+        store = FakeIdeaStore(client)
+        run = draft(client, model, limit=1, idea_store=store)
+        self.assertEqual((len(model.drafting), len(model.checks)), (2, 1))   # the point check is asked only about the draft that passed the citation rules
         self.assertEqual([entry["reason"] for entry in run["invalid"]], ["citation_check_failed"])
         self.assertEqual(run["invalid"][0]["referenceId"], rows[0]["id"])
         self.assertEqual(len(client.filed), 1)
@@ -417,7 +465,8 @@ class DraftingTests(unittest.TestCase):
     def test_a_near_duplicate_of_an_existing_story_is_dropped(self) -> None:
         _, client = world(1)
         ctx = context()
-        ctx["stories"] = [{"id": "s1", "title": "Foo checks claims against sources", "summary": "Foo links each of the claims in a draft to the sources page it came from."}]
+        with_editors_reasons(client)
+        ctx["stories"] = [{"id": "s1", "title": "Foo checks claims against sources", "summary": "Foo links each of the claims in a draft to the sources page it came from, which bears on claim checking."}]
         run = stories.draft_monitor_stories(client=client, site=SITE, context=ctx, json_store=None, transport=StoryModel(), now=NOW, fetch=pages(1))
         self.assertEqual(run["drafts"], [])
         self.assertEqual(run["duplicates"][0]["reason"], "near_duplicate")
@@ -448,31 +497,31 @@ class DraftingTests(unittest.TestCase):
     def test_the_usage_of_every_call_is_recorded_for_the_ledger(self) -> None:
         _, client = world(2)
         run = draft(client, StoryModel(input_tokens=2000, output_tokens=300))
-        self.assertEqual(run["modelCalls"], [{"model": "gpt-6-luna", "promptTokens": 2000, "completionTokens": 300, "cachedTokens": 0}] * 2)
-        self.assertEqual((run["usage"]["calls"], run["usage"]["inputTokens"], run["usage"]["outputTokens"]), (2, 4000, 600))
+        self.assertEqual(run["modelCalls"], [{"model": "gpt-6-luna", "promptTokens": 2000, "completionTokens": 300, "cachedTokens": 0}] * 4)   # a drafting call and a point check for each of two
+        self.assertEqual((run["usage"]["calls"], run["usage"]["inputTokens"], run["usage"]["outputTokens"]), (4, 8000, 1200))
 
 
 class FilingTests(unittest.TestCase):
     def test_a_story_is_filed_as_a_story_draft_proposal_naming_the_monitor(self) -> None:
         rows, client = world(1, monitor="huggingface")
-        run = draft(client, StoryModel(), proposal_store=ProposalStore(client))
+        run = draft(client, StoryModel(), idea_store=FakeIdeaStore(client))
         filed = client.filed[0]
         self.assertEqual(filed["kind"], "story_draft")
         self.assertEqual(filed["title"], "Foo checks claims against sources")
         self.assertEqual(json.loads(filed["targets"]), [{"type": "entity", "id": f"reference:{rows[0]['lineageId']}"}])
-        self.assertEqual(json.loads(filed["evidence"]), {"signals": 1, "source": f"huggingface monitor: {rows[0]['sourceUri']}"})
+        self.assertEqual(json.loads(filed["evidence"]), {"signals": 1, "source": f"huggingface monitor: {rows[0]['sourceUri']}", "connections": ["acceptReason"], "minimumStandard": "more-than-summary"})
         self.assertIn("## Source", filed["body"])
         self.assertIn(rows[0]["sourceUri"], filed["body"])
-        self.assertEqual(run["drafts"][0]["proposalId"], filed["id"])
+        self.assertEqual(run["drafts"][0]["itemLineageId"], filed["id"])
         self.assertEqual(run["review"]["status"], "requested")
 
     def test_a_second_run_never_drafts_the_same_reference_again(self) -> None:
         _, client = world(2)
-        store = ProposalStore(client)
+        store = FakeIdeaStore(client)
         with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
-            first = draft(client, StoryModel(), proposal_store=store)
+            first = draft(client, StoryModel(), idea_store=store)
             model = StoryModel()
-            second = draft(client, model, proposal_store=store)
+            second = draft(client, model, idea_store=store)
         self.assertEqual(len(first["drafts"]), 2)
         self.assertEqual(model.requests, [])
         self.assertEqual((second["inputs"]["alreadyDrafted"], second["drafts"]), (2, []))
@@ -480,12 +529,12 @@ class FilingTests(unittest.TestCase):
 
     def test_a_declined_draft_is_not_drafted_again(self) -> None:
         _, client = world(1)
-        store = ProposalStore(client)
+        store = FakeIdeaStore(client)
         with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
-            draft(client, StoryModel(), proposal_store=store)
+            draft(client, StoryModel(), idea_store=store)
             client.filed[0]["state"] = "declined"
             model = StoryModel()
-            draft(client, model, proposal_store=store)
+            draft(client, model, idea_store=store)
         self.assertEqual(model.requests, [])
 
     def test_a_json_store_run_is_idempotent_too(self) -> None:
@@ -504,17 +553,17 @@ class FilingTests(unittest.TestCase):
         model = StoryModel()
         run = draft(client, model)
         self.assertEqual(run["inputs"]["promoted"], 1)
-        self.assertEqual(len(model.requests), 1)
+        self.assertEqual(len(model.drafting), 1)
         self.assertNotIn(rows[0]["id"], [entry["referenceId"] for entry in run["ranking"]])
 
     def test_a_dry_run_asks_the_model_but_files_stores_and_requests_nothing(self) -> None:
         _, client = world(1)
         with tempfile.TemporaryDirectory() as directory:
             model = StoryModel()
-            run = draft(client, model, dry_run=True, json_store=JsonStore(Path(directory)), proposal_store=ProposalStore(client))
+            run = draft(client, model, dry_run=True, json_store=JsonStore(Path(directory)), idea_store=FakeIdeaStore(client))
             self.assertFalse(Path(directory, "ideas").exists())
             self.assertFalse(Path(directory, "runs").exists())
-        self.assertEqual(len(model.requests), 1)
+        self.assertEqual(len(model.drafting), 1)
         self.assertEqual((len(run["drafts"]), run["ideasCreated"], run["review"]["requested"]), (1, 0, False))
         self.assertEqual((client.filed, client.reviews), ([], {}))
 
@@ -528,7 +577,9 @@ class FilingTests(unittest.TestCase):
 class CommandTests(unittest.TestCase):
     def run_cli(self, argv, client, model, environment=None):
         out, err = io.StringIO(), io.StringIO()
+        with_editors_reasons(client)
         with mock.patch.object(commands, "create_authoring_client", return_value=(client, {})), \
+             mock.patch.object(commands, "_idea_store", side_effect=lambda name, held: FakeIdeaStore(held) if name == "items" else None), \
              mock.patch.object(commands.synthesis, "openai_transport", return_value=model), \
              mock.patch.object(commands.monitor_stories, "fetch_source", side_effect=lambda url: PAGE), \
              mock.patch.object(commands.monitor_stories, "explore_item", side_effect=lambda item: Exploration(
@@ -544,7 +595,7 @@ class CommandTests(unittest.TestCase):
     def test_a_dry_run_prints_the_ranked_drafts_without_filing(self) -> None:
         _, client = world(3)
         with tempfile.TemporaryDirectory() as directory:
-            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "2", "--store", "proposals", "--dry-run", "--out", directory], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "2", "--store", "items", "--dry-run", "--single-only", "--out", directory], client, StoryModel())
             self.assertFalse(Path(directory, "runs").exists())
         self.assertEqual(code, 0, output)
         self.assertIn("would file 2", output)
@@ -556,7 +607,7 @@ class CommandTests(unittest.TestCase):
         _, client = world(3)
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.md"
-            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "1", "--store", "proposals", "--out", directory, "--report", str(report)], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "1", "--store", "items", "--single-only", "--out", directory, "--report", str(report)], client, StoryModel())
             self.assertEqual(code, 0, output)
             self.assertTrue(report.read_text().startswith("# Monitor story drafts"))
         self.assertIn("filed 1", output)
@@ -598,7 +649,7 @@ class ExcludedHostAndAutomationTests(unittest.TestCase):
         items, counts = stories.collect_monitored_items(client, site=SITE, now=NOW, excluded_hosts=["ipwatchdog.com"])
         self.assertEqual(sorted(item.lineage_id for item in items), sorted(row["lineageId"] for row in rows[1:]))
         self.assertEqual(counts["excludedHost"], 1)
-        self.assertEqual(counts["notMonitored"], 0)
+        self.assertEqual(counts["noSourceUri"], 0)
         self.assertNotIn(("incoming", f"reference#{rows[0]['lineageId']}"), [call for call in client.calls if call[0] == "incoming"])
 
     def test_a_run_never_drafts_from_an_excluded_host(self) -> None:

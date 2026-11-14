@@ -5,36 +5,49 @@
  *   reference          a pending Reference                          reads the Reference, the Cyclotron's decision on it, its preview
  *   incomplete_capture a pending Reference whose captured text is   reads the same, plus the Reference's capture status (the
  *                      missing or cut off                            `curation` card, else the extracted-text attachments)
- *   draft              one AI draft in an open draft review          reads the review request and the Proposal (headline, dek, sources)
+ *   capture_needed     an accepted Reference whose content we   reads the Reference (lib/capture-needed.ts reads the star and
+ *                      could not collect (not running)          rated partitions), its preview and capture status (the reason)
+ *   idea_batch         one batch of generated story ideas            reads the review request and the titles of the ideas it names;
+ *                      with an idea still in the Idea column         the ideas are decided on the Stories board, not here
  *   stage_review       an open hard gate or soft review that is      reads the review request (reason, ask, deadline, subject) and the
- *                      not about drafts                              subject story's title and excerpt
+ *                      not about ideas                               subject story's title and excerpt
  *   flag               an open flag                                  reads the review request
  *   held_email         an email submission held for review           reads the monitoring email summary (subject, sender, verdicts)
+ *   link_suggestion    a vector-suggested link between two          reads the suggested relation (its two ends and close match);
+ *                      References, or a Reference and a concept     ranked by the close match, most likely first
  *   concept_proposal   a proposed taxonomy concept or reader         STUB: typed, returns nothing until those sources reach the page
  *                      proposal
  */
 import type { ReferenceRecord } from "./category-repository";
+import { getNewsroomNavHref } from "./newsroom-nav";
 import type { MonitoringEmailSummary } from "./monitoring-overview";
-import { buildNotificationItems, draftPicture, requestSource, type DraftItem, type RequestItem } from "./notification-feed";
+import { buildNotificationItems, requestSource, type RequestItem } from "./notification-feed";
 import { referenceDisplayTitle, referenceLineageId } from "./newsroom-references";
 import { normalizeReferenceCurationStatus } from "./reference-policy";
 import { dekAddsInformation, referenceDek, referenceSourceHost, type ReferencePreview } from "./reference-preview";
 import { referenceArrivalTime, referenceDisplayTime } from "./reference-feed-ranking";
-import type { CaptureStatus } from "./reference-capture";
+import { captureReasonWords, type CaptureStatus } from "./reference-capture";
+import { starsOf } from "./reference-policy";
 import type { RelevanceDecisionView } from "./relevance-decisions";
-import type { DraftView } from "./review-drafts";
-import { nextText, type ReviewRequest } from "./review-requests";
+import { closeMatchText, type RelatedItem } from "./reference-links";
+import type { LinkSuggestion } from "./link-suggestions";
+import { ideaIdsOf, ideasBoardHref, nextText, type ReviewRequest } from "./review-requests";
 import { predictionOf, uncertaintyOf, type NeedsMeCounts, type NeedsMeDecisionState, type NeedsMeItem } from "./needs-me-ranking";
 
 export type NeedsMePayload =
   | { kind: "reference"; reference: ReferenceRecord; lineageId: string; decision: RelevanceDecisionView | undefined; preview: ReferencePreview | undefined; capture: CaptureStatus | undefined; displayTime: number | null }
-  | { kind: "draft"; item: DraftItem; loading: boolean }
+  | { kind: "ideas"; request: ReviewRequest; ideas: IdeaListing[]; boardHref: string }
   | { kind: "request"; request: ReviewRequest; storyTitle: string | null; excerpt: string | null; storyDeleted: boolean }
   | { kind: "email"; summary: MonitoringEmailSummary }
-  | { kind: "concept"; row: ConceptProposalRow };
+  | { kind: "concept"; row: ConceptProposalRow }
+  | { kind: "link"; suggestion: LinkSuggestion; note: string | null };
+
+/** One idea of a batch, as the card lists it: its title (the id until the title is read) and the stage it is in. */
+export type IdeaListing = { id: string; title: string; stage: string | null; href: string };
 
 export type NeedsMeEntry = NeedsMeItem<NeedsMePayload>;
 
+const IDEA_BATCH_DEK = "They wait in the Idea column of the Stories board.";
 const ACCEPT_WORD = { accept: "Accept", reject: "Reject" } as const;
 
 function timeOf(value: string | null | undefined): number | null {
@@ -113,32 +126,74 @@ export function referenceItems(input: ReferenceSources): NeedsMeEntry[] {
   return items;
 }
 
-// --- drafts, stories, flags -------------------------------------------------------------------------------------
+// --- accepted References nobody could capture -----------------------------------------------------------------------
+
+export const CAPTURE_NEEDED_WORDS = "We could not collect this. Upload a PDF or paste the text.";
+
+/**
+ * Accepted References whose content we could not collect, in the order they were read (stars, then newest; `readCaptureNeeded`). The item is open as a
+ * task: the Reference is already accepted, so its Accept shows as given. Ranked by stars within the type (importance 1 + stars, so more stars
+ * score higher; the feed's tie-break is newest first); the unstarred follow every starred one. A Reference captured in this visit is not listed.
+ */
+export function captureNeededItems(input: { references: readonly ReferenceRecord[]; previews: ReadonlyMap<string, ReferencePreview>; captures: ReadonlyMap<string, CaptureStatus> | undefined; capturedNow?: ReadonlySet<string> }): NeedsMeEntry[] {
+  const items: NeedsMeEntry[] = [];
+  for (const reference of input.references) {
+    const lineageId = referenceLineageId(reference);
+    if (input.capturedNow?.has(lineageId)) continue;
+    const preview = input.previews.get(lineageId);
+    const capture = input.captures?.get(lineageId);
+    const why = captureReasonWords(capture?.reason);
+    const host = referenceSourceHost(reference);
+    items.push({
+      type: "capture_needed",
+      id: `capture#${lineageId}`,
+      title: referenceDisplayTitle(reference),
+      dek: why ? `${CAPTURE_NEEDED_WORDS} ${why}` : CAPTURE_NEEDED_WORDS,
+      image: preview?.imageUrl ?? null,
+      source: preview?.siteName ?? host ?? "Unknown source",
+      host,
+      createdAt: referenceArrivalTime(reference) ?? referenceDisplayTime(reference),
+      importance: 1 + starsOf(reference),
+      uncertainty: uncertaintyOf(undefined),
+      decisionState: "open",
+      defaultOutcome: "If you leave it, the Reference stays accepted with only its address. Nothing can be written from its content.",
+      hardGate: false,
+      askedForReview: true,
+      payload: { kind: "reference", reference, lineageId, decision: undefined, preview, capture, displayTime: referenceDisplayTime(reference) },
+    });
+  }
+  return items;
+}
+
+// --- idea batches, stories, flags -------------------------------------------------------------------------------------
 
 function choiceState(choice: "accept" | "reject" | null | undefined): NeedsMeDecisionState {
   return choice === "accept" ? "accepted" : choice === "reject" ? "rejected" : "open";
 }
 
-export function draftItem(item: DraftItem, bySource: ReadonlyMap<string, ReferencePreview>): NeedsMeEntry {
-  const { view, request } = item;
-  const picture = draftPicture(view, bySource);
-  const link = request.links.find((entry) => entry.id === item.draftId);
+/** A batch of generated story ideas: one item that points at the Idea column. It is never decided here, so it has no Accept or Reject. */
+export function ideaBatchItem(item: RequestItem, context: { titles: Readonly<Record<string, string>>; stages: Readonly<Record<string, string>>; demo: boolean }): NeedsMeEntry {
+  const { request } = item;
+  const ideas = ideaIdsOf(request).map((id) => ({
+    id, title: context.titles[id] ?? request.links.find((link) => link.id === id)?.label ?? id, stage: context.stages[id] ?? null,
+    href: getNewsroomNavHref(`/newsroom/articles/${encodeURIComponent(id)}`, context.demo),
+  }));
   return {
-    type: "draft",
-    id: item.key,
-    title: view?.headline ?? link?.label ?? "Draft",
-    dek: view ? view.dek : "Loading the Proposed Story…",
-    image: picture.imageUrl,
-    source: picture.siteName ?? picture.host ?? (view ? `AI ${view.kindLabel.toLowerCase()}` : "Proposed Story"),
-    host: picture.host,
+    type: "idea_batch",
+    id: request.id,
+    title: request.reason,
+    dek: IDEA_BATCH_DEK,
+    image: null,
+    source: requestSource(request),
+    host: null,
     createdAt: timeOf(request.raisedAt),
     importance: 1,
     uncertainty: uncertaintyOf(undefined),
-    decisionState: choiceState(item.decision?.choice),
+    decisionState: "open",
     defaultOutcome: nextText(request),
-    hardGate: request.mode === "hard_gate",
+    hardGate: false,
     askedForReview: true,
-    payload: { kind: "draft", item, loading: !view },
+    payload: { kind: "ideas", request, ideas, boardHref: ideasBoardHref(context.demo) },
   };
 }
 
@@ -226,6 +281,45 @@ export function heldEmailItems(summaries: readonly MonitoringEmailSummary[], dec
   return items;
 }
 
+// --- link suggestions --------------------------------------------------------------------------------------------
+
+/** What a link end is called on a card: a Reference by its title, a concept by its hashtag. */
+export function linkEndName(item: RelatedItem): string {
+  return item.kind === "concept" ? item.hashtag ?? item.title : item.title;
+}
+
+export type LinkDecision = { choice: "accept" | "reject"; note: string };
+
+/**
+ * Suggested links, as items. They are ranked by their close match (the importance), most likely first; the vector index records no
+ * probability, so there is no prediction and a suggestion is never decided automatically. A suggestion decided in this visit keeps its
+ * place showing the answer, like a rated Reference.
+ */
+export function linkSuggestionItems(suggestions: readonly LinkSuggestion[], decided: ReadonlyMap<string, LinkDecision>): NeedsMeEntry[] {
+  return suggestions.map((suggestion) => {
+    const made = decided.get(suggestion.relationId);
+    const match = closeMatchText(suggestion.similarity);
+    const concept = suggestion.object.kind === "concept";
+    return {
+      type: "link_suggestion",
+      id: `link#${suggestion.relationId}`,
+      title: `${linkEndName(suggestion.subject)} and ${linkEndName(suggestion.object)}`,
+      dek: `${concept ? "A Reference and a concept" : "Two References"} that look like they belong together${match ? `: ${match}` : ""}.`,
+      image: null,
+      source: "Suggested link",
+      host: suggestion.subject.host,
+      createdAt: timeOf(suggestion.createdAt),
+      importance: suggestion.similarity ?? 0,
+      uncertainty: uncertaintyOf(undefined),
+      decisionState: choiceState(made?.choice),
+      defaultOutcome: "If you leave it, the link is not made and the suggestion keeps waiting.",
+      hardGate: false,
+      askedForReview: true,
+      payload: { kind: "link", suggestion, note: made?.note ?? null },
+    } satisfies NeedsMeEntry;
+  });
+}
+
 // --- stubs ---------------------------------------------------------------------------------------------------------
 
 /** A proposed taxonomy concept or a reader's proposal. Not on the page yet: the source is typed so the adapter has a place to land. */
@@ -238,33 +332,40 @@ export function conceptProposalItems(_rows: readonly ConceptProposalRow[]): Need
 // --- all of it -----------------------------------------------------------------------------------------------------
 
 export type NeedsMeSources = ReferenceSources & {
+  /** Accepted References that need a person to capture them, already ordered and limited (`readCaptureNeeded`). */
+  captureNeeded?: readonly ReferenceRecord[];
+  /** Lineage ids a person captured in this visit: they leave the list. */
+  capturedNow?: ReadonlySet<string>;
   requests: ReviewRequest[];
-  drafts: Readonly<Record<string, DraftView | undefined>>;
-  missingDrafts: ReadonlySet<string>;
-  draftsState: "loading" | "ready" | "failed";
-  /** Draft keys and request ids decided in this visit. */
+  /** Request ids kept on screen in this visit. */
   stay: ReadonlySet<string>;
-  bySource: ReadonlyMap<string, ReferencePreview>;
+  demo?: boolean;
+  /** The stage of each idea named by an open batch, by lineage id, once read. */
+  ideaStages?: Readonly<Record<string, string>>;
   storyTitles: Readonly<Record<string, string>>;
   storyExcerpts: Readonly<Record<string, string>>;
   deletedStories: ReadonlySet<string>;
   emails: readonly MonitoringEmailSummary[];
   emailsDecided: ReadonlyMap<string, "accept" | "reject">;
   concepts?: readonly ConceptProposalRow[];
+  /** The suggested links read so far (a page at a time), and the ones decided in this visit by relation id. */
+  linkSuggestions?: readonly LinkSuggestion[];
+  linksDecided?: ReadonlyMap<string, LinkDecision>;
 };
 
 /** Every source, as one list of items (unordered: `rankNeedsMe` orders it). */
 export function buildNeedsMeItems(sources: NeedsMeSources): NeedsMeEntry[] {
-  const fromRequests = buildNotificationItems({
-    requests: sources.requests, drafts: sources.drafts, missingDrafts: sources.missingDrafts, draftsState: sources.draftsState, stay: sources.stay,
-  });
+  const fromRequests = buildNotificationItems({ requests: sources.requests, ideaStages: sources.ideaStages, stay: sources.stay });
   const context = { titles: sources.storyTitles, excerpts: sources.storyExcerpts, deleted: sources.deletedStories };
+  const ideaContext = { titles: sources.storyTitles, stages: sources.ideaStages ?? {}, demo: Boolean(sources.demo) };
   return [
     ...referenceItems(sources),
-    ...fromRequests.drafts.map((item) => draftItem(item, sources.bySource)),
+    ...captureNeededItems({ references: sources.captureNeeded ?? [], previews: sources.previews, captures: sources.captures, capturedNow: sources.capturedNow }),
+    ...fromRequests.ideas.map((item) => ideaBatchItem(item, ideaContext)),
     ...fromRequests.reviews.map((item) => requestItem(item, context)),
     ...fromRequests.flags.map((item) => requestItem(item, context)),
     ...heldEmailItems(sources.emails, sources.emailsDecided),
+    ...linkSuggestionItems(sources.linkSuggestions ?? [], sources.linksDecided ?? new Map()),
     ...conceptProposalItems(sources.concepts ?? []),
   ];
 }
@@ -273,14 +374,16 @@ function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** "3 Proposed Stories and 12 references waiting for you"; "All caught up" when nothing waits. */
+/** "2 idea batches and 12 references waiting for you"; "All caught up" when nothing waits. */
 export function waitingTextFor(counts: NeedsMeCounts): string {
   const parts = [
-    counts.drafts ? plural(counts.drafts, "Proposed Story", "Proposed Stories") : null,
+    counts.ideas ? plural(counts.ideas, "idea batch", "idea batches") : null,
     counts.references ? plural(counts.references, "reference") : null,
     counts.stories ? plural(counts.stories, "story review") : null,
     counts.email ? plural(counts.email, "held email", "held emails") : null,
     counts.captures ? plural(counts.captures, "capture to check", "captures to check") : null,
+    counts.tocapture ? plural(counts.tocapture, "reference to capture", "references to capture") : null,
+    counts.links ? plural(counts.links, "link suggestion") : null,
     counts.other ? plural(counts.other, "other item") : null,
   ].filter((part): part is string => part !== null);
   if (!parts.length) return "All caught up";

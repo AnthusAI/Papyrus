@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 _ALLOW_CROSS_ROOT_FLAG = "--allow-cross-root"
+SITE_ENVIRONMENT_VARIABLE = "PAPYRUS_SITE"
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
@@ -27,6 +28,7 @@ from papyrus_content.operator_errors import (  # noqa: E402
 )
 from papyrus_newsroom import cli as newsroom_cli  # noqa: E402
 from papyrus.operator.group_commands import REPORTING_COMMANDS, RESEARCH_COMMANDS, SECTIONS_COMMANDS  # noqa: E402
+from papyrus.operator.help_dispatch import answer_help  # noqa: E402
 from papyrus.operator.help_text import TOP_LEVEL_HELP, print_group_help  # noqa: E402
 from papyrus.operator.runtime import (  # noqa: E402
     dispatch_operator_command,
@@ -50,6 +52,23 @@ def _delegate_newsroom(argv: list[str]) -> int:
 
 def _operator_groups_with_help() -> set[str]:
     return {"references", "assignments", "knowledge"}
+
+
+def _consume_site_flag(args: list[str]) -> list[str]:
+    """A leading `--site <host>` (or `--site=<host>`) chooses the signed-in site for the whole command by setting PAPYRUS_SITE.
+
+    Only the leading position is read, so it can never collide with the `--site` that several commands take after their own
+    name (a host, a publication key, a bucket's site), and those keep their meaning."""
+    if not args or not (args[0] == "--site" or args[0].startswith("--site=")):
+        return args
+    if args[0] == "--site":
+        value, rest = (args[1] if len(args) > 1 else ""), args[2:]
+    else:
+        value, rest = args[0].partition("=")[2], args[1:]
+    if not value.strip() or value.startswith("-"):
+        raise OperatorError("--site requires a signed-in site such as shipped.anth.us, before the command: papyrus --site <site> <group> <command>.")
+    os.environ[SITE_ENVIRONMENT_VARIABLE] = value.strip()
+    return rest
 
 
 def _consume_global_flags(args: list[str]) -> tuple[list[str], list[str]]:
@@ -121,7 +140,19 @@ def _map_assignments(command: str, flags: list[str]) -> int:
 
 
 def _map_references(command: str, flags: list[str]) -> int:
-    if command in {"list", "show", "register"}:
+    if command == "search":
+        from papyrus_content.references_search_cli import command as search_command
+        return search_command(flags)
+    if command == "capture-transcripts":
+        from papyrus_content.references_transcripts import command as transcripts_command
+        return transcripts_command(flags)
+    if command == "repair-titles":
+        from papyrus_content.references_titles import command as titles_command
+        return titles_command(flags)
+    if command == "capture-thumbnails":
+        from papyrus_content.references_thumbnails import command as thumbnails_command
+        return thumbnails_command(flags)
+    if command in {"list", "show", "text", "register"}:
         return dispatch_operator_command("references", command, flags)
     newsroom_reference_commands = {
         "curate-recent",
@@ -160,7 +191,7 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
             raise ValueError("papyrus knowledge concepts requires <command>.")
         _delegate_content("relations", flags[0], flags[1:])
         return 0
-    if command in {"publish-run", "snapshot", "archive", "topic-config", "cloud-run", "runs"}:
+    if command in {"publish-run", "snapshot", "archive", "topic-config", "extract-entities", "cloud-run", "runs"}:
         _delegate_content("knowledge", command, flags)
         return 0
     if command == "corpus":
@@ -170,13 +201,18 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
         return 0
     if command in {"entities", "clusters", "relations"}:
         allowed = {
-            "entities": "list, accept, reject, rename, describe, retype or registry",
+            "entities": "list, accept, reject, rename, alias, describe, accept-description, page, link, retype, add, merge, duplicates or registry",
             "clusters": "list, accept, name or reject",
             "relations": "list, accept or reject",
         }[command]
         if not flags or flags[0].startswith("-"):
             raise ValueError(f"papyrus knowledge {command} requires <command>: {allowed}.")
         _delegate_content("knowledge", f"{command}-{flags[0]}", flags[1:])
+        return 0
+    if command == "run":
+        if not flags or flags[0] not in {"undo", "restore"}:
+            raise ValueError("papyrus knowledge run requires <command>: undo or restore (both are dry runs unless --apply is given).")
+        _delegate_content("knowledge", f"run-{flags[0]}", flags[1:])
         return 0
     if command == "wiki":
         if not flags or flags[0].startswith("-"):
@@ -197,6 +233,12 @@ def _map_analysis(command: str, flags: list[str]) -> int:
 
 
 def _map_ops(command: str, flags: list[str]) -> int:
+    if command == "site":
+        if not flags or flags[0] != "copy":
+            raise ValueError("papyrus ops site requires <command>: copy.")
+        from papyrus_content.site_copy_commands import site_copy
+
+        return site_copy(flags[1:])
     if command not in {"content", "corpora", "categories", "relations", "messages"}:
         raise ValueError(f"Unsupported papyrus ops group: {command}")
     if not flags:
@@ -248,32 +290,72 @@ def _enforce_root_guard(args: list[str], *, cwd: Path | None = None, module_root
         f"papyrus-root-guard\toperator-root\t{operator_root}\n"
         f"papyrus-root-guard\tmodule-root\t{resolved_module_root}\n"
         f"papyrus-root-guard\tmodule-file\t{module_file}\n"
+        "papyrus-root-guard\tmessage\tYou are inside a Papyrus checkout, but this papyrus is a different install. Run it from another "
+        "folder (any folder outside a Papyrus checkout), or use the checkout's own papyrus with the next command below.\n"
         f"papyrus-root-guard\tnext\t{recovery}\n"
-        "papyrus-root-guard\toverride\tpass --allow-cross-root or set PAPYRUS_ALLOW_CROSS_ROOT=1"
+        "papyrus-root-guard\toverride\t--allow-cross-root (or PAPYRUS_ALLOW_CROSS_ROOT=1) is an explicit choice to run this install here anyway"
     )
 
 
 def main(argv: list[str] | None = None) -> int:
-    return run_with_operator_error_handling(lambda: _run_with_arguments(argv))
+    from papyrus_content import site_selection
+
+    site_selection.install()
+    try:
+        return run_with_operator_error_handling(lambda: _run_printing_usage_on_error(argv))
+    finally:
+        site_selection.uninstall()
+
+
+def _run_printing_usage_on_error(argv: list[str] | None) -> int:
+    """Run the command; when it fails for missing or wrong arguments, print its usage ahead of the error (a bare command shows its usage)."""
+    from papyrus.operator.help_dispatch import _USAGE_SHOWN, print_usage_for_error
+
+    _USAGE_SHOWN.clear()
+    args = list(argv if argv is not None else sys.argv[1:])
+    try:
+        return _run_with_arguments(args)
+    except ValueError as error:
+        print_usage_for_error(args, error)
+        raise
 
 
 def _run_with_arguments(argv: list[str] | None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     allow_cross_root, args = _consume_cross_root_override(args)
+    args = _consume_site_flag(args)
     args, global_flags = _consume_global_flags(args)
 
     if not args or args == ["--help"] or (len(args) == 1 and args[0] in {"--help", "-h"}):
         _usage()
         return 0
+    # Help for any command or group, ahead of sign-in, the root guard and every command (mutations write by default).
+    help_status = answer_help(args)
+    if help_status is not None:
+        return help_status
+    from papyrus.operator.help_dispatch import bare_invocation_error, print_usage_for_error
+
+    if bare_invocation_error(args):
+        # A command that cannot work without arguments, run with none: show how to use it, then let it report its own specific error.
+        print_usage_for_error(args, ValueError("requires arguments"), force=True)
     if args[0] == "--version":
         from papyrus import __version__
 
         print(__version__)
         return 0
 
+    if args[0] == "guide":
+        from papyrus_content.agent_guide import guide_command
+        guide_command(args[1:])
+        return 0
+
     if args[0] == "doctor":
         from papyrus_content.cli_doctor import run as doctor_run
         return doctor_run(args[1:])
+
+    if args[0] == "links":
+        from papyrus_content.console_links import links_command
+        return links_command(args[1:])
 
     if args[0] in {"login", "logout", "whoami", "auth"}:
         from papyrus_content.cli_user_auth import command as auth_command
@@ -285,6 +367,36 @@ def _run_with_arguments(argv: list[str] | None) -> int:
     if group == "monitors":
         from papyrus_content.monitoring_commands import command as monitor_command
         return monitor_command(args[1:])
+    if group == "images":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.images.cli import command as images_command
+        return images_command(args[1:])
+    if group == "guidelines":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.guidelines.cli import command as guidelines_command
+        return guidelines_command(args[1:])
+    if group == "announcements":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.announcements.cli import command as announcements_command
+        return announcements_command(args[1:])
+    if group == "figures":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.figures.cli import command as figures_command
+        return figures_command(args[1:])
+    if group == "design-system":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.figures.design_system_cli import command as design_system_command
+        return design_system_command(args[1:])
     command = args[1] if len(args) > 1 else None
     flags = [*global_flags, *(args[2:] if len(args) > 2 else [])]
 
@@ -317,7 +429,7 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             print_group_help(group)
             return 0
         return _map_analysis(command, flags)
-    if group in {"editions", "batch", "messages", "reader", "proposals", "ideas", "cyclotron", "items"}:
+    if group in {"editions", "batch", "messages", "reader", "proposals", "ideas", "cyclotron", "items", "home-page"}:
         if command is None:
             print_group_help(group)
             return 0
@@ -405,7 +517,9 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             return 0
         _delegate_content("editorial", command, flags)
         return 0
-    raise ValueError(f"Unsupported papyrus group: {group}")
+    from papyrus_content.site_selection import unsupported_command
+
+    raise unsupported_command(f"group: {group}")
 
 
 if __name__ == "__main__":

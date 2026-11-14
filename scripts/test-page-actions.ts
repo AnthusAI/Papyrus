@@ -139,3 +139,119 @@ test("without JavaScript the Markdown link works and the copy button is not offe
   assert.equal(await page.getByRole("button", { name: "Copy Markdown" }).count(), 0);   // visibility:hidden keeps it out of the accessibility tree
   await context.close();
 });
+
+// The icon display (pageActions.display "icons"): the group as the projector writes it for the flat fixture with
+// actions view, copy, x, reddit and share. procedures/newsroom/tests/test_standard_frontend.py pins this markup.
+const ICON = (name: string) => `<svg class="markus-action-icon" aria-hidden="true" focusable="false" data-icon="${name}"></svg>`;
+const ICON_GROUP =
+  '<div class="markus-page-actions markus-page-actions-header markus-page-actions-icons" role="group" aria-label="Page actions" data-papyrus-page-actions ' +
+  'data-markdown="/orchids.md" data-title="Orchids of the Marsh" data-canonical="https://almanac.example.org/orchids.html" data-share>' +
+  '<ul class="markus-actions-icons" aria-label="Read and post this page">' +
+  `<li><a class="markus-action-link markus-icon-action" data-action="view" href="/orchids.md" aria-label="View as Markdown" title="View as Markdown">${ICON("file-text")}</a></li>` +
+  `<li><a class="markus-action-link markus-icon-action" data-action="x" href="https://x.com/intent/post?text=Orchids%20of%20the%20Marsh&amp;url=https%3A%2F%2Falmanac.example.org%2Forchids.html" target="_blank" rel="noopener noreferrer" aria-label="Post on X" title="Post on X">${ICON("x")}</a></li>` +
+  `<li><a class="markus-action-link markus-icon-action" data-action="reddit" href="https://www.reddit.com/submit?url=https%3A%2F%2Falmanac.example.org%2Forchids.html&amp;title=Orchids%20of%20the%20Marsh" target="_blank" rel="noopener noreferrer" aria-label="Post on Reddit" title="Post on Reddit">${ICON("reddit")}</a></li>` +
+  "</ul>" +
+  `<button type="button" class="markus-copy-md markus-icon-action" data-action="copy" aria-label="Copy Markdown" title="Copy Markdown">${ICON("copy")}</button>` +
+  '<span class="markus-actions-status" role="status" aria-live="polite"></span></div>';
+const iconHtml = html.replace(/<div class="markus-page-actions.*?<\/span><\/div>/s, ICON_GROUP);
+assert.ok(iconHtml.includes("markus-page-actions-icons"), "the fixture page has a group to replace");
+
+async function openIcons(context: BrowserContext, options: { share?: boolean } = {}): Promise<Page> {
+  await context.route("**/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/orchids.html") return route.fulfill({ contentType: "text/html", body: iconHtml });
+    if (path === "/orchids.md") return route.fulfill({ contentType: "text/markdown", body: markdown });
+    if (path.startsWith("/_plugins/papyrus-page-actions")) return route.fulfill({ contentType: "text/javascript", body: script });
+    if (path.includes("markus-components")) return route.fulfill({ contentType: "text/css", body: css });
+    if (path.endsWith(".css")) return route.fulfill({ contentType: "text/css", body: "" });
+    return route.fulfill({ status: 404, body: "" });
+  });
+  const page = await context.newPage();
+  await page.addInitScript((share) => {
+    (window as unknown as { events: unknown[] }).events = [];
+    (window as unknown as { gtag: (...a: unknown[]) => void }).gtag = (...args) => (window as unknown as { events: unknown[] }).events.push(args);
+    (window as unknown as { shared: unknown[] }).shared = [];
+    if (share) (navigator as unknown as { share: (data: unknown) => Promise<void> }).share = async (data) => void (window as unknown as { shared: unknown[] }).shared.push(data);
+  }, options.share ?? false);
+  await page.goto(`${ORIGIN}/orchids.html`);
+  return page;
+}
+
+const reported = (page: Page) => page.evaluate(() => (window as unknown as { events: unknown[][] }).events.map((entry) => entry.slice(1)));
+
+test("the icon display adds a Share menu button that follows the ARIA menu pattern", async () => {
+  const context = await browser.newContext();
+  const page = await openIcons(context);
+  const button = page.getByRole("button", { name: "Share", exact: true });
+  assert.equal(await button.getAttribute("aria-haspopup"), "menu");
+  assert.equal(await button.getAttribute("aria-expanded"), "false");
+  assert.equal(await page.getByRole("menu", { name: "Share" }).isVisible(), false, "the popup starts closed");
+  await button.focus();
+  await page.keyboard.press("ArrowDown");
+  assert.equal(await button.getAttribute("aria-expanded"), "true");
+  assert.deepEqual(await page.getByRole("menuitem").allTextContents(), ["Share the web page", "Share the Markdown"]);
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Share the web page");
+  await page.keyboard.press("Escape");
+  assert.equal(await button.getAttribute("aria-expanded"), "false");
+  assert.equal(await page.getByRole("menu", { name: "Share" }).isVisible(), false);
+  await context.close();
+});
+
+test("sharing hands the device share sheet only the title and the address, and reports through gtag", async () => {
+  const context = await browser.newContext();
+  const page = await openIcons(context, { share: true });
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Share the web page" }).click();
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Share the Markdown" }).click();
+  const shared = await page.evaluate(() => (window as unknown as { shared: unknown[] }).shared);
+  assert.deepEqual(shared, [
+    { title: "Orchids of the Marsh", url: "https://almanac.example.org/orchids.html" },
+    { title: "Orchids of the Marsh", url: "https://almanac.example.org/orchids.md" },
+  ]);
+  assert.deepEqual(await reported(page), [["page_action", { action: "share_page" }], ["page_action", { action: "share_markdown" }]]);
+  await context.close();
+});
+
+test("without a share sheet the address is copied and confirmed in the live region", async () => {
+  const context = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
+  const page = await openIcons(context);
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Share the Markdown" }).click();
+  await page.getByRole("status").filter({ hasText: "Link copied" }).waitFor();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "https://almanac.example.org/orchids.md");
+  await context.close();
+});
+
+test("the post links report their action, and they are plain links that carry only the title and address", async () => {
+  const context = await browser.newContext();
+  const page = await openIcons(context);
+  await page.evaluate(() => document.addEventListener("click", (event) => event.preventDefault(), true)); // stay on the page; the link's own handler still runs
+  await page.getByRole("link", { name: "Post on X" }).dispatchEvent("click");
+  assert.deepEqual(await reported(page), [["page_action", { action: "x" }]]);
+  const href = (await page.getByRole("link", { name: "Post on Reddit" }).getAttribute("href")) ?? "";
+  assert.ok(href.startsWith("https://www.reddit.com/submit?url=") && !href.includes("Marsh%20orchids"));
+  await context.close();
+});
+
+test("without JavaScript the icon links work and there is no Share button", async () => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await openIcons(context);
+  for (const name of ["View as Markdown", "Post on X", "Post on Reddit"]) assert.ok(await page.getByRole("link", { name }).isVisible(), name);
+  assert.equal(await page.getByRole("button", { name: "Share", exact: true }).count(), 0);
+  await context.close();
+});
+
+test("at phone width the actions fit, each target is at least 44 px, and the popup stays on screen", async () => {
+  const context = await browser.newContext({ viewport: { width: 375, height: 700 } });
+  const page = await openIcons(context);
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  const box = await page.getByRole("menu", { name: "Share" }).boundingBox();
+  assert.ok(box && box.x >= 0 && box.x + box.width <= 375, `popup ${JSON.stringify(box)}`);
+  for (const control of await page.locator(".markus-icon-action, .markus-actions-menu-button").all()) {
+    const target = await control.boundingBox();
+    assert.ok(target && target.width >= 44 && target.height >= 44, `target ${JSON.stringify(target)}`);
+  }
+  assert.ok((await page.evaluate(() => document.documentElement.scrollWidth)) <= 375, "no horizontal scroll");
+  await context.close();
+});

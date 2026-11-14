@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "466dea48-a178-427d-b04f-0d78c41dab4c",
+  "issue_id": "PPY-4eb336b4-1169-434d-baa0-2665c8e89c77",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:33.473Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Tell illustration agents to vary covers and use diagrams only where they help",
+    "description": "Update the illustration procedure (docs/story-illustration-typesetting.md) and the shared figures work (PPY-74ef89). Before drawing, an agent looks at recent covers in the section and asks whether a diagram is the right kind of cover at all. If not, it prepares stock options for an editor.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

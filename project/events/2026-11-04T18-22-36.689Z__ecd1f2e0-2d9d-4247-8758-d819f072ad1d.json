@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ecd1f2e0-2d9d-4247-8758-d819f072ad1d",
+  "issue_id": "PPY-8da0a69a-a5a9-40a8-9ed3-2c0a9456d0ff",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T18:22:36.689Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Rejections teach extraction; rejected names never collect links",
+    "description": "Rejected stays rejected and machines never change an existing concept, but normalize_name and slug differ, so 'GPT 4' can miss rejected 'GPT-4' and links still get written to a rejected lineage (publish_run.py:341-364). Use one identity for both. Rejected names feed the candidate filter, so a person's or AI review's rejection is learned from. First step of the self-learning loop.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+    "labels": []
+  }
+}

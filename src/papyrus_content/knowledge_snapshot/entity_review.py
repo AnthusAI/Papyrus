@@ -15,7 +15,8 @@ from typing import Any
 from .actors import Actor, decode_review
 from .keys import contains_email, normalize_name, kind_key
 from .model import LINK_EXTRACTOR
-from .publish_run import STATUS_ACCEPTED, STATUS_REJECTED, is_item_mention, json_object
+from .page_answer import page_override
+from .publish_run import STATUS_ACCEPTED, STATUS_REJECTED, is_extractor_mention, json_object
 
 REVIEW_STATUSES = ("accepted", "generated", "rejected")
 
@@ -60,7 +61,7 @@ def accept_patches(node: Mapping[str, Any], mention_rows: Iterable[Mapping[str, 
         for row in mention_rows:
             metadata = json_object(row.get("metadata"))
             if (
-                is_item_mention(row)
+                is_extractor_mention(row)
                 and row.get("objectLineageId") == node.get("lineageId")
                 and metadata.get("confirmed") is not True
                 and metadata.get("linkSource", LINK_EXTRACTOR) == LINK_EXTRACTOR
@@ -161,3 +162,32 @@ def describe_patches(node: Mapping[str, Any], text: str, *, actor: Actor, now: s
         raise EntityReviewError("A description must not hold an email address.")
     marks = decode_review(node.get("changeReason")).replace(description_edited_by=actor)
     return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "description": description, "changeReason": marks.encode(), "updatedAt": now}}]
+
+
+def accept_description_patches(node: Mapping[str, Any], *, actor: Actor, now: str) -> list[dict]:
+    """A person accepts the description the node already has, as it stands: the same words, now marked as edited by ``actor`` (so the wiki
+    publishes them, ``loaders.description_state``). Only a person can: an AI agent's acceptance would publish words a model wrote on its own say-so.
+    Nothing changes when this actor already accepted these words."""
+    if not actor.is_human:
+        raise EntityReviewError("Only a person accepts a description: pass --actor human.")
+    if not str(node.get("description") or "").strip():
+        raise EntityReviewError(f"{node['nodeKey']} has no description to accept; write one with `knowledge entities describe --text`.")
+    if contains_email(str(node.get("description"))):
+        raise EntityReviewError("A description must not hold an email address.")
+    marks = decode_review(node.get("changeReason"))
+    recorded = marks.description_edited_by
+    if recorded is not None and recorded.is_human and (recorded.actor, recorded.name) == (actor.actor, actor.name):
+        return []
+    return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "changeReason": marks.replace(description_edited_by=actor).encode(), "updatedAt": now}}]
+
+
+def page_decision_patches(node: Mapping[str, Any], wanted: bool | None, *, actor: Actor, now: str) -> list[dict]:
+    """An editor's decision whether the concept has a public page, as ``actor``, against the extractor's answer: ``True`` gives it a page, ``False`` takes
+    it away, ``None`` hands it back to the machine's answer. A run never changes it (``page_answer.py``). Nothing changes when it is already recorded."""
+    if node.get("status") == STATUS_REJECTED:
+        raise EntityReviewError(f"{node['nodeKey']} is rejected; a rejected entity has no page to give or take.")
+    if page_override(node) == wanted:
+        return []
+    given, taken = (actor, None) if wanted is True else (None, actor) if wanted is False else (None, None)
+    marks = decode_review(node.get("changeReason")).replace(page_given_by=given, page_taken_by=taken)
+    return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "changeReason": marks.encode(), "updatedAt": now}}]

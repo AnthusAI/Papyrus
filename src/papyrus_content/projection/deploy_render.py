@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .engine import ProjectionContext, ReconcileReport, project_all, reconcile
 from .model import ProjectionReport
@@ -26,8 +26,11 @@ class DeployRenderReport:
 
     @property
     def drift_count(self) -> int:
+        """Pages the site store is behind on. A Story that could not be rendered is counted whether or not its older page is
+        stale, so the drift alarm names the deploy that left a Story out."""
         return (
-            len(self.drift.stale_items)
+            len(self.render.unrenderable)
+            + len(self.drift.stale_items)
             + len(self.drift.removed_items)
             + len(self.drift.stale_listings)
             + len(self.drift.orphan_pages)
@@ -41,6 +44,7 @@ class DeployRenderReport:
             "deleted": len(self.render.deleted),
             "redirectsWritten": self.render.redirects_written,
             "errors": [*self.render.errors, *self.drift.errors],
+            "unrenderable": self.render.unrenderable[:LISTED_KEYS_LIMIT],
             "drift": {
                 "found": self.drift.drift,
                 "count": self.drift_count,
@@ -55,8 +59,11 @@ class DeployRenderReport:
 
 
 def deploy_render(context: ProjectionContext) -> DeployRenderReport:
-    """Render everything, then run reconcile as a dry run: orphans and other drift are reported, never deleted."""
-    render = project_all(context)
+    """Render everything, then run reconcile as a dry run: orphans and other drift are reported, never deleted.
+
+    A Story whose own content cannot be rendered does not fail the render: it is reported (``unrenderable``, and in the drift
+    count the alarm watches) and the others are rendered. A failure of the platform (storage, the projector) still raises."""
+    render = project_all(replace(context, tolerate_unrenderable=True))
     drift = reconcile(context, dry_run=True)
     return DeployRenderReport(render=render, drift=drift)
 

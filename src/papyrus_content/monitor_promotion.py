@@ -23,9 +23,9 @@ from .knowledge_snapshot.monitor_records import MonitorRecord, record_entities, 
 from .knowledge_snapshot.weeks import parse_day
 from .publishing import item_id_for
 from .record_helpers import slugify
+from .story_types import type_for_new_story
 
 SECTION = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-ITEM_TYPE = "article"
 MONITOR_RECORD_KEY = "monitorRecord"
 SUGGESTION_WEEKS = 4
 
@@ -89,7 +89,7 @@ def promote_record(client: Any, record: MonitorRecord, *, section: str, actor: s
     if reference is None:
         raise ValueError(f"Reference {record.reference_id} was not found.")
     result = create_story_from_references(
-        client, references=[reference], section=section, slug=slug, title=record.model_id, actor=actor, body_markus=body(record), item_type=ITEM_TYPE,
+        client, references=[reference], section=section, slug=slug, title=record.model_id, actor=actor, body_markus=body(record), item_type=type_for_new_story(),
         front_matter=front_matter(record), item_id=item_id, source_text_reader=source_text_reader, now=now,
     )
     return {"itemId": item_id, "slug": slug, "section": section, "created": result["created"], "linked": result["linked"]}
@@ -99,7 +99,9 @@ def promoted_reference_ids(client: Any, records: Iterable[MonitorRecord]) -> set
     """Reference ids of ``records`` that some item already carries in its front matter (``monitorRecord.referenceId``)."""
     wanted = {record.reference_id for record in records}
     found: set[str] = set()
-    for row in client.list_records("Item"):
+    from .content_item_lifecycle import without_sub_tasks
+
+    for row in without_sub_tasks(client.list_records("Item")):
         metadata = row.get("metadata")
         text = str(metadata.get("frontMatterYaml") if isinstance(metadata, dict) else metadata or "")
         if MONITOR_RECORD_KEY in text:

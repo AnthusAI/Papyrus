@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9bf332ad-6651-4358-883c-dcd601e22d9b",
+  "title": "OAuth and identity",
+  "description": "Implement PPY-fdf150 on the authenticated hosted MCP server in draft PR #1244. DataParade's normal login, automatic return and single consent are the interaction model. Papyrus keeps its own publication identity, permissions and agent attribution.\n\nOrdered steps\n1. PPY-c898ac makes the human/agent audience distinction explicit and provisions the opt-in, dedicated Google/Cognito client contract.\n2. PPY-cf2ab5 builds same-tab automatic return with one consent; PPY-ca57a5 implements fixed expiry and atomic opaque grant rotation. Both can begin locally in parallel with a stub provider; real staff wiring is gated by PPY-c898ac.\n3. PPY-cc5b44 proves server-owned renewable staff credentials, current permissions and failure-safe two-level rotation. Existing same-origin Prospectus reader sessions remain capped by their original expiry.\n4. PPY-a45a7f provides owner-controlled disconnect; browser logout is independent.\n5. PPY-17c201 gates real ChatGPT on the stable URL and rehearsals. Use preregistered public client first; PPY-735a45 adds compatible metadata-document onboarding after the first host verification.\n\nNo AWS credentials or permanent manually provisioned keys on hosts. Reuse the CLI provider patterns and reviewed downstream permissions, with server-owned per-connection credentials. Public discovery stays on HTTP. Use the current newsroom and reader gates. Do not broaden the existing tool scope. Do not mark week-long renewal or real host support complete from synthetic tests.\n\n## Agreed cross-product contract · 6 November 2026\n\nDataParade uses a fixed 30 days from approval, one-hour access, existing app session plus new consent on expiry, and its existing PostgreSQL request row as grant. Papyrus uses the earlier of seven days and the original upstream deadline, access of at most 15 minutes, and fresh sign-in plus approval after expiry. Reader grants retain the shorter verified Prospectus deadline. Each product retains its storage and identity authority.\n\nBoth products bind the grant to actor, client, workspace or publication and canonical resource. Check current permission and terminal revocation on every protected request. Confirmed removal revokes the family, while an unavailable check returns 503. Serialize exchange, refresh, replay revocation and Disconnect against the grant. Rotate both tokens at once and invalidate the old access token. Keep OAuth-only access, exact registered callbacks, consent bound to the same browser transaction and signed-in actor, Origin/CSRF, rate limits, no-store and owner Disconnect. Redirect labels are informational. Use scope challenges only for real enforced scopes and advertise issuer identification only after the callback contract passes.\n\nShare CIMD validation rules and fixtures. DataParade retains DCR, which may explicitly register and return public token auth method none and enforces the actual registration at exchange. Papyrus retains preregistration and adds pinned CIMD after the first host trial. DataParade verifies Claude Desktop before ChatGPT and rolls out additively. Papyrus verifies ChatGPT before Claude. Both must refresh and Disconnect through the same saved installation after a server restart.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T20:04:41.562241Z",
+  "updated_at": "2026-11-06T13:40:03.267306Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

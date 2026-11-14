@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "db5d0e53-80a4-42dd-803e-c5c417c8e8d8",
+  "issue_id": "PPY-d656d9e7-b37f-4692-95ec-924fd1a27c20",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T18:47:25.433Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Retire the GROBID citation stubs and let a monitor bring a machine-archived Reference back",
+    "description": "Ryan 2026-11-03 approved archiving all 4,436 GROBID-created References on Machines on Machines (2,385 with no URL, 2,051 with one; all pending, no human input). New CLI command with --dry-run. Intake reuses any canonical URL match whatever its status (monitoring_intake.py), so an archived stub would silently hide a paper a monitor finds; a machine-archived match must return to pending. A human's archive or rejection stays.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-dd6c50f1-9918-46d6-8148-f1f759d14aea",
+    "labels": []
+  }
+}

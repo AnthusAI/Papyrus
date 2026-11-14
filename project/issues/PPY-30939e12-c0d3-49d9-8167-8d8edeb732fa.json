@@ -1,0 +1,20 @@
+{
+  "id": "PPY-30939e12-c0d3-49d9-8167-8d8edeb732fa",
+  "title": "Skip References with nothing to add before the model call; packs write from summaries, not titles",
+  "description": "",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3ccdcbfd-7420-49a5-8aef-d5b41c7e5d7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T07:04:34.938590Z",
+  "updated_at": "2026-11-02T07:04:34.938621Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

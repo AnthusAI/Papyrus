@@ -1,0 +1,85 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<rss xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0">
+  <channel>
+    <title>cs.AI, cs.LG, cs.CL, cs.MA, stat.ML updates on arXiv.org</title>
+    <link>http://rss.arxiv.org/rss/cs.AI+cs.LG+cs.CL+cs.MA+stat.ML</link>
+    <description>cs.AI, cs.LG, cs.CL, cs.MA, stat.ML updates on the arXiv.org e-print archive.</description>
+    <atom:link href="http://rss.arxiv.org/rss/cs.AI+cs.LG+cs.CL+cs.MA+stat.ML" rel="self" type="application/rss+xml"/>
+    <docs>http://www.rssboard.org/rss-specification</docs>
+    <language>en-us</language>
+    <lastBuildDate>Tue, 03 Nov 2026 18:46:46 +0000</lastBuildDate>
+    <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+    <skipDays>
+      <day>Saturday</day>
+      <day>Sunday</day>
+    </skipDays>
+    <item>
+      <title>Output-Aware Block Influence: Jacobian-Lens Weighting for Depth Pruning</title>
+      <link>https://arxiv.org/abs/2611.00015</link>
+      <description>arXiv:2611.00015v1 Announce Type: new 
+Abstract: Depth pruning removes entire transformer blocks and therefore depends on a reliable criterion for identifying which blocks can be removed. Block Influence (BI) ranks blocks by how minimally they rotate the hidden state. However, local redundancy does not necessarily imply downstream irrelevance. We address this limitation using the Jacobian Lens (J-Lens) neural artifact, a map transporting perturbations at a layer to the final residual stream. At a common sparsity level, pruning scores applying J-Lens transportation to $BI$, what we call $J-BI$, were found to improve post-pruning accuracy by up to 19 points over $BI$ while reducing damage to perplexity for Qwen3-8B, Llama-3.1-8B-IT, and Gemma-3-12B-IT. We also perform a single-block ablation study and use J-Lens probing to explain why the proposed scores improved performance.</description>
+      <guid isPermaLink="false">oai:arXiv.org:2611.00015v1</guid>
+      <category>cs.LG</category>
+      <category>cs.AI</category>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+      <arxiv:announce_type>new</arxiv:announce_type>
+      <dc:rights>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</dc:rights>
+      <dc:creator>Kyle Lemoi, Jonathan Yong, Shubhankar Tripathy, Priestley Fernandes, Anirban Majumder, Zarreen Reza</dc:creator>
+    </item>
+    <item>
+      <title>IdeaTaste: Do LLMs Share the Research Taste of Human Researchers?</title>
+      <link>https://arxiv.org/abs/2611.03424</link>
+      <description>arXiv:2611.03424v1 Announce Type: new 
+Abstract: Research taste, the judgment of what to read, which problems to pursue, and which methods to try, increasingly shapes the work of AI scientists, yet it remains far less understood than their ability to execute research. We introduce IdeaTaste, a benchmark that scores an LLM by how closely the research proposals it writes from a literature snapshot frozen at 2025 match the work the same communities published in 2026. Our experiments span six contemporary language models and four research areas from established to emerging fields, covering more than 90{,}000 proposals in total. LLM agents fall well short of human communities in both the literature they cite and the ideas they state, reaching about 26\% of the human level on citation matching and only 18\% on idea matching. Their populations can cite as diversely as a community and take up its tasks and methods, yet rarely arrive at the concrete approaches and research plans it pursues. Neither richer field context nor larger populations substantially close this gap. In blinded expert review, AI proposals trail the 2026 papers least in presentation and most in expected success, echoing their gap in concrete approaches, and those whose ideas no human paper shares fare worst, suggesting weaker directions rather than overlooked opportunities. These results indicate that the main bottleneck in AI research taste lies less in finding the directions a community works on than in turning them into the concrete approaches it goes on to pursue. We release IdeaTaste as an open, continuously updated leaderboard (https://cxcscmu.github.io/IdeaTaste) that benchmarks contemporary AI proposals against future publication cycles.</description>
+      <guid isPermaLink="false">oai:arXiv.org:2611.03424v1</guid>
+      <category>cs.CL</category>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+      <arxiv:announce_type>new</arxiv:announce_type>
+      <dc:rights>http://creativecommons.org/licenses/by/4.0/</dc:rights>
+      <dc:creator>Shanshan Zhong, Chen Xu, Jingjie Ning, Zhengzhong Liu, Aviral Kumar, Chenyan Xiong</dc:creator>
+    </item>
+    <item>
+      <title>Total Cost of Agency: Exact Attribution of Memory Injection Cost in Multi-Agent LLM Workflows</title>
+      <link>https://arxiv.org/abs/2609.23790</link>
+      <description>arXiv:2609.23790v1 Announce Type: cross 
+Abstract: Every node in a multi-agent large language model (LLM) workflow retrieves context from memory and injects it into its prompt, where those injected tokens are billed as input tokens at the same per-token price as the system prompt and the user query. Production observability tools report total token cost but do not separate the tokens a node generates from the tokens it is handed, so this component of the bill is invisible to the teams paying it. We introduce the Total Cost of Agency (TCA), a decomposition of multi-agent workflow cost into base prompt, inference, memory injection, miss penalty and context-accumulation components, and an exact attribution method: a two-pass, non-billable token count that measures injected tokens directly rather than estimating them from word-count proxies. On a 200-task enterprise benchmark executed against real model APIs, memory injection accounts for 13.6 percent of the variable cost a compile-time optimizer can act on, about 12 percent of the full billed cost, and its share rises from a structural zero at workflow depth one to 27.6 percent at depth six. Injected tokens grow linearly with depth over the measured range (R^2 = 0.9974, depths two through six); a quadratic fit yields a negative leading coefficient, so the data do not exhibit convex growth at these depths. We show the component is controllable at fixed model tier: reducing the retrieval window capacity from 32 to 2 entries lowers injected tokens by 28.7 percent with an accuracy change within seed-level variation. We report in full that our graph-rewriting transforms are approximately cost-neutral in isolation, that two of the five decomposition terms are zero by construction in this harness, and that total workflow cost is dominated by model tier assignment, which we hold fixed and treat as prior work. Prompt caching is not evaluated; all figures are for the uncached case.</description>
+      <guid isPermaLink="false">oai:arXiv.org:2609.23790v1</guid>
+      <category>cs.AI</category>
+      <category>cs.CL</category>
+      <category>cs.MA</category>
+      <category>cs.PF</category>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+      <arxiv:announce_type>cross</arxiv:announce_type>
+      <dc:rights>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</dc:rights>
+      <dc:creator>Vivek Kumar Singh, Preeti Priyam, Gautam Bhowmick</dc:creator>
+    </item>
+    <item>
+      <title>Attention-Based Multiple Instance Regression for Remote Sensing</title>
+      <link>https://arxiv.org/abs/1903.07745</link>
+      <description>arXiv:1903.07745v4 Announce Type: replace 
+Abstract: In this paper, we propose a novel approach to tackle the multiple instance regression (MIR) problem. This problem arises when the data is a collection of bags, where each bag is made of multiple instances corresponding to the same unique real-valued label. Our goal is to train a regression model which maps the instances of an unseen bag to its unique label. This MIR setting is common to remote sensing applications where there is high variability in the measurements and low geographical variability in the quantity being estimated. Our approach, in contrast to most competing methods, does not make the assumption that there exists a prime instance responsible for the label in each bag. Instead, we treat each bag as a set (i.e, an unordered sequence) of instances and learn to map each bag to its unique label by using all the instances in each bag. This is done by implementing an order-invariant operation characterized by a particular type of attention mechanism. This method is very flexible as it does not require domain knowledge nor does it make any assumptions about the distribution of the instances within each bag. We test our algorithm on five real world datasets and outperform previous state-of-the-art on three of the datasets. In addition, we augment our feature space by adding the moments of each feature for each bag, as extra features, and show that while the first moments lead to higher accuracy, there is a diminishing return.</description>
+      <guid isPermaLink="false">oai:arXiv.org:1903.07745v4</guid>
+      <category>stat.ML</category>
+      <category>cs.LG</category>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+      <arxiv:announce_type>replace</arxiv:announce_type>
+      <dc:rights>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</dc:rights>
+      <dc:creator>Thomas Uriot</dc:creator>
+    </item>
+    <item>
+      <title>Storage and Learning phase transitions in the Random-Features Hopfield Model</title>
+      <link>https://arxiv.org/abs/2303.16880</link>
+      <description>arXiv:2303.16880v3 Announce Type: replace-cross 
+Abstract: The Hopfield model is a paradigmatic model of neural networks that has been analyzed for many decades in the statistical physics, neuroscience, and machine learning communities. Inspired by the manifold hypothesis in machine learning, we propose and investigate a generalization of the standard setting that we name Random-Features Hopfield Model. Here $P$ binary patterns of length $N$ are generated by applying to Gaussian vectors sampled in a latent space of dimension $D$ a random projection followed by a non-linearity. Using the replica method from statistical physics, we derive the phase diagram of the model in the limit $P,N,D\to\infty$ with fixed ratios $\alpha=P/N$ and $\alpha_D=D/N$. Besides the usual retrieval phase, where the patterns can be dynamically recovered from some initial corruption, we uncover a new phase where the features characterizing the projection can be recovered instead. We call this phenomena the learning phase transition, as the features are not explicitly given to the model but rather are inferred from the patterns in an unsupervised fashion.</description>
+      <guid isPermaLink="false">oai:arXiv.org:2303.16880v3</guid>
+      <category>cond-mat.dis-nn</category>
+      <category>cs.LG</category>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+      <arxiv:announce_type>replace-cross</arxiv:announce_type>
+      <dc:rights>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</dc:rights>
+      <arxiv:DOI>10.1103/PhysRevLett.131.257301</arxiv:DOI>
+      <arxiv:journal_reference>Phys. Rev. Lett. 131, 257301 - Published 19 December, 2023</arxiv:journal_reference>
+      <dc:creator>Matteo Negri, Clarissa Lauditi, Gabriele Perugini, Carlo Lucibello, Enrico M. Malatesta</dc:creator>
+    </item>
+  </channel>
+</rss>

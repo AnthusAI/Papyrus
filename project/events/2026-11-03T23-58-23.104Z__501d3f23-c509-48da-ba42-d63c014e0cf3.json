@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "501d3f23-c509-48da-ba42-d63c014e0cf3",
+  "issue_id": "PPY-8c55d72c-be76-4813-9726-76a6e9de9837",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T23:58:23.104Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "An old installed CLI answers Unsupported papyrus command with no hint to upgrade",
+    "description": "The papyrus on this Mac is 5.72 while the site runs 5.81, and stories assign-research fails with: Unsupported papyrus command. Nothing suggests upgrading. papyrus login does not warn about a CLI older than the site. Also seen: the papyrus script on PATH points at a Python in another session's temporary scratchpad, so it can vanish, and stdout is buffered when redirected, so an agent running login --remote sees no approval URL until it sets PYTHONUNBUFFERED or -u.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "cli"
+    ]
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "assignment": {
+    "id": "assignment-research-courts-and-model-output-20261103T120000000Z",
+    "assignmentTypeKey": "research.multi",
+    "queueKey": "research:law-policy:exploratory",
+    "queueStatusKey": "research:law-policy:exploratory#open",
+    "status": "open",
+    "priority": 50,
+    "title": "Courts and model output",
+    "summary": "Courts and model output",
+    "sectionId": "law-policy",
+    "sectionKey": "law-policy",
+    "sectionStatusKey": "law-policy#open",
+    "sectionQueueStatusKey": "law-policy#research:law-policy:exploratory#open",
+    "topicScopeCategoryKeys": [],
+    "createdBy": "An Editor",
+    "createdAt": "2026-11-03T12:00:00.000Z",
+    "updatedAt": "2026-11-03T12:00:00.000Z",
+    "newsroomFeedKey": "assignment#open",
+    "itemLineageId": "story-1"
+  },
+  "event": {
+    "id": "assignment-event-assignment-research-courts-and-model-output-20261103T120000000Z-created",
+    "assignmentId": "assignment-research-courts-and-model-output-20261103T120000000Z",
+    "assignmentTypeKey": "research.multi",
+    "queueKey": "research:law-policy:exploratory",
+    "eventType": "created",
+    "fromStatus": null,
+    "toStatus": "open",
+    "actorLabel": "An Editor",
+    "note": "Created research assignment: Courts and model output",
+    "createdAt": "2026-11-03T12:00:00.000Z"
+  },
+  "metadata": {
+    "kind": "research.assignment.created",
+    "researchMode": "source_discovery",
+    "sectionKey": "law-policy",
+    "topicScopeCategoryKeys": [],
+    "contextProfile": "reporter",
+    "direction": "Find the court rulings on model output",
+    "createdBy": "newsroom",
+    "researchBackend": "multi_search"
+  },
+  "instructions": "Find the court rulings on model output"
+}

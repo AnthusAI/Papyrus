@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9da455df-e852-4de8-aeb2-989620cf9b9c",
+  "issue_id": "PPY-3dcc0410-dca9-43e1-8fa2-f347308fdb21",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T16:20:08.568Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Classify each new Reference's source kind with a plain decision model",
+    "description": "Ryan, 2026-11-04: a simple decision model, not a Cyclotron. A Cyclotron is only worth using where feedback can improve it, and there is none here. Decision model means Jev, Kev, Laya or open weights, never an LLM as the decider. Values and shape come from the epic: evidence level with aggregation as a value, plus voice. Unknown is a real answer. A pure rule is fine where it is certain, for example a YouTube playlist is an aggregation and a single video is a source. Say in the plan where the model runs, since no Cyclotron hosts it. Backfill follows. Acceptance test page: https://blog.kjamistan.com/a-deep-dive-into-memorization-in-deep-learning.html, a 348-word hub with 23 links measured 2026-11-04: 17 series articles in an ordered list, 1 category page, 1 YouTube playlist, 3 people's thanks links (two personal sites, one LinkedIn). Expected: aggregation. Each series article: not aggregation.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f8ff4916-268e-45a3-97a6-d6f2d5d780f6",
+    "labels": []
+  }
+}

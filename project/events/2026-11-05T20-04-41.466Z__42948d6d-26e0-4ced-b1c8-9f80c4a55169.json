@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "42948d6d-26e0-4ced-b1c8-9f80c4a55169",
+  "issue_id": "PPY-adf93b3c-46ab-48da-82b8-4add89dad881",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T20:04:41.466Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Interactive Papyrus MCP App",
+    "description": "Optional Reference and Story cards use the same tools as chat. Verify both paths and record compatibility across hosts.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e7ad4f9f-7a57-415d-8ff3-cba9d40f5207",
+    "labels": []
+  }
+}

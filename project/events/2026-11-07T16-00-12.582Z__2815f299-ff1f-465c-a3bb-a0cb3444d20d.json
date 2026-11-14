@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "2815f299-ff1f-465c-a3bb-a0cb3444d20d",
+  "issue_id": "PPY-6f91de8e-2cce-4326-8ef1-852a50c36e5c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T16:00:12.582Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M5: Backfill, operate and evaluate multilingual publications",
+    "description": "As a publication operator, I want to add languages to an existing corpus safely and see translation quality and spend, so rollout remains manageable.\n\nBackfill references, concepts, stories, sections and public pages in bounded batches; prioritize live and frequently read content; make reruns safe. Show coverage, backlog age, failures, quality findings, approvals and token spend by locale and content type. Provide pause/resume, retry and glossary/policy version updates. Pilot English and Spanish on Machines on Machines, including its attribution wording and Concepts Wiki, without hard-coding that site's identity into Papyrus. Define sampled editorial evaluation for fluency, terminology, factual fidelity and accessibility before broad rollout. Account for conversations and other user-authored text as a later explicit extension with original wording preserved.\n\nAcceptance: adding Spanish to an existing site progresses to measured coverage without duplicate items or broken links; operators can repair failures and estimate ongoing cost; the pilot demonstrates a complete reader journey and tested correction/withdrawal flow. Gherkin scenarios and focused integration tests cover backfill and recovery.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-82f150e8-9010-4a9f-949e-71168ffdbdc0",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6-sol"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+  "title": "Dedicated tier: the same artefact with one fixed tenant, hooks as tracked gaps, managed upgrades",
+  "description": "Why: dedicated customers and our own flagship sites run the shared artefact with a fixed tenant in their own AWS account. Hooks exist only here, and each one in use is a gap to promote into core. Papyrus manages upgrades for dedicated customers (stepwise, one index per deploy); people who clone and run it themselves are on their own. Shipped, Anth.us and Machines on Machines stay dedicated for now (moving them onto the standard system is hoped for soon and is a later story); Threat Intelligence is the first shared-stack tenant, not a dedicated site; Distinctive Mark is dedicated pending its upgrade (open question). Ends with a p.apyr.us page.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "b9a16606-6970-4c64-b3bc-7829bbf60e61",
+      "author": "home",
+      "text": "Tasks: PPY-8ca9a7 (which sites follow TI), PPY-13fbea (dedicated sites adopt their fixed tenant, one at a time), PPY-297ebe (managed upgrades into customer accounts).",
+      "created_at": "2026-11-08T18:48:45.549148Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-07T21:43:09.325847Z",
+  "updated_at": "2026-11-08T18:48:45.549356Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

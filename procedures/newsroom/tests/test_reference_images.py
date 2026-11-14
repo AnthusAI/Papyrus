@@ -20,6 +20,11 @@ class FakeClient:
     def __init__(self, references, attachments=()):
         self.rows = {"Reference": list(references), "ReferenceAttachment": list(attachments)}
         self.written = []
+        self.updates = []   # the card copies written onto each Reference (reference_public_fields.card_update)
+
+    def update_record(self, model, row):
+        assert model == "Reference"
+        self.updates.append(row)
 
     def list_records(self, model):
         return list(self.rows[model])
@@ -104,6 +109,11 @@ class StoreClient:
     def __init__(self, attachments=(), fail_with=None):
         self.rows = {row["id"]: row for row in attachments}
         self.fail_with = fail_with
+        self.updates = []
+
+    def update_record(self, model, row):
+        assert model == "Reference"
+        self.updates.append(row)
 
     def get_record(self, model, record_id):
         assert model == "ReferenceAttachment"

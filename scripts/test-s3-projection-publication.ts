@@ -48,6 +48,15 @@ assert.deepEqual(validatePublicationConfig({ kind: "s3-projection", cache: { inv
 for (const htmlSMaxAgeSeconds of [-1, 1.5, 86401]) {
   assert.match(problemsOf({ kind: "s3-projection", cache: { htmlSMaxAgeSeconds } }), /htmlSMaxAgeSeconds/, String(htmlSMaxAgeSeconds));
 }
+assert.deepEqual(validatePublicationConfig({ kind: "s3-projection", cache: { livePrefixes: ["conversations/", "tools/conversations/"], liveSMaxAgeSeconds: 5 } }), []);
+assert.deepEqual(validatePublicationConfig({ kind: "s3-projection", cache: { livePrefixes: ["conversations/"] } }), []);
+for (const livePrefixes of [[], ["conversations"], ["/conversations/"], ["a/../b/"], ["a,b/"], [""], ["/"], [7]]) {
+  assert.match(problemsOf({ kind: "s3-projection", cache: { livePrefixes: livePrefixes as string[] } }), /livePrefixes/, JSON.stringify(livePrefixes));
+}
+for (const liveSMaxAgeSeconds of [-1, 1.5, 61]) {
+  assert.match(problemsOf({ kind: "s3-projection", cache: { livePrefixes: ["conversations/"], liveSMaxAgeSeconds } }), /liveSMaxAgeSeconds/, String(liveSMaxAgeSeconds));
+}
+assert.match(problemsOf({ kind: "s3-projection", cache: { liveSMaxAgeSeconds: 5 } }), /needs publication.cache.livePrefixes/);
 assert.match(problemsOf({ kind: "s3-projection", cache: { invalidation: "wildcard" } }), /invalidation must be/);
 for (const projector of ["../x.py", "/abs/x.py", "web/projector.js", "web/../../x.py", ""]) {
   assert.match(problemsOf({ kind: "s3-projection", projector }), /projector/, projector);
@@ -76,12 +85,23 @@ const cachedEnvironment = s3ProjectionEnvironment({
 });
 assert.equal(cachedEnvironment.PAPYRUS_HTML_S_MAXAGE_SECONDS, "120");
 assert.equal(cachedEnvironment.PAPYRUS_EDGE_INVALIDATION, "off");
+assert.equal(cachedEnvironment.PAPYRUS_HTML_LIVE_PREFIXES, undefined, "no live prefixes unless the site sets them");
+const liveEnvironment = s3ProjectionEnvironment({ ...settingsInput, cache: { livePrefixes: ["conversations/", "tools/conversations/"], liveSMaxAgeSeconds: 3 } });
+assert.equal(liveEnvironment.PAPYRUS_HTML_LIVE_PREFIXES, "conversations/,tools/conversations/");
+assert.equal(liveEnvironment.PAPYRUS_HTML_LIVE_S_MAXAGE_SECONDS, "3");
+assert.equal(s3ProjectionEnvironment({ ...settingsInput, cache: { livePrefixes: ["conversations/"] } }).PAPYRUS_HTML_LIVE_S_MAXAGE_SECONDS, undefined, "the Python side owns the default");
+// "off" stops a Save purging, but an editor's explicit page refresh (PPY-105508) still needs the permission.
 assert.equal(
   s3ProjectionPolicyStatements({ ...settingsInput, bucketName: "b", distributionArn: edgeArn, cache: { invalidation: "off" } }).some((statement) =>
     statement.actions.includes("cloudfront:CreateInvalidation")),
-  false,
+  true,
 );
 assert.equal(s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn }).PAPYRUS_EDGE_INVALIDATION, undefined);
+// "targeted" is the default (PPY-2745c1) and sets nothing; "all" is the explicit, billable legacy mode; the per-call cap travels either way.
+const targetedEnvironment = s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn, cache: { invalidation: "targeted", maxInvalidationPaths: 12 } });
+assert.equal(targetedEnvironment.PAPYRUS_EDGE_INVALIDATION, undefined);
+assert.equal(s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn, cache: { invalidation: "all" } }).PAPYRUS_EDGE_INVALIDATION, "all");
+assert.equal(targetedEnvironment.PAPYRUS_INVALIDATION_MAX_PATHS, "12");
 assert.deepEqual(
   s3ProjectionEnvironment({
     ...settingsInput,
@@ -232,6 +252,8 @@ function oacStatements(template: Template) {
   const { template, publication } = synthesize({ kind: "s3-projection", edgeDistributionArn: edgeArn, projector: "web/projector.py" });
   assertSharedParts(template);
   template.resourceCountIs("AWS::CloudFront::Distribution", 0);
+  template.resourceCountIs("AWS::CloudFront::Function", 1);   // the redirect function only: the edge stack's own template carries the Markdown content-type function
+  assert.equal(publication.markdownContentTypeFunction, undefined);
   const allowed = oacStatements(template);
   assert.equal(allowed.length, 1);
   assert.deepEqual(allowed[0].Condition, { StringEquals: { "aws:SourceArn": edgeArn } });
@@ -262,12 +284,12 @@ function oacStatements(template: Template) {
 
 {
   const { template, publication } = synthesize({ kind: "s3-projection", edgeDistributionArn: edgeArn, cache: { invalidation: "off", htmlSMaxAgeSeconds: 60 } });
-  template.resourceCountIs("AWS::CloudWatch::Alarm", 0);
+  template.resourceCountIs("AWS::CloudWatch::Alarm", 1);
   assert.equal(publication.environment.PAPYRUS_EDGE_INVALIDATION, "off");
   assert.equal(publication.environment.PAPYRUS_HTML_S_MAXAGE_SECONDS, "60");
   const stack = Stack.of(publication.bucket);
   const rendered = JSON.stringify(publication.policyStatements.map((statement) => stack.resolve(statement.toStatementJson())));
-  assert.ok(!rendered.includes("cloudfront:CreateInvalidation"));
+  assert.ok(rendered.includes("cloudfront:CreateInvalidation"));   // explicit page refreshes (PPY-105508)
 }
 
 {
@@ -283,7 +305,7 @@ function oacStatements(template: Template) {
       DefaultCacheBehavior: Match.objectLike({
         ViewerProtocolPolicy: "redirect-to-https",
         Compress: true,
-        FunctionAssociations: [Match.objectLike({ EventType: "viewer-request" })],
+        FunctionAssociations: [Match.objectLike({ EventType: "viewer-request" }), Match.objectLike({ EventType: "viewer-response" })],
       }),
       CustomErrorResponses: Match.arrayWith([
         Match.objectLike({ ErrorCode: 404, ResponseCode: 404, ResponsePagePath: "/404.html" }),
@@ -291,6 +313,14 @@ function oacStatements(template: Template) {
       Origins: [Match.objectLike({ OriginAccessControlId: Match.anyValue(), S3OriginConfig: { OriginAccessIdentity: "" } })],
     }),
   });
+  // PPY-40f96a: a browser is shown a Markdown twin as text/plain by a viewer-response function; it adds no Content-Disposition.
+  template.resourceCountIs("AWS::CloudFront::Function", 2);
+  template.hasResourceProperties("AWS::CloudFront::Function", {
+    AutoPublish: true,
+    FunctionCode: Match.stringLikeRegexp("text/plain; charset=utf-8"),
+  });
+  assert.ok(!JSON.stringify(template.toJSON()).toLowerCase().includes("content-disposition"));
+  assert.ok(publication.markdownContentTypeFunction !== undefined);
   const distributionConfig = Object.values(template.findResources("AWS::CloudFront::Distribution"))[0].Properties.DistributionConfig;
   assert.equal(distributionConfig.Logging, undefined);
   assert.equal(distributionConfig.Aliases, undefined);
@@ -397,6 +427,17 @@ const explicitPublication = { kind: "s3-projection" as const, projector: "web/pr
 assert.equal(resolveSitePublication({ publication: explicitPublication }, "markus"), explicitPublication, "an explicit publication is used as written");
 assert.equal(resolveSitePublication({ publication: explicitPublication }, "pretext"), explicitPublication);
 assert.equal(explicitPublication.projector, "web/projector.py");
+// PAPYRUS_EDGE_DISTRIBUTION_ARN (an Amplify branch variable) supplies or replaces edgeDistributionArn, so the ARN need not be in Git.
+const exampleEdgeArn = "arn:aws:cloudfront::111122223333:distribution/EEXAMPLE12345";
+const fromEnvironment = resolveSitePublication({ publication: explicitPublication }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: exampleEdgeArn });
+assert.equal(fromEnvironment?.edgeDistributionArn, exampleEdgeArn, "the variable supplies the ARN");
+assert.equal(fromEnvironment?.projector, "web/projector.py", "the rest of the publication is kept");
+assert.equal("edgeDistributionArn" in explicitPublication, false, "the configured object is not mutated");
+assert.equal(resolveSitePublication({ publication: { ...explicitPublication, edgeDistributionArn: edgeArn } }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: exampleEdgeArn })?.edgeDistributionArn, exampleEdgeArn, "the variable wins over the literal");
+assert.equal(resolveSitePublication({ publication: { ...explicitPublication, edgeDistributionArn: edgeArn } }, "markus", {})?.edgeDistributionArn, edgeArn, "the literal still works");
+assert.equal(resolveSitePublication({ publication: { ...explicitPublication, edgeDistributionArn: edgeArn } }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: "  " })?.edgeDistributionArn, edgeArn, "a blank variable is ignored");
+assert.equal(resolveSitePublication({ publication: false }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: exampleEdgeArn }), undefined, "publication: false stays off");
+assert.match(problemsOf({ kind: "s3-projection", edgeDistributionArn: "arn:aws:s3:::bucket" }), /CloudFront distribution ARN/, "a wrong value is still rejected");
 assert.match(problemsOf({ kind: "s3-projection", reprojectOnDeploy: "yes" }), /reprojectOnDeploy must be a boolean/);
 assert.equal(reprojectDeployToken({ AWS_JOB_ID: "17" }), "job-17");
 assert.equal(reprojectDeployToken({}, () => 5), "time-5");

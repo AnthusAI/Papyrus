@@ -341,6 +341,32 @@ def test_an_existing_card_is_kept(copied):
     assert me.copy_curation(copied.client, reference, row, copied.enrich.texts, me.utc_now()) == "kept"
 
 
+LINKS = [{"url": "https://example.org/series/1", "label": "Part one", "kind": "content", "listed": True, "position": 1},
+         {"url": "https://example.org/about", "label": "About", "kind": "navigation", "listed": False, "position": 2}]
+
+
+def test_delivery_stores_the_pages_links_beside_the_text_and_counts_them_on_the_card(monkeypatch, table):
+    references = [{"id": f"reference-{p}-101", "lineageId": f"reference-{p}-101", "versionNumber": 1} for p in PUBS]
+    client, stores = MemoryClient(references), []
+    monkeypatch.setattr(me, "AttachmentStore", lambda c: stores.append(MemoryStore(c)) or stores[-1])
+    capture = good()
+    capture.links = LINKS
+    store, cyclotron = setup_router(table)
+    go(table, store, cyclotron, enricher=enricher(capture), appsync=lambda endpoint: client)
+    row = table.items[("MONITOR#hn", "ENRICH#101#000001")]
+    assert row["curation"]["links"] == {"total": 2, "content": 1} and row["linksKey"].endswith("links.json")
+    card = client.card("reference-anth-us-101")
+    assert card["links"] == {"total": 2, "content": 1} and card["current"]["linksSortKey"] == "curation-links"
+    stored = json.loads(stores[0].text({"id": "reference-anth-us-101"}, "curation-links"))
+    assert stored["links"] == LINKS and "links" not in row["curation"]["capture"]
+
+
+def test_an_item_whose_page_had_no_links_stores_none(copied):
+    row = copied.table.items[("MONITOR#hn", "ENRICH#101#000001")]
+    assert "linksKey" not in row and "links" not in row["curation"]
+    assert "links" not in copied.client.card("reference-anth-us-101")
+
+
 # --- the Lambda wiring --------------------------------------------------------------------------------------------------------------
 
 
@@ -406,7 +432,7 @@ def test_the_stack_has_a_private_bucket_one_key_parameter_and_least_privilege_fo
     assert read["Action"] == "ssm:GetParameter" and "EnrichmentOpenAiKeyParameter" in json.dumps(read["Resource"]) and "*" not in json.dumps(read["Resource"])
     storage = resources["RouterEnrichmentStoragePolicy"]["Properties"]["PolicyDocument"]["Statement"]
     assert storage[0]["Action"] == ["s3:GetObject", "s3:PutObject"] and storage[0]["Resource"][1].endswith("/enrichment/*")
-    assert all(r[1].endswith("/types/Mutation/fields/createModelAttachmentDownload") for r in storage[1]["Resource"]) and len(storage[1]["Resource"]) == 7
+    assert all(r[1].endswith("/types/Mutation/fields/createModelAttachmentDownload") for r in storage[1]["Resource"]) and len(storage[1]["Resource"]) == 8
 
 
 def test_the_router_gets_the_tavily_key_parameter_and_may_read_and_decrypt_only_that():
@@ -432,3 +458,26 @@ def test_the_collector_gets_the_same_tavily_key_grants_for_web_search():
     read, decrypt = policy["Properties"]["PolicyDocument"]["Statement"]
     assert read["Action"] == "ssm:GetParameter" and "TavilyKeyParameter" in json.dumps(read["Resource"]) and "*" not in json.dumps(read["Resource"])
     assert decrypt["Action"] == "kms:Decrypt" and "kms:ViaService" in json.dumps(decrypt["Condition"])
+
+
+def test_web_search_chain_and_provider_keys_are_opt_in_and_least_privilege():
+    from test_monitoring_router import _template
+    template = _template()
+    parameters, resources = template["Parameters"], template["Resources"]
+    for name in ("WebSearchProviders", "OpenAiSearchKeyParameter", "PerplexityKeyParameter", "GeminiKeyParameter"):
+        assert parameters[name]["Default"] == ""
+    assert parameters["BedrockWebSearch"]["Default"] == "off" and parameters["TavilyKeyParameter"]["Default"] == "/papyrus/shared/tavily-api-key"
+    for function in ("CollectorFunction", "RouterFunction"):
+        env = resources[function]["Properties"]["Environment"]["Variables"]
+        for key in ("WEB_SEARCH_PROVIDERS", "PAPYRUS_OPENAI_KEY_PARAMETER", "PAPYRUS_PERPLEXITY_KEY_PARAMETER", "PAPYRUS_GEMINI_KEY_PARAMETER"):
+            assert env[key][0] == "If" and env[key][1][2] == ("Ref", "AWS::NoValue"), key   # absent unless configured
+    for role in ("Collector", "Router"):
+        for key, condition, parameter in (("OpenAi", "HasOpenAiSearchKey", "OpenAiSearchKeyParameter"), ("Perplexity", "HasPerplexityKey", "PerplexityKeyParameter"),
+                                          ("Gemini", "HasGeminiKey", "GeminiKeyParameter")):
+            policy = resources[f"{role}{key}SearchKeyPolicy"]
+            assert policy["Condition"] == condition and policy["Properties"]["Roles"] == [("Ref", f"{role}Role")]
+            text = json.dumps(policy["Properties"]["PolicyDocument"])
+            assert "ssm:GetParameter" in text and "kms:ViaService" in text and parameter in text
+            assert all(s["Resource"] != "*" for s in policy["Properties"]["PolicyDocument"]["Statement"])
+        assert resources[f"{role}BedrockWebSearchPolicy"]["Condition"] == "HasBedrockWebSearch"
+        assert "ManagedPolicyArns" in resources[f"{role}Role"]["Properties"]

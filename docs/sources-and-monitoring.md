@@ -27,7 +27,7 @@ Details: [monitoring-cloud.md](monitoring-cloud.md) (stack, table layout, router
 
 ## Adding a reference by hand (Live)
 
-- **From the newsroom.** The References tab has an "Add a reference" area with "Paste a URL" and, when the host supplies it, "Import a file". A pasted URL takes a label and an optional explanation; the page is read in the background by a worker. It is used to prime the relevance Cyclotron, described in [cyclotron-priming.md](cyclotron-priming.md).
+- **From the newsroom.** The References tab has an "Add a reference" area with "Paste a URL" and, when the host supplies it, "Import a file". A pasted URL becomes a pending Reference at once (the address is its title until the page is captured) and a prediction is requested for it. The editor can accept it and give it 1 to 5 stars in the same dialog; those are their own decisions and train the site's Cyclotron like any other. "Import a file" primes the relevance Cyclotron, described in [cyclotron-priming.md](cyclotron-priming.md).
 - **From the CLI.** `papyrus references create-from-catalog --status pending` creates pending References from a catalog file. With an editor session it goes through the `intakePendingReferences` action; an operator can use IAM credentials. See [reference-intake/user-session-intake.md](reference-intake/user-session-intake.md).
 
 ## Inbound email (Live)
@@ -45,7 +45,8 @@ Research assignments find candidate sources.
 - `papyrus editions dispatch-research` creates research assignments for an edition.
 - `papyrus assignments research-intake-now` runs source discovery and proposal intake right away. A worked example with a schedule is [automation-ai-ml-academic-research-dispatch.md](automation-ai-ml-academic-research-dispatch.md).
 - `papyrus assignments run-tavily-deep-research` and `papyrus assignments poll-tavily-deep-research` run Tavily Research tasks (`src/papyrus_newsroom/tavily_research.py`).
-- Web search for references uses a provider chosen by the `WEB_SEARCH_PROVIDER` environment variable: `tavily` (the default) or `openai` (`src/papyrus_newsroom/web_search_providers.py`).
+- `papyrus assignments research-multi <assignment>` runs `research.multi`, an opt-in mode an editor picks per assignment: one planned set of queries on every configured search provider, merged and synthesised into one research packet with per-provider contribution. It is never the default; see [automated-publication-research-workflow.md](automated-publication-research-workflow.md#multi-search-research-researchmulti).
+- Web search for references goes through `papyrus_content.web_search` (providers `tavily`, `openai`, `perplexity`, `gemini`, `bedrock`), chosen by `WEB_SEARCH_PROVIDERS`, an ordered fallback chain such as `openai,tavily`; `tavily,perplexity,openai` is the default, cheapest first (Gemini is used where an operator names it). `src/papyrus_newsroom/web_search_providers.py` only shapes the answer for the research tools, and the payload's metadata records the chain, the provider that answered and why others were skipped. Keys: `<PROVIDER>_API_KEY` or the SSM SecureString named by `PAPYRUS_<PROVIDER>_KEY_PARAMETER` (standard names `/papyrus/search/<provider>-api-key`). See `docs/monitoring-cloud.md` for the failure kinds and the stack parameters.
 
 How assignments work: [automated-publication-research-workflow.md](automated-publication-research-workflow.md) and [newsroom-operations.md](newsroom-operations.md).
 

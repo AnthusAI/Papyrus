@@ -9,6 +9,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable
 
+from papyrus_content.reference_feed_keys import feed_state_key, medium_key_patch, public_key_patch
+from papyrus_content.reference_stars import validated_stars
 from papyrus_content.reference_vote import AGENT, vote_fields
 
 
@@ -22,9 +24,21 @@ query GetReference($id: ID!) {
     versionNumber
     corpusId
     title
+    sourceUri
     externalItemId
+    versionState
     curationStatus
     newsroomFeedKey
+    contentNeededKey
+    predictedAcceptProbability
+    feedArrivalAt
+    createdAt
+    importedAt
+    retrievedAt
+    sourcePublishedAt
+    versionCreatedAt
+    publicFeedKey
+    publicOrderKey
   }
 }
 """
@@ -143,6 +157,24 @@ mutation RecordDelegatedCuration(
     reasonCode
     messageId
     relationId
+  }
+}
+"""
+
+
+RECORD_DELEGATED_STARS_MUTATION = """
+mutation RecordDelegatedStars(
+  $referenceId: ID!, $stars: Int, $delegationId: ID!, $delegationToken: String!, $agentLabel: String!,
+  $onBehalfOf: String!, $instruction: String!
+) {
+  recordDelegatedStars(
+    referenceId: $referenceId, stars: $stars, delegationId: $delegationId, delegationToken: $delegationToken,
+    agentLabel: $agentLabel, onBehalfOf: $onBehalfOf, instruction: $instruction
+  ) {
+    ok
+    referenceId
+    stars
+    status
   }
 }
 """
@@ -295,6 +327,37 @@ def record_delegated_curation(
     )
 
 
+def record_delegated_stars(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    stars: int | None,
+    delegation_token: str,
+    agent_label: str,
+    on_behalf_of: str,
+    instruction: str,
+) -> dict[str, Any]:
+    """Record a person's star rating (1 to 5, or None to clear it), relayed by an agent with the delegation the person granted.
+
+    The rules are ``setReferenceStars`` (``reference_stars``). The Reference's rating is filed as the person's rating relayed by the agent
+    under that delegation, never as the person's own direct one.
+    """
+    return _call(
+        graphql,
+        RECORD_DELEGATED_STARS_MUTATION,
+        "recordDelegatedStars",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "stars": validated_stars(stars),
+            "delegationId": delegation_id_from_token(_required(delegation_token, "delegation_token")),
+            "delegationToken": delegation_token,
+            "agentLabel": _required(agent_label, "agent_label"),
+            "onBehalfOf": _required(on_behalf_of, "on_behalf_of"),
+            "instruction": _required(instruction, "instruction"),
+        },
+    )
+
+
 def review_reference_curation(
     graphql: GraphqlInvoker,
     *,
@@ -323,6 +386,9 @@ def review_reference_curation(
                 "id": resolved_reference_id,
                 "curationStatus": next_status,
                 "curationStatusKey": f"{_required(reference.get('corpusId'), 'reference.corpusId')}#{next_status}",
+                "feedStateKey": feed_state_key({**reference, "curationStatus": next_status}),   # a vote moves it between the feeds; its prediction stays
+                **medium_key_patch(reference, curationStatus=next_status),
+                **public_key_patch(reference, curationStatus=next_status),   # the prediction and arrival it needs are in GET_REFERENCE_QUERY
                 "curationStatusUpdatedAt": now,
                 "curationStatusUpdatedBy": actor,
                 "curationStatusReason": user_note,
@@ -341,6 +407,79 @@ def review_reference_curation(
         "reasonCode": reasoning,
         "sectionId": resolved_section_id,
     }
+
+
+REVIEW_REFERENCE_CURATION_MUTATION = """
+mutation ReviewReferenceCuration($referenceId: ID!, $action: String!, $note: String, $reasonCode: String, $sectionId: ID, $agentLabel: String) {
+  reviewReferenceCuration(referenceId: $referenceId, action: $action, note: $note, reasonCode: $reasonCode, sectionId: $sectionId, agentLabel: $agentLabel) {
+    ok
+    action
+    referenceId
+    status
+    reasonCode
+  }
+}
+"""
+
+SET_REFERENCE_STARS_MUTATION = """
+mutation SetReferenceStars($referenceId: ID!, $stars: Int, $agentLabel: String) {
+  setReferenceStars(referenceId: $referenceId, stars: $stars, agentLabel: $agentLabel) {
+    ok
+    referenceId
+    stars
+    status
+  }
+}
+"""
+
+
+def review_reference_curation_as_signed_in_person(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    action: str,
+    note: str = "",
+    reason_code: str = "",
+    section_id: str = "",
+    agent_label: str = "",
+) -> dict[str, Any]:
+    """Accept or reject as the signed-in editor or admin (an agent acts through their session). No delegation: the decision is the person's.
+
+    The site's own function records who signed in, and notes that it came through the CLI and ``agent_label``, if given.
+    """
+    return _call(
+        graphql,
+        REVIEW_REFERENCE_CURATION_MUTATION,
+        "reviewReferenceCuration",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "action": _normalize_curation_action(action),
+            "note": _optional(note) or None,
+            "reasonCode": _optional(reason_code) or None,
+            "sectionId": _optional(section_id) or None,
+            "agentLabel": _optional(agent_label) or None,
+        },
+    )
+
+
+def set_reference_stars_as_signed_in_person(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    stars: int | None,
+    agent_label: str = "",
+) -> dict[str, Any]:
+    """Rate (1 to 5, or None to clear) as the signed-in editor or admin. No delegation: the rating is the person's."""
+    return _call(
+        graphql,
+        SET_REFERENCE_STARS_MUTATION,
+        "setReferenceStars",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "stars": validated_stars(stars),
+            "agentLabel": _optional(agent_label) or None,
+        },
+    )
 
 
 def _validated_section_id(graphql: GraphqlInvoker, section_id: str, action: str) -> str | None:

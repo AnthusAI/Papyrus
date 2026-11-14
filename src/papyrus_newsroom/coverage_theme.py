@@ -14,6 +14,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from papyrus_content.tenant_knowledge_keys import corpus_id_for_key, tenant_unique_id
+from papyrus_content.tenant_knowledge_keys import SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
+from papyrus_content.concept_link_predicates import is_reference_concept_link
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.content_item_lifecycle import (
     build_new_content_item_version,
@@ -2139,7 +2142,7 @@ def _concept_snapshot_from_semantic_nodes(
     topic: str,
     limit: int,
 ) -> dict[str, Any]:
-    corpus_id = f"knowledge-corpus-{_safe_id(corpus_key)}"
+    corpus_id = corpus_id_for_key(_safe_id(corpus_key))
     topic_terms = _terms(topic)
     rows: list[dict[str, Any]] = []
     for raw_node in semantic_nodes:
@@ -4886,7 +4889,7 @@ def coverage_node_record(
     now: str,
     change_reason: str = "coverage-theme-coverage-concept",
 ) -> dict[str, Any]:
-    lineage_id = f"semantic-node-{_safe_id(coverage_key)}"
+    lineage_id = tenant_unique_id(f"semantic-node-{_safe_id(coverage_key)}")
     record = {
         "id": f"{lineage_id}-v1",
         "lineageId": lineage_id,
@@ -4898,7 +4901,7 @@ def coverage_node_record(
         "changeReason": change_reason,
         "nodeKey": coverage_key,
         "nodeKind": "coverageQuestion",
-        "corpusId": (category_set or {}).get("corpusId") or f"knowledge-corpus-{_safe_id(corpus_key)}",
+        "corpusId": (category_set or {}).get("corpusId") or corpus_id_for_key(_safe_id(corpus_key)),
         "categorySetId": (category_set or {}).get("id"),
         "categoryLineageId": (category or {}).get("lineageId"),
         "categoryKey": (category or {}).get("categoryKey"),
@@ -4909,14 +4912,14 @@ def coverage_node_record(
         "importRunId": None,
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "semanticNodes",
+        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
     }
     record["contentHash"] = _hash_stable({"nodeKey": coverage_key, "nodeKind": record["nodeKind"], "displayName": topic})
     return {key: value for key, value in record.items() if value is not None}
 
 
 def lane_node_record(node_key: str, display_name: str, alias: str, now: str) -> dict[str, Any]:
-    lineage_id = f"semantic-node-{_safe_id(node_key)}"
+    lineage_id = tenant_unique_id(f"semantic-node-{_safe_id(node_key)}")
     record = {
         "id": f"{lineage_id}-v1",
         "lineageId": lineage_id,
@@ -4934,7 +4937,7 @@ def lane_node_record(node_key: str, display_name: str, alias: str, now: str) -> 
         "status": "accepted",
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "semanticNodes",
+        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
     }
     record["contentHash"] = _hash_stable({"nodeKey": node_key, "displayName": display_name, "aliases": [alias]})
     return record
@@ -4984,7 +4987,7 @@ def research_assignment_record(**kwargs: Any) -> dict[str, Any]:
         "brief": f"{section['title']} research lens: {section_research_lens(section)}.",
         "instructions": f"Research {topic} through the {section['title']} section lens. Produce a private research_packet only.",
         "metadata": metadata,
-        "corpusId": (category_set or {}).get("corpusId") or f"knowledge-corpus-{_safe_id(corpus_key)}",
+        "corpusId": (category_set or {}).get("corpusId") or corpus_id_for_key(_safe_id(corpus_key)),
         "categorySetId": (category_set or {}).get("id"),
         "classifierId": (category_set or {}).get("classifierId"),
         "sourceSnapshotId": None,
@@ -5085,7 +5088,7 @@ def reporting_assignment_record(**kwargs: Any) -> dict[str, Any]:
         "brief": brief,
         "instructions": f"Use the {section['title']} doctrine and section research packet. Produce reporting_context_packet only.",
         "metadata": metadata,
-        "corpusId": (category_set or {}).get("corpusId") or f"knowledge-corpus-{_safe_id(corpus_key)}",
+        "corpusId": (category_set or {}).get("corpusId") or corpus_id_for_key(_safe_id(corpus_key)),
         "categorySetId": (category_set or {}).get("id"),
         "classifierId": (category_set or {}).get("classifierId"),
         "sourceSnapshotId": None,
@@ -5269,7 +5272,7 @@ def semantic_relation(
         "importedAt": now,
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": metadata or {},
     }
     return {key: value for key, value in relation.items() if value is not None}
@@ -5614,7 +5617,7 @@ def _concept_report_context(
     now: str,
 ) -> dict[str, Any]:
     now_dt = _parse_datetime(now) or dt.datetime.now(dt.UTC)
-    corpus_id = f"knowledge-corpus-{_safe_id(corpus_key)}"
+    corpus_id = corpus_id_for_key(_safe_id(corpus_key))
     accepted = _accepted_references(references, corpus_key)
     references_by_key: dict[str, dict[str, Any]] = {}
     for ref in accepted:
@@ -5642,13 +5645,9 @@ def _concept_report_context(
     for raw_relation in semantic_relations:
         relation = _decode_record(raw_relation)
         relation_type = relation.get("relationTypeKey") or relation.get("predicate")
-        if _normalize_relation_key(relation_type) != "mentions":
+        if not is_reference_concept_link(_normalize_relation_key(relation_type), relation.get("subjectKind"), relation.get("objectKind")):
             continue
         if relation.get("relationState") not in {None, "current"}:
-            continue
-        if str(relation.get("subjectKind") or "") != "reference":
-            continue
-        if str(relation.get("objectKind") or "") != "semanticNode":
             continue
         reference = references_by_key.get(str(relation.get("subjectLineageId") or "")) or references_by_key.get(str(relation.get("subjectId") or ""))
         node = nodes_by_key.get(str(relation.get("objectLineageId") or "")) or nodes_by_key.get(str(relation.get("objectId") or ""))
@@ -5922,7 +5921,7 @@ def _attachment_record(owner_id: str, role: str, sort_key: str, filename: str, m
 
 
 def _accepted_references(references: list[dict[str, Any]], corpus_key: str) -> list[dict[str, Any]]:
-    corpus_id = f"knowledge-corpus-{_safe_id(corpus_key)}"
+    corpus_id = corpus_id_for_key(_safe_id(corpus_key))
     accepted = []
     for ref in references:
         ref = _decode_record(ref)

@@ -5,6 +5,25 @@ export type ReferenceCurationAction = "accept" | "reject" | "archive";
 
 export type ReferenceStatusFilter = "all" | "pending" | "accepted" | "rejected" | "archived";
 
+/** The References list filters: a Reference status, or "Accepted automatically" (`?status=auto-accepted`). */
+export type ReferenceListFilterKey = ReferenceStatusFilter | "auto_accepted";
+
+const LIST_FILTER_BY_URL_STATUS: Readonly<Record<string, ReferenceListFilterKey>> = {
+  all: "all", pending: "pending", accepted: "accepted", rejected: "rejected", archived: "archived", "auto-accepted": "auto_accepted",
+};
+
+/** The filter a `?status=` value opens, or null when the URL names none this list knows (the page then keeps its default view). */
+export function referenceListFilterFromSearch(search: string): ReferenceListFilterKey | null {
+  const value = new URLSearchParams(search).get("status")?.trim().toLowerCase() ?? "";
+  return LIST_FILTER_BY_URL_STATUS[value] ?? null;
+}
+
+/** The `?status=` value for a filter ("" for All, which has none). */
+export function referenceListFilterToUrlStatus(filter: ReferenceListFilterKey | "needs_review"): string {
+  if (filter === "all" || filter === "needs_review") return "";
+  return filter === "auto_accepted" ? "auto-accepted" : filter;
+}
+
 export function referenceLineageId(reference: ReferenceRecord): string {
   return reference.lineageId ?? reference.id;
 }

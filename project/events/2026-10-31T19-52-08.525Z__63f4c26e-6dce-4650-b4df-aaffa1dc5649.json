@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "63f4c26e-6dce-4650-b4df-aaffa1dc5649",
+  "issue_id": "PPY-857140ac-9e19-40bb-8848-1dba2083fbf6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T19:52:08.525Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "APL reference card for review",
+    "description": "An APL document for one reference: title, subtitle, summary, source name and date, the queue name and position ('3 of 12'), and Accept / Reject / Skip touch buttons. Touch sends the same actions as voice. All viewport profiles. No colour-only meaning. Gherkin covers it.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+    "labels": []
+  }
+}

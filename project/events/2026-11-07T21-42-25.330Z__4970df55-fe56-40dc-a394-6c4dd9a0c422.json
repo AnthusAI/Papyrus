@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "4970df55-fe56-40dc-a394-6c4dd9a0c422",
+  "issue_id": "PPY-613a2934-26fe-47ce-b593-d2cc6b435cef",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:25.330Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "One core card set for stories, references, threads and wiki entries",
+    "description": "What: cards rendered from data by core, ported once from MoM's components. Cards carry what they need on the row (no further lookups; see PPY-7f1e54).\nAcceptance:\nScenario: A card renders from its data alone\n  Given a Reference row with prediction, image and summary\n  When a listing renders\n  Then no extra lookup is made and the card matches the golden render",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-31efef9d-7906-42d8-a6c5-b071ca5814d9",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

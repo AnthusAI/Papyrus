@@ -1,0 +1,20 @@
+{
+  "id": "PPY-22128955-3b0e-4118-939a-59112c8b6b70",
+  "title": "Idea signals count wiki pages as published stories",
+  "description": "ideas/signal_inputs.py (about line 374) takes published current rows from list_stories with no type filter, so wiki pages feed the published-stories signal; Shipped has 665. Share one list of story types between Python and lib/content-item-lifecycle.ts STORY_ITEM_TYPES; ideas/context.py has its own STORY_TYPES including story. Also check duplicate-cut and trend code.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T17:55:08.279943Z",
+  "updated_at": "2026-11-02T17:55:08.280018Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

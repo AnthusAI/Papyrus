@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "9d625811-b360-44be-9ede-dd3e1ac34e9b",
+  "issue_id": "PPY-c00df696-ab3d-4ede-9158-02bc3104071d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:50.204Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Calibrate suggestions from decisions (Wilson cut per site)",
+    "description": "Per site, over suggestions a person decided: the smallest similarity t at which the Wilson 95% lower bound of the accept share among suggestions scored >= t reaches the site's target precision (same statistic as auto_accept.py). Above t: shown first, marked \"likely\" (text); below: \"possible\". Too few decisions: no t, recorded like auto_accept. Replaces the knee in S2.6 once it exists. Separate cuts for reference links and concept links.\nTests: synthetic decision sets give the expected t or none.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

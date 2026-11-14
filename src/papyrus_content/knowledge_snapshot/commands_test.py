@@ -235,7 +235,7 @@ def write_run_directory(directory: Path, *, run_id="run-2026-10-19") -> Path:
             {
                 "schema_version": 1,
                 "vocabulary": {"publication": "shipped", "version": 1, "hash": "abc"},
-                "backend": {"id": "gliner2-hybrid", "model": "gliner2-base", "revision": "1", "threshold": 0.7},
+                "backend": {"id": "jev", "model": "jev-1.13.0"},
                 "summary": {},
                 "items": [
                     {

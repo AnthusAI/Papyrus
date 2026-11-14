@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8f3d3177-8d88-45ce-9e0e-f3c0bafc4e33",
+  "title": "p.apyr.us docs page: Papyrus on Alexa",
+  "description": "A docs page on p.apyr.us: what the skill does, how to turn it on for a site (config), linking, and voice and touch commands. A Papyrus-web PR that merges freely.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1b7f66d4-dbb9-4728-ba02-51868f05edd9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:49.735403Z",
+  "updated_at": "2026-10-31T14:06:49.735434Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

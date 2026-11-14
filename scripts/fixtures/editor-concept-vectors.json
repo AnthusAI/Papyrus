@@ -1,0 +1,103 @@
+{
+  "cases": [
+    {
+      "name": "Fake Website  Networks",
+      "actor": "editor-1",
+      "now": "2026-11-02T12:00:00Z",
+      "slug": "fake-website-networks",
+      "node": {
+        "id": "semantic-node-editor_concept--fake-website-networks-v1",
+        "lineageId": "semantic-node-editor_concept--fake-website-networks",
+        "versionNumber": 1,
+        "versionState": "current",
+        "versionCreatedAt": "2026-11-02T12:00:00Z",
+        "versionCreatedBy": "editor-1",
+        "changeReason": "Invented by an editor with a hashtag",
+        "nodeKey": "editor_concept--fake-website-networks",
+        "nodeKind": "editor_concept",
+        "displayName": "fake website networks",
+        "status": "accepted",
+        "aliases": [],
+        "createdAt": "2026-11-02T12:00:00Z",
+        "updatedAt": "2026-11-02T12:00:00Z",
+        "newsroomFeedKey": "semanticNodes"
+      }
+    },
+    {
+      "name": "#The Confinement Problem!",
+      "actor": "papyrus-cli",
+      "now": "2026-11-02T12:00:00Z",
+      "slug": "the-confinement-problem",
+      "node": {
+        "id": "semantic-node-editor_concept--the-confinement-problem-v1",
+        "lineageId": "semantic-node-editor_concept--the-confinement-problem",
+        "versionNumber": 1,
+        "versionState": "current",
+        "versionCreatedAt": "2026-11-02T12:00:00Z",
+        "versionCreatedBy": "papyrus-cli",
+        "changeReason": "Invented by an editor with a hashtag",
+        "nodeKey": "editor_concept--the-confinement-problem",
+        "nodeKind": "editor_concept",
+        "displayName": "the confinement problem",
+        "status": "accepted",
+        "aliases": [],
+        "createdAt": "2026-11-02T12:00:00Z",
+        "updatedAt": "2026-11-02T12:00:00Z",
+        "newsroomFeedKey": "semanticNodes"
+      }
+    },
+    {
+      "name": "  #fake_website/networks! ",
+      "actor": "editor-2",
+      "now": "2026-11-02T12:00:00Z",
+      "slug": "fake-website-networks",
+      "node": {
+        "id": "semantic-node-editor_concept--fake-website-networks-v1",
+        "lineageId": "semantic-node-editor_concept--fake-website-networks",
+        "versionNumber": 1,
+        "versionState": "current",
+        "versionCreatedAt": "2026-11-02T12:00:00Z",
+        "versionCreatedBy": "editor-2",
+        "changeReason": "Invented by an editor with a hashtag",
+        "nodeKey": "editor_concept--fake-website-networks",
+        "nodeKind": "editor_concept",
+        "displayName": "fake website networks",
+        "status": "accepted",
+        "aliases": [],
+        "createdAt": "2026-11-02T12:00:00Z",
+        "updatedAt": "2026-11-02T12:00:00Z",
+        "newsroomFeedKey": "semanticNodes"
+      }
+    },
+    {
+      "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "actor": "editor-1",
+      "now": "2026-11-02T12:00:00Z",
+      "slug": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "node": {
+        "id": "semantic-node-editor_concept--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-v1",
+        "lineageId": "semantic-node-editor_concept--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "versionNumber": 1,
+        "versionState": "current",
+        "versionCreatedAt": "2026-11-02T12:00:00Z",
+        "versionCreatedBy": "editor-1",
+        "changeReason": "Invented by an editor with a hashtag",
+        "nodeKey": "editor_concept--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "nodeKind": "editor_concept",
+        "displayName": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "accepted",
+        "aliases": [],
+        "createdAt": "2026-11-02T12:00:00Z",
+        "updatedAt": "2026-11-02T12:00:00Z",
+        "newsroomFeedKey": "semanticNodes"
+      }
+    },
+    {
+      "name": "#",
+      "actor": "editor-1",
+      "now": "2026-11-02T12:00:00Z",
+      "slug": "",
+      "node": null
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "a6e8ccce-0308-4e35-b898-9117cb09e74c",
+  "issue_id": "PPY-b6d8abbf-5822-4d54-9c77-cdab2e7de8cd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T23:58:23.011Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Remote login can fail with nonce_mismatch after a correct approval",
+    "description": "2026-11-03, Machines on Machines, papyrus 5.72 with cli-login 0.4.0: the first papyrus login --remote was approved and ended with: The sign-in answered tokens for a different request; nothing was saved. A second attempt minutes later succeeded with the same steps. Cause unknown. /cli/challenge answers 404 on this site, so enrollment looks off and the pages should use the CLI's own nonce. The first attempt recorded no diagnostics. A process started shortly before it had been killed before its link was ever shown, so it had no approval. Reproduce and find out why the ID token's nonce differed; the error should also tell the person to start again.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "cli"
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5987e35c-3c8e-4d17-961f-ad100290df4d",
+  "title": "Idea run vector pass: suggestions reach Machines on Machines (suggest-backlog task, parked unindexable References)",
+  "description": "Live run 2026-11-03: indexed 11, suggestionsWritten 0, suggestionsRemaining 8123. 42 s of the 119 s vector slice before the first Reference; then a walk of 3,464 unindexable References (25/s) in API order that never ends, so suggestions never start. Fix: suggestions first and independent of the sync, parked/owed memory in the router table, sync in plan order, set-based id filter, hourly suggest-backlog task (FAN_OUT_TASKS), per-step timings in the log line.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T05:59:29.994180Z",
+  "updated_at": "2026-11-03T05:59:29.994249Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

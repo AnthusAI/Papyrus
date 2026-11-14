@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "ddbdb254-6265-4a27-9287-32f2c1ef99f8",
+  "issue_id": "PPY-45efffcb-1e75-4315-a03f-08c4416870a0",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-31T12:30:58.036Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "",
+        "to": "Repo: **Papyrus**. The remote-login broker (PR #891, `amplify/cli-login/remote-login.ts` `addCliRemoteLogin`) creates two CloudWatch alarms, `StartCeilingAlarm` and `ThrottledAlarm`, with no alarm action: nobody is notified. The pattern that is notified is the newsletter plugin's `AlarmTopic` (`amplify/plugins/newsletter/papyrus.plugin.ts` ~246-276) and the scheduled-jobs `AlarmTopicArn` parameter (`infra/scheduled-jobs/lib/scheduled-container-job.ts` ~324-393).\n\n## Change\n1. `addCliRemoteLogin(stack, props)` gains `alarmTopicArn?: string`. When set, both alarms get `alarmActions: [topicArn]` and `okActions: [topicArn]` (import with `sns.Topic.fromTopicArn`). When not set, create nothing extra but log one synth-time warning naming the setting, so the gap is visible.\n2. Source of the ARN: `site-backend.ts` ~177-187 passes it from the site config. Add `backend.alarms.topicArn` to the site's `papyrus.config.ts` shape (`infra/amplify-app-shell/lib/site-config.ts` and the `PapyrusConfig` type) if no alarm setting exists yet; if the newsletter plugin already resolves a topic for the site, reuse that one resolver so a site has one alarm topic, not two. Read `papyrus-config.example.yaml` and update it.\n3. Document in `docs/cli-login.md` \"Operating the broker\": which alarms exist, what each means (start ceiling = too many login starts; throttled = Lambda reserved concurrency 10 reached) and where notifications go.\n\n## Gherkin (`features_backend/cli-remote-login.feature`, extend)\n  Scenario: The broker alarms notify the site's alarm topic when one is configured\n  Scenario: Without an alarm topic the synth warns once and names the setting\n\n## Acceptance\n- CDK synth assertions (`amplify/cli-login/*.test.ts` or the existing backend synth tests) show `AlarmActions` on both alarms when the topic is set and none otherwise.\n- No AWS writes by the implementer; the setting is applied per site in later site PRs (list the seven sites in the PR description; the topic ARN goes in each site's config, never in this repo). The subscription (email) is created by Ryan in the console or by IaC in the site repo, never committed here (no emails in repo)."
+      }
+    }
+  }
+}

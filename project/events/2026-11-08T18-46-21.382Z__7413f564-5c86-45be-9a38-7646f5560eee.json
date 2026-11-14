@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "7413f564-5c86-45be-9a38-7646f5560eee",
+  "issue_id": "PPY-3bbbf9e2-2ddf-4c10-b19e-e7b65f36f5a3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:21.382Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Host-to-tenant routing at the edge, with per-tenant redirects and 404",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

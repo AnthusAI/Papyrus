@@ -2,17 +2,23 @@
 
 import { AdministrationDelegationsPanel } from "./administration-delegations-panel";
 import { WikiConceptsView } from "./wiki-concepts-view";
+import { SectionConceptsEditor } from "./section-concepts-editor";
+import { parseCoreConcepts, serializeCoreConcepts, type CoreConcept } from "../lib/section-concepts";
 import { Hub } from "aws-amplify/utils";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { gsap } from "gsap";
 import { Flip } from "gsap/Flip";
 import { ArchiveIcon, MenuIcon, MoreHorizontalIcon, RefreshCwIcon, XIcon } from "lucide-react";
+import { Palette, PenLine, ScrollText } from "lucide-react";
+import { VisualStyleAdmin } from "./visual-style-admin";
+import { WritingGuidelinesAdmin } from "./writing-guidelines-admin-panel";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import amplifyOutputs from "papyrus-amplify-outputs";
+import { AnnouncementsPanel } from "./announcements-panel";
 import { EditorialChecksAdminPanel } from "./editorial-checks-admin-panel";
 import { AutomationPanel } from "./automation-panel";
 import { MonitoringPanel } from "./monitoring-panel";
@@ -21,6 +27,7 @@ import { ProposalsPanel } from "./proposals-panel";
 import { NewsletterPanel } from "./newsletter-panel";
 import { SignupEntriesPanel } from "./signup-entries-panel";
 import { pluginSettings, type PluginOutputs } from "../lib/plugin-settings";
+import { assertReferenceReviewSaved, type ReferenceReviewResult } from "../lib/reference-review-response";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import {
@@ -38,9 +45,16 @@ import {
   loadEditorUserDirectoryData,
   loadModelPayloadsForOwner,
   loadStoragePathText,
-  loadEditorReferencesData,
+  loadAllEditorReferences,
+  loadReferenceFeedCorpusIds,
+  readReferenceFeedStream,
+  readReferenceStarStream,
+  readReferenceMediumStream,
+  searchReferences,
+  discardFeedCorpusIds,
+  loadReferenceAttachmentsForLineages,
   loadEditorProcedureData,
-  loadEditorSemanticRelationsData,
+  loadEditorReferencePredictions,
   loadEditorReferenceReviewDetails,
   loadEditionForumThreads,
   loadNewsroomAssignmentPage,
@@ -61,10 +75,9 @@ import {
   type KnowledgeQueryResponse,
   type NewsroomRecordPage,
   loadCyclotronStatus,
+  loadAutoAcceptedReferencePage,
   loadCyclotronShadowAgreement,
   loadSiteSectionAgreement,
-  requestCyclotronPriming,
-  loadCyclotronPrimingRequests,
   requestCyclotronReviewRate,
 } from "./news-desk-taxonomy-client";
 import {
@@ -91,13 +104,19 @@ import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { correctReferenceCapture } from "../lib/content-actions-client";
-import { loadMessagesWithHeadStart, loadReferencesWithHeadStart, loadRelationsWithHeadStart } from "./references-prefetch";
+import { loadMessagesWithHeadStart } from "./references-prefetch";
+import { useIndexedReferenceFeed, type IndexedFeedSource } from "./use-indexed-reference-feed";
+import { useReferencePredictions } from "../lib/use-reference-predictions";
+import { buildFeedItems, feedWindow } from "../lib/reference-feed-ranking";
 import { loadFeedSnapshot, saveFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
 import { referencePreviewsByLineage } from "../lib/reference-preview";
+import { PREVIEW_SEARCH_MEANING, normalizeSearchQuery, previewSearch, statusFromLocation, type ReferenceSearchReader } from "../lib/reference-search";
+import { NewsroomSearchResults } from "./newsroom-search-results";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
 import { ConversationProvider } from "./conversation-provider";
+import { ReferenceLinksProvider } from "./reference-links-provider";
 import { ConversationsPage } from "./conversations-page";
 import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
 import { NewsroomTopicsView } from "./newsroom-topics-view";
@@ -179,14 +198,13 @@ import { delegatedCurationsByReference, referencesWithHumanLatestCuration, type 
 import { createLocalPreviewCyclotronFixtures } from "../lib/local-preview-seed";
 import { createLocalPreviewSectionFixtures } from "../lib/local-preview-section-fixtures";
 import { currentSectionSuggestions, siteCyclotronIdOf, type SiteSectionAgreement } from "../lib/site-section-suggestions";
+import { addReference, parseIntakeAnswer, type AddReferenceInput, type AddReferenceOutcome } from "../lib/add-reference";
 import {
-  buildPrimingRequest,
   buildReviewRateRequest,
-  DEFAULT_RELEVANCE_CYCLOTRON,
   DEMO_CYCLOTRON_STATUS,
-  type PrimingRequestView,
 } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
+import { SEMANTIC_RELATION_FEED_KEY, corpusIdForKey, corpusKeyOf, globalKey, isCorpusId } from "../lib/tenant-knowledge-keys";
 import {
   referenceDisplaySummary,
   referenceMetadataField,
@@ -259,7 +277,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "automations" | "delegations" | "signups" | "newsletter" | "moderation" | "proposals" | "editorial-checks" | "monitoring";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "automations" | "delegations" | "signups" | "newsletter" | "moderation" | "proposals" | "editorial-checks" | "monitoring" | "announcements";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -373,23 +391,6 @@ type LexicalRuleDraft = {
 
 const REFERENCE_PAGE_SIZE = 25;
 const TOPIC_REFERENCE_PAGE_SIZE = 12;
-const NEWSROOM_SECTION_SHORT_TITLE_FALLBACKS: Record<string, string> = {
-  arts: "Creative Work",
-  business: "Market Structure",
-  education: "Learning Systems",
-  health: "Clinical Systems",
-  history: "Prior Lineage",
-  "law-policy": "Rules & Power",
-  labor: "Work Change",
-  methods: "Applied Practice",
-  news: "Trends & Analysis",
-  opinion: "Editorial Voice",
-  science: "New Findings",
-  security: "Threat Awareness",
-  sports: "Signal & Edge",
-  technology: "Infrastructure Landscape",
-  world: "Global Affairs",
-};
 const ANALYSIS_REINDEX_MODES: AnalysisReindexMode[] = [
   "online-update",
   "classifier-retrain",
@@ -408,6 +409,8 @@ export type NewsDeskSelection = {
   item?: string | null;
   panel?: string | null;
   searchQuery?: string | null;
+  /** `?status=` on the search page: pending, accepted or rejected; absent is Any. */
+  searchStatus?: string | null;
   searchAnchorKind?: string | null;
   searchAnchorId?: string | null;
   searchAnchorLineageId?: string | null;
@@ -429,15 +432,7 @@ type CategoryReviewResponse = {
 };
 
 type ReferenceReviewResponse = {
-  data?: {
-    ok?: boolean | null;
-    action?: string | null;
-    referenceId?: string | null;
-    status?: string | null;
-    reasonCode?: string | null;
-    messageId?: string | null;
-    relationId?: string | null;
-  } | null;
+  data?: ReferenceReviewResult | null;
   errors?: Array<{ message?: string | null } | string | null> | null;
 };
 
@@ -568,39 +563,6 @@ const TAILORED_TOPIC_PROPOSAL_KINDS = new Set([
 
 const USER_POOL_AUTH_MODE = "userPool";
 type SemanticGraph = ReturnType<typeof createSemanticGraphSnapshot>;
-type ReferenceSubscriptionInput = {
-  filter?: {
-    newsroomFeedKey?: {
-      eq?: string;
-    };
-  };
-};
-type ReferenceSubscription = {
-  unsubscribe: () => void;
-};
-type RealtimeSubscriptionStatus = "idle" | "connected" | "connecting" | "reconnecting" | "stale" | "error";
-type SubscriptionObserver = {
-  next: (value: unknown) => void;
-  error?: (error: unknown) => void;
-};
-type ModelSubscriptionFactory = {
-  subscribe: (observer: SubscriptionObserver) => ReferenceSubscription;
-};
-type ReferenceSubscriptionModel = {
-  onCreate: (input?: ReferenceSubscriptionInput) => ModelSubscriptionFactory;
-  onUpdate: (input?: ReferenceSubscriptionInput) => ModelSubscriptionFactory;
-  onDelete?: (input?: ReferenceSubscriptionInput) => ModelSubscriptionFactory;
-};
-type SemanticRelationSubscriptionModel = {
-  onCreate: () => ModelSubscriptionFactory;
-  onUpdate: () => ModelSubscriptionFactory;
-  onDelete?: () => ModelSubscriptionFactory;
-};
-type ModelAttachmentSubscriptionModel = {
-  onCreate: () => ModelSubscriptionFactory;
-  onUpdate: () => ModelSubscriptionFactory;
-  onDelete?: () => ModelSubscriptionFactory;
-};
 
 const TAXONOMY_PROPOSAL_KINDS = new Set([
   "create-category",
@@ -631,19 +593,7 @@ export function NewsDeskWorkspace({
   initialSelection?: NewsDeskSelection;
 }) {
   const session = useOptionalNewsDeskClient();
-  const sessionDashboard = useMemo(() => {
-    if (!session?.shell.dashboard) return null;
-    const fallbackSections = dashboard?.newsroomSections ?? [];
-    const fallbackProposals = dashboard?.proposals ?? [];
-    const needsSectionFallback = session.shell.dashboard.newsroomSections.length === 0 && fallbackSections.length > 0;
-    const needsProposalFallback = session.shell.dashboard.proposals.length === 0 && fallbackProposals.length > 0;
-    if (!needsSectionFallback && !needsProposalFallback) return session.shell.dashboard;
-    return {
-      ...session.shell.dashboard,
-      newsroomSections: needsSectionFallback ? fallbackSections : session.shell.dashboard.newsroomSections,
-      proposals: needsProposalFallback ? fallbackProposals : session.shell.dashboard.proposals,
-    };
-  }, [dashboard?.newsroomSections, dashboard?.proposals, session?.shell.dashboard]);
+  const sessionDashboard = session?.shell.dashboard ?? null;
   const showSectionTabs = initialTab === "overview";
 
   if (dashboard?.isDemo) {
@@ -737,10 +687,6 @@ function NewsDeskDashboard({
   onRefreshUserDirectory?: () => Promise<void>;
 }) {
   const dataClient = useMemo(() => generateClient<Schema>(), []);
-  const referenceSubscriptionClient = useMemo(
-    () => generateClient<Schema>({ authMode: USER_POOL_AUTH_MODE }),
-    [],
-  );
   const activeTab = initialTab;
   const pathname = usePathname();
   const pathnameReferenceLineageId = useMemo(
@@ -797,23 +743,6 @@ function NewsDeskDashboard({
     () => [...relevanceDecisions.values()].find((decision) => decision.cyclotronId)?.cyclotronId ?? null,
     [relevanceDecisions],
   );
-  const primingCyclotronId = relevanceCyclotronId ?? DEFAULT_RELEVANCE_CYCLOTRON.id;
-  const primingLabels = useMemo(
-    () => [...relevanceDecisions.values()].find((decision) => decision.classes.length)?.classes
-      ?? DEFAULT_RELEVANCE_CYCLOTRON.labels,
-    [relevanceDecisions],
-  );
-  const [primingRequests, setPrimingRequests] = useState<PrimingRequestView[]>([]);
-  useEffect(() => {
-    if (dashboard.isDemo) return;
-    let cancelled = false;
-    const refresh = () => loadCyclotronPrimingRequests(primingCyclotronId)
-      .then((views) => { if (!cancelled) setPrimingRequests(views); })
-      .catch(() => { if (!cancelled) setPrimingRequests([]); });
-    void refresh();
-    const timer = window.setInterval(() => { void refresh(); }, 30_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [dashboard.isDemo, primingCyclotronId]);
   const [cyclotronStatus, setCyclotronStatus] = useState<CyclotronStatus | null>(null);
   useEffect(() => {
     if (!relevanceCyclotronId) return;
@@ -841,15 +770,12 @@ function NewsDeskDashboard({
     return () => { cancelled = true; };
   }, [cyclotronPreviewFixtures, dashboard.isDemo, relevanceCyclotronId]);
   const [semanticNodes, setSemanticNodes] = useState(dashboard.semanticNodes);
+  const conceptNames = useMemo(() => Object.fromEntries(semanticNodes.map((node) => [node.lineageId ?? node.id, node.displayName || node.nodeKey])), [semanticNodes]);
   const [assignments, setAssignments] = useState(dashboard.assignments);
   const [assignmentEvents, setAssignmentEvents] = useState(dashboard.assignmentEvents);
   const [editionSlots, setEditionSlots] = useState(dashboard.editionSlots ?? []);
   const [doctrineRecords, setDoctrineRecords] = useState(dashboard.doctrineRecords);
-  const fallbackNewsroomSections = useMemo(
-    () => normalizeNewsroomSectionsWithFallback(dashboard.newsroomSections),
-    [dashboard.newsroomSections],
-  );
-  const [newsroomSections, setNewsroomSections] = useState(fallbackNewsroomSections);
+  const [newsroomSections, setNewsroomSections] = useState(() => sortNewsroomSections(dashboard.newsroomSections));
   const sectionChoices = useMemo(
     () => newsroomSections
       .filter((section) => section.enabled !== false && section.enabledStatus !== "disabled")
@@ -904,9 +830,26 @@ function NewsDeskDashboard({
   const [hasHydratedReferences, setHasHydratedReferences] = useState(
     dashboard.isDemo ? dashboard.references.length > 0 : false,
   );
-  const [referencesRealtimeStatus, setReferencesRealtimeStatus] = useState<RealtimeSubscriptionStatus>("idle");
-  const [referencesRealtimeError, setReferencesRealtimeError] = useState<string | null>(null);
+  // Every Reference is read only for the consumers that need all of them (the List view, the Assignments graph, Search), and only when
+  // one is opened. The feed and the home page read their own pages from the feed-state indexes.
+  const [wantsAllReferences, setWantsAllReferences] = useState(false);
+  const [allReferencesState, setAllReferencesState] = useState<{ status: "idle" | "loading" | "ready" | "error"; error: string | null }>({ status: "idle", error: null });
+  const [allReferencesAttempt, setAllReferencesAttempt] = useState(0);
+  const requestAllReferences = useCallback(() => setWantsAllReferences(true), []);
+  const retryAllReferences = useCallback(() => { setAllReferencesState({ status: "idle", error: null }); setAllReferencesAttempt((count) => count + 1); }, []);
+  const feedSource = useMemo<IndexedFeedSource>(() => ({
+    loadCorpusIds: () => loadReferenceFeedCorpusIds(Object.keys(summary?.facets?.references?.byCorpus ?? {})),
+    readStream: readReferenceFeedStream,
+    readStarStream: readReferenceStarStream,
+    readMediumStream: readReferenceMediumStream,
+    search: searchReferences,
+  }), [summary?.facets?.references?.byCorpus]);
   const referencesRef = useRef(references);
+  // The demo has no site to ask: its search box looks through the References the page holds, by words (the local preview adds a stand-in for meaning).
+  const demoSearch = useMemo<ReferenceSearchReader | undefined>(
+    () => (dashboard.isDemo ? async (input) => previewSearch(referencesRef.current, input, isLocalPreviewEnabled() ? { meaning: PREVIEW_SEARCH_MEANING } : {}) : undefined),
+    [dashboard.isDemo],
+  );
   const referenceReviewsPending = useRef(new Map<string, Promise<void>>());
   const [selectedReviewRead, setSelectedReviewRead] = useState<{ lineageId: string; state: "loading" | "ready" | "error"; error: string | null }>({ lineageId: "", state: "ready", error: null });
   const [selectedReviewAttempt, setSelectedReviewAttempt] = useState(0);
@@ -972,14 +915,14 @@ function NewsDeskDashboard({
     messages: summaryCountFromRecord(summary, "messages"),
     assignments: summaryCountFromRecord(summary, "assignments"),
     references: summaryCountFromRecord(summary, "references")
-      ?? (hasHydratedReferences ? references.length : null),
+      ?? (allReferencesState.status === "ready" ? references.length : null),
     topics: summaryCountFromRecord(summary, "categories"),
     concepts: summaryCountFromRecord(summary, "semanticNodes"),
     administration: userDirectory.length + doctrineRecords.length + newsroomSections.length + procedureDefinitions.length,
     search: 0,
   }), [
     doctrineRecords.length,
-    hasHydratedReferences,
+    allReferencesState.status,
     newsroomSections.length,
     procedureDefinitions.length,
     references.length,
@@ -1029,18 +972,11 @@ function NewsDeskDashboard({
   const canLoadPrivateCorpus = !dashboard.isDemo && editorShellReady && authState.status === "signedIn";
   const refreshNewsroomSections = useCallback(async () => {
     if (dashboard.isDemo || !canRefreshNewsroomSections) {
-      setNewsroomSections(fallbackNewsroomSections);
+      setNewsroomSections(sortNewsroomSections(dashboard.newsroomSections));
       return;
     }
-    const nextSections = await listNewsroomSectionsFromApi(dataClient);
-    setNewsroomSections((current) => {
-      const mergedNextSections = normalizeNewsroomSectionsWithFallback(
-        nextSections,
-        current.length > 0 ? current : fallbackNewsroomSections,
-      );
-      return mergedNextSections.length === 0 && current.length > 0 ? current : mergedNextSections;
-    });
-  }, [canRefreshNewsroomSections, dashboard.isDemo, fallbackNewsroomSections, dataClient]);
+    setNewsroomSections(sortNewsroomSections(await listNewsroomSectionsFromApi(dataClient)));
+  }, [canRefreshNewsroomSections, dashboard.isDemo, dashboard.newsroomSections, dataClient]);
 
   useEffect(() => {
     setCorpora(dashboard.corpora);
@@ -1122,10 +1058,7 @@ function NewsDeskDashboard({
   }, [dashboard.doctrineRecords]);
 
   useEffect(() => {
-    setNewsroomSections((current) => normalizeNewsroomSectionsWithFallback(
-      dashboard.newsroomSections,
-      current.length > 0 ? current : undefined,
-    ));
+    setNewsroomSections(sortNewsroomSections(dashboard.newsroomSections));
   }, [dashboard.newsroomSections]);
 
   useEffect(() => {
@@ -1210,32 +1143,95 @@ function NewsDeskDashboard({
     if (authState.status === "signedIn") return;
     setLoadedSections((current) => ({ ...current, references: false }));
     setHasHydratedReferences(false);
+    setWantsAllReferences(false);
+    setAllReferencesState({ status: "idle", error: null });
+    discardFeedCorpusIds();
   }, [authState.status]);
 
+  // Records the feed has read join the page's own list; the summary is not touched (they are not new, only newly read).
+  const takeFeedRecords = useCallback((records: ReferenceRecord[]) => {
+    setReferences((current) => mergeReferenceRecords(current, records));
+    setHasHydratedReferences(true);
+    setLoadedSections((current) => ({ ...current, references: true }));
+  }, []);
+
+  // The home page shows the newest unrated References: one page of the arrival index, read when the home page is open.
+  const overviewFeed = useIndexedReferenceFeed({
+    enabled: canLoadPrivateCorpus && activeTab === "overview",
+    source: feedSource,
+    sort: "newest",
+    show: "unrated",
+  });
   useEffect(() => {
-    if (!canLoadPrivateCorpus || hasHydratedReferences) return;
+    if (overviewFeed.status === "ready") takeFeedRecords(overviewFeed.records);
+    if (overviewFeed.status === "error") {
+      setActionState({ id: "references-load", message: `The References could not be read. ${overviewFeed.error ?? ""}`.trim(), tone: "error" });
+    }
+  }, [overviewFeed.status, overviewFeed.records, overviewFeed.error, takeFeedRecords]);
+
+  // Attachments (previews, captured text) for the References the feed shows, a batch per short pause: one request for the batch, none for
+  // a Reference already read.
+  const attachmentsAsked = useRef(new Set<string>());
+  const attachmentsQueue = useRef<string[]>([]);
+  const attachmentsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestAttachments = useCallback((lineageIds: string[]) => {
+    if (dashboard.isDemo) return;
+    for (const id of lineageIds) {
+      if (attachmentsAsked.current.has(id)) continue;
+      attachmentsAsked.current.add(id);
+      attachmentsQueue.current.push(id);
+    }
+    if (!attachmentsQueue.current.length || attachmentsTimer.current) return;
+    attachmentsTimer.current = setTimeout(() => {
+      attachmentsTimer.current = null;
+      const batch = attachmentsQueue.current.splice(0);
+      void loadReferenceAttachmentsForLineages(batch)
+        .then((loaded) => {
+          if (!loaded.length) return;
+          setReferenceAttachments((current) => {
+            const byId = new Map(current.map((attachment) => [attachment.id, attachment] as const));
+            for (const attachment of loaded) byId.set(attachment.id, attachment);
+            return [...byId.values()].sort((left, right) => left.sortKey.localeCompare(right.sortKey));
+          });
+        })
+        .catch((error) => {
+          // Previews are a nicety: let the next scroll ask again, and say nothing that blocks voting.
+          for (const id of batch) attachmentsAsked.current.delete(id);
+          console.warn("[References] attachments for the shown cards could not be read", error);
+        });
+    }, 40);
+  }, [dashboard.isDemo]);
+
+  const needsAllReferences = canLoadPrivateCorpus && (wantsAllReferences || activeTab === "assignments" || activeTab === "search");
+  useEffect(() => {
+    if (!needsAllReferences || allReferencesState.status === "ready" || allReferencesState.status === "loading") return;
     let active = true;
-    void loadReferencesWithHeadStart()
-      .then(({ references: nextReferences, referenceAttachments }) => {
+    setAllReferencesState({ status: "loading", error: null });
+    void loadAllEditorReferences()
+      .then((all) => {
         if (!active) return;
-        setReferences(nextReferences);
-        setReferenceAttachments(referenceAttachments);
+        setReferences((current) => mergeReferenceRecords(current, all));
+        setAllReferencesState({ status: "ready", error: null });
         setHasHydratedReferences(true);
-        setLoadedSections((current) => ({ ...current, references: true }));
       })
       .catch((error) => {
-        if (active) {
-          setActionState({
-            id: "references-load",
-            message: error instanceof Error ? error.message : "references load failed",
-            tone: "error",
-          });
-        }
+        if (active) setAllReferencesState({ status: "error", error: error instanceof Error ? error.message : "The references could not be read." });
       });
-    return () => {
-      active = false;
-    };
-  }, [canLoadPrivateCorpus, hasHydratedReferences]);
+    return () => { active = false; };
+    // `allReferencesAttempt` is the Retry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsAllReferences, allReferencesAttempt]);
+
+  // A reference opened by its address is read on its own when the feed has not brought it.
+  useEffect(() => {
+    if (!canLoadPrivateCorpus || activeTab !== "references" || !pathnameReferenceLineageId) return;
+    if (referencesRef.current.some((reference) => referenceLineageId(reference) === pathnameReferenceLineageId)) return;
+    let active = true;
+    void loadReferenceRecordByLineageId(pathnameReferenceLineageId)
+      .then((found) => { if (active && found) setReferences((current) => mergeReferenceRecords(current, [found])); })
+      .catch((error) => { if (active) setActionState({ id: "reference-load", message: error instanceof Error ? error.message : "This reference could not be read.", tone: "error" }); });
+    return () => { active = false; };
+  }, [activeTab, canLoadPrivateCorpus, pathnameReferenceLineageId]);
 
   useEffect(() => {
     if (dashboard.isDemo) return;
@@ -1292,10 +1288,7 @@ function NewsDeskDashboard({
           setAssignments(nextDashboard.assignments);
           setAssignmentEvents(nextDashboard.assignmentEvents);
           setDoctrineRecords(nextDashboard.doctrineRecords);
-          setNewsroomSections((current) => normalizeNewsroomSectionsWithFallback(
-            nextDashboard.newsroomSections,
-            current.length > 0 ? current : fallbackNewsroomSections,
-          ));
+          setNewsroomSections(sortNewsroomSections(nextDashboard.newsroomSections));
           setUserDirectory(nextDashboard.userDirectory);
         })
         .catch((error) => {
@@ -1313,7 +1306,6 @@ function NewsDeskDashboard({
     newsroomSections.length,
     hasRefreshedNewsroomSections,
     canRefreshNewsroomSections,
-    fallbackNewsroomSections,
     loadedSections.assignments,
     loadedSections.fullDashboard,
     loadedSections.messages,
@@ -1326,11 +1318,37 @@ function NewsDeskDashboard({
   const selectedReviewLineageId = pathname ? pathnameReferenceLineageId ?? "" : initialSelection.reference ?? "";
   const referenceReviewData = useReferenceReviewData({
     enabled: canLoadPrivateCorpus && needsReferenceReviewData && !(activeTab === "references" && selectedReviewLineageId),
-    loadRelations: loadRelationsWithHeadStart,
     loadMessages: loadMessagesWithHeadStart,
-    onRelations: setSemanticRelations,
     onMessages: setMessages,
   });
+  // Predictions are read per Reference, only for the ones a page shows: the References feed asks for its visible page (and each page
+  // after it as it scrolls); the home page asks for the newest page. The newsroom's whole relation feed is never read for this.
+  const [shownPredictionIds, setShownPredictionIds] = useState<string[]>([]);
+  const requestPredictions = useCallback((ids: string[]) => {
+    setShownPredictionIds((current) => (ids.every((id) => current.includes(id)) ? current : [...new Set([...current, ...ids])]));
+  }, []);
+  const mergeReferencePredictions = useCallback((lineageId: string, relations: SemanticRelationRecord[]) => {
+    setSemanticRelations((current) => [
+      ...current.filter((relation) => relation.subjectKind !== "reference" || relation.subjectLineageId !== lineageId),
+      ...relations,
+    ]);
+  }, []);
+  const readsPredictions = canLoadPrivateCorpus && !dashboard.isDemo && (activeTab === "references" || activeTab === "overview");
+  const referencePredictions = useReferencePredictions({
+    enabled: readsPredictions,
+    ids: shownPredictionIds,
+    load: loadEditorReferencePredictions,
+    onRelations: mergeReferencePredictions,
+  });
+  useEffect(() => {
+    if (activeTab !== "overview" || !readsPredictions || !hasHydratedReferences) return;
+    requestPredictions(feedWindow(buildFeedItems(selectCanonicalReferenceRecords(references), undefined), 1).map((item) => item.lineageId));
+  }, [activeTab, readsPredictions, hasHydratedReferences, references, requestPredictions]);
+  useEffect(() => {
+    if (referenceReviewData.state === "error" && referenceReviewData.error) {
+      setActionState({ id: "review-history-load", message: referenceReviewData.error, tone: "error" });
+    }
+  }, [referenceReviewData.state, referenceReviewData.error]);
 
   useEffect(() => {
     if (!canLoadPrivateCorpus || activeTab !== "references" || !selectedReviewLineageId) return;
@@ -1348,8 +1366,8 @@ function NewsDeskDashboard({
   const selectedReviewIsCurrent = selectedReviewLineageId && !dashboard.isDemo;
   const predictionState = selectedReviewIsCurrent
     ? selectedReviewRead.lineageId === selectedReviewLineageId ? selectedReviewRead.state : "loading"
-    : referenceReviewData.state;
-  const predictionError = selectedReviewIsCurrent ? selectedReviewRead.error : referenceReviewData.error;
+    : "ready";
+  const predictionError = selectedReviewIsCurrent ? selectedReviewRead.error : null;
   useEffect(() => {
     // Keep a display copy for the next visit once everything the feed shows has been read.
     if (dashboard.isDemo || (activeTab !== "references" && activeTab !== "overview") || !hasHydratedReferences || predictionState !== "ready" || !references.length) return;
@@ -1362,7 +1380,7 @@ function NewsDeskDashboard({
     }, 800);
     return () => window.clearTimeout(timer);
   }, [activeTab, dashboard.isDemo, hasHydratedReferences, predictionState, referenceAttachments, references, relevanceDecisions]);
-  const retryReferenceReviewData = () => { referenceReviewData.retry(); setSelectedReviewAttempt((current) => current + 1); };
+  const retryReferenceReviewData = () => { setSelectedReviewAttempt((current) => current + 1); };
 
   const applyReferenceRecord = useCallback((nextReference: ReferenceRecord) => {
     const { nextRecords, nextRecord, previousRecord } = upsertReferenceRecords(referencesRef.current, nextReference);
@@ -1388,124 +1406,6 @@ function NewsDeskDashboard({
         console.error("[ReferencesDesk] Unable to load reference attachments for deep link", error);
       });
   }, [applyReferenceRecord]);
-
-  useEffect(() => {
-    if (dashboard.isDemo || activeTab !== "references" || authState.status !== "signedIn" || !hasHydratedReferences) {
-      setReferencesRealtimeStatus("idle");
-      setReferencesRealtimeError(null);
-      return;
-    }
-    const referenceModel = referenceSubscriptionClient.models.Reference as unknown as ReferenceSubscriptionModel | undefined;
-    const semanticRelationModel = referenceSubscriptionClient.models.SemanticRelation as unknown as SemanticRelationSubscriptionModel | undefined;
-    if (!referenceModel || typeof referenceModel.onCreate !== "function" || typeof referenceModel.onUpdate !== "function") {
-      setReferencesRealtimeStatus("error");
-      setReferencesRealtimeError("Reference realtime model is unavailable.");
-      return;
-    }
-    if (!semanticRelationModel || typeof semanticRelationModel.onCreate !== "function" || typeof semanticRelationModel.onUpdate !== "function") {
-      setReferencesRealtimeStatus("error");
-      setReferencesRealtimeError("Semantic relation realtime model is unavailable.");
-      return;
-    }
-
-    let active = true;
-    let reconnectAttempts = 0;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let subscriptions: ReferenceSubscription[] = [];
-    const referenceInput = { filter: { newsroomFeedKey: { eq: "references" } } };
-
-    const clearSubscriptions = () => {
-      for (const subscription of subscriptions) subscription.unsubscribe();
-      subscriptions = [];
-    };
-
-    const scheduleReconnect = (error?: unknown) => {
-      if (!active) return;
-      clearSubscriptions();
-      reconnectAttempts += 1;
-      const delayMs = Math.min(30_000, 1000 * Math.max(1, 2 ** (reconnectAttempts - 1)));
-      setReferencesRealtimeStatus(reconnectAttempts > 1 ? "stale" : "reconnecting");
-      setReferencesRealtimeError(error instanceof Error ? error.message : "Realtime stream disconnected.");
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(() => {
-        connect();
-      }, delayMs);
-    };
-
-    const handleReferenceCreateOrUpdate = (value: unknown) => {
-      const nextReference = normalizeReferenceSubscriptionPayload(value);
-      if (!nextReference) return;
-      applyReferenceRecord(nextReference);
-    };
-
-    const handleReferenceDelete = (value: unknown) => {
-      const deletedReference = normalizeReferenceSubscriptionPayload(value);
-      const deletedId = deletedReference?.id ?? extractSubscriptionRecordId(value);
-      if (!deletedId) return;
-      const previousRecord = referencesRef.current.find((entry) => entry.id === deletedId) ?? null;
-      if (!previousRecord) return;
-      const nextRecords = referencesRef.current.filter((entry) => entry.id !== deletedId);
-      referencesRef.current = nextRecords;
-      setReferences(nextRecords);
-      setSummary((current) => patchReferenceSummaryForDelete(current, previousRecord));
-    };
-
-    const handleSemanticRelationCreateOrUpdate = (value: unknown) => {
-      const relation = normalizeSemanticRelationSubscriptionPayload(value);
-      if (!relation) return;
-      setSemanticRelations((current) => upsertSemanticRelationRecords(current, relation));
-    };
-
-    const handleSemanticRelationDelete = (value: unknown) => {
-      const relationId = extractSubscriptionRecordId(value);
-      if (!relationId) return;
-      setSemanticRelations((current) => current.filter((entry) => entry.id !== relationId));
-    };
-
-    const connect = () => {
-      if (!active) return;
-      clearSubscriptions();
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-      setReferencesRealtimeStatus(reconnectAttempts > 0 ? "reconnecting" : "connecting");
-      try {
-        const nextSubscriptions: ReferenceSubscription[] = [
-          referenceModel.onCreate(referenceInput).subscribe({ next: handleReferenceCreateOrUpdate, error: scheduleReconnect }),
-          referenceModel.onUpdate(referenceInput).subscribe({ next: handleReferenceCreateOrUpdate, error: scheduleReconnect }),
-          semanticRelationModel.onCreate().subscribe({ next: handleSemanticRelationCreateOrUpdate, error: scheduleReconnect }),
-          semanticRelationModel.onUpdate().subscribe({ next: handleSemanticRelationCreateOrUpdate, error: scheduleReconnect }),
-        ];
-        if (typeof referenceModel.onDelete === "function") {
-          nextSubscriptions.push(referenceModel.onDelete(referenceInput).subscribe({ next: handleReferenceDelete, error: scheduleReconnect }));
-        }
-        if (typeof semanticRelationModel.onDelete === "function") {
-          nextSubscriptions.push(semanticRelationModel.onDelete().subscribe({ next: handleSemanticRelationDelete, error: scheduleReconnect }));
-        }
-        subscriptions = nextSubscriptions;
-        reconnectAttempts = 0;
-        setReferencesRealtimeStatus("connected");
-        setReferencesRealtimeError(null);
-      } catch (error) {
-        scheduleReconnect(error);
-      }
-    };
-
-    connect();
-    return () => {
-      active = false;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      clearSubscriptions();
-    };
-  }, [
-    activeTab,
-    applyReferenceRecord,
-    authState.status,
-    dashboard.isDemo,
-    hasHydratedReferences,
-    referenceSubscriptionClient,
-  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1676,6 +1576,79 @@ function NewsDeskDashboard({
         throw error;
       }
     });
+  }
+
+  /**
+   * The Add dialog: the address becomes a pending Reference (`intakePendingReferences`), then the editor's optional accept and star rating are
+   * recorded through the same mutations the review buttons use, from this Newsroom session. The list reloads afterwards.
+   */
+  async function runAddReference(input: AddReferenceInput): Promise<AddReferenceOutcome> {
+    if (!canEdit) throw new Error("Your session does not have permission to add references.");
+    if (dashboard.isDemo) {
+      return addReference(input, {
+        register: async (url) => ({ id: `demo-${url}`, curationStatus: "pending", reusedExisting: false }),
+        accept: async () => undefined,
+        rate: async () => undefined,
+      });
+    }
+    const outcome = await addReference(input, {
+      register: async (url) => {
+        const response = await dataClient.mutations.intakePendingReferences(
+          { input: JSON.stringify({ items: [{ source_uri: url }] }) },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+        if (errors?.length) throw new Error(errors[0]?.message ?? "The newsroom did not accept this address.");
+        return parseIntakeAnswer(response.data);
+      },
+      accept: async (referenceId, note) => {
+        const response = await dataClient.mutations.reviewReferenceCuration(
+          { referenceId, action: "accept", actorLabel: authState.label, note: note || undefined },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        assertReferenceReviewMutationSucceeded(response, referenceId);
+      },
+      rate: async (referenceId, stars) => {
+        const response = await dataClient.mutations.setReferenceStars(
+          { referenceId, stars, actorLabel: authState.label },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+        if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
+      },
+    });
+    retryReferenceReviewData();
+    return outcome;
+  }
+
+  /**
+   * An editor's star rating (null clears it). It sits on the Reference beside the vote and is not a Cyclotron label. Rating a pending Reference also
+   * accepts it, on the server and by the same person; an accepted or rejected one keeps its status, and clearing a rating never changes it.
+   */
+  async function runReferenceStars(reference: ReferenceRecord, stars: number | null): Promise<void> {
+    if (!canEdit) throw new Error("Your session does not have permission to rate references.");
+    const record = (now: string, accepted = false): ReferenceRecord => ({
+      ...(referencesRef.current.find((entry) => entry.id === reference.id) ?? reference),
+      ...(accepted ? { curationStatus: "accepted", curationStatusUpdatedAt: now, curationStatusUpdatedBy: authState.label } : {}),
+      starRating: stars,
+      starRatedAt: stars === null ? null : now,
+      starRatedBy: stars === null ? null : authState.label,
+    });
+    const wasPending = (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === undefined
+      || (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === null
+      || (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === "pending";
+    if (dashboard.isDemo) {
+      applyReferenceRecord(record(new Date().toISOString(), wasPending && stars !== null));
+      return;
+    }
+    const response = await dataClient.mutations.setReferenceStars(
+      { referenceId: reference.id, stars, actorLabel: authState.label },
+      { authMode: USER_POOL_AUTH_MODE },
+    );
+    const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+    if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
+    const answered = (response as { data?: { status?: string | null } | null }).data?.status;
+    applyReferenceRecord(record(new Date().toISOString(), wasPending && stars !== null && answered === "accepted"));
   }
 
   function runReferenceQualityRating(reference: ReferenceRecord, rating: number) {
@@ -2995,13 +2968,14 @@ function NewsDeskDashboard({
     return entries;
   }, [summaryStatus, tabCounts]);
   const opsPageTitle = activeTab === "overview"
-    ? "Notification Center"
+    ? "Newsroom home"
     : activeTab === "administration" && administrationPanel === "sections"
       ? "Sections"
       : formatDeskSectionHeadline(activeTab);
 
   return (
     <ConversationProvider authorLabel={authState.label} demo={Boolean(dashboard.isDemo)}>
+    <ReferenceLinksProvider demo={Boolean(dashboard.isDemo) || isLocalPreviewEnabled()}>
       <NewsroomOpsShell
         activeTab={activeTab}
         appTitle={SITE_BRAND.appTitle}
@@ -3059,13 +3033,22 @@ function NewsDeskDashboard({
             onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
             onReview={(reference, action, options) => runReferenceCurationAction(reference, action, options?.note, options?.reasonCode,
               options?.decisionRelationId ? { decisionRelationId: options.decisionRelationId, shareable: options.shareable === true } : undefined)}
-            predictionState={referenceReviewData.state}
+            onSetStars={runReferenceStars}
+            predictionState="ready"
             referenceAttachments={referenceAttachments}
             references={references}
             savedCopy={savedFeedCopy}
           />
         ) : null}
-        {activeTab === "search" ? (
+        {activeTab === "search" && !initialSearchRequest?.anchor ? (
+          <NewsroomSearchResults
+            hrefFor={(lineageId) => getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, Boolean(dashboard.isDemo))}
+            initialQuery={normalizeSearchQuery(initialSelection.searchQuery)}
+            initialStatus={statusFromLocation(`status=${encodeURIComponent(initialSelection.searchStatus ?? "")}`)}
+            search={dashboard.isDemo ? (input) => Promise.resolve(previewSearch(references, input, { meaning: PREVIEW_SEARCH_MEANING })) : searchReferences}
+          />
+        ) : null}
+        {activeTab === "search" && initialSearchRequest?.anchor ? (
           <SearchDeskView
             assignments={assignments}
             categories={mergeCategoryRecords(categorys, activeCategoryTreeNodes)}
@@ -3109,9 +3092,12 @@ function NewsDeskDashboard({
         ) : null}
         {activeTab === "concepts" ? (
           <ConceptsDeskView
+            disabled={controlsDisabled}
             graph={graph}
             initialNodeLineageId={initialSelection.node}
             isDemo={Boolean(dashboard.isDemo)}
+            onSectionCoreConcepts={(section, next) => runSectionUpsert({ ...section, coreConcepts: serializeCoreConcepts(next) }, section.id)}
+            sections={newsroomSections}
             semanticNodes={semanticNodes}
           />
         ) : null}
@@ -3122,15 +3108,7 @@ function NewsDeskDashboard({
             disabled={controlsDisabled}
             initialReferenceLineageId={selectedReviewLineageId}
             cyclotronStatus={cyclotronStatus}
-            cyclotronPriming={{
-              labels: primingLabels,
-              requests: primingRequests,
-              onRequest: async (input) => {
-                const request = buildPrimingRequest(input, authState.label, primingLabels);
-                if (!dashboard.isDemo) await requestCyclotronPriming(primingCyclotronId, request);
-                setPrimingRequests((current) => [{ request, outcome: null }, ...current]);
-              },
-            }}
+            onAddReference={runAddReference}
             decisions={relevanceDecisions}
             humanCuratedReferenceLineageIds={selectedReviewIsCurrent && predictionState !== "ready" ? undefined : humanCuratedReferenceLineageIds}
             delegatedCurations={selectedReviewIsCurrent && predictionState !== "ready" ? undefined : delegatedCurations}
@@ -3154,14 +3132,26 @@ function NewsDeskDashboard({
             predictionState={predictionState}
             predictionError={predictionError}
             onRetryPredictions={retryReferenceReviewData}
+            predictionStatuses={readsPredictions ? referencePredictions.statuses : undefined}
+            onRequestPredictions={readsPredictions ? requestPredictions : undefined}
+            onRetryPrediction={referencePredictions.retry}
             reviewReasons={reviewReasons}
             reviewSectionIds={reviewSectionIds}
             onReview={(reference, action, options) => runReferenceCurationAction(reference, action, options?.note, options?.reasonCode,
               options?.decisionRelationId ? { decisionRelationId: options.decisionRelationId, shareable: options.shareable === true } : undefined,
               options?.sectionId)}
+            onSetStars={runReferenceStars}
             referenceAttachments={referenceAttachments}
             references={references}
+            loadAutoAccepted={dashboard.isDemo && !isLocalPreviewEnabled() ? undefined : loadAutoAcceptedReferencePage}
+            searchReader={demoSearch}
             loading={!dashboard.isDemo && !hasHydratedReferences}
+            feedSource={canLoadPrivateCorpus ? feedSource : undefined}
+            onFeedRecords={takeFeedRecords}
+            onShownIds={requestAttachments}
+            ratedTotal={ratedCountFromSummary(summary)}
+            onNeedAllReferences={requestAllReferences}
+            allReferences={{ status: allReferencesState.status, error: allReferencesState.error, retry: retryAllReferences }}
             onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
             savedCopy={savedFeedCopy}
           />
@@ -3197,6 +3187,7 @@ function NewsDeskDashboard({
             actionState={actionState}
             administrationPanel={administrationPanel}
             canManageUsers={Boolean(dashboard.canManageUsers)}
+            conceptNames={conceptNames}
             disabled={controlsDisabled}
             doctrineDrafts={doctrineDrafts}
             doctrineRecords={doctrineRecords}
@@ -3229,6 +3220,7 @@ function NewsDeskDashboard({
         </div>
       </NewsroomOpsShell>
       {topBarSearchControl.dialog}
+    </ReferenceLinksProvider>
     </ConversationProvider>
   );
 }
@@ -4198,6 +4190,7 @@ function AdministrationDeskView({
   actionState,
   administrationPanel,
   canManageUsers,
+  conceptNames,
   disabled,
   doctrineCategories,
   doctrineDrafts,
@@ -4229,6 +4222,7 @@ function AdministrationDeskView({
   actionState: ActionState | null;
   administrationPanel: AdministrationPanel;
   canManageUsers: boolean;
+  conceptNames: Record<string, string>;
   disabled: boolean;
   doctrineCategories: DoctrineCategory[];
   doctrineDrafts: DoctrineEditorState;
@@ -4342,6 +4336,15 @@ function AdministrationDeskView({
                 <span>Policies the article editor checks drafts against</span>
               </Link>
               <Link
+                href={administrationPanelHref("announcements", isDemo)}
+                data-news-desk-admin-nav="announcements"
+                data-active={administrationPanel === "announcements" || undefined}
+                onClick={() => onPanelChange("announcements")}
+              >
+                <strong>Announcements</strong>
+                <span>Post new Stories on the site&apos;s X account</span>
+              </Link>
+              <Link
                 href={administrationPanelHref("monitoring", isDemo)}
                 data-news-desk-admin-nav="monitoring"
                 data-active={administrationPanel === "monitoring" || undefined}
@@ -4378,8 +4381,8 @@ function AdministrationDeskView({
                 data-active={administrationPanel === "proposals" || undefined}
                 onClick={() => onPanelChange("proposals")}
               >
-                <strong>Proposed Stories</strong>
-                <span>Proposed Stories and changes that AI proposes</span>
+                <strong>Proposals</strong>
+                <span>Changes that AI proposes</span>
               </Link>
               {readerPluginEnabled() ? (
                 <Link
@@ -4399,6 +4402,7 @@ function AdministrationDeskView({
               {administrationPanel === "proposals" ? <ProposalsPanel /> : null}
               {administrationPanel === "moderation" ? <ModerationPanel /> : null}
               {administrationPanel === "editorial-checks" ? <EditorialChecksAdminPanel /> : null}
+              {administrationPanel === "announcements" ? <AnnouncementsPanel isAdmin={canManageUsers} isDemo={isDemo} sections={newsroomSections.filter((section) => section.enabled).map((section) => ({ id: section.id, title: section.title }))} /> : null}
               {administrationPanel === "automations" ? <AutomationPanel isDemo={isDemo} /> : null}
               {administrationPanel === "monitoring" ? <MonitoringPanel isAdmin={canManageUsers} isDemo={isDemo} /> : null}
               {administrationPanel === "delegations" ? <AdministrationDelegationsPanel disabled={disabled} /> : null}
@@ -4424,6 +4428,7 @@ function AdministrationDeskView({
                   doctrineDrafts={doctrineDrafts}
                   doctrineRecords={doctrineRecords}
                   onCategoryDoctrineSave={onCategoryDoctrineSave}
+                  isAdmin={canManageUsers}
                   onPolicyChange={onPolicyChange}
                   onPolicySave={onPolicySave}
                 />
@@ -4431,6 +4436,7 @@ function AdministrationDeskView({
               {administrationPanel === "sections" ? (
                 <AdministrationSectionsPanel
                   actionState={actionState}
+                  conceptNames={conceptNames}
                   disabled={disabled}
                   sections={newsroomSections}
                   onReorder={onSectionReorder}
@@ -4721,6 +4727,7 @@ function AdministrationPoliciesPanel({
   doctrineCategories,
   doctrineDrafts,
   doctrineRecords,
+  isAdmin,
   onCategoryDoctrineSave,
   onPolicyChange,
   onPolicySave,
@@ -4730,6 +4737,7 @@ function AdministrationPoliciesPanel({
   doctrineCategories: DoctrineCategory[];
   doctrineDrafts: DoctrineEditorState;
   doctrineRecords: DoctrineRecord[];
+  isAdmin: boolean;
   onCategoryDoctrineSave: (category: DoctrineCategory, kind: DoctrineKind, text: string) => void;
   onPolicyChange: (kind: DoctrineKind, text: string) => void;
   onPolicySave: (kind: DoctrineKind) => void;
@@ -4740,6 +4748,7 @@ function AdministrationPoliciesPanel({
   );
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(sortedCategories[0]?.categoryKey ?? null);
   const selectedCategory = sortedCategories.find((category) => category.categoryKey === selectedCategoryKey) ?? sortedCategories[0] ?? null;
+  const [policiesTab, setPoliciesTab] = useState<"doctrine" | "writing-guidelines" | "visual-style">("doctrine");
 
   useEffect(() => {
     if (!sortedCategories.length) {
@@ -4753,6 +4762,14 @@ function AdministrationPoliciesPanel({
 
   return (
     <div data-news-desk-admin-panel="policies">
+      <div aria-label="Policy pages" className="mb-4 flex flex-wrap gap-2" data-policies-tabs role="group">
+        <Button aria-pressed={policiesTab === "doctrine"} onClick={() => setPoliciesTab("doctrine")} type="button" variant={policiesTab === "doctrine" ? "default" : "secondary"}><ScrollText aria-hidden /> Mission and policy{policiesTab === "doctrine" ? <span className="sr-only"> (selected)</span> : null}</Button>
+        <Button aria-pressed={policiesTab === "writing-guidelines"} data-policies-tab="writing-guidelines" onClick={() => setPoliciesTab("writing-guidelines")} type="button" variant={policiesTab === "writing-guidelines" ? "default" : "secondary"}><PenLine aria-hidden /> Writing guidelines{policiesTab === "writing-guidelines" ? <span className="sr-only"> (selected)</span> : null}</Button>
+        <Button aria-pressed={policiesTab === "visual-style"} data-policies-tab="visual-style" onClick={() => setPoliciesTab("visual-style")} type="button" variant={policiesTab === "visual-style" ? "default" : "secondary"}><Palette aria-hidden /> Visual style{policiesTab === "visual-style" ? <span className="sr-only"> (selected)</span> : null}</Button>
+      </div>
+      {policiesTab === "visual-style" ? <VisualStyleAdmin isAdmin={isAdmin} /> : policiesTab === "writing-guidelines" ? (
+        <WritingGuidelinesAdmin isAdmin={isAdmin} sections={sortedCategories.map((category) => ({ key: category.categoryKey, name: category.shortTitle || category.displayName }))} />
+      ) : <>
       <SectionHeader title="Editorial Policies" detail="Publication defaults with optional category overrides" />
       <div className="news-desk-doctrine-list">
         {DOCTRINE_DEFINITIONS.map((definition) => {
@@ -4816,18 +4833,21 @@ function AdministrationPoliciesPanel({
           </div>
         </div>
       </section>
+      </>}
     </div>
   );
 }
 
 function AdministrationSectionsPanel({
   actionState,
+  conceptNames,
   disabled,
   sections,
   onReorder,
   onSave,
 }: {
   actionState: ActionState | null;
+  conceptNames: Record<string, string>;
   disabled: boolean;
   sections: NewsroomSectionRecord[];
   onReorder: (nextOrder: NewsroomSectionRecord[]) => void;
@@ -4933,7 +4953,7 @@ function AdministrationSectionsPanel({
                 </div>
                 <span>{sectionDraft.type}</span>
               </header>
-              <NewsroomSectionEditorBody draft={sectionDraft} disabled={disabled} onChange={setSectionDraft} />
+              <NewsroomSectionEditorBody conceptNames={conceptNames} draft={sectionDraft} disabled={disabled} onChange={setSectionDraft} />
               <div className="news-desk-doctrine-card__footer">
                 <span>Order: {sectionDraft.sortOrder}</span>
                 <div className="news-desk-doctrine-card__actions">
@@ -4955,7 +4975,7 @@ function AdministrationSectionsPanel({
           </div>
           <span>Draft</span>
         </header>
-        <NewsroomSectionEditorBody draft={newSection} disabled={disabled} onChange={setNewSection} />
+        <NewsroomSectionEditorBody conceptNames={conceptNames} draft={newSection} disabled={disabled} onChange={setNewSection} />
         <div className="news-desk-doctrine-card__footer">
           <span>{newSection.type} / sort {newSection.sortOrder}</span>
           <div className="news-desk-doctrine-card__actions">
@@ -4972,10 +4992,12 @@ function AdministrationSectionsPanel({
 }
 
 function NewsroomSectionEditorBody({
+  conceptNames,
   draft,
   disabled,
   onChange,
 }: {
+  conceptNames: Record<string, string>;
   draft: NewsroomSectionRecord;
   disabled: boolean;
   onChange: (next: NewsroomSectionRecord) => void;
@@ -5034,6 +5056,12 @@ function NewsroomSectionEditorBody({
           value={draft.editorialPolicy}
         />
       </label>
+      <SectionConceptsEditor
+        disabled={disabled}
+        entries={parseCoreConcepts(draft.coreConcepts)}
+        names={conceptNames}
+        onChange={(next) => onChange({ ...draft, coreConcepts: serializeCoreConcepts(next) })}
+      />
       <label className="news-desk-doctrine-card__field">
         <span>Enabled</span>
         <select
@@ -6274,14 +6302,20 @@ function TopicProposalEditModal({
 }
 
 function ConceptsDeskView({
+  disabled,
   graph,
   initialNodeLineageId,
   isDemo,
+  onSectionCoreConcepts,
+  sections,
   semanticNodes,
 }: {
+  disabled: boolean;
   graph: SemanticGraph;
   initialNodeLineageId?: string | null;
   isDemo: boolean;
+  onSectionCoreConcepts: (section: NewsroomSectionRecord, next: CoreConcept[]) => void;
+  sections: NewsroomSectionRecord[];
   semanticNodes: SemanticNodeRecord[];
 }) {
   const feed = useNewsroomPagedRows({
@@ -6294,7 +6328,7 @@ function ConceptsDeskView({
     if (feed.hasMore && !feed.isLoadingMore) feed.loadMore();
   }, [feed]);
   const nodes = feed.items.length ? feed.items : semanticNodes;
-  return <WikiConceptsView demo={isDemo} graph={graph} initialNodeLineageId={initialNodeLineageId} nodes={nodes} />;
+  return <WikiConceptsView demo={isDemo} disabled={disabled} graph={graph} initialNodeLineageId={initialNodeLineageId} nodes={nodes} onSectionCoreConcepts={onSectionCoreConcepts} sections={sections} />;
 }
 
 function ReferencesDeskView({
@@ -6316,8 +6350,6 @@ function ReferencesDeskView({
   onSetQualityRating,
   onReviewTopicLabel,
   qualityActionState,
-  realtimeError,
-  realtimeStatus,
   references,
   referenceAttachments,
   semanticRelations,
@@ -6341,8 +6373,6 @@ function ReferencesDeskView({
   onSetQualityRating: (reference: ReferenceRecord, rating: number) => void;
   onReviewTopicLabel: (input: { action: TopicLabelAction; category: CategorySteeringCategory; note?: string | null; reference: ReferenceRecord; sourceRelationId?: string | null }) => void;
   qualityActionState: ReferenceQualityActionState | null;
-  realtimeError?: string | null;
-  realtimeStatus?: RealtimeSubscriptionStatus;
   references: ReferenceRecord[];
   referenceAttachments: ReferenceAttachmentRecord[];
   semanticRelations: SemanticRelationRecord[];
@@ -6613,7 +6643,6 @@ function ReferencesDeskView({
   const selectedReferenceQualityActionState = selectedReference && qualityActionState?.referenceId === selectedReference.id
     ? qualityActionState
     : null;
-  const realtimeStatusMessage = formatReferencesRealtimeStatusMessage(realtimeStatus, realtimeError);
   const referenceDetailPending = Boolean(requestedReferenceLineageId) && !selectedReference && !deepLinkReferenceError;
   const referenceDetailPlaceholder = deepLinkReferenceLoading || referenceDetailPending
     ? "Loading reference…"
@@ -6622,11 +6651,6 @@ function ReferencesDeskView({
 
   return (
     <>
-      {realtimeStatusMessage ? (
-        <div className="category-steering-alert" role="status" aria-live="polite">
-          {realtimeStatusMessage}
-        </div>
-      ) : null}
       {deepLinkReferenceError ? (
         <div className="category-steering-alert" role="alert">
           {deepLinkReferenceError}
@@ -8438,10 +8462,6 @@ function useModelPayloads(
     loading: boolean;
     payloads: HydratedModelPayload[];
   }>({ error: null, loading: false, payloads: [] });
-  const subscriptionClient = useMemo(
-    () => generateClient<Schema>({ authMode: USER_POOL_AUTH_MODE }),
-    [],
-  );
 
   useEffect(() => {
     if (!ownerId) {
@@ -8450,9 +8470,6 @@ function useModelPayloads(
     }
 
     let active = true;
-    const roleSet = new Set(rolesKey ? rolesKey.split("|").filter(Boolean) : []);
-    const attachmentModel = subscriptionClient.models.ModelAttachment as unknown as ModelAttachmentSubscriptionModel | undefined;
-    let subscriptions: ReferenceSubscription[] = [];
 
     const runLoad = (showLoading: boolean) => {
       if (showLoading) setState((current) => ({ ...current, error: null, loading: true }));
@@ -8473,30 +8490,10 @@ function useModelPayloads(
 
     void runLoad(true);
 
-    const handleAttachmentEvent = (value: unknown) => {
-      const attachment = normalizeModelAttachmentSubscriptionPayload(value);
-      if (!attachment) return;
-      if (attachment.ownerKind !== ownerKind) return;
-      if (attachment.ownerId !== ownerId) return;
-      if (roleSet.size > 0 && !roleSet.has(attachment.role)) return;
-      void runLoad(false);
-    };
-
-    if (attachmentModel && typeof attachmentModel.onCreate === "function" && typeof attachmentModel.onUpdate === "function") {
-      subscriptions = [
-        attachmentModel.onCreate().subscribe({ next: handleAttachmentEvent }),
-        attachmentModel.onUpdate().subscribe({ next: handleAttachmentEvent }),
-      ];
-      if (typeof attachmentModel.onDelete === "function") {
-        subscriptions.push(attachmentModel.onDelete().subscribe({ next: handleAttachmentEvent }));
-      }
-    }
-
     return () => {
       active = false;
-      for (const subscription of subscriptions) subscription.unsubscribe();
     };
-  }, [ownerKind, ownerId, rolesKey, subscriptionClient]);
+  }, [ownerKind, ownerId, rolesKey]);
 
   return state;
 }
@@ -11328,9 +11325,9 @@ function formatAnalysisCorpusLabel(corpusKey: string, corpora: CategorySteeringC
 }
 
 function analysisCorpusKeyFromRecord(corpus: CategorySteeringCorpus): string | null {
-  if (corpus.name && !corpus.name.startsWith("knowledge-corpus-")) return corpus.name;
+  if (corpus.name && !isCorpusId(corpus.name)) return corpus.name;
   if (!corpus.id) return null;
-  return corpus.id.replace(/^knowledge-corpus-/, "");
+  return corpusKeyOf(corpus.id);
 }
 
 function mergeAnalysisCorpora(configuredCorpora: CategorySteeringCorpus[], liveCorpora: CategorySteeringCorpus[]): CategorySteeringCorpus[] {
@@ -11556,7 +11553,7 @@ function buildUiAnalysisTargetRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       analysisProfileKey: profile.key,
       reindexMode: mode,
@@ -11611,7 +11608,7 @@ function buildUiAuthoritativeLabelRelation(
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       kind: sourceRelationId ? "classification.authoritative_label.accepted_from_prediction" : "classification.authoritative_label.manual",
       actor: actorLabel,
@@ -11765,7 +11762,7 @@ function resolveUiKnowledgeCorpusId(corpora: CategorySteeringCorpus[], corpusKey
 }
 
 function knowledgeCorpusIdFromKey(corpusKey: string): string {
-  return `knowledge-corpus-${safeUiId(corpusKey)}`;
+  return corpusIdForKey(safeUiId(corpusKey));
 }
 
 function safeUiId(value: unknown): string {
@@ -11794,7 +11791,7 @@ function readerPluginEnabled(): boolean {
 }
 
 function normalizeAdministrationPanel(value: string | null | undefined, demo = false): AdministrationPanel {
-  if (value === "policies" || value === "sections" || value === "procedures" || value === "automations" || value === "delegations" || value === "editorial-checks" || value === "monitoring" || value === "proposals") return value;
+  if (value === "policies" || value === "sections" || value === "procedures" || value === "automations" || value === "delegations" || value === "editorial-checks" || value === "monitoring" || value === "proposals" || value === "announcements") return value;
   if (value === "signups" && signupPluginEnabled()) return value;
   if (value === "newsletter" && newsletterPluginEnabled(demo)) return value;
   if (value === "moderation" && readerPluginEnabled()) return value;
@@ -11811,26 +11808,8 @@ function sortNewsroomSections(sections: NewsroomSectionRecord[]): NewsroomSectio
   });
 }
 
-function normalizeNewsroomSectionsWithFallback(
-  sections: NewsroomSectionRecord[],
-  fallbackSections: NewsroomSectionRecord[] = [],
-): NewsroomSectionRecord[] {
-  const fallbackById = new Map(fallbackSections.map((section) => [section.id, section]));
-  return sortNewsroomSections(sections.map((section) => {
-    const fallback = fallbackById.get(section.id);
-    return {
-      ...section,
-      shortTitle: section.shortTitle?.trim() || fallback?.shortTitle || defaultNewsroomSectionShortTitle(section.id),
-    };
-  }));
-}
-
-function defaultNewsroomSectionShortTitle(sectionId: string): string {
-  return NEWSROOM_SECTION_SHORT_TITLE_FALLBACKS[sectionId] ?? "";
-}
-
 function displayNewsroomSectionShortTitle(section: NewsroomSectionRecord): string {
-  return section.shortTitle?.trim() || defaultNewsroomSectionShortTitle(section.id);
+  return section.shortTitle?.trim() || section.title;
 }
 
 function normalizeNewsroomSectionType(value: string | null | undefined): "canonical" | "floating" {
@@ -12328,7 +12307,7 @@ function buildUiReferenceQualityRelation(
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: JSON.stringify({
       actorLabel,
       kind: "reference.quality-rating.manual",
@@ -12437,10 +12416,6 @@ function mapsEqualReferenceMetadataFields(a: Map<string, ReferenceMetadataFields
 
 function useReferenceMetadataFields(references: ReferenceRecord[]): Map<string, ReferenceMetadataFields> {
   const [fieldsByReferenceId, setFieldsByReferenceId] = useState<Map<string, ReferenceMetadataFields>>(() => new Map());
-  const subscriptionClient = useMemo(
-    () => generateClient<Schema>({ authMode: USER_POOL_AUTH_MODE }),
-    [],
-  );
   const referenceMeta = useMemo(
     () => references.map((reference) => ({
       id: reference.id,
@@ -12450,10 +12425,6 @@ function useReferenceMetadataFields(references: ReferenceRecord[]): Map<string, 
   );
   const referenceKey = useMemo(
     () => referenceMeta.map((entry) => entry.revision).join("|"),
-    [referenceMeta],
-  );
-  const visibleReferenceIds = useMemo(
-    () => new Set(referenceMeta.map((entry) => entry.id)),
     [referenceMeta],
   );
 
@@ -12510,58 +12481,6 @@ function useReferenceMetadataFields(references: ReferenceRecord[]): Map<string, 
       active = false;
     };
   }, [referenceKey, referenceMeta]);
-
-  useEffect(() => {
-    const attachmentModel = subscriptionClient.models.ModelAttachment as unknown as ModelAttachmentSubscriptionModel | undefined;
-    if (!attachmentModel || typeof attachmentModel.onCreate !== "function" || typeof attachmentModel.onUpdate !== "function") return;
-    if (!visibleReferenceIds.size) return;
-
-    let active = true;
-    const refreshReference = async (referenceId: string) => {
-      const nextRevision = `${referenceId}:attachment`;
-      try {
-        const payloads = await loadModelPayloadsForOwner("reference", referenceId, ["metadata"]);
-        if (!active) return;
-        const metadataPayload = modelPayloadByRole(payloads, "metadata");
-        const fields = {
-          title: referenceMetadataTitle(metadataPayload),
-          subtitle: referenceMetadataSubtitle(metadataPayload),
-        };
-        referenceMetadataFieldsCache.set(referenceId, { fields, revision: nextRevision });
-        setFieldsByReferenceId((current) => {
-          const existing = current.get(referenceId);
-          if (existing && existing.title === fields.title && existing.subtitle === fields.subtitle) return current;
-          const next = new Map(current);
-          next.set(referenceId, fields);
-          return next;
-        });
-      } catch {
-        if (!active) return;
-      }
-    };
-
-    const handleAttachmentEvent = (value: unknown) => {
-      const attachment = normalizeModelAttachmentSubscriptionPayload(value);
-      if (!attachment) return;
-      if (attachment.ownerKind !== "reference") return;
-      if (attachment.role !== "metadata") return;
-      if (!visibleReferenceIds.has(attachment.ownerId)) return;
-      void refreshReference(attachment.ownerId);
-    };
-
-    const subscriptions: ReferenceSubscription[] = [
-      attachmentModel.onCreate().subscribe({ next: handleAttachmentEvent }),
-      attachmentModel.onUpdate().subscribe({ next: handleAttachmentEvent }),
-    ];
-    if (typeof attachmentModel.onDelete === "function") {
-      subscriptions.push(attachmentModel.onDelete().subscribe({ next: handleAttachmentEvent }));
-    }
-
-    return () => {
-      active = false;
-      for (const subscription of subscriptions) subscription.unsubscribe();
-    };
-  }, [subscriptionClient, visibleReferenceIds]);
 
   return fieldsByReferenceId;
 }
@@ -13249,7 +13168,7 @@ function buildUiProducesRelation({ assignment, decision, item, messageId, now }:
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       lifecycle: "reporting-packet-review",
       decision,
@@ -13314,7 +13233,7 @@ function buildUiDerivedFromRelation({
     importedAt: now,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "semanticRelations",
+    newsroomFeedKey: globalKey(SEMANTIC_RELATION_FEED_KEY),
     metadata: {
       lifecycle: "reporting-packet-review",
       decision,
@@ -14561,20 +14480,11 @@ function assertReviewMutationSucceeded(response: CategoryReviewResponse, proposa
   return response.data;
 }
 
-function assertReferenceReviewMutationSucceeded(response: ReferenceReviewResponse, referenceId: string): NonNullable<ReferenceReviewResponse["data"]> {
+function assertReferenceReviewMutationSucceeded(response: ReferenceReviewResponse, referenceId: string): ReferenceReviewResult {
   if (response.errors?.length) {
     throw new Error(response.errors.map(formatGraphQLError).join("; "));
   }
-  if (!response.data?.ok) {
-    throw new Error(`Reference curation review was not saved for ${referenceId}.`);
-  }
-  if (response.data.referenceId && response.data.referenceId !== referenceId) {
-    throw new Error(`Reference review response did not match ${referenceId}.`);
-  }
-  if (!response.data.messageId || !response.data.relationId) {
-    throw new Error(`Reference review saved without commentary audit rows for ${referenceId}.`);
-  }
-  return response.data;
+  return assertReferenceReviewSaved(response.data, referenceId);
 }
 
 function assertReferenceQualityMutationSucceeded(
@@ -14947,45 +14857,6 @@ function normalizeReferenceSubscriptionPayload(value: unknown): ReferenceRecord 
   return null;
 }
 
-function normalizeSemanticRelationSubscriptionPayload(value: unknown): SemanticRelationRecord | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as { data?: unknown; id?: unknown };
-  if (typeof record.id === "string") return record as SemanticRelationRecord;
-  if (record.data && typeof record.data === "object" && typeof (record.data as { id?: unknown }).id === "string") {
-    return record.data as SemanticRelationRecord;
-  }
-  return null;
-}
-
-function normalizeModelAttachmentSubscriptionPayload(value: unknown): ModelAttachmentRecord | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as { data?: unknown; id?: unknown };
-  if (
-    typeof (record as { ownerId?: unknown }).ownerId === "string"
-    && typeof (record as { ownerKind?: unknown }).ownerKind === "string"
-    && typeof (record as { role?: unknown }).role === "string"
-  ) {
-    return record as ModelAttachmentRecord;
-  }
-  if (record.data && typeof record.data === "object") {
-    const payload = record.data as { ownerId?: unknown; ownerKind?: unknown; role?: unknown };
-    if (typeof payload.ownerId === "string" && typeof payload.ownerKind === "string" && typeof payload.role === "string") {
-      return record.data as ModelAttachmentRecord;
-    }
-  }
-  return null;
-}
-
-function extractSubscriptionRecordId(value: unknown): string | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as { id?: unknown; data?: unknown };
-  if (typeof record.id === "string") return record.id;
-  if (record.data && typeof record.data === "object" && typeof (record.data as { id?: unknown }).id === "string") {
-    return (record.data as { id: string }).id;
-  }
-  return null;
-}
-
 function buildReviewedReferenceRecord(
   records: ReferenceRecord[],
   reference: ReferenceRecord,
@@ -15016,6 +14887,24 @@ function buildReviewedReferenceRecord(
     } : {}),
     updatedAt: options.now,
   };
+}
+
+/** Merge records that were read into the page's list, keeping a record the page already holds when it is newer. */
+function mergeReferenceRecords(current: ReferenceRecord[], incoming: ReferenceRecord[]): ReferenceRecord[] {
+  const byId = new Map(current.map((reference) => [reference.id, reference] as const));
+  for (const reference of incoming) {
+    const held = byId.get(reference.id);
+    if (held && (held.updatedAt ?? "") > (reference.updatedAt ?? "")) continue;
+    byId.set(reference.id, reference);
+  }
+  return sortReferencesByRecency(selectCanonicalReferenceRecords([...byId.values()]));
+}
+
+/** Accepted plus rejected References from the newsroom summary, or null when the summary does not say. */
+function ratedCountFromSummary(summary: NewsroomSummaryRecord | null | undefined): number | null {
+  const byStatus = summary?.facets?.references?.byCurationStatus;
+  if (!byStatus) return null;
+  return Number(byStatus.accepted ?? 0) + Number(byStatus.rejected ?? 0);
 }
 
 function upsertReferenceRecords(
@@ -15105,58 +14994,6 @@ function patchReferenceSummary(
     referenceStatusCounts,
     facets: facets ?? summary.facets,
   };
-}
-
-function patchReferenceSummaryForDelete(
-  summary: NewsroomSummaryRecord | null | undefined,
-  deletedReference: ReferenceRecord | null,
-): NewsroomSummaryRecord | null {
-  if (!summary || !deletedReference) return summary ?? null;
-  const deletedStatus = normalizeReferenceStatus(deletedReference.curationStatus);
-  const deletedCorpusId = deletedReference.corpusId;
-  const counts = applyCountDelta(summary.counts, "references", -1);
-  const referenceStatusCounts = { ...summary.referenceStatusCounts };
-  decrementCount(referenceStatusCounts, deletedStatus);
-  const facets = summary.facets ? { ...summary.facets } : undefined;
-  const referenceFacets = summary.facets?.references
-    ? {
-        ...summary.facets.references,
-        byCurationStatus: { ...(summary.facets.references.byCurationStatus ?? {}) },
-        byCorpus: { ...(summary.facets.references.byCorpus ?? {}) },
-        statusByCorpus: cloneNestedNumberCounts(summary.facets.references.statusByCorpus),
-      }
-    : undefined;
-  if (referenceFacets?.byCurationStatus) decrementCount(referenceFacets.byCurationStatus, deletedStatus);
-  if (referenceFacets?.byCorpus) decrementCount(referenceFacets.byCorpus, deletedCorpusId);
-  if (referenceFacets?.statusByCorpus) {
-    const corpusCounts = { ...(referenceFacets.statusByCorpus[deletedCorpusId] ?? {}) };
-    decrementCount(corpusCounts, deletedStatus);
-    referenceFacets.statusByCorpus[deletedCorpusId] = corpusCounts;
-  }
-  if (facets && referenceFacets) facets.references = referenceFacets;
-  return {
-    ...summary,
-    counts,
-    referenceStatusCounts,
-    facets: facets ?? summary.facets,
-  };
-}
-
-function upsertSemanticRelationRecords(
-  current: SemanticRelationRecord[],
-  relation: SemanticRelationRecord,
-): SemanticRelationRecord[] {
-  return [relation, ...current.filter((entry) => entry.id !== relation.id)];
-}
-
-function formatReferencesRealtimeStatusMessage(
-  status: RealtimeSubscriptionStatus | undefined,
-  error: string | null | undefined,
-): string | null {
-  if (!status || status === "idle" || status === "connected") return null;
-  if (status === "connecting" || status === "reconnecting") return "References realtime is reconnecting.";
-  if (status === "stale") return "References realtime is temporarily stale while reconnecting.";
-  return error ? `References realtime is unavailable: ${error}` : "References realtime is unavailable.";
 }
 
 function cloneNestedNumberCounts(value: Record<string, Record<string, number>> | null | undefined): Record<string, Record<string, number>> {

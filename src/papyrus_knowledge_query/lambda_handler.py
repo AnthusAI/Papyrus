@@ -8,8 +8,35 @@ from .services import build_environment_services
 
 
 def handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
+    """One Lambda, two AppSync queries: ``searchReferences`` (the References page search box) and, for anything else, ``knowledgeQuery``."""
     input_payload = _extract_input(event)
-    return run_knowledge_query(input_payload, build_environment_services(event))
+    services = build_environment_services(event)
+    if _field_name(event) == "searchReferences":
+        return _search_references(event, input_payload, services)
+    return run_knowledge_query(input_payload, services)
+
+
+def _field_name(event: dict[str, Any]) -> str:
+    """Amplify's Lambda resolvers send ``fieldName`` at the top of the event; a direct AppSync resolver sends it under ``info``."""
+    if not isinstance(event, dict):
+        return ""
+    info = event.get("info")
+    return str((info.get("fieldName") if isinstance(info, dict) else None) or event.get("fieldName") or "")
+
+
+def _search_references(event: dict[str, Any], input_payload: dict[str, Any], services: Any) -> dict[str, Any]:
+    from . import reference_search, reference_words
+
+    reference_search.require_editor(event)
+    try:
+        words = reference_words.DynamoWordSource.from_environment()
+    except RuntimeError:
+        words = None   # not deployed here: the lane reports it and the meaning lane still answers
+    return reference_search.search_references(
+        input_payload,
+        words=words,
+        vectors=services.semantic if hasattr(services.semantic, "query_by_vector") and hasattr(services.semantic, "embed_text") else None,
+    )
 
 
 def _extract_input(event: dict[str, Any]) -> dict[str, Any]:

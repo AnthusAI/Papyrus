@@ -15,9 +15,9 @@ for path in (REPO_ROOT / "src", REPO_ROOT / "procedures" / "newsroom" / "tests")
         sys.path.insert(0, str(path))
 
 from curation_support import (  # noqa: E402
-    NOW, MemoryClient, Grobid, Summarizer, article_html, page, paper_pdf, reference, services as build_services,
+    NOW, MemoryClient, Grobid, Summarizer, article_html, directed_world, page, stored_attachment_bodies, paper_pdf, reference, services as build_services,
 )
-from papyrus_content import reference_curation as curation, youtube_transcript  # noqa: E402
+from papyrus_content import reference_curation as curation  # noqa: E402
 from papyrus_content.reference_curation_store import CurationError, apply_editor_correction, correct_reference_capture  # noqa: E402
 from pdf_fixtures import make_pdf  # noqa: E402
 
@@ -181,6 +181,133 @@ def _(context):
 @then('the card says GROBID was skipped as "{reason}"')
 def _(context, reason):
     assert card(context)["grobid"] == {"status": "skipped", "reason": reason}
+
+
+@given('the Reference came from the Assignment "{title}" with the direction "{direction}"')
+def _(context, title, direction):
+    patcher = stored_attachment_bodies()
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+    directed_world(context.client, context.ref, direction=direction, assignment_title=title, found_by="assignment-1",
+                   stories=[("story-found", "Found headline", "Found deck", "news", "consulted", "2026-10-15T00:00:00Z")])
+
+
+@given('the Story "{headline}" with the deck "{deck}" in the section "{section}" is linked to the Reference as "{role}"')
+def _(context, headline, deck, section, role):
+    created = {"Older headline": "2026-10-01T00:00:00Z"}.get(headline, "2026-11-01T00:00:00Z")
+    directed_world(context.client, context.ref, stories=[(f"story-{headline.split()[0].lower()}", headline, deck, section, role, created)])
+
+
+@given("the environment has no OPENAI_API_KEY and names an SSM parameter holding the key")
+def _(context):
+    context.environ = {"PAPYRUS_OPENAI_KEY_PARAMETER": "/synthetic/openai-key"}
+    context.secret_reads = []
+
+
+@when("curation services are built for a research run")
+def _(context):
+    from papyrus_content import multi_search_research
+
+    sent = []
+
+    def transport(url, headers, payload):
+        sent.append(headers)
+        return {"output_text": "Keyed summary.", "usage": {"input_tokens": 1, "output_tokens": 1}}
+
+    def read_secret(parameter):
+        context.secret_reads.append(parameter)
+        return "synthetic-key"
+
+    with mock.patch.object(curation, "default_services", lambda client: build_services(client, pages=context.pages, summarizer=None)):
+        context.research_services = multi_search_research.research_summary_services(context.client, environ=context.environ, read_secret=read_secret,
+                                                                                    transport=transport)
+    context.research_summary = context.research_services.summarizer({"text": "Body text.", "title": "T", "sourceUri": ARTICLE_URL})
+
+
+@then("the summarizer is keyed from the parameter and writes a summary")
+def _(context):
+    assert context.secret_reads == ["/synthetic/openai-key"] and context.research_summary["text"] == "Keyed summary."
+
+
+@given('the model fails with "{reason}"')
+def _(context, reason):
+    context.summarizer = Summarizer(fail_with=reason)
+    context.services = None
+
+
+@when('the curation procedure runs for the Reference with force')
+def _(context):
+    curate(context, force=True)
+
+
+@when('a research run for the Assignment "{assignment_id}" takes in the Reference')
+def _(context, assignment_id):
+    from papyrus_content import multi_search_research
+
+    context.research_curation = multi_search_research.curate_found_references(context.client, assignment_id, [context.ref["id"]], services=svc(context))
+
+
+def purpose_sent(context):
+    return context.summarizer.calls[-1].get("purposeContext")
+
+
+@then("the model was given no purpose context")
+def _(context):
+    assert all("purposeContext" not in call for call in context.summarizer.calls)
+
+
+@then('the model\'s purpose context includes "{text}"')
+def _(context, text):
+    assert text in purpose_sent(context)
+
+
+@then('the model\'s purpose context does not include "{text}"')
+def _(context, text):
+    assert text not in purpose_sent(context)
+
+
+@then('the model\'s purpose context lists "{first}" before "{second}"')
+def _(context, first, second):
+    sent = purpose_sent(context)
+    assert sent.index(first) < sent.index(second)
+
+
+def reference_metadata(context):
+    return json.loads(svc(context).store.text(context.ref, "metadata") or "{}")
+
+
+@then('the Reference\'s metadata holds no "summary_purpose"')
+def _(context):
+    assert "summary_purpose" not in reference_metadata(context) and "purpose" not in card(context)["summary"]
+
+
+@then('the Reference\'s metadata holds a "summary_purpose" with its Story ids and a hash of the context')
+def _(context):
+    recorded = reference_metadata(context)["summary_purpose"]
+    assert set(recorded) == {"assignmentId", "storyLineageIds", "contextHash"}
+    assert recorded["storyLineageIds"] and len(recorded["contextHash"]) == 64
+
+
+@then('the recorded purpose names the Assignment "{assignment_id}"')
+def _(context, assignment_id):
+    assert reference_metadata(context)["summary_purpose"]["assignmentId"] == assignment_id
+
+
+@then("the summary was written with the directed prompt version")
+def _(context):
+    assert reference_metadata(context)["summary_resolution"]["promptVersion"] == curation.SUMMARY_DIRECTED_PROMPT_VERSION
+    assert card(context)["summary"]["purpose"]["contextHash"] == reference_metadata(context)["summary_purpose"]["contextHash"]
+
+
+@then("the research run still reports its References as curated")
+def _(context):
+    assert context.research_curation["curated"] == [context.ref["id"]] and not context.research_curation["failed"]
+
+
+@then('the card records the summary failure "{reason}"')
+def _(context, reason):
+    summary = card(context)["summary"]
+    assert (summary["status"], summary["reason"]) == ("failed", reason)
 
 
 @then("the model was asked for a summary only once")
@@ -387,41 +514,21 @@ def _(context):
 
 VIDEO_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 VIDEO_DESCRIPTION = "The speaker explains steerable feeds."
-VIDEO_TRANSCRIPT = "Today we talk about feeds. Editors steer the algorithm and the feed learns what they want."
-
-
-def _transcript(context, outcome):
-    patcher = mock.patch.object(youtube_transcript, "fetch_transcript", return_value=outcome)
-    patcher.start()
-    context.add_cleanup(patcher.stop)
 
 
 @given("the Reference is a YouTube video whose page only has a short description")
 def _(context):
-    context.ref = reference(sourceUri=VIDEO_URL)
+    context.ref = reference(sourceUri=VIDEO_URL, curationStatus="accepted", medium="video", mediumFeedKey="knowledge-corpus-site#video#accepted")
     context.client = MemoryClient([context.ref])
     context.pages = {VIDEO_URL: page(f"<html><head><title>Talk</title><meta property='og:description' content='{VIDEO_DESCRIPTION}'></head><body></body></html>")}
     context.services = None
 
 
-@given("YouTube gives the transcript of the video")
+@given("the transcript library is not installed")
 def _(context):
-    _transcript(context, (VIDEO_TRANSCRIPT, None))
-
-
-@given("YouTube blocks the request for the transcript")
-def _(context):
-    _transcript(context, (None, "blocked"))
-
-
-@given("the video has no transcript")
-def _(context):
-    _transcript(context, (None, "no_transcript"))
-
-
-@then("the card's text is the video's transcript and not the short description")
-def _(context):
-    assert svc(context).store.text(context.ref, "curation-text") == VIDEO_TRANSCRIPT
+    patcher = mock.patch.dict(sys.modules, {"youtube_transcript_api": None})   # an import of it now raises ImportError
+    patcher.start()
+    context.add_cleanup(patcher.stop)
 
 
 @then("the card's text is the video's short description")
@@ -429,13 +536,14 @@ def _(context):
     assert svc(context).store.text(context.ref, "curation-text") == VIDEO_DESCRIPTION
 
 
-@then("the capture records that the text came from the YouTube transcript")
-def _(context):
-    capture = card(context)["capture"]
-    assert capture["textVia"] == "youtube_transcript" and "textReason" not in capture
-
-
-@then('the capture records that the text came from the video description because the transcript was "{reason}"')
+@then('the capture records that the text came from the video description because the transcript is "{reason}"')
 def _(context, reason):
     capture = card(context)["capture"]
     assert capture["textVia"] == "youtube_description" and capture["textReason"] == reason
+
+
+@then("the Reference is stored as not captured in full and waits in the list of videos that need content")
+def _(context):
+    row = context.client.get_record("Reference", context.ref["id"])
+    assert row["captureState"] == "thin", row.get("captureState")
+    assert row["contentNeededKey"] == "knowledge-corpus-site#video#needs_content#accepted", row.get("contentNeededKey")

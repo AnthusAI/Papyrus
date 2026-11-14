@@ -64,7 +64,7 @@ def test_it_runs_the_command_once_with_iam_and_the_key_only_in_the_child_environ
     calls = []
     outcome = go(execute=lambda args, env: calls.append((args, env)) or answer()(args, env))
     [(args, env)] = calls
-    assert args == ["papyrus", "ideas", "monitor-stories", "--site", "shipped", "--store", "proposals", "--limit", "3", "--json"]
+    assert args == ["papyrus", "ideas", "monitor-stories", "--site", "shipped", "--store", "items", "--limit", "3", "--json"]
     assert env["PAPYRUS_GRAPHQL_AUTH"] == "iam" and env["PAPYRUS_GRAPHQL_ENDPOINT"] == ENDPOINT and env["OPENAI_API_KEY"] == "sk-test"
     assert "sk-test" not in " ".join(args) and "sk-test" not in outcome
     assert outcome.startswith("filed 2 of 9 candidates (3 attempted, 1 failed the check)")

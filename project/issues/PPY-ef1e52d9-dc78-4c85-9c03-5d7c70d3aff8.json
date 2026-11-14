@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ef1e52d9-dc78-4c85-9c03-5d7c70d3aff8",
+  "title": "Alexa M3: Account linking with Google sign-in and QR on Echo Show",
+  "description": "Milestone 3. A person links their Papyrus account to the skill the standard, certifiable way.\n\nScope:\n- A new Cognito app client on the site's existing user pool, only for Alexa: authorization code grant with PKCE, Google as the only identity provider, a client secret, refresh tokens enabled, and Amazon's redirect URLs (pitangui/layla/alexa.amazon.co.jp) as callbacks. Modelled on amplify/auth/prospectus-google-client.ts. Never email/password users.\n- Account linking config in the skill manifest (generated): authorization URI = the site's Cognito hosted UI /oauth2/authorize, token URI /oauth2/token, scopes, PKCE on. Client secret from SSM via IaC.\n- Linking is optional. Intents that need a signed-in user send a LinkAccount card. On an Echo Show, Alexa shows its own QR code for linking.\n- The skill validates the Cognito access token on every request (issuer, audience/client_id, expiry) and maps it to the Papyrus user and their groups, the same authorization the site uses.\n- Unlinking and revoked or expired tokens degrade cleanly to the public experience.\n\nRisks to check first (spike task): Google refuses OAuth inside embedded webviews. Confirm the Alexa app's linking browser and the QR path on a phone both get through Google sign-in through the Cognito hosted UI. Also confirm the hosted UI domain's certificate meets Amazon's CA list (no Let's Encrypt).\n\nNeeds Ryan's approval: the Cognito client and backend deploy.\n\nDone when: Ryan scans the Show's QR code, signs in with Google, and the skill greets him by name. Gherkin specs cover linked, unlinked, expired and revoked tokens against a fake JWKS.\n\nFeature: Link my Papyrus account\n  Scenario: Link from the Echo Show\n    Given I have not linked my account\n    When I ask for my feed\n    Then the Echo Show shows a QR code to link my account\n    And after I sign in with Google on my phone the skill knows who I am\n  Scenario: Expired link\n    Given my link has been revoked\n    When I ask for my feed\n    Then I hear the public stories and an offer to link again\n",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-704ae15a-dd0f-4619-9f9b-ea980aa0e2f8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:48.124132Z",
+  "updated_at": "2026-10-31T14:06:48.124181Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bd6f81df-4074-413e-b060-4a6fe00f7413",
+  "issue_id": "PPY-d0c43bdb-9eb8-4256-a69d-f2d0107848de",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T00:01:58.115Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Canned association suggester: derive concept, story and Reference candidates from an item's own text",
+    "description": "Today an outside agent must invent search phrases for 'papyrus knowledge concepts search' and 'stories suggest-links' only works from concepts already tagged (and only for Stories). Smallest gap: one read-only command 'papyrus stories suggest-associations --story X' (and '--reference X') that (1) builds ONE query from title + summary + first N words of body + existing concept names, (2) embeds it once server-side (like searchReferences, so no OPENAI key in the editor lane) and ranks Concepts (concept_card vectors) and accepted References, (3) feeds the top Concepts as virtual seeds into the existing suggest_links graph pass so Stories/Posts/References get ranked even before any tag exists, (4) prints ready link-concept/link-story commands. Reuses link_suggestions.suggest_links, concept_search.search_concepts and reference_suggestions (reference_summary vector as query for a Reference). Needs a server-side concept-vector query field (follow-up already named in docs/story-reporting.md). Also: stories suggest-links takes only a Story today; no read-only Reference equivalent ('references suggest-links' writes suggested rows and needs the vector index lane). Background: PR skills-associations.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

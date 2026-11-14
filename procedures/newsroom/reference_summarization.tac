@@ -42,6 +42,7 @@ Procedure {
         known_subtitle = field.string{default = "", description = "Resolved subtitle for outcome mode"},
         media_type = field.string{default = "", description = "Reference media type"},
         doctrine_context_text = field.string{default = "", description = "Publication doctrine block for reference_summary mode"},
+        purpose_context_text = field.string{default = "", description = "Why the newsroom is reading this source: the Assignment direction and linked Stories; empty for a general summary"},
         model = field.string{default = "gpt-6-luna", description = "Model hint for metadata only"},
         prompt_version = field.string{default = "", description = "Optional override prompt version"}
     },
@@ -61,6 +62,7 @@ Procedure {
         local source_uri = input.source_uri or ""
         local source_text = input.source_text or ""
         local doctrine_block = input.doctrine_context_text or ""
+        local purpose_block = input.purpose_context_text or ""
         local known_title = input.known_title or ""
         local known_subtitle = input.known_subtitle or ""
         local media_type = input.media_type or ""
@@ -72,6 +74,9 @@ Procedure {
         if mode == "reference_summary" then
             if prompt_version == "" then
                 prompt_version = "reference-summary-v3-source-voice"
+                if purpose_block ~= "" then
+                    prompt_version = "reference-summary-v3-source-voice-directed"
+                end
             end
             message = string.format([[
 Write a concise summary in no more than %d tokens.
@@ -104,6 +109,12 @@ Source URI: %s
 
 %s
 ]], budget, doctrine_block, reference_title, source_uri, source_text)
+            if purpose_block ~= "" then
+                message = string.format([[
+Why the newsroom is reading this source: %s. Use this to choose what to bring forward and to say plainly where the source does not address the question. It is not evidence. Every statement must still come from the source text; never carry a fact, name or claim from this block into the summary.
+
+]], purpose_block) .. message
+            end
         elseif mode == "outcome_summary" then
             if prompt_version == "" then
                 prompt_version = "reference-title-subtitle-summary-v2-source-voice"

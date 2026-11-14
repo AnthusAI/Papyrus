@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4556e52c-ca32-4c18-8e34-1bbad8773638",
+  "issue_id": "PPY-e529c400-788c-423f-a235-53fa1136fdd9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T16:37:20.380Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Knowledge-run status and start from the CLI through the site API",
+    "description": "Read execution status, stage and term counts, and start a manual run, without Step Functions access on the operator's machine. Admin-only.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+    "labels": []
+  }
+}

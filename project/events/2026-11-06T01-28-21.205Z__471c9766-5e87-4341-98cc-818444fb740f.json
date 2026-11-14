@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "471c9766-5e87-4341-98cc-818444fb740f",
+  "issue_id": "PPY-f2469685-8b84-4962-9ca3-78bd04c41397",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T01:28:21.205Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Home pages interleave small groups of different kinds, with raw References last",
+    "description": "Ryan, 2026-11-05. Replace big blocks with a rhythm of small mixed groups. His direction: (1) the top few Stories are the best recent ones, not constrained by section; (2) then a few recent high-rated Stories and posts from each of several sections, so readers see the breadth of sections; (3) more than one video when there are several worth showing; (4) raw References (linking off-site, no post of ours yet) go all the way at the end; their main purpose is to show how the system works, automated monitors feeding Cyclotrons that keep aligning to editors' feedback, with a few of the most recent; (5) no wall of words near the top, but deeper down an explanation is welcome: a header, a subheading, and a dedicated explainer card inside the References grid. Adaptive: an empty slot is skipped. Nothing appears twice (page ledger). Rhythm lives in site settings (an include pattern), not code. Each group queries an index for its few items (PPY-7f1e54). Mock up two or three rhythms on Machines on Machines as screenshots for Ryan before building. Gherkin.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

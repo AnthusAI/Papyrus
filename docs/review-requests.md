@@ -26,7 +26,7 @@ An answer is `approve`, `acknowledge` (a flag only: nothing was approved, the ed
 | `deadline` | Soft reviews only, and only when the caller passes one. Empty means no expiry. |
 | `state` | `open`, `answered`, `timed_out`, `withdrawn`. |
 | `answer` | `{decision, feedback, steer, by, at}`. |
-| `links` | Items in the request (for a batch, each proposal) or URLs. |
+| `links` | Items in the request or URLs. For a batch these are the ideas filed in that run, as `story` links by lineage id (older batches linked Proposals). |
 | `history` | The audit trail of this request: raised, answered, timed_out ("proceeded without review"), applied, withdrawn. |
 | `appliedIn` | `{runId, by, at}`: the run that used the steering. |
 
@@ -82,13 +82,15 @@ for note in rr.steering_for(client, raised_by="idea-pipeline"):    # answered wi
 Synthesis raises ONE soft review per run:
 
 ```python
-rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id=run_id, proposal_ids=[p["id"] for p in proposals])
-# reason: "3 new story ideas to review"; subject {type: batch, id: run_id}; each proposal is a link;
+rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id=run_id, idea_ids=[idea["itemLineageId"] for idea in ideas])
+# reason: "3 new story ideas to review"; subject {type: batch, id: run_id}; each idea is a `story` link;
 # no deadline unless deadline_days=... is passed; idempotent per batch_id.
 ```
 
+The batch is decided on the Stories board, not on the request: an editor accepts an idea by moving it forward and declines it by moving it to `spiked` with a reason. In the Notification Center the batch is one card with a link to the Idea column and no Accept or Reject ([notification-center.md](notification-center.md)). The next run reads those stage moves as feedback.
+
 At the start of the next synthesis (and digest) run, call `steering_for(client, raised_by="idea-pipeline")` and feed the feedback in as input,
-then `mark_applied`. A rejected batch comes back as a steering entry with `decision: "reject"`.
+then `mark_applied`. A batch that was answered on the request itself comes back as a steering entry (for example with `decision: "reject"`).
 
 ## CLI
 
@@ -105,6 +107,18 @@ papyrus reviews applied --id ID --run RUN_ID
 papyrus reviews recipients [--mode M] [--automation A]     # who would be told
 papyrus reviews recipients --set --scope default|mode|automation [--key K] [--roles editor,admin] [--emails a@x,b@y]
 ```
+
+## The publish gate
+
+A site that sets its [publish approval](how-a-publish-flows.md#a-site-can-require-a-persons-approval-to-publish) to `required` uses `hard_gate` requests as its publish gate (PPY-8c5438). `publish_item` refuses unless the call carries a signed-in person (`approved_by`: the console's Publish and live Save, through the content-actions function's Cognito identity) or a person already approved a request for that version. Otherwise it raises one request and stops:
+
+| Field | Value |
+|---|---|
+| `id` | `rr-publish-<hash of the item record id and its content hash>`; a later request about the same version, after one was withdrawn, adds `-2`, `-3`. |
+| `subject` | `{type: story, id: <lineage id>}`; the item record is a link. |
+| `mode`, `raisedBy` | `hard_gate`, `publish-gate`. |
+
+Approve it and the caller's next publish goes through (nothing publishes at the moment of approval). Reject it, or answer with feedback, and the version stays unpublished with the code `approval-rejected` until its text changes. A person\'s own publish settles an open request as approved, recorded as `approver: person`. Under `required` only a person\'s approval counts: an answer whose `by` starts with `agent:` is read as an agent\'s and does not open the gate. The setting is an enum that can grow (delegated approval, where an editor agent may approve after a person\'s first refusal lapses, is a separate task), and each approval records its approver kind. The code is `src/papyrus_content/publish_gate.py`; the setting is read and set with `papyrus ops content publish-gate show|set`.
 
 ## Recipients (site configuration, no code change)
 

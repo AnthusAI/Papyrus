@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0615c7e7-811f-4959-aed4-24148a2a3038",
+  "issue_id": "PPY-93779be1-01d1-4e96-be12-13551f882142",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T12:30:09.858Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Concepts row on story pages (articles and posts), above the references",
+    "description": "Read the story's mentions and related_to relations to public concept pages into the page build and list them as links. Hide when empty. Data note: posts carry related_to, not mentions; wiki entityKey is a bare slug while SemanticNode nodeKey is editor_concept--slug.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+    "labels": []
+  }
+}

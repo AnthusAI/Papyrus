@@ -387,7 +387,8 @@ APP_DISTINCTIVE = "https://dist9.appsync-api.us-east-1.amazonaws.com/graphql"
 def stores():
     return {"hn": fx.FakeViewStore(), "ttab": fx.FakeViewStore(fx.ttab_rows(APP_DISTINCTIVE)),
             "huggingface": fx.FakeViewStore(fx.ttab_rows(fx.APP_PAPYRUS, monitor="huggingface")),
-            "p-apyr-us-email": fx.FakeViewStore([])}
+            "p-apyr-us-email": fx.FakeViewStore([]),
+            **{paper: fx.FakeViewStore([]) for paper in ("papers-arxiv-ai", "papers-arxiv-security", "papers-huggingface", "feed-metr")}}
 
 
 def site_overview(endpoint, groups=("editor",), scope="publication"):
@@ -439,7 +440,7 @@ def test_handler_reads_each_listed_monitor_through_the_same_read_only_store():
         asked.append(monitor_id)
         return stores()[monitor_id]
     out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": APP_DISTINCTIVE}, store_factory=factory)
-    assert asked == ["hn", "ttab", "huggingface", "p-apyr-us-email"] and [i["monitorId"] for i in out["items"]] == ["ttab"]
+    assert asked == list(mv.MONITOR_IDS) and "papers-huggingface" in asked and [i["monitorId"] for i in out["items"]] == ["ttab"]
     asked.clear()
     mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": APP_DISTINCTIVE, "PAPYRUS_MONITORING_MONITOR_IDS": "ttab, hn"},
               store_factory=factory)
@@ -695,3 +696,131 @@ def test_the_page_query_goes_through_the_handler_with_the_same_gate():
     assert [r["subject"] for r in result["rows"]] == ["Mail 1"] and result["cursor"] is None
     assert mv.handle({**event, "identity": {"groups": ["reader"]}}, env=env, store_factory=fx.only_hn(store), now=fx.NOW) == {"error": "forbidden"}
     assert mv.handle({**event, "arguments": {"list": "nope"}}, env=env, store_factory=fx.only_hn(store), now=fx.NOW) == {"error": "bad_request"}
+
+
+# --- the Cyclotron classifier status of this site's own publication --------------------------------------------
+
+def status_row(publication, as_of="2026-11-02T10:00:00.000Z", monitor="hn", refits=0):
+    return {"pk": f"MONITOR#{monitor}", "sk": f"CYCLOTRONSTATUS#{publication}", "publicationId": publication,
+            "output": f"{publication}-relevance", "asOf": as_of, "checkedAt": "2026-11-02T10:30:00Z",
+            "status": {"schema": "cyclotron-status/v1", "asOf": as_of,
+                       "cyclotron": {"id": f"{publication}-relevance", "classifier": "relevant", "version": 3, "refits": refits,
+                                     "fingerprint": "fp"}}}
+
+
+def report_of(publication, accuracy=None):
+    """One output's stored report, in the Cyclotron's real shape (src/decision_flywheel/classifier_report.py) plus the schema and read time the router adds."""
+    return {"schema": "cyclotron-classifier-report/v1", "generatedAt": "2026-11-03T18:00:00.000000+00:00",
+            "classifier": {"id": f"{publication}-relevance", "revision": 2, "question": "Would a security engineer want to read this?",
+                           "criteriaFingerprint": "cfp", "rubric": "Include practical security news.", "classes": ["include", "exclude"]},
+            "learning": {"state": "not_active", "reason": "standing runs do not train on votes yet; votes are stored and change no classifier", "version": 3,
+                         "refits": 0, "lastChange": None, "asOf": "2026-11-03T17:00:00.000Z", "unavailableReason": None},
+            "agreementWithEditors": {"votes": 5, "compared": 0, "agreed": 0, "byClassifierRevision": [{"classifierRevision": "2", "votes": 5, "compared": 0, "agreed": 0}],
+                                     "byDay": [{"day": "2026-11-03", "votes": 5, "compared": 0, "agreed": 0}]},
+            "heldOut": {"accuracy": accuracy, "reason": None if accuracy else "standing runs do not produce held-out evaluations yet"},
+            "counts": {"labels": {"include": 3, "exclude": 2}, "reviewedDecisions": None, "primedExamples": 30, "decisionsAwaitingReview": 1},
+            "model": {"features": None, "weights": None, "reason": "no machine-learning model has been fitted for this classifier"}}
+
+
+def with_report(row, publication=None):
+    return {**row, "report": report_of(publication or row["publicationId"]), "reportCheckedAt": "2026-11-03T18:05:00Z"}
+
+
+def report_only_row(publication, monitor="hn"):
+    row = status_row(publication, monitor=monitor)
+    for key in ("status", "asOf", "checkedAt"):
+        del row[key]
+    return with_report(row)
+
+
+def status_store(*extra):
+    return fx.FakeViewStore([*fx.rows(), *extra])
+
+
+def status_event(groups=("editor",), endpoint=fx.APP_ANTH):
+    return {"fieldName": "monitoringPage", "arguments": {"list": "cyclotronStatus", "scope": "publication"},
+            "identity": {"groups": list(groups), "sub": "u1"}}
+
+
+def test_the_status_list_returns_only_the_viewing_sites_publication_even_when_the_run_is_shared():
+    store = status_store(status_row("anth-us"), status_row("p-apyr-us"), status_row("threat-intelligence"))
+    out = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
+    assert [r["publicationId"] for r in out["rows"]] == ["anth-us"]
+    assert out["rows"][0]["status"]["cyclotron"]["id"] == "anth-us-relevance" and out["cursor"] is None
+    other = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}, store_factory=fx.only_hn(store))
+    assert [r["publicationId"] for r in other["rows"]] == ["p-apyr-us"]
+
+
+def test_the_status_list_is_empty_when_no_snapshot_has_been_stored_yet():
+    out = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store()))
+    assert out == {"list": "cyclotronStatus", "rows": [], "cursor": None}
+
+
+def test_the_status_list_lists_each_monitor_that_routes_to_the_site_newest_first_and_ignores_a_row_for_another_publication():
+    stray = status_row("anth-us")
+    stray["publicationId"] = "threat-intelligence"   # a row under this site's key that names another publication is never shown
+    stores = {"hn": fx.FakeViewStore([*fx.rows(), stray]),
+              "web-anth-us": fx.FakeViewStore([*fx.ttab_rows(fx.APP_ANTH, "web-anth-us"),
+                                               status_row("distinctive", as_of="2026-11-02T11:00:00.000Z", monitor="web-anth-us")])}
+    out = mv.cyclotron_status_rows(stores, groups=["editor"], site_endpoint=fx.APP_ANTH)
+    assert [(r["monitorId"], r["publicationId"]) for r in out["rows"]] == [("web-anth-us", "distinctive")]
+
+
+def test_the_status_list_refuses_non_editors_and_the_whole_pipeline_scope():
+    refused = mv.handle(status_event(["reader"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store(status_row("anth-us"))))
+    assert refused["error"] == "forbidden"
+    wide = {**status_event(["admin"]), "arguments": {"list": "cyclotronStatus", "scope": "all"}}
+    assert mv.handle(wide, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store(status_row("anth-us"))))["error"] == "bad_request"
+
+
+def test_the_status_list_reads_one_row_per_monitor_and_nothing_secret_leaves():
+    store = status_store(status_row("anth-us"))
+    out = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
+    blob = json.dumps(out)
+    assert not any(marker in blob for marker in fx.SECRET_MARKERS)
+
+
+def serve(*rows, endpoint=fx.APP_ANTH):
+    return mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": endpoint}, store_factory=fx.only_hn(status_store(*rows)))
+
+
+def test_the_status_list_serves_the_report_beside_the_status_for_this_sites_publication_only():
+    out = serve(with_report(status_row("anth-us")), with_report(status_row("p-apyr-us")), with_report(status_row("threat-intelligence")))
+    assert [r["publicationId"] for r in out["rows"]] == ["anth-us"]
+    row = out["rows"][0]
+    assert row["status"]["cyclotron"]["id"] == "anth-us-relevance" and row["reportCheckedAt"] == "2026-11-03T18:05:00Z"
+    assert row["report"]["classifier"]["id"] == "anth-us-relevance" and row["report"]["schema"] == "cyclotron-classifier-report/v1"
+    assert row["report"]["agreementWithEditors"]["compared"] == 0 and row["report"]["model"]["weights"] is None
+    assert [r["publicationId"] for r in serve(with_report(status_row("anth-us")), with_report(status_row("p-apyr-us")), endpoint=fx.APP_PAPYRUS)["rows"]] == ["p-apyr-us"]
+
+
+def test_a_row_with_a_report_and_no_status_is_still_served_with_a_null_status():
+    out = serve(report_only_row("anth-us"))
+    assert len(out["rows"]) == 1
+    row = out["rows"][0]
+    assert row["status"] is None and row["asOf"] is None and row["report"]["learning"]["state"] == "not_active"
+
+
+def test_a_status_only_row_written_before_the_report_existed_is_served_with_a_null_report():
+    out = serve(status_row("anth-us"))
+    row = out["rows"][0]
+    assert row["report"] is None and row["reportCheckedAt"] is None and row["status"]["cyclotron"]["id"] == "anth-us-relevance"
+
+
+def test_a_row_with_neither_a_status_nor_a_report_object_is_not_served():
+    bare = status_row("anth-us")
+    bare["status"] = "nope"
+    assert serve({**bare, "report": "nope"})["rows"] == [] and serve({**bare, "report": None})["rows"] == []
+
+
+def test_the_report_of_another_publication_under_this_sites_key_is_not_served():
+    stray = with_report(status_row("anth-us"))
+    stray["publicationId"] = "threat-intelligence"
+    assert serve(stray)["rows"] == []
+
+
+def test_the_report_list_is_for_editors_and_leaks_no_marker():
+    out = serve(with_report(status_row("anth-us")))
+    assert not any(marker in json.dumps(out) for marker in fx.SECRET_MARKERS)
+    refused = mv.handle(status_event(["reader"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store(with_report(status_row("anth-us")))))
+    assert refused["error"] == "forbidden"

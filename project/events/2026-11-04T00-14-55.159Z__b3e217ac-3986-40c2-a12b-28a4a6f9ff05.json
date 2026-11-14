@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b3e217ac-3986-40c2-a12b-28a4a6f9ff05",
+  "issue_id": "PPY-46f122a9-dec8-4a77-ba39-97db5c38b2b3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T00:14:55.159Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Illustration and typesetting have no documented agent procedure",
+    "description": "Reporting has docs/story-reporting.md. The illustration and typesetting stages have no equivalent found in this session's reading, and neither is automated, so a reporting agent guiding a Story through to publication has no process to follow. Write down what each stage produces and who does it, then decide what to automate. Found on the Machines on Machines non-interference Story; revisit when it reaches those stages.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

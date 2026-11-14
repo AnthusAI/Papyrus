@@ -18,7 +18,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 
 from papyrus_content.knowledge_cloud import stages as stages_module  # noqa: E402
 from papyrus_content.knowledge_cloud.config import STAGES  # noqa: E402
-from papyrus_content.knowledge_cloud.fakes import make_run  # noqa: E402
+from papyrus_content.knowledge_cloud.fakes import APPSYNC_ENDPOINT, make_run  # noqa: E402
 
 AWS = {"AWS_ACCESS_KEY_ID": "test", "AWS_SECRET_ACCESS_KEY": "test", "AWS_DEFAULT_REGION": "us-east-1"}
 API_ID = "abcdefghij0123456789klmnop"
@@ -53,7 +53,7 @@ def step_monitor_sources(context, site, sources):
     start(context, {"KNOWLEDGE_PUBLICATION": site, "KNOWLEDGE_MONITOR_SOURCES": sources}, seeded=True)
 
 
-@given('a new site "{site}" with published items and no configuration in its run state')
+@given('a new site "{site}" with published items and no committed settings')
 def step_new_site(context, site):
     begin(context)
     start(context, {**NEW_SITE, "KNOWLEDGE_PUBLICATION": site}, seeded=False)
@@ -71,7 +71,7 @@ def step_records_only(context, site, count, source):
     start(context, {**NEW_SITE, "KNOWLEDGE_PUBLICATION": site, "KNOWLEDGE_MONITOR_SOURCES": source}, seeded=False, items=0, records=count)
 
 
-@given('a site "{site}" whose editors wrote their own vocabulary')
+@given('a site "{site}" whose editors committed their own vocabulary')
 def step_own_vocabulary(context, site):
     begin(context)
     start(context, {"KNOWLEDGE_PUBLICATION": site}, seeded=True)
@@ -131,19 +131,19 @@ def step_keyed(context, site):
 def step_kinds(context, a, b, c, d):
     from papyrus_content.knowledge_snapshot.registry import read_vocabulary_kinds
 
-    typed = called(context, "biblicus", "extract", "typed-entities")[0]
+    typed = called(context, "papyrus", "knowledge", "extract-entities")[0]
     assert read_vocabulary_kinds(Path(typed[typed.index("--vocabulary") + 1])) == [a, b, c, d]
 
 
 @then('the typed extraction was given a vocabulary with the kind "{kind}"')
 def step_kind(context, kind):
-    typed = called(context, "biblicus", "extract", "typed-entities")[0]
+    typed = called(context, "papyrus", "knowledge", "extract-entities")[0]
     assert f"key: {kind}," in Path(typed[typed.index("--vocabulary") + 1]).read_text()
 
 
 @then('the typed extraction was not given a vocabulary with the kind "{kind}"')
 def step_not_kind(context, kind):
-    typed = called(context, "biblicus", "extract", "typed-entities")[0]
+    typed = called(context, "papyrus", "knowledge", "extract-entities")[0]
     assert f"key: {kind}," not in Path(typed[typed.index("--vocabulary") + 1]).read_text()
 
 
@@ -169,9 +169,20 @@ def step_snapshot_projected(context):
     assert called(context, "papyrus", "knowledge", "snapshot") and called(context, "papyrus", "ops", "content", "project")
 
 
-@then("the backend endpoint of the commands is the AppSync address of the API id")
+@then('the state in S3 holds nothing under "{prefix}"')
+def step_state_holds_nothing(context, prefix):
+    assert context.run_.state.names(prefix) == []
+
+
+@then("the endpoint file in the work directory holds that address and the state in S3 holds nothing under \"config/\"")
+def step_endpoint_file(context):
+    assert json.loads(context.run_.outputs.read_text()) == {"data": {"url": APPSYNC_ENDPOINT}}
+    assert context.run_.state.names("config/") == []
+
+
+@then("the backend endpoint of the commands is the address AppSync reports for the API")
 def step_endpoint(context):
-    assert context.run_.command_env()["PAPYRUS_GRAPHQL_ENDPOINT"] == f"https://{API_ID}.appsync-api.us-east-1.amazonaws.com/graphql"
+    assert context.run_.command_env()["PAPYRUS_GRAPHQL_ENDPOINT"] == APPSYNC_ENDPOINT and "abcdefghij" not in APPSYNC_ENDPOINT
 
 
 @then("every stage's ledger row says \"nothing to do\"")
@@ -183,7 +194,7 @@ def step_all_idle(context):
 
 @then("no command modelled, extracted, imported, snapshotted or projected anything")
 def step_nothing_ran(context):
-    for prefix in (("biblicus", "analyze"), ("biblicus", "extract", "typed-entities"), ("papyrus", "knowledge", "publish-run"), ("papyrus", "knowledge", "snapshot"),
+    for prefix in (("biblicus", "analyze"), ("papyrus", "knowledge", "extract-entities"), ("papyrus", "knowledge", "publish-run"), ("papyrus", "knowledge", "snapshot"),
                    ("papyrus", "knowledge", "archive"), ("papyrus", "ops", "content", "project")):
         assert not called(context, *prefix), prefix
 
@@ -214,4 +225,15 @@ def step_records_import(context):
 
 @then("no topic model or typed extraction ran")
 def step_no_topics(context):
-    assert not called(context, "biblicus", "analyze", "topics") and not called(context, "biblicus", "extract", "typed-entities")
+    assert not called(context, "biblicus", "analyze", "topics") and not called(context, "papyrus", "knowledge", "extract-entities")
+
+
+@then("every entity kind in the vocabulary has only a key and one label, so the extractor accepts it")
+def step_kinds_valid(context):
+    import yaml
+
+    typed = called(context, "papyrus", "knowledge", "extract-entities")[0]
+    document = yaml.safe_load(Path(typed[typed.index("--vocabulary") + 1]).read_text())
+    for group in ("entity_kinds", "relation_types"):
+        for entry in document[group]:
+            assert set(entry) == {"key", "label"} and isinstance(entry["label"], str), entry

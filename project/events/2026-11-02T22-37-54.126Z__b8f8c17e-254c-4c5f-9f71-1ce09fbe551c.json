@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b8f8c17e-254c-4c5f-9f71-1ce09fbe551c",
+  "issue_id": "PPY-d8ea7527-fa25-47fc-8ff0-d16a30fa6e22",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T22:37:54.126Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "References feed: read message counts only for the cards shown",
+    "description": "The feed's message counts still read every reference conversation thread (loadReferenceConversationCounts). loadReferenceConversationCountsFor(lineageIds) now exists (aliased anchor-index reads); wire useReferenceMessageCounts to it for the shown cards. Found on PPY-c8cb44.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "PPY-a9402d27-96f2-42df-b4a9-d90e4800889f",
+  "title": "References include: notSection, notMedium and several sections, applied to paged lists",
+  "description": "What: the references include (`::include{kind=\"references\" ...}`, src/papyrus_content/projection/standard/home_page_blocks.py) gains \"none of\" filters and several sections, and they apply to paged lists, so a site can page through exactly the References that have no section of its own, or that are not videos, with no HTML filtering in a hook.\n\nRequested by Machines on Machines (MoM epic for the Videos and Findings pages, see the cross-reference comment). Today MoM's `page_finish` hook deletes tiles from a paged list after the engine drew them: in a publication that files most References under a section, almost every chunk file of its \"no section\" list is empty after the hook runs, the reader's Load more fetches empty pages, and every chunk is still written and purged. MoM ships that hook workaround first; this story lets it be deleted.\n\nAttributes (all optional; a page that uses none renders byte for byte as before):\n- `section=\"A|B\"`: several sections, any of (today one). Separator `|`, matching the listing include. Each value matches a record's `section` the way one value does today (`_in_section`: the label, or a configured section name's label, casefolded).\n- `notSection=\"A|B\"`: none of these sections. A record with no `section` passes. A record whose section is not listed passes (this is how a site says \"References with no section of mine\": it lists every section it has a page for, so a Reference filed under a section the site has no page for stays reachable in the site's catch-all list).\n- `notMedium=\"video\"`: only References whose `medium` is not this value; a record with no `medium` passes. Same allowed values as `medium` (`MEDIUMS`); any other value is a build error naming the page. `medium` and `notMedium` together is a build error.\n- `section` and `notSection` together is allowed (intersection), though no current page needs it.\n\nWhere: add the names to `ATTRIBUTES`, validate in `check()`, filter in `candidates_of()` after the medium and image filters. `list_id()` (home_page_lists.py) must keep ids stable for includes that do not use the new attributes; an include that uses them and has no `id` gets the words `not-<section words>` / `not-<medium>` appended, and pages are expected to pass `id` anyway. The chunk signature already includes the attributes, so changing a filter rewrites that list's chunks once. Markdown twin: same selection (render_markdown uses candidates_of through select_references / the paged list).\n\nCost: no index, no new field, no backend change. Snapshot path only (the file already carries `section` and `medium`). On the index engine (PPY-7f1e54) the same filters apply after the partition query.\n\nAcceptance (Gherkin in features_backend/home-page-references-filters.feature, docs in docs/home-page.md \"The references include\" and \"Paged Reference lists\"):\nScenario: A paged list of References with no section of the site's\n  Given a snapshot with 200 accepted References, 150 filed under \"Agents\" or \"Science\" and 50 with no section, and 5 filed under \"Papyrus\"\n  And a page with ::include{kind=\"references\" select=\"recent\" bucket=\"week\" notSection=\"Agents|Science\" count=\"24\" paged=\"true\" id=\"unheaded\"}\n  When the site is projected\n  Then the page and its chunk files together hold exactly the 55 References not filed under Agents or Science, each once, in the shared order\n  And no chunk file is empty\nScenario: Findings that are not videos\n  Given a snapshot with accepted videos and accepted articles\n  When a page has ::include{kind=\"references\" select=\"recent\" notMedium=\"video\" count=\"6\"}\n  Then no card on it is a video\nScenario: Several sections\n  Given References in \"Agents\", \"Science\" and \"Art\"\n  When a page has ::include{kind=\"references\" select=\"recent\" section=\"Agents|Science\" count=\"50\"}\n  Then it shows the Agents and Science References and no Art Reference\nScenario: medium and notMedium together is a build error that names the page\nScenario: notMedium with an unknown medium is a build error that names the page\nScenario: A page with none of the new attributes renders as before (byte-for-byte check against the current fixture output)\n\nRelease: feat (minor). Sites adopt it with their own version bump; MoM is the first (its Phase B task).",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c446fe56-1b96-4fe5-8a17-af8be3a2b68b",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-2d9715e2-2a51-4f7a-8602-c7889cc019ae",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "61417012-dacf-4816-97a6-de44051a2660",
+      "author": "home",
+      "text": "Cross-reference: Machines on Machines epic MOM-b08bdd (Videos and Findings pages) ships a site hook workaround first (MOM-d4782f..MOM-d1534a) and adopts this story in MOM-d29573 once it is released. Related: PPY-2d9715 (references groups by section; spec in its comments).",
+      "created_at": "2026-11-08T19:06:11.096671Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T19:00:16.806256Z",
+  "updated_at": "2026-11-08T19:06:11.193892Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

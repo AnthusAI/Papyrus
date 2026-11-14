@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 import yaml
 
+from .tenant_knowledge_keys import SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
 from .env import resolve_corpora_file
 from .ids import (
     category_lineage_id_for,
@@ -24,6 +25,7 @@ from .ids import (
     semantic_node_lineage_id_for,
 )
 from .relation_types import semantic_relation_type_fields_for_predicate
+from .semantic_node_writes import create_only_record
 from .papyrus_config import resolve_topics_ignore_terms, resolve_topics_lexical_config_path
 
 DEFAULT_SEMANTIC_CONCEPTS_PATH = resolve_corpora_file("corpora/papyrus-semantic-concepts.yml")
@@ -952,8 +954,7 @@ def semantic_records_from_proposal(proposal: dict[str, Any], context: dict[str, 
     node_lineage_id = semantic_node_lineage_id_for(node_key)
     node_id = f"{node_lineage_id}-v1"
     records.append(
-        record(
-            "SemanticNode",
+        create_only_record(
             versioned_record(
                 {
                     "id": node_id,
@@ -970,14 +971,14 @@ def semantic_records_from_proposal(proposal: dict[str, Any], context: dict[str, 
                     "status": "accepted",
                     "importRunId": context["importRunId"],
                     "createdAt": context["now"],
-                    "newsroomFeedKey": "semanticNodes",
+                    "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
                     "updatedAt": context["now"],
                 },
                 now=context["now"],
                 actor="biblicus-import",
                 reason="semantic-node-import",
                 content=proposal_payload,
-            ),
+            )
         )
     )
     target_ref = (
@@ -1099,8 +1100,7 @@ def seeded_semantic_concept_node_records(context: dict[str, Any]) -> list[dict[s
         lineage_id = semantic_node_lineage_id_for(concept["nodeKey"])
         is_global = concept["scope"] == "global"
         records.append(
-            record(
-                "SemanticNode",
+            create_only_record(
                 versioned_record(
                     {
                         "id": f"{lineage_id}-v1",
@@ -1117,14 +1117,14 @@ def seeded_semantic_concept_node_records(context: dict[str, Any]) -> list[dict[s
                         "status": "accepted",
                         "importRunId": context["importRunId"],
                         "createdAt": context["now"],
-                        "newsroomFeedKey": "semanticNodes",
+                        "newsroomFeedKey": global_key(SEMANTIC_NODE_FEED_KEY),
                         "updatedAt": context["now"],
                     },
                     now=context["now"],
                     actor="biblicus-import",
                     reason=f"{concept['nodeKind']}-seed",
                     content=concept,
-                ),
+                )
             )
         )
     return records
@@ -1229,7 +1229,7 @@ def semantic_relation_record(input_value: dict[str, Any]) -> dict[str, Any]:
         "importedAt": input_value.get("importedAt"),
         "createdAt": input_value.get("createdAt") or input_value.get("importedAt"),
         "updatedAt": input_value.get("updatedAt") or input_value.get("importedAt"),
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": json.dumps(input_value.get("metadata") or {}),
     }
     score = number_or_null(input_value.get("score"))

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "916e0a3b-4829-4c05-a173-b880e9dc1ba9",
+  "issue_id": "PPY-cc015c15-50da-41fb-a24b-b93c342cb6d7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T13:14:31.161Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Console: connect a site to Slack",
+    "description": "**Milestone:** Later, coarse\n\n**Goal.** Coarse until Caducus M3 ships. Replace the labelled placeholder with an Add to Slack button, channel choice, status in words, test and remove. Stories when started.\n\n**Acceptance.**\nSpec'd when started.\n\n**Depends on:** PPY-17cf09\n**Related:** kanbus-ae4094",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+    "labels": [
+      "later"
+    ]
+  }
+}

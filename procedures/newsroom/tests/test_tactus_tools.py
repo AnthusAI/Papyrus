@@ -32,21 +32,31 @@ class TactusToolsModuleTests(unittest.TestCase):
             [
                 "execute_tactus",
                 "papyrus_check_story_version",
+                "papyrus_copy_edit_story_version",
                 "papyrus_create_story",
                 "papyrus_curate_reference",
+                "papyrus_editor_review_inputs",
                 "papyrus_editorial_context",
                 "papyrus_fetch_pdf_text",
                 "papyrus_find_or_register_source",
+                "papyrus_link_concepts",
+                "papyrus_link_stories",
                 "papyrus_link_story_reference",
+                "papyrus_localize_story",
+                "papyrus_record_editor_review",
+                "papyrus_related_concepts",
                 "papyrus_save_story_version",
+                "papyrus_search_concepts",
                 "papyrus_set_story_slug",
                 "papyrus_story_version",
                 "papyrus_story_versions",
+                "papyrus_suggest_links",
             ],
         )
 
     def test_save_story_version_keeps_the_latest_front_matter_when_none_is_given(self):
         client = client_with_one_story()
+        client.graphql = lambda *_: {"checkItemVersion": json.dumps(json.dumps({"itemId": "x", "violations": 0}))}
         with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, None)):
             saved = tactus_tools.papyrus_save_story_version(LINEAGE, "Second draft.", "Revise", "Ruling analyst")
             versions = tactus_tools.papyrus_story_versions(LINEAGE)
@@ -177,6 +187,17 @@ class CheckStoryVersionTests(unittest.TestCase):
         self.assertTrue(result["clean"])
         self.assertEqual(result["findings"], [])
 
+    def test_a_check_whose_judgment_lane_was_unavailable_is_not_clean_and_says_why(self):
+        run = {**stored_run([]), "lanes": {"rules": {"status": "ran"}, "classifier": {"status": "unavailable", "reason": "no decision model is configured"}}}
+        result = self.check(checking_client(run=run), version=LINEAGE)
+        self.assertFalse(result["clean"])
+        self.assertEqual(result["lanesNotRun"], ["judgment questions did not run (unavailable: no decision model is configured)"])
+
+    def test_a_judgment_lane_skipped_for_want_of_a_mission_stays_clean_but_is_named(self):
+        result = self.check(checking_client(run=stored_run([])), version=LINEAGE)
+        self.assertTrue(result["clean"])
+        self.assertEqual(result["lanesNotRun"], ["judgment questions did not run (skipped)"])
+
     def test_a_review_finding_is_not_clean(self):
         review = [{**RUN_FINDINGS[0], "status": "review"}]
         self.assertFalse(self.check(checking_client(run=stored_run(review)), version=LINEAGE)["clean"])
@@ -185,6 +206,8 @@ class CheckStoryVersionTests(unittest.TestCase):
         client = checking_client(run=stored_run([]))
         with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, None)):
             saved = tactus_tools.papyrus_save_story_version(LINEAGE, "Second.", "Revise", "Bot")
+        self.assertEqual(client.graphql_calls[0][1], {"itemId": saved["versionId"]}, "the save checks the version it wrote")
+        client.graphql_calls.clear()
         client.tables["EditorialCheckRun"] = {}
         self.check(client, story=LINEAGE, version_number=1)
         self.assertEqual(client.graphql_calls[0][1], {"itemId": LINEAGE})

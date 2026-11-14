@@ -1,0 +1,28 @@
+{
+  "id": "PPY-a3f0ccc8-acf4-47f7-ad61-7145119befbe",
+  "title": "Threat-Intelligence, Pilobol.us and Prospectus get Actions CI and deploy-on-merge (no Amplify auto-build on main)",
+  "description": "Pattern to copy: `AnthusAI/Shipped-web/.github/workflows/deploy.yml` (ci job → current-main guard → `uses: AnthusAI/Papyrus/.github/workflows/amplify-deploy.yml@main` with OIDC role) and `infra/amplify-app-shell/examples/deploy-on-merge.workflow.yml`.\n\nRepos:\n- Threat-Intelligence (public, app d12wnrx15qbcc2): ci = `npm ci`, `echo '{}' > amplify_outputs.json`, `npm run typecheck`, `npm test`, `behave features` (exists: features/*.feature). Deploy via the `threat-intelligence-github-deploy` role; set `autoDeploy: true` in `infra/site.json` and redeploy the app shell stack so main auto-build stays off and the GithubDeployRole exists (CDK, needs Ryan's deploy approval per the Sierrendipity/IaC rule; pre-prod site, move fast).\n- Pilobol.us (public, app d1eiwl0gedkmnj): no test scripts today; ci = `npm ci`, stub outputs, `npx papyrus-app sync`, `npx tsc --noEmit`, `npm run build` is NOT run in CI (Amplify builds). Add `autoDeploy: true` likewise.\n- Prospectus (public, app d15sc1sptohtqb, main auto-build currently ON): check `.github/workflows` first; add ci + deploy-on-merge, then turn auto-build off on main (app shell or `aws amplify update-branch --enable-auto-build false`, an AWS write: ask Ryan or do it inside the IaC).\n\nAcceptance: a PR to each repo shows the CI check; a merge to main produces exactly ONE Amplify job (check `aws amplify list-jobs`), started by the workflow; auto-build off on main. Gherkin in each repo: \"merge to main deploys once, after green CI\".",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+  "labels": [
+    "ci",
+    "cost"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T18:09:35.984109Z",
+  "updated_at": "2026-10-31T18:09:35.984156Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-fable-5-1",
+    "name": "plan-ci-cost"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c1d747aa-6b25-4907-9c2f-a851c59095e6",
+  "issue_id": "PPY-48e69a49-d248-453e-a8e8-ea5bec9ba25a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T01:36:07.262Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The help flag always prints help and never runs the command",
+    "description": "Reported 2026-11-05 through Ryan: 'papyrus ops content list articles --help' printed the article list instead of help, and 'papyrus ops content --help' said unsupported command. Earlier today, --help on several 'references' and 'knowledge entities' commands printed nothing. Because mutation commands write by default, --help on a write command could perform the write. Every command and group answers --help and -h with its usage and does nothing else.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

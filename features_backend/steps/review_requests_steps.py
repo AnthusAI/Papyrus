@@ -170,13 +170,13 @@ def no_unapplied(context, procedure):
 @when('the idea pipeline raises a batch review for run "{run}" with {count:d} proposals')
 def raise_batch(context, run, count):
     created = rr.raise_batch_review(context.client, raised_by="idea-pipeline", batch_id=run,
-                                    proposal_ids=[f"proposal-{n}" for n in range(count)], now=context.clock.now)
+                                    idea_ids=[f"idea-{n}" for n in range(count)], now=context.clock.now)
     context.request_id = created["id"]
 
 
 @when('the idea pipeline raises the batch review for run "{run}" again')
 def raise_batch_again(context, run):
-    rr.raise_batch_review(context.client, raised_by="idea-pipeline", batch_id=run, proposal_ids=["proposal-0", "proposal-1", "proposal-2"],
+    rr.raise_batch_review(context.client, raised_by="idea-pipeline", batch_id=run, idea_ids=["idea-0", "idea-1", "idea-2"],
                           now=context.clock.now)
 
 

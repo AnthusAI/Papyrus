@@ -30,6 +30,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
 import {
+  FULL_SCREEN_SHEET,
+  FULL_SCREEN_SHEET_HEADER,
   Sheet,
   SheetContent,
   SheetHeader,
@@ -403,12 +405,12 @@ export function NewsroomTopicsView({
         }}
         open={mobileDetailOpen && Boolean(selectedProposal)}
       >
-        <SheetContent backdropClassName="md:hidden" className="gap-0 p-0 md:hidden" side="bottom">
-          <SheetHeader className="border-b border-border px-4 py-3">
+        <SheetContent backdropClassName="md:hidden" className={`${FULL_SCREEN_SHEET} md:hidden`} data-detail-sheet="fullscreen" side="bottom">
+          <SheetHeader className={FULL_SCREEN_SHEET_HEADER}>
             <SheetTitle className="text-left text-base">Topic proposal</SheetTitle>
           </SheetHeader>
           {selectedProposal ? (
-            <ScrollArea className="max-h-[75dvh]">
+            <ScrollArea className="h-full min-h-0">
               <TopicProposalDetailPanel
                 disabled={disabled}
                 onClose={closeDetail}

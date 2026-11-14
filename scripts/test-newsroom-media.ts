@@ -8,6 +8,7 @@ import {
   srcPathFor,
   uploadArticleImage,
   validateImageFile,
+  isDarkVariantFilename,
 } from "../lib/newsroom-media";
 
 type Case = { itemId: string; srcPath: string; expected: string };
@@ -117,6 +118,22 @@ async function main() {
   assert.equal(metadata.bytes, 8);
   assert.equal(metadata.contentType, "image/png");
   assert.match(metadata.sha256, /^[0-9a-f]{64}$/);
+
+  assert.equal(isDarkVariantFilename("figure.dark.png"), true);
+  assert.equal(isDarkVariantFilename("Figure.DARK.PNG"), true);
+  assert.equal(isDarkVariantFilename("dark.png"), false);
+  assert.equal(isDarkVariantFilename("figure.darkroom.png"), false);
+  const darkFile = new File([pngBytes], "Pixel.dark.png", { type: "image/png" });
+  const darkUpload = await uploadArticleImage(backend, async () => ({ width: 1, height: 1 }), {
+    itemId: "item-9",
+    slug: "harbor",
+    file: darkFile,
+  });
+  assert.equal(darkUpload.srcPath, "assets/harbor/pixel.dark.png");
+  assert.equal(darkUpload.directive, null);
+  assert.equal(uploads[uploads.length - 1].path, "media/assets/harbor/pixel.dark.png");
+  created.pop();
+  uploads.pop();
 
   const rejected = new File(["x"], "notes.txt");
   await assert.rejects(

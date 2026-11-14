@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cb5f5224-f883-4b80-a8b9-7ece1839180a",
+  "issue_id": "PPY-41134cac-0ca4-4ba0-9ad2-67a7a22aa859",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T05:03:04.640Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Review links in the newsroom: suggestions you can reach, pending References indexed, full-screen detail on phones",
+    "description": "Ryan 11-02: none of the ~2,300 suggestions are visible. Related section only renders in the Needs me detail; Needs me holds pending References, which the index skips (accepted only), so it shows a raw 'no reference_summary vector' message. References page detail lacks the Related section. No place to review suggestions in bulk. Also the phone detail sheet is capped at 70dvh so the index shows behind it.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2e906437-368b-49fa-b003-1369f1f7cae7",
+    "labels": []
+  }
+}

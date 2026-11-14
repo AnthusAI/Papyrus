@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "96f47389-306e-4df2-8abc-300a3105ffe4",
+  "issue_id": "PPY-f0508e58-5142-4378-80b5-f4a0ba718563",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:49.541Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: This plan on the board; the design note PR open.\nExit criteria: Owner decisions in the design note answered; spikes PPY-9f3de0, PPY-3b3cc3, PPY-6d9a6d closed with findings; PPY-9d27c2 (record the reversal) done.\nCustomer-visible: Nothing.\nIndex-adding deploys in this milestone: None.\nContains: PPY-9f3de0, PPY-3b3cc3, PPY-6d9a6d, PPY-9d27c2, PPY-cd5926, PPY-8f2c4f\nFollows: nothing."
+      }
+    }
+  }
+}

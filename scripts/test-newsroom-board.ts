@@ -59,7 +59,7 @@ assert.deepEqual(
   "assignment statuses read left to right with unknown statuses between claimed and completed",
 );
 assert.deepEqual(assignmentConfig.types, ["assignment"]);
-assert.deepEqual(contentItemColumnOrder(["draft", "published", "copywriting", "draft"]), ["reporting", "copywriting", "illustration", "typesetting", "spiked", "held", "draft", "published"], "an unrecognized stage lands just before the published column");
+assert.deepEqual(contentItemColumnOrder(["draft", "published", "copywriting", "draft"]), ["idea", "reporting", "copywriting", "illustration", "typesetting", "spiked", "held", "draft", "published"], "an unrecognized stage lands just before the published column");
 assert.deepEqual(contentItemColumnOrder(["draft", "done"], ["pitch", "write", "done"]), ["pitch", "write", "draft", "done"], "a publication can define its own stages and the last one stays rightmost");
 assert.deepEqual(storyConfig.hierarchy, []);
 assert.equal(canReadNewsroomBoard("ready"), true);
@@ -71,9 +71,10 @@ const legacyAndAssignmentPhaseVersions = [
   { id: "placeholder-v1", lineageId: "placeholder", versionNumber: 1, stage: "assignment", type: "article", status: "draft", title: "Placeholder", slug: "placeholder", updatedAt: "2026-10-14" },
 ];
 const legacyBoard = projectContentItemBoard({ contentItemVersions: legacyAndAssignmentPhaseVersions });
-assert.deepEqual(legacyBoard.map(issue => issue.status), [`${contentItemType}/reporting`], "a legacy stage reads as reporting and assignment-phase items stay off the stories board");
+assert.deepEqual(legacyBoard.map(issue => issue.status), [`${contentItemType}/reporting`, `${contentItemType}/idea`], "a legacy stage reads as reporting, idea items are on the board, and assignment-phase items stay off it");
 const spikedStatus = contentItemBoardConfig([]).statuses.find(status => status.key === `${contentItemType}/spiked`);
 assert.equal(spikedStatus?.collapsed, true, "the spiked column starts collapsed");
+assert.equal(contentItemBoardConfig([]).statuses[0].key, `${contentItemType}/idea`, "the Idea column comes first");
 assert.equal(contentItemBoardConfig([]).statuses.filter(status => status.collapsed).length, 1, "only spiked starts collapsed");
 const newsDeskStory = { id: "desk-story-v1", lineageId: "desk-story", versionNumber: 1, stage: "copywriting", type: "article", status: "draft", title: "News story", slug: "news-story", section: "news", updatedAt: "2026-10-14" };
 assert.equal(deskContainsContentItem(newsDeskStory, "news"), true);

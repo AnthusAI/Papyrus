@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "886598a3-e1c8-4d68-b231-3526bffceb47",
+  "issue_id": "PPY-0a5d526e-2ce1-4c91-bdec-52e9b3a4cdf7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T03:31:39.637Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Research-run References get junk titles, raw URLs and reasons that say nothing",
+    "description": "Found on the 18 References the Machines on Machines research assignment linked to its Story, 2026-11-03.\n\n- Titles copied from search results: '[2204.06974] Planting Undetectable Backdoorsin Machine ...', 'seL4 | Proceedings of the 2013 IEEE Symposium on Security and ...', 'Language-Based Information-Flow Security - CS@Cornell', 'Theory of Computer Science' (a course handout).\n- Session junk kept in the address: link.springer.com/...?error=cookies_not_supported&code=<uuid>, which also defeats URL dedupe.\n- Mirrors instead of the record: ar5iv rather than arXiv, a personal copy rather than the DOI. The direction asked for primary sources, but Rice's theorem is Wikipedia and a slide handout.\n- The context pack shows 'Accepted because: Found by perplexity (undecidability proof)': a search provider's name as an editorial reason.\n- The Confused Deputy shows 'Accepted because: This doesn't seem to relate to AI/ML or be a computing principle that generalizes', which reads as a reason for rejecting it. I have not confirmed its stored status; whichever it is, the label is wrong.\n\nExpected: clean the title and URL, prefer the canonical record, keep a discovery note apart from an accept reason. Related: PPY-24fdf4, PPY-f8ff49.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

@@ -5,9 +5,9 @@ const { promisify } = require("node:util");
 const { Given, When, Then } = require("@cucumber/cucumber");
 
 // Each behaviour runs scripts/test-cli-login-discovery.ts, which asserts internally and prints its result.
-async function behaviour(name) {
+async function behaviour(name, script = "scripts/test-cli-login-discovery.ts") {
   const result = await promisify(execFile)(process.execPath,
-    ["--import", "tsx", "scripts/test-cli-login-discovery.ts", name],
+    ["--import", "tsx", script, name],
     { cwd: path.resolve(__dirname, "../.."), maxBuffer: 8 * 1024 * 1024 });
   return JSON.parse(result.stdout);
 }
@@ -20,9 +20,49 @@ given("a site whose web client registers the localhost 3001 callback", "publishe
 given("a site whose web client does not register the localhost 3001 callback", "callback_not_registered");
 given("a site whose Amplify outputs have no sign-in section", "no_oauth_outputs");
 given("a site whose public origin is not configured", "origin_missing");
+given("a site that has not moved the CLI onto its federation client", "flag_off_names_main_client");
+given("a site that moved the CLI onto its federation client", "flag_on_names_federation_client");
+given("a site that moved the CLI onto its federation client but publishes no federation client", "flag_on_without_federation_client");
 
 When("the CLI login file is requested", { timeout: 120_000 }, async function () {
   this.cliLoginResult = await behaviour(this.cliLoginBehaviour);
+});
+
+const SITE_DOCUMENT_SCRIPT = "scripts/test-cli-site-document.ts";
+for (const [text, name] of [
+  ["a site with a tenant that runs Papyrus 5.81.0", "tenant_and_version"],
+  ["a site with no tenant that runs Papyrus 5.81.0", "no_tenant"],
+  ["a site whose tenant and version settings are not valid values", "invalid_values_are_left_out"],
+  ["a site whose outputs name a media bucket and an identity pool", "media_bucket_and_identity_pool"],
+  ["a site with no outputs file that runs Papyrus 5.81.0", "no_outputs_file"],
+  ["a site whose outputs hold values that are not a bucket or an identity pool", "malformed_outputs_values_are_left_out"],
+]) given(text, name);
+
+When("the site file is requested", { timeout: 120_000 }, async function () {
+  this.siteDocumentResult = await behaviour(this.cliLoginBehaviour, SITE_DOCUMENT_SCRIPT);
+});
+
+Then("it names the tenant and the Papyrus version", function () {
+  assert.deepEqual(this.siteDocumentResult.body, { tenant_id: "machines-on-machines", papyrus_version: "5.81.0" });
+});
+
+Then("the sign-in file is a different file that gains no field", async function () {
+  const result = await behaviour("only_public_fields");
+  assert.ok(!("tenant_id" in result.body) && !("papyrus_version" in result.body));
+  assert.ok(!("media_bucket" in result.body) && !("identity_pool_id" in result.body), "the strict sign-in file gained a field");
+});
+
+Then("it names the Papyrus version and no tenant", function () {
+  assert.deepEqual(this.siteDocumentResult.body, { papyrus_version: "5.81.0" });
+});
+
+Then("it also names the media bucket and the identity pool", function () {
+  assert.equal(this.siteDocumentResult.body.media_bucket, "example-site-media-bucket");
+  assert.equal(this.siteDocumentResult.body.identity_pool_id, "us-east-1:00000000-0000-4000-8000-000000000000");
+});
+
+Then("it is empty", function () {
+  assert.deepEqual(this.siteDocumentResult.body, {});
 });
 
 When("the CLI login file is requested through a different host name", { timeout: 120_000 }, async function () {
@@ -59,3 +99,53 @@ Then("the answer is {string}", function (answer) {
   assert.equal(answer, "service unavailable");
   assert.equal(this.cliLoginResult.status, 503);
 });
+
+Then("it names the main web client and the localhost 3001 callback exactly as before", function () {
+  assert.equal(this.cliLoginResult.body.client_id, "synthetic-web-client");
+  assert.equal(this.cliLoginResult.body.callback_uri, "http://localhost:3001/");
+});
+
+Then("it names the federation client, the fixed loopback callback and the remote callback", function () {
+  assert.equal(this.cliLoginResult.body.client_id, "synthetic-federation-client");
+  assert.equal(this.cliLoginResult.body.callback_uri, "http://127.0.0.1:38947/cli/callback");
+  assert.equal(this.cliLoginResult.body.remote_callback_uri, "https://shipped.example.test/cli/callback");
+});
+
+When("the federation client is synthesized with the CLI moved onto it", { timeout: 120_000 }, async function () {
+  await behaviour("callback_list_is_exact", "scripts/test-cli-federation-client.ts");
+  await behaviour("federation_client_is_google_only", "scripts/test-cli-federation-client.ts");
+});
+
+Then("its callbacks are each site origin's Prospectus callback, the fixed loopback and the console's cli callback", function () {});
+
+Then("its logout URLs are the site origins only, never the CLI's loopback", function () {});
+
+Then("only Google is admitted through the code flow and no password flow is reachable", function () {});
+
+When("the federation client is synthesized with and without the CLI moved onto it", { timeout: 120_000 }, async function () {
+  await behaviour("sessions_last_seven_days_only_when_moved", "scripts/test-cli-federation-client.ts");
+});
+
+Then("with the CLI moved it keeps refresh tokens for seven days and access and ID tokens for 60 minutes", function () {});
+
+Then("without it the client keeps its 60 minute refresh tokens exactly as registered", function () {});
+
+When("the federation client is synthesized for a site whose console has its own origin", { timeout: 120_000 }, async function () {
+  await behaviour("console_origin_is_used_when_set", "scripts/test-cli-federation-client.ts");
+});
+
+Then("the CLI callback and the Prospectus web callback are on the console origin and the loopback is unchanged", function () {});
+
+When("the identity pool is synthesized with the CLI moved onto the federation client", { timeout: 120_000 }, async function () {
+  await behaviour("identity_pool_trusts_the_cli_client_like_the_web_client", "scripts/test-cli-federation-client.ts");
+});
+
+Then("the pool lists the federation client beside the web client on the same user pool with the same token check", function () {});
+
+Then("the federation client has its own Token role mapping so the editor and admin groups' roles apply to the CLI as to the browser", function () {});
+
+When("the identity pool is synthesized without the CLI on the federation client", { timeout: 120_000 }, async function () {
+  await behaviour("identity_pool_is_unchanged_without_the_cli_client", "scripts/test-cli-federation-client.ts");
+});
+
+Then("the pool lists only the web client and has one role mapping", function () {});

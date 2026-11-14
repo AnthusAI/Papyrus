@@ -1,0 +1,33 @@
+{
+  "id": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+  "title": "Review every Story for human readers, reader agents, search and social previews",
+  "description": "Planning / discovery only. Give every Papyrus publication a built-in review structure for four ways audiences encounter a Story: people reading or skimming the page, AI agents reading on a person’s behalf, search crawlers, and people who only see a social preview. Review is part of final editorial approval and should inform newsroom agents throughout the workflow without requiring every publication to add these universal concerns to its mission. Publication-specific policies and concepts supply local goals. The lenses can pull against each other: natural, entertaining, useful writing and editorial accuracy must not be sacrificed to keyword stuffing or misleading previews. Search-target terms and summaries should fit naturally; do not assume any particular crawler indexes the full page or a fixed token count. Make findings, evidence, uncertainty, and judgment visible; consider programmatic checks where appropriate and leave the gating/override design for investigation. Coordinate with Humanus, existing editorial context packs, the concept model and social projection work. Explore other consumption surfaces such as feeds, newsletters, screen readers, audio and accessibility without silently expanding the mandatory four. Brainstorming: decide exact workflows, interfaces and success measures before implementation.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-aab37edd-ee4e-4784-96a1-974ae040b452",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-d0b97eb6-f948-465d-bdb4-03f7a577f6b1",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-06T20:13:57.936517Z",
+  "updated_at": "2026-11-06T20:14:22.729397Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

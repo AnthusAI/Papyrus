@@ -51,6 +51,21 @@ class EditorialContextTests(unittest.TestCase):
         self.assertTrue(pack['warnings'])
         self.assertEqual(pack['sourceMode'], 'cloud')
 
+    def test_the_design_system_is_a_pointer_section_only_when_asked_for_and_only_when_the_site_has_one(self):
+        self.assertNotIn('design-system', [entry['kind'] for entry in self.resolve()['entries']])
+        self.assertNotIn('design-system', [entry['kind'] for entry in self.resolve(include_design_system=True)['entries']])
+        client = Records()
+        client.records['Item']['editorial-doctrine-design-system'] = [dict(
+            id='item-editorial-doctrine-design-system-v3', lineageId='item-editorial-doctrine-design-system', versionNumber=3, versionState='current',
+            type='doctrine', status='private', contentHash='sha256:abc')]
+        pack = resolve_editorial_context(client, endpoint='https://example.invalid/graphql', include_design_system=True)
+        [entry] = [entry for entry in pack['entries'] if entry['kind'] == 'design-system']
+        self.assertEqual(entry['scope'], 'publication')
+        self.assertIn('papyrus design-system show', entry['text'])
+        self.assertEqual(entry['source']['versionNumber'], 3)
+        self.assertIn('## publication: design-system', pack['text'])
+        self.assertNotIn('design-system', [e['kind'] for e in resolve_editorial_context(client, endpoint='https://example.invalid/graphql')['entries']])
+
     def test_scope_conflict_is_error(self):
         with self.assertRaisesRegex(ValueError, 'section'):
             self.resolve(assignment_id='a1', section_id='business')
@@ -154,10 +169,18 @@ class EditorialContextTests(unittest.TestCase):
         self.assertNotIn('missingPublicationDoctrine', optional)
         self.assertEqual(optional['contextHash'], default['contextHash'])
 
-    def test_optional_doctrine_still_rejects_ambiguous_missions(self):
+    def test_optional_doctrine_treats_ambiguous_missions_as_missing_and_warns(self):
+        client = Records(); client.records['Item']['editorial-doctrine-mission'].append(dict(client.records['Item']['editorial-doctrine-mission'][0], id='mission-other'))
+        with self.assertLogs('papyrus_content.editorial_context', level='WARNING') as logs:
+            pack = resolve_editorial_context(client, endpoint='https://example.invalid', optional_publication_doctrine=True)
+        self.assertEqual(pack['missingPublicationDoctrine'], ['mission'])
+        self.assertIn('example', logs.output[0])
+        self.assertIn('found 2', logs.output[0])
+
+    def test_strict_resolution_still_rejects_ambiguous_missions(self):
         client = Records(); client.records['Item']['editorial-doctrine-mission'].append(dict(client.records['Item']['editorial-doctrine-mission'][0], id='mission-other'))
         with self.assertRaisesRegex(ValueError, 'found 2'):
-            resolve_editorial_context(client, endpoint='https://example.invalid', optional_publication_doctrine=True)
+            resolve_editorial_context(client, endpoint='https://example.invalid')
 
     def test_publication_comes_from_the_hosted_canonical_corpus(self):
         pack = resolve_editorial_context(Records(), endpoint='https://example.invalid/graphql')

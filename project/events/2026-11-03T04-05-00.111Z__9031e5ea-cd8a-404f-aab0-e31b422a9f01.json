@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9031e5ea-cd8a-404f-aab0-e31b422a9f01",
+  "issue_id": "PPY-6420ca38-0c6f-4eda-8dd4-d56a15e2cddd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T04:05:00.111Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom home page shows the Cyclotron classifier status (v1, from the status operation)",
+    "description": "Ryan 11-02: show the Cyclotron classifier's information on the newsroom home page, top right (above the list on a phone). Only this site's classifier, never another site's on a shared run.\n\nBuilt in PR on feature/newsroom-home-cyclotron: router task cyclotron-status (hourly, own lock, 503 = no snapshot yet, never a lab pause) keeps one CYCLOTRONSTATUS#<publicationId> row per publication in the monitoring table; the Monitoring view serves monitoringPage(list cyclotronStatus) for the signed-in site's own publication only; HomeCyclotronPanel on /newsroom; CLI: papyrus monitors page --list cyclotronStatus. Docs: docs/monitoring-cloud.md#cyclotron-status-for-the-newsroom-home-page.\n\nDeploy needed (not done): CloudFormation for papyrus-monitoring (two schedules, router Lambda code), the engine release, and a site version bump (monitoring-view Lambda and newsroom UI) in one batch. No IAM or data-model change.\n\nFollow-ups: (1) when Cyclotron publishes the read-only report operation (history over time, the supporting questions behind a decision), load it beside the status rows and render it in the HomeCyclotronPanel extra slot; build nothing against the draft. (2) After votes train hosted runs, the panel's no-retraining sentence changes by itself from the snapshot. (3) Merge coordination with PR #1078 (newsroom home header, a small conflict at the title block).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
+    "labels": []
+  }
+}

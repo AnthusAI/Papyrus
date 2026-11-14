@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { LoaderIcon } from "lucide-react";
 import { SITE_BRAND } from "../lib/site-brand";
 import { loadFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
-import { buildFeedItems, feedLeadId, visibleFeedItems } from "../lib/reference-feed-ranking";
+import { buildFeedItems, feedLeadId, filterByStars, visibleFeedItems } from "../lib/reference-feed-ranking";
 import { selectCanonicalReferenceRecords } from "../lib/newsroom-references";
 import { ReferenceFeed, ReferenceFeedSkeleton } from "./reference-feed";
 import { useFeedPreferences } from "./use-feed-preferences";
@@ -17,7 +17,7 @@ import { useFeedPreferences } from "./use-feed-preferences";
 export function ReferencesPageLoading() {
   const [snapshot, setSnapshot] = useState<FeedSnapshot | null>(null);
   const [checked, setChecked] = useState(false);
-  const { sort, setSort, show, setShow } = useFeedPreferences();
+  const { sort, setSort, show, setShow, minStars, setMinStars } = useFeedPreferences();
   const [note, setNote] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
   useEffect(() => {
@@ -29,7 +29,7 @@ export function ReferencesPageLoading() {
   const previews = useMemo(() => new Map(snapshot?.previews ?? []), [snapshot]);
   const noVisitRated = useMemo(() => new Set<string>(), []);
   const allItems = useMemo(() => buildFeedItems(references, decisions), [references, decisions]);
-  const items = useMemo(() => visibleFeedItems(allItems, sort, show, noVisitRated), [allItems, sort, show, noVisitRated]);
+  const items = useMemo(() => filterByStars(visibleFeedItems(allItems, sort, show, noVisitRated), sort, minStars), [allItems, sort, show, minStars, noVisitRated]);
 
   return (
     <div className="space-y-4" data-references-page-loading>
@@ -45,7 +45,9 @@ export function ReferencesPageLoading() {
           onOpen={() => setNote("Opening a reference is available in a moment, once your sign-in is confirmed.")}
           onRate={() => undefined}
           onShowChange={setShow}
-          onSortChange={setSort}
+          onSortChange={(next) => { if (next !== "relevance") setSort(next); }}
+          onMinStarsChange={setMinStars}
+          minStars={minStars}
           onVisitRated={() => undefined}
           items={items}
           leadId={feedLeadId(items)}

@@ -128,6 +128,16 @@ const ts = requireTs("typescript");
 const HANDLER_SIDE = /^amplify\/(functions\/[^/]+\/handler\.ts|functions\/shared\/(?!python-bundle)|seed\/|.*\.test\.)/;
 const compileList = [...copied].filter((r) => /^amplify\/.*\.ts$/.test(r) && !HANDLER_SIDE.test(r));
 compileList.push("lib/define-site.ts");
+// The alexa plugin's speech and content modules read the Markus IR types and schema version.
+compileList.push("lib/markus-ir.ts");
+// The alexa plugin's review flow shares the newsroom's ranking, reason-code and decision rules (never copies of them).
+compileList.push("lib/reference-policy.ts", "lib/newsroom-references.ts", "lib/reference-feed-ranking.ts", "lib/needs-me-ranking.ts", "lib/relevance-decisions.ts");
+// category-action links hashtags typed in Messages to wiki concepts with the same rules the console uses.
+compileList.push("lib/message-hashtags.ts", "lib/wiki.ts");
+// category-action builds the knowledge keys through the one tenant-mode-aware builder (reference-links.ts, message-hashtags.ts).
+compileList.push("lib/tenant-knowledge-keys.ts", "lib/tenant-keys.ts");
+// category-action's Story-source role route repeats the editor/admin check with the one staff-group list (story-reference-role.ts).
+compileList.push("lib/staff-groups.ts");
 const compiled = new Set(compileList.map((r) => r.replace(/\.ts$/, ".js")));
 const writeCompiled = (rel) => {
   const file = path.join(stage, rel);
@@ -244,7 +254,7 @@ fs.writeFileSync(path.join(stage, "package.json"), JSON.stringify(pkg, null, 2) 
 // ---- package-owned files --------------------------------------------------
 fs.mkdirSync(path.join(stage, "bin"), { recursive: true });
 fs.mkdirSync(path.join(stage, "src"), { recursive: true });
-for (const f of ["bin/papyrus-app.mjs", "bin/papyrus-infra.mjs", "src/with-papyrus.mjs", "src/edge-stack-deploy.mjs", "src/cdk-environment.mjs", "src/with-papyrus.d.mts", "src/sync.mjs", "src/backend.ts"]) {
+for (const f of ["bin/papyrus-app.mjs", "bin/papyrus-infra.mjs", "src/with-papyrus.mjs", "src/edge-stack-deploy.mjs", "src/cdk-environment.mjs", "src/owning-app.mjs", "src/amplify-cost-check.mjs", "src/amplify-job-log.mjs", "src/backend-deploy.mjs", "src/with-papyrus.d.mts", "src/sync.mjs", "src/backend.ts"]) {
   fs.copyFileSync(path.join(pkgDir, f), path.join(stage, f));
 }
 fs.copyFileSync(path.join(repo, "LICENSE"), path.join(stage, "LICENSE"));

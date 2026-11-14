@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from papyrus_content.reader_steering.snapshot import encoded
 
 from .actors import Actor
-from .builder import CLUSTERS_FILE, INDEX_FILE, build_files, entity_file
+from .builder import CLUSTERS_FILE, CLUSTERS_HISTORY_FILE, INDEX_FILE, build_files, entity_file
 from .model import (
     Beat,
     Cluster,
@@ -97,6 +97,7 @@ def test_the_index_carries_every_entitys_full_weekly_history_from_its_first_week
     assert row["seriesWeekly"] == [1, 1, 2, 2, 3, 3, 3, 3] and len(row["seriesWeekly"]) == row["weeksOfHistory"] == 8
     assert row["seriesWeekly"][-8:] == row["series8"] and sum(row["seriesWeekly"]) == row["itemCount"]
     assert row["seriesWeeklyStart"] < files[INDEX_FILE]["asOf"]
+    assert row["dateBasis"] == "publication"
 
 
 def test_weekly_series_and_change_for_an_entity():
@@ -418,13 +419,13 @@ def test_public_safe_output_has_no_email_or_private_text():
 INDEX_FIELDS = {"schemaVersion", "asOf", "entityCount", "topicCount", "kinds", "beats", "entities", "trending", "conceptOfTheWeek"}
 KIND_FIELDS = {"key", "label", "count"}
 BEAT_FIELDS = {"key", "name", "href", "itemCount", "series8", "topEntities"}
-INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "series26", "seriesWeekly", "seriesWeeklyStart", "change", "isNew"}
+INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "series26", "dateBasis", "seriesWeekly", "seriesWeeklyStart", "change", "isNew"}
 CHANGE_FIELDS = {"last4", "prior4", "percent"}
 CONCEPT_FIELDS = {"key", "name", "href", "lede", "editedBy", "itemCount", "makerCount"}
 ACTOR_FIELDS = {"actor", "name", "on"}
 ENTITY_FIELDS = {
     "schemaVersion", "key", "kind", "name", "aliases", "acceptedBy", "description", "href", "itemCount", "weeksOfHistory",
-    "series8", "series26", "change", "neighbours", "relatedItems",
+    "series8", "series26", "dateBasis", "change", "neighbours", "relatedItems",
 }
 DESCRIPTION_FIELDS = {"state", "editedBy"}
 NEIGHBOUR_FIELDS = {"relation", "key", "name", "kind", "weight"}
@@ -466,7 +467,11 @@ def test_guest_surface_pins_the_exact_field_set_of_every_file():
     assert set(clusters) == CLUSTERS_FIELDS
     assert clusters["clusters"] and all(set(row) == CLUSTER_FIELDS for row in clusters["clusters"])
     assert all(set(row["acceptedBy"]) == ACTOR_FIELDS for row in clusters["clusters"])
-    assert set(files) == {INDEX_FILE, CLUSTERS_FILE, *(f"_data/knowledge/entities/{key}.json" for key in ("task--voice-cloning", "task--code-completion", "maker--some-lab"))}
+    history = files[CLUSTERS_HISTORY_FILE]
+    assert set(history) == {"schemaVersion", "asOf", "weeks"} and len(history["weeks"]) == 1
+    assert set(history["weeks"][0]) == {"asOf", "runId", "clusters", "events"}
+    assert all(set(row) == {"uid", "label", "itemCount"} for row in history["weeks"][0]["clusters"])
+    assert set(files) == {INDEX_FILE, CLUSTERS_FILE, CLUSTERS_HISTORY_FILE, *(f"_data/knowledge/entities/{key}.json" for key in ("task--voice-cloning", "task--code-completion", "maker--some-lab"))}
     json.dumps(files)
 
 
@@ -615,3 +620,14 @@ def test_a_snapshot_without_records_has_none_of_the_record_fields():
     files = build_files(data, OPTIONS)
     text = json.dumps(files)
     assert "recordCount" not in text and "relatedRecords" not in text
+
+
+def test_a_concept_series_counts_each_item_in_its_publication_week_and_declares_that_basis():
+    voice = node("task", "Voice cloning", accepted_by=AI)
+    items = [item("early", offset=6), item("middle", offset=3), item("latest", offset=0)]
+    data = KnowledgeData(items=tuple(items), nodes=(voice,), links=tuple(link(each.key.removeprefix("lineage-"), voice) for each in items))
+    files = build_files(data, OPTIONS)
+    entity = files[entity_file("task--voice-cloning")]
+    assert entity["series8"] == [0, 1, 0, 0, 1, 0, 0, 1]
+    assert entity["dateBasis"] == "publication"
+    assert next(row for row in files[INDEX_FILE]["entities"] if row["key"] == "task--voice-cloning")["dateBasis"] == "publication"

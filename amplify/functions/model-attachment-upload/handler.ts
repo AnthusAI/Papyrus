@@ -5,6 +5,7 @@ import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtim
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
+import { VISUAL_STYLE_OWNER_ID, VISUAL_STYLE_SLUG, assertVisualUpload, byteLimitForRole, isVisualRole, mediaTypeAllowedForRole } from "./rules";
 
 type CreateUploadHandler = Schema["createModelAttachmentUpload"]["functionHandler"];
 type CompleteUploadHandler = Schema["completeModelAttachmentUpload"]["functionHandler"];
@@ -23,6 +24,7 @@ const MAX_GRAPH_EXPORT_ATTACHMENT_BYTES = 512 * 1024 * 1024;
 const UPLOAD_EXPIRES_SECONDS = 10 * 60;
 const DOWNLOAD_EXPIRES_SECONDS = 10 * 60;
 const ALLOWED_OWNER_KINDS = new Set([
+  "announcement",
   "assignment",
   "assignmentEvent",
   "item",
@@ -35,9 +37,12 @@ const ALLOWED_OWNER_KINDS = new Set([
   "semanticRelation",
 ]);
 const ALLOWED_ROLES = new Set([
+  "agent_note",
   "assignment_brief",
   "assignment_instructions",
   "item_body",
+  "localization_provenance",   // a translation version's provenance record (src/papyrus_content/localize/record.py)
+  "localize_stage",            // a translation run's stored stage results, on the source version (src/papyrus_content/localize/record.py)
   "item_excerpt",
   "message_body",
   "metadata",
@@ -51,6 +56,13 @@ const ALLOWED_ROLES = new Set([
   "raw_payload",
   "priming_outcome",
   "priming_attempts",
+  "visual_example",
+  "visual_negative",
+  "image_record",
+  "image_candidate_file",
+  "announcement_document",
+  "doctrine_document",
+  "doctrine_asset",
 ]);
 const ALLOWED_MEDIA_TYPES = new Set([
   "application/json",
@@ -210,6 +222,13 @@ async function createModelAttachmentDownload(event: Parameters<CreateDownloadHan
 
 async function assertOwnerExists(ownerKind: string, ownerId: string): Promise<void> {
   const client = await getDataClient();
+  if (ownerKind === "item" && ownerId === VISUAL_STYLE_OWNER_ID) {
+    // The profile is a lineage of Items, so there is no row with this id: its owner exists when the profile has any version.
+    const found = await (client.models.Item as any).itemBySlug({ slug: VISUAL_STYLE_SLUG }, { limit: 1 });
+    assertNoDataErrors(found.errors, "list the visual style profile");
+    if (!found.data?.length) throw new Error("Cannot attach an example picture before the publication has a visual style profile. Save a profile first.");
+    return;
+  }
   const modelName = ownerModelName(ownerKind);
   const result = await (client.models as any)[modelName].get({ id: ownerId });
   assertNoDataErrors(result.errors, `get ${modelName}`);
@@ -225,9 +244,10 @@ function normalizeAttachmentInput(input: Record<string, unknown>) {
   const sortKey = normalizeOptionalString(input.sortKey) ?? role;
   const filename = normalizeFilename(input.filename);
   const mediaType = normalizeRequiredString(input.mediaType, "mediaType").toLowerCase();
-  if (!ALLOWED_MEDIA_TYPES.has(mediaType)) throw new Error(`Unsupported ModelAttachment mediaType ${mediaType}.`);
+  if (!mediaTypeAllowedForRole(role, mediaType, ALLOWED_MEDIA_TYPES)) throw new Error(`Unsupported ModelAttachment mediaType ${mediaType} for role ${role}.`);
   const byteSize = normalizeByteSize(input.byteSize, role);
   const sha256 = normalizeSha256(input.sha256);
+  if (isVisualRole(role)) assertVisualUpload({ ownerKind, ownerId, role, mediaType, byteSize, sha256, sortKey, filename });
   const id = modelAttachmentId(ownerKind, ownerId, role, sortKey);
   const storagePath = modelPayloadStoragePath(ownerKind, ownerId, role, filename);
   return {
@@ -270,6 +290,7 @@ function uploadIdFor(input: ReturnType<typeof normalizeAttachmentInput>): string
 }
 
 function ownerModelName(ownerKind: string): string {
+  if (ownerKind === "announcement") return "Announcement";
   if (ownerKind === "assignment") return "Assignment";
   if (ownerKind === "assignmentEvent") return "AssignmentEvent";
   if (ownerKind === "item") return "Item";
@@ -336,7 +357,7 @@ function normalizeFilename(value: unknown): string {
 function normalizeByteSize(value: unknown, role: string): number {
   const size = Number(value);
   if (!Number.isInteger(size) || size < 0) throw new Error("ModelAttachment byteSize must be a non-negative integer.");
-  const maxBytes = role === "graph_export" ? MAX_GRAPH_EXPORT_ATTACHMENT_BYTES : MAX_ATTACHMENT_BYTES;
+  const maxBytes = byteLimitForRole(role, role === "graph_export" ? MAX_GRAPH_EXPORT_ATTACHMENT_BYTES : MAX_ATTACHMENT_BYTES);
   if (size > maxBytes) throw new Error(`ModelAttachment byteSize exceeds ${maxBytes} bytes for role ${role}.`);
   return size;
 }

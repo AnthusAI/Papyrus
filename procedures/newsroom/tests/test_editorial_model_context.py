@@ -80,7 +80,7 @@ def test_policy_update_invalidates_actual_cyclotron_stable_decision(tmp_path):
 
 
 def policy(key, scope, guidance):
-    return dict(id=scope + '#' + key, policyKey=key, scope=scope, version=1, title=key,
+    return dict(id=scope + '#' + key, policyKey=key, scope=scope, language='en', version=1, title=key,
                 guidance=guidance, severity='warn', enabled=True,
                 detectors=[{'id': 'judge', 'lane': 'classifier', 'scope': 'sentence',
                             'question': {'type': 'noul', 'instructions': 'Is this compliant?'},
@@ -107,8 +107,8 @@ def test_actual_humanus_check_and_rewrite_prompts_receive_doctrine_and_rule_over
             return {'options': [{'replacement': 'Synthetic replacement.', 'rationale': 'Clearer.',
                                  'factVerificationRequired': False, 'unresolvedQuestions': []}]}
     services = Services(store, decision_model=Decision(), generator=Generator())
-    check_editorial({'body': 'Synthetic sentence.', 'section': 'a'}, services)
-    suggest_rewrite({'body': 'Synthetic sentence.', 'section': 'a', 'selection': {'start': 0, 'end': 19}}, services)
+    check_editorial({'body': 'Synthetic sentence.', 'section': 'a', 'language': 'en'}, services)
+    suggest_rewrite({'body': 'Synthetic sentence.', 'section': 'a', 'language': 'en', 'selection': {'start': 0, 'end': 19}}, services)
     assert calls and prompts
     for text in [calls[-1], prompts[-1]]:
         assert 'PUBLICATION_RULE' in text and 'A_RULE' in text
@@ -116,7 +116,7 @@ def test_actual_humanus_check_and_rewrite_prompts_receive_doctrine_and_rule_over
     assert 'OVERRIDE_RULE' in prompts[-1] and 'ADDED_RULE' in prompts[-1] and 'BASE_RULE' not in prompts[-1]
     version = services.last_check_request['pack']['version']
     current[0] = context('a', 'UPDATED_RULE')
-    check_editorial({'body': 'Synthetic sentence.', 'section': 'a'}, services)
+    check_editorial({'body': 'Synthetic sentence.', 'section': 'a', 'language': 'en'}, services)
     assert services.last_check_request['pack']['version'] != version
     assert 'UPDATED_RULE' in calls[-1]
 
@@ -152,7 +152,7 @@ def test_missing_context_stops_both_edit_operations_before_provider():
     store = SimpleNamespace(get_settings=lambda: None, get_editorial_context=denied)
     for operation in (check_editorial, suggest_rewrite):
         with pytest.raises(PermissionError):
-            operation({'body': 'Synthetic.', 'section': 'a'}, Services(store, decision_model=None, generator=None))
+            operation({'body': 'Synthetic.', 'section': 'a', 'language': 'en'}, Services(store, decision_model=None, generator=None))
 
 
 def test_graphql_edit_context_is_reloaded_and_bound_to_backend_publication(monkeypatch):
@@ -226,7 +226,7 @@ def test_offline_pack_keeps_disabled_controls_out_of_check_and_rewrite_prompts(t
     from humanus.classifier_lane import DecisionAnswers
     disabled = policy('disabled', 'publication', 'DISABLED_CONTROL_GUIDANCE')
     disabled['enabled'] = False
-    payload = {'schemaVersion': 1, 'packId': 'synthetic', 'version': '1', 'policies': [
+    payload = {'schemaVersion': 1, 'packId': 'synthetic', 'version': '1', 'language': 'en', 'policies': [
         policy_from_record(policy('active', 'publication', 'ACTIVE_CONTROL_GUIDANCE')),
         policy_from_record(disabled)]}
     if guidance:
@@ -245,8 +245,8 @@ def test_offline_pack_keeps_disabled_controls_out_of_check_and_rewrite_prompts(t
             return {'options': [{'replacement': 'Synthetic replacement.', 'rationale': 'Clearer.',
                                  'factVerificationRequired': False, 'unresolvedQuestions': []}]}
     services = Services(store, decision_model=Decision(), generator=Generator())
-    check_editorial({'body': 'Synthetic sentence.'}, services)
-    suggest_rewrite({'body': 'Synthetic sentence.', 'selection': {'start': 0, 'end': 19}}, services)
+    check_editorial({'body': 'Synthetic sentence.', 'language': 'en'}, services)
+    suggest_rewrite({'body': 'Synthetic sentence.', 'language': 'en', 'selection': {'start': 0, 'end': 19}}, services)
     assert calls and prompts
     assert 'DISABLED_CONTROL_GUIDANCE' not in store.get_editorial_context(None)['text']
     assert 'ACTIVE_CONTROL_GUIDANCE' not in store.get_editorial_context(None)['text']

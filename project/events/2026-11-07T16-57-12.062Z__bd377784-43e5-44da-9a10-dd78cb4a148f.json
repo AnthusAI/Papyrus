@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "bd377784-43e5-44da-9a10-dd78cb4a148f",
+  "issue_id": "PPY-59c772df-3671-4ec8-b2d0-d6f063090cf9",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-07T16:57:12.062Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "assignee": {
+        "from": null,
+        "to": "Papyrus newsroom automation"
+      }
+    }
+  }
+}

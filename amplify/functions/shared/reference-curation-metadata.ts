@@ -42,6 +42,16 @@ export function referenceVoteFields(input: ReferenceVoteInput): Record<string, u
   }
 }
 
+/**
+ * The Reference fields a star rating sets. Every field is always present, so clearing the rating clears who and when too.
+ * Stars are an editor's interest, kept apart from the vote (`curation*`) and from relevance: they never reach the Cyclotron.
+ */
+export function referenceStarFields(stars: number | null, actor: string, now: string): Record<string, unknown> {
+  return stars === null
+    ? { starRating: null, starRatedAt: null, starRatedBy: null }
+    : { starRating: stars, starRatedAt: now, starRatedBy: actor }
+}
+
 export type CurationSectionCandidate = {
   id?: string | null
   enabled?: boolean | null

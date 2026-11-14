@@ -10,13 +10,13 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 
 | Name | In one sentence | Status |
 | --- | --- | --- |
-| **Cited Trends** | Story drafts about what is rising or cooling in a publication's weekly map, where every sentence is traceable to the counts and releases behind it. | Built; weekly run is off by default |
+| **Cited Trends** | Ideas about what is rising or cooling in a publication's weekly map, where every sentence is traceable to the counts and releases behind it. | Built; weekly run is off by default |
 | **Knowledge Map** | The weekly map of a publication's own items: topic clusters, typed entities and the relations between them, with a wiki and trend figures. | Beta |
 | **Stage Bots** | Automations that fire when a story enters a stage, run a bot procedure that writes a new version, and let the engine move the story on. | Built; running on Distinctive Mark |
 | **Review Requests** | Asks that a step in an automation raises for a person, as a flag, a soft review with a timeout or a hard gate. Review is never a story state. | Built |
 | **Notification Center** | The console home page where review requests and steering opportunities are listed, safe to ignore. | Built |
 | **Reader Steering** | Votes, ratings, flags and comments from signed-in readers, used as signals the publication steers by. | Built; turns on per site |
-| **Proposals** | The queue where AI proposes a draft story, concept or change to the map, readers vote, and editors decide. | Built; example drafts on Shipped |
+| **Proposals** | The queue where AI proposes a concept or change to the map, readers vote, and editors decide. | Built |
 | **Editor Override** | The editor tier on Proposals: approve, decline, pin, hold, override the community with a public reason, set aside votes with a public note. | Built |
 | **Automations** | Records that bind a trigger (a monitor, a story entering a stage) to a procedure, with enable, limits, cost, history and Run now. | Built |
 | **Editorial Checks** | A publication's own policies, applied to a draft by Humanus policy packs, as findings that warn and never block publishing. | Built |
@@ -24,13 +24,13 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 
 ## Cited Trends
 
-**Definition.** Once a week, after the knowledge run, Papyrus picks the rising and cooling signals in the Knowledge Map, attaches the releases behind each one, and has a model draft a story. The draft is kept only if a deterministic check passes: every sentence cites a signal or a release, at least two signals back the story, and every number and date comes from what that sentence cites. The chart is drawn by code from the real weekly counts. The draft is filed as an AI `story_draft` Proposal with one soft review request.
+**Definition.** Once a week, after the knowledge run, Papyrus picks the rising and cooling signals in the Knowledge Map, attaches the releases behind each one, and has a model write a story idea. The idea is kept only if a deterministic check passes: every sentence cites a signal or a release, at least two signals back the story, and every number and date comes from what that sentence cites. The chart is drawn by code from the real weekly counts. The idea is filed as an Item at the `idea` stage, in the Idea column of the Stories board and marked "Generated", with one soft review request per run.
 
-**Not.** It is not a story that publishes itself, and the check does not prove a sentence reads its evidence correctly, so an editor reads every draft. Approving a draft does not yet create a story. It is not "AI summaries of the news": it only writes about movement in the publication's own weekly counts.
+**Not.** It is not a story that publishes itself, and the check does not prove a sentence reads its evidence correctly, so an editor reads every idea. It is not "AI summaries of the news": it only writes about movement in the publication's own weekly counts.
 
 **Where.** `papyrus ideas trends` (`src/papyrus_content/ideas/trends.py`); [idea-pipeline.md](idea-pipeline.md#trend-stories); the weekly job step in [knowledge-cloud-run.md](knowledge-cloud-run.md#trend-drafts-optional-off-by-default). Specs: `features_backend/idea-trend-stories.feature`.
 
-**Demo.** [Shipped](https://shipped.anth.us/proposals/): the Proposals queue holds trend drafts. Worked example: the Shipped recipe in the p.apyr.us cookbook.
+**Demo.** The Idea column of the Stories board on Shipped holds the generated trend ideas. Worked example: the Shipped recipe in the p.apyr.us cookbook.
 
 **Alternatives considered.**
 
@@ -39,7 +39,7 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 - **Evidence Stories.** Honest, but flat, and it sounds like a legal product.
 - **Signal Stories.** Rejected: Shipped already calls its machine-learning releases "signals".
 
-**Why Cited Trends.** It names the two things the feature is: it is about trends, and it is cited. It also names what it is not, because the word "cited" invites the question "by what?", and the answer is the deterministic check. A single draft is a "cited trend story".
+**Why Cited Trends.** It names the two things the feature is: it is about trends, and it is cited. It also names what it is not, because the word "cited" invites the question "by what?", and the answer is the deterministic check. A single idea is a "cited trend story".
 
 ## Knowledge Map
 
@@ -73,13 +73,13 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 
 **Where.** `papyrus reviews ...` (`src/papyrus_content/review_requests.py`); [review-requests.md](review-requests.md), [notification-center.md](notification-center.md).
 
-**Demo.** The console of each site. Shipped's trend drafts raise one soft review per run.
+**Demo.** The console of each site. Shipped's trend ideas raise one soft review per run.
 
 **Alternatives.** Nudges and Asks (friendly, but they undersell the hard gate); Review Queue (implies a queue that has to be emptied, which is exactly what this is not).
 
 ## Reader Steering, Proposals and Editor Override
 
-**Definition.** Signed-in readers vote on any subject, rate, flag and comment. Proposals are the queue where AI proposes (draft stories, new concepts, renames, merges, splits), readers steer with votes, and editors decide. Editor Override is the editor tier: approve, decline, pin, hold, override the community with a public reason, and set aside votes with a public note and a way to restore them.
+**Definition.** Signed-in readers vote on any subject, rate, flag and comment. Proposals are the queue where AI proposes (new concepts, renames, merges, splits), readers steer with votes, and editors decide. Editor Override is the editor tier: approve, decline, pin, hold, override the community with a public reason, and set aside votes with a public note and a way to restore them.
 
 **Not.** Not a poll that decides. Votes rank the queue and advise editors; the editor decides, and when an editor overrides the readers, both results stay visible with the reason.
 
@@ -124,5 +124,5 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 ## Using the names
 
 - Headlines and navigation use the name: "Cited Trends". Body copy may say "cited trend stories".
-- Say what is built and what is planned on the same page. Known gaps, as of this page: approving a trend draft does not yet create a story; the weekly trend step is off by default and has run on Shipped only; a move made on the console board does not yet fire stage triggers (`papyrus stories fire-triggers` does).
+- Say what is built and what is planned on the same page. Known gaps, as of this page: the weekly trend step is off by default and has run on Shipped only; a move made on the console board does not yet fire stage triggers (`papyrus stories fire-triggers` does).
 - Link a demonstration, not a claim. Shipped and Distinctive Mark are open-code demonstration sites; the cookbook on p.apyr.us walks through each feature using them.

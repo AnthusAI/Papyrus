@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "3246cbb8-5fb0-467a-b2d3-644c446c99e2",
+  "issue_id": "PPY-ff3780ac-803a-4452-b943-af1d4d993b07",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:11:11.573Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Generated images: the last-choice option",
+    "description": "Generate cover images when a diagram doesn't make sense and no stock image gets approved. Uses the same four-option picker.\n\nOpen decisions for Ryan: which image model and provider, a per-site cost limit, and whether generated images are labelled for readers. Any model or provider choice needs his explicit approval.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
+    "labels": []
+  }
+}

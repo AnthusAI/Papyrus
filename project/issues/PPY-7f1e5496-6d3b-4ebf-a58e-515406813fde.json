@@ -1,0 +1,47 @@
+{
+  "id": "PPY-7f1e5496-6d3b-4ebf-a58e-515406813fde",
+  "title": "Public blocks query indexes for what they show, with no whole-table read",
+  "description": "Ryan, 2026-11-05: it is worth adding indexes so we never scan the whole table. The home-page snapshot publishes a file of every Reference a site might show (4,500 rows on Machines on Machines) and each block picks from it, so a first run or a rebuild reads the whole corpus. Replace it: a block or a paged list asks an index for exactly what it shows, ordered by recency windows and stars, and DynamoDB Streams say what changed. Add the indexes needed, one per table per deploy, stepping sites through. Copy the fields a card needs (prediction, image, summary) onto the row, so a card needs no further lookups. The same for Story listings and thread blocks. Keep public fields public and who rated private.",
+  "type": "story",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "2aa0bd95-f9ad-4751-aab8-e5c5fd5517b7",
+      "author": "home",
+      "text": "Design for Ryan to read, PR (not merged): https://github.com/AnthusAI/Papyrus/pull/1235 - docs/plans/public-blocks-from-indexes.md. Nothing built.",
+      "created_at": "2026-11-05T17:31:45.068834Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Claude Opus 5.5",
+        "name": "Claude"
+      }
+    },
+    {
+      "id": "bd6e6351-341b-4e10-8232-7aa6e878c94a",
+      "author": "home",
+      "text": "Built as stacked PRs into develop, all unmerged: A (attributes and writers, backfill) https://github.com/AnthusAI/Papyrus/pull/1238, B (the one new index) https://github.com/AnthusAI/Papyrus/pull/1239, C (the engine, trigger coordinates, render task, parity command) https://github.com/AnthusAI/Papyrus/pull/1241, paged lists https://github.com/AnthusAI/Papyrus/pull/1242. Design: https://github.com/AnthusAI/Papyrus/pull/1235. Release order per site: A, backfill-public-fields, B alone, C, parity, then the opt-in.",
+      "created_at": "2026-11-05T19:36:22.461720Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "072e4261-7ad3-46ec-9cbe-de3af27a9ae5",
+      "author": "home",
+      "text": "Prerequisite of the multi-tenant plan: the shared stack's load test PPY-4a79f9 and milestone M1 need stages B and C. Index budget note: PR #1239's publicFeedKey is Reference's 16th index; the tenancy plan adds none to Reference.",
+      "created_at": "2026-11-08T18:48:46.165074Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-05T17:18:48.078981Z",
+  "updated_at": "2026-11-08T18:48:46.165339Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

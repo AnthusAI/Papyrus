@@ -162,11 +162,55 @@ Resources:
           return withoutCharset === "application/xml" ? "text/xml" : withoutCharset;
         }
 
+        // A Markdown twin is shown in a browser as text/plain and stays text/markdown for a client that prefers it (PPY-40f96a);
+        // the same rule as amplify/publication/markdown-content-type.js.
+        function qualityOf(accept, mediaType) {
+          let quality = 0;
+          const parts = accept.toLowerCase().split(",");
+          for (let index = 0; index < parts.length; index += 1) {
+            const fields = parts[index].split(";");
+            if (fields[0].trim() !== mediaType) {
+              continue;
+            }
+            quality = 1;
+            for (let field = 1; field < fields.length; field += 1) {
+              const pair = fields[field].trim();
+              if (pair.indexOf("q=") === 0) {
+                quality = Number(pair.substring(2));
+                if (isNaN(quality)) {
+                  quality = 0;
+                }
+              }
+            }
+          }
+          return quality;
+        }
+
+        function isBrowser(request) {
+          const header = request && request.headers && request.headers.accept;
+          const accept = header && header.value ? header.value : "";
+          const html = qualityOf(accept, "text/html");
+          return html > 0 && qualityOf(accept, "text/markdown") < html;
+        }
+
+        function addVaryAccept(headers) {
+          const existing = headers.vary && headers.vary.value ? headers.vary.value : "";
+          if (existing.toLowerCase().split(",").map(function (name) { return name.trim(); }).indexOf("accept") === -1) {
+            headers.vary = { value: existing === "" ? "Accept" : existing + ", Accept" };
+          }
+        }
+
         function handler(event) {
           const response = event.response;
           const headers = response.headers;
           if (headers["content-type"] !== undefined) {
             headers["content-type"] = { value: previousContentType(headers["content-type"].value) };
+          }
+          if (headers["content-type"] !== undefined && headers["content-type"].value === "text/markdown") {
+            if (isBrowser(event.request)) {
+              headers["content-type"] = { value: "text/plain; charset=utf-8" };
+            }
+            addVaryAccept(headers);
           }
           if (response.statusCode !== 200) {
             delete headers["cache-control"];

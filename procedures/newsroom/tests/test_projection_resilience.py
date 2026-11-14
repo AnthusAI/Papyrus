@@ -15,7 +15,7 @@ from unittest import mock
 from papyrus_content import cli
 from papyrus_content.projection.writers import S3PageWriter, body_etag
 
-from papyrus_content.projection.engine import ProjectionContext, project, reconcile
+from papyrus_content.projection.engine import ProjectionContext, project, project_all, project_removals, reconcile
 from papyrus_content.projection.source import PublishedContentSource
 from papyrus_content.publishing import unpublish_item
 from procedures.newsroom.tests.incremental_site import (
@@ -236,6 +236,36 @@ class ReconcileTests(unittest.TestCase):
             assert_equals_full(self, site)
             self.assertFalse(reconcile(site.context, dry_run=True).drift)
 
+    def test_named_unpublished_items_are_taken_off_the_site_in_one_pass_and_a_live_one_is_left(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            site = seeded_site("generic", Path(temporary), count=6)
+            for number in (0, 1, 2, 3):
+                site.drafts[f"item-{number}"].aliases = [f"old/{number}"]
+                site.publish(f"item-{number}")
+                site.project_item(f"item-{number}")
+            for number in (1, 2, 3):
+                unpublish_item(site.client, f"item-{number}", actor=ACTOR, now=NOW)
+                site.published.discard(f"item-{number}")
+            outcome = project_removals(site.context, ["item-1", "item-2", "item-3", "item-0", "never-existed"])
+            self.assertTrue(outcome.ok and outcome.deleted)
+            self.assertEqual(site.redirects.mapping, {"/old/0": "/articles/seed-0.html"})
+            assert_equals_full(self, site)
+            self.assertFalse(reconcile(site.context, dry_run=True).drift)
+            self.assertEqual(project_removals(site.context, ["item-1"]).deleted, [])
+
+    def test_the_unpublished_items_file_must_be_a_list_of_ids(self) -> None:
+        from papyrus_content.project_commands import _item_ids_of
+
+        with tempfile.TemporaryDirectory() as temporary:
+            good, bad = Path(temporary) / "good.json", Path(temporary) / "bad.json"
+            good.write_text('["item-1", "item-2"]')
+            bad.write_text('{"item-1": true}')
+            self.assertEqual(_item_ids_of(str(good)), ["item-1", "item-2"])
+            with self.assertRaisesRegex(ValueError, "JSON list of item ids"):
+                _item_ids_of(str(bad))
+            with self.assertRaisesRegex(ValueError, "needs a JSON file"):
+                _item_ids_of(None)
+
     def test_lost_redirects_are_restored(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             site = seeded_site("generic", Path(temporary))
@@ -247,6 +277,20 @@ class ReconcileTests(unittest.TestCase):
             outcome = reconcile(site.context)
             self.assertEqual(outcome.redirects_repaired, 1)
             self.assertEqual(site.redirects.mapping, {"/old/zero": "/articles/seed-0.html"})
+
+    def test_projecting_everything_removes_a_redirect_whose_source_is_now_a_page(self) -> None:
+        # Data Parade, 2026-10-30: a rollback left /articles/x -> /posts/x exact entries; once the pages moved back to
+        # /articles, those entries looped with the /posts -> /articles redirect.
+        with tempfile.TemporaryDirectory() as temporary:
+            site = seeded_site("generic", Path(temporary))
+            site.drafts["item-0"].aliases = ["old/zero"]
+            site.publish("item-0")
+            site.project_item("item-0")
+            site.redirects.mapping["/articles/seed-0.html"] = "/posts/seed-0.html"
+            report = project_all(site.context)
+            self.assertNotIn("/articles/seed-0.html", site.redirects.mapping)
+            self.assertEqual(site.redirects.mapping, {"/old/zero": "/articles/seed-0.html"})
+            self.assertGreaterEqual(report.redirects_deleted, 1)
 
     def test_a_large_drift_is_repaired_by_projecting_everything(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

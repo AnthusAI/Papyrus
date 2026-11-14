@@ -2,6 +2,7 @@ import { CfnOutput, RemovalPolicy, Stack, StackProps, Tags } from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
+import { sharedCostTags } from "../../amplify-app-shell/lib/cost-attribution";
 
 /** The projection lease table is shared by every publication in the account; its name is fixed so job stacks need no cross-stack reference. */
 export const PROJECTION_LOCK_TABLE_NAME = "papyrus-projection-locks";
@@ -14,6 +15,8 @@ export class ProjectionLockStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, { stackName: PROJECTION_LOCK_STACK_NAME, terminationProtection: true, ...props });
     Tags.of(this).add("Project", "Papyrus");
+    // One lease table serves every site in the account.
+    for (const [key, value] of Object.entries(sharedCostTags())) Tags.of(this).add(key, value);
 
     this.table = new dynamodb.Table(this, "LockTable", {
       tableName: PROJECTION_LOCK_TABLE_NAME,

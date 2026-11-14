@@ -2,9 +2,9 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { BookOpen, ClipboardList, House, MessageCircle, MessagesSquare } from "lucide-react";
+import { BookOpen, ClipboardList, MessageCircle, MessagesSquare } from "lucide-react";
 
-const ICONS = { overview: House, articles: ClipboardList, references: BookOpen, messages: MessagesSquare };
+const ICONS = { articles: ClipboardList, references: BookOpen, messages: MessagesSquare };
 
 export function NewsroomMobileNavigation({ items, activeTab, chat, more }: {
   items: readonly { key: string; label: string; description: string; href: string }[];

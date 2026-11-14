@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { a } from "@aws-amplify/backend";
 
 /**
@@ -11,8 +12,11 @@ import { a } from "@aws-amplify/backend";
  */
 const people = (allow: any) => [allow.group("editor"), allow.group("admin")];
 const adminsOnly = (allow: any) => [allow.group("admin")];
-const onMessages = (entry: string) => a.handler.custom({ dataSource: a.ref("Message"), entry });
-const onThreads = (entry: string) => a.handler.custom({ dataSource: a.ref("MessageThread"), entry });
+// Absolute paths: when a site loads this file from the package, its call site carries a loader query
+// (`?tsx-namespace=...`) that Amplify cannot turn back into a directory, so a relative entry fails to deploy.
+export const resolverEntry = (relative: string) => fileURLToPath(new URL(relative, import.meta.url));
+const onMessages = (entry: string) => a.handler.custom({ dataSource: a.ref("Message"), entry: resolverEntry(entry) });
+const onThreads = (entry: string) => a.handler.custom({ dataSource: a.ref("MessageThread"), entry: resolverEntry(entry) });
 
 export const messageActionsSchemaDefinitions = {
   postMessage: a

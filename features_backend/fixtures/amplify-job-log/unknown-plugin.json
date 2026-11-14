@@ -1,0 +1,91 @@
+{
+  "jobSummaries": [
+    {
+      "jobId": "43",
+      "status": "SUCCEED",
+      "commitMessage": "docs: later"
+    },
+    {
+      "jobId": "42",
+      "status": "FAILED",
+      "commitMessage": "fix: reproject on deploy"
+    }
+  ],
+  "job": {
+    "summary": {
+      "jobId": "42",
+      "status": "FAILED",
+      "commitMessage": "fix: reproject on deploy",
+      "startTime": "2026-10-31T10:00:00+00:00",
+      "endTime": "2026-10-31T10:12:00+00:00"
+    },
+    "steps": [
+      {
+        "stepName": "PROVISION",
+        "status": "SUCCEED",
+        "logUrl": null
+      },
+      {
+        "stepName": "BUILD",
+        "status": "FAILED",
+        "logUrl": "{{LOG_URL}}"
+      },
+      {
+        "stepName": "DEPLOY",
+        "status": "CANCELLED",
+        "logUrl": null
+      }
+    ]
+  },
+  "stacks": [
+    {
+      "StackName": "amplify-other-main-branch-zzz"
+    },
+    {
+      "StackName": "amplify-dexample0001-main-branch-abc123"
+    },
+    {
+      "StackName": "amplify-dexample0001-main-branch-abc123-data0-XYZ",
+      "ParentId": "arn:parent"
+    }
+  ],
+  "stackEvents": {
+    "amplify-dexample0001-main-branch-abc123": [
+      {
+        "Timestamp": "2026-10-31T10:08:00+00:00",
+        "LogicalResourceId": "data0",
+        "ResourceType": "AWS::CloudFormation::Stack",
+        "ResourceStatus": "UPDATE_FAILED",
+        "ResourceStatusReason": "Embedded stack failed",
+        "PhysicalResourceId": "arn:aws:cloudformation:us-east-1:000000000000:stack/amplify-dexample0001-main-branch-abc123-data0-XYZ/guid"
+      },
+      {
+        "Timestamp": "2026-10-31T09:00:00+00:00",
+        "LogicalResourceId": "OldThing",
+        "ResourceType": "AWS::Lambda::Function",
+        "ResourceStatus": "UPDATE_FAILED",
+        "ResourceStatusReason": "stale failure from a previous job",
+        "PhysicalResourceId": "x"
+      }
+    ],
+    "arn:aws:cloudformation:us-east-1:000000000000:stack/amplify-dexample0001-main-branch-abc123-data0-XYZ/guid": [
+      {
+        "Timestamp": "2026-10-31T10:07:00+00:00",
+        "LogicalResourceId": "ReprojectOnDeploy",
+        "ResourceType": "AWS::CloudFormation::CustomResource",
+        "ResourceStatus": "CREATE_FAILED",
+        "ResourceStatusReason": "Received response status [FAILED] from custom resource. Message returned: Unknown plugin 'home-page'",
+        "PhysicalResourceId": "y"
+      },
+      {
+        "Timestamp": "2026-10-31T10:07:30+00:00",
+        "LogicalResourceId": "Other",
+        "ResourceType": "AWS::Lambda::Function",
+        "ResourceStatus": "CREATE_FAILED",
+        "ResourceStatusReason": "Resource creation cancelled",
+        "PhysicalResourceId": "z"
+      }
+    ]
+  },
+  "log": "2026-10-31T10:00:00 build step 0 ok\n2026-10-31T10:01:00 build step 1 ok\n2026-10-31T10:02:00 build step 2 ok\n2026-10-31T10:03:00 build step 3 ok\n2026-10-31T10:04:00 build step 4 ok\n## Deploying backend\n[ERROR]: [BackendBuildError] CloudFormation deployment failed due to the following errors:\nThe stack named data0 failed\n[Error] build exited with code 1\n"
+}

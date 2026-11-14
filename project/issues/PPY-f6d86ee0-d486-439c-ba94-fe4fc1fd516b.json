@@ -1,0 +1,28 @@
+{
+  "id": "PPY-f6d86ee0-d486-439c-ba94-fe4fc1fd516b",
+  "title": "Remove GLiNER from the knowledge run; Jev decides the entities",
+  "description": "Ryan 2026-11-04: no vestigial GLiNER, no option, no backend switch. papyrus knowledge extract-entities (text pass for candidate names, one Jev choice per distinct name, cached, registry names resolve) replaces biblicus extract typed-entities in the typed-extraction stage; GLiNER2, deberta and the typed-extraction extra leave the image, constraints and docs. Branch remove-gliner.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "d0db376c-25dc-44d5-828d-5057107d36ef",
+      "author": "home",
+      "text": "Merged in PR 1201 (3df9a7d3). Not deployed: needs a Papyrus release in the knowledge-run image, then a scheduled-jobs deploy (ssm:GetParameter on the Jev key parameter).",
+      "created_at": "2026-11-04T22:37:26.405900Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T22:17:16.002770Z",
+  "updated_at": "2026-11-04T22:37:26.406373Z",
+  "closed_at": "2026-11-04T22:37:26.165459Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

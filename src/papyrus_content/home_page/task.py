@@ -1,0 +1,287 @@
+"""The ``home-page-snapshot`` projection task: read the References, write the public file when it changed, re-render what reads it.
+
+``run_home_page_snapshot`` is also what ``papyrus home-page snapshot`` runs, against a local directory or a site bucket.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import dataclasses
+import json
+import os
+from datetime import datetime, timezone
+from typing import Any
+
+from ..ids import knowledge_corpus_id
+from ..publication import PUBLICATION_KEY_ENVIRONMENT
+from .export import collect_entries, ranked_records
+from .incremental import StateRefused, StoredState, apply_changes, fingerprint_of, sha_of, usable_state
+from .settings import HomePageSettings
+from .state_store import DirtyBatch
+from .snapshot import (
+    GENERATED_AT,
+    REFERENCES_FILE,
+    THREADS_DIRECTORY,
+    THREADS_FILE,
+    build_snapshot,
+    build_threads_snapshot,
+    changed_without_generated_at,
+    snapshot_bytes,
+    thread_file,
+)
+from .threads import clean_text, collect_threads
+
+TASK_NAME = "home-page-snapshot"
+
+
+def site_key(projector: Any, key: str) -> str:
+    """The object key under the site's URL policy (``urls.basePath``); a projector without a policy serves from the root."""
+    policy = getattr(projector, "policy", None)
+    return policy.key(key) if policy is not None else key
+
+
+def corpus_id_for(settings: HomePageSettings, site: str | None = None) -> str:
+    if settings.references.corpus:
+        return settings.references.corpus
+    key = (site or os.environ.get(PUBLICATION_KEY_ENVIRONMENT) or "").strip()
+    if not key:
+        raise ValueError(f"homePage.references.corpus is not set and {PUBLICATION_KEY_ENVIRONMENT} names no publication; pass --site KEY on the CLI.")
+    return knowledge_corpus_id({"key": key})
+
+
+def home_page_settings_of(projector: Any) -> HomePageSettings | None:
+    return getattr(getattr(projector, "standard", None), "home_page", None)
+
+
+def summary_characters_of(projector: Any) -> int | None:
+    """``publicData.summaryCharacters`` of the site, which also limits the summaries the home page publishes."""
+    public_data = getattr(getattr(projector, "_settings", None), "public_data", None)
+    return getattr(public_data, "summary_characters", None)
+
+
+def with_public_data_limits(settings: HomePageSettings, projector: Any) -> HomePageSettings:
+    characters = summary_characters_of(projector)
+    if not characters:
+        return settings
+    return dataclasses.replace(settings, references=dataclasses.replace(settings.references, summary_characters=characters))
+
+
+def story_anchor_resolver(client: Any, projector: Any) -> Any:
+    """A lookup from a Story's lineage id to ``{"url", "title"}`` when that Story is published and has a page; each Story is read once."""
+    found: dict[str, dict[str, str] | None] = {}
+
+    def resolve(lineage_id: str) -> dict[str, str] | None:
+        if lineage_id not in found:
+            found[lineage_id] = _published_story(client, projector, lineage_id)
+        return found[lineage_id]
+
+    return resolve
+
+
+def _published_story(client: Any, projector: Any, lineage_id: str) -> dict[str, str] | None:
+    from ..projection.source import is_projectable, summary_from_row
+    from ..publishing import published_item_id_for
+
+    policy = getattr(projector, "policy", None)
+    if projector is None or policy is None:
+        return None
+    row = client.get_record("PublishedItem", published_item_id_for(lineage_id))
+    if not row or not is_projectable(row, tuple(getattr(projector, "projectable_types", ()))):
+        return None
+    summary = summary_from_row(row)
+    paths = projector.item_page_paths(summary)
+    title = clean_text(row.get("headline") or row.get("title"))
+    if not paths or not title:
+        return None
+    anchor = {"url": policy.url_for_key(paths[0]), "title": title}
+    section = _story_section(projector, row.get("section"))
+    return {**anchor, "section": section} if section else anchor
+
+
+def _story_section(projector: Any, name: Any) -> str | None:
+    """A Story's section title: the configured section's label when its name matches, otherwise the name as stored."""
+    if not name:
+        return None
+    labels = {group.name: group.label for group in getattr(getattr(projector, "standard", None), "sections", ())}
+    return clean_text(labels.get(str(name)) or str(name))
+
+
+def _thread_files(settings: HomePageSettings, client: Any, projector: Any, records: list[dict[str, Any]], now: datetime) -> tuple[dict[str, bytes], int]:
+    """The thread files to write, by object key under the site's policy, and the number of public threads."""
+    if not settings.threads.enabled:
+        return {}, 0
+    public_references = {record["key"]: str(record.get("title") or "Reference") for record in records}
+    reference_sections = {record["key"]: record["section"] for record in records if record.get("section")}
+    threads = collect_threads(client, public_references, settings, story_anchor=story_anchor_resolver(client, projector), reference_sections=reference_sections)
+    index, documents = build_threads_snapshot(threads, now)
+    files = {site_key(projector, THREADS_FILE): snapshot_bytes(index)}
+    for key, document in documents.items():
+        files[site_key(projector, thread_file(key))] = snapshot_bytes(document)
+    return files, len(threads)
+
+
+def run_home_page_snapshot(
+    context: Any,
+    client: Any,
+    settings: HomePageSettings | None,
+    *,
+    site: str | None = None,
+    now: datetime | None = None,
+    dry_run: bool = False,
+    client_factory: Any = None,
+    workers: int = 1,
+    state_store: Any = None,
+    dirty: DirtyBatch | None = None,
+) -> dict[str, Any]:
+    """Report ``{written, unchanged, deleted, references, threads, pagesRewritten, rewritten, purged, mode}``; a dry run adds ``wouldWrite``, ``wouldDelete`` and ``wouldRewrite``; a site without ``homePage`` settings has nothing to do.
+
+    With ``homePage.threads.enabled`` the task also owns ``_data/home-page/threads.json`` and ``_data/home-page/threads/``: it writes
+    the files whose content changed and deletes the per-thread files of threads that are no longer public.
+
+    With a ``state_store`` and the ``dirty`` batch the stream trigger recorded, the run is ``incremental``: only the rows that changed are read again
+    (``incremental.py``). Without them, or when the stored state cannot be trusted, it reads the whole corpus (``full``) and, given a store, starts a new
+    state.
+    """
+    if settings is None:
+        return {"skipped": "this site has no homePage setting", "written": [], "unchanged": [], "deleted": [], "references": 0, "threads": 0, "pagesRewritten": 0, "purged": []}
+    settings = with_public_data_limits(settings, context.projector)
+    corpus_id = corpus_id_for(settings, site)
+    stamp = now or datetime.now(timezone.utc)
+    key = site_key(context.projector, REFERENCES_FILE)
+    incremental = state_store is not None and dirty is not None and not dirty.full
+    with context.leased() if incremental else contextlib.nullcontext():
+        previous_body = context.writer.get(key) if incremental else None
+        stored = state_store.load() if incremental else None
+        fingerprint = fingerprint_of(settings, corpus_id)
+        changes = None
+        refused = None
+        if incremental:
+            try:
+                previous = usable_state(stored, fingerprint=fingerprint, snapshot=previous_body)
+                changes = apply_changes(
+                    client, corpus_id, settings, previous, stored.entries, dirty.ids,
+                    since=str(json.loads(previous_body).get(GENERATED_AT) or ""), client_factory=client_factory, workers=workers,
+                )
+            except StateRefused as reason:
+                refused = str(reason)
+        if changes is not None:
+            records, entries, mode = changes.records, changes.entries, "incremental"
+            read_threads = settings.threads.enabled and (dirty.messages or changes.anchors_changed)
+        else:
+            gathered = collect_entries(client, corpus_id, settings, client_factory=client_factory, workers=workers)
+            records, entries, mode = ranked_records(gathered), {entry.key: entry.standing for entry in gathered}, "full"
+            read_threads = settings.threads.enabled
+        document = build_snapshot(records, stamp, corpus=corpus_id, fields=settings.references.fields)
+        body = snapshot_bytes(document)
+        thread_files, thread_count = _thread_files(settings, client, context.projector, records, stamp) if read_threads else ({}, 0)
+        report: dict[str, Any] = {"written": [], "unchanged": [], "deleted": [], "references": len(records), "threads": thread_count, "pagesRewritten": 0, "rewritten": [], "purged": [], "bytes": len(body), "mode": mode, "threadsRead": read_threads}
+        if changes is not None:
+            report["changedRows"] = changes.examined
+        if refused:
+            report["fullBecause"] = refused
+        readers = reader_pages_of(context.projector) if context.projector is not None else None
+        if readers is not None:
+            from ..projection.engine import check_rewrite_selection
+
+            # the guard: abort before anything is written. It renders what it checks, so the chunk files of paged lists (a render each, and as many as the
+            # list is long) are left out: they are rendered only when their own digest is stale, below.
+            list_keys = getattr(context.projector, "reference_list_keys", None)
+            check_rewrite_selection(context, readers - (list_keys() if list_keys is not None else frozenset()))
+        with context.leased():
+            current = previous_body if incremental else context.writer.get(key)
+            pending = {name: content for name, content in {key: body, **thread_files}.items() if changed_without_generated_at(context.writer.get(name) if name != key else current, content)}
+            report["unchanged"] = [name for name in (key, *thread_files) if name not in pending]
+            stale = _stale_thread_files(context, settings, thread_files) if read_threads else []
+            stale_pages = _stale_thread_pages(context, stale)
+            if dry_run:
+                if pending or stale:
+                    report["wouldWrite"] = sorted(pending)
+                    report["wouldDelete"] = [*stale, *stale_pages]
+                    if readers is not None:
+                        report["wouldRewrite"] = sorted(readers)
+                return report
+            if not pending and not stale:
+                _remember(state_store, fingerprint, entries, current, stored)
+                return report
+            for name, content in pending.items():
+                context.writer.put(name, content)
+                report["written"].append(name)
+            _remember(state_store, fingerprint, entries, pending.get(key, current), stored)
+            for name in [*stale, *stale_pages]:
+                context.writer.delete(name)
+                report["deleted"].append(name)
+            if readers is not None:
+                readers = reader_pages_of(context.projector)
+            projected = _project_listings(context, readers)
+            report["rewritten"] = list(projected.written)
+            report["pagesRewritten"] = len(projected.written)
+            for name in _stale_list_files(context):   # the chunk files of a paged list that the cuts no longer make
+                context.writer.delete(name)
+                report["deleted"].append(name)
+            if settings.freshness.purge and context.invalidate is not None:
+                report["purged"] = context.invalidate([*report["written"], *report["deleted"]])
+            if projected.errors:
+                report["errors"] = list(projected.errors)
+    return report
+
+
+def _remember(state_store: Any, fingerprint: str, entries: dict[str, Any], snapshot: bytes | None, stored: Any) -> None:
+    """Save the private state that goes with the file now in the bucket, when it differs from the one loaded. The file is written first, so a run that stops here is read as stale."""
+    if state_store is None or snapshot is None:
+        return
+    state = StoredState(fingerprint=fingerprint, snapshot_sha=sha_of(snapshot), entries=entries)
+    if stored is not None and stored == state:
+        return
+    state_store.save(state)
+
+
+def _stale_thread_files(context: Any, settings: HomePageSettings, wanted: dict[str, bytes]) -> list[str]:
+    """The stored per-thread files of threads that are no longer public; with threads switched off the task owns none."""
+    if not settings.threads.enabled:
+        return []
+    prefix = site_key(context.projector, THREADS_DIRECTORY) + "/"
+    return sorted(stored.key for stored in context.writer.list(prefix) if stored.key not in wanted and stored.key.endswith(".json"))
+
+
+def _stale_thread_pages(context: Any, stale_files: list[str]) -> list[str]:
+    """The stored pages (and Markdown twins) of the threads whose files are stale; a site without ``homePage.forum`` has none."""
+    page_keys = getattr(context.projector, "thread_page_keys", None)
+    if page_keys is None:
+        return []
+    found: list[str] = []
+    for name in stale_files:
+        thread_key = name.rsplit("/", 1)[-1].removesuffix(".json")
+        found.extend(key for key in page_keys(thread_key) if context.writer.get(key) is not None)
+    return sorted(found)
+
+
+def _stale_list_files(context: Any) -> list[str]:
+    """The stored files of paged Reference lists (``reference-lists/``) that the snapshot, as it is now, no longer has a chunk for. A projector without
+    paged lists owns none; with listing in the store it is one list request for the prefix, in proportion to the files and not to the Reference rows."""
+    expected_keys = getattr(context.projector, "reference_list_keys", None)
+    prefix = getattr(context.projector, "reference_list_prefix", None)
+    if expected_keys is None or prefix is None:
+        return []
+    expected = expected_keys()
+    return sorted(stored.key for stored in context.writer.list(prefix()) if stored.key not in expected)
+
+
+class ProjectorRefused(ValueError):
+    """The projector is not one that knows which pages read the snapshot; the task writes nothing."""
+
+
+def reader_pages_of(projector: Any) -> frozenset[str]:
+    """The keys of the pages that place a home-page include. A projector that cannot say makes the task refuse; there is no fallback."""
+    reader_keys = getattr(projector, "home_page_reader_keys", None)
+    if reader_keys is None:
+        raise ProjectorRefused(
+            f"Refusing to write: {type(projector).__name__} cannot say which pages read the home-page snapshot. "
+            "Only the standard front end (a 'site' object in projection.json) can; nothing was written."
+        )
+    return frozenset(reader_keys())
+
+
+def _project_listings(context: Any, readers: frozenset[str]) -> Any:
+    from ..projection.engine import project_stale_listings
+
+    return project_stale_listings(context, readers)

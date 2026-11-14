@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "4ee025a4-7235-4b48-802d-289bce823d75",
+  "issue_id": "PPY-0bb0fdef-dcfd-4110-a77c-328834d4977c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:18.460Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A signed-in session acts for one tenant, carried as role claims in the token",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fb7576b6-1b23-4769-85d1-2061b9a4ec1d",
+  "issue_id": "PPY-474d2071-6716-443b-b4eb-a58db88d0e68",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T18:22:36.892Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom wiki hides rejected concepts by default",
+    "description": "topic-steering-workspace.tsx lists every status, so 293 rejected junk concepts would appear. Default to accepted and generated with a way to see rejected. UX gets screenshot review.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+    "labels": []
+  }
+}

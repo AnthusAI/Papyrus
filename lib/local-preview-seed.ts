@@ -2,10 +2,14 @@ import type { AssignmentRecord, MessageRecord, ReferenceRecord, SemanticRelation
 import { SHADOW_AGREEMENT_SCHEMA, type ShadowAgreement } from "./cyclotron-suggestions";
 import type { EditableArticle } from "./newsroom-articles";
 import type { MediaAssetRecord } from "./newsroom-media";
-import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailReference, type TrailVersion } from "./story-reporting-trail";
-import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
+import type { ResearchAssignmentPlan } from "./assign-research";
+import type { ResearchPacketView } from "./research-packet";
+import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailAgentNote, type TrailAssignment, type TrailReference, type TrailThread, type TrailVersion } from "./story-reporting-trail";
+import { contentItemHeadStageKey, contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
+import { noteProblem, stepChangeProblem, summarizeStoryChecklist, type StoryStepNote, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
+import type { ScheduleFields } from "./story-schedule";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
 const ONE_HOUR_IN_MILLISECONDS = 60 * 60 * 1000;
@@ -46,6 +50,174 @@ function slugFromHeadline(headline: string): string {
   return headline.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+/** Sample ratings the preview Stories already carry (a Story's private 1-5 stars), so the board, the drawer and the editor show some. */
+const PREVIEW_STORY_STARS: Readonly<Record<string, number>> = {
+  "copywriting-0": 4,
+  "published-0": 5,
+  "idea-1": 2,
+};
+
+/** The template, as the preview shows it: the live steps of the Story procedure (src/papyrus_content/newsroom_process.py), in order. */
+export const PREVIEW_CHECKLIST_TEMPLATE: readonly { key: string; title: string; command: string; required: boolean }[] = [
+  { key: "choose", title: "Choose the idea", command: "papyrus ideas select --section <section>", required: true },
+  { key: "direction", title: "Give the research direction", command: "papyrus stories assign-research --story {story} --direction-file direction.md", required: true },
+  { key: "research", title: "Research the Story", command: "papyrus assignments research-multi <assignment id>", required: true },
+  { key: "outline", title: "Write the outline after the research", command: "papyrus stories outline --story {story}", required: true },
+  { key: "draft", title: "Write the draft", command: "papyrus stories draft --story {story}", required: true },
+  { key: "copy_edit", title: "Copy-edit the draft", command: "papyrus editorial check-version --item <current version id>", required: true },
+  { key: "review_people", title: "Reviewed for readers", command: "papyrus stories step --story {story} --step review_people --state done --note <findings>", required: true },
+  { key: "review_reader_agents", title: "Reviewed for AI reader agents", command: "papyrus stories step --story {story} --step review_reader_agents --state done --note <findings>", required: true },
+  { key: "review_search", title: "Reviewed for search", command: "papyrus stories step --story {story} --step review_search --state done --note <findings>", required: true },
+  { key: "review_social", title: "Reviewed for social previews", command: "papyrus stories step --story {story} --step review_social --state done --note <findings>", required: true },
+  { key: "concepts", title: "Associate with relevant Concepts", command: "papyrus stories link-concept --story {story} --concept \"Name\" --note <why>", required: true },
+  { key: "related_content", title: "Add related associations", command: "papyrus stories suggest-links --story {story}", required: true },
+  { key: "illustration", title: "Illustrate", command: "papyrus stories save-version --story {story} --body-file draft.md --images ./pictures", required: true },
+  { key: "rated", title: "Rate the Story", command: "papyrus stories set-stars --story {story} --stars <1-5>", required: true },
+  { key: "publish", title: "Publish the Story", command: "papyrus ops content publish --id <item id>", required: false },
+];
+/** Mirrors TEMPLATE_VERSION in src/papyrus_content/newsroom_process.py; scripts/test-story-checklist.ts checks the two agree. */
+export const PREVIEW_CHECKLIST_TEMPLATE_VERSION = 6;
+const PREVIEW_CHECKLIST_EVIDENCE_SOURCES: Record<string, string> = {
+  choose: "the Story's stage", direction: "the research direction", research: "the research packet", outline: "the outline", draft: "the draft version",
+  copy_edit: "the copy-edit check", illustration: "the approved cover", rated: "the editor's star rating", publish: "publishing",
+};
+
+/** Notes the preview steps already carry, so the panel shows an open, a closed and a crowded step: the log is newest last. */
+function previewNotesFor(lineageId: string, key: string): StoryStepNote[] {
+  if (lineageId !== "preview-item-lineage-copywriting-0") return [];
+  if (key === "review_people") return [
+    { at: "2026-10-01T05:30:00.000Z", actorKind: "agent", actorLabel: "AI", text: "Headline and dek agree with the opening paragraph." },
+    { at: "2026-10-01T06:10:00.000Z", actorKind: "person", actorLabel: "Preview editor", text: "The second section is long. Leave it for now, but trim it if the Story runs again.\nThe quotation in the fourth paragraph needs its source named." },
+    { at: "2026-10-01T07:45:00.000Z", actorKind: "person", actorLabel: "Sierra", text: "Correction to the note above: the quotation is already sourced in the footer." },
+    { at: "2026-10-01T09:00:00.000Z", actorKind: "agent", actorLabel: "AI", text: "Checked the footer: the source is named there." },
+  ];
+  if (key === "outline") return [{ at: "2026-10-01T08:20:00.000Z", actorKind: "person", actorLabel: "Preview editor", text: "Skipped on purpose: this Story came from a single Reference." }];
+  if (key === "review_search") return [{ at: "2026-10-01T09:30:00.000Z", actorKind: "person", actorLabel: "Sierra", text: "Waiting on the section editor to choose the final headline." }];
+  return [];
+}
+
+/** How far each preview Story's checklist has got, so a card and a panel show open, done, skipped and not-applicable steps. */
+function previewChecklistFor(stageKey: string, headlineIndex: number, lineageId: string): StoryStepRecord[] {
+  const stageOrder = ["idea", "assignment", "reporting", "copywriting", "illustration", "typesetting", "published"];
+  const reached = Math.max(0, stageOrder.indexOf(stageKey));
+  const doneBy = (key: string): number => ({ choose: 1, direction: 1, research: 2, outline: 2, draft: 3, copy_edit: 3, concepts: 6, related_content: 6, illustration: 6, rated: 6, publish: 6 } as Record<string, number>)[key] ?? 99;
+  return PREVIEW_CHECKLIST_TEMPLATE.map((entry, index): StoryStepRecord => {
+    const base = {
+      id: `step-${lineageId}-${entry.key}`, storyLineageId: lineageId, stepKey: entry.key, stepOrder: index, templateVersion: PREVIEW_CHECKLIST_TEMPLATE_VERSION,
+      title: entry.title, command: entry.command.replace("{story}", lineageId), state: "open" as const, notes: previewNotesFor(lineageId, entry.key),
+    };
+    const changedAt = isoTimestampHoursBeforeBase(index + 1);
+    if (stageKey === "published" && entry.key.startsWith("review_")) {
+      return entry.key === "review_social"
+        ? { ...base, state: "not_applicable", actorKind: "person", actorLabel: "Preview editor", changedAt, reason: "This Story has no image to preview." }
+        : { ...base, state: "done", actorKind: "agent", actorLabel: "Reviewing agent", changedAt, note: "Read as a reader would: the headline, deck and first paragraph hold up." };
+    }
+    if (entry.key === "outline" && reached >= 3 && headlineIndex === 0) {
+      return { ...base, state: "skipped", actorKind: "person", actorLabel: "Preview editor", changedAt, reason: "The editor wrote the draft straight from the reporting notes." };
+    }
+    if (entry.key === "review_people" && reached === 3 && headlineIndex === 0) {
+      return { ...base, state: "done", actorKind: "person", actorLabel: "Preview editor", changedAt, note: "Reads clearly; the second section is long but earns its length." };
+    }
+    if (reached >= doneBy(entry.key) && !entry.key.startsWith("review_")) {
+      return { ...base, state: "done", actorKind: "system", actorLabel: `Automatically, from ${PREVIEW_CHECKLIST_EVIDENCE_SOURCES[entry.key] ?? "the records"}`, changedAt, evidence: `Preview record for ${entry.key}` };
+    }
+    return base;
+  });
+}
+
+/** Changes made in the preview (the panel's buttons): the preview has no backend, so a Story's steps are kept here once one is changed. */
+const previewChecklistChanges = new Map<string, StoryStepRecord[]>();
+
+function previewChecklistOf(lineageId: string): StoryStepRecord[] {
+  const changed = previewChecklistChanges.get(lineageId);
+  if (changed) return changed;
+  const match = /^preview-item-lineage-(.+)-(\d+)$/.exec(lineageId);
+  return match ? previewChecklistFor(match[1], Number(match[2]), lineageId) : [];
+}
+
+/** The checklist steps of a preview Story (the index read the panel makes against the real backend). */
+export function createLocalPreviewStoryChecklist(lineageId: string): StoryStepRecord[] {
+  return previewChecklistOf(lineageId).map(step => ({ ...step }));
+}
+
+/** What the backend does for `setStoryStep`, for the preview: the same rules, the change recorded as the preview editor. */
+export function setLocalPreviewStoryStep(lineageId: string, stepKey: string, state: StoryStepRecord["state"], input: { reason?: string; note?: string }): void {
+  const problem = stepChangeProblem(stepKey, state, input);
+  if (problem) throw new Error(problem);
+  const steps = previewChecklistOf(lineageId);
+  if (!steps.some(step => step.stepKey === stepKey)) throw new Error(`Unknown step ${stepKey}.`);
+  previewChecklistChanges.set(lineageId, steps.map(step => step.stepKey !== stepKey ? step : {
+    ...step, state, actorKind: "person", actorLabel: "Preview editor", changedAt: new Date().toISOString(),
+    reason: state === "skipped" || state === "not_applicable" ? input.reason?.trim() ?? null : null, note: input.note?.trim() || null, evidence: null,
+  }));
+}
+
+/** What the backend does for a note, for the preview: appended to the step's log, as the preview editor, whatever the step's state. */
+export function addLocalPreviewStoryStepNote(lineageId: string, stepKey: string, text: string): void {
+  const problem = noteProblem(text);
+  if (problem) throw new Error(problem);
+  const steps = previewChecklistOf(lineageId);
+  if (!steps.some(step => step.stepKey === stepKey)) throw new Error(`Unknown step ${stepKey}.`);
+  previewChecklistChanges.set(lineageId, steps.map(step => step.stepKey !== stepKey ? step : {
+    ...step, notes: [...step.notes, { at: new Date().toISOString(), actorKind: "person", actorLabel: "Preview editor", text: text.trim() }],
+  }));
+}
+
+/** Forgets the preview's changes (a test starts from the sample steps). */
+export function resetLocalPreviewStoryChecklists(): void {
+  previewChecklistChanges.clear();
+}
+
+const HOUR = ONE_HOUR_IN_MILLISECONDS;
+const DAY = 24 * HOUR;
+
+/**
+ * Fake schedules for the sample Stories, placed relative to the start of today (UTC) so the board and the Schedule page always have something this week:
+ * scheduled, overdue (a scheduled time that has passed) and blocked (superseded by a newer version), and several Stories in one week. The sample people are fictional.
+ */
+function seededScheduleFields(now: Date = new Date()): Record<string, ScheduleFields> {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const at = (days: number, hours: number) => new Date(today + days * DAY + hours * HOUR).toISOString();
+  const by = "Preview editor";
+  return {
+    "preview-item-lineage-copywriting-0": { scheduledPublishAt: at(1, 14), scheduleState: "scheduled", scheduledBy: by, scheduledAt: at(0, 1) },
+    "preview-item-lineage-copywriting-1": { scheduledPublishAt: at(2, 18), scheduleState: "scheduled", scheduledBy: by, scheduledAt: at(0, 1) },
+    "preview-item-lineage-illustration-0": { scheduledPublishAt: at(0, -6), scheduleState: "scheduled", scheduledBy: by, scheduledAt: at(-2, 1) },
+    "preview-item-lineage-illustration-1": { scheduledPublishAt: at(3, 13), scheduleState: "blocked", scheduledBy: by, scheduledAt: at(-1, 1) },
+  };
+}
+
+/** What an editor changed in this session of the preview: a lineage maps to its new schedule, or to null when it was cleared. */
+const previewScheduleChanges = new Map<string, ScheduleFields | null>();
+/** When each changed lineage was last changed: a schedule change updates the row, so the board's refresh (rows updated since) picks the card up. */
+const previewScheduleTouchedAt = new Map<string, string>();
+
+export function localPreviewScheduleFields(lineageId: string): ScheduleFields {
+  return (previewScheduleChanges.has(lineageId) ? previewScheduleChanges.get(lineageId) : seededScheduleFields()[lineageId]) ?? {};
+}
+
+/** What the backend does for a schedule change, for the preview: refuses a time that has passed, as the backend does, and records the person. */
+export function setLocalPreviewSchedule(lineageId: string, scheduledPublishAt: string | null): ScheduleFields {
+  if (scheduledPublishAt !== null && Date.parse(scheduledPublishAt) <= Date.now()) throw new Error("That time has passed.");
+  const fields: ScheduleFields | null = scheduledPublishAt === null ? null : { scheduledPublishAt, scheduleState: "scheduled", scheduledBy: "Preview editor", scheduledAt: new Date().toISOString() };
+  previewScheduleChanges.set(lineageId, fields);
+  previewScheduleTouchedAt.set(lineageId, new Date().toISOString());
+  return fields ?? {};
+}
+
+export function resetLocalPreviewSchedules(): void {
+  previewScheduleChanges.clear();
+  previewScheduleTouchedAt.clear();
+}
+
+/** Every sample Story that has a schedule, for the Schedule page: the rows whose scheduled time falls in [from, to) and whose state is one of `states`. */
+export function createLocalPreviewScheduledVersions(from: string, to: string, states: readonly string[]): ContentItemVersionRecord[] {
+  return createLocalPreviewContentItemVersions().filter(version => {
+    const at = version.scheduledPublishAt;
+    return Boolean(at) && at! >= from && at! < to && states.includes(version.scheduleState ?? "");
+  });
+}
+
 export function createLocalPreviewContentItemVersions(): ContentItemVersionRecord[] {
   const stageKeys = contentItemStageKeys(getContentItemStageDefinitions());
   return stageKeys.flatMap((stageKey, stageIndex) => {
@@ -58,6 +230,7 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         lineageId: `preview-item-lineage-${stageKey}-${headlineIndex}`,
         versionNumber: 1,
         stage: stageKey,
+        headStageKey: contentItemHeadStageKey({ stage: stageKey, versionState: "current" }),   // each sample story is its own one-row lineage
         type: "article",
         status: stageKey === "published" ? "published" : "draft",
         title: headline,
@@ -65,14 +238,69 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         slug,
         section: headlineIndex === 0 ? "news" : "features",
         updatedAt: isoTimestampHoursBeforeBase(stageIndex * 3 + headlineIndex),
+        versionCreatedBy: stageKey === "idea" && headlineIndex === 0 ? "AI" : "Preview editor",
+        starRating: PREVIEW_STORY_STARS[`${stageKey}-${headlineIndex}`] ?? null,
+        ...localPreviewScheduleFields(`preview-item-lineage-${stageKey}-${headlineIndex}`),
+        ...(previewScheduleTouchedAt.has(`preview-item-lineage-${stageKey}-${headlineIndex}`) ? { updatedAt: previewScheduleTouchedAt.get(`preview-item-lineage-${stageKey}-${headlineIndex}`) } : {}),
+        metadata: { checklist: summarizeStoryChecklist(previewChecklistOf(`preview-item-lineage-${stageKey}-${headlineIndex}`), PREVIEW_CHECKLIST_TEMPLATE.filter(entry => entry.required).map(entry => entry.key), PREVIEW_CHECKLIST_TEMPLATE_VERSION) },
       };
     });
   });
 }
 
+/** Sample References that were accepted without an editor, for the "Accepted automatically" list: written as the router writes them. */
+const PREVIEW_AUTO_ACCEPTED: ReadonlyArray<{ title: string; host: string; hoursAgo: number; actor: "auto:cyclotron" | "auto:rule" | "editor"; confidence?: number; monitor?: string }> = [
+  { title: "Harbor commission publishes its dredging schedule for the winter", host: "harbor-commission.example.test", hoursAgo: 3, actor: "auto:cyclotron", confidence: 0.97 },
+  { title: "Daily ferry timetable, revised", host: "ferries.example.test", hoursAgo: 9, actor: "auto:rule", monitor: "ferry-notices" },
+  { title: "What the school board's redistricting maps leave out", host: "ledger.example.test", hoursAgo: 14, actor: "auto:cyclotron", confidence: 0.93 },
+  { title: "Zoning reversal: the three documents behind the vote", host: "city-records.example.test", hoursAgo: 20, actor: "editor" },
+  { title: "Lighthouse keepers' logbooks, digitised", host: "archive.example.test", hoursAgo: 31, actor: "auto:cyclotron", confidence: 0.91 },
+  { title: "Council meeting agenda, week 44", host: "council.example.test", hoursAgo: 40, actor: "auto:rule", monitor: "council-agendas" },
+  { title: "A bakery that outlasted four recessions", host: "market-gazette.example.test", hoursAgo: 55, actor: "auto:cyclotron", confidence: 0.9 },
+];
+
+/**
+ * What the preview holds of each sample Reference (`Reference.captureState`, the rule in lib/reference-capture.ts): some captured, some cut off,
+ * some only an address, one still being captured, so the Captured filter and the home page's capture list have something to show.
+ */
+const PREVIEW_AUTO_CAPTURE_STATES: readonly string[] = ["none", "thin", "full", "none", "running", "full", "thin"];
+const PREVIEW_CAPTURE_STATES: readonly string[] = ["none", "none", "full", "none", "none"];
+
+function previewAutoAcceptedReason(plan: (typeof PREVIEW_AUTO_ACCEPTED)[number]): string {
+  if (plan.actor === "auto:rule") {
+    return `Accepted automatically by the ${plan.monitor} monitor's rule (every collected item): it delivers only items that match the rule, so there is no relevance prediction and the match is the acceptance. An editor can still Reject it.`;
+  }
+  return `Accepted automatically by the Cyclotron: it was ${((plan.confidence ?? 0) * 100).toFixed(1)}% sure this is relevant, at or above the 90.0% learned from 42 editor votes (estimated accept rate 97.6%, 95% lower bound 91.0%, target 90%), and nobody voted within 2.0 days, the 90% quantile of how long editors take. An editor can still Reject it.`;
+}
+
 export function createLocalPreviewReferences(): ReferenceRecord[] {
   const curationStatuses = ["pending", "accepted", "accepted", "rejected", "pending"];
-  return curationStatuses.map((curationStatus, index) => ({
+  const autoAccepted: ReferenceRecord[] = PREVIEW_AUTO_ACCEPTED.map((plan, index) => {
+    const at = isoTimestampHoursBeforeBase(plan.hoursAgo);
+    const editor = plan.actor === "editor";
+    return {
+      id: `preview-auto-reference-${index}`,
+      lineageId: `preview-auto-reference-lineage-${index}`,
+      versionNumber: 1,
+      versionState: "current",
+      corpusId: "preview-corpus",
+      externalItemId: `preview-auto-source-${index}`,
+      title: plan.title,
+      sourceUri: `https://${plan.host}/story-${index + 1}`,
+      curationStatus: "accepted",
+      curationStatusKey: "preview-corpus#accepted",
+      curationStatusUpdatedAt: at,
+      curationStatusUpdatedBy: editor ? "preview-editor" : plan.actor,
+      curationStatusReason: editor ? "Primary source for the zoning story." : previewAutoAcceptedReason(plan),
+      curationActorKind: editor ? "human" : plan.actor === "auto:rule" ? "rule" : "cyclotron",
+      importedAt: isoTimestampHoursBeforeBase(plan.hoursAgo + 50),
+      captureState: PREVIEW_AUTO_CAPTURE_STATES[index] ?? "full",
+      updatedAt: at,
+      // One rated, one rated low, the rest unrated: the preview shows filled and empty stars (the shape is the difference).
+      ...(index === 0 ? { starRating: 5, starRatedAt: at, starRatedBy: "preview-editor" } : index === 1 ? { starRating: 2, starRatedAt: at, starRatedBy: "preview-editor" } : {}),
+    };
+  });
+  const sampled = curationStatuses.map((curationStatus, index): ReferenceRecord => ({
     id: `preview-reference-${index}`,
     lineageId: `preview-reference-lineage-${index}`,
     versionNumber: 1,
@@ -84,8 +312,11 @@ export function createLocalPreviewReferences(): ReferenceRecord[] {
     curationStatusKey: curationStatus,
     curationStatusReason: curationStatus === "rejected" ? "Duplicate of an earlier filing." : null,
     importedAt: isoTimestampHoursBeforeBase(index * 5),
+    captureState: PREVIEW_CAPTURE_STATES[index] ?? "none",
     updatedAt: isoTimestampHoursBeforeBase(index * 5),
+    ...(index === 1 ? { starRating: 4, starRatedAt: isoTimestampHoursBeforeBase(5), starRatedBy: "preview-editor" } : {}),
   }));
+  return [...sampled, ...autoAccepted];
 }
 
 export function createLocalPreviewAssignments(): AssignmentRecord[] {
@@ -139,6 +370,7 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
     versionNumber: version.versionNumber,
     aliases: [],
     everPublished: version.status === "published",
+    starRating: version.starRating ?? null,
   };
 }
 
@@ -175,10 +407,80 @@ function previewBasedOnReference(): TrailReference {
   };
 }
 
+const previewAssignments = new Map<string, TrailAssignment[]>();
+
+/** A research assignment made in the local preview: it stays `open`, because no worker runs there. */
+export function recordLocalPreviewAssignment(lineageId: string, plan: ResearchAssignmentPlan): void {
+  const created = String(plan.assignment.createdAt);
+  const assignment: TrailAssignment = {
+    id: plan.assignment.id, title: String(plan.assignment.title), assignmentTypeKey: String(plan.assignment.assignmentTypeKey), status: "open", assigneeKey: null, summary: null,
+    createdAt: created, direction: String(plan.metadata.direction),
+    events: [{ id: plan.event.id, eventType: "created", fromStatus: null, toStatus: "open", actorLabel: "You", note: String(plan.event.note), createdAt: created }],
+  };
+  previewAssignments.set(lineageId, [assignment, ...(previewAssignments.get(lineageId) ?? [])]);
+}
+
+const PREVIEW_PACKET: ResearchPacketView = {
+  summary: "The harbor authority approved the crane contract in March, and two independent filings agree on the cost. Delivery dates differ between the authority and the contractor.",
+  recommendedAngle: "Lead with the cost both filings agree on, then the dispute over delivery dates.",
+  claims: [
+    { claim: "The authority approved a contract for four cranes in March.", sources: [
+      { rank: 1, url: "https://authority.example.org/minutes/march", title: "March board minutes", domain: "authority.example.org" },
+      { rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }] },
+    { claim: "Delivery is scheduled to start in September.", snippetOnly: true, sources: [{ rank: 3, url: "https://contractor.example.com/schedule", title: "Delivery schedule", domain: "contractor.example.com" }] },
+    { claim: "The contract is worth 41 million dollars.", sources: [{ rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }] },
+  ],
+  disagreements: [{ topic: "Delivery date", positions: [
+    { position: "The authority says the first crane arrives in June.", sources: [{ rank: 1, url: "https://authority.example.org/minutes/march", title: "March board minutes", domain: "authority.example.org" }] },
+    { position: "The contractor says September.", sources: [{ rank: 3, url: "https://contractor.example.com/schedule", title: "Delivery schedule", domain: "contractor.example.com" }] }] }],
+  openQuestions: ["Who pays for the rail spur the cranes need?", "Was the second bidder disqualified?"],
+  unverifiedClaims: [
+    { claim: "The contractor has delivered late on two earlier harbor projects.", verdict: "needs_check", sources: [{ rank: 3, url: "https://contractor.example.com/schedule", title: "Delivery schedule", domain: "contractor.example.com" }], reasons: ["The source only partly supports this"] },
+    { claim: "Delivery will start in July.", verdict: "contradicted", sources: [{ rank: 3, url: "https://contractor.example.com/schedule", title: "Delivery schedule", domain: "contractor.example.com" }], reasons: ["A source says otherwise"] },
+    { claim: "Mayor Rodney Hale signed the contract in March.", verdict: "not_shown", sources: [{ rank: 1, url: "https://authority.example.org/minutes/march", title: "March board minutes", domain: "authority.example.org" }], reasons: ["Not in the cited source: Rodney"] },
+    { claim: "The second bidder withdrew.", verdict: "unchecked", sources: [{ rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }], reasons: ["The run ran short of time before this claim was checked"] },
+  ],
+  factCheckSummary: "12 verified, 8 need a check, 2 contradicted, 6 not shown by the sources; 23 rest on one site",
+  readingSummary: "Read 2 of 3 sources, 1 of them in part. 1 could not be opened, so claims from them rest on search snippets.",
+  notOpened: ["https://contractor.example.com/schedule"],
+  directionGaps: [],
+  sourceCount: 3,
+};
+
+function previewResearchAssignments(): TrailAssignment[] {
+  const at = (hours: number) => isoTimestampHoursBeforeBase(hours);
+  const research = (id: string, status: string, hours: number, direction: string, events: TrailAssignment["events"], packet: ResearchPacketView | null = null): TrailAssignment => ({
+    id, title: "Harbor Cranes Return", assignmentTypeKey: "research.multi", status, assigneeKey: status === "open" ? null : "papyrus-research-worker", summary: null, createdAt: at(hours), direction, packet, events,
+  });
+  const event = (id: string, eventType: string, toStatus: string, hours: number, note: string, fromStatus: string | null = null) => ({ id, eventType, fromStatus, toStatus, actorLabel: eventType === "created" ? "An Editor" : "papyrus-research-worker", note, createdAt: at(hours) });
+  return [
+    research("preview-research-waiting", "open", 1, "Find out whether the contractor has missed deadlines on other harbor work.", [event("w1", "created", "open", 1, "Created research assignment: Harbor Cranes Return")]),
+    research("preview-research-running", "claimed", 3, "Check the cost figure against the authority's budget filings.", [event("r1", "created", "open", 3, "Created research assignment: Harbor Cranes Return"), event("r2", "claim", "claimed", 2.5, "The research worker started this assignment.", "open")]),
+    research("preview-research-failed", "failed", 8, "List the other ports that bought cranes from the same maker.", [event("f1", "created", "open", 8, "Created research assignment: Harbor Cranes Return"), event("f2", "claim", "claimed", 7.5, "The research worker started this assignment.", "open"), event("f3", "research.failed", "failed", 7, "multi-search found no sources: no search provider answered", "claimed")]),
+    research("preview-research-finished", "completed", 20, "Confirm the contract date and amount, and find where the sources disagree.", [event("d1", "created", "open", 20, "Created research assignment: Harbor Cranes Return"), event("d2", "claim", "claimed", 19.5, "The research worker started this assignment.", "open"), event("d3", "research.completed", "completed", 19, "Research finished; the packet is on the assignment.", "claimed")], PREVIEW_PACKET),
+  ];
+}
+
 export function createLocalPreviewReportingTrail(lineageId: string): StoryReportingTrail {
   const saved = previewSavedVersions.get(lineageId) ?? [];
   const references = lineageId === PREVIEW_BASED_ON.storyLineageId ? [previewBasedOnReference()] : [];
-  return { ...EMPTY_STORY_REPORTING_TRAIL, versions: saved, references };
+  const assignments = [...(previewAssignments.get(lineageId) ?? []), ...(lineageId === PREVIEW_BASED_ON.storyLineageId ? previewResearchAssignments() : [])];
+  const basedOn = lineageId === PREVIEW_BASED_ON.storyLineageId;
+  return { ...EMPTY_STORY_REPORTING_TRAIL, versions: saved, references, assignments, threads: basedOn ? [previewStoryThread()] : [], agentNotes: basedOn ? previewAgentNotes() : [] };
+}
+
+function previewStoryThread(): TrailThread {
+  return { id: "preview-story-thread", title: PREVIEW_BASED_ON.storyTitle, threadKind: "story_reporting", summary: null, messages: [
+    { id: "preview-story-message-1", sequenceNumber: 1, messageKind: "note", authorLabel: "ryan", summary: "Check the second source before we lean on it", content: "The vendor post is the only source for the benchmark number. Ask for the paper.", createdAt: "2026-11-03T14:05:00Z" },
+  ] };
+}
+
+/** Two synthetic AI agent notes, one tied to a draft version, for reviewing how the trail labels them. */
+function previewAgentNotes(): TrailAgentNote[] {
+  return [
+    { id: "preview-agent-note-1", agent: "ChatGPT", summary: "The vendor's benchmark matches the paper's table 3", body: "Compared the vendor post with the paper. The headline figure matches table 3; the post leaves out the two failed runs reported in the appendix.\n\nOpen question: which hardware the vendor used.", referenceLineageId: null, versionNumber: 2, createdAt: "2026-11-03T14:20:00Z" },
+    { id: "preview-agent-note-2", agent: "Claude", summary: "No second independent replication found", body: "Searched the usual venues and two preprint servers. Nobody has replicated the result yet.", referenceLineageId: null, versionNumber: null, createdAt: "2026-11-03T13:10:00Z" },
+  ];
 }
 
 export function createLocalPreviewStoriesForReference(referenceLineageId: string): ReferenceStory[] {

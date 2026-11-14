@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "0e454afb-0ab5-4841-a29c-368585518c6b",
+  "issue_id": "PPY-5219fc6a-eb85-4a50-90c9-5ea2414eae12",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:25.383Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reader identity is separate per site: one site cannot link its readers to another's",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

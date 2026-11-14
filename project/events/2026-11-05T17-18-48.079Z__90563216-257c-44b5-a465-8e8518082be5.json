@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "90563216-257c-44b5-a465-8e8518082be5",
+  "issue_id": "PPY-7f1e5496-6d3b-4ebf-a58e-515406813fde",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T17:18:48.079Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Public blocks query indexes for what they show, with no whole-table read",
+    "description": "Ryan, 2026-11-05: it is worth adding indexes so we never scan the whole table. The home-page snapshot publishes a file of every Reference a site might show (4,500 rows on Machines on Machines) and each block picks from it, so a first run or a rebuild reads the whole corpus. Replace it: a block or a paged list asks an index for exactly what it shows, ordered by recency windows and stars, and DynamoDB Streams say what changed. Add the indexes needed, one per table per deploy, stepping sites through. Copy the fields a card needs (prediction, image, summary) onto the row, so a card needs no further lookups. The same for Story listings and thread blocks. Keep public fields public and who rated private.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

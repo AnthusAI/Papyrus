@@ -932,6 +932,10 @@
           kindInputs.forEach(function (radio, index) { radio.checked = index === 0; });
           showWarning();
           showSuccess(answer.body);
+          // Only a new submission (201) is announced: a 409 duplicate names a submission that may be another reader's.
+          if (answer.status === 201 && answer.body && answer.body.subject) {
+            document.dispatchEvent(new CustomEvent("papyrus-reader:submitted", { bubbles: true, detail: { subject: answer.body.subject, title: answer.body.title } }));
+          }
         } else if (answer.status === 409 && answer.body.error === "duplicate_submission") {
           var existing = answer.body.existing;
           message = existing ? "Already submitted as \u201c" + existing.title + "\u201d (" + existing.state + ")." : "That link was already submitted.";

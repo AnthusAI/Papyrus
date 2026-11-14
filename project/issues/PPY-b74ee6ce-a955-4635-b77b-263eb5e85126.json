@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b74ee6ce-a955-4635-b77b-263eb5e85126",
+  "title": "Document managing concepts from the signed-in CLI on p.apyr.us",
+  "description": "From PPY-bcb81f: papyrus references link, knowledge entities link/accept-description/rename/alias, sections concepts --create --display-name; plain concept addresses in the wiki; the 'via' label on records. Source: docs/cli-login.md 'Managing concepts from the signed-in CLI' and docs/public-wiki.md.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T05:51:40.626784Z",
+  "updated_at": "2026-11-05T05:51:40.626811Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

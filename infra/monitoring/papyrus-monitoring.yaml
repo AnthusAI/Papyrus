@@ -65,6 +65,90 @@ Parameters:
     Type: String
     Default: xcobakwl4jagvhdq54qc55flii
     Description: AppSync API id of the Distinctive Mark backend (the TTAB decisions monitor delivers there).
+  MachinesOnMachinesApiId:
+    Type: String
+    Default: lxyzo2l2pjftjdha7egy73wndu
+    Description: AppSync API id of the Machines on Machines backend (a Cyclotron-decided publication; it replaces the Papyrus product-site backend, whose grants stay until that backend is retired).
+  AnthUsVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Anth.us (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  AnthUsStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Anth.us (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  PapyrusVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of the Papyrus product site (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  PapyrusStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of the Papyrus product site (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  ThreatIntelVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Threat Intelligence (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  ThreatIntelStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Threat Intelligence (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  DataParadeVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Data Parade (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  DataParadeStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Data Parade (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  PilobolusVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Pilobolus (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  PilobolusStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Pilobolus (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  ShippedVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Shipped (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  ShippedStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Shipped (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  DistinctiveVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Distinctive Mark (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  DistinctiveStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Distinctive Mark (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  MachinesOnMachinesVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Machines on Machines (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  MachinesOnMachinesStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Machines on Machines (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
   ScheduleState:
     Type: String
     Default: ENABLED
@@ -80,11 +164,57 @@ Parameters:
     Default: ""
     Description: Exact Cognito pools for configured publications where email sender membership is rechecked.
 
+  AlarmEmailParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /papyrus/shipped/knowledge-run/alarm-email
+    Description: SSM parameter holding the address alarm email goes to, the same mailbox as the knowledge runs. Never in the repository.
+
+  # --- the operator alert listener (PPY-e92c8e, PPY-dd8c18); see docs/operator-alerts.md ---
+  OperatorCodeKey:
+    Type: String
+    Description: S3 key of the operator zip (content-hash named by build.py --operator), in CodeBucket.
+  OperatorSendingDomain:
+    Type: String
+    Default: notify.anth.us
+    Description: Domain operator mail sends from (the SES identity of stack papyrus-newsletter-sending-operators). The sender is alerts at this domain.
+  OperatorConfigurationSet:
+    Type: String
+    Default: papyrus-operators
+    Description: SES configuration set operator mail sends with (no open or click tracking).
+  OperatorsParameterName:
+    Type: String
+    Default: /papyrus/shipped/knowledge-run/alarm-email
+    Description: >-
+      Name of the SSM parameter holding the operator address, or several separated by commas. The default is the same mailbox the
+      alarm topic's email subscription uses. Never in the repository.
+  TriageParameterName:
+    Type: String
+    Default: /papyrus/monitoring/triage
+    Description: >-
+      Name of the optional JSON SSM parameter with portalUrl, roleName, accounts and sites (app id to site name). Written by hand, never
+      in Git. When it does not exist, alarm links go to the plain CloudWatch console.
+  TriageRoleName:
+    Type: String
+    Default: AdministratorAccess
+    Description: >-
+      IAM Identity Center permission set the alarm links open with when the triage parameter names none (and has a portalUrl).
+      Change it to a read-only permission set when there is one.
+  OperatorHeartbeatState:
+    Type: String
+    Default: ENABLED
+    AllowedValues: [ENABLED, DISABLED]
+    Description: DISABLED stops the 15 minute heartbeat, which makes the dead-man alarm fire after about 45 minutes. Used to prove the alarm.
+
   EmailReferenceMonitorId:
     Type: String
     Default: ""
     AllowedPattern: "^$|^[a-z0-9][a-z0-9-]{0,62}$"
     Description: Optional existing email partition whose editor-selected References need cloud predictions.
+  ReferencePredictionMonitorId:
+    Type: String
+    Default: hn
+    AllowedPattern: "^$|^[a-z0-9][a-z0-9-]{0,62}$"
+    Description: The partition the site backends queue Cyclotron prediction requests into (their monitoring.emailMonitorId, which defaults to hn). Its email-references task drains them. Empty turns the drain off.
   EnrichmentOpenAiKeyParameter:
     Type: String
     Default: ""
@@ -99,6 +229,58 @@ Parameters:
     Description: >-
       Name of the SSM SecureString holding the Tavily key for link-exploration search (environment variable
       PAPYRUS_TAVILY_KEY_PARAMETER). The role may read only this parameter and decrypt through SSM. Empty disables search.
+  EditorialJudgmentKeyParameter:
+    Type: String
+    Default: /papyrus/shared/typesafe-api-key
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the TypeSafe key (TYPESAFE_API_KEY, the decision model) for the judgment lane of the Humanus editorial
+      gate that checks each generated idea before the router files it (environment variable EDITORIAL_JUDGMENT_KEY_PARAMETER). One shared key for every
+      routed site. The role may read only this parameter and decrypt through SSM. Empty, or a parameter that does not exist, leaves the judgment lane
+      recorded as not run on the idea (the rules lane still runs).
+  WebSearchProviders:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^(tavily|openai|perplexity|gemini|bedrock)(,(tavily|openai|perplexity|gemini|bedrock))*$"
+    Description: >-
+      Opt-in ordered web-search fallback chain for the collector and the router (environment variable WEB_SEARCH_PROVIDERS), for
+      example "openai,tavily". A provider whose key is not configured is skipped; a provider whose plan is used up, whose key is
+      refused or that stays rate limited falls through to the next. Empty keeps today's behaviour: Tavily alone. A monitor may
+      override the chain with searchProviders in its own CONFIG.
+  OpenAiSearchKeyParameter:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the OpenAI key for web search (environment variable PAPYRUS_OPENAI_KEY_PARAMETER);
+      the standard name is /papyrus/search/openai-api-key. Empty leaves the openai provider unavailable.
+  PerplexityKeyParameter:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the Perplexity key (PAPYRUS_PERPLEXITY_KEY_PARAMETER); the standard name is
+      /papyrus/search/perplexity-api-key. Empty leaves the perplexity provider unavailable.
+  GeminiKeyParameter:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the Gemini key (PAPYRUS_GEMINI_KEY_PARAMETER); the standard name is
+      /papyrus/search/gemini-api-key. Empty leaves the gemini provider unavailable.
+  BedrockWebSearch:
+    Type: String
+    Default: "off"
+    AllowedValues: ["off", "on"]
+    Description: >-
+      "on" lets the collector and the router sign a Bedrock token and use Web Search on Amazon Bedrock (provider "bedrock" in the
+      chain): bedrock:CallWithBearerToken, bedrock-websearch:InvokeSearch / InvokeFetch and the Bedrock Mantle inference policy.
+  BedrockSearchModel:
+    Type: String
+    Default: ""
+    Description: >-
+      The Bedrock model id used for provider "bedrock" (environment variable BEDROCK_SEARCH_MODEL). Required when BedrockWebSearch is
+      "on"; with it empty the bedrock provider is skipped as unavailable.
   EnrichmentGrobidUrl:
     Type: String
     Default: ""
@@ -106,12 +288,22 @@ Parameters:
 
 Conditions:
   HasEmailReferenceMonitor: !Not [!Equals [!Ref EmailReferenceMonitorId, ""]]
+  HasReferencePredictionMonitor: !And
+    - !Not [!Equals [!Ref ReferencePredictionMonitorId, ""]]
+    - !Not [!Equals [!Ref ReferencePredictionMonitorId, !Ref EmailReferenceMonitorId]]
   ReserveConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
   ReserveRouterConcurrency: !Not [!Equals [!Ref RouterReservedConcurrency, 0]]
   HasProcedureRunner: !Not [!Equals [!Ref ProcedureRunnerFunctionName, ""]]
   HasEditorUserPools: !Not [!Equals [!Join ["", !Ref EditorUserPoolArns], ""]]
   HasEnrichmentKey: !Not [!Equals [!Ref EnrichmentOpenAiKeyParameter, ""]]
   HasTavilyKey: !Not [!Equals [!Ref TavilyKeyParameter, ""]]
+  HasEditorialJudgmentKey: !Not [!Equals [!Ref EditorialJudgmentKeyParameter, ""]]
+  HasWebSearchChain: !Not [!Equals [!Ref WebSearchProviders, ""]]
+  HasOpenAiSearchKey: !Not [!Equals [!Ref OpenAiSearchKeyParameter, ""]]
+  HasPerplexityKey: !Not [!Equals [!Ref PerplexityKeyParameter, ""]]
+  HasGeminiKey: !Not [!Equals [!Ref GeminiKeyParameter, ""]]
+  HasBedrockWebSearch: !Equals [!Ref BedrockWebSearch, "on"]
+  HasBedrockSearchModel: !Not [!Equals [!Ref BedrockSearchModel, ""]]
   HasEnrichmentGrobid: !Not [!Equals [!Ref EnrichmentGrobidUrl, ""]]
 
 Resources:
@@ -120,6 +312,10 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - { AttributeName: pk, AttributeType: S }
@@ -161,16 +357,31 @@ Resources:
         Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
       Tags:
         - { Key: purpose, Value: "item enrichment - captured article text and GROBID output - private to the router" }
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
 
   CollectorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-monitoring-collector
       RetentionInDays: 30
 
   CollectorRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      ManagedPolicyArns: !If
+        - HasBedrockWebSearch
+        - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
+        - !Ref AWS::NoValue
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -204,6 +415,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: CollectorLogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-monitoring-collector
       Runtime: python3.13
       Architectures: [arm64]
@@ -219,16 +434,29 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
+          WEB_SEARCH_PROVIDERS: !If [HasWebSearchChain, !Ref WebSearchProviders, !Ref AWS::NoValue]
+          PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
+          BEDROCK_SEARCH_MODEL: !If [HasBedrockSearchModel, !Ref BedrockSearchModel, !Ref AWS::NoValue]
 
   ScheduleDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
 
   ScheduleRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -304,6 +532,78 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt ScheduleDeadLetterQueue.Arn
 
+  PapersArxivAiCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-arxiv-ai-collect
+      Description: Run the collector for the arXiv AI paper feed; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"papers-arxiv-ai"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  PapersArxivSecurityCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-arxiv-security-collect
+      Description: Run the collector for the arXiv security paper feed; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"papers-arxiv-security"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  PapersHuggingfaceCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-huggingface-collect
+      Description: Run the collector for the Hugging Face daily papers list; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"papers-huggingface"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  FeedMetrCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-feed-metr-collect
+      Description: Run the collector for the METR feed; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"feed-metr"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
   WebCollectSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
@@ -339,22 +639,423 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  SearchProviderFailingMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CollectorLogGroup
+      FilterPattern: '{ $.monitor = "search_provider_failing" }'
+      MetricTransformations:
+        - MetricNamespace: Papyrus/Monitoring
+          MetricName: SearchProviderFailing
+          MetricValue: "1"
+          DefaultValue: 0
+
+  SearchProviderFailingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-search-provider-failing
+      AlarmDescription: >-
+        A web-search provider refused the collector's key (authentication) or reported its plan used up (for example Tavily 432 or
+        Perplexity 401). The collector logs one search_provider_failing line per provider and kind for each run; read them for the
+        provider, kind and monitor, then renew the key or plan or drop the provider from WebSearchProviders. A day window, so a
+        monitor that runs once a day stays in alarm until the provider answers again.
+      Namespace: Papyrus/Monitoring
+      MetricName: SearchProviderFailing
+      Statistic: Sum
+      Period: 86400
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       LogGroupName: /aws/lambda/papyrus-monitoring-router
       RetentionInDays: 30
 
   RouterDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
+
+  # One related-items check per Reference (reference_suggest_once.py). The vector pass sends a message when it stores a Reference's summary vector; the router
+  # function takes it off and checks that one Reference. A message that fails is delivered again by SQS until MaxReceiveCount, then it waits in the dead-letter queue,
+  # whose alarm tells a person. The visibility timeout is longer than the function's timeout, as an event source mapping requires.
+  SuggestDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  SuggestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      VisibilityTimeout: 1800   # six times the worker's timeout, as the event source mapping advises
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SuggestDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  SuggestWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      LogGroupName: /aws/lambda/papyrus-monitoring-suggest-worker
+      RetentionInDays: 30
+
+  # The checks themselves: the same code zip and entry point as the router (a batch of SQS records goes to reference_suggest_once.handle_queue), in a function and role
+  # of their own so they never wait behind the router's single execution. Exactly what a check asks for: the router's config row and the check records in its table,
+  # the Reference and relation fields of suggest_for and link_references, the calibration read, and Get/Query on the sites' vector indexes. No writes to the vector index.
+  SuggestWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: suggest-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: MonitoringTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem]
+                Resource: !GetAtt MonitoringTable.Arn
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${SuggestWorkerLogGroup.Arn}:*"
+              - Sid: SuggestQueueConsume
+                Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt SuggestQueue.Arn
+              - Sid: SuggestionFields
+                Effect: Allow
+                Action: appsync:GraphQL
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticNode"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsBySubjectState"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByObjectState"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByNewsroomFeedAndCreatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
+              - Sid: SiteVectorIndexes
+                Effect: Allow
+                Action:
+                  - s3vectors:GetVectors
+                  - s3vectors:QueryVectors
+                Resource:
+                  - !Ref AnthUsVectorIndexArn
+                  - !Ref PapyrusVectorIndexArn
+                  - !Ref ThreatIntelVectorIndexArn
+                  - !Ref DataParadeVectorIndexArn
+                  - !Ref PilobolusVectorIndexArn
+                  - !Ref ShippedVectorIndexArn
+                  - !Ref DistinctiveVectorIndexArn
+                  - !Ref MachinesOnMachinesVectorIndexArn
+
+  SuggestWorkerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: SuggestWorkerLogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      FunctionName: papyrus-monitoring-suggest-worker
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: papyrus_content.monitoring_router.handler
+      MemorySize: 512
+      Timeout: 300
+      Role: !GetAtt SuggestWorkerRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref RouterCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MonitoringTable
+          PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
+          PAPYRUS_GRAPHQL_AUTH: iam
+
+  SuggestEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      FunctionName: !Ref SuggestWorkerFunction
+      EventSourceArn: !GetAtt SuggestQueue.Arn
+      BatchSize: 10
+      MaximumBatchingWindowInSeconds: 5
+      FunctionResponseTypes: [ReportBatchItemFailures]
+      ScalingConfig:
+        MaximumConcurrency: 2
+
+  SuggestDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-suggest-dead-letters
+      AlarmDescription: >-
+        A Reference's related-items check failed three times and its message is waiting in the suggestion dead-letter queue. Read the router's
+        {"suggestOnce": "failed"} log lines for the reason; after the cause is fixed, move the messages back to the suggestion queue (SQS redrive) or run the
+        suggest-unchecked task.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - { Name: QueueName, Value: !GetAtt SuggestDeadLetterQueue.QueueName }
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  # The monitor-stories queue (src/papyrus_content/ideas/story_plan.py). The daily task (the router function) only PLANS: it reads the publication once and sends one
+  # message per candidate, packs and single items in the order it ranked them. StoryWorkerFunction drafts one message per invocation. A FIFO queue with the publication
+  # as the message group, so a publication's steps run in order and one at a time (two publications may run side by side) and an idea is never filed against one filed a
+  # moment before by the next step. A step that fails is delivered again until MaxReceiveCount, then waits in the dead-letter queue, whose alarm tells a person; the last
+  # try leaves a record so the plan still finishes. The visibility timeout is six times the worker's timeout, as an event source mapping advises.
+  StoryDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  StoryQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      FifoQueue: true
+      VisibilityTimeout: 1800
+      MessageRetentionPeriod: 1209600   # the plan's rows expire a day after this (PLAN_TTL_SECONDS)
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt StoryDeadLetterQueue.Arn
+        maxReceiveCount: 3   # keep in step with MAXIMUM_RECEIVES in ideas/story_plan.py
+
+  StoryWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      LogGroupName: /aws/lambda/papyrus-monitoring-story-worker
+      RetentionInDays: 30
+
+  # One step of a plan: the same code zip and entry point as the router (an SQS event whose messages are story steps goes to monitoring_router.handle_story_queue), in a
+  # function and role of its own because the router function is held to one execution at a time and RouterRole already has the 20 managed policies a role may have. The
+  # role holds exactly what a step asks for: the router's table (the plan's rows, the retry memory), the queue, the model and search keys, and the AppSync fields of filing an
+  # idea (the Item, its based_on and concept edges, the Humanus gate) and of the plan's review request and curation flag. The API is a wildcard, as in RouterIdeaPolicy.
+  # test_monitor_stories_queue.py records every field a step asks for and checks this list covers it.
+  StoryWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      ManagedPolicyArns: !If
+        - HasBedrockWebSearch
+        - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
+        - !Ref AWS::NoValue
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: story-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: MonitoringTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query]
+                Resource: !GetAtt MonitoringTable.Arn
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${StoryWorkerLogGroup.Arn}:*"
+              - Sid: StoryQueueConsume
+                Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt StoryQueue.Arn
+              - Sid: StoryStepFields
+                Effect: Allow
+                Action: appsync:GraphQL
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getItem"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getPublishedItem"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReviewRequest"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/itemByTenantSlug"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckSettings"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialContext"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialFeedbacks"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialPolicies"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByParentAndOrder"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listAssignmentsByItemLineageAndCreatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferenceAttachmentsByReferenceLineageAndSortKey"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listNewsroomSections"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listKnowledgeCorporaByRoleAndName"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createItem"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateItem"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createEditorialCheckRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateEditorialCheckRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createReviewRequest"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReviewRequest"
+              # The model key (the one item enrichment uses), the TypeSafe key of the gate's judgment lane and the search keys the link explorer uses. A parameter left at
+              # its default names no parameter, so its grant reads nothing.
+              - Sid: ReadKeys
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${EnrichmentOpenAiKeyParameter}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${EditorialJudgmentKeyParameter}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TavilyKeyParameter}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenAiSearchKeyParameter}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${PerplexityKeyParameter}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiKeyParameter}"
+              - Sid: DecryptKeys
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+              - Sid: BedrockWebSearch
+                Effect: Allow
+                Action: ["bedrock:CallWithBearerToken", "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
+                Resource: "*"
+
+  StoryWorkerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: StoryWorkerLogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      FunctionName: papyrus-monitoring-story-worker
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: papyrus_content.monitoring_router.handler
+      MemorySize: 1024   # a step holds the pages it opens, PDFs included
+      Timeout: 300   # one step: 8 attempts took 199 s in the old run, 25 s each; the queue's visibility timeout is six times this
+      Role: !GetAtt StoryWorkerRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref RouterCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MonitoringTable
+          PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
+          PAPYRUS_GRAPHQL_AUTH: iam
+          ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
+          EDITORIAL_JUDGMENT_KEY_PARAMETER: !If [HasEditorialJudgmentKey, !Ref EditorialJudgmentKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
+          WEB_SEARCH_PROVIDERS: !If [HasWebSearchChain, !Ref WebSearchProviders, !Ref AWS::NoValue]
+          PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
+          BEDROCK_SEARCH_MODEL: !If [HasBedrockSearchModel, !Ref BedrockSearchModel, !Ref AWS::NoValue]
+
+  StoryEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      FunctionName: !Ref StoryWorkerFunction
+      EventSourceArn: !GetAtt StoryQueue.Arn
+      BatchSize: 1
+      FunctionResponseTypes: [ReportBatchItemFailures]
+      ScalingConfig:
+        MaximumConcurrency: 2   # the least a mapping allows; a FIFO queue runs one publication's steps at a time whatever this is
+
+  StoryDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-story-dead-letters
+      AlarmDescription: >-
+        A step of the daily monitor-stories plan failed three times and its message is waiting in the story dead-letter queue (the plan finished without it). Read the
+        story worker's {"storyStep": "failed"} log lines for the reason; after the cause is fixed, move the message back to the story queue (SQS redrive).
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - { Name: QueueName, Value: !GetAtt StoryDeadLetterQueue.QueueName }
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      ManagedPolicyArns: !If
+        - HasBedrockWebSearch
+        - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
+        - !Ref AWS::NoValue
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -387,6 +1088,18 @@ Resources:
                 Effect: Allow
                 Action: sqs:SendMessage
                 Resource: !GetAtt RouterDeadLetterQueue.Arn
+              # The one-check-per-Reference suggestion queue (reference_suggest_once.py): the vector pass sends a message for each stored summary vector. The checks
+              # run in their own function (SuggestWorkerFunction), because this one has a reserved concurrency of 1 and a queue consumer would be throttled for the
+              # whole daily run, burning its receive count.
+              - Sid: SuggestQueueSend
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt SuggestQueue.Arn
+              # The daily monitor-stories task plans and sends one message per step to the story queue; StoryWorkerFunction drafts them.
+              - Sid: StoryQueueSend
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt StoryQueue.Arn
               - Sid: CyclotronMachineInvoker
                 Effect: Allow
                 Action: sts:AssumeRole
@@ -454,6 +1167,10 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: RouterLogGroup
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       FunctionName: papyrus-monitoring-router
       Runtime: python3.13
       Architectures: [arm64]
@@ -471,11 +1188,20 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
           PAPYRUS_GRAPHQL_AUTH: iam
+          SUGGEST_QUEUE_URL: !Ref SuggestQueue
+          STORY_QUEUE_URL: !Ref StoryQueue
           PROCEDURE_RUNNER_FUNCTION: !If [HasProcedureRunner, !Ref ProcedureRunnerFunctionName, !Ref AWS::NoValue]
           ENRICHMENT_BUCKET: !Ref EnrichmentBucket
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
+          EDITORIAL_JUDGMENT_KEY_PARAMETER: !If [HasEditorialJudgmentKey, !Ref EditorialJudgmentKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
+          WEB_SEARCH_PROVIDERS: !If [HasWebSearchChain, !Ref WebSearchProviders, !Ref AWS::NoValue]
+          PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
+          BEDROCK_SEARCH_MODEL: !If [HasBedrockSearchModel, !Ref BedrockSearchModel, !Ref AWS::NoValue]
           BIBLICUS_GROBID_URL: !If [HasEnrichmentGrobid, !Ref EnrichmentGrobidUrl, !Ref AWS::NoValue]
 
   RouterEnrichmentStoragePolicy:
@@ -484,6 +1210,8 @@ Resources:
       Description: >-
         Item enrichment: the router reads and writes captured text in its own private bucket, and reads back a delivered
         Reference's metadata attachment (createModelAttachmentDownload) when it copies the item's curation onto it.
+        It also holds the vector pass's S3 Vectors actions on the sites' indexes and its read of each site's storage bucket (moved here
+        from RouterIdeaPolicy, which had reached IAM's policy-size limit).
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
@@ -503,6 +1231,39 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/createModelAttachmentDownload"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createModelAttachmentDownload"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createModelAttachmentDownload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createModelAttachmentDownload"
+          # The vector pass of the daily monitor-stories task (get, put, and its one-time first run lists) and the suggestion checks (get, query) on the eight sites' indexes. A parameter left at its default names no index.
+          # These two statements live here, not in RouterIdeaPolicy: that policy reached IAM's 6,144-character limit (the first full deploy of this stack
+          # failed on it), and RouterRole is near the 20-managed-policy limit, so a new policy was not an option. Moving a statement between two policies
+          # attached to the same role changes no access.
+          - Sid: SiteVectorIndexes
+            Effect: Allow
+            Action:
+              - s3vectors:GetVectors
+              - s3vectors:QueryVectors
+              - s3vectors:PutVectors
+              - s3vectors:ListVectors
+            Resource:
+              - !Ref AnthUsVectorIndexArn
+              - !Ref PapyrusVectorIndexArn
+              - !Ref ThreatIntelVectorIndexArn
+              - !Ref DataParadeVectorIndexArn
+              - !Ref PilobolusVectorIndexArn
+              - !Ref ShippedVectorIndexArn
+              - !Ref DistinctiveVectorIndexArn
+              - !Ref MachinesOnMachinesVectorIndexArn
+          - Sid: SiteStorageExtractedText
+            Effect: Allow
+            Action: s3:GetObject
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${AnthUsStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${PapyrusStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${ThreatIntelStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${DataParadeStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${PilobolusStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${ShippedStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${DistinctiveStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${MachinesOnMachinesStorageBucketName}/*"
 
   RouterEnrichmentKeyPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -560,6 +1321,160 @@ Resources:
               StringEquals:
                 kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
 
+  RouterOpenAiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasOpenAiSearchKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the OpenAI key for web search.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadOpenAiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenAiSearchKeyParameter}"
+          - Sid: DecryptOpenAiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterPerplexitySearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasPerplexityKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the Perplexity key for web search.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadPerplexitySearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${PerplexityKeyParameter}"
+          - Sid: DecryptPerplexitySearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterGeminiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasGeminiKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the Gemini key for web search.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadGeminiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiKeyParameter}"
+          - Sid: DecryptGeminiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterBedrockWebSearchPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasBedrockWebSearch
+    Properties:
+      Description: Lets the router use Web Search on Amazon Bedrock (provider "bedrock").
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: BedrockWebSearch
+            Effect: Allow
+            Action: [bedrock:CallWithBearerToken, "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
+            Resource: "*"
+
+  CollectorOpenAiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasOpenAiSearchKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the OpenAI key for web search.
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadOpenAiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenAiSearchKeyParameter}"
+          - Sid: DecryptOpenAiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorPerplexitySearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasPerplexityKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the Perplexity key for web search.
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadPerplexitySearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${PerplexityKeyParameter}"
+          - Sid: DecryptPerplexitySearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorGeminiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasGeminiKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the Gemini key for web search.
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadGeminiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiKeyParameter}"
+          - Sid: DecryptGeminiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorBedrockWebSearchPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasBedrockWebSearch
+    Properties:
+      Description: Lets the collector use Web Search on Amazon Bedrock (provider "bedrock").
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: BedrockWebSearch
+            Effect: Allow
+            Action: [bedrock:CallWithBearerToken, "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
+            Resource: "*"
+
   RouterProcedureRunnerPolicy:
     Type: AWS::IAM::ManagedPolicy
     Condition: HasProcedureRunner
@@ -596,9 +1511,306 @@ Resources:
       MaximumRetryAttempts: 0
       MaximumEventAgeInSeconds: 900
 
+  # The research-assignments task runs in its own function and role. RouterRole already has 20 managed policies, the most a role may have, so its grants cannot grow;
+  # this role holds the same code zip, the same search and model key parameters (the key policies above name both roles) and exactly the fields the task asks for.
+  ResearchWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      ManagedPolicyArns: !If
+        - HasBedrockWebSearch
+        - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
+        - !Ref AWS::NoValue
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: research-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: MonitoringTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query]
+                Resource:
+                  - !GetAtt MonitoringTable.Arn
+                  - !Sub "${MonitoringTable.Arn}/index/routing"
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${ResearchWorkerLogGroup.Arn}:*"
+              - Sid: FailedInvocations
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt RouterDeadLetterQueue.Arn
+              - Sid: FanOutPerPublication
+                Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-monitoring-research-worker"
+              - Sid: ResearchAssignmentFields
+                Effect: Allow
+                Action: appsync:GraphQL
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getAssignment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getAssignmentEvent"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getKnowledgeCorpus"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getKnowledgeImportRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getKnowledgeRawPayload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getMessage"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getModelAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getNewsroomSection"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/itemBySlug"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/itemByTenantSlug"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listAssignmentEventsByAssignmentAndCreatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listAssignmentsByItemLineageAndCreatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listAssignmentsByTypeStatusAndCreatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByParentAndOrder"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getItem"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByStageAndUpdatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsBySectionStatusAndPublishedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listKnowledgeCorporaByRoleAndName"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessageThreadsByAnchorAndUpdatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessagesByThreadAndSequence"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listModelAttachmentsByOwnerRoleAndSortKey"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listNewsroomSections"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listPublishedItemsBySectionStatusAndPublishedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferenceAttachmentsByReferenceLineageAndSortKey"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferences"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByObjectState"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsBySubjectState"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/completeModelAttachmentUpload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createAssignmentEvent"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createItem"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createKnowledgeCorpus"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createKnowledgeImportRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createKnowledgeRawPayload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createMessage"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createModelAttachmentDownload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createModelAttachmentUpload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateAssignment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateNewsroomSummary"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
+
+  ResearchWorkerOpenAiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasOpenAiSearchKey
+    Properties:
+      Description: Lets the research worker read the one SSM parameter that holds the OpenAI key for web search.
+      Roles: [!Ref ResearchWorkerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadOpenAiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenAiSearchKeyParameter}"
+          - Sid: DecryptOpenAiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  ResearchWorkerPerplexitySearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasPerplexityKey
+    Properties:
+      Description: Lets the research worker read the one SSM parameter that holds the Perplexity key for web search.
+      Roles: [!Ref ResearchWorkerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadPerplexitySearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${PerplexityKeyParameter}"
+          - Sid: DecryptPerplexitySearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  ResearchWorkerGeminiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasGeminiKey
+    Properties:
+      Description: Lets the research worker read the one SSM parameter that holds the Gemini key for web search.
+      Roles: [!Ref ResearchWorkerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadGeminiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiKeyParameter}"
+          - Sid: DecryptGeminiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  ResearchWorkerTavilyKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasTavilyKey
+    Properties:
+      Description: Lets the research worker read the one SSM parameter that holds the Tavily key for link search.
+      Roles: [!Ref ResearchWorkerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadTavilyKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TavilyKeyParameter}"
+          - Sid: DecryptTavilyKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  ResearchWorkerBedrockWebSearchPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasBedrockWebSearch
+    Properties:
+      Description: Lets the research worker use Web Search on Amazon Bedrock (provider "bedrock").
+      Roles: [!Ref ResearchWorkerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: BedrockWebSearch
+            Effect: Allow
+            Action: [bedrock:CallWithBearerToken, "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
+            Resource: "*"
+
+  ResearchWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      LogGroupName: /aws/lambda/papyrus-monitoring-research-worker
+      RetentionInDays: 30
+
+  ResearchWorkerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ResearchWorkerLogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      FunctionName: papyrus-monitoring-research-worker
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: papyrus_content.monitoring_router.handler
+      MemorySize: 1024   # a run holds every source it opens at once, PDFs included: 405 MB measured with 133 sources
+      Timeout: 900   # the task's lock lease (960 s, TASK_LEASE_SECONDS) is longer than this, so one publication's runs never overlap
+      Role: !GetAtt ResearchWorkerRole.Arn
+      DeadLetterConfig:
+        TargetArn: !GetAtt RouterDeadLetterQueue.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref RouterCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MonitoringTable
+          PAPYRUS_ROOT: /var/task
+          PAPYRUS_RUNS_DIR: /tmp/.papyrus-runs
+          PAPYRUS_GRAPHQL_AUTH: iam
+          PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
+          BEDROCK_SEARCH_MODEL: !If [HasBedrockSearchModel, !Ref BedrockSearchModel, !Ref AWS::NoValue]
+
+  ResearchWorkerInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref ResearchWorkerFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 0
+      MaximumEventAgeInSeconds: 900
+
+  ResearchWorkerScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: invoke-and-dead-letter
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt ResearchWorkerFunction.Arn
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt RouterDeadLetterQueue.Arn
+
+  ResearchAssignmentsSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-research-assignments
+      Description: >-
+        Every 5 minutes, start the research-assignments task for the hn monitor (docs/monitoring-cloud.md#research-assignments). It invokes the worker once per publication that turned
+        researchAssignments on, and each run takes that publication's open research assignments oldest first. No retry: the next run repeats it.
+      ScheduleExpression: rate(5 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt ResearchWorkerFunction.Arn
+        RoleArn: !GetAtt ResearchWorkerScheduleRole.Arn
+        Input: '{"task":"research-assignments","monitorId":"hn"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
   RouterScheduleRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -737,6 +1949,25 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt RouterDeadLetterQueue.Arn
 
+  ReferencePredictionSchedule:
+    Condition: HasReferencePredictionMonitor
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-reference-predictions
+      Description: Drain the prediction requests the site backends queue when a Reference is created without one (src/papyrus_content/reference_prediction_queue.py). One indexed query when the lane is empty.
+      ScheduleExpression: rate(5 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: !Sub '{"monitorId":"${ReferencePredictionMonitorId}","task":"email-references"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
   RouterDataParadeIntakePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -860,6 +2091,28 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createReferenceAttachment"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createSemanticRelation"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateReferenceAttachment"
+          - Sid: MachinesOnMachinesReferenceIntake
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getKnowledgeImportRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getModelAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getReferenceAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listKnowledgeCorpuses"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listKnowledgeCorporaByRoleAndName"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listReferences"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/completeModelAttachmentUpload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createKnowledgeImportRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createModelAttachmentUpload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createReferenceAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/updateReferenceAttachment"
 
   RouterAutomationReadPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -918,6 +2171,10 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createSemanticNode"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getSemanticNode"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createSemanticNode"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/updateSemanticRelation"
 
   RouterAutoAcceptPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -945,6 +2202,8 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/updateReference"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/updateReference"
 
   RouterMonitorStoriesPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -1050,6 +2309,92 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createReviewRequest"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/fileProposal"
 
+  # Lets the router's daily monitor-stories task file generated story ideas as Items at the idea stage (src/papyrus_content/ideas/items.py) and run
+  # the Humanus editorial gate on each one first (src/papyrus_content/ideas/gate.py). One policy, not one per API, because RouterRole is near the
+  # 20-managed-policy limit: the fields are named exactly and the API is a wildcard, which in this account is the eight routed publication APIs.
+  # It also carries the reads of the context-pack signals (the publication's Messages, human votes, concepts and Reference summaries:
+  # src/papyrus_content/ideas/signal_inputs.py and signal_queue.py) and the writes of a pack idea (the Item, its based_on and concept edges:
+  # pack_stories.py), still in this one policy. Test: test_monitoring_packs.py records every field the pack path asks for.
+  # The SSM statement reads the TypeSafe key for the gate's judgment lane. The vector pass (src/papyrus_content/monitoring_vectors.py) adds the GraphQL fields
+  # that sync and suggestions ask for here; its S3 Vectors actions on the eight sites' indexes and its read of each site's storage bucket (the text it embeds) are in
+  # RouterEnrichmentStoragePolicy, because this policy hit IAM's 6,144-character limit. test_stack_deploy.py computes every managed policy's size and fails near the limit;
+  # test_monitoring_vectors.py records every field they ask for. Hand-run with a change set; the sixteen VectorIndexArn / StorageBucketName parameters need values.
+  RouterIdeaPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        The router's monitor-stories task: idea Items and the Humanus gate, the context-pack signal reads and pack idea writes, the vector
+        pass's GraphQL fields, the fan-out invoke, and the TypeSafe key (the vector pass's S3 Vectors and bucket reads are in
+        RouterEnrichmentStoragePolicy). One policy because RouterRole is near the 20-managed-policy limit; the fields are named exactly and
+        the API is a wildcard (the seven routed publication APIs).
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: IdeaItemsAndGate
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getPublishedItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByLineageAndVersion"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listAssignmentsByItemLineageAndCreatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByParentAndOrder"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/itemByTenantSlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckSettings"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialContext"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialFeedbacks"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialPolicies"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByStageAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByLineageAndVersion"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessageThreads"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessagesByThreadAndCreatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferenceAttachmentsByReferenceLineageAndSortKey"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticNodes"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticNode"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listModelAttachmentsByOwnerRoleAndSortKey"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessagesByKindAndCreatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferences"
+              # The daily vector pass reads only what changed, from the updatedAt indexes (monitoring_vectors.py); listReferences and listSemanticNodes are read only by its
+              # one-time first run on a site with no saved place.
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticNodesByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByNewsroomFeedAndCreatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
+              # The curation flag of a run that files nothing (ideas/review.py settle_curation_flag): find this publication's open flag, and acknowledge it when ideas flow again.
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReviewRequests"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReviewRequest"
+          - Sid: FanOutMonitorStories
+            Effect: Allow
+            Action: lambda:InvokeFunction
+            Resource: !GetAtt RouterFunction.Arn   # the router's own ARN: a monitor-stories run without publicationId invokes itself once per publication
+          # With EditorialJudgmentKeyParameter empty this ARN names no parameter, so the grant reads nothing.
+          - Sid: ReadEditorialJudgmentKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${EditorialJudgmentKeyParameter}"
+          - Sid: DecryptEditorialJudgmentKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
   RouterMonitorStoriesDistinctivePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -1076,6 +2421,99 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listStoryDrafts"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createReviewRequest"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/fileProposal"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listAutomations"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listNewsroomSections"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listStoryDrafts"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/fileProposal"
+
+  AutoAcceptSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-auto-accept
+      Description: >-
+        Every hour at minute 41, start the auto-accept task for the hn monitor (docs/monitoring-cloud.md#automatic-acceptance). The run accepts nothing
+        itself: it invokes the router once per publication the monitor lists whose autoAccept is not off, so each publication has the Lambda's whole time
+        budget and its own lock, and no routing run can use the time up first. No retry: the next hour repeats it.
+      ScheduleExpression: cron(41 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"auto-accept","monitorId":"hn"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  DistinctiveAutoAcceptSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-distinctive-auto-accept
+      Description: >-
+        Every hour at minute 11, the same auto-accept task for Distinctive Mark, which the hn router does not list
+        (docs/monitoring-cloud.md#automatic-acceptance). No retry.
+      ScheduleExpression: cron(11 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"auto-accept","monitorId":"web-distinctive"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  CyclotronStatusSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-cyclotron-status
+      Description: >-
+        Every hour at minute 26, start the cyclotron-status task for the hn monitor (docs/monitoring-cloud.md#cyclotron-status-for-the-newsroom-home-page). The task reads
+        the Cyclotron's read-only status snapshot for each publication the monitor lists and keeps one row per publication in the monitoring table, for the
+        newsroom home page. It takes its own lock, never decides, and a 503 ("no snapshot yet") is not a lab pause. No retry: the next hour repeats it.
+      ScheduleExpression: cron(26 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"cyclotron-status","monitorId":"hn"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  DistinctiveCyclotronStatusSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-distinctive-cyclotron-status
+      Description: >-
+        Every hour at minute 56, the same cyclotron-status task for Distinctive Mark, which the hn router does not list
+        (docs/monitoring-cloud.md#cyclotron-status-for-the-newsroom-home-page). No retry.
+      ScheduleExpression: cron(56 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"cyclotron-status","monitorId":"web-distinctive"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
 
   DistinctiveMonitorStoriesSchedule:
     Type: AWS::Scheduler::Schedule
@@ -1102,9 +2540,9 @@ Resources:
     Properties:
       Name: papyrus-monitoring-hn-monitor-stories
       Description: >-
-        Once a day at 07:30 UTC (03:30 US Eastern), draft a cited story for every accepted, not yet drafted, monitored Reference of each
-        publication the hn router lists (task monitor-stories; docs/monitoring-cloud.md#monitor-stories). Bounded by the Lambda's time, not a count.
-        No retry: a second attempt would only repeat the same ranking.
+        Once a day at 07:30 UTC (03:30 US Eastern), start the monitor-stories task for the hn monitor (docs/monitoring-cloud.md#monitor-stories).
+        The run drafts nothing itself: it invokes the router once per publication the monitor lists whose monitorStories is on, so each
+        publication has the Lambda's whole time budget. No retry: a second attempt would only repeat the same ranking.
       ScheduleExpression: cron(30 7 * * ? *)
       FlexibleTimeWindow: { Mode: "OFF" }
       State: !Ref ScheduleState
@@ -1148,6 +2586,78 @@ Resources:
         Arn: !GetAtt RouterFunction.Arn
         RoleArn: !GetAtt RouterScheduleRole.Arn
         Input: '{"monitorId":"huggingface"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  PapersArxivAiRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-arxiv-ai-route
+      Description: Run the router for the arXiv AI paper feed hourly at minute 6; it routes in the mode stored in the table.
+      ScheduleExpression: cron(6 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"papers-arxiv-ai"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  PapersArxivSecurityRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-arxiv-security-route
+      Description: Run the router for the arXiv security paper feed hourly at minute 23; it routes in the mode stored in the table.
+      ScheduleExpression: cron(23 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"papers-arxiv-security"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  PapersHuggingfaceRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-huggingface-route
+      Description: Run the router for the Hugging Face daily papers list hourly at minute 51; it routes in the mode stored in the table.
+      ScheduleExpression: cron(51 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"papers-huggingface"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  FeedMetrRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-feed-metr-route
+      Description: Run the router for the METR feed hourly at minute 14; it routes in the mode stored in the table.
+      ScheduleExpression: cron(14 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"feed-metr"}'
         RetryPolicy:
           MaximumEventAgeInSeconds: 600
           MaximumRetryAttempts: 1
@@ -1295,6 +2805,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterDeadLetterAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -1307,6 +2819,913 @@ Resources:
         - { Name: QueueName, Value: !GetAtt RouterDeadLetterQueue.QueueName }
       Statistic: Maximum
       Period: 900
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  RouterDecidedMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref RouterLogGroup
+      FilterPattern: '{ $.counts.decided >= 0 }'
+      MetricTransformations:
+        - MetricNamespace: Papyrus/Monitoring
+          MetricName: RouterDecided
+          MetricValue: "$.counts.decided"
+
+  RouterAwaitingMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref RouterLogGroup
+      FilterPattern: '{ $.counts.awaiting >= 0 }'
+      MetricTransformations:
+        - MetricNamespace: Papyrus/Monitoring
+          MetricName: RouterAwaiting
+          MetricValue: "$.counts.awaiting"
+
+  DecisionsStoppedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-decisions-stopped
+      AlarmDescription: >-
+        Cyclotron decisions stopped while items are waiting for them: for two hours in a row the router's passes, across every
+        monitor, recorded no decision (counts.decided summed to 0) while at least one pass still had jobs awaiting (counts.awaiting
+        above 0). A quiet system with nothing waiting does not alarm, and neither does a router that logs nothing at all (missing
+        data is not breaching). Check the Cyclotron run status and hand to the Cyclotron session; see docs/monitoring-cloud.md.
+      Metrics:
+        - Id: stopped
+          Label: Decisions stopped while items wait
+          Expression: IF(decided == 0 AND awaiting > 0, 1, 0)
+          ReturnData: true
+        - Id: decided
+          ReturnData: false
+          MetricStat:
+            Metric: { Namespace: Papyrus/Monitoring, MetricName: RouterDecided }
+            Period: 3600
+            Stat: Sum
+        - Id: awaiting
+          ReturnData: false
+          MetricStat:
+            Metric: { Namespace: Papyrus/Monitoring, MetricName: RouterAwaiting }
+            Period: 3600
+            Stat: Maximum
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      TopicName: papyrus-monitoring-alarms
+
+  AlarmEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmailParameter
+
+  # ===== Operator alert listener (PPY-e92c8e) =====
+  # Every CloudWatch alarm state change in this account and Region reaches the default bus. The rule below sends each one (except the
+  # last-resort alarms below, which already email by SNS) to a queue; caducus.notify turns it into one triage-ready email per incident.
+  # Only additions: the collector and router above are untouched. Addresses are read from SSM at run time and are never in this file.
+  # RetainExceptOnCreate: the table is kept when the stack or the resource is deleted (it will hold the delivery log), but is deleted when the
+  # create that makes it rolls back. Plain Retain left an empty papyrus-operator-alerts behind after a failed first deploy, and the next change set
+  # then failed the existence check (AWS::EarlyValidation::ResourceExistenceCheck) twice on 2026-11-05.
+  OperatorTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: RetainExceptOnCreate
+    UpdateReplacePolicy: Retain
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      TableName: papyrus-operator-alerts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+        - { AttributeName: recipientKey, AttributeType: S }
+        - { AttributeName: queuedAt, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: byRecipient
+          KeySchema:
+            - { AttributeName: recipientKey, KeyType: HASH }
+            - { AttributeName: queuedAt, KeyType: RANGE }
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  OperatorIngestDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      QueueName: papyrus-operator-ingest-dlq
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  OperatorIngestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      QueueName: papyrus-operator-ingest
+      VisibilityTimeout: 360
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OperatorIngestDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  OperatorEmailDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      QueueName: papyrus-operator-email-dlq
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  OperatorEmailQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      QueueName: papyrus-operator-email
+      VisibilityTimeout: 360
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OperatorEmailDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  OperatorAlarmRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: papyrus-operator-alarm-changes
+      Description: Every CloudWatch alarm state change on the default bus, except the last-resort alarms (papyrus-operator-*), to the operator ingest queue.
+      State: ENABLED
+      EventPattern:
+        source: [aws.cloudwatch]
+        detail-type: [CloudWatch Alarm State Change]
+        detail:
+          alarmName:
+            - anything-but:
+                prefix: papyrus-operator-
+      Targets:
+        - Id: ingest
+          Arn: !GetAtt OperatorIngestQueue.Arn
+
+  OperatorIngestQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref OperatorIngestQueue]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AlarmRuleSends
+            Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sqs:SendMessage
+            Resource: !GetAtt OperatorIngestQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt OperatorAlarmRule.Arn
+
+  # The generated key that makes recipient pseudonyms in the delivery log: created once, never overwritten, kept on delete.
+  OperatorRecipientKeyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: put-recipient-key
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:PutParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/monitoring/recipient-key"
+
+  OperatorRecipientKeyFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: index.handler
+      Timeout: 30
+      Role: !GetAtt OperatorRecipientKeyRole.Arn
+      Description: Creates the operator recipient-key SecureString once; never returns or logs the value, never overwrites it.
+      Code:
+        ZipFile: |
+          import secrets, string
+          import boto3
+          import cfnresponse
+
+          def handler(event, context):
+              name = event["ResourceProperties"]["ParameterName"]
+              try:
+                  if event["RequestType"] != "Delete":
+                      ssm = boto3.client("ssm")
+                      alphabet = string.ascii_letters + string.digits
+                      try:
+                          ssm.put_parameter(Name=name, Description=event["ResourceProperties"]["Description"], Type="SecureString",
+                                            Tier="Standard", Overwrite=False,
+                                            Value="".join(secrets.choice(alphabet) for _ in range(64)))
+                      except ssm.exceptions.ParameterAlreadyExists:
+                          pass
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, name)
+              except Exception:
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {}, name)
+
+  OperatorRecipientKey:
+    Type: Custom::SecureStringParameter
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ServiceToken: !GetAtt OperatorRecipientKeyFunction.Arn
+      ParameterName: /papyrus/monitoring/recipient-key
+      Description: Key that turns operator addresses into the pseudonyms in the operator delivery log. Generated once by the stack.
+
+  OperatorCoreLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      LogGroupName: /aws/lambda/papyrus-operator-router
+      RetentionInDays: 30
+
+  OperatorFlushLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      LogGroupName: /aws/lambda/papyrus-operator-flush
+      RetentionInDays: 30
+
+  OperatorReconcileLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      LogGroupName: /aws/lambda/papyrus-operator-reconcile
+      RetentionInDays: 30
+
+  OperatorEmailLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      LogGroupName: /aws/lambda/papyrus-operator-email
+      RetentionInDays: 30
+
+  OperatorSesEventsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      LogGroupName: /aws/lambda/papyrus-operator-ses-events
+      RetentionInDays: 30
+
+  # Router, group flush and reconcile share one role: the table, the ingest queue, the email queue, the three parameters, and the one
+  # account-wide read CloudWatch needs (DescribeAlarms has no resource-level permission).
+  OperatorCoreRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: operator-core
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: OperatorTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query]
+                Resource:
+                  - !GetAtt OperatorTable.Arn
+                  - !Sub "${OperatorTable.Arn}/index/byRecipient"
+              - Sid: IngestQueue
+                Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt OperatorIngestQueue.Arn
+              - Sid: EmailQueueSend
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt OperatorEmailQueue.Arn
+              - Sid: OperatorParameters
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OperatorsParameterName}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/monitoring/recipient-key"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TriageParameterName}"
+              - Sid: ReadAlarmStates
+                Effect: Allow
+                Action: cloudwatch:DescribeAlarms
+                Resource: "*"
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource:
+                  - !Sub "${OperatorCoreLogGroup.Arn}:*"
+                  - !Sub "${OperatorFlushLogGroup.Arn}:*"
+                  - !Sub "${OperatorReconcileLogGroup.Arn}:*"
+
+  OperatorEmailRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: operator-email
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: OperatorTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query]
+                Resource:
+                  - !GetAtt OperatorTable.Arn
+                  - !Sub "${OperatorTable.Arn}/index/byRecipient"
+              - Sid: EmailQueue
+                Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt OperatorEmailQueue.Arn
+              - Sid: OperatorParameters
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OperatorsParameterName}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/monitoring/recipient-key"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TriageParameterName}"
+              - Sid: SendFromTheOperatorIdentityOnly
+                Effect: Allow
+                Action: ses:SendEmail
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${OperatorSendingDomain}"
+                  - !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${OperatorConfigurationSet}"
+                Condition:
+                  StringEquals:
+                    ses:FromAddress: !Sub "alerts@${OperatorSendingDomain}"
+              - Sid: ReadSendRate
+                Effect: Allow
+                Action: ses:GetAccount
+                Resource: "*"
+              - Sid: HeartbeatFailedMetric
+                Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: Papyrus/Operator
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${OperatorEmailLogGroup.Arn}:*"
+
+  OperatorSesEventsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: operator-ses-events
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: HeartbeatMetrics
+                Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: Papyrus/Operator
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${OperatorSesEventsLogGroup.Arn}:*"
+
+  OperatorRouterFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: [OperatorCoreLogGroup, OperatorRecipientKey]
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      FunctionName: papyrus-operator-router
+      Description: Turns each alarm state change (and each heartbeat) into incidents and deliveries. caducus.notify.handlers.router
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: caducus.notify.handlers.router.handler
+      MemorySize: 256
+      Timeout: 60
+      Role: !GetAtt OperatorCoreRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref OperatorCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OperatorTable
+          OPERATORS_PARAMETER: !Ref OperatorsParameterName
+          RECIPIENT_KEY_PARAMETER: /papyrus/monitoring/recipient-key
+          EMAIL_QUEUE_URL: !Ref OperatorEmailQueue
+          FROM_ADDRESS: !Sub "alerts@${OperatorSendingDomain}"
+          CONFIGURATION_SET: !Ref OperatorConfigurationSet
+          TRIAGE_PARAMETER: !Ref TriageParameterName
+          TRIAGE_ROLE_NAME: !Ref TriageRoleName
+          CADUCUS_CONFIG_DIR: /var/task/config
+          METRIC_NAMESPACE: Papyrus/Operator
+
+  OperatorFlushFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: [OperatorFlushLogGroup, OperatorRecipientKey]
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      FunctionName: papyrus-operator-flush
+      Description: Each minute, sends clearing messages that are due and the group messages whose window ended. caducus.notify.handlers.flush
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: caducus.notify.handlers.flush.handler
+      MemorySize: 256
+      Timeout: 60
+      Role: !GetAtt OperatorCoreRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref OperatorCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OperatorTable
+          OPERATORS_PARAMETER: !Ref OperatorsParameterName
+          RECIPIENT_KEY_PARAMETER: /papyrus/monitoring/recipient-key
+          EMAIL_QUEUE_URL: !Ref OperatorEmailQueue
+          FROM_ADDRESS: !Sub "alerts@${OperatorSendingDomain}"
+          CONFIGURATION_SET: !Ref OperatorConfigurationSet
+          TRIAGE_PARAMETER: !Ref TriageParameterName
+          TRIAGE_ROLE_NAME: !Ref TriageRoleName
+          CADUCUS_CONFIG_DIR: /var/task/config
+          METRIC_NAMESPACE: Papyrus/Operator
+
+  OperatorReconcileFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: [OperatorReconcileLogGroup, OperatorRecipientKey]
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      FunctionName: papyrus-operator-reconcile
+      Description: Opens incidents for alarms already in ALARM, and for any state change the bus lost. caducus.notify.handlers.reconcile
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: caducus.notify.handlers.reconcile.handler
+      MemorySize: 256
+      Timeout: 120
+      Role: !GetAtt OperatorCoreRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref OperatorCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OperatorTable
+          OPERATORS_PARAMETER: !Ref OperatorsParameterName
+          RECIPIENT_KEY_PARAMETER: /papyrus/monitoring/recipient-key
+          EMAIL_QUEUE_URL: !Ref OperatorEmailQueue
+          FROM_ADDRESS: !Sub "alerts@${OperatorSendingDomain}"
+          CONFIGURATION_SET: !Ref OperatorConfigurationSet
+          TRIAGE_PARAMETER: !Ref TriageParameterName
+          TRIAGE_ROLE_NAME: !Ref TriageRoleName
+          CADUCUS_CONFIG_DIR: /var/task/config
+          METRIC_NAMESPACE: Papyrus/Operator
+          IGNORE_ALARM_PREFIXES: papyrus-operator-
+
+  OperatorEmailFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: [OperatorEmailLogGroup, OperatorRecipientKey]
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      FunctionName: papyrus-operator-email
+      Description: Sends one queued operator email through SES. caducus.notify.handlers.email_sender
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: caducus.notify.handlers.email_sender.handler
+      MemorySize: 256
+      Timeout: 60
+      Role: !GetAtt OperatorEmailRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref OperatorCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OperatorTable
+          OPERATORS_PARAMETER: !Ref OperatorsParameterName
+          RECIPIENT_KEY_PARAMETER: /papyrus/monitoring/recipient-key
+          EMAIL_QUEUE_URL: !Ref OperatorEmailQueue
+          FROM_ADDRESS: !Sub "alerts@${OperatorSendingDomain}"
+          CONFIGURATION_SET: !Ref OperatorConfigurationSet
+          TRIAGE_PARAMETER: !Ref TriageParameterName
+          TRIAGE_ROLE_NAME: !Ref TriageRoleName
+          CADUCUS_CONFIG_DIR: /var/task/config
+          METRIC_NAMESPACE: Papyrus/Operator
+
+  OperatorSesEventsFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: OperatorSesEventsLogGroup
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      FunctionName: papyrus-operator-ses-events
+      Description: Counts the heartbeat's delivery (or failure) from SES events. caducus.notify.handlers.ses_events
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: caducus.notify.handlers.ses_events.handler
+      MemorySize: 128
+      Timeout: 30
+      Role: !GetAtt OperatorSesEventsRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref OperatorCodeKey
+      Environment:
+        Variables:
+          METRIC_NAMESPACE: Papyrus/Operator
+
+  OperatorIngestMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt OperatorIngestQueue.Arn
+      FunctionName: !Ref OperatorRouterFunction
+      BatchSize: 10
+      FunctionResponseTypes: [ReportBatchItemFailures]
+
+  OperatorEmailMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt OperatorEmailQueue.Arn
+      FunctionName: !Ref OperatorEmailFunction
+      BatchSize: 5
+      FunctionResponseTypes: [ReportBatchItemFailures]
+      ScalingConfig:
+        MaximumConcurrency: 2
+
+  OperatorSesEventsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: papyrus-operator-ses-events
+      Description: SES events of the operator configuration set only.
+      State: ENABLED
+      EventPattern:
+        source: [aws.ses]
+        detail:
+          mail:
+            tags:
+              ses:configuration-set: [!Ref OperatorConfigurationSet]
+      Targets:
+        - Id: ses-events
+          Arn: !GetAtt OperatorSesEventsFunction.Arn
+
+  OperatorSesEventsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OperatorSesEventsFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt OperatorSesEventsRule.Arn
+
+  OperatorScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: operator-schedules
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !GetAtt OperatorFlushFunction.Arn
+                  - !GetAtt OperatorReconcileFunction.Arn
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource:
+                  - !GetAtt OperatorIngestQueue.Arn
+                  - !GetAtt ScheduleDeadLetterQueue.Arn
+
+  OperatorFlushSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-operator-flush
+      Description: Each minute, send due clearing messages and ended group windows.
+      ScheduleExpression: rate(1 minute)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: ENABLED
+      Target:
+        Arn: !GetAtt OperatorFlushFunction.Arn
+        RoleArn: !GetAtt OperatorScheduleRole.Arn
+        Input: '{}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 120
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  OperatorReconcileSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-operator-reconcile
+      Description: Hourly, open incidents for alarms that are in ALARM now and were never announced.
+      ScheduleExpression: rate(1 hour)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: ENABLED
+      Target:
+        Arn: !GetAtt OperatorReconcileFunction.Arn
+        RoleArn: !GetAtt OperatorScheduleRole.Arn
+        Input: '{}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 2
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  # The heartbeat runs the whole path: ingest queue, router, email queue, SES to the mailbox simulator, the delivery event on the bus,
+  # the SES-events function, metric Papyrus/Operator HeartbeatDelivered. The scheduler fills in the time, so each beat is its own event.
+  OperatorHeartbeatSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-operator-heartbeat
+      Description: Every 15 minutes, a caducus.heartbeat event on the operator ingest queue. The dead-man alarm watches for its delivery.
+      ScheduleExpression: rate(15 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref OperatorHeartbeatState
+      Target:
+        Arn: !GetAtt OperatorIngestQueue.Arn
+        RoleArn: !GetAtt OperatorScheduleRole.Arn
+        Input: '{"detail-type":"Notification Requested","detail":{"schema":1,"eventId":"heartbeat-<aws.scheduler.scheduled-time>","kind":"caducus.heartbeat","product":"caducus","occurredAt":"<aws.scheduler.scheduled-time>","severity":"info","facts":{"title":"Operator mail heartbeat","summary":"Proof that alarm email still works end to end."}}}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 2
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  # Starts the dead-man clock at the moment the stack is created. A new alarm that treats missing data as breaching has three empty periods
+  # behind it the moment it exists, so it went to ALARM and emailed on the first create (2026-11-05, 16:45 UTC) before any heartbeat could run. This
+  # writes one HeartbeatDelivered=1 datapoint, on Create only, so the alarm sees a delivered beat for its first ~30 minutes. The real heartbeat (every
+  # 15 minutes) takes over; if it never starts, the datapoint ages out of the window and the alarm fires about 30 to 45 minutes after the deploy.
+  # Best effort: if the write fails the stack still deploys (the worst case is the old false alarm).
+  OperatorDeadmanSeedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: put-the-first-heartbeat
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "cloudwatch:namespace": Papyrus/Operator
+
+  OperatorDeadmanSeedFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: index.handler
+      Timeout: 30
+      Role: !GetAtt OperatorDeadmanSeedRole.Arn
+      Description: Writes one HeartbeatDelivered datapoint when the stack is created, so the dead-man alarm does not fire before the first heartbeat.
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+
+          def handler(event, context):
+              try:
+                  if event["RequestType"] == "Create":
+                      boto3.client("cloudwatch").put_metric_data(Namespace="Papyrus/Operator", MetricData=[{"MetricName": "HeartbeatDelivered", "Value": 1, "Unit": "Count"}])
+              except Exception as error:
+                  print("seed not written:", error)
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "deadman-start")
+
+  OperatorDeadmanSeed:
+    Type: Custom::DeadmanStart
+    Properties:
+      ServiceToken: !GetAtt OperatorDeadmanSeedFunction.Arn
+
+  # ----- The two last-resort alerts (PPY-dd8c18): the only human alerts that stay on SNS, because they must not depend on the listener -----
+  # The listener ignores every alarm named papyrus-operator-*, so these do not also arrive as operator mail.
+  OperatorDeadmanAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DependsOn: OperatorDeadmanSeed
+    Properties:
+      AlarmName: papyrus-operator-deadman
+      AlarmDescription: >-
+        Operator alarm email has not completed its heartbeat for three 15 minute periods, so alarms may not be reaching you. A
+        heartbeat travels the ingest queue, router, email queue and SES (to the mailbox simulator), and its delivery event is counted
+        by papyrus-operator-ses-events. Look at which hop stopped: the heartbeat schedule, the dead-letter queues
+        (papyrus-operator-ingest-dlq, papyrus-operator-email-dlq), the functions' log groups (/aws/lambda/papyrus-operator-*), SES sending
+        status and IAM changes. See docs/operator-alerts.md. This cannot see account suspension, a Region-wide CloudWatch or SNS failure,
+        or your mailbox.
+      Namespace: Papyrus/Operator
+      MetricName: HeartbeatDelivered
+      Statistic: Sum
+      Period: 900
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 3
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  OperatorSesBounceRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-operator-ses-at-risk-bounce-rate
+      AlarmDescription: The account's SES bounce rate is at SES's recommended line (5 percent). SES may pause sending at 10 percent. Part of papyrus-operator-ses-at-risk.
+      Namespace: AWS/SES
+      MetricName: Reputation.BounceRate
+      Statistic: Maximum
+      Period: 900
+      EvaluationPeriods: 1
+      Threshold: 0.05
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  OperatorSesComplaintRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-operator-ses-at-risk-complaint-rate
+      AlarmDescription: The account's SES complaint rate is at SES's recommended line (0.1 percent). SES may pause sending at 0.5 percent. Part of papyrus-operator-ses-at-risk.
+      Namespace: AWS/SES
+      MetricName: Reputation.ComplaintRate
+      Statistic: Maximum
+      Period: 900
+      EvaluationPeriods: 1
+      Threshold: 0.001
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  OperatorHeartbeatSendFailedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-operator-ses-at-risk-send-refused
+      AlarmDescription: >-
+        SES refused a heartbeat send, or bounced or rejected it. SES documents no event for a paused account, so a refused send is how
+        "unable to send" shows. Part of papyrus-operator-ses-at-risk.
+      Namespace: Papyrus/Operator
+      MetricName: HeartbeatSendFailed
+      Statistic: Sum
+      Period: 900
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  OperatorSesAtRiskAlarm:
+    Type: AWS::CloudWatch::CompositeAlarm
+    Properties:
+      AlarmName: papyrus-operator-ses-at-risk
+      AlarmDescription: >-
+        SES is in trouble for the whole account (the sites' newsletters and Prospectus too): the bounce rate or complaint rate is at SES's
+        recommended line, or a heartbeat send was refused. Open SES in the console: reputation, the account's sending status and the
+        configuration sets' event logs. Stop whatever is sending badly before SES pauses the account. See docs/operator-alerts.md.
+      AlarmRule: !Sub 'ALARM("${OperatorSesBounceRateAlarm}") OR ALARM("${OperatorSesComplaintRateAlarm}") OR ALARM("${OperatorHeartbeatSendFailedAlarm}")'
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # A dedicated alarm to prove the path with a real email, with no actions of its own and no data to evaluate (missing data is OK).
+  # `aws cloudwatch set-alarm-state --alarm-name papyrus-notify-test-alarm --state-value ALARM ...` raises it; see docs/operator-alerts.md.
+  OperatorTestAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-notify-test-alarm
+      AlarmDescription: A test alarm raised by hand to prove operator email. Nothing publishes to its metric, it has no actions, and nothing depends on it.
+      Namespace: Papyrus/Operator
+      MetricName: TestAlarmNeverPublished
+      Statistic: Maximum
+      Period: 300
       EvaluationPeriods: 1
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
@@ -1339,3 +3758,13 @@ Outputs:
     Value: !Ref RouterDeadLetterQueue
   CyclotronDecisionsBusArn:
     Value: !GetAtt CyclotronDecisionsBus.Arn
+  OperatorTableName:
+    Value: !Ref OperatorTable
+  OperatorIngestQueueUrl:
+    Value: !Ref OperatorIngestQueue
+  OperatorIngestDeadLetterQueueUrl:
+    Value: !Ref OperatorIngestDeadLetterQueue
+  OperatorEmailDeadLetterQueueUrl:
+    Value: !Ref OperatorEmailDeadLetterQueue
+  OperatorTestAlarmName:
+    Value: !Ref OperatorTestAlarm

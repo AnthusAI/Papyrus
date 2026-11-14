@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c5967bed-7840-4084-b75e-b18f9303e6c4",
+  "title": "Do not deploy a site for changes that touch only design or test files",
+  "description": "Ryan: 'we should definitely not be deploying for figure-only changes.' A merge to main that changes only design/figures, docs or tests must not start an Amplify job. Put it in the shared deploy workflow template so all sites get it, with a test. Today two figure merges on Machines on Machines cost about 22 build minutes.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cd458570-88d5-4372-bd22-86f89a397e5c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T21:46:00.747463Z",
+  "updated_at": "2026-11-04T21:46:00.747494Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

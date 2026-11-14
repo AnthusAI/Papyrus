@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8451e628-6de2-4074-a541-fa9637ec4b2f",
+  "issue_id": "PPY-9d0c3cb5-87a3-44e3-a3d2-d8695320c60b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T20:14:15.338Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Review social previews as informative standalone encounters",
+    "description": "Review generated or authored preview title, description and representative image together, including truthful context and useful meaning for people who never click through. Investigate platform rendering, image availability, fallbacks, accessibility and truncation, while recognizing platform behavior varies. Link to existing social-card and og:image work.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+    "labels": []
+  }
+}

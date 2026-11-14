@@ -1,0 +1,35 @@
+{
+  "id": "PPY-eb3ad284-6074-4ee0-9018-91389701ffaf",
+  "title": "A new account's CDK bootstrap and hosted zones have no repeatable setup",
+  "description": "Left open by PPY-9d1b3e. infra/pipeline/bootstrap.sh makes the pipeline roles and GitHub connection repeatable, and infra/pipeline/README.md lists the order for a new account, but nothing creates the CDK bootstrap (its assets bucket) or the public hosted zones the stacks look up, today anth.us, and SES sandbox exit is a request to AWS. The first-create path of papyrus-monitoring on an empty account is tested against a fake only and has never been rehearsed on a real empty account. Ryan's rule: nothing about setting up an account may be local knowledge.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "28eac1c6-d4aa-436f-8f16-37b78410dfd1",
+      "author": "home",
+      "text": "Scope note from PPY-9d1b3e / PR #1226: the approval-gated role-stack-deploy workflow covers only the papyrus-stack-pipeline stack. infra/scheduled-jobs, papyrus-procedure-runner, edge and per-site newsletter stacks are NOT in that PR; this ticket takes them.",
+      "created_at": "2026-11-05T13:20:39.442230Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e0566cce-48c0-4119-ba10-58a0a45c6fe8",
+      "author": "home",
+      "text": "Scope note from PPY-9d1b3e / PR #1226: the approval-gated role-stack-deploy workflow covers only the papyrus-stack-pipeline stack. infra/scheduled-jobs, papyrus-procedure-runner, edge and per-site newsletter stacks are NOT in that PR; per the coordinator this ticket takes them.",
+      "created_at": "2026-11-05T13:20:46.953506Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-05T12:59:54.454745Z",
+  "updated_at": "2026-11-05T13:20:46.953785Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

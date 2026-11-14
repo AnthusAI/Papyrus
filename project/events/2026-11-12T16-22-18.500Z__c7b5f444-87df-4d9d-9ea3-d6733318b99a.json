@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c7b5f444-87df-4d9d-9ea3-d6733318b99a",
+  "issue_id": "PPY-452f1ae7-22af-487e-9065-326c7db48233",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T16:22:18.500Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The console has its own language setting",
+    "description": "As a newsroom member, I want the console in my language, independent of the languages the site publishes, so I can work comfortably.\n\nDesign (Ryan's decision 12): a per-person setting; interface strings in a catalog per language with plural rules through Intl.PluralRules; app/layout.tsx lang follows the setting. Sequenced after Spanish is public. Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.\n\nFeature: Console language\n\nScenario: A Spanish-speaking editor uses the console in Spanish\n  Given an editor chose Spanish as their console language\n  When they open the newsroom\n  Then the console's menus and buttons are in Spanish\n  And the Stories they edit keep their own languages",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-75649552-f242-4ed9-9b93-d27bbb29e4ce",
+    "labels": []
+  }
+}

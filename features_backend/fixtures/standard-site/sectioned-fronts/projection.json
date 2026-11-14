@@ -1,0 +1,108 @@
+{
+  "site": {
+    "name": "Example Ledger",
+    "tagline": "Essays and notes",
+    "description": "Essays, field notes and links about rivers and walls.",
+    "productionUrl": "https://ledger.example.org",
+    "publisher": "Example Ledger Press"
+  },
+  "urls": {
+    "style": "directory",
+    "sections": {
+      "essays": {
+        "base": "essays",
+        "label": "Essays",
+        "description": "Long reads about rivers and walls.",
+        "index": {
+          "lead": true,
+          "latest": 3,
+          "references": "recent",
+          "referencesCount": 2
+        }
+      },
+      "notes": {
+        "base": "notes",
+        "label": "Notes",
+        "description": "Short field notes.",
+        "index": {
+          "source": "pages/notes-front.md"
+        }
+      },
+      "links": {
+        "base": "links",
+        "label": "Links",
+        "pages": false,
+        "feed": false,
+        "description": "Places worth a visit."
+      },
+      "letters": {
+        "base": "letters",
+        "label": "Letters",
+        "description": "Letters have not started yet."
+      }
+    }
+  },
+  "listings": {
+    "pageSize": 2,
+    "featuredCount": 1,
+    "homeCount": 4
+  },
+  "nav": {
+    "disclosure": true,
+    "links": [
+      {
+        "label": "Essays",
+        "href": "/essays/"
+      },
+      {
+        "label": "Notes",
+        "href": "/notes/"
+      },
+      {
+        "label": "Links",
+        "href": "/links/"
+      }
+    ]
+  },
+  "footer": {
+    "text": "Example Ledger Press",
+    "columns": [
+      {
+        "title": "Read",
+        "links": [
+          {
+            "label": "Essays",
+            "href": "/essays/"
+          }
+        ]
+      }
+    ]
+  },
+  "seo": {
+    "jsonLdTypes": {
+      "notes": "BlogPosting"
+    },
+    "twitterSite": "exampleledger"
+  },
+  "sitemap": {
+    "style": "index"
+  },
+  "fonts": {
+    "stylesheet": "https://fonts.example.net/css?family=Serif"
+  },
+  "icons": {
+    "icon": "/assets/icon.svg",
+    "themeColor": "#ffffff",
+    "themeColorDark": "#111111"
+  },
+  "redirects": {},
+  "pages": [],
+  "homePage": {
+    "layout": "sections",
+    "perSection": 2,
+    "references": {
+      "corpus": "knowledge-corpus-example",
+      "defaultCount": 6
+    }
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, ExternalLinkIcon, ImagePlusIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, CircleDashedIcon, ExternalLinkIcon, GlobeLockIcon, ImagePlusIcon, ImagesIcon, RouteIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -17,23 +17,33 @@ import { Input } from "@/components/ui/input";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { newsroomDeskOptions } from "../lib/newsroom-sections";
 import { StoryReportingTrailView } from "./story-reporting-trail";
-import { loadStoryReportingTrail } from "./story-reporting-trail-client";
+import { loadNewestStoryVersion } from "./story-reporting-trail-client";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { isGeneratedIdeaFrontMatter, stageForIdeaDecision, writeIdeaDecision, type IdeaDecisionRecord } from "../lib/idea-decision";
+import { IdeaDecision } from "./idea-decision";
+import { SeededFromReferenceNote } from "./seeded-from-reference-note";
+import { CoverImagePicker, type PickedImage } from "./cover-image-picker";
+import { StoryHeadlineImage } from "./story-headline-image";
+import { StoryPreviewHeading } from "./story-preview-heading";
+import { headlineImageState, readHeadlineImage, type MediaIndex } from "../lib/story-headline-image";
+import { accessTokenFromAmplify, createLiveStockImageClient } from "../lib/stock-images/client";
+import { createDemoStockImageClient } from "../lib/stock-images/demo-client";
+import { bodyWithCover, coverDirective, coverRecord, creditLine, frontMatterWithCover, replaceableCoverSources } from "../lib/stock-images/cover";
 import { FRONT_MATTER_BLURB_KEY, FRONT_MATTER_SUBTITLE_KEY, FRONT_MATTER_TITLE_KEY, readFrontMatterText, writeFrontMatterText } from "../lib/front-matter-fields";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContentActionFailure, type ContentActionError } from "../lib/content-actions-client";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import {
-  ARTICLE_TYPES,
+  editorTypeChoices,
+  typeLabel,
   emptyArticle,
   locateError,
   resolveArticlesBackend,
   stagingPreviewUrl,
   suggestSlug,
-  uniqueSections,
   type ArticlesBackend,
   type EditableArticle,
   type ErrorLocation,
@@ -46,13 +56,20 @@ import {
   uploadArticleImage,
 } from "../lib/newsroom-media";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { SITE_BRAND } from "../lib/site-brand";
+import { getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
+import { isUntyped } from "../lib/content-item-lifecycle";
+import { describeBase, siteStoryTypes, storyAddress } from "../lib/site-story-types";
 import { cn } from "../lib/utils";
 import { applyReplacement, inlineFindings, visibleFindings } from "../lib/editorial-checks";
 import { graphqlEditorialBackend } from "../lib/editorial-checks-client";
 import { demoEditorialBackend } from "../lib/editorial-checks-demo";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
+import { StarRating } from "./star-rating";
+import { StorySchedulePanel } from "./story-schedule-panel";
+import { useScheduleZone } from "../lib/schedule-zone";
+import { scheduleFromEntries, scheduleFromResult, type StorySchedule } from "../lib/story-schedule";
+import { useStoryStars, type StoryStarsController } from "./use-story-stars";
 import { EditorialPreviewPopover, type PreviewPopoverTarget } from "./editorial-preview-popover";
 import { MarkusBodyEditor, type MarkusBodyEditorHandle } from "./markus-body-editor";
 import { MarkusIrPreview } from "./markus-ir-preview";
@@ -106,11 +123,21 @@ function failureMessage(error: unknown): string {
 
 const NO_DESK_VALUE = "__no-desk__";
 
-export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { articleId: string; demo: boolean; embedded?: boolean }) {
+export function NewsroomArticleEditor({ articleId, demo, embedded = false, starsController, onScheduleChanged }: {
+  articleId: string;
+  demo: boolean;
+  embedded?: boolean;
+  /** The rating store of the surface this editor sits in (the board's), so the card, the drawer and this editor show one rating. Without it the editor keeps its own. */
+  starsController?: StoryStarsController;
+  /** Called after the editor set, changed or cleared this Story's schedule, so a board can show it on the card. */
+  onScheduleChanged?: () => void;
+}) {
   const session = useOptionalNewsDeskClient();
   const blocked = !(demo || isLocalPreviewEnabled()) && articlesAccessBlocked(session?.shell.phase);
   const previewMode = demo || isLocalPreviewEnabled();
   const backend: ArticlesBackend = useMemo(() => resolveArticlesBackend(previewMode), [previewMode]);
+  const ownStars = useStoryStars((itemId, stars) => backend.actions.setItemStars(itemId, stars));
+  const stars = starsController ?? ownStars;
   const [activeArticleId, setActiveArticleId] = useState(articleId);
   useEffect(() => { setActiveArticleId(articleId); }, [articleId]);
   const isNew = articleId === "new";
@@ -118,7 +145,17 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const [editor, setEditor] = useState<NewsroomArticleEditorState | null>(isNew ? emptyArticle() : null);
   const [slugEdited, setSlugEdited] = useState(!isNew);
   const [everPublished, setEverPublished] = useState(false);
+  /** The type this version had when it was loaded, and the type of the live published version of the lineage (they differ after a new version changed the type). */
+  const [savedType, setSavedType] = useState<string | null>(null);
+  const [publishedType, setPublishedType] = useState<string | null>(null);
   const [aliases, setAliases] = useState<string[]>([]);
+  /** What the backend's `schedule_list` says about this Story (not what the loaded row holds, which may be an older version). */
+  const [schedule, setSchedule] = useState<StorySchedule | undefined>(undefined);
+  /** False until `schedule_list` has answered for the loaded Story, so the drawer never shows "Not scheduled" and then changes its mind. */
+  const [scheduleKnown, setScheduleKnown] = useState(false);
+  const { zone: scheduleZone } = useScheduleZone();
+  /** The rating the Story had when it was loaded; the store shows what was tapped since. */
+  const [savedStars, setSavedStars] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationState>({ status: "checking" });
   const [bodyIr, setBodyIr] = useState<unknown>(null);
@@ -136,17 +173,20 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const latestVersionNumber = latestVersion?.number ?? null;
   const [changeReason, setChangeReason] = useState("");
   const citedKeys = useMemo(() => Object.values(((bodyIr as { papyrus?: { citations?: Record<string, string[]> } } | null)?.papyrus?.citations) ?? {}).flat(), [bodyIr]);
-  const [sections, setSections] = useState<string[]>([]);
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
   const [reloadToken, setReloadToken] = useState(0);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [mediaIndex, setMediaIndex] = useState<MediaIndex>({ loaded: false, failed: false, assets: [] });
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [imageNotice, setImageNotice] = useState<string | null>(null);
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
 
   const frontMatterRef = useRef<HTMLTextAreaElement | null>(null);
   const bodyRef = useRef<MarkusBodyEditorHandle | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const mediaBackend = useMemo(() => resolveMediaBackend(previewMode), [previewMode]);
+  const stockImageClient = useMemo(() => (previewMode ? createDemoStockImageClient() : createLiveStockImageClient(accessTokenFromAmplify)), [previewMode]);
   const validationSequence = useRef(0);
 
   useEffect(() => {
@@ -157,9 +197,13 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
       .then((article) => {
         if (cancelled) return;
         setEditor(stateFromArticle(article));
+        setBodyIr(null);   // the Preview never carries another version's body over while this one is checked
         setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
+        setSavedStars(article.starRating ?? null);
         setEverPublished(article.everPublished);
+        setSavedType(article.type);
+        setPublishedType(article.publishedType ?? (article.everPublished ? article.type : null));
         setSlugEdited(true);
         setLoadError(null);
       })
@@ -172,25 +216,21 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   }, [activeArticleId, backend, blocked, isNew, reloadToken]);
 
   useEffect(() => {
-    if (blocked) return;
+    setScheduleKnown(false);
+    if (!scheduleZone || !lineageId) { setSchedule(undefined); return; }
     let cancelled = false;
-    backend
-      .listRows()
-      .then((rows) => {
-        if (!cancelled) setSections(uniqueSections(rows));
-      })
-      .catch(() => {
-        if (!cancelled) setSections([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [backend, blocked]);
+    backend.actions
+      .scheduleList({ storyLineageId: lineageId })
+      .then((result) => { if (!cancelled) { setSchedule(scheduleFromEntries(result.schedules)); setScheduleKnown(true); } })
+      .catch((error: unknown) => { if (!cancelled) setNotice({ tone: "error", text: `The schedule could not be read. ${failureMessage(error)}` }); });
+    return () => { cancelled = true; };
+  }, [backend, lineageId, scheduleZone, reloadToken]);
 
   const savedItemId = editor?.id ?? null;
   useEffect(() => {
     if (blocked || savedItemId === null) return;
     let cancelled = false;
+    setMediaIndex({ loaded: false, failed: false, assets: [] });
     mediaBackend
       .listMediaAssets(savedItemId)
       .then(async (assets) => {
@@ -207,8 +247,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
         if (cancelled) return;
         const loaded = Object.fromEntries(entries.filter((entry) => entry !== null));
         setImageUrls((current) => ({ ...loaded, ...current }));
+        setMediaIndex({ loaded: true, failed: false, assets });
       })
-      .catch(() => undefined);
+      .catch(() => { if (!cancelled) setMediaIndex({ loaded: true, failed: true, assets: [] }); });
     return () => {
       cancelled = true;
     };
@@ -226,6 +267,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     section: editor?.section ?? "",
     itemId: editor?.id ?? null,
   });
+  const afterEditorialSave = editorial.afterSave;
   const editorialOpen = useMemo(
     () => (editorial.result ? visibleFindings(editorial.result.findings, editorial.dismissed) : []),
     [editorial.result, editorial.dismissed],
@@ -297,12 +339,17 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     if (!editor || editor.id === null) return;
     setImageUploading(true);
     setImageError(null);
+    setImageNotice(null);
     try {
       const uploaded = await uploadArticleImage(mediaBackend, readImageDimensions, {
         itemId: editor.id,
         slug: editor.slug,
         file,
       });
+      if (uploaded.directive === null) {
+        setImageNotice(`Dark version uploaded as ${uploaded.srcPath}. It replaces the light image in dark mode wherever the light image is used.`);
+        return;
+      }
       const textarea = bodyRef.current;
       const start = textarea?.selectionStart ?? editor.bodyMarkus.length;
       const end = textarea?.selectionEnd ?? editor.bodyMarkus.length;
@@ -322,11 +369,26 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     }
   };
 
+  /** The editor accepted a stock image: copy it in through the same upload as "Insert image", then put it in the draft as the cover. Saving makes the new version. */
+  const acceptCover = async (picked: PickedImage) => {
+    if (!editor || editor.id === null) return;
+    const uploaded = await uploadArticleImage(mediaBackend, readImageDimensions, { itemId: editor.id, slug: editor.slug, file: picked.file });
+    const record = coverRecord(picked.candidate, uploaded.srcPath, new Date().toISOString(), picked.pickedBy);
+    const directive = coverDirective(uploaded.srcPath, picked.candidate.description || picked.candidate.title, creditLine(picked.candidate));
+    const bodyMarkus = bodyWithCover(editor.bodyMarkus, directive, replaceableCoverSources(editor.frontMatterYaml));
+    const frontMatterYaml = frontMatterWithCover(editor.frontMatterYaml, record);
+    setImageUrls((current) => ({ ...current, [uploaded.srcPath]: uploaded.imageUrl }));
+    patchEditor({ bodyMarkus, frontMatterYaml });
+    setCoverPickerOpen(false);
+    setImageError(null);
+    setImageNotice(`Cover set to "${picked.candidate.title}" by ${picked.candidate.creator}. Save the draft to keep it as a new version. A photo has no Night version, so it is shown as it is in dark mode.`);
+  };
+
   useEffect(() => {
     if (!lineageId || isNew) { setLatestVersion(null); return; }
     let cancelled = false;
-    loadStoryReportingTrail(lineageId, activeArticleId)
-      .then(trail => { if (!cancelled) { const newest = trail.versions[0]; setLatestVersion(newest ? { id: newest.id, number: newest.versionNumber } : null); } })
+    loadNewestStoryVersion(lineageId)
+      .then(newest => { if (!cancelled) setLatestVersion(newest ? { id: newest.id, number: newest.versionNumber } : null); })
       .catch(() => { if (!cancelled) setLatestVersion(null); });
     return () => { cancelled = true; };
   }, [activeArticleId, isNew, lineageId, reloadToken]);
@@ -350,12 +412,37 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
       setChangeReason("");
       setActiveArticleId(result.item.id);
       setNotice({ tone: "ok", text: `Saved as version ${result.item.versionNumber ?? ""}.` });
+      afterEditorialSave(result.item.id);
     } catch (error) {
       setNotice({ tone: "error", text: failureMessage(error) });
     } finally {
       setBusy(null);
     }
-  }, [aliases, backend, changeReason, editor]);
+  }, [aliases, backend, changeReason, editor, afterEditorialSave]);
+
+  const decideGeneratedIdea = useCallback(async (record: IdeaDecisionRecord) => {
+    if (!editor || editor.id === null) return;
+    const frontMatterYaml = writeIdeaDecision(editor.frontMatterYaml, record);
+    const result = await backend.actions.saveItemDraft({
+      id: editor.id,
+      type: editor.type,
+      slug: editor.slug,
+      section: editor.section.trim() ? editor.section.trim() : null,
+      frontMatterYaml,
+      bodyMarkus: editor.bodyMarkus,
+      aliases,
+      expectedContentHash: editor.contentHash,
+    });
+    setEditor((current) => (current ? { ...current, frontMatterYaml, contentHash: result.item.contentHash, versionNumber: result.item.versionNumber } : current));
+    if (!lineageId) return;
+    const stage = stageForIdeaDecision(record.decision, getContentItemStageDefinitions().map(definition => definition.key));
+    if (!stage) return;
+    try {
+      await backend.actions.moveStoryStage({ lineageId, stage, reason: record.note || null });
+    } catch (error) {
+      throw new Error(`The decision is recorded, but the idea could not be moved: ${failureMessage(error)}`);
+    }
+  }, [aliases, backend, editor, lineageId]);
 
   const saveDraft = useCallback(async (): Promise<string | null> => {
     if (!editor) return null;
@@ -384,6 +471,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
             }
           : current,
       );
+      setSavedType(editor.type);
       if (editor.id === null) {
         window.history.replaceState(
           null,
@@ -392,6 +480,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
         );
       }
       setNotice({ tone: "ok", text: "Draft saved." });
+      afterEditorialSave(result.item.id);
       return result.item.id;
     } catch (error) {
       if (error instanceof ContentActionFailure && error.errors.some((entry) => entry.code === "conflict")) {
@@ -405,7 +494,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     } finally {
       setBusy(null);
     }
-  }, [aliases, backend, demo, editor]);
+  }, [aliases, backend, demo, editor, afterEditorialSave]);
 
   const requestPublish = () => {
     if (editorial.openWarnings.length > 0) {
@@ -459,12 +548,17 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
         current ? { ...current, id, status: "published", versionNumber: result.versionNumber } : current,
       );
       setEverPublished(true);
-      setNotice({
-        tone: "ok",
-        text: result.changed
-          ? `Published as version ${result.versionNumber ?? "?"}.`
-          : `Already published; no changes to publish (version ${result.versionNumber ?? "?"}).`,
-      });
+      setSchedule(undefined);   // publishing now ends the schedule
+      setSavedType(editor.type);
+      setPublishedType(editor.type);
+      const base = result.changed
+        ? `Published as version ${result.versionNumber ?? "?"}.`
+        : `Already published; no changes to publish (version ${result.versionNumber ?? "?"}).`;
+      setNotice(result.noPublicPage
+        ? { tone: "info", text: `${base} This site built no page for it, so nothing is live: it has no public URL.` }
+        : result.typeChangedFrom
+          ? { tone: "info", text: `${base} It was live as the type ${result.typeChangedFrom}; its address moved, and the old address redirects.` }
+          : { tone: "ok", text: base });
     } catch (error) {
       setNotice({ tone: "error", text: failureMessage(error) });
     } finally {
@@ -517,6 +611,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
         // so nothing moves when the article arrives. The heights live in newsroom-organizer.css (data-skeleton-*).
         <div aria-label="Loading article" aria-busy="true" className="space-y-4" data-newsroom-article-skeleton role="status">
           <div className="rounded-md bg-muted" data-skeleton-toolbar />
+          {!isNew && scheduleZone !== null ? <div className="rounded-md bg-muted" data-skeleton-schedule /> : null}
+          {!isNew ? <div className="max-w-md rounded-md bg-muted" data-skeleton-stars /> : null}
+          <div className="rounded-md bg-muted" data-skeleton-headline />
           <div className="grid gap-6">
             <div className="rounded-md bg-muted" data-skeleton-fields />
             <div className="h-10 w-72 max-w-full rounded-md bg-muted" data-skeleton-tabs />
@@ -527,10 +624,20 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     }
 
     const slugLocked = everPublished;
+    const siteTypes = siteStoryTypes();
+    const typeChoices = editorTypeChoices(editor.type, siteTypes.types);
+    const address = storyAddress(siteTypes, editor.type, editor.section);
+    const liveAddress = publishedType && publishedType !== editor.type ? storyAddress(siteTypes, publishedType, editor.section) : null;
+    /** A live Story saved in place is republished at once, so a new type waits for a new version. */
+    const typeNeedsNewVersion = editor.status === "published" && savedType !== null && editor.type !== savedType;
+    /** Publishing this version would remove the live page: the new type has no page. */
+    const publishWouldRemoveLivePage = liveAddress !== null && address.kind === "none";
+    /** A Story with no type can be drafted and edited, but the site decides where a page lives from the type, so it cannot be published yet. */
+    const typeNotSet = isUntyped(editor.type);
     const invalid = validation.status === "invalid" || validation.status === "unavailable";
     const isOlderVersion = latestVersionNumber !== null && editor.versionNumber !== null && editor.versionNumber < latestVersionNumber;
-    const publishBlocked = isOlderVersion || invalid || validation.status === "checking" || busy !== null || !editor.slug.trim();
-    const saveBlocked = isOlderVersion || invalid || busy !== null || !editor.slug.trim() || (!editor.dirty && editor.id !== null);
+    const publishBlocked = isOlderVersion || invalid || validation.status === "checking" || busy !== null || !editor.slug.trim() || typeNeedsNewVersion || publishWouldRemoveLivePage || typeNotSet;
+    const saveBlocked = isOlderVersion || invalid || busy !== null || !editor.slug.trim() || (!editor.dirty && editor.id !== null) || typeNeedsNewVersion;
     const stagingUrl = stagingPreviewUrl(
       process.env.NEXT_PUBLIC_PAPYRUS_STAGING_URL,
       editor.type,
@@ -651,30 +758,104 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
             </div>
           ) : null}
 
+          {scheduleZone !== null && editor.id !== null && lineageId && !(scheduleZone && scheduleKnown) ? <div className="rounded-md bg-muted" data-skeleton-schedule /> : null}
+          {scheduleZone && editor.id !== null && lineageId && scheduleKnown ? (
+            <StorySchedulePanel
+              zone={scheduleZone}
+              schedule={schedule}
+              blockedReason={editor.dirty ? "Save your changes first: a schedule publishes the saved version." : isOlderVersion ? "This is an older version of the Story." : null}
+              save={async (scheduledPublishAt) => {
+                const saved = scheduleFromResult(await backend.actions.scheduleStory({ itemId: editor.id!, lineageId, scheduledPublishAt }));
+                setSchedule(saved);
+                onScheduleChanged?.();
+                return saved;
+              }}
+            />
+          ) : null}
+
+          {editor.id !== null ? (
+            <div className="max-w-md" data-newsroom-article-stars>
+              <StarRating
+                feedback={stars.feedback(lineageId ?? editor.id)}
+                label="Rating · optional"
+                onChange={(tapped) => stars.tap(lineageId ?? editor.id!, editor.id!, savedStars, tapped)}
+                value={stars.value(lineageId ?? editor.id, savedStars)}
+              />
+            </div>
+          ) : null}
+
+          <StoryHeadlineImage state={headlineImageState(readHeadlineImage(editor.frontMatterYaml, editor.bodyMarkus), mediaIndex, imageUrls)} />
+
           <div className="grid gap-6">
             <div
               className="min-w-0 space-y-4"
               data-newsroom-article-edit-column
             >
-              <div className="grid gap-3 sm:grid-cols-3">
-                <label className="space-y-1 text-sm font-medium">
-                  <span>Type</span>
-                  <Select
-                    onValueChange={(value) => {
-                      if (typeof value === "string") patchEditor({ type: value });
-                    }}
-                    value={editor.type}
-                  >
-                    <SelectTrigger aria-label="Type" className="w-full" data-newsroom-article-type>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ARTICLE_TYPES.map((type) => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </label>
+              <div className="grid gap-3" data-feed-flat="" data-feed-surface="" data-newsroom-article-type-field>
+                <div className="space-y-1.5 text-sm font-medium" role="group" aria-label="Type">
+                  <span className="flex items-center gap-2">
+                    Type
+                    {typeNotSet ? (
+                      <span className="inline-flex items-center gap-1 rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] px-2 py-0.5 text-xs" data-newsroom-article-type-unset>
+                        <CircleDashedIcon aria-hidden="true" className="size-3.5" />
+                        Not set
+                      </span>
+                    ) : null}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {typeChoices.map((type) => (
+                      <button
+                        aria-pressed={editor.type === type}
+                        className={cn(
+                          "inline-flex min-h-10 items-center gap-1.5 px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring",
+                          isOlderVersion && "opacity-60",
+                        )}
+                        data-newsroom-article-type={type}
+                        disabled={isOlderVersion}
+                        key={type}
+                        onClick={() => patchEditor({ type })}
+                        type="button"
+                      >
+                        {editor.type === type ? <CheckIcon aria-hidden="true" className="size-4" /> : null}
+                        {typeLabel(type)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {typeNotSet ? (
+                  <p className="flex items-start gap-2 rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] p-3 text-sm" data-newsroom-article-type-required role="status">
+                    <CircleDashedIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                    <span><strong>This Story has no type yet.</strong> You can draft and edit it, but it cannot be published until you choose a type: the site decides where its page lives from the type.</span>
+                  </p>
+                ) : address.kind === "none" ? (
+                  <p className="flex items-start gap-2 rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] p-3 text-sm" data-newsroom-article-no-public-url role="status">
+                    <GlobeLockIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                    <span><strong>No public URL.</strong> {address.reason} Publishing records it as published, but the site builds no page for it.</span>
+                  </p>
+                ) : (
+                  <p className="flex items-start gap-2 text-sm text-muted-foreground" data-newsroom-article-address>
+                    <RouteIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                    <span>Published under {describeBase(address.base)}{address.via === "section" ? " (the section decides the address)" : address.via === "root" ? " (no address is declared for this type)" : ""}.</span>
+                  </p>
+                )}
+                {liveAddress && publishedType ? (
+                  <p className="flex items-start gap-2 rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] p-3 text-sm" data-newsroom-article-type-move role="status">
+                    <RouteIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                    <span>
+                      <strong>Live as the type {typeLabel(publishedType)}{liveAddress.kind === "route" ? ` under ${describeBase(liveAddress.base)}` : ""}.</strong>{" "}
+                      {address.kind === "none"
+                        ? `Publishing it as the type ${typeLabel(editor.type)} would remove the live page, so Publish is off. Choose a type the site publishes, or unpublish it.`
+                        : `Publishing it as the type ${typeLabel(editor.type)} moves it under ${describeBase(address.base)}; the old address redirects. Until then the live page does not change.`}
+                    </span>
+                  </p>
+                ) : null}
+                {typeNeedsNewVersion ? (
+                  <p className="rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] p-3 text-sm" data-newsroom-article-type-needs-version role="status">
+                    This Story is live. Use Save as new version to change its type: saving it in place would republish it at once.
+                  </p>
+                ) : null}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-sm font-medium">
                   <span>Section</span>
                   <Select
@@ -718,13 +899,22 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                 {isOlderVersion ? <p className="newsroom-article-older-version" data-newsroom-article-older-version role="status">
                 This is version {editor.versionNumber} of {latestVersionNumber}, shown read-only. <button className="newsroom-article-link-button" onClick={() => setActiveArticleId(latestVersion?.id ?? activeArticleId)} type="button">Open the latest version</button>
               </p> : null}
+              {!isOlderVersion ? <SeededFromReferenceNote frontMatterYaml={editor.frontMatterYaml} /> : null}
+              {!isNew && editor.id && !isOlderVersion && isGeneratedIdeaFrontMatter(editor.frontMatterYaml) ? (
+                <IdeaDecision
+                  decidedBy={session?.shell.auth.status === "signedIn" ? session.shell.auth.label : "editor"}
+                  frontMatterYaml={editor.frontMatterYaml}
+                  key={editor.id}
+                  onDecide={decideGeneratedIdea}
+                />
+              ) : null}
               <div aria-label="Story view" className="newsroom-article-view-toggle" role="group">
               <button aria-pressed={mobileTab === "preview"} className="organizer-header-button" data-newsroom-article-view="preview" onClick={() => setMobileTab("preview")} type="button">Preview</button>
               <button aria-pressed={mobileTab === "edit"} className="organizer-header-button" data-newsroom-article-view="edit" onClick={() => setMobileTab("edit")} type="button">Edit</button>
               <button aria-pressed={mobileTab === "trail"} className="organizer-header-button" data-newsroom-article-view="trail" onClick={() => setMobileTab("trail")} type="button">Messages</button>
               <button aria-pressed={mobileTab === "references"} className="organizer-header-button" data-newsroom-article-view="references" onClick={() => { setFocusedReferenceId(null); setMobileTab("references"); }} type="button">References</button>
             </div>
-              {(mobileTab === "trail" || mobileTab === "references") && editor.id ? <StoryReportingTrailView focusedReferenceId={focusedReferenceId} onShowReference={(referenceId) => { setFocusedReferenceId(referenceId); setMobileTab("references"); }} view={mobileTab === "references" ? "references" : "messages"} citedKeys={citedKeys} demo={previewMode} itemId={editor.id} lineageId={lineageId} onOpenVersion={(versionId) => { setActiveArticleId(versionId); setMobileTab("preview"); }} /> : null}
+              {(mobileTab === "trail" || mobileTab === "references") && editor.id ? <StoryReportingTrailView assign={{ sectionKey: deskOptions.some(option => option.value === editor.section.trim()) ? editor.section.trim() : null, storyTitle: readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_TITLE_KEY) || editor.slug }} focusedReferenceId={focusedReferenceId} onShowReference={(referenceId) => { setFocusedReferenceId(referenceId); setMobileTab("references"); }} view={mobileTab === "references" ? "references" : "messages"} citedKeys={citedKeys} demo={previewMode} itemId={editor.id} lineageId={lineageId} onOpenVersion={(versionId) => { setActiveArticleId(versionId); setMobileTab("preview"); }} /> : null}
               <div className={cn("space-y-4", mobileTab === "edit" ? "block" : "hidden")} data-newsroom-article-raw-code>
               <div className="newsroom-article-front-matter-fields" data-newsroom-article-fields>
                 <label><span>Title</span><Input data-newsroom-article-field="title" onChange={(event) => changeFrontMatterField(FRONT_MATTER_TITLE_KEY, event.target.value)} value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_TITLE_KEY)} /></label>
@@ -762,6 +952,17 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                     {imageUploading ? <Spinner /> : <ImagePlusIcon aria-hidden="true" />}
                     Insert image
                   </Button>
+                  <Button
+                    data-newsroom-article-cover-image
+                    disabled={editor.id === null || busy !== null || coverPickerOpen}
+                    onClick={() => setCoverPickerOpen(true)}
+                    size="xs"
+                    type="button"
+                    variant="outline"
+                  >
+                    <ImagesIcon aria-hidden="true" />
+                    Cover image
+                  </Button>
                   <input
                     accept="image/*"
                     aria-label="Image file"
@@ -779,6 +980,23 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                 {editor.id === null ? (
                   <p className="text-xs font-normal text-muted-foreground" data-newsroom-article-image-hint>
                     Save the draft once to enable image upload.
+                  </p>
+                ) : null}
+                <p className="text-xs font-normal text-muted-foreground" data-newsroom-article-image-dark-hint>
+                  For a dark-mode picture, insert the light image first, then upload a file named like it with .dark before the extension (figure.png and figure.dark.png). Same proportions, please.
+                </p>
+                {coverPickerOpen && editor.id !== null ? (
+                  <CoverImagePicker
+                    client={stockImageClient}
+                    onClose={() => setCoverPickerOpen(false)}
+                    onPicked={acceptCover}
+                    summary={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY) || readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) || editor.bodyMarkus.split("\n").filter((line) => !/^\s*(:::?|#)/.test(line)).join(" ").slice(0, 600)}
+                    title={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_TITLE_KEY) || editor.slug}
+                  />
+                ) : null}
+                {imageNotice ? (
+                  <p className="text-xs font-normal text-muted-foreground" data-newsroom-article-image-notice role="status">
+                    {imageNotice}
                   </p>
                 ) : null}
                 {imageError ? (
@@ -847,12 +1065,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
               data-newsroom-article-preview-column
             >
               <div className="relative rounded-xl border border-border bg-card p-4" data-newsroom-article-preview ref={previewRef}>
-                {(readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) || readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)) ? (
-                  <div className="newsroom-article-summary" data-newsroom-article-summary>
-                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) ? <p className="newsroom-article-subtitle">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)}</p> : null}
-                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY) ? <p className="newsroom-article-blurb">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)}</p> : null}
-                  </div>
-                ) : null}
+                <StoryPreviewHeading frontMatterYaml={editor.frontMatterYaml} slug={editor.slug} />
                 {invalid && bodyIr ? (
                   <p className="mb-2 text-xs text-muted-foreground">Showing the last valid version.</p>
                 ) : null}

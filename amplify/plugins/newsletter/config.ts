@@ -1,11 +1,12 @@
+import { COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE, environmentOrConfigured } from "../../deploy-identifiers";
 import type { PluginRequest } from "../types";
 
 export const NEWSLETTER_SITE_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 export const NEWSLETTER_LIST_ID = /^[a-z][a-z0-9-]{0,39}$/;
 export const COMPUTE_ROLE_ARN = /^arn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9+=,.@_/-]{1,512}$/;
-const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
-const LOCAL_PART = /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/;
-const SES_NAME = /^[A-Za-z0-9_-]{1,64}$/;
+export const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
+export const LOCAL_PART = /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/;
+export const SES_NAME = /^[A-Za-z0-9_-]{1,64}$/;
 const ISSUE_TYPE = /^[a-z][a-z0-9_]{0,59}$/;
 /** One path segment: it is the Item section of the archive and the `urls.sections` key of the site's projection.json. */
 const ARCHIVE_PATH = /^\/[a-z0-9][a-z0-9_-]*\/$/;
@@ -108,14 +109,14 @@ function fail(message: string): never {
   throw new Error(`newsletter plugin ${message}`);
 }
 
-function record(raw: unknown, label: string, known: string[]): Record<string, unknown> {
+export function record(raw: unknown, label: string, known: string[]): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail(`${label} must be an object`);
   const unknown = Object.keys(raw).filter((key) => !known.includes(key));
   if (unknown.length > 0) fail(`${label} has unknown settings: ${unknown.join(", ")}`);
   return raw as Record<string, unknown>;
 }
 
-function text(raw: unknown, label: string, maximum: number, options: { optional?: boolean; fallback?: string } = {}): string {
+export function text(raw: unknown, label: string, maximum: number, options: { optional?: boolean; fallback?: string } = {}): string {
   const value = raw === undefined ? options.fallback : raw;
   if (value === undefined) fail(`${label} is required`);
   if (typeof value !== "string" || CONTROL_CHARACTERS.test(value) || value.trim() !== value) {
@@ -126,7 +127,7 @@ function text(raw: unknown, label: string, maximum: number, options: { optional?
   return value;
 }
 
-function matching(raw: unknown, label: string, pattern: RegExp, description: string, fallback?: string): string {
+export function matching(raw: unknown, label: string, pattern: RegExp, description: string, fallback?: string): string {
   const value = raw === undefined ? fallback : raw;
   if (typeof value !== "string" || !pattern.test(value)) fail(`${label} must be ${description}`);
   return value;
@@ -142,7 +143,7 @@ function timeZone(raw: unknown, label: string): string {
   return value;
 }
 
-function origin(raw: unknown): string {
+export function origin(raw: unknown): string {
   const value = text(raw, "siteOrigin", 200);
   let parsed: URL | undefined;
   try {
@@ -157,7 +158,7 @@ function origin(raw: unknown): string {
 /** `urls.basePath` as projection.json writes it ("/posts" or "posts"): lowercase path segments, no dots, at most 3 deep. */
 const BASE_PATH = /^[a-z0-9][a-z0-9_-]*(\/[a-z0-9][a-z0-9_-]*){0,2}$/;
 
-function basePath(raw: unknown): string {
+export function basePath(raw: unknown): string {
   if (raw === undefined) return "";
   const value = typeof raw === "string" ? raw.replace(/^\/+|\/+$/g, "") : null;
   if (value === null || (value !== "" && !BASE_PATH.test(value))) fail('basePath must be the site\'s urls.basePath, a lowercase path such as "/posts"');
@@ -170,13 +171,13 @@ function stringList(raw: unknown, label: string): string[] | undefined {
   return [...new Set(raw.map((entry, index) => text(entry, `${label}[${index}]`, 80)))];
 }
 
-function itemUrlStyle(raw: unknown): ItemUrlStyle {
+export function itemUrlStyle(raw: unknown): ItemUrlStyle {
   if (raw === undefined) return "html";
   if (typeof raw !== "string" || !(ITEM_URL_STYLES as readonly string[]).includes(raw)) fail(`itemUrlStyle must be one of ${ITEM_URL_STYLES.join(", ")}`);
   return raw as ItemUrlStyle;
 }
 
-function resolveTheme(raw: unknown): NewsletterTheme {
+export function resolveTheme(raw: unknown): NewsletterTheme {
   const theme = record(raw, "theme", THEME_KEYS);
   const resolved: NewsletterTheme = {
     accent: text(theme.accent, "theme.accent", 80),
@@ -224,7 +225,7 @@ function resolveTheme(raw: unknown): NewsletterTheme {
   return resolved;
 }
 
-function resolveRule(raw: unknown, label: string): NewsletterRule {
+export function resolveRule(raw: unknown, label: string): NewsletterRule {
   if (raw === undefined) return {};
   const rule = record(raw, label, ["sections", "tags", "types"]);
   return {
@@ -254,7 +255,7 @@ function resolveList(raw: unknown, index: number, instantAlerts: boolean): Newsl
         draft: matching(schedule.draft, `${label}.schedule.draft`, SCHEDULER_CRON, 'an EventBridge Scheduler cron such as "cron(0 13 ? * FRI *)"'),
         timezone: timeZone(schedule.timezone, `${label}.schedule.timezone`),
       },
-      issueType: matching(list.issueType, `${label}.issueType`, ISSUE_TYPE, "a lowercase item type name", "newsletter_issue"),
+      issueType: matching(list.issueType, `${label}.issueType`, ISSUE_TYPE, "the lowercase Item type the site gives its issues, such as post (a site-defined Story type, never a default of the engine)"),
       archivePath: matching(list.archivePath, `${label}.archivePath`, ARCHIVE_PATH, 'a path that starts and ends with "/", such as /roundup/'),
     };
   }
@@ -269,9 +270,9 @@ function resolveList(raw: unknown, index: number, instantAlerts: boolean): Newsl
 export function resolveNewsletterConfig(request: PluginRequest): NewsletterConfig {
   const raw = record(typeof request === "string" ? { name: request } : request, "settings", [...KNOWN_KEYS]);
   const siteId = matching(raw.siteId, "siteId", NEWSLETTER_SITE_ID, "a lowercase site id (letters, digits, hyphens), the SiteId of the sending stack");
-  const computeRoleArn = raw.computeRoleArn;
+  const computeRoleArn = environmentOrConfigured(COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE, raw.computeRoleArn);
   if (typeof computeRoleArn !== "string" || !COMPUTE_ROLE_ARN.test(computeRoleArn)) {
-    fail("computeRoleArn must be the IAM role ARN of the CMS app's compute role (the CmsComputeRoleArn output)");
+    fail(`computeRoleArn must be the IAM role ARN of the CMS app's compute role (the CmsComputeRoleArn output); set the ${COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE} branch environment variable or the plugin's computeRoleArn`);
   }
   const sendingDomain = matching(raw.sendingDomain, "sendingDomain", HOSTNAME, "a lowercase domain name such as news.example.com");
   const fromAddress = text(raw.fromAddress, "fromAddress", 254);

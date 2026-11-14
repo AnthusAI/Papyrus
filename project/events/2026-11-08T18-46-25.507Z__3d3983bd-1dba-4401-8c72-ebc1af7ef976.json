@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "3d3983bd-1dba-4401-8c72-ebc1af7ef976",
+  "issue_id": "PPY-d0a3d54c-8dd1-4c9f-81dc-6ac9c93702fb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:25.507Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Consent and analytics per tenant",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

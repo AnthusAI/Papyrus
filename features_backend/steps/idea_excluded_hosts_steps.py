@@ -21,7 +21,7 @@ sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 from ideas_fixtures import NOW, SITE_BASE, history_entry, read_item_page, reference, release_draft  # noqa: E402
 from papyrus_content.ideas import monitor_stories, trends  # noqa: E402
 from papyrus_content.ideas.store import JsonStore  # noqa: E402
-from test_monitor_stories import PAGE, MonitorClient, StoryModel, context as site_context, decision, provenance  # noqa: E402
+from test_monitor_stories import PAGE, MonitorClient, StoryModel, context as site_context, decision, provenance, with_editors_reasons  # noqa: E402
 
 
 def load_job(name):
@@ -57,6 +57,7 @@ def step_story_based_on(context, title):
 
 
 def draft(context, hosts):
+    with_editors_reasons(context.eh_client)   # these scenarios are about hosts and automations: each accepted Reference has an editor's reason to rest on
     with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
         context.eh_model = StoryModel()
         context.eh_run = monitor_stories.draft_monitor_stories(

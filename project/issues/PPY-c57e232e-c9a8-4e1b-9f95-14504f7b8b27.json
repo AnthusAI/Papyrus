@@ -1,0 +1,25 @@
+{
+  "id": "PPY-c57e232e-c9a8-4e1b-9f95-14504f7b8b27",
+  "title": "Story-type filter for listing selections: types= and notTypes= (Papyrus #912)",
+  "description": "In flight: Papyrus PR #912 (feat/listing-story-types), open at planning time. Filed so the epic shows it; the Anth.us follow-up task depends on its release.\n\n## What it does\n`types=` and `notTypes=` on listing selections (include attributes, `collection` and `tagSelect` selections): comma lists, case-insensitive, unknown keys still rejected, the page digest accounts for the filter (`include_inputs` lists only matching entries). Sites that do not use it render byte-identically.\n\n## Files (already in the PR)\n- `src/papyrus_content/projection/standard/includes.py`, `src/papyrus_content/projection/standard/select.py`\n- `features_backend/standard-listing-story-types.feature`\n- `procedures/newsroom/tests/test_standard_frontend_includes.py`, `test_standard_frontend_collections.py`\n- `docs/building-a-papyrus-static-site.md`, `docs/home-page.md`\n\n## Acceptance\n- CI green, merged to develop, released (`npm view @anthusai/papyrus version` shows the release that contains it; record the version here).\n- `::include{kind=\"listing\" sections=\"articles\" types=\"article\" count=\"1\"}` on an authored page renders the newest article even when a `page` is newer.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T12:30:42.915689Z",
+  "updated_at": "2026-10-31T12:30:58.140070Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

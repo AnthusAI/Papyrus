@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "00ee86d8-41b1-49e0-9a2f-4fb6caba86e8",
+  "issue_id": "PPY-cfd5d721-03e4-401a-8480-f210dd97a012",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T12:25:11.074Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editorial guidance says nothing about what a headline, deck and blurb are for",
+    "description": "Writing a Machines on Machines article on 2026-11-04, the live editorial context and editorial pack contained no guidance on headlines, decks or blurbs, and the copywriting skill does not mention them. story_writing.py says only that the blurb is two or three lines for listings. The result was a question headline on an article that makes a claim, and the editor corrected it. Ryan's rule from that correction: an article that has a point says it in the headline, the subtitle explains it in more detail, and the blurb is a different text that appears in listings. Add this to publication policy and the copywriting skill, decide whether it is per publication or standard, and add a check.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

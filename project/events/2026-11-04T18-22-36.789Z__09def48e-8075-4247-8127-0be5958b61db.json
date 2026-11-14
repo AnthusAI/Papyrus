@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "09def48e-8075-4247-8127-0be5958b61db",
+  "issue_id": "PPY-4bdb02af-a01e-4c5b-905b-ccab9fdad5bd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T18:22:36.789Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "AI review evidence gate requires the mention to be about the concept",
+    "description": "ai_review.py:333: snippets surround the mention, so a quote naming a thing passes. Tighten the gate and record the reason. Review cap of 150 calls times 20 candidates must not starve clusters and relations.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+    "labels": []
+  }
+}

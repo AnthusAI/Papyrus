@@ -17,8 +17,10 @@ from ..public_data import SUMMARY_FIELD_NAMES, clipped, tags_of
 from .config import SectionConfig, StandardSettings
 from .urls import UrlPolicy
 
-SUMMARY_FIELDS = (*SUMMARY_FIELD_NAMES, "dek", "standfirst")
+SUMMARY_FIELDS = SUMMARY_FIELD_NAMES
 IMAGE_FIELDS = ("image", "cover", "ogImage", "thumbnail")
+#: The Night counterpart of the card image: a story whose figure has a Day and Night pair names the Night file here.
+DARK_IMAGE_FIELDS = ("imageDark", "coverDark", "thumbnailDark")
 UPDATED_FIELDS = ("updated", "modified", "lastmod", "dateModified")
 FALSE_VALUES = {"false", "0", "no", "off"}
 TRUE_VALUES = {"true", "1", "yes", "on"}
@@ -67,7 +69,7 @@ def calendar_date(value) -> str:
 @dataclass(frozen=True)
 class StandardEntry:
     summary: ItemSummary
-    section: SectionConfig | None
+    section: SectionConfig | None   # the URL group: the declared section, or the group declared for the Item's type
     key: str | None          # page key; None for a link-only item
     url: str | None          # site path; None for a link-only item
     title: str
@@ -85,11 +87,22 @@ class StandardEntry:
     link: str | None         # external target of a link-only item
     derived: dict            # fields a site's ``derive`` hook computed from the item (a tier, a week); open for new shapes
     draft: bool = False      # served and noindexed, but never selected by a listing, a tag page or a feed
+    image_dark: str | None = None   # the Night version of ``image`` when the item has one; cards only, never og:image, feeds or public data
     author_details: tuple[Author, ...] = ()   # the same authors with their optional urls; renderers read this
 
     @property
     def slug(self) -> str:
         return self.summary.slug
+
+    @property
+    def topic(self) -> str | None:
+        """The Item's section as a topic: a declared section's name, or the stored section of an Item whose URL group is its type.
+
+        Selections (``sections``), ``DEPENDS_ON`` and ``seo.jsonLdTypes`` read this; ``section`` is where the page lives.
+        """
+        if self.section is None or not self.section.is_type:
+            return self.section.name if self.section is not None else None
+        return self.summary.section
 
     @property
     def item_id(self) -> str:
@@ -110,11 +123,13 @@ class StandardEntry:
     def fingerprint(self, *, full: bool = False) -> list:
         """What a listing card renders from. ``full`` is for pages a hook composes: every field, plus the raw front matter."""
         card = [self.key, self.title, self.summary_text, self.date, self.image, [[author.name, author.url] for author in self.author_details], self.link, self.derived]
+        if self.image_dark:
+            card = card + [self.image_dark]
         if not full:
             return card
         return card + [
             self.item_id, self.updated, self.type, self.canonical, self.feed_eligible, self.noindex, self.listed,
-            list(self.tags), self.section.name if self.section else None, self.summary.front_matter, self.derived, self.draft,
+            list(self.tags), self.topic, self.summary.front_matter, self.derived, self.draft,
         ]
 
 
@@ -143,11 +158,11 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
     if summary.section is None and summary.slug == "index":
         return None  # the authored home page is an item page of its own, not a listed entry
     section: SectionConfig | None = None
-    if settings.sectioned and summary.section is not None:
-        section = settings.section(summary.section)
-        if section is None:
-            return None
-        if summary.slug == "index":
+    if settings.sectioned:
+        section = settings.group_for(summary.section, summary.type)
+        if section is None and summary.section is not None:
+            return None  # a section the site does not declare, on a type it gives no base
+        if section is not None and not section.is_type and summary.slug == "index":
             return None  # the section's introduction: shown above its listing, not a listed page of its own
     front_matter = summary.front_matter
     has_page = section.pages if section is not None else True
@@ -173,6 +188,7 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
     date = calendar_date(front_matter.get("date")) or calendar_date(summary.published_at)
     updated = calendar_date(first_text(front_matter, UPDATED_FIELDS)) or calendar_date(summary.published_at) or date
     details = authors_of(front_matter)
+    image = first_text(front_matter, IMAGE_FIELDS) or None
     return StandardEntry(
         summary=summary,
         section=section,
@@ -182,7 +198,7 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
         summary_text=clipped(first_text(front_matter, settings.summary_fields or SUMMARY_FIELDS), 300),
         date=date,
         updated=updated,
-        image=first_text(front_matter, IMAGE_FIELDS) or None,
+        image=image,
         authors=tuple(author.name for author in details),
         author_details=details,
         type=summary.type,
@@ -194,6 +210,7 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
         link=link,
         derived=dict(derive(summary) or {}) if derive is not None else {},
         draft=draft,
+        image_dark=(first_text(front_matter, DARK_IMAGE_FIELDS) or None) if image else None,
     )
 
 

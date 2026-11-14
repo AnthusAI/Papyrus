@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b41e7e74-80d2-4160-bd86-d27ff2aef136",
+  "title": "Site ids from environment, branch variables and repository variables; literals stay as fallback (implementation)",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-52dd3649-44e1-42d6-a2c7-06d7e5a7b169",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T18:57:50.343389Z",
+  "updated_at": "2026-11-02T18:57:50.343426Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

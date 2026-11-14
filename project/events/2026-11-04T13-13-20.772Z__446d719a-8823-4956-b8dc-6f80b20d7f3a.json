@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "446d719a-8823-4956-b8dc-6f80b20d7f3a",
+  "issue_id": "PPY-a63939e9-f599-441b-92de-e262956e8fa3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T13:13:20.772Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "No draft-only placeholder for figures: a labelled note could reach readers if published",
+    "description": "Machines on Machines policy now asks writers to leave a labelled placeholder where a figure belongs. Markus has no directive for that, so the first article uses a note callout titled 'Figure to come'. Nothing stops those going live. Add a placeholder directive that the newsroom preview shows and that publish refuses, along with an illustration step that lists the Story's open placeholders. Relates to PPY-46f122.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

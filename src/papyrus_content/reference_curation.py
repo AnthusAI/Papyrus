@@ -5,7 +5,8 @@ card (``reference_curation_store``; shapes in ``docs/reference-curation-pipeline
 
 1. **capture**: resolve the source address and read the whole article or PDF (``reference_capture``), then compute the completeness
    signals. Signals are stored as facts; no stage decides whether a capture is complete.
-2. **summary**: one gpt-6-luna summary of the captured text, in source voice (the prompt mirrors ``reference_summarization.tac``).
+2. **summary**: one gpt-6-luna summary of the captured text, in source voice (the prompt mirrors ``reference_summarization.tac``). A Reference that
+   came from an Assignment or is linked to a Story is summarized with that as context (``reference_purpose_context``); any other is summarized as before.
 3. **GROBID** (research papers only): title, authors, abstract, sections and references from a GROBID service
    (``reference_grobid``), or a typed skip when none is configured.
 
@@ -25,13 +26,19 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
+from .tenant_knowledge_keys import corpus_id_for_key, is_corpus_id
 from .ids import hash_short
+from .knowledge_snapshot.parallel import DEFAULT_WORKERS, map_with_clients, worker_count
 from .link_exploration import explore
 from .options import normalize_string, parse_options, resolve_mutation_apply
+from .publication_dates import normalize_html_date, publication_date_resolution_record
 from .reference_capture import SHORT_BODY_CHARACTERS, Capture, capture_source
+from .reference_outbound_links import links_document, summarize_links
+from .reference_titles import needs_title, record_page_title
 from .reference_curation_store import (
     GROBID_SORT_KEY,
     GROBID_TEI_SORT_KEY,
+    LINKS_SORT_KEY,
     LEASE_SECONDS,
     METADATA_SORT_KEY,
     PIPELINE_VERSION,
@@ -60,6 +67,7 @@ from .reference_grobid import (
 
 SUMMARY_MODEL = "gpt-6-luna"   # the only model curation uses (Ryan, 2026-10); not an option
 SUMMARY_PROMPT_VERSION = "reference-summary-v3-source-voice"
+SUMMARY_DIRECTED_PROMPT_VERSION = "reference-summary-v3-source-voice-directed"   # the contextual path only; a general summary keeps the version above
 SUMMARY_MAX_TOKENS = 500
 SUMMARY_MAX_OUTPUT_TOKENS = 4000          # includes the model's reasoning, so it is much larger than the summary itself
 SUMMARY_INPUT_CHARACTERS = 120_000        # the model's input window, not a policy: longer text keeps its head and its tail
@@ -105,6 +113,10 @@ Source URI: {source_uri}
 {text}
 """
 
+SUMMARY_PURPOSE_RULE = """Why the newsroom is reading this source: {block}. Use this to choose what to bring forward and to say plainly where the source does not address the question. It is not evidence. Every statement must still come from the source text; never carry a fact, name or claim from this block into the summary.
+
+"""
+
 Summarizer = Callable[[dict[str, Any]], dict[str, Any]]
 
 
@@ -129,6 +141,9 @@ def openai_summarizer(api_key: str, *, transport: Any = None) -> Summarizer:
             text = text[:SUMMARY_HEAD_CHARACTERS] + "\n\n[...]\n\n" + text[-(SUMMARY_INPUT_CHARACTERS - SUMMARY_HEAD_CHARACTERS):]
         message = SUMMARY_MESSAGE.format(tokens=request.get("maxTokens") or SUMMARY_MAX_TOKENS, title=request.get("title") or "",
                                          source_uri=request.get("sourceUri") or "", text=text)
+        purpose_context = str(request.get("purposeContext") or "").strip()
+        if purpose_context:
+            message = SUMMARY_PURPOSE_RULE.format(block=purpose_context) + message
         payload = {"model": SUMMARY_MODEL, "instructions": SUMMARY_INSTRUCTIONS, "input": message,
                    "max_output_tokens": SUMMARY_MAX_OUTPUT_TOKENS, "store": False}
         try:
@@ -139,7 +154,8 @@ def openai_summarizer(api_key: str, *, transport: Any = None) -> Summarizer:
         if body.get("status") == "incomplete" or not answer or not answer.strip():
             raise SummaryFailed("empty_summary")
         usage = synthesis.usage_of(body, SUMMARY_MODEL)
-        return {"text": answer.strip(), "model": SUMMARY_MODEL, "promptVersion": SUMMARY_PROMPT_VERSION, "inputTruncated": truncated,
+        return {"text": answer.strip(), "model": SUMMARY_MODEL, "inputTruncated": truncated,
+                "promptVersion": SUMMARY_DIRECTED_PROMPT_VERSION if purpose_context else SUMMARY_PROMPT_VERSION,
                 "usage": {"inputTokens": usage.input_tokens, "cachedInputTokens": usage.cached_input_tokens, "outputTokens": usage.output_tokens}}
 
     return summarize
@@ -167,6 +183,64 @@ def default_services(client: Any, *, start_grobid: bool = False, grobid_url: str
     except GrobidUnavailable:
         resolved = None
     return Services(store=AttachmentStore(client), summarizer=openai_summarizer(api_key) if api_key else None, grobid_url=resolved)
+
+
+# --- why the newsroom is reading a Reference -------------------------------------------------------------------------
+
+
+def reference_purpose_context(client: Any, reference: dict[str, Any]) -> dict[str, Any] | None:
+    """The Assignment a Reference came from and the Stories linked to it, as a block of text for the summary prompt, or None when it has neither.
+
+    The Reference row keeps no pointer to the Assignment that proposed it (``Reference`` has no metadata field). The origin is the ``assignmentId`` a
+    research run writes on the Story link's metadata (``link_found_references_as_consulted``). The direction is the Assignment's metadata ``direction`` (read through ``assignment_metadata``: it lives in an attachment),
+    else its ``instructions``. Stories are the ``uses_evidence`` links
+    (consulted, cited, based_on) to the Reference's lineage, newest first, each by title, deck and section title; never the body."""
+    from .assignments import assignment_metadata
+    from .story_reporting import current_story_version, stories_based_on_reference
+    from .editorial_context import find_section
+
+    lines: list[str] = []
+    assignment_id = ""
+    links = stories_based_on_reference(client, str(reference.get("lineageId") or reference["id"]))
+    assignment_ids = list(dict.fromkeys(link["assignmentId"] for link in links if link.get("assignmentId")))
+    for candidate in assignment_ids:
+        assignment = client.get_record("Assignment", candidate)
+        if not assignment:
+            continue
+        assignment_id = assignment_id or candidate
+        direction = str(assignment_metadata(client, assignment).get("direction") or assignment.get("instructions") or "").strip()
+        lines.append(f"Assignment: {str(assignment.get('title') or '').strip()}")
+        if direction:
+            lines.append(f"Editor's direction: {direction}")
+    stories = []
+    for link in links:
+        try:
+            story = current_story_version(client, link["storyLineageId"])
+        except ValueError:
+            continue
+        stories.append((str(story.get("createdAt") or story.get("versionCreatedAt") or ""), link, story))
+    stories.sort(key=lambda entry: entry[0], reverse=True)
+    for _, link, story in stories:
+        section_value = str(story.get("section") or "").strip()
+        section = find_section(client, section_value) if section_value else None
+        parts = [f"Story: {str(story.get('headline') or story.get('title') or '').strip()} ({link['role']})"]
+        if str(story.get("deck") or "").strip():
+            parts.append(f"deck: {str(story['deck']).strip()}")
+        if section_value:
+            parts.append(f"section: {str((section or {}).get('title') or section_value).strip()}")
+        lines.append("; ".join(parts))
+    if not lines:
+        return None
+    text = "\n".join(lines)
+    return {"text": text, "assignmentId": assignment_id or None, "storyLineageIds": [link["storyLineageId"] for _, link, _ in stories],
+            "contextHash": sha256_text(text)}
+
+
+def purpose_record(purpose: dict[str, Any] | None) -> dict[str, Any] | None:
+    """What goes on the Reference beside ``summary_resolution`` so a reader can tell a directed summary from a general one."""
+    if not purpose:
+        return None
+    return {"assignmentId": purpose["assignmentId"], "storyLineageIds": purpose["storyLineageIds"], "contextHash": purpose["contextHash"]}
 
 
 # --- planning --------------------------------------------------------------------------------------------------------
@@ -242,8 +316,10 @@ def curate_reference(client: Any, reference: dict[str, Any], *, services: Servic
                         if source_uri else Capture(False, "no_source_uri"))
         if plan["capture"] and captured is not None:
             _record_capture(card, captured, reference, store, services.now())
+            _publication_date_stage(client, reference, card, captured, services.now())
+            _title_stage(client, reference, captured)
         if plan["summary"]:
-            _summary_stage(card, reference, store, services, captured, force)
+            _summary_stage(client, card, reference, store, services, captured, force)
         if plan["grobid"]:
             _grobid_stage(card, reference, store, services, captured)
     except Exception as error:  # noqa: BLE001 - an unexpected bug must leave the card retryable, not stuck in "running"
@@ -254,6 +330,33 @@ def curate_reference(client: Any, reference: dict[str, Any], *, services: Servic
     result.update(outcome="curated", status=card["status"], bodyCharacters=(card.get("signals") or {}).get("characterCount"), stages={name: (card.get(name) or {}).get("status")
                                                                     for name in ("capture", "summary", "grobid")})
     return result
+
+
+def _title_stage(client: Any, reference: dict[str, Any], captured: Capture) -> None:
+    """A Reference titled with its own address takes the title the page declares, once, here (reference_titles.py). A title that is not an address is
+    never replaced, and a page with no usable title leaves the Reference as it was."""
+    if needs_title(reference):
+        record_page_title(client, reference, (captured.page or {}).get("title"))
+
+
+def _publication_date_stage(client: Any, reference: dict[str, Any], card: dict[str, Any], captured: Capture, now: datetime) -> None:
+    """Resolve the source's own publication date once, onto ``Reference.sourcePublishedAt``, with its provenance on the curation card
+    (``card["publicationDate"]``, stored in the curation attachment's metadata; the Reference model has no metadata field). A date already on
+    the Reference (a monitor supplied it) is kept, and an unknown date stays null: the ingestion date is never copied into it."""
+    if card.get("publicationDate"):
+        return
+    existing = normalize_string(reference.get("sourcePublishedAt"))
+    stamp = iso(now)
+    if existing:
+        kept = normalize_html_date(existing)
+        card["publicationDate"] = publication_date_resolution_record(source="monitor", precision=(kept or {}).get("precision", "day"), resolved_at=stamp)
+        return
+    if not captured.publication_date:
+        return
+    found = captured.publication_date
+    client.update_record("Reference", {"id": reference["id"], "sourcePublishedAt": found["value"]})
+    reference["sourcePublishedAt"] = found["value"]
+    card["publicationDate"] = publication_date_resolution_record(source=found["source"], precision=found["precision"], resolved_at=stamp)
 
 
 def _record_capture(card: dict[str, Any], captured: Capture, reference: dict[str, Any], store: AttachmentStore, now: datetime) -> None:
@@ -268,12 +371,23 @@ def _record_capture(card: dict[str, Any], captured: Capture, reference: dict[str
     else:
         capture.update(reason=captured.failure, transient=captured.transient)
     card["capture"] = {key: value for key, value in capture.items() if value is not None}
+    _record_links(card, captured, reference, store, now)
     card["signals"] = captured.signals
     card["paper"] = captured.paper
     card["page"] = captured.page
 
 
-def _summary_stage(card: dict[str, Any], reference: dict[str, Any], store: AttachmentStore, services: Services, captured: Capture | None,
+def _record_links(card: dict[str, Any], captured: Capture, reference: dict[str, Any], store: AttachmentStore, now: datetime) -> None:
+    """Store every outbound link the page had (a body attachment, so the card stays small) and its counts on the card. Nothing is followed.
+    Recorded for a failed or thin capture too, whenever a page was read; a PDF or a failed fetch has none and leaves the card as it was."""
+    if not captured.links:
+        return
+    store.write(reference, LINKS_SORT_KEY, "curation-links.json", "application/json", links_document(captured.links, captured.destination_url), now)
+    card.setdefault("current", {})["linksSortKey"] = LINKS_SORT_KEY
+    card["links"] = summarize_links(captured.links)
+
+
+def _summary_stage(client: Any, card: dict[str, Any], reference: dict[str, Any], store: AttachmentStore, services: Services, captured: Capture | None,
                    force: bool) -> None:
     previous = card.get("summary") or {}
     text = captured.text if captured is not None and captured.ok and not has_text_edit(card) else current_text(card, reference, store)
@@ -288,16 +402,21 @@ def _summary_stage(card: dict[str, Any], reference: dict[str, Any], store: Attac
         card["summary"] = {**{k: v for k, v in previous.items() if k == "text"}, "status": "skipped", "reason": "openai_not_configured"}
         return
     stamp = iso(services.now())
+    purpose = reference_purpose_context(client, reference)
+    request = {"text": text, "title": reference.get("title") or "", "sourceUri": reference.get("sourceUri") or "", "maxTokens": SUMMARY_MAX_TOKENS}
+    if purpose:
+        request["purposeContext"] = purpose["text"]
     try:
-        made = services.summarizer({"text": text, "title": reference.get("title") or "", "sourceUri": reference.get("sourceUri") or "",
-                                    "maxTokens": SUMMARY_MAX_TOKENS})
+        made = services.summarizer(request)
     except SummaryFailed as failure:
         card["summary"] = {**{k: v for k, v in previous.items() if k == "text"}, "status": "failed", "reason": failure.reason, "attemptedAt": stamp}
         return
     card["summary"] = {"status": "completed", "text": made["text"], "model": made["model"], "promptVersion": made["promptVersion"],
                        "generatedAt": stamp, "inputTruncated": bool(made.get("inputTruncated")), "usage": made.get("usage") or {},
                        "basedOn": (card.get("current") or {}).get("textSortKey"), "textSha256": sha256_text(text)}
-    _write_reference_summary(reference, store, made, stamp, services.now())
+    if purpose:
+        card["summary"]["purpose"] = purpose_record(purpose)
+    _write_reference_summary(reference, store, made, stamp, services.now(), purpose_record(purpose))
 
 
 def _existing_summary(reference: dict[str, Any], store: AttachmentStore) -> str:
@@ -305,13 +424,18 @@ def _existing_summary(reference: dict[str, Any], store: AttachmentStore) -> str:
     return str(metadata.get("summary") or "").strip()
 
 
-def _write_reference_summary(reference: dict[str, Any], store: AttachmentStore, made: dict[str, Any], stamp: str, now: datetime) -> None:
+def _write_reference_summary(reference: dict[str, Any], store: AttachmentStore, made: dict[str, Any], stamp: str, now: datetime,
+                             purpose: dict[str, Any] | None = None) -> None:
     """Also put the summary where earlier summaries live (the Reference's ``metadata.json``), so every reader of it sees this one."""
     metadata = store.read_json(reference, METADATA_SORT_KEY) or {}
     metadata["summary"] = made["text"]
     metadata["summary_resolution"] = {"model": made["model"], "promptVersion": made["promptVersion"], "source": "llm_reference_summary",
                                       "run_id": f"reference-curation-{hash_short([reference['id'], stamp])}", "resolved_at": stamp,
                                       "rationale": "Generated by curation before review from the captured source text."}
+    if purpose:
+        metadata["summary_purpose"] = purpose
+    else:
+        metadata.pop("summary_purpose", None)
     store.write(reference, METADATA_SORT_KEY, "metadata.json", "application/json", json.dumps(metadata, indent=2, sort_keys=True) + "\n", now)
 
 
@@ -442,7 +566,7 @@ def references_curate(flags: list[str]) -> None:
     corpus = normalize_string(options.get("corpus"))
     if not corpus:
         raise ValueError("papyrus references curate needs --corpus <corpus id>.")
-    corpus_id = corpus if corpus.startswith("knowledge-corpus-") else f"knowledge-corpus-{corpus}"
+    corpus_id = corpus if is_corpus_id(corpus) else corpus_id_for_key(corpus)
     status = normalize_string(options.get("status")) or "pending"
     if status not in {"pending", "accepted", "rejected", "archived", "all"}:
         raise ValueError("--status must be pending, accepted, rejected, archived or all.")
@@ -457,3 +581,112 @@ def references_curate(flags: list[str]) -> None:
         return
     counts = result["counts"]
     print("references\tcurate\t" + "\t".join(f"{key}={value}" for key, value in counts.items()) + ("\tdry-run" if not apply else ""))
+
+
+# --- publication dates only (the cheap backfill) ----------------------------------------------------------------------
+
+
+class _RecordingClient:
+    """Stands in for the client during ``--dry-run``: the date stage's update is kept, not sent."""
+
+    def __init__(self) -> None:
+        self.updates: list[dict[str, Any]] = []
+
+    def update_record(self, model: str, row: dict[str, Any]) -> None:
+        self.updates.append(row)
+
+
+def backfill_publication_date(client: Any, reference: dict[str, Any], *, capture: Callable[..., Capture] = capture_source,
+                              explorer: Callable[..., Any] = explore, now: Callable[[], datetime] = utc_now, dry_run: bool = False) -> dict[str, Any]:
+    """Resolve one Reference's publication date and nothing else (no summary, no GROBID). The date goes on ``Reference.sourcePublishedAt``
+    and its provenance on the curation card (``card["publicationDate"]``); a Reference with no card gets a minimal one from ``new_card``.
+    ``outcome`` is one of ``resolved`` (a date came from the page), ``monitor`` (the date the monitor supplied is recorded as such),
+    ``unknown`` (the page declares none), ``fetch_failed``, ``skipped_pdf`` or ``already_resolved``. A page is fetched only when the
+    Reference has no date at all."""
+    result: dict[str, Any] = {"referenceId": reference["id"], "outcome": "already_resolved"}
+    card = read_card(client, reference)
+    if card and card.get("publicationDate"):
+        return result
+    source_uri = normalize_string(reference.get("sourceUri")) or ""
+    if source_uri.lower().split("?")[0].split("#")[0].endswith(".pdf"):
+        return {**result, "outcome": "skipped_pdf"}
+    if normalize_string(reference.get("sourcePublishedAt")):
+        captured = Capture(False, "not_needed")
+    else:
+        captured = capture(source_uri, title=str(reference.get("title") or ""), explorer=explorer)
+        if captured.source_kind == "pdf":
+            return {**result, "outcome": "skipped_pdf"}
+        if not captured.ok:
+            return {**result, "outcome": "fetch_failed", "failure": captured.failure}
+    working = dict(reference)
+    card = card or new_card(reference)
+    stamp = now()
+    _publication_date_stage(_RecordingClient() if dry_run else client, working, card, captured, stamp)
+    resolution = card.get("publicationDate")
+    if not resolution:
+        return {**result, "outcome": "unknown"}
+    if not dry_run:
+        write_card(client, reference, card, stamp)
+    return {**result, "outcome": "monitor" if resolution["source"] == "monitor" else "resolved", "date": working.get("sourcePublishedAt"),
+            "source": resolution["source"], "precision": resolution["precision"]}
+
+
+def backfill_publication_dates(client: Any, *, corpus_id: str, dry_run: bool = False, workers: int = DEFAULT_WORKERS,
+                               client_factory: Callable[[], Any] | None = None, capture: Callable[..., Capture] = capture_source,
+                               explorer: Callable[..., Any] = explore, now: Callable[[], datetime] = utc_now) -> dict[str, Any]:
+    """Every current http(s) Reference of the corpus without a ``publicationDateResolution`` gets the date stage and no other."""
+    references = select_references(client, corpus_id=corpus_id, status="all")
+    items = map_with_clients(
+        references, lambda worker, reference: backfill_publication_date(worker, reference, capture=capture, explorer=explorer, now=now, dry_run=dry_run),
+        client=client, client_factory=client_factory, workers=workers)
+    counts: dict[str, Any] = {"scanned": len(references), "alreadyResolved": 0, "resolved": 0, "resolvedBySource": {}, "keptMonitorDate": 0,
+                              "unknown": 0, "fetchFailures": 0, "skippedPdf": 0}
+    for item in items:
+        outcome = item["outcome"]
+        if outcome == "resolved":
+            counts["resolved"] += 1
+            counts["resolvedBySource"][item["source"]] = counts["resolvedBySource"].get(item["source"], 0) + 1
+        else:
+            counts[{"already_resolved": "alreadyResolved", "monitor": "keptMonitorDate", "unknown": "unknown", "fetch_failed": "fetchFailures",
+                    "skipped_pdf": "skippedPdf"}[outcome]] += 1
+    return {"corpusId": corpus_id, "dryRun": dry_run, "counts": counts, "items": items}
+
+
+def references_backfill_publication_dates(flags: list[str]) -> None:
+    """papyrus references backfill-publication-dates --corpus-id ID [--parallel N] [--dry-run] [--json]
+
+    For every current Reference of the corpus with no ``metadata.publicationDateResolution``, capture the page the way curation does
+    and run only the publication-date stage (no summary, no GROBID, no model cost). PDFs and non-http(s) sources are left alone. Writes
+    unless ``--dry-run``, which prints what it would set (reference id, date, source, precision).
+    """
+    from .graphql_authoring import create_authoring_client
+
+    options = parse_options(flags)
+    for name in ("corpus-id", "corpus", "parallel"):
+        if options.get(name) is True:
+            raise ValueError(f"--{name} needs a value.")
+    corpus = normalize_string(options.get("corpus-id")) or normalize_string(options.get("corpus"))
+    if not corpus:
+        raise ValueError("papyrus references backfill-publication-dates needs --corpus-id <corpus id>.")
+    corpus_id = corpus if is_corpus_id(corpus) else corpus_id_for_key(corpus)
+    apply = resolve_mutation_apply(options, "references backfill-publication-dates")
+    workers = worker_count(options.get("parallel"))
+    client, _ = create_authoring_client()
+    result = backfill_publication_dates(client, corpus_id=corpus_id, dry_run=not apply, workers=workers,
+                                        client_factory=(lambda: create_authoring_client()[0]) if workers > 1 else None)
+    if options.get("json"):
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return
+    if not apply:
+        for item in result["items"]:
+            if item["outcome"] in {"resolved", "monitor"}:
+                print(f"would-set\t{item['referenceId']}\t{item['date']}\t{item['source']}\t{item['precision']}")
+    counts = result["counts"]
+    if not counts["scanned"]:
+        print(f"No current http(s) References found in corpus {corpus_id}. Check the corpus id (it is knowledge-corpus-<publication key>; "
+              "`papyrus references list` shows the corpusId of a Reference).")
+        return
+    by_source = ",".join(f"{source}={number}" for source, number in sorted(counts["resolvedBySource"].items())) or "none"
+    print(f"scanned={counts['scanned']}\talreadyResolved={counts['alreadyResolved']}\tresolved={counts['resolved']} ({by_source})\t"
+          f"keptMonitorDate={counts['keptMonitorDate']}\tunknown={counts['unknown']}\tfetchFailures={counts['fetchFailures']}\t"
+          f"skippedPdf={counts['skippedPdf']}" + ("\tdry-run" if not apply else ""))

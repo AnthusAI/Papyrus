@@ -1,0 +1,36 @@
+{
+  "id": "PPY-8a3c6a79-a65d-46f9-82dd-5a9319c77e59",
+  "title": "Usage billing beyond the weekly quota: what a tenant pays when it uses more (commercial and engineering)",
+  "description": "Outcome: Owner decision C (Ryan, 2026-11-08): usage beyond the quota should be billable; Prospectus has no overage billing today (billing is a plan per deployment; the weekly quota stops at 100%). Commercial: how overage is priced (per unit of the private cost ledger with a margin), whether a tenant sets its own monthly ceiling, how it is shown (customers see percent of quota, never rates), and what happens at the ceiling (owner decision 10 default: model work stops, serving and editing continue). Engineering in Prospectus: overage metered from the cost ledger (kanbus-bb0b6c) into invoice lines per period per deployment, through the billing ledger and later Stripe; quota check answers 'over quota but allowed' when the tenant opted in. Papyrus side: the spend gate (PPY-889ab5) treats 'allowed overage' as allowed and shows it.\n\nTouches (verified at origin/develop 23fabe1d): Prospectus: docs/BILLING.md, docs/QUOTA.md, docs/COST_ACCOUNTING.md; Papyrus: PPY-889ab5, the newsroom usage panel.\n\nAcceptance (Gherkin feature file: features_backend/model-spend-ceiling.feature (overage scenarios)):\nScenario: A tenant that opted in keeps working past its quota and is billed for it\n    Given alpha opted in to overage up to a monthly ceiling\n    When it passes 100% of this week's quota\n    Then model work continues, the overage appears as a priced line on the next invoice, and work stops at the ceiling\n\nDependencies: blocked by PPY-6d9a6d, PPY-25e0d7. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-89c4f0.\n\nTesting: Prospectus billing specs; Papyrus Behave with a fake quota server.\nRollout: After cost accounting runs on real sites.\nRisk and mitigation: Risk: a surprise bill. Mitigation: opt-in, a ceiling the tenant sets, notices at 80% and 100%.\n\nReleasable on its own: yes, in Prospectus.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-6d9a6d92-e01e-4ea7-9ba5-8cbf2fff936c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-25e0d79b-8bbf-4321-ae42-f2950a8ef7d4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-89c4f084-e08b-458e-8317-5152555f77d5",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T21:17:57.165216Z",
+  "updated_at": "2026-11-08T21:17:59.952252Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

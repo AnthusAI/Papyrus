@@ -7,7 +7,7 @@ import pytest
 from moto import mock_aws
 
 from .config import STAGES
-from .fakes import make_run
+from .fakes import APPSYNC_ENDPOINT, make_run
 from .stages import run_stage
 
 TESTDATA = Path(__file__).parent / "testdata"
@@ -81,49 +81,51 @@ def test_a_corpus_key_of_its_own_changes_nothing_else(tmp_path):
     without_ai_review(other)
 
     def normal(shell, root):
-        return [[argument.replace(str(root), "<work>").replace("ai-ml-research", "shipped") for argument in call] for call in shell.calls]
+        return [[argument.replace(str(root), "<work>").replace("ai-ml-research", "shipped").replace("manual-2", "manual-1") for argument in call] for call in shell.calls]
 
     assert normal(plain_shell, tmp_path / "a") == normal(other_shell, tmp_path / "b")
     assert other.state.prefix == "publications/shipped/" and other.config.actor_name == "Shipped research agent"
 
 
 # -- a new site needs none of the operator's files ------------------------------------------------------------------------
-def test_a_new_site_without_a_vocabulary_gets_the_generic_one_and_keeps_it_in_its_state(tmp_path):
+def test_a_new_site_without_a_vocabulary_gets_the_generic_one_and_writes_nothing_to_its_state(tmp_path):
     run, shell = make_run(tmp_path, NEW_SITE, seeded=False)
-    assert run.state.read_text("config/vocabulary.yml") is None
+    assert run.state.names("config/") == []
     assert run_stage("corpus-sync", run) == 0 and run_stage("topic-model", run) == 0 and run_stage("typed-extraction", run) == 0
     registry = commands(shell, ["papyrus", "knowledge", "entities", "registry"])[0]
     assert Path(value_of(registry, "--vocabulary")).read_text().count("- {key: ") >= 4
-    seeded = run.state.read_text("config/vocabulary.yml")
-    assert seeded is not None and "publication: newsite" in seeded
+    generic = (run.config_dir / "vocabulary.yml").read_text()
+    assert "publication: newsite" in generic
     for kind in ("organization", "product", "person", "topic"):
-        assert f"key: {kind}," in seeded
+        assert f"key: {kind}," in generic
+    assert run.state.names("config/") == []
     from ..knowledge_snapshot.registry import read_vocabulary_kinds
 
     assert read_vocabulary_kinds(run.config_dir / "vocabulary.yml") == ["organization", "product", "person", "topic"]
-    typed = commands(shell, ["biblicus", "extract", "typed-entities"])[0]
+    typed = commands(shell, ["papyrus", "knowledge", "extract-entities"])[0]
     assert value_of(typed, "--vocabulary") == str(run.config_dir / "vocabulary.yml")
 
 
-def test_a_vocabulary_the_operator_wrote_is_never_replaced(tmp_path):
+def test_a_vocabulary_the_site_committed_is_used_instead_of_the_default(tmp_path):
     run, shell = make_run(tmp_path, NEW_SITE)
     run_stage("corpus-sync", run)
-    assert "key: maker" in run.state.read_text("config/vocabulary.yml")
+    assert "key: maker" in (run.config_dir / "vocabulary.yml").read_text()
     assert "organization" not in (run.config_dir / "vocabulary.yml").read_text()
 
 
-def test_the_endpoint_file_is_built_from_the_api_id_when_the_state_has_none(tmp_path):
+def test_the_endpoint_file_holds_the_address_appsync_reports_for_the_api_id(tmp_path):
     run, shell = make_run(tmp_path, NEW_SITE, seeded=False)
     assert run_stage("corpus-sync", run) == 0
-    outputs = json.loads(run.state.read_text("config/amplify_outputs.json"))
-    assert outputs == {"data": {"url": "https://abcdefghij0123456789klmnop.appsync-api.us-east-1.amazonaws.com/graphql"}}
+    outputs = json.loads((run.config_dir / "amplify_outputs.json").read_text())
+    assert run.state.names("config/") == []
+    assert outputs == {"data": {"url": APPSYNC_ENDPOINT}}
     assert run.command_env()["PAPYRUS_GRAPHQL_ENDPOINT"] == outputs["data"]["url"]
 
 
 def test_without_an_api_id_nothing_is_invented_for_the_endpoint(tmp_path):
     run, shell = make_run(tmp_path, {**NEW_SITE, "KNOWLEDGE_APPSYNC_API_ID": ""}, seeded=False)
     run_stage("corpus-sync", run)
-    assert run.state.read_text("config/amplify_outputs.json") is None
+    assert not (run.config_dir / "amplify_outputs.json").exists()
 
 
 def test_a_new_site_without_beats_or_concept_kinds_snapshots_with_neither(tmp_path):
@@ -154,7 +156,7 @@ def test_a_site_with_no_items_and_no_records_succeeds_every_stage_with_nothing_t
     assert all_stages(run) == {stage: 0 for stage in STAGES}
     for stage in STAGES[1:]:
         assert not [call for call in shell.calls if call[:3] == ["biblicus", "analyze", "topics"]]
-    assert not commands(shell, ["biblicus", "extract", "typed-entities"])
+    assert not commands(shell, ["papyrus", "knowledge", "extract-entities"])
     assert not commands(shell, ["papyrus", "knowledge", "publish-run"])
     assert not commands(shell, ["papyrus", "knowledge", "snapshot"])
     assert not commands(shell, ["papyrus", "ops", "content", "project"]), "nothing is projected for a run that found nothing"
@@ -190,10 +192,21 @@ def test_monitor_records_without_items_are_still_imported_and_counted_but_not_mo
     shell.items, shell.records = 0, 2
     assert all_stages(run) == {stage: 0 for stage in STAGES}
     assert run.read_state()["empty"] is False and run.read_state()["documents"] == 0
-    assert not commands(shell, ["biblicus", "analyze", "topics"]) and not commands(shell, ["biblicus", "extract", "typed-entities"])
+    assert not commands(shell, ["biblicus", "analyze", "topics"]) and not commands(shell, ["papyrus", "knowledge", "extract-entities"])
     imports = commands(shell, ["papyrus", "knowledge", "publish-run"])
     assert imports and all("--identity" not in call and "--entities" not in call for call in imports)
     assert all("--monitor-records" in call for call in imports)
     assert commands(shell, ["papyrus", "knowledge", "snapshot"]) and commands(shell, ["papyrus", "ops", "content", "project"])
     assert not (run.corpus / "knowledge-run.json").exists(), "no topic run was imported, so there is no previous run to carry"
     assert details(run, "topic-model")["details"]["status"] == "nothing to do"
+
+
+def test_the_generic_vocabulary_is_strict_yaml_with_one_label_per_kind():
+    import yaml
+
+    from .defaults import default_vocabulary
+
+    document = yaml.safe_load(default_vocabulary("newsite"))
+    for group in ("entity_kinds", "relation_types"):
+        for entry in document[group]:
+            assert set(entry) == {"key", "label"} and isinstance(entry["label"], str), entry

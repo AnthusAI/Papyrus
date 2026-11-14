@@ -172,7 +172,8 @@ assert.deepEqual(partitionPolicies.map((statement: any) => ({
   keys: statement.Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"],
 })).sort((a, b) => a.actions.join(",").localeCompare(b.actions.join(","))), [
   { actions: ["dynamodb:GetItem", "dynamodb:Query"], keys: ["MONITOR#p-apyr-us-email"] },
-  { actions: ["dynamodb:PutItem"], keys: ["MONITOR#p-apyr-us-email"] },
+  { actions: ["dynamodb:PutItem"], keys: ["MONITOR#p-apyr-us-email"] },   // monitoring view: a resolved article link
+  { actions: ["dynamodb:PutItem"], keys: ["MONITOR#p-apyr-us-email"] },   // content actions: one prediction request per Reference it creates
 ]);
 assert.ok(!JSON.stringify(partitionPolicies).includes("MONITOR#hn"), "email permissions must not target a different monitor partition");
 

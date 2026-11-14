@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8d52ad3f-4a58-4223-8050-7a2fbaf5e847",
+  "title": "Record votes through reviewReferenceCuration under the user's own token",
+  "description": "`review/record-vote.ts`: call `reviewReferenceCuration` with the linked user's access token:\n- `referenceId`, `action`;\n- `note` (the spoken reason);\n- `reasonCode`, mapped from the note;\n- `decisionRelationId` and `shareable` when a Cyclotron decision exists;\n- `actorLabel`, the user's email from Cognito /oauth2/userInfo, cached for the session, so the newsroom shows a name and not google_123.\n\nFailures (refused, network) say so and do not advance. Gherkin coverage uses a fake AppSync: the vote fields, a human actor, a refusal.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:08.258706Z",
+  "updated_at": "2026-10-31T19:52:08.258739Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

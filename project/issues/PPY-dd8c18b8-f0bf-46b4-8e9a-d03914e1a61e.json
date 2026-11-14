@@ -1,0 +1,27 @@
+{
+  "id": "PPY-dd8c18b8-f0bf-46b4-8e9a-d03914e1a61e",
+  "title": "The two last-resort alerts, in the same account",
+  "description": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M1, first slice\n\n**Goal.** As Ryan, I still hear about it when operator mail itself cannot tell me. Exactly two human alerts remain on SNS: SES in trouble, and a dead-man's switch.\n\n**Build.**\n- Reuse topic `papyrus-monitoring-alarms` and its already confirmed subscription. During the parallel run the old alarms share it; PPY's alarm removal leaves only these two.\n- Dead-man: a schedule every 15 minutes puts an event of kind `caducus.heartbeat` on `papyrus-operator-ingest`, through router, email queue and SES, to the mailbox simulator's success address. The `Email Delivered` event on the default bus reaches the SES handler, which puts metric `Papyrus/Operator` `HeartbeatDelivered`. Alarm `papyrus-operator-deadman`: missing data breaching, three periods. The simulator does not count toward quota or reputation; it is billed as normal mail.\n- SES alarm `papyrus-operator-ses-at-risk`, composite or two alarms sharing one name prefix: `AWS/SES` `Reputation.BounceRate` >= 0.05, `Reputation.ComplaintRate` >= 0.001 (SES's recommended lines; it may pause at 10% and 0.5%), and `HeartbeatSendFailed` from a refused send, which is how 'unable to send' shows, since SES documents no account-paused event. These are account-wide, so they cover sites and Prospectus too.\n- Both notify on ALARM and OK. The listener ignores the `papyrus-operator-` prefix, so they do not also arrive as operator mail.\n- What this cannot catch, and the plan says so: account suspension, a Region-wide CloudWatch or SNS failure, Ryan's mailbox.\n\n**Acceptance.**\nDisabling the heartbeat schedule fires the dead-man; re-enabling clears it. Both reach the SNS address. A template test counts the alarms with SNS actions on this topic: at the end of `PPY-f66e91`, exactly two.\n\n**Depends on:** PPY-e92c8e\n**Related:** kanbus-06de58\n\n**Specification.**\n```gherkin\nFeature: Last-resort alerts\n  Scenario: Operator mail stops\n    Given heartbeats have been completing\n    When a Lambda, a queue, IAM or SES breaks the path\n    Then within the alarm's window the dead-man alert reaches the last-resort address by SNS\n\n  Scenario: SES at risk\n    When the account's complaint rate reaches the recommended limit\n    Then the SES alert reaches the last-resort address by SNS\n\n  Scenario: No echo\n    When a last-resort alarm changes state\n    Then the operator listener sends no email about it\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m1"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-e92c8e52-6a3f-4c82-b1b6-cf153ba2431c",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-04T17:10:44.829231Z",
+  "updated_at": "2026-11-04T17:10:46.170498Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

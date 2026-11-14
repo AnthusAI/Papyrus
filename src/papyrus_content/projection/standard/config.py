@@ -16,19 +16,48 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from ...home_page.ordering import BUCKETS
+from ...markus_renderer.video import PROVIDERS as EMBED_PROVIDERS, VideoRendering
+from ...home_page.settings import HomePageSettings, home_page_settings_from_mapping
 from .grouping import valid_group_by
 from .redirects import RedirectRule, rule_from_mapping
 from .select import Selection, selection_from_mapping
+from ...story_types import story_types_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound", "wiki",
+    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes", "embeds",
 )
+NO_BUCKET = "none"
+#: The buckets Stories rank inside (``story_order.py``): the References' two (``day``, ``week``), and ``none`` for plain newest first.
+STORY_BUCKETS = (*BUCKETS, NO_BUCKET)
+DEFAULT_STORY_BUCKET = "week"
 URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
 FEED_FORMATS = ("rss", "atom")
 SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9\-_/]*$")
+
+
+def embeds_from_mapping(value: object) -> VideoRendering:
+    """The ``embeds`` key: ``{"providers": ["youtube", "vimeo"]}``. The providers whose ``::video`` plays; none by default, and with none the feature is not there at all.
+
+    A site that never mentions ``embeds``, or lists no provider, is exactly as it was: core does not read ``::video``. With a provider listed, a ``::video`` of
+    a provider that is known but not listed shows as a plain linked credit line.
+
+    A video is the provider's standard iframe, so the provider is contacted when the page loads (YouTube through youtube-nocookie.com)."""
+    if value is None:
+        return VideoRendering()
+    if not isinstance(value, Mapping):
+        raise ValueError('embeds must be an object such as {"providers": ["youtube"]}')
+    _only(value, {"providers"}, "embeds")
+    providers = value.get("providers", [])
+    if not isinstance(providers, list) or not all(isinstance(name, str) for name in providers):
+        raise ValueError(f"embeds.providers must be a list of provider names from {list(EMBED_PROVIDERS)}; it is empty (nothing plays) by default")
+    unknown = [name for name in providers if name not in EMBED_PROVIDERS]
+    if unknown:
+        raise ValueError(f"embeds.providers names unsupported provider(s) {', '.join(map(repr, unknown))}; allowed: {', '.join(EMBED_PROVIDERS)}")
+    return VideoRendering(providers=tuple(dict.fromkeys(providers)))
 
 
 def _only(mapping: Mapping, allowed: tuple[str, ...] | set[str], where: str) -> None:
@@ -51,6 +80,22 @@ def _path_segment(value: str, where: str) -> str:
     if value and not SLUG_PATTERN.match(value):
         raise ValueError(f"{where} must be a lowercase path such as 'commentary', got {value!r}")
     return value
+
+
+RESERVED_PATH_PREFIXES = ("_data", "_plugins", "_papyrus", "_next", "api")
+
+
+def _unreserved_segment(value: str, where: str) -> str:
+    """A page path or listing base that is not one of the paths the platform serves itself.
+
+    ``newsroom`` is also reserved on a site whose edge routes the CMS (``/newsroom*``); projection cannot see the edge, so it names the
+    segment in the message and refuses only the prefixes it knows."""
+    if str(value).strip("/") in RESERVED_PATH_PREFIXES:
+        raise ValueError(
+            f"{where} {str(value).strip('/')!r} is reserved: the platform serves {', '.join(RESERVED_PATH_PREFIXES)} itself "
+            "(and 'newsroom' is reserved on sites whose edge routes the CMS); choose another path"
+        )
+    return _path_segment(value, where)
 
 
 @dataclass(frozen=True)
@@ -76,13 +121,36 @@ class ArchiveConfig:
     description: str = ""
 
 
+INDEX_REFERENCE_SELECTIONS = ("recent", "confident", "recommended")
+
+
+@dataclass(frozen=True)
+class SectionIndexConfig:
+    """Page 1 of a section's listing as a front page: the description, a lead Story, the latest entries and an optional Reference grid."""
+
+    lead: bool = True
+    latest: int | None = None         # None: the section's page size
+    references: str | None = None     # a Reference selection ("recent", "confident", "recommended"), or None for no grid
+    references_count: int | None = None   # None: homePage.references.defaultCount
+    source: str | None = None         # a Markus page file in the static directory that replaces the generated layout
+
+
+TYPE_GROUP_PREFIX = "type:"
+
+
 @dataclass(frozen=True)
 class SectionConfig:
-    """One section; a site that declares none is a site without sections."""
+    """One URL group: a section (``urls.sections``) or an Item type (``urls.types``). A site that declares none is a site without sections.
+
+    A section group is keyed by the Item's ``section`` string (its topic); a type group is keyed by ``Item.type`` and its ``name``
+    is ``type:<type>``, so it can never be mistaken for a section. Both have the same settings and the same pages.
+    """
 
     name: str
     base: str
     label: str
+    aliases: tuple[str, ...] = ()     # other stored ``section`` values that mean this section (a title kept from before the ids): section groups only
+    item_type: str | None = None      # the Item type of a type group; ``None`` for a section
     pages: bool = True
     listing: bool = True              # the section's entries are listed: found by listings, tag pages, feeds and public data
     listing_page: bool = True         # the section has a listing page of its own (False: a collection or a page is its listing)
@@ -95,6 +163,16 @@ class SectionConfig:
     group_by: str | None = None       # "week" (Monday start), "month" or "field:<name>": the listing view carries grouped entries
     archive: ArchiveConfig | None = None
     sort: str = "date"                # "date" (newest first) or "order" (front matter order, then title)
+    index: SectionIndexConfig | None = None   # page 1 of the listing as a section front page
+
+    @property
+    def is_type(self) -> bool:
+        return self.item_type is not None
+
+    @property
+    def where(self) -> str:
+        """Where the group is declared in projection.json, for error messages: ``urls.sections.x`` or ``urls.types.article``."""
+        return f"urls.types.{self.item_type}" if self.is_type else f"urls.sections.{self.name}"
 
 
 @dataclass(frozen=True)
@@ -221,6 +299,7 @@ class ListingSettings:
     tag_title: str = "Tagged {tag}"       # the title and heading of a tag page
     draft_field: str = ""             # a front matter field whose value (draft_values) marks an item as a draft
     draft_values: tuple[str, ...] = ("draft",)
+    bucket: str = DEFAULT_STORY_BUCKET   # Stories rank by stars inside this rolling window (last 7 days for "week", last day for "day"), newest first; "none" keeps newest first (story_order.py)
 
 
 @dataclass(frozen=True)
@@ -329,6 +408,8 @@ class PageActionSettings:
     ai: tuple[str, ...] = ()                  # subset of AI_DESTINATIONS; none by default
     prompt: str = "Read {url} and help me with it."
     types: tuple[str, ...] | None = None      # extra entry types that get actions (guides, docs); None = the listed types only
+    display: str = "text"                     # text (the original buttons and links) or icons (compact Lucide icon buttons; needed by x, reddit, share)
+    everywhere: bool = False                  # opt in: the home page, listings, section and collection fronts, tag, archive and paged list pages carry the actions too
 
 
 #: The canonical-URL rules of a directory-style site; the TypeScript mirror is in amplify/publication/redirect-rules.ts.
@@ -341,6 +422,9 @@ class StandardSettings:
     identity: SiteIdentity
     url_style: str = "html"
     base_path: str = ""     # urls.basePath without slashes: every generated key and URL lives under it ("" is the root)
+    #: Set only on a language edition (``editions.py``), never in projection.json: the language's URL prefix. Its pages live under
+    #: ``<basePath>/<prefix>/``; the site's assets stay under the base path, shared by every language.
+    language_prefix: str = ""
     sections: tuple[SectionConfig, ...] = ()
     collections: tuple[CollectionConfig, ...] = ()
     not_found: NotFoundSettings = field(default_factory=NotFoundSettings)
@@ -378,14 +462,38 @@ class StandardSettings:
     forms: tuple[FormSpec, ...] = ()
     agents: AgentSettings = field(default_factory=AgentSettings)
     page_actions: PageActionSettings = field(default_factory=PageActionSettings)
+    mermaid: bool = True                      # ```mermaid blocks render as diagrams (self-hosted script, loaded only on pages that have one)
+    embeds: VideoRendering = field(default_factory=VideoRendering)   # the ``embeds`` key: the providers whose ``::video`` plays (default none: ``::video`` is not core's)
     wiki: WikiSettings = field(default_factory=WikiSettings)
+    home_page: HomePageSettings | None = None   # the ``homePage`` key; None means the site has no home-page behaviour
 
     @property
     def sectioned(self) -> bool:
         return bool(self.sections)
 
+    @property
+    def sections_home(self) -> bool:
+        """The generated home page is a home of section blocks (``homePage.layout`` is ``sections``)."""
+        return self.home_page is not None and self.home_page.layout == "sections"
+
+    @property
+    def section_fronts(self) -> bool:
+        """The site uses a section index or the home of sections, so it loads the section-fronts stylesheet."""
+        return self.sections_home or any(section.index is not None for section in self.sections)
+
     def section(self, name: str | None) -> SectionConfig | None:
-        return next((section for section in self.sections if section.name == name), None)
+        """The group named ``name`` (a section id, ``type:<type>`` for a type group) or, for a section, one of its ``aliases``."""
+        if name is None:
+            return None
+        return next((section for section in self.sections if section.name == name or (not section.is_type and name in section.aliases)), None)
+
+    def type_group(self, item_type: str | None) -> SectionConfig | None:
+        return next((section for section in self.sections if section.is_type and section.item_type == item_type), None)
+
+    def group_for(self, section: str | None, item_type: str | None) -> SectionConfig | None:
+        """The URL group of an Item: its section when the site declares it, otherwise the group declared for its type."""
+        found = next((group for group in self.sections if not group.is_type and section is not None and (group.name == section or section in group.aliases)), None)
+        return found or self.type_group(item_type)
 
     def collection(self, collection_id: str | None) -> CollectionConfig | None:
         return next((collection for collection in self.collections if collection.id == collection_id), None)
@@ -418,6 +526,115 @@ def _links(raw, where: str, *, groups: bool = False) -> tuple[NavLink, ...]:
     return tuple(links)
 
 
+def _section_index(raw, owner: str) -> SectionIndexConfig | None:
+    if raw is None:
+        return None
+    where = f"{owner}.index"
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{where} must be an object")
+    _only(raw, {"lead", "latest", "references", "referencesCount", "source"}, where)
+    if not isinstance(raw.get("lead", True), bool):
+        raise ValueError(f"{where}.lead must be true or false")
+    for name in ("latest", "referencesCount"):
+        value = raw.get(name)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+            raise ValueError(f"{where}.{name} must be a whole number of at least 1")
+    selection = raw.get("references")
+    if selection is not None and selection not in INDEX_REFERENCE_SELECTIONS:
+        raise ValueError(f"{where}.references must be one of {', '.join(INDEX_REFERENCE_SELECTIONS)} or null")
+    source = raw.get("source")
+    if source is not None and (not isinstance(source, str) or not source.strip()):
+        raise ValueError(f"{where}.source must be a page file in the static directory")
+    return SectionIndexConfig(
+        lead=raw.get("lead", True), latest=raw.get("latest"), references=selection,
+        references_count=raw.get("referencesCount"), source=source.strip() if source else None,
+    )
+
+
+def _check_section_fronts(sections, home_page: HomePageSettings | None) -> None:
+    for section in sections:
+        if section.index is not None and section.index.references and home_page is None:
+            raise ValueError(f"{section.where}.index.references needs homePage in projection.json")
+    if home_page is None:
+        return
+    if home_page.forum is not None:
+        thread_base = _unreserved_segment(home_page.forum.thread_base, "homePage.forum.threadBase")
+        if any(section.base == thread_base for section in sections):
+            raise ValueError(f"homePage.forum.threadBase {thread_base!r} is already the base of a section")
+    if home_page.layout == "sections" and not any(section.listing and section.listing_page for section in sections):
+        raise ValueError('homePage.layout "sections" needs urls.sections with at least one listed section')
+    unknown = [name for name in home_page.home_sections or () if not any(section.name == name and section.listing and section.listing_page for section in sections)]
+    if unknown:
+        raise ValueError(f"homePage.homeSections names sections that have no listing page: {', '.join(unknown)}")
+
+
+GROUP_KEYS = {"base", "label", "pages", "listing", "listingPage", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive", "sort", "index"}
+
+
+def _group_from_mapping(name: str, entry, where: str, *, item_type: str | None = None) -> SectionConfig:
+    """One ``urls.sections.<section>`` or ``urls.types.<type>`` entry; both take the same settings (a section also takes ``aliases``)."""
+    entry = dict(entry or {})
+    _only(entry, GROUP_KEYS | ({"aliases"} if item_type is None else set()), where)
+    if entry.get("sort", "date") not in ("date", "order"):
+        raise ValueError(f"{where}.sort must be 'date' or 'order'")
+    group_by = entry.get("groupBy")
+    if group_by is not None and not valid_group_by(group_by):
+        raise ValueError(f"{where}.groupBy must be 'week', 'month' or 'field:<front matter field>'")
+    archive_raw = entry.get("archive")
+    archive = None
+    if archive_raw is not None:
+        _only(archive_raw, {"by", "base", "description"}, f"{where}.archive")
+        if archive_raw.get("by", "month") not in ("month", "year"):
+            raise ValueError("archive.by must be 'month' or 'year'")
+        archive = ArchiveConfig(
+            by=archive_raw.get("by", "month"),
+            base=_path_segment(str(archive_raw.get("base", "archive")), f"{where}.archive.base"),
+            description=str(archive_raw.get("description", "")),
+        )
+    aliases = entry.get("aliases") or ()
+    if isinstance(aliases, str) or not all(isinstance(alias, str) and alias.strip() for alias in aliases):
+        raise ValueError(f"{where}.aliases must be a list of the other stored section values (names) this section answers to")
+    plain = item_type if item_type is not None else name
+    return SectionConfig(
+        index=_section_index(entry.get("index"), where),
+        name=name,
+        item_type=item_type,
+        aliases=tuple(aliases),
+        base=_unreserved_segment(entry.get("base", plain), f"{where}.base"),
+        label=str(entry.get("label") or plain.replace("-", " ").replace("_", " ").title()),
+        pages=bool(entry.get("pages", True)),
+        listing=bool(entry.get("listing", True)),
+        listing_page=bool(entry.get("listingPage", True)),
+        feed=bool(entry.get("feed", True)),
+        sitemap=bool(entry.get("sitemap", True)),
+        link_field=str(entry.get("linkField", "url")),
+        description=str(entry.get("description", "")),
+        page_size=int(entry["pageSize"]) if entry.get("pageSize") is not None else None,
+        list_empty=bool(entry.get("listEmpty", False)),
+        group_by=group_by,
+        archive=archive,
+        sort=str(entry.get("sort", "date")),
+    )
+
+
+def _check_groups(groups) -> None:
+    """A section's alias is not another section's name or alias, and a type group does not share a listing base with another group."""
+    taken: dict[str, str] = {}
+    for group in groups:
+        if group.is_type:
+            continue
+        for stored in (group.name, *group.aliases):
+            if stored in taken and taken[stored] != group.name:
+                raise ValueError(f"urls.sections: {stored!r} names both {taken[stored]!r} and {group.name!r}")
+            taken[stored] = group.name
+    for position, group in enumerate(groups):
+        if not group.is_type or not group.listing_page:
+            continue
+        for other in groups:
+            if other is not group and other.listing_page and other.base == group.base:
+                raise ValueError(f"urls.types.{group.item_type}.base {group.base!r} is already the base of {other.name!r}")
+
+
 def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     site = raw["site"]
     _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields", "dateFormat", "ledeField"}, "site")
@@ -442,53 +659,21 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         except ValueError as error:
             raise ValueError(f"site.dateFormat is not a valid strftime pattern: {error}") from error
 
+    story_types_from_mapping(raw)  # the Story types the newsroom offers (storyTypes): a bad one fails the projection settings, not the editor
     urls = dict(raw.get("urls") or {})
-    _only(urls, {"style", "sections", "basePath"}, "urls")
+    _only(urls, {"style", "sections", "types", "basePath"}, "urls")
     style = urls.get("style", "html")
     if style not in URL_STYLES:
         raise ValueError(f"urls.style must be one of {URL_STYLES}")
     base_path = _path_segment(str(urls.get("basePath") or ""), "urls.basePath")
-    if base_path and ("images" in raw or "media" in raw):
-        raise ValueError("urls.basePath does not work with images or media yet: their renditions are written at the bucket root")
     sections = []
-    for section_name, entry in dict(urls.get("sections") or {}).items():
-        entry = dict(entry or {})
-        _only(entry, {"base", "label", "pages", "listing", "listingPage", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive", "sort"}, f"urls.sections.{section_name}")
-        if entry.get("sort", "date") not in ("date", "order"):
-            raise ValueError(f"urls.sections.{section_name}.sort must be 'date' or 'order'")
-        group_by = entry.get("groupBy")
-        if group_by is not None and not valid_group_by(group_by):
-            raise ValueError(f"urls.sections.{section_name}.groupBy must be 'week', 'month' or 'field:<front matter field>'")
-        archive_raw = entry.get("archive")
-        archive = None
-        if archive_raw is not None:
-            _only(archive_raw, {"by", "base", "description"}, f"urls.sections.{section_name}.archive")
-            if archive_raw.get("by", "month") not in ("month", "year"):
-                raise ValueError("archive.by must be 'month' or 'year'")
-            archive = ArchiveConfig(
-                by=archive_raw.get("by", "month"),
-                base=_path_segment(str(archive_raw.get("base", "archive")), f"urls.sections.{section_name}.archive.base"),
-                description=str(archive_raw.get("description", "")),
-            )
-        sections.append(
-            SectionConfig(
-                name=section_name,
-                base=_path_segment(entry.get("base", section_name), f"urls.sections.{section_name}.base"),
-                label=str(entry.get("label") or section_name.replace("-", " ").title()),
-                pages=bool(entry.get("pages", True)),
-                listing=bool(entry.get("listing", True)),
-                listing_page=bool(entry.get("listingPage", True)),
-                feed=bool(entry.get("feed", True)),
-                sitemap=bool(entry.get("sitemap", True)),
-                link_field=str(entry.get("linkField", "url")),
-                description=str(entry.get("description", "")),
-                page_size=int(entry["pageSize"]) if entry.get("pageSize") is not None else None,
-                list_empty=bool(entry.get("listEmpty", False)),
-                group_by=group_by,
-                archive=archive,
-                sort=str(entry.get("sort", "date")),
-            )
-        )
+    for item_type, entry in dict(urls.get("types") or {}).items():
+        if not str(item_type).strip() or str(item_type) != str(item_type).strip():
+            raise ValueError(f"urls.types needs Item type names such as 'article', got {item_type!r}")
+        sections.append(_group_from_mapping(f"{TYPE_GROUP_PREFIX}{item_type}", entry, f"urls.types.{item_type}", item_type=str(item_type)))
+    # the type groups come first in every list of groups (the home blocks, the section tabs, llms.txt); the sections follow in their order
+    sections.extend(_group_from_mapping(section_name, entry, f"urls.sections.{section_name}") for section_name, entry in dict(urls.get("sections") or {}).items())
+    _check_groups(sections)
 
     static = dict(raw.get("static") or {})
     _only(static, {"copy"}, "static")
@@ -586,7 +771,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         raise ValueError("feeds.count must be positive")
 
     listings = dict(raw.get("listings") or {})
-    _only(listings, {"pageSize", "featuredCount", "path", "homeCount", "tags", "tagBase", "types", "tagSelect", "tagPageSize", "draft", "pageSuffix", "tagTitle"}, "listings")
+    _only(listings, {"pageSize", "featuredCount", "path", "homeCount", "tags", "tagBase", "types", "tagSelect", "tagPageSize", "draft", "pageSuffix", "tagTitle", "bucket"}, "listings")
     draft_raw = dict(listings.get("draft") or {})
     _only(draft_raw, {"field", "values"}, "listings.draft")
     listing_defaults = ListingSettings()
@@ -604,7 +789,10 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         tag_title=str(listings.get("tagTitle", listing_defaults.tag_title)),
         draft_field=str(draft_raw.get("field", "")),
         draft_values=tuple(str(value) for value in draft_raw.get("values", listing_defaults.draft_values)),
+        bucket=str(listings.get("bucket", listing_defaults.bucket)),
     )
+    if listing_settings.bucket not in STORY_BUCKETS:
+        raise ValueError(f"listings.bucket must be one of {', '.join(STORY_BUCKETS)}, got {listing_settings.bucket!r}")
     if listing_settings.tag_page_size is not None and listing_settings.tag_page_size < 0:
         raise ValueError("listings.tagPageSize must not be negative (0 puts every entry of a tag on one page)")
     if listing_settings.page_size < 1 or listing_settings.featured_count < 0:
@@ -626,7 +814,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         collection_id = str(entry.get("id", ""))
         if not re.fullmatch(r"[a-z][a-z0-9-]*", collection_id) or any(c.id == collection_id for c in collections):
             raise ValueError(f"collections need a unique lowercase id, got {collection_id!r}")
-        base = _path_segment(str(entry.get("base", collection_id)), f"collections.{collection_id}.base")
+        base = _unreserved_segment(str(entry.get("base", collection_id)), f"collections.{collection_id}.base")
         if not base or any(base == section.base and section.listing_page for section in sections):
             raise ValueError(f"collections.{collection_id}.base must be a path that no section with a listing page uses")
         if any(base == other.base for other in collections):
@@ -668,7 +856,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         custom.append(
             CustomPage(
                 id=str(entry["id"]),
-                path=_path_segment(str(entry["path"]), "pages.path"),
+                path=_unreserved_segment(str(entry["path"]), "pages.path"),
                 title=str(entry["title"]),
                 description=str(entry.get("description", "")),
                 depends_on=tuple(entry.get("dependsOn", ("*",))),
@@ -750,7 +938,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     if (agents.llms_txt or agents.llms_full) and not agents.markdown:
         raise ValueError("agents.llmsTxt and agents.llmsFull link to the Markdown twins; turn agents.markdown on")
     actions_raw = dict(raw.get("pageActions") or {})
-    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt", "types"}, "pageActions")
+    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt", "types", "display", "everywhere"}, "pageActions")
     action_defaults = PageActionSettings()
     page_actions = PageActionSettings(
         enabled=bool(actions_raw.get("enabled", True)),
@@ -759,17 +947,25 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         ai=tuple(actions_raw.get("ai", ())),
         prompt=str(actions_raw.get("prompt", action_defaults.prompt)),
         types=tuple(str(name) for name in actions_raw["types"]) if actions_raw.get("types") is not None else None,
+        display=str(actions_raw.get("display", action_defaults.display)),
+        everywhere=bool(actions_raw.get("everywhere", action_defaults.everywhere)),
     )
     if page_actions.types is not None and not all(page_actions.types):
         raise ValueError("pageActions.types lists entry type names")
     if page_actions.placement not in ("header", "aside"):
         raise ValueError("pageActions.placement must be 'header' or 'aside'")
-    if not set(page_actions.actions) <= {"copy", "view"}:
-        raise ValueError("pageActions.actions must be a subset of ['copy', 'view']")
+    if not set(page_actions.actions) <= {"copy", "view", "x", "reddit", "share"}:
+        raise ValueError("pageActions.actions must be a subset of ['copy', 'view', 'x', 'reddit', 'share']")
+    if page_actions.display not in ("text", "icons"):
+        raise ValueError("pageActions.display must be 'text' or 'icons'")
+    if page_actions.display == "text" and set(page_actions.actions) & {"x", "reddit", "share"}:
+        raise ValueError("pageActions.actions 'x', 'reddit' and 'share' need pageActions.display 'icons'")
     if not set(page_actions.ai) <= set(AI_DESTINATIONS):
         raise ValueError(f"pageActions.ai must be a subset of {sorted(AI_DESTINATIONS)}")
     if "{url}" not in page_actions.prompt or len(page_actions.prompt) > 200:
         raise ValueError("pageActions.prompt must contain {url} and stay short: the page body is never sent")
+    mermaid_raw = dict(raw.get("mermaid") or {})
+    _only(mermaid_raw, {"enabled"}, "mermaid")
     wiki_raw = dict(raw.get("wiki") or {})
     _only(wiki_raw, {"types", "suggestForm", "dataLink"}, "wiki")
     wiki_defaults = WikiSettings()
@@ -782,6 +978,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         raise ValueError("wiki.types lists entry type names")
     if wiki.suggest_form is not None and wiki.suggest_form not in known_forms:
         raise ValueError(f"wiki.suggestForm names an unknown form {wiki.suggest_form!r}")
+    home_page = home_page_settings_from_mapping(raw["homePage"]) if raw.get("homePage") is not None else None
+    _check_section_fronts(sections, home_page)
     return StandardSettings(
         identity=identity,
         url_style=style,
@@ -830,5 +1028,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         forms=tuple(forms),
         agents=agents,
         page_actions=page_actions,
+        mermaid=bool(mermaid_raw.get("enabled", True)),
+        embeds=embeds_from_mapping(raw.get("embeds")),
         wiki=wiki,
+        home_page=home_page,
     )

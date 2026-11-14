@@ -25,7 +25,7 @@ def content_adopt_tenant_data(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = bool(options.get("apply"))
     tenant_id = adoption_tenant_from_options(options)
-    client, _claims = create_authoring_client(None)
+    client, _claims = create_authoring_client(None, site_tenant=False)
     plan = plan_tenant_adoption(client, tenant_id)
     payload = plan.to_dict()
     payload["mode"] = "applied" if apply else "dry run"

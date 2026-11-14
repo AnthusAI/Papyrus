@@ -23,6 +23,7 @@ export const ASSIGNMENT_DATA_FIELDS = [
   "Query/fields/listReferences",
   "Query/fields/listReferenceAttachments",
   "Query/fields/listSemanticRelations",
+  "Query/fields/listReferencesByLineageAndVersion",
   "Query/fields/listKnowledgeCorporaByRoleAndName",
   "Query/fields/listItemsByLineageAndVersion",
   "Query/fields/itemBySlug",

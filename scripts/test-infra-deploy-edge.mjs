@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveOwningAppId } from "../packages/papyrus/src/owning-app.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(repo, "packages/papyrus/bin/papyrus-infra.mjs");
@@ -47,7 +48,7 @@ try {
 
   function runEdgeDeploy(extraEnvironment) {
     const log = path.join(work, `log-${Math.random()}.txt`);
-    const environment = { ...process.env, PATH: `${binDirectory}:${process.env.PATH}`, FAKE_AWS_LOG: log, AWS_APP_ID: "dapp", AWS_BRANCH: "main", ...extraEnvironment };
+    const environment = { ...process.env, PATH: `${binDirectory}:${process.env.PATH}`, FAKE_AWS_LOG: log, AWS_APP_ID: "dapp", AWS_BRANCH: "main", PAPYRUS_AMPLIFY_APP_ID: "", ...extraEnvironment };
     const stdout = execFileSync("node", [cli, "deploy-edge", "--stack", "papyrus-edge-p-apyr-us", "--template", finalTemplate, "--adoption-template", adoptionTemplate, "--adopt-resources", adoptResources, "--parameter", "ReaderCertificateArn=arn:reader", "--delete-function", "papyrus-legacy-reader-redirect", "--only-app-id", "dapp"], { encoding: "utf8", env: environment });
     return { stdout, calls: fs.existsSync(log) ? fs.readFileSync(log, "utf8") : "" };
   }
@@ -70,6 +71,28 @@ try {
   assert.match(outsideBuild, /not running inside an Amplify build, skipping/);
   const otherApp = runEdgeDeploy({ AWS_APP_ID: "dother" });
   assert.match(otherApp.stdout, /does not own the stack, skipping/);
+
+  // The owning app may come from PAPYRUS_AMPLIFY_APP_ID; a site that passes the flag with no value fails closed.
+  const runGuard = (extraArguments, extraEnvironment) => spawnSync("node", [cli, "deploy-edge", "--stack", "s", "--template", finalTemplate, ...extraArguments], { encoding: "utf8", env: { ...process.env, AWS_APP_ID: "dapp", AWS_BRANCH: "main", PAPYRUS_AMPLIFY_APP_ID: "", ...extraEnvironment } });
+  const otherByVariable = runGuard([], { PAPYRUS_AMPLIFY_APP_ID: "downer" });
+  assert.equal(otherByVariable.status, 0);
+  assert.match(otherByVariable.stdout, /does not own the stack, skipping/, "the variable alone makes this app a non-owner");
+  const variableWinsOverFlag = runGuard(["--only-app-id", "dapp"], { PAPYRUS_AMPLIFY_APP_ID: "downer" });
+  assert.match(variableWinsOverFlag.stdout, /does not own the stack, skipping/, "the variable wins over a literal flag");
+  const emptyFlag = runGuard(["--only-app-id", ""], {});
+  assert.notEqual(emptyFlag.status, 0, "an opted-in site with no expected app id fails closed");
+  assert.match(emptyFlag.stderr, /PAPYRUS_AMPLIFY_APP_ID is not set/);
+  const bareFlag = runGuard(["--only-app-id"], {});
+  assert.notEqual(bareFlag.status, 0);
+  const outsideAmplify = spawnSync("node", [cli, "deploy-edge", "--stack", "s", "--template", finalTemplate, "--only-app-id", ""], { encoding: "utf8", env: { ...process.env, AWS_APP_ID: "", AWS_BRANCH: "" } });
+  assert.equal(outsideAmplify.status, 0, "outside an Amplify build the guard is not evaluated, so a local install still works");
+
+  // The same resolver guards `papyrus-infra deploy`.
+  assert.equal(resolveOwningAppId({ args: ["--only-app-id", "dliteral"], environment: {} }), "dliteral", "a literal still works");
+  assert.equal(resolveOwningAppId({ args: ["--only-app-id", "dliteral"], environment: { PAPYRUS_AMPLIFY_APP_ID: "dvariable" } }), "dvariable", "the variable wins");
+  assert.equal(resolveOwningAppId({ args: ["--only-app-id", ""], environment: { PAPYRUS_AMPLIFY_APP_ID: "dvariable" } }), "dvariable");
+  assert.equal(resolveOwningAppId({ args: ["deploy"], environment: {} }), undefined, "no flag and no variable: no guard, as before");
+  assert.throws(() => resolveOwningAppId({ args: ["--only-app-id", "--only-branch", "main"], environment: {} }), /PAPYRUS_AMPLIFY_APP_ID is not set/);
 
   console.log("infra deploy-edge tests passed");
 } finally {

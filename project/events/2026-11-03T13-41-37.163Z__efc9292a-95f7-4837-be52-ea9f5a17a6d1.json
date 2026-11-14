@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "efc9292a-95f7-4837-be52-ea9f5a17a6d1",
+  "issue_id": "PPY-719a02d2-e49c-4b09-8493-1d87f62ef45f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T13:41:37.163Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Fact-check Story drafts before publishing, with a gate and per-claim status for editors",
+    "description": "Check draft sentences against the Story's References; show status per claim in the newsroom; hard gate through review_requests before publish. UX gets screenshot review.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-b32e856a-d354-4996-8cce-77b852ca8288",
+    "labels": []
+  }
+}

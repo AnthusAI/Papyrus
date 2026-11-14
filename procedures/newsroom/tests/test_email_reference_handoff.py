@@ -56,6 +56,16 @@ def test_operator_identity_cannot_queue():
     assert not f.table.by_prefix('DISC#')
 
 
+def test_a_tenant_backend_queues_for_its_editor_only_with_the_single_publication_flag():
+    f, store, request, endpoint = fixture()
+    with patch.dict('os.environ', {**ENV, 'PAPYRUS_TENANT_ID': 'tenant-a'}), pytest.raises(IntakeError, match='PAPYRUS_SINGLE_PUBLICATION_BACKEND'):
+        queue_email_reference(store, request, IDENTITY, endpoint=endpoint)
+    assert not f.table.by_prefix('DISC#')
+    with patch.dict('os.environ', {**ENV, 'PAPYRUS_TENANT_ID': 'tenant-a', 'PAPYRUS_SINGLE_PUBLICATION_BACKEND': 'true'}):
+        queue_email_reference(store, request, IDENTITY, endpoint=endpoint)
+    assert len(f.table.by_prefix('DISC#')) == 1
+
+
 @pytest.mark.parametrize("initially_not_ready", [False, True])
 def test_selected_negative_prediction_is_delivered_once_without_procedures(initially_not_ready):
     f, store, request, endpoint = fixture()

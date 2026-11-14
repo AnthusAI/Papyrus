@@ -1,0 +1,34 @@
+{
+  "id": "PPY-f7a5f7ef-1316-44db-9b82-789028719380",
+  "title": "Reader posting: /api/reader/post route and Lambda, backend-stamped reader authorship, AI moderation, burst hold without a cap",
+  "description": "Repo: **Papyrus**. Phase 4 of PPY-452419: a signed-in reader posts into a public thread or starts one on a public Reference or Story. Reader sign-in is Prospectus Google sign-in (`lib/prospectus-sign-in-routes.ts`, session in `lib/prospectus-session.ts`, pairwise `siteSubject` from `lib/reader-subject.ts`); **no Cognito password users, ever** (memory: Papyrus Google auth).\n\n## Design (follows reader-steering's architecture decision: CMS route + Lambda, not guest GraphQL)\n- Route `app/api/reader/post/route.ts`: `POST {subject: \"reference\" | \"story\", key: <public key or story lineage>, text, parentKey?}` with the reader session cookie; rejects without a session (401 with `sign_in_required`), rejects when `homePage.forum.posting.enabled` is false (404, so the feature is invisible), rejects a subject not in `posting.subjects`. Forwards to the `reader-actions` Lambda (`amplify/plugins/reader-steering/function/handler.py`) as action `post`.\n- Lambda `post`: resolves the reader (`ReaderProfile` by `siteSubject`; a reader without a handle is told to pick one first, `handle_required`), resolves the anchor (a Reference public key -> `lineageId` via the snapshot's `public_key` map, or a Story lineage; only if the anchor is PUBLIC: accepted/recommended Reference in `_data/home-page/references.json` or a published Story; otherwise 404), writes the `Message` + thread (one-Message-model task's `conversation.py`), stamps `authorKind: \"reader\"`, `authorReaderId`, `authorLabel: <handle>`, `role: \"reader\"`, `status: \"active\"`; **never** trusts an author sent by the client (as `post-message.js` does).\n- Moderation: after the write, enqueue AI moderation (`function/ai_moderation.py`, GPT-6 Luna per the LLM defaults, `moderation.mode` default `ai` for posts; `human` keeps the console queue). A removal sets `status: \"removed\"`, `deletedAt`, `deletedBySub: \"moderation\"` and the public page shows \"Message removed\" with a Lucide `shield-alert` icon and text. `preModeration: true` (existing setting) holds the post as `status: \"pending\"` until moderation passes, for sites that want it.\n- Rate check without an arbitrary cap (memory: no arbitrary limits): keep the reader's recent post timestamps in `ReaderProfile.recentPostsAt` (last 50); compute the inter-post gap and compare with the site's observed distribution (`ReaderProfile` aggregate or the moderation table's recent gaps); a post that is an outlier under a scan statistic (same method as the monitoring burst detector; read `src/papyrus_content/monitoring_router.py` or the knowledge-run burst code and reuse it) is written with `status: \"pending\"` and flagged `ModerationAction {reason: \"burst\"}` for a human, never refused outright. The only hard bounds are real ones: Lambda timeout and DynamoDB item size (text capped at the Message `content` field's existing limit, which is a storage constraint, stated as such in the error).\n- Edit and delete: `POST /api/reader/post/edit` and `/delete` with `condition: authorReaderId = :me` (owner only), mirroring `edit-message.js` / `delete-own-message.js`.\n- Freshness: the Message stream -> home-page debounce (#906) re-snapshots the thread file and re-renders the thread page and the forum index; the island shows the reader's own post at once (next task).\n\n## Gherkin (`features_backend/forum-posting.feature`)\nFeature: Signed-in readers post in public threads\n  Scenario: A guest is told to sign in with Google, and no password sign-up exists\n  Scenario: A reader without a handle must pick one before posting\n  Scenario: A reader posts on a public Reference and the Message carries the reader identity stamped by the backend\n  Scenario: A client-supplied author is ignored\n  Scenario: Posting on a Reference that is not public is refused as not found\n  Scenario: A site with posting disabled serves no post route\n  Scenario: AI moderation removes a post and the page shows \"Message removed\"\n  Scenario: A burst of posts is held for review, not refused by a fixed cap\n  Scenario: A reader edits and deletes only their own posts\n\n## Acceptance\n- Lambda unit tests (moto, as in `function/handler_test.py` if present); route tests; `features_backend` green; `docs/reader-steering.md` \"Posting\" and `docs/home-page.md` \"Posting\" sections.\n- Blocked by: one-Message-model task, unified handle task, and (for live verification on Shipped) bug PPY-05cf41. No AWS writes.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-75d87d94-2fb7-4098-a975-61222d3d2208",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-abed3e1b-2c9a-4a58-bfd2-b26ce6c10856",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T12:37:55.126805Z",
+  "updated_at": "2026-10-31T12:38:34.085549Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

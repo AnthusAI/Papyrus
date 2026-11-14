@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "01cd9864-64ea-4b91-8226-d39f386fa216",
+  "issue_id": "PPY-ae9d06e5-5d2a-4f51-acff-c611ab48d75e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T18:41:38.875Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Announcement rules and settings page: what gets announced, opt-in, pause",
+    "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md (\"What triggers an announcement\", \"The pause switch and opt-in\").\n\nGoal: a site owner decides in plain words what is announced and turns announcements on or off; everything is off by default.\n\nShape: Administration > Announcements: On/Off (off by default; on needs a connected account, the label confirmation and a budget); minimum stars 1 to 5, never below the site's quality floor (PPY-0e8d66), default 5; Story types (Article, Post); optional sections; approval required or automatic; \"Pause announcements\" at the top with reason and who paused; eligible but blocked Stories listed with their reason. Same settings through the operation table. Lucide icons, flat fills, no borders.\n\nDepends on: the channel framework story. Relates to PPY-0e8d66.\n\n```gherkin\nFeature: The site owner decides what is announced\n  Announcing is the most public thing a site does, so it is off until the owner\n  turns it on, and the owner sets the bar.\n\n  Scenario: Off until turned on\n    Given a site that never turned announcements on\n    When a 5-star Article is published\n    Then nothing is posted\n\n  Scenario: Only 5 stars on MoM\n    Given MoM announces Articles rated 5 stars\n    When a 4-star Article is published\n    Then it is not announced\n    And it is not listed as waiting\n\n  Scenario: The floor cannot go below the site's quality floor\n    Given the site's quality floor is 3 stars\n    When the owner tries to set the announcement minimum to 2 stars\n    Then the page says \"Announcements can't go below your quality floor of 3 stars.\"\n\n  Scenario: Unrated and predicted are never enough\n    Given an unrated Article that the model predicts editors will love\n    When it is published\n    Then it is not announced\n\n  Scenario: Pausing stops everything and shows why\n    When Ryan chooses \"Pause announcements\"\n    Then the page says \"Paused by Ryan, 13 Nov 10:02\"\n    And a 5-star Article published while paused waits as \"Blocked: paused\"\n    And resuming posts it\n\n  Scenario: Limiting to sections\n    Given MoM announces only the Security section\n    When a 5-star Article in Hardware is published\n    Then it is not announced\n```\n\nOpen questions: whether References (accepted research) should ever be announced (recommend not now).\n",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+    "labels": []
+  }
+}

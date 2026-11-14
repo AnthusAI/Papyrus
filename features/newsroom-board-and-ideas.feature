@@ -1,0 +1,63 @@
+@brand-agnostic @newsroom-ux-fixtures
+Feature: The newsroom board and generated ideas read the way an editor expects
+  An editor reads the Stories board newest first, opens a story without the page jumping around, and finds the story ideas that AI
+  generates in one place under one plain name: ideas, in the Idea column of the Stories board. These scenarios use synthetic stories in an isolated browser and never touch
+  production.
+
+  Scenario: What AI generates is an idea, in the Idea column, wherever an editor reads it
+    Given an isolated newsroom with synthetic stories
+    When the editor looks for the story ideas AI has generated
+    Then the Needs me filter, the counts and the card all say ideas, and the sidebar and the Stories board have no Proposed Stories page, link or count
+    And no editor-facing line calls an idea a Proposed Story or a draft
+
+  Scenario: Every column of the Stories board lists its stories newest first
+    Given an isolated newsroom with synthetic stories
+    When the editor opens the Stories board at 1440 and 375 pixels
+    Then each column lists its stories from the most recently updated to the oldest
+    And a story with no date sits at the bottom of its column
+    And without that rule a column is ordered by id, which is the order the editor saw before
+
+  Scenario: The Stories board shows where new stories wait
+    Given an isolated newsroom with synthetic stories
+    When the editor opens the Stories board
+    Then the first column is Idea, ahead of Reporting
+    And each Idea card is marked Generated or Started by a person
+    And a story at the assignment stage is not on the Stories board
+
+  Scenario: Opening a story shows a solid detail view that does not jump
+    Given an isolated newsroom with synthetic stories
+    When the editor opens a story at 1440, 834 and 375 pixels and every animation frame is recorded
+    Then the detail view's background is opaque and not fading from its very first frame
+    And the detail view stays in one place at one size while the story loads
+    And the loading shape is the loaded editor's size, so nothing below it moves when the story arrives
+
+  Scenario: On a phone the Stories board stacks its stages as sections in one scroller
+    Given an isolated newsroom with synthetic stories
+    When the editor opens the Stories board at 375 and 390 pixels wide, and at 667 by 375, 834 and 1440
+    Then below 600 pixels the stages are sections of one vertical list with no horizontal scroll and exactly one vertical scroller
+    And at 600 pixels and wider, including a phone in landscape and a tablet, the stages stay side by side columns
+
+  Scenario: A long stage pages in as the reader scrolls a phone
+    Given an isolated newsroom with synthetic stories
+    When the editor scrolls a stage with far more stories than one page on a 375 pixel wide board
+    Then only a bounded number of cards is in the page at once
+    And the next page is requested through the board's near-the-end callback and the stage grows
+    And the first page of a short stage requests no more than once
+
+  Scenario: Opening a story on a phone and closing it returns to the same place, and collapsed sections stay collapsed
+    Given an isolated newsroom with synthetic stories
+    When the editor scrolls the stacked board, opens a story, closes it, and reloads after collapsing a section
+    Then the detail view covers the board and the same story is focused again at the same scroll position
+    And the collapsed section is still collapsed after the reload
+
+  Scenario: The loading skeleton and the board agree on where phones begin
+    Given an isolated newsroom with synthetic stories
+    When the editor loads the Stories board at 375, 599, 600 and 640 pixels
+    Then the loading skeleton is one stacked column below 600 pixels and three columns from 600 pixels
+    And the skeleton changes shape at the same width as the board changes layout
+
+  Scenario: The phone header shows every control without scrolling
+    Given an isolated newsroom with synthetic stories
+    When the editor opens the Stories, Assignments and section boards at 375 and 390 pixels wide, and at 667 by 375, 834 and 1440
+    Then below 600 pixels every header control is inside the screen, not clipped, at least 44 pixels tall, and search is at least 120 pixels wide
+    And from 600 pixels the header keeps its size

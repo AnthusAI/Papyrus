@@ -1,0 +1,20 @@
+{
+  "id": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+  "title": "Rebuild the Machines on Machines wiki from accepted References",
+  "description": "Ryan 2026-11-04: rebuild from what remains that is higher quality, and improve extraction, ontology, taxonomy and the wiki along the way. After the May delete: 52 accepted References (49 with curation-text, median 10 KB; 41 monitor-delivered), 302 concepts of which 293 rejected. Public wiki reads 'Nothing has been published here yet': its pages were retired 11-02.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-17d05702-569a-41fd-bfc8-4e11eca9792e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T18:22:36.380661Z",
+  "updated_at": "2026-11-04T18:22:36.381025Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

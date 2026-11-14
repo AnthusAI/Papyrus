@@ -1,0 +1,27 @@
+{
+  "id": "PPY-bf63d5c5-d008-4e2b-b6bc-ee2f17d7e96b",
+  "title": "Operator sending domain: notify.anth.us through the newsletter's sending stack",
+  "description": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M1, first slice\n\n**Goal.** Operator mail gets its own domain and configuration set in papyrus-production, using the sending stack sites already use rather than a second template. SES there already has production access, so nothing needs verifying per recipient.\n\n**Build.**\n- `infra/newsletter/papyrus-newsletter-sending.yaml`: add parameter `EventTransport` (`sns`, `eventbridge`, `both`; default `sns`, so existing stacks do not change). `eventbridge` adds the EventBridge destination for SEND, DELIVERY, BOUNCE, COMPLAINT, REJECT, DELIVERY_DELAY and omits the SNS topic. Check that CloudFormation's event-destination resource takes the EventBridge property; if not, a small custom resource.\n- Deploy `papyrus-newsletter-sending-operators`: SiteId `operators`, SendingDomain `notify.anth.us`, the anth.us zone in this same account, so no delegation. A read on 2026-11-04 shows no `notify` records and no collision. Creates `_dmarc.notify.anth.us`. Separately worth knowing: the apex anth.us zone shows no `_dmarc` record.\n- Configuration set `papyrus-operators`: never OPEN or CLICK, and a test on the template fails if either appears. `infra/newsletter/README.md` updated.\n\n**Acceptance.**\n`aws sesv2 get-email-identity --email-identity notify.anth.us` reads `True SUCCESS SUCCESS`; simulator send shows an `Email Delivered` event on the default bus.\n\n**Depends on:** PPY-d21c7f\n**Related:** kanbus-06de58",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m1"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-d21c7f0c-ef67-4b7b-8248-07aadb03f38e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-04T17:10:44.452193Z",
+  "updated_at": "2026-11-04T17:10:45.476587Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

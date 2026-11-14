@@ -4,6 +4,7 @@ Operating manual for any coding agent (Codex, Cursor, Claude Code) or person wor
 
 ## Read this first
 
+- **Using the `papyrus` CLI (agents included):** read [docs/agent-cli-guide.md](docs/agent-cli-guide.md) or run `papyrus guide` (`papyrus guide --list` lists the tasks). It has task-first recipes with exact syntax, the two lanes, which commands write by default, and a troubleshooting table. `papyrus <group> <command> --help` prints a command's real usage. Never guess a flag or invent a relation name.
 - This is the **engine**. Site repositories (Shipped-web, Distinctive-web, Pilobol.us, and so on) hold only site settings; fix the engine here, release it, bump the pin there.
 - Work in a **git worktree**, branched from `origin/develop`. The shared checkout `~/Projects/Papyrus` is used by several sessions: never switch its branch and **never `git stash`**.
 - Every task lives on the **Kanbus board** (project key `PPY`). Create or update the issue before coding.
@@ -17,10 +18,12 @@ Operating manual for any coding agent (Codex, Cursor, Claude Code) or person wor
 | --- | --- | --- |
 | Standard Markus projector and front end | `src/papyrus_content/markus_renderer/`, `src/papyrus_content/project_commands.py`, `web/projection.json` in a site | [building a static site](docs/building-a-papyrus-static-site.md), [standard site](docs/standard-site.md), [markus markup](docs/markus-content-markup.md) |
 | CMS backend and console | `amplify/` (data, auth, storage, `functions/`, `publication/`), `app/newsroom`, `components/` | [how Papyrus works](docs/how-papyrus-works.md), [newsroom operations](docs/newsroom-operations.md), [how a publish flows](docs/how-a-publish-flows.md) |
-| Plugins | `amplify/plugins/{signup,newsletter,reader-steering}`, registry in `amplify/plugins/registry.ts` | [plugins](docs/plugins.md) |
-| Proposals queue (core to every site): `Proposal` model, `fileProposal`, `transitionProposal`, `editProposal`, `listStoryDrafts`, Administration Proposals panel | `amplify/functions/proposal-actions`, `components/proposals-panel.tsx`, `lib/proposals-admin.ts`, `papyrus proposals` | [reader steering](docs/reader-steering.md#proposals) |
+| Plugins | `amplify/plugins/{signup,newsletter,notifications,reader-steering,home-page,alexa}`, registry in `amplify/plugins/registry.ts` | [plugins](docs/plugins.md) |
+| Proposals queue (core to every site; for reader-filed, concept, rename and merge proposals, not generated story ideas, which are Items at the `idea` stage): `Proposal` model, `fileProposal`, `transitionProposal`, `editProposal`, `listStoryDrafts`, Administration Proposals panel | `amplify/functions/proposal-actions`, `components/proposals-panel.tsx`, `lib/proposals-admin.ts`, `papyrus proposals` | [reader steering](docs/reader-steering.md#proposals) |
 | Reader steering: votes on any subject, flags, ratings, comments, votes on and public files for Proposals | `amplify/plugins/reader-steering`, `src/papyrus_content/reader_steering/`, `papyrus reader`, `papyrus proposals` | [reader steering](docs/reader-steering.md) |
 | Newsletter: double opt-in, clean `/newsletter/*` pages, branded email theme, roundups, alerts | `amplify/plugins/newsletter`, `app/api/newsletter/*`, `infra/newsletter/` | [newsletter](docs/newsletter.md) |
+| Notifications (Caducus in the site's stack): readers subscribe on the site's pages and each published story is mailed to them | `amplify/plugins/notifications`, `src/papyrus_content/notifications/`, `app/api/notifications/*`, `src/papyrus_content/projection/standard/notifications_pages.py` (reader pages), `src/papyrus_content/publish_alerts.py` | [notifications](docs/notifications.md) |
+| Announcements (a qualifying Story posted once on the publication's X account, through Caducus; dry run, budget, pause, audit) | `src/papyrus_content/announcements/`, `papyrus announcements`, models `Announcement`, `AnnouncementSettings`, `AnnouncementSpend` | [announcements](docs/announcements.md) |
 | Edge | `infra/edge/` (`s3-projection-cms.yaml`: NotFoundPage Lambda@Edge, `/api/*` pass-through, #560) | [edge README](infra/edge/README.md), [site hosting](docs/site-hosting.md) |
 | App shell (Amplify apps, roles, domains per site) | `infra/amplify-app-shell/` | [app-shell README](infra/amplify-app-shell/README.md), [site hosting](docs/site-hosting.md) |
 | Monitoring and the router | `src/papyrus_content/monitoring*.py`, `infra/monitoring/` | [monitoring in the cloud](docs/monitoring-cloud.md), [local HN worker](docs/monitoring-hn-pilot.md) |
@@ -28,7 +31,8 @@ Operating manual for any coding agent (Codex, Cursor, Claude Code) or person wor
 | Procedure runner and Tactus procedures | `infra/procedures/`, `procedures/newsroom/`, `papyrus procedures` | [procedure runner](docs/procedure-runner.md), [newsroom procedures runbook](docs/newsroom-procedures-runbook.md) |
 | Knowledge run (local and cloud), weekly archive, projection lease | `infra/scheduled-jobs/`, `infra/knowledge-run/`, `amplify/publication/projection-lease.ts`, `papyrus knowledge` | [workstation run](docs/knowledge-workstation-run.md), [cloud run](docs/knowledge-cloud-run.md), [knowledge snapshot](docs/knowledge-snapshot.md), [lease](docs/site-hosting.md#projection-lease-one-projection-at-a-time) |
 | Automations (including story-state triggers) | `src/papyrus_content/automations.py`, `src/papyrus_content/story_triggers.py`, `amplify/functions/automation-view`, `papyrus automations`, `papyrus stories fire-triggers` | [automations](docs/automations.md) |
-| Idea pipeline v0, trend stories, monitor stories | `src/papyrus_content/ideas/` (`trends.py`, `monitor_stories.py`), `papyrus ideas digest\|synthesize\|trends\|monitor-stories` | [idea pipeline](docs/idea-pipeline.md) |
+| Idea pipeline v0, trend stories, monitor stories (ideas filed as Items in the Idea column) | `src/papyrus_content/ideas/` (`trends.py`, `monitor_stories.py`), `papyrus ideas digest\|synthesize\|trends\|monitor-stories` | [idea pipeline](docs/idea-pipeline.md), [idea context packs](docs/idea-context-packs.md) |
+| Story procedure (the one ordered list of steps for a Story, `papyrus stories next`, reminders after writes) and each Story's editorial checklist (sub-task Items, `papyrus stories step`, the publish rule, the board's progress and sub-tasks) | `src/papyrus_content/newsroom_process.py`, `src/papyrus_content/story_checklist.py`, `src/papyrus_content/story_commands.py`, `components/story-checklist-*.tsx` | [story procedure](docs/story-procedure.md) |
 | Review requests and the Notification Center (console home) | `src/papyrus_content/review_requests.py`, `components/notification-center.tsx`, `lib/review-requests.ts`, `papyrus reviews`. Merged to `develop` (#642); live on a site after its data API deploys | [notification center](docs/notification-center.md), [review requests](docs/review-requests.md) |
 | GA4 and consent | `src/papyrus_content/markus_renderer/consent.py`, `analytics_events.py` | [site hosting: Analytics](docs/site-hosting.md#analytics-google-analytics-4) |
 | Pretext layout solver and reader | `lib/`, `renderers/`, `features/` | [layout system](docs/layout-system.md), [solver and data contracts](docs/solver-and-data-contracts.md) |
@@ -41,14 +45,21 @@ Other code: `corpora/` (one-time doctrine and steering imports), `features_backe
 
 Git Flow. Agents commit, push and open pull requests as normal delivery.
 
+**Development policy (Ryan, 2026-11-04).** Develop and verify on a local dev server (`npm run dev:preview`, seeded, no AWS; `npm run dev:127` for the real backend). Do not deploy to see whether something works.
+
+- **Merge** means merging a pull request into `develop`; that is where things are reviewed. `develop` builds nothing in Amplify.
+- **Release** means merging `develop` into `main`, which deploys. Aim for once or twice a day, batching what is ready. An extra release needs Ryan's say-so.
+- A Papyrus version bump in a site goes to that site's `develop` and ships in that site's release. A Papyrus release can add a GSI and a deploy can add only one per table, so a site cannot skip a release that adds one.
+- Say "merged to develop" or "released" precisely; never plain "deployed" for a merge.
+
 - Branch from `origin/develop`, named after the Kanbus issue: `feature/PPY-xxxxxx-slug`, `fix/...`, `chore/...`, `docs/...`, `board/...` (a `cursor/` prefix when host tooling requires it).
-- Never commit to `develop` or `main` directly. Work lands on `develop` by pull request, merged with a **merge commit** once CI is green.
+- Never commit to `develop` or `main` directly. Work lands on `develop` by pull request, merged with a **merge commit** once CI is green (this is a merge; see the policy above).
 - Board-only changes (the `project/` directory) are small `board/<slug>` branches and pull requests, merged the same way; in practice that is what the history shows. If a board change belongs to an implementation, include it in that PR.
 - Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `ci:`. Only `feat:`, `fix:` and breaking changes release; `chore:` and `docs:` do not. Never amend or force-push a commit that may have reached `develop` or `main`.
 - Commits end with the attribution line your tool is configured to add; pull request bodies end with the tool's generated-with line.
-- **Promotion to `main`** is a pull request `develop` to `main` with a merge commit. Never promote, or merge to `main`, without an instruction in your task or from a human. Standing instruction (Ryan, 2026-10-18): once CI is green, agents may promote `develop` to `main`, let the release publish, and open and merge the version-bump pull requests on the Papyrus test sites without asking again. Never touch Anth.us. Never change this rule yourself.
+- **Release (promotion to `main`)** is a pull request `develop` to `main` with a merge commit, once CI is green, once or twice a day. For the engine a release publishes the packages and deploys nothing to a site. Never release, or merge to `main`, without an instruction in your task or from a human; an extra release needs Ryan's say-so. Never touch Anth.us. (This replaces the 2026-10-18 standing instruction that let agents promote `develop` and merge site version-bump pull requests whenever CI was green; changed by Ryan, 2026-11-04.)
 - Stage deliberately; trees are often dirty. Never `git add -A` while someone else's work is in flight.
-- Done means pushed, with the branch, PR link and verification recorded on the Kanbus issue. Report whether the change reached `develop` and whether a `develop` to `main` PR exists.
+- Done means pushed, with the branch, PR link and verification recorded on the Kanbus issue. Report whether the change is merged to `develop` and whether it has been released.
 - When finished, remove your worktree: `git worktree remove <path>` from the shared checkout.
 
 ```bash
@@ -60,9 +71,11 @@ git worktree add -b docs/my-change ~/Projects/Papyrus-worktrees/my-change origin
 
 - **Never run a reconcile without the deployed plugin list, and never use `--allow-deletions`** unless a refusal was reviewed and the deletions are intended. `papyrus ops content project --reconcile` (not a dry run) refuses when the plugin list it would use is unknown or differs from the deployed one (`PAPYRUS_PLUGINS`, or `custom.papyrusPlugins` in `amplify_outputs.json`), and never deletes pages under a known plugin's prefix (#594; spec `features_backend/projection-reconcile-plugin-pages.feature`). Always run `--reconcile --dry-run` first.
 - **Projections take the projection lease** (`papyrus-projection-locks`, one projection per site bucket at a time). Never bypass it, and clear a stuck lease only after confirming the holder is gone ([lease](docs/site-hosting.md#projection-lease-one-projection-at-a-time)). Snapshots and projections run only from a checkout whose `origin/main` is current: a stale checkout once deleted 282 wiki pages.
+- **A failed Amplify deploy is read before anything is retried** (Ryan, 2026-10-31; builds cost $0.01 a minute and 74 of 542 builds in 30 days failed). Run `papyrus-infra amplify job-log --app-id <id> --latest-failed` (read-only; `AWS_PROFILE=papyrus-production`) and quote the cause before doing anything else. `redeploy-this-version` is only for an environment failure (throttle, out of memory, network) and only once; a code failure is fixed with a new commit through CI, and that push is the retry. Amplify builds only deploy: no lint, type-check or tests run inside them.
 - **Secrets go in SSM SecureString** (generated by infrastructure code, or `papyrus site google-secrets set`), never in the repository, `site.json`, branch variables or chat. **No real email addresses in the repository**: use placeholders (`newsletter@<sendingDomain>`); allowlists live in AWS configuration.
+- **Never run `aws cloudfront create-invalidation` (or any raw CloudFront invalidation).** It bypasses the 25-path cap and the dry-run rule and bills 0.005 USD a path after the first 1,000 a month; one agent purged 625 paths for one stale article (Ryan, 2026-11-08). To make an edit visible now use `papyrus ops content update-live --story LINEAGE` (MCP `site_update_live`), or `refresh`/`rerender` ([site hosting](docs/site-hosting.md#refreshing-pages-on-demand), `skills/page-refresh`). A refusal naming `--force-paths N` is for a person to decide, not for an agent to add. Enforced by the content-actions function, which holds the CloudFront rights; the rule against the raw command is unenforced.
 - **Shared checkouts: never switch branches, never `git stash`.** Use worktrees. Remove them when done.
-- **Production AWS**: use `AWS_PROFILE=papyrus-production` and assert the account (`aws sts get-caller-identity --query Account --output text` prints `712236451410`) before any write. Never run `ampx pipeline-deploy` locally. Stack changes go through a CloudFormation change set that a human reads. `aws sso login` is interactive; only the user can run it.
+- **Production AWS**: use `AWS_PROFILE=papyrus-production` and assert the account (`aws sts get-caller-identity --query Account --output text` prints `712236451410`) before any write. Never run `ampx pipeline-deploy` locally. Stack changes go through a CloudFormation change set that a human reads; for `papyrus-monitoring` and the operator sending stack the release makes it (see Deploy). `aws sso login` is interactive; only the user can run it.
 - **GA4 consent is the Anth.us standard**: Consent Mode v2 with the first-party banner. `analytics_only` exists but stays **off** on every site.
 - **Human review is never a story state.** Do not add a "review" stage to a content item; human review is a review request ([review requests](docs/review-requests.md)).
 - **Never create Cognito password users**; sign-in is Google only.
@@ -100,23 +113,34 @@ npm run dev:127            # real backend via amplify_outputs.json: http://127.0
 
 If the user is already running the dev server on 3001, use it and do not restart it.
 
+**Review over the network.** The dev server runs on the M1 Mac, and Ryan usually reviews from an iPad or another computer, so it must be reachable from the local network. Bind all interfaces and give the Mac's LAN address, never `localhost`:
+
+```bash
+PAPYRUS_PREVIEW_HOSTNAME=0.0.0.0 npm run dev:preview   # then http://<LAN address>:3002/newsroom/work
+ipconfig getifaddr en0                                  # the LAN address
+```
+
+Do not write the actual address in the repository. Next 15.5 only warns about `allowedDevOrigins` for such requests; a future major version will require it, so add it then (no config change today).
+
 ### Bump the Papyrus pin in a site
 
-After a release is published (`npm view @anthusai/papyrus dist-tags`), edit the same exact version in four files of the site repository, in one pull request:
+After a release is published (`npm view @anthusai/papyrus dist-tags`), edit the same exact version in four files of the site repository, in one pull request to the site's `develop`:
 
 - `package.json` (`@anthusai/papyrus`)
 - `infra/package.json` (`@anthusai/papyrus`)
 - `infra/site.json` (`papyrusVersion`)
 - `requirements-publication.txt` (`papyrus-newsroom[markus]==X.Y.Z`)
 
-Run `npm install` in both places to refresh the lockfiles. A release that changes the schema or functions deploys the backend with the site, so read the release notes. Merging to the site's `main` deploys it (see README, "How a change reaches production"). Pin stable versions; the `next` tag is for trying a prerelease.
+Run `npm install` in both places to refresh the lockfiles. A release that changes the schema or functions deploys the backend with the site, so read the release notes. Merging the bump to the site's `develop` deploys nothing; it ships in the site's next release (`develop` into `main`, see README, "How a change reaches production"), and a site cannot skip a release that adds a GSI. Verify on the site's local dev server first. Pin stable versions; the `next` tag is for trying a prerelease.
 
 ### Deploy
 
-- **A site**: merge its pull request to `main`. Public repositories deploy through Actions OIDC, private ones in AWS. The deploy re-renders the site.
+- **A site**: the deploy is the release. Merge pull requests into the site's `develop` (no Amplify build), then release by merging `develop` into `main`; once or twice a day. Public repositories deploy through Actions OIDC, private ones in AWS. The deploy re-renders the site.
 - **App-shell stack**: `cd infra/amplify-app-shell && npm ci`, then `SITE=/abs/path/infra/site.json AWS_PROFILE=papyrus-production npm run diff`, then `npm run deploy` after a human has read the diff.
-- **Shared stacks** (`papyrus-monitoring`, `papyrus-procedure-runner`, edge, newsletter sending): hand-run with a change set (`aws cloudformation create-change-set`, then `describe-change-set`, then execute). Each README says which parameters to pass.
-- **Engine**: promote `develop` to `main` (see Git workflow); the release publishes the packages. The engine itself deploys nothing to a site.
+- **Shared stacks `papyrus-monitoring` and `papyrus-newsletter-sending-operators`**: deployed by the release, not by hand (PPY-b8cc79). A push to `main` runs `.github/workflows/stack-deploy.yml`: tests pass, then each stack whose inputs changed is built, change-set, checked and executed through GitHub OIDC. A pull request touching their paths prints a read-only dry run as a job summary; a human reads it before merging. The run stops, executing nothing, on a Remove or Replace not listed in `infra/pipeline/allowed-changes.json` and on a stack in a failed state, and a failed update fails the run. Never create or execute a change set for these stacks yourself. [infra/pipeline/README.md](infra/pipeline/README.md) has the details.
+- **Pipeline roles: merge, then the reviewer approves in GitHub (never run by hand)**: the release deploys through IAM roles defined in `infra/pipeline/papyrus-stack-pipeline.yaml`. After any change to that file is merged to `develop` or `main`, the `role-stack-deploy` workflow plans it (the change set and an IAM view in the job summary) and the `apply` job waits for the reviewer's approval in the `pipeline-roles` environment. Your job: find that run (`gh run list --workflow role-stack-deploy.yml`), give the reviewer its link, and say a pipeline-roles change awaits approval. **Never approve it, never apply that template or call CloudFormation on the pipeline stacks yourself, never run `infra/pipeline/bootstrap.sh` or `create-environment.sh` unless the user tells you to, and never work around a refusal.** Say in the pull request that the change "needs approval after merge". You recognise the need when: you edit that template; the stack-deploy summary says "The pipeline roles are out of date"; a deploy fails "not authorized" on a role; or you are setting up a new AWS account. A new account has one person's setup step, once (`infra/pipeline/bootstrap.sh --account <12-digit account id> --approver-only`, then `infra/pipeline/create-environment.sh --reviewer <github login>`); ask for it with exactly those commands. Facts live in [infra/pipeline/README.md](infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
+- **Other shared stacks** (`papyrus-procedure-runner`, edge, per-site newsletter sending): still hand-run with a change set (`aws cloudformation create-change-set`, then `describe-change-set`, then execute). Each README says which parameters to pass.
+- **Engine**: release `develop` to `main` (see Git workflow); the release publishes the packages. The engine itself deploys nothing to a site.
 
 ### Re-project safely
 
@@ -139,6 +163,10 @@ papyrus procedures register --file procedures/<name>.tac --key <site>.<monitor>.
 
 It validates the procedure with Tactus, derives the parameter schema from its `input` block, bundles the skills its agents name, and stores a new published version (an unchanged digest changes nothing). To start it from a monitor, add `procedureTriggers` and `openaiKeyParameter` to the site's router publication ([procedure runner](docs/procedure-runner.md)).
 
+### Accept, reject and rate References as the signed-in person
+
+Ryan, 2026-11-05: agents act directly on his behalf. In a signed-in `papyrus login` session (editor or admin) run `papyrus references approve|reject --reference <id> [--agent <name>] [--note ...]` and `papyrus references set-stars --reference <id> --stars 1-5|clear [--agent <name>]`; `papyrus references set-section --reference <lineage id> --section <name|slug|publication#slug> | --clear` changes only an accepted Reference's section (no new vote); add `--dry-run` to preview. The decision is recorded as the person's own, with a plain `via cli` note. No delegation or approval is needed; delegations are optional and not the normal path ([story reporting](docs/story-reporting.md#acting-as-the-signed-in-person-the-normal-path)).
+
 ### Create or change an automation
 
 ```bash
@@ -155,7 +183,7 @@ papyrus automations runs --id <site>.<name> --limit 20
 ### Add a site to the Hacker News routing
 
 1. Add the site's AppSync API id as a parameter and its Reference intake and `relevance_decision_is` grants to `infra/monitoring/papyrus-monitoring.yaml` (follow `RouterDataParadeIntakePolicy` and `RouterDecisionRelationPolicy`; the role's inline policy is size-limited, so use managed policies).
-2. Create a change set for `papyrus-monitoring` and read it first.
+2. Open the pull request; its dry run lists the resources the release would add or modify. The release deploys it.
 3. Add the publication to the router config and seed it (the validator refuses a config the router would reject):
 
    ```bash
@@ -167,7 +195,7 @@ papyrus automations runs --id <site>.<name> --limit 20
 
 ### Start a new Papyrus site
 
-The twelve steps are in [README.md](README.md#start-a-new-papyrus-site). The traps: `infra/site.json` must have an `aws` block; the app shell is deployed from this repository's `infra/amplify-app-shell`, not from the site; the four pins must match; Google secrets are set with `papyrus site google-secrets set`; a site with CMS routes behind its own CloudFront needs the Lambda@Edge 404 handler, not `CustomErrorResponses`; and the mission doctrine is data in the backend (`papyrus sections doctrine set`), never a file in the repository.
+The twelve steps are in [README.md](README.md#start-a-new-papyrus-site). The traps: `infra/site.json` must have an `aws` block; the app shell is deployed from this repository's `infra/amplify-app-shell`, not from the site; the four pins must match; Google secrets are set with `papyrus site google-secrets set`; a site with CMS routes behind its own CloudFront needs the Lambda@Edge 404 handler, not `CustomErrorResponses`; and the mission doctrine is data in the backend (`papyrus sections doctrine set`), never a file in the repository. To seed the new site from an existing one, `papyrus ops site copy` ([docs](docs/site-copy.md)) copies the backend data and media; it is a dry run unless you pass `--apply`.
 
 ### Run the weekly knowledge run
 
@@ -212,7 +240,7 @@ Module boundaries and solver flow: [docs/solver-and-data-contracts.md](docs/solv
 | Cloud content stays behind `ContentRepository`; Amplify, GraphQL and Storage types never reach `lib/newspaper-layout.ts`. | `npm run check:reader-route-content-source` (routes only); the solver import boundary is unenforced. |
 | No local Markdown content store (`content/articles/`). Edition content comes from GraphQL; `?scenario=<id>` fixtures are for tests only. | `npm run test:content-source` (reader reads published models only), `npm run check:reader-route-content-source`. The `content/articles/` ban itself is unenforced. |
 | Keep the S3 bucket private. Reader media uses Storage access rules and signed URLs. | `npm run test:guest-read-auth`, `npm run test:identity-pool-model-access`. |
-| GraphQL auth: configured editorial CLI sessions use normal Google/Cognito user-pool auth via `papyrus login`, with renewable secrets in macOS Keychain. Operator commands explicitly select IAM; Lambdas keep their managed IAM roles. Never fall back from failed user auth to IAM or use guest/API-key authoring. | `features_backend/cli-user-auth.feature`, `test_cli_user_auth.py`, and `refuse_guest_auth`; provider/client setup and live permission parity require review. See `docs/cli-login.md`. |
+| GraphQL auth: configured editorial CLI sessions use normal Google/Cognito user-pool auth via `papyrus login`, with renewable secrets in the platform secure store (macOS Keychain, Linux Secret Service/kernel keyring/memory agent, Windows Credential Manager) through the shared `cli-login` library. Operator commands explicitly select IAM; Lambdas keep their managed IAM roles. Never fall back from failed user auth to IAM or use guest/API-key authoring. | `features_backend/cli-user-auth.feature`, `test_cli_user_auth.py`, and `refuse_guest_auth`; provider/client setup and live permission parity require review. See `docs/cli-login.md`. |
 | Schema drift is fixed by deploying, never by shims: no runtime introspection, reduced-field fallbacks or dual-shape normalizers. | `npm run test:schema-parity` covers `schema.ts` vs `resource.ts`; shims are unenforced. See [docs/schema-and-api-alignment.md](docs/schema-and-api-alignment.md). |
 | No backward-compatibility fallbacks for old schema, GraphQL, content, plan or CLI shapes unless the user asks. Clean breaks. | Unenforced. |
 | Published editions set `status`, `editionDate` and `publishedAt`; archive listing depends on `publishedAt`. | Unenforced. Check `curl "$PAPYRUS_BASE_URL/api/archive/editions?limit=1"`; see [docs/production-content-operations.md](docs/production-content-operations.md). |
@@ -229,7 +257,7 @@ Module boundaries and solver flow: [docs/solver-and-data-contracts.md](docs/solv
 ### Deploys and AWS
 
 - Read `AGENTS.local.md` before any AWS, Amplify, sandbox or deploy command. Unenforced.
-- Production deploys go through the DevOps pipeline from `main`. Never run `ampx pipeline-deploy` or other production `ampx` deploys from a local agent unless the user names that exact override. Use `ampx` locally for sandbox only. Unenforced.
+- Production deploys go through the DevOps pipeline from `main` (a release); `develop` builds nothing in Amplify. Never run `ampx pipeline-deploy` or other production `ampx` deploys from a local agent unless the user names that exact override. Use `ampx` locally for sandbox only. Unenforced.
 - Root `amplify.yml` is SSR (`WEB_COMPUTE`) for p.apyr.us only; Markus sites follow [docs/site-hosting.md](docs/site-hosting.md). Unenforced.
 - Production content refreshes are targeted GraphQL upserts after a reviewed diff. No sandbox seed or `content delete all --yes` against production. Unenforced. See [docs/production-content-operations.md](docs/production-content-operations.md).
 
@@ -237,12 +265,12 @@ Module boundaries and solver flow: [docs/solver-and-data-contracts.md](docs/solv
 
 | Rule | Enforced by |
 | --- | --- |
-| One content item, one lifecycle: `Item.stage` carries `idea`, `assignment`, `research`, `report`, `editor_select`, `copywriting`, `illustration`, `typesetting`, `published`. No Story-to-Article hierarchy. Research, reporting and copywriting Assignments carry the item's `itemLineageId`. | `procedures/newsroom/tests/test_content_item_lifecycle.py`; [docs/content-item-lifecycle.md](docs/content-item-lifecycle.md). |
+| One content item, one lifecycle: `Item.stage` carries `idea`, `assignment`, `reporting`, `copywriting`, `illustration`, `typesetting`, `published`, `held`, `spiked` (the retired `research`, `report` and `editor_select` are read as `reporting`; source of truth `CONTENT_ITEM_STAGES` in `src/papyrus_content/content_item_lifecycle.py`). Steps per stage: [story procedure](docs/story-procedure.md); illustration and typesetting: [docs/story-illustration-typesetting.md](docs/story-illustration-typesetting.md). No Story-to-Article hierarchy. Research, reporting and copywriting Assignments carry the item's `itemLineageId`. | `procedures/newsroom/tests/test_content_item_lifecycle.py`; [docs/content-item-lifecycle.md](docs/content-item-lifecycle.md). |
 | Assignments are private `Assignment` records, never `Item` rows. Lifecycle changes append `AssignmentEvent` rows. | `npm run test:identity-pool-model-access` keeps `Assignment` and `MessageThread` off the identity pool; `features_backend/assignment-management.feature` covers create, list and update. `AssignmentEvent` audit rows are unenforced. |
 | **Messages come only from people** (Ryan, 2026-10-29; epic PPY-781d26). Nothing creates a `Message` automatically: not votes, monitor deliveries, reports, ontology runs, story-stage moves, form triage or agent Reference notes. A machine result lives on the record it is about (a `Reference` field, a `ModelAttachment`, `Item.metadata.stageMoves`) or is printed, and never gets a replacement log model. Stage 1 (PPY-cd2940) stopped those writers and moved their readers (votes are `curation*` fields on the `Reference`; see [reference curation pipeline](docs/reference-curation-pipeline.md#a-vote-is-recorded-on-the-reference)); the remaining machine Messages are the packets below, the console chat, the forum posts and the console web-context turns (stage 2, PPY-59edce), and the existing machine Messages are deleted in stage 3 (PPY-30eb69). | `features_backend/messages-only-from-people-writers.feature`. Stage-2 writers are unenforced. |
 | Research and reporting produce private `Message` packets with `ModelAttachment` payloads, linked `Assignment --produces--> Message`. Only copywriting creates reader-facing draft copy. (Stays until stage 2 of the rule above.) | Unenforced. `features_backend/research-reporting-context.feature` covers orientation traces only. |
 | Reporting review (`select`, `merge`, `brief`, `hold`, `kill`) never creates `EditionItem`; edition placement is a later layout step. | `features/newspaper-layout.feature` ("reviews reporting packets without publishing placement"). |
-| A story based on a Reference is linked to it (`uses_evidence`, role `based_on`, by lineage ids) and has its own text: never seeded from the Reference's captured text (the copy guard refuses 12+ shared words); only a post's image may be seeded from the preview. Every creation path goes through `create_story_from_references`. | `features_backend/story-from-reference.feature`, `features/newsroom-story-references.feature`, `procedures/newsroom/tests/test_story_from_reference.py`. See [Stories based on a Reference](docs/reference-curation-pipeline.md#6a-stories-based-on-a-reference-core-rules). |
+| A story based on a Reference is linked to it (`uses_evidence`, role `based_on`, by lineage ids) and has its own text: never seeded from the Reference's captured text (the copy guard refuses 12+ shared words); only a post's image may be seeded from the preview, except that the editor's one-tap Create Story (PPY-3c11bd) starts the body from the Reference's generated summary plus the source link and seeds the preview image for any story type, remote and credited, with a rights note in the editor. Every creation path goes through `create_story_from_references`. | `features_backend/story-from-reference.feature`, `features_backend/create-story-from-reference.feature`, `features/newsroom-create-story.feature`, `features/newsroom-story-references.feature`, `procedures/newsroom/tests/test_story_from_reference.py`. See [Stories based on a Reference](docs/reference-curation-pipeline.md#6a-stories-based-on-a-reference-core-rules). |
 | Only current accepted `Reference` rows feed evidence sets, analysis, publication memory, context packs and edition planning. Packet `proposedReferences` are prospects until intake registers them. | `is_evidence_eligible_reference` in `src/papyrus_newsroom/reference_policy.py` is the single gate where callers use it; coverage of every consumer is unenforced. See `skills/reference-intake/SKILL.md`. |
 | Corpus contents stay in Biblicus and S3. GraphQL holds steering state, strict `Reference` metadata and `item_id` references only. | Unenforced. |
 | Doctrine, not code, carries subject assumptions. No corpus name, classifier id or category in `/newsroom`, the content CLI, GraphQL models or layout code. | Unenforced. Known violations are tracked under epic PPY-36270a. |
@@ -268,7 +296,7 @@ Roles as of 2026-10-23. Ryan decides priorities; when unsure who owns a thing, a
 
 - **Engine (this repository)**: the Papyrus implementation sessions. Releases are cut here; site sessions consume them by pin.
 - **Site repositories**: each site has its own implementation session (for example the Shipped session owns shipped.anth.us and `AnthusAI/Shipped-web`). Do not change a site repository from an engine task except for an agreed pin bump.
-- **Shared infrastructure**: `papyrus-monitoring` (collectors, router, its AppSync grants), `papyrus-procedure-runner`, the knowledge run and projection lease table, the edge stacks and the newsletter sending stacks serve several sites. Tell Ryan and the session that last changed the stack before a change set is executed, and never run two deploys of one stack at once.
+- **Shared infrastructure**: `papyrus-monitoring` (collectors, router, its AppSync grants), `papyrus-procedure-runner`, the knowledge run and projection lease table, the edge stacks and the newsletter sending stacks serve several sites. Tell Ryan and the session that last changed the stack before the release that carries a change to it (`papyrus-monitoring` and the operator sending stack deploy from that release; the others before a change set is executed), and never run two deploys of one stack at once.
 - **Prospectus**: tell the Prospectus session before merging to Prospectus `main`; deploys must not overlap. Anth.us is never touched without explicit instruction.
 - **Cyclotron**: the shared relevance Cyclotron belongs to the Cyclotron sessions. Adding a publication output or binding is a request to them.
 - **Spend**: use the models a task names; do not start paid or model-calling runs that were not requested.
@@ -277,7 +305,7 @@ Roles as of 2026-10-23. Ryan decides priorities; when unsure who owns a thing, a
 
 - **Live**: standard Markus projector and the edge handler on Markus sites; newsletters on Shipped; reader-steering code and Proposals (reader writes closed in production); monitoring and router (dry-run or live per the router config); procedure runner for Distinctive Mark's TTAB analysis; automations slices 1 and 2; the cloud knowledge run (Shipped first); GA4 with Consent Mode v2.
 - **Merged, awaiting a release and a data API deploy per site**: review requests and the Notification Center home (#642, PPY-ab6a50 and PPY-1cd261, under PPY-9ff95b).
-- **In progress**: the idea pipeline beyond v0 (PPY-8ffc18: scheduling and weekly trends; unattended runs cannot file Proposals because `fileProposal` is not open to IAM); outbound newsletters beyond Shipped (PPY-31455f); publication-agnostic Monitoring (PPY-2d77c8).
+- **In progress**: the idea pipeline beyond v0 (PPY-8ffc18: scheduling and weekly trends; unattended runs file ideas as Items under IAM, via the router's `RouterIdeaPolicy` once its change set is applied); outbound newsletters beyond Shipped (PPY-31455f); publication-agnostic Monitoring (PPY-2d77c8).
 - **Planned**: automation outputs go to review by default (PPY-2b4bda); schedule, event and manual automation triggers; Data Parade binding into the shared Cyclotron (PPY-cad5f6, blocked); votes and flags checking that their subject exists (PPY-d9e384).
 - **Known stale docs**: `docs/standard-site.md` and `packages/README.md` still describe the packages as a spike that publishes nothing (they publish; see `docs/releasing.md`); `docs/newsletter.md` opens with "not yet enabled on any site" (Shipped has it on). Prefer README.md and the topic pages when they disagree.
 

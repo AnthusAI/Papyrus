@@ -36,7 +36,7 @@ Feature: The router sends feedback for references curated by people, including i
     Given Cyclotron answers feedback with publication binding changed
     When an editor accepts a reference in the newsroom UI
     And the feedback task runs
-    Then the feedback stays queued for the next run
+    Then the feedback stays waiting for the next run
     When Cyclotron accepts feedback again
     And the feedback task runs
     Then the feedback was delivered on the second attempt with the same request id
@@ -73,7 +73,7 @@ Feature: The router sends feedback for references curated by people, including i
     When the Cyclotron accepts a reference automatically
     And the feedback task runs
     Then no feedback was sent to Cyclotron that was accepted
-    And the automatic acceptance stays queued as not a human curation
+    And the automatic acceptance is not counted as an editor's vote
 
   Scenario: A later editor Reject of an automatically accepted reference is sent as feedback
     Given the Cyclotron accepted a reference automatically and the feedback task ran
@@ -92,4 +92,81 @@ Feature: The router sends feedback for references curated by people, including i
     When a monitor's rule accepts a reference automatically
     And the feedback task runs
     Then no feedback was sent to Cyclotron that was accepted
-    And the automatic acceptance stays queued as not a human curation
+    And the automatic acceptance is not counted as an editor's vote
+
+  Scenario: The editor's explanation travels with the vote
+    When an editor rejects a reference in the newsroom UI saying "Just a product announcement."
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label exclude
+    And the feedback carries the explanation "Just a product announcement."
+
+  Scenario: A vote with no explanation sends none, rather than an empty one
+    When an editor accepts a reference in the newsroom UI
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label include
+    And the feedback carries no explanation
+
+  Scenario: An explanation written only on whitespace counts as no explanation
+    When an editor accepts a reference in the newsroom UI saying "   "
+    And the feedback task runs
+    Then the feedback carries no explanation
+
+  Scenario: A vote already sent is not sent again on later runs
+    When an editor accepts a reference in the newsroom UI
+    And the feedback task runs
+    And the feedback task runs
+    Then Cyclotron has received 1 feedback request
+
+  Scenario: An editor who adds an explanation to a vote that was already sent has it sent as a new request
+    Given an editor accepted a reference and the feedback task ran
+    When the editor adds the explanation "Agent platforms." to that vote
+    And the feedback task runs
+    Then Cyclotron has received 2 feedback requests with different request ids
+    And the latest feedback carries the explanation "Agent platforms."
+    And the feedback task runs
+    And Cyclotron has received 2 feedback requests
+
+  Scenario: An editor who changes their mind after the vote was sent has the correction sent
+    Given an editor accepted a reference and the feedback task ran
+    When an editor rejects that reference in the newsroom UI saying "Not for us after all."
+    And the feedback task runs
+    Then Cyclotron has received 2 feedback requests with different request ids
+    And the latest feedback has the label exclude and carries the explanation "Not for us after all."
+
+  Scenario: An editor's Reject of an automatically accepted reference reaches the Cyclotron with the explanation
+    Given the Cyclotron accepted a reference automatically and the feedback task ran
+    When an editor rejects that reference in the newsroom UI saying "Product announcement, nothing new."
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label exclude
+    And the feedback carries the explanation "Product announcement, nothing new."
+
+  Scenario: A vote is found however many deliveries came before it
+    Given 400 earlier deliveries that nobody voted on
+    When an editor accepts a reference in the newsroom UI
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label include
+    And the feedback task read no delivered reference one by one
+
+  Scenario: An editor's confirmation of an automatic acceptance reaches the Cyclotron with the explanation
+    Given the Cyclotron accepted a reference automatically and the feedback task ran
+    When an editor confirms that automatic acceptance saying "Exactly our beat."
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label include
+    And the feedback carries the explanation "Exactly our beat."
+
+  Scenario: A confirmation without an explanation sends none, and it is still a new vote
+    Given the Cyclotron accepted a reference automatically and the feedback task ran
+    When an editor confirms that automatic acceptance without an explanation
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label include
+    And the feedback carries no explanation
+
+  Scenario: An explanation added to a confirmation later is sent as a new request
+    Given the Cyclotron accepted a reference automatically and the feedback task ran
+    When an editor confirms that automatic acceptance without an explanation
+    And the feedback task runs
+    And the editor adds the explanation "Agent platforms." to that vote
+    And the feedback task runs
+    Then Cyclotron has received 2 feedback requests with different request ids
+    And the latest feedback carries the explanation "Agent platforms."
+

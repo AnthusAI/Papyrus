@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-from .accession import execute_reference_accession_assignment
+from .content_item_lifecycle import without_sub_tasks
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import message_record, semantic_relation_record
 from .content_item_lifecycle import (
@@ -19,6 +20,7 @@ from .content_item_lifecycle import (
 )
 from .copywriting import COPYWRITING_ASSIGNMENT_TYPES, build_copywriting_run_plan
 from .env import PAPYRUS_ROOT
+from .fact_check import HELD_GROUPS, held_group
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .ids import hash_short, knowledge_corpus_id, safe_id
 from .model_defaults import DEFAULT_REFERENCE_SUMMARY_MODEL
@@ -37,11 +39,8 @@ from .options import (
     parse_options,
     resolve_mutation_apply,
 )
-from .records import apply_record_changes, build_record_changes, build_record_changes_tolerating_optional_models
+from .records import apply_record_changes, build_record_changes
 from .reference_policy import normalize_reference_curation_status
-from .reference_url_text import run_reference_url_text_extraction
-from .reference_metadata_generation import run_reference_metadata_generation_from_extracted_text
-from .reporting_packet_review import build_reporting_packet_review_plan
 from .publication import publication_corpus_key
 
 RESEARCH_MODES = frozenset({"internal_brief", "source_discovery", "full_research"})
@@ -57,6 +56,22 @@ ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_KINDS = (
 )
 ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_MESSAGE_KINDS = ("note",)
 ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_ASSIGNMENT_TYPES = ("research.*", "reporting.*")
+
+
+
+def writable_run_dir(run_id: str) -> Path:
+    """The directory for one run's files: ``PAPYRUS_RUNS_DIR`` when the environment sets it (a Lambda sets it to a directory under /tmp,
+    because its code directory is read-only), else the repository's ``.papyrus-runs``. A directory that cannot be written is an error."""
+    configured = str(os.environ.get("PAPYRUS_RUNS_DIR") or "").strip()
+    base = Path(configured) if configured else PAPYRUS_ROOT / ".papyrus-runs"
+    run_dir = base / run_id
+    try:
+        run_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise OSError(f"Cannot create the run directory {run_dir}: {error}. Set PAPYRUS_RUNS_DIR to a writable directory.") from error
+    if not os.access(run_dir, os.W_OK):
+        raise OSError(f"The run directory {run_dir} is not writable. Set PAPYRUS_RUNS_DIR to a writable directory.")
+    return run_dir
 
 
 def normalize_research_mode(value: Any) -> str:
@@ -95,6 +110,12 @@ def semantic_state_key(kind: str, lineage_id: str) -> str:
     return f"{kind}#{lineage_id}#current"
 
 
+def _find_newsroom_section(client, value: str):
+    from .editorial_context import find_section
+
+    return find_section(client, value)
+
+
 def assignment_section_key(assignment: dict[str, Any]) -> str | None:
     return normalize_string(assignment.get("sectionKey")) or normalize_string(assignment.get("sectionId"))
 
@@ -119,6 +140,22 @@ def run_papyrus_cli_json(args: list[str]) -> dict[str, Any]:
     return json.loads(completed.stdout)
 
 
+def _checklist_for_new_content_item(client, new_content_item_version: dict[str, Any] | None) -> None:
+    """An Assignment that mints a new Story also makes the Story's checklist (every path that makes a Story does)."""
+    if new_content_item_version:
+        from .story_checklist import ensure_for_new_story
+
+        ensure_for_new_story(client, new_content_item_version["lineageId"])
+
+
+def _sync_checklist_of_assignment(client, assignment: dict[str, Any]) -> None:
+    """A research packet is evidence for its Story's research step: bring the checklist up to date once."""
+    if assignment.get("itemLineageId"):
+        from .story_checklist import sync_quietly
+
+        sync_quietly(client, assignment["itemLineageId"], write_summary=False)   # this runs under the research worker role: no Item writes
+
+
 def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> dict[str, Any]:
     apply = resolve_mutation_apply(options, "assignments create-research")
     title = normalize_string(options.get("title"))
@@ -130,9 +167,9 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     now = _utc_now()
     assignment_type_key = normalize_string(options.get("type")) or "research.candidate"
     tavily_deep = assignment_type_key == "research.tavily-deep"
+    multi_search = assignment_type_key == "research.multi"   # opt-in: an editor picks it per assignment, never automatic
     status = normalize_string(options.get("status")) or "open"
     priority = normalize_non_negative_integer(options.get("priority"), "--priority") or 50
-    queue_key = normalize_string(options.get("queue")) or f"research:{section_key or 'unsectioned'}:exploratory"
     summary = normalize_string(options.get("summary")) or normalize_string(options.get("brief")) or title
     brief = normalize_string(options.get("brief")) or summary
     instructions = normalize_string(options.get("instructions")) or normalize_string(options.get("research-questions")) or ""
@@ -140,12 +177,15 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     primary_focus = normalize_string(options.get("primary-focus-category-key")) or normalize_string(
         options.get("primary-focus")
     )
-    section = client.get_record("NewsroomSection", section_key) if section_key else None
+    section = _find_newsroom_section(client, section_key) if section_key else None
+    if section:
+        section_key = section["id"]   # a name or slug names the section; the record stores its id
     if section_key and not section:
         raise ValueError(
             f"Unknown NewsroomSection for --section {section_key}. "
-            "Run: poetry run papyrus sections import --config corpora/papyrus-newsroom-sections.yml"
+            "Run: poetry run papyrus sections import --config corpora/example-newsroom-sections.yml"
         )
+    queue_key = normalize_string(options.get("queue")) or f"research:{section_key or 'unsectioned'}:exploratory"
     assignment_id = normalize_string(options.get("id")) or (
         f"assignment-research-{safe_id(title)[:80]}-{timestamp_for_path(now)}"
     )
@@ -180,7 +220,8 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
                 "sectionType": _normalize_section_type((section or {}).get("type") or options.get("section-type")),
                 "topicScopeCategoryKeys": topic_scope,
                 "primaryFocusCategoryKey": primary_focus,
-                "contextProfile": "researcher",
+                "contextProfile": normalize_string(options.get("context-profile")) or "researcher",
+                **({"direction": normalize_string(options.get("direction"))} if normalize_string(options.get("direction")) else {}),
                 "createdBy": "assignments create-research",
                 **(
                     {
@@ -188,6 +229,8 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
                         "tavilyModel": normalize_string(options.get("tavily-model")) or "auto",
                     }
                     if tavily_deep
+                    else {"researchBackend": "multi_search"}
+                    if multi_search
                     else {}
                 ),
             }
@@ -241,6 +284,8 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
                 f"poetry run papyrus assignments run-tavily-deep-research --assignment {assignment_id} "
                 f"--corpus-key {corpus_key} --wait"
                 if tavily_deep
+                else f"poetry run papyrus assignments research-multi {assignment_id}"
+                if multi_search
                 else f"poetry run papyrus assignments run-research --assignment {assignment_id} "
                 f"--corpus-key {corpus_key} --research-mode {research_mode}"
             )
@@ -257,6 +302,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
         print(f"assignments\tcreate-research\tnext\t{result['next']}")
         return result
     apply_record_changes(client, changes)
+    _checklist_for_new_content_item(client, new_content_item_version)
     update_newsroom_summary_after_assignment_creates(
         client,
         changes,
@@ -281,7 +327,6 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         raise ValueError("assignments create-reporting only supports --type reporting.candidate.")
     status = normalize_string(options.get("status")) or "open"
     priority = normalize_non_negative_integer(options.get("priority"), "--priority") or 50
-    queue_key = normalize_string(options.get("queue")) or f"reporting:{section_key or 'unsectioned'}:exploratory"
     summary = normalize_string(options.get("summary")) or normalize_string(options.get("brief")) or title
     brief = normalize_string(options.get("brief")) or summary
     instructions = normalize_string(options.get("instructions")) or "Build a private reporting_context_packet only."
@@ -289,12 +334,15 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
     primary_focus = normalize_string(options.get("primary-focus-category-key")) or normalize_string(
         options.get("primary-focus")
     )
-    section = client.get_record("NewsroomSection", section_key) if section_key else None
+    section = _find_newsroom_section(client, section_key) if section_key else None
+    if section:
+        section_key = section["id"]   # a name or slug names the section; the record stores its id
     if section_key and not section:
         raise ValueError(
             f"Unknown NewsroomSection for --section {section_key}. "
-            "Run: poetry run papyrus sections import --config corpora/papyrus-newsroom-sections.yml"
+            "Run: poetry run papyrus sections import --config corpora/example-newsroom-sections.yml"
         )
+    queue_key = normalize_string(options.get("queue")) or f"reporting:{section_key or 'unsectioned'}:exploratory"
     assignment_id = normalize_string(options.get("id")) or (
         f"assignment-reporting-{safe_id(title)[:80]}-{timestamp_for_path(now)}"
     )
@@ -390,6 +438,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         print(f"assignments\tcreate-reporting\tnext\t{result['next']}")
         return result
     apply_record_changes(client, changes)
+    _checklist_for_new_content_item(client, new_content_item_version)
     update_newsroom_summary_after_assignment_creates(
         client,
         changes,
@@ -419,8 +468,7 @@ def run_research_assignment(flags: list[str]) -> None:
     run_id = normalize_string(options.get("run-id")) or (
         f"research-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )
-    run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = writable_run_dir(run_id)
     result_path = run_dir / "research-result.json"
     source_path = run_dir / "research.cloud.tac"
     stdout_path = run_dir / "research.stdout.log"
@@ -607,8 +655,7 @@ def run_reporting_assignment(flags: list[str]) -> None:
     run_id = normalize_string(options.get("run-id")) or (
         f"reporting-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )
-    run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = writable_run_dir(run_id)
     result_path = run_dir / "reporting-result.json"
     source_path = run_dir / "reporting.cloud.tac"
     stdout_path = run_dir / "reporting.stdout.log"
@@ -988,6 +1035,7 @@ def apply_research_packet(client: PapyrusGraphQLAuthoringClient, options: dict[s
         print("assignments\tapply-research-packet\tapply\tskipped\tuse --dry-run to preview without writes")
         return result
     apply_record_changes(client, changes)
+    _sync_checklist_of_assignment(client, assignment)
     update_newsroom_summary_after_research_packet_creates(
         client,
         changes,
@@ -1144,6 +1192,7 @@ def apply_reporting_packet(client: PapyrusGraphQLAuthoringClient, options: dict[
         print("assignments\tapply-reporting-packet\tapply\tskipped\tuse --dry-run to preview without writes")
         return result
     apply_record_changes(client, changes)
+    _sync_checklist_of_assignment(client, assignment)
     update_newsroom_summary_after_research_packet_creates(
         client,
         changes,
@@ -1167,17 +1216,16 @@ def _references_for_changed_ids(
 def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> dict[str, Any]:
     from .catalog import assert_reference_catalog_plan_safety, build_reference_catalog_registration_records
     from .ids import knowledge_corpus_id
-    from .steering import load_steering_config, require_corpus_config, resolve_classifier_for_corpus
+    from .editorial_context import hosted_publication
 
     apply = resolve_mutation_apply(options, "assignments process-proposals")
     assignment_id = normalize_string(options.get("assignment"))
     if not assignment_id:
         raise ValueError("assignments process-proposals requires --assignment <id>.")
-    if not options.get("config"):
-        raise ValueError("assignments process-proposals requires --config <steering.yml>.")
-    corpus_key = normalize_string(options.get("corpus-key"))
-    if not corpus_key:
-        raise ValueError("assignments process-proposals requires --corpus-key <key>.")
+    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(
+        assignment_metadata(client, client.get_record("Assignment", assignment_id) or {}).get("corpusKey")
+    ) or hosted_publication(client)["key"]
+    cited_only = parse_boolean_option(options.get("cited-only"), False, "--cited-only")
     entries = load_assignment_research_packet_entries(client, assignment_id)
     message_id = normalize_string(options.get("message"))
     selected = next((entry for entry in entries if entry["message"]["id"] == message_id), None) if message_id else (
@@ -1192,16 +1240,28 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
     run_id = normalize_string(options.get("run-id")) or (
         f"research-proposals-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )
-    run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = writable_run_dir(run_id)
     catalog_path = run_dir / "research-proposals-catalog.json"
     proposals = extract_research_packet_proposals(selected["packet"])
+    considered_count = len(proposals)
+    held_rows: list[dict[str, Any]] = []
+    if cited_only:
+        cited = cited_source_urls(selected["packet"])
+        proposals = [proposal for proposal in proposals if proposal["url"] in cited]
+        held = held_reference_urls(client, knowledge_corpus_id({"key": corpus_key}))
+        held_rows = [{"referenceId": held[proposal["url"]], "title": proposal.get("title"), "url": proposal["url"], "status": "held", "action": "held"}
+                     for proposal in proposals if proposal["url"] in held]
+        proposals = [proposal for proposal in proposals if proposal["url"] not in held]
     catalog_items = build_research_proposal_catalog_items(
         proposals,
         assignment=selected["assignment"],
         message=selected["message"],
         packet=selected["packet"],
     )
+    from .reference_identity import IdentityIndex, split_by_identity
+    catalog_items, identity_rows = split_by_identity(IdentityIndex(client.list_records("Reference")), catalog_items,
+                                                     corpus_id=knowledge_corpus_id({"key": corpus_key}))
+    held_rows = [*held_rows, *identity_rows]
     blocked_reason = normalize_string((selected["packet"].get("sourceDiscovery") or {}).get("blockedReason"))
     catalog = {
         "schema_version": 1,
@@ -1223,18 +1283,21 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
             "registeredReferenceCount": 0,
             "skippedDuplicateCount": 0,
             "curationAssignmentCount": 0,
+            "citedOnly": cited_only,
+            "consideredSourceCount": considered_count,
+            "heldReferenceCount": len(held_rows),
+            "references": held_rows,
             "blockedReason": blocked_reason,
             "next": f"Review blocked reason on research packet {selected['message']['id']}"
             if blocked_reason
             else f"poetry run papyrus assignments run-research --assignment {assignment_id} --research-mode source_discovery --max-evidence-items 20",
         }
-    steering_config = load_steering_config(options.get("config")) or require_steering_config()
-    corpus_config = require_corpus_config(steering_config, corpus_key, "--corpus-key")
+    corpus_config, classifier_id = intake_corpus(client, corpus_key, options.get("config"))
     catalog_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
     plan_options = {
         "corpusConfig": corpus_config,
         "corpusId": knowledge_corpus_id(corpus_config),
-        "classifierId": resolve_classifier_for_corpus(steering_config, corpus_config, None),
+        "classifierId": classifier_id,
         "status": _normalize_proposal_intake_status(options.get("status")),
         "reasonCode": options.get("reason-code"),
         "note": options.get("note"),
@@ -1242,13 +1305,21 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
     }
     plan = build_reference_catalog_registration_records(catalog_payload, plan_options)
     assert_reference_catalog_plan_safety(plan)
+    # Taking in a research packet adds References; it does not describe the corpus. The plan's corpus row carries this batch's count and dates, and writing it
+    # over an existing corpus erases what the corpus record says about the whole publication.
+    if client.get_record("KnowledgeCorpus", plan_options["corpusId"]):
+        plan["records"] = [entry for entry in plan["records"] if entry["modelName"] != "KnowledgeCorpus"]
     changes = build_record_changes(client, plan["records"])
     registration = {"plan": plan, "changes": changes}
     url_text_result: dict[str, Any] | None = None
     metadata_generation_result: dict[str, Any] | None = None
+    prediction: dict[str, Any] | None = None
     if apply:
         apply_record_changes(client, registration["changes"])
         update_newsroom_summary_after_reference_registration(client, registration["changes"], registration["plan"])
+        from .reference_prediction_queue import references_created_by, request_predictions
+        wanted_predictions = references_created_by(registration["changes"])   # one Cyclotron prediction per new Reference, requested once, here
+        prediction = request_predictions(client, wanted_predictions).to_json() if wanted_predictions else None
         changed_reference_ids = {
             str(change["expected"].get("id") or "")
             for change in registration["changes"]
@@ -1263,6 +1334,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
                 max_count = normalize_non_negative_integer(options.get("url-text-max-count"), "--url-text-max-count")
                 force = parse_boolean_option(options.get("url-text-force"), False, "--url-text-force")
                 corpus_id = knowledge_corpus_id(corpus_config)
+                from .reference_url_text import run_reference_url_text_extraction   # its imports are not in the router zip
                 url_text_result = run_reference_url_text_extraction(
                     client=client,
                     references=refreshed_references,
@@ -1288,6 +1360,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
                 refreshed_references = _references_for_changed_ids(client, changed_reference_ids)
                 refreshed_attachments: list[dict[str, Any]] = []
                 corpus_id = knowledge_corpus_id(corpus_config)
+                from .reference_metadata_generation import run_reference_metadata_generation_from_extracted_text   # its imports are not in the router zip
                 metadata_generation_result = run_reference_metadata_generation_from_extracted_text(
                     references=refreshed_references,
                     attachments=refreshed_attachments,
@@ -1299,7 +1372,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
                     apply=True,
                     bucket=normalize_string(options.get("bucket")),
                 )
-    references = _research_proposal_intake_reference_rows(registration["changes"])
+    references = [*_research_proposal_intake_reference_rows(registration["changes"]), *held_rows]
     changed_refs = sum(
         1 for change in registration["changes"] if change.get("modelName") == "Reference" and change.get("action") != "noop"
     )
@@ -1315,11 +1388,15 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
         "catalogPath": str(catalog_path),
         "proposedReferenceCount": len(proposals),
         "dedupedProposalCount": len(catalog_items),
+        "citedOnly": cited_only,
+        "consideredSourceCount": considered_count,
+        "heldReferenceCount": len(held_rows),
         "registeredReferenceCount": changed_refs,
         "skippedDuplicateCount": duplicate_noops,
         "curationAssignmentCount": changed_assignments,
         "importRunId": registration["plan"]["importRunId"],
         "references": references,
+        "prediction": prediction,
         "blockedReason": blocked_reason,
         "next": (
             f"poetry run papyrus references process-status --config {options.get('config')} "
@@ -1343,6 +1420,62 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
         if metadata_generation_result
         else None,
     }
+
+
+def intake_corpus(client: PapyrusGraphQLAuthoringClient, corpus_key: str, config_path: Any) -> tuple[dict[str, Any], str | None]:
+    """The corpus configuration the intake registers References under, and its classifier id.
+
+    A corpus the steering config lists keeps its configured settings and classifier. Otherwise the key must be the backend's own canonical
+    ``KnowledgeCorpus`` (its publication data is the policy, not a repository file): its configuration is built from that record, with no classifier,
+    because the Reference records written here carry the classifier id as an optional field and nothing reads it (the router's Reference delivery
+    writes none). A key that is neither fails."""
+    from .editorial_context import hosted_publication
+    from .steering import find_corpus_config, load_steering_config, resolve_classifier_for_corpus
+
+    steering_config = None
+    config_error: ValueError | None = None
+    if config_path:
+        try:
+            steering_config = load_steering_config(normalize_string(config_path) or None)
+        except ValueError as error:   # a missing or unreadable file only matters when the key is not the backend's own corpus
+            config_error = error
+    listed = find_corpus_config(steering_config, corpus_key) if steering_config else None
+    if listed is not None:
+        return listed, resolve_classifier_for_corpus(steering_config, listed, None)
+    try:
+        publication = hosted_publication(client)
+    except ValueError:
+        publication = None
+    if publication and publication["key"] == corpus_key:
+        return {"key": corpus_key, "name": publication["name"], "role": "canonical"}, None
+    raise config_error or ValueError(f"Unknown --corpus-key: {corpus_key}")
+
+
+def cited_source_urls(packet: dict[str, Any]) -> set[str]:
+    """The URLs of the sources a claim or a disagreement position cites, through the packet's ``multiSearch.sourceProviders`` index-to-URL list."""
+    index = {row.get("index"): normalize_proposal_url(row.get("url")) for row in _parse_array((packet.get("multiSearch") or {}).get("sourceProviders"))
+             if isinstance(row, dict)}
+    if not index:
+        raise ValueError("--cited-only needs a multi-search research packet: it has no source index to read the citations through.")
+    numbers: set[Any] = set()
+    for claim in _parse_array(packet.get("claims")):
+        numbers |= set(_parse_array(claim.get("sources"))) if isinstance(claim, dict) else set()
+    for disagreement in _parse_array(packet.get("disagreements")):
+        for position in _parse_array(disagreement.get("positions")) if isinstance(disagreement, dict) else []:
+            numbers |= set(_parse_array(position.get("sources"))) if isinstance(position, dict) else set()
+    return {index[number] for number in numbers if index.get(number)}
+
+
+def held_reference_urls(client: PapyrusGraphQLAuthoringClient, corpus_id: str) -> dict[str, str]:
+    """URL to Reference id for every current Reference the corpus already holds, whatever its curation status."""
+    held: dict[str, str] = {}
+    for status in ("accepted", "pending", "rejected"):
+        for row in client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}"):
+            if row and row.get("versionState", "current") == "current":
+                url = normalize_proposal_url(row.get("sourceUri"))
+                if url:
+                    held.setdefault(url, row["id"])
+    return held
 
 
 def load_assignment_research_packet_entries(
@@ -1610,6 +1743,8 @@ def normalize_research_packet_bundle(
             "coverageGaps": coverage_gaps,
         },
         "researchTrace": trace,
+        # multi-search (research.multi) fields: claims with their sources, disagreements, per-provider provenance and contribution
+        **{key: research[key] for key in ("claims", "unverifiedClaims", "factCheck", "disagreements", "multiSearch") if research.get(key)},
         "openQuestions": open_questions,
         "coverageGaps": coverage_gaps,
         "recommendedAngle": recommended_angle,
@@ -1805,7 +1940,44 @@ def research_packet_body(packet: dict[str, Any]) -> str:
     ):
         if value:
             lines.append(f"{label}: {value}")
-    return "\n".join(line for line in lines if line)
+    lines = [line for line in lines if line]
+    reading = (packet.get("multiSearch") or {}).get("reading") if isinstance(packet.get("multiSearch"), dict) else None
+    if isinstance(reading, dict):
+        lines.append(f"Read {reading.get('read')} of {reading.get('sources')} sources, {reading.get('inPart')} of them in part.")
+        not_opened = _parse_array(reading.get("notOpened"))
+        if not_opened:
+            lines.append("Could not open, so only search snippets: " + ", ".join(str(url) for url in not_opened))
+        out_of_room = _parse_array(reading.get("outOfRoom"))
+        if out_of_room:
+            lines.append("Opened, but no time or room left to read, so only search snippets: " + ", ".join(str(url) for url in out_of_room))
+    claims = [c for c in _parse_array(packet.get("claims")) if isinstance(c, dict)]
+    unverified = [c for c in _parse_array(packet.get("unverifiedClaims")) if isinstance(c, dict)]
+    if claims:
+        lines.extend(["", "Claims:"])
+        lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}]" + (" (search snippet only)" if c.get("snippetOnly") else "") for c in claims)
+    disagreements = [d for d in _parse_array(packet.get("disagreements")) if isinstance(d, dict)]
+    if disagreements:
+        lines.extend(["", "Where sources disagree:"])
+        for item in disagreements:
+            lines.append(f"- {item.get('topic')}")
+            lines.extend(f"  - {p.get('position')} [{', '.join(str(i) for i in _parse_array(p.get('sources')))}]"
+                         + (f" (not shown by the sources: {'; '.join(str(r) for r in _parse_array(p.get('reasons')))})" if p.get("unverified") else "")
+                         for p in _parse_array(item.get("positions")) if isinstance(p, dict))
+    if unverified:
+        lines.extend(["", "Could not verify:"])
+        for group, heading in HELD_GROUPS:
+            members = [c for c in unverified if held_group(c.get("verdict")) == group]
+            if members:
+                lines.append(f"{heading}:")
+                lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}] ({'; '.join(str(r) for r in _parse_array(c.get('reasons')))})"
+                             for c in members)
+    open_questions = [q for q in _parse_array(packet.get("openQuestions")) if q]
+    gaps = [g for g in _parse_array((packet.get("factCheck") or {}).get("directionGaps") if isinstance(packet.get("factCheck"), dict) else None) if isinstance(g, dict)]
+    if gaps:
+        lines.extend(["", "Named in the direction, not covered:", *(f"- {g.get('name')}: {g.get('note')}" for g in gaps)])
+    if (claims or unverified) and open_questions:
+        lines.extend(["", "Open questions:", *(f"- {q}" for q in open_questions)])
+    return "\n".join(lines)
 
 
 def reporting_packet_body(packet: dict[str, Any]) -> str:
@@ -2231,7 +2403,7 @@ def backfill_section_indexes(client: PapyrusGraphQLAuthoringClient, options: dic
 
 def backfill_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
     apply = resolve_mutation_apply(options, "assignments backfill-content-items")
-    items = client.list_records("Item")
+    items = without_sub_tasks(client.list_records("Item"))
     lineage_id_by_item_id = {item["id"]: item.get("lineageId") or item["id"] for item in items if item.get("id")}
     assignments = client.list_records("Assignment")
     reporting_assignments = [
@@ -2290,7 +2462,7 @@ def backfill_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[
 
 def demote_undrafted_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
     apply = resolve_mutation_apply(options, "assignments demote-undrafted-content-items")
-    items = client.list_records("Item")
+    items = without_sub_tasks(client.list_records("Item"))
     reporting_assignments = [
         assignment
         for assignment in client.list_records("Assignment")
@@ -2346,14 +2518,14 @@ def list_assignments_for_object(client: PapyrusGraphQLAuthoringClient, options: 
     state_key = f"{kind}#{lineage}#current"
     relations = [
         relation
-        for relation in client.list_records("SemanticRelation")
+        for relation in client.list_semantic_relations_by_object_state(state_key)   # the object-state index: this object's relations only
         if relation.get("relationState") == "current"
         and relation.get("objectStateKey") == state_key
         and relation.get("subjectKind") == "assignment"
         and (relation.get("relationTypeKey") or relation.get("predicate")) == "requests_work_on"
     ]
     assignment_ids = {relation["subjectId"] for relation in relations}
-    assignments = [row for row in client.list_records("Assignment") if row.get("id") in assignment_ids]
+    assignments = list(client.get_records_by_id("Assignment", sorted(assignment_ids)).values())
     assignments.sort(key=assignment_sort_key)
     for assignment in assignments:
         print(f"{assignment.get('status')}\t{assignment.get('id')}\t{assignment.get('assignmentTypeKey')}\t{assignment.get('title')}")
@@ -2365,7 +2537,7 @@ def build_assignment_context(flags: list[str]) -> None:
     if not assignment_id:
         raise ValueError("assignments build-context requires --assignment.")
     output_path = options.get("output") or str(
-        PAPYRUS_ROOT / ".papyrus-runs" / timestamp_for_path() / f"assignment-context-{assignment_id}.json"
+        writable_run_dir(timestamp_for_path()) / f"assignment-context-{assignment_id}.json"
     )
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     payload = run_papyrus_cli_json(
@@ -2464,6 +2636,7 @@ def review_reporting_packet(
         or normalize_string(auth_claims.get("sub"))
         or "papyrus-cli"
     )
+    from .reporting_packet_review import build_reporting_packet_review_plan   # its imports are not in the router zip
     plan = build_reporting_packet_review_plan(
         assignment=assignment,
         message={**message, "metadata": load_message_metadata_payload(client, message)},
@@ -2474,7 +2647,7 @@ def review_reporting_packet(
         actor_sub=auth_claims.get("sub"),
         semantic_relations=relations,
     )
-    changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+    changes = build_record_changes(client, plan["records"])
     apply = resolve_mutation_apply(options, "assignments review-reporting-packet")
     if apply:
         apply_record_changes(client, changes)
@@ -2533,7 +2706,7 @@ def run_copywriting_assignment(
         actor_label=actor_label,
         actor_sub=auth_claims.get("sub"),
     )
-    changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+    changes = build_record_changes(client, plan["records"])
     apply = resolve_mutation_apply(options, "assignments run-copywriting")
     from .story_from_reference import check_body_against_references, current_reference
     from .story_reporting import BASED_ON, link_reference_to_story
@@ -2865,3 +3038,69 @@ def _execute_assignment_by_type(
     from .assignment_executors import execute_assignment_by_type
 
     return execute_assignment_by_type(client, assignment_id, options)
+
+
+def _assignment_event_record(
+    *,
+    assignment: dict[str, Any],
+    event_type: str,
+    note: str,
+    actor_label: str,
+    now: str,
+) -> dict[str, Any]:
+    assignment_id = str(assignment["id"])
+    return {
+        "modelName": "AssignmentEvent",
+        "expected": {
+            "id": f"assignment-event-{safe_id(assignment_id)}-{event_type}-{timestamp_for_path(now)}",
+            "assignmentId": assignment_id,
+            "assignmentTypeKey": assignment.get("assignmentTypeKey"),
+            "queueKey": assignment.get("queueKey"),
+            "eventType": event_type,
+            "fromStatus": assignment.get("status"),
+            "toStatus": assignment.get("status"),
+            "actorLabel": actor_label,
+            "note": note,
+            "createdAt": now,
+        },
+    }
+
+
+def _produces_assignment_message_relation(
+    *,
+    assignment: dict[str, Any],
+    message_id: str,
+    now: str,
+    lifecycle: str,
+    message_kind: str,
+    metadata_kind: str,
+    extra_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    assignment_id = str(assignment["id"])
+    metadata = {
+        "lifecycle": lifecycle,
+        "messageKind": message_kind,
+        "metadataKind": metadata_kind,
+        "assignmentTypeKey": assignment.get("assignmentTypeKey"),
+        "queueKey": assignment.get("queueKey"),
+        "workProductKind": message_kind,
+    }
+    if extra_metadata:
+        metadata.update(extra_metadata)
+    return semantic_relation_record(
+        {
+            "predicate": "produces",
+            "subjectKind": "assignment",
+            "subjectId": assignment_id,
+            "subjectLineageId": assignment_id,
+            "objectKind": "message",
+            "objectId": message_id,
+            "objectLineageId": message_id,
+            "rank": 1,
+            "confidence": 1,
+            "reviewRecommended": False,
+            "importRunId": assignment.get("importRunId"),
+            "importedAt": now,
+            "metadata": metadata,
+        }
+    )

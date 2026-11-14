@@ -225,6 +225,27 @@ def step_poll_other_conflict(context):
     context.cyclotron.combined_poll_override = (409, {"code": "something_else"})
 
 
+@given("the router has swept the collected story")
+def step_swept(context):
+    run(context)
+
+
+@when("the lab recovers and the router sweeps after the back-off")
+def step_recovers(context):
+    context.cyclotron.combined_poll_override = None
+    run(context, now=2000 + tr.mr.REFUSAL_BACKOFF_FIRST + 1)
+
+
+@then("the story is not an error")
+def step_not_error(context):
+    assert "final" not in route_of(context)
+
+
+@then("the story records when it will be asked again")
+def step_asked_again(context):
+    assert route_of(context)["nextAttemptAt"] == 2000 + tr.mr.REFUSAL_BACKOFF_FIRST
+
+
 @when("the router sweeps the collected story again")
 def step_sweep_again(context):
     run(context, now=2200)

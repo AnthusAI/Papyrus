@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "9482ea5d-6848-4d5e-9942-c213403ae00c",
+  "issue_id": "PPY-31c45ce2-7681-453e-a4e1-22bccdbf9ad2",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:44.761Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Three new models, each a new table created with all its indexes in one deploy (the one-new-index-per-deploy limit applies to existing tables only). Tenant: id (the site id, lowercase letters, digits and hyphens), accountId (the Prospectus Account UUID that owns and pays), displayName, state (active | past_due | suspended | deleted_pending | deleted), stateKey (\"state#<state>\" for operator lists), plan, entitlements (json), createdAt, stateChangedAt; indexes accountId and stateKey. TenantMembership: id \"<tenant>#<userSub>\", tenantId, userSub, userProfileId, role (admin | editor | curator | member), status, grantedBy, grantedAt; indexes userSub (for the token Lambda) and tenantId. TenantDomain: id (the hostname, lowercase), tenantId, kind (subdomain | custom), status (pending_dns | pending_certificate | active | failed | removed), verification (json), certificateRef; index tenantId. Authorisation: platform operator writes; a tenant admin reads its own; the tenant-claims and provisioning functions use IAM. All three go in a new optional model group \"tenancy\" so dedicated sites can leave them out of a first deploy.\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts (new models, OPTIONAL_MODEL_GROUPS: add tenancy), amplify/data/resource.ts, scripts/test-schema-parity.ts, lib/tenant-keys.ts (validateTenantId reused for site ids).\n\nAcceptance (Gherkin feature file: features_backend/tenant-records.feature):\nScenario: A tenant's members are found without a scan\n    Given 3 tenants with 5 members each\n    When the token Lambda looks up Ada's memberships\n    Then it makes one query on the userSub index and reads only Ada's rows\n\nScenario: A hostname belongs to one tenant\n    Given \"alpha.apyr.us\" is a TenantDomain of \"alpha\"\n    When \"beta\" tries to add \"alpha.apyr.us\"\n    Then it is refused\n\nDependencies: blocked by PPY-9f3de0. Blocks PPY-0bb0fd, PPY-c020ce, PPY-9f929e, PPY-82de58, PPY-70a429, PPY-2321aa, PPY-d7274f. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Schema parity; Behave in a sandbox; request meter shows one query per lookup.\nRollout: Releasable alone; unused until provisioning and claims ship. Index: new tables only (5 GSIs created with the tables), no change to existing tables.\nRisk and mitigation: Risk: tenant id format collides with existing tenant ids (p-apyr-us, pilobol-us). Mitigation: reuse validateTenantId and reserve existing ids in the provisioning reserved list.\n\nReleasable on its own: yes.\nDynamoDB index: new tables only: Tenant (accountId, stateKey), TenantMembership (userSub, tenantId), TenantDomain (tenantId); no index added to an existing table.\nAppSync authorisation: changes: new models with tenant-admin read and operator write.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

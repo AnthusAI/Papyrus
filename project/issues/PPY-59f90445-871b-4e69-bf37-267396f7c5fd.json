@@ -1,0 +1,20 @@
+{
+  "id": "PPY-59f90445-871b-4e69-bf37-267396f7c5fd",
+  "title": "Section knowledge layers: adjacent, distinctive, rising, gaps",
+  "description": "Layers: adjacent concepts under each tracked concept's card, the section's distinctive and rising concepts, coverage gaps, bridges. Profile differences as data: the editor gets gaps and bridges first; the reporter gets adjacent concepts and their aliases for search terms; the copywriter mostly names and aliases for correct usage. Requires the graph epic.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-95b47bd9-5d6f-477e-ad3b-9ea8040b00df",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:47.665515Z",
+  "updated_at": "2026-11-04T02:52:47.665542Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

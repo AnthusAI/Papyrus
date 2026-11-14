@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f3807e07-c759-4f2e-affe-33186c23e843",
+  "title": "Related stories block at the bottom of a story (derived first, explicit links later)",
+  "description": "Ryan 2026-11-09 asks to associate stories with each other and articles with posts, shown formatted at the bottom of a story. Today: SemanticRelation allows item-to-item links but only generic related_to (plus evidence types supports/contradicts/derived_from); no editorial types, no write path, no front-end block. Step 1: derive Related from shared accepted References (based_on/cited) and shared concepts, ranked by overlap; articles as picture cards, posts as compact brief rows; same data seam as the concepts row. Step 2: add explicit relation types (expands_on / goes deeper in, follows_up) with inverse labels, a CLI/newsroom/agent write path, and let explicit links outrank derived ones.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T12:38:37.081778Z",
+  "updated_at": "2026-11-09T12:38:37.081854Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

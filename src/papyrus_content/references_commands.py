@@ -11,6 +11,7 @@ from typing import Any
 
 from papyrus_newsroom import reference_actions as newsroom_reference_actions
 
+from .tenant_knowledge_keys import REFERENCE_REVIEWED_FEED_KEY, corpus_id_for_key, global_key, is_corpus_id
 from .assignments import apply_assignment_action
 from .env import PAPYRUS_ROOT
 from .graphql_authoring import create_authoring_client
@@ -48,6 +49,7 @@ from .assignment_executors import execute_assignment_by_type
 from .reference_attachments import build_extracted_text_attachment_plans
 from .reference_citation_resolution import build_reference_citation_resolution_records
 from .reference_exports import build_reference_analysis_manifest, build_reference_scope_training_export
+from .reference_reads import announce_full_read, attachments_for_references, reference_by_token, subject_relations_for_references, targeted_scope
 from .reference_url_text import (
     build_reference_citation_count_records,
     run_reference_identifier_dedupe,
@@ -71,6 +73,7 @@ from .reference_labels import (
     resolve_reference_for_label,
 )
 from .reference_policy import normalize_reference_rejection_reason_code
+from .reference_stars import MAXIMUM_STARS, MINIMUM_STARS, validated_stars
 from .source_readiness import build_extraction_index
 from .steering import load_steering_config, require_corpus_config, require_steering_config
 
@@ -112,16 +115,75 @@ def references_review_curation(flags: list[str]) -> None:
     )
 
 
-def references_record_on_behalf_of(flags: list[str], *, action: str) -> None:
-    """papyrus references approve|reject --reference <id> --on-behalf-of <person's sign-in email>
-    --agent <your name> --instruction "<the person's words>" [--delegation-file <path> or --delegation-token <token> or PAPYRUS_DELEGATION_TOKEN] [--reason-code ...] [--note ...] [--section <newsroom section id>, accept only]
+def _uses_delegation(options: dict[str, Any]) -> bool:
+    """Delegation is optional: only a command that names a delegation (or the person it was granted by) takes that route."""
+    return any(options.get(name) is not None for name in ("delegation-file", "delegation-token", "on-behalf-of"))
 
-    Records a decision a person made, using the delegation they granted this agent.
-    The cyclotron counts it as the person's label. Never use it for your own judgment.
+
+def _agent_option(options: dict[str, Any]) -> str:
+    agent = options.get("agent")
+    return "" if agent is None or agent is True else str(agent).strip()
+
+
+def references_record_on_behalf_of(flags: list[str], *, action: str, graphql: Any = None) -> None:
+    """papyrus references approve|reject --reference <id> [--agent <your name>] [--reason-code ...] [--note ...] [--section <newsroom section id>, accept only] [--dry-run]
+
+    Accepts or rejects as the person signed in to this CLI (papyrus login): their decision, recorded as theirs, with a plain note that it came
+    through the CLI (and --agent's name). No delegation, code or approval is needed. A rejection needs a reason: --note or --reason-code.
+
+    Optional, for anyone who uses delegations: with --delegation-file <path> (or --delegation-token, or --on-behalf-of) it records a decision
+    relayed under that delegation instead, which also needs --on-behalf-of <person's sign-in email>, --agent and --instruction "<the person's words>".
     """
-    import os
-
     options = parse_options(flags)
+    if options.get("help"):
+        print(references_record_on_behalf_of.__doc__)
+        return
+    if not _uses_delegation(options):
+        _record_as_signed_in_person(options, action=action, graphql=graphql)
+        return
+    reference_id, on_behalf_of, agent_label, token = _relay_arguments(options, f"references {action}")
+    # "approve" is the word the person says; the curation action it records is "accept".
+    action = {"approve": "accept"}.get(action, action)
+    note = str(options.get("note") or "")
+    reason_code = normalize_reference_rejection_reason_code(
+        options.get("reason-code") or options.get("reasonCode"),
+        required=action == "reject" and not note.strip())
+    client, _ = create_authoring_client()
+    recorded = newsroom_reference_actions.record_delegated_curation(
+        client.graphql, reference_id=str(reference_id), action=action, delegation_token=str(token),
+        agent_label=str(agent_label), on_behalf_of=str(on_behalf_of),
+        instruction=str(options["instruction"]), note=note,
+        reason_code=reason_code or "", section_id=_section_option(options))
+    print(f"references\t{action}\t{recorded.get('referenceId')}\t{recorded.get('status')}\t"
+          f"{recorded.get('reasonCode') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
+
+
+def _record_as_signed_in_person(options: dict[str, Any], *, action: str, graphql: Any = None) -> None:
+    reference_id = options.get("reference") or options.get("reference-id")
+    if not reference_id or reference_id is True:
+        raise ValueError(f"references {action} requires --reference <id>.")
+    apply = resolve_mutation_apply(options, f"references {action}")
+    action = {"approve": "accept"}.get(action, action)
+    note = "" if options.get("note") is True else str(options.get("note") or "")
+    reason_code = normalize_reference_rejection_reason_code(
+        options.get("reason-code") or options.get("reasonCode"),
+        required=action == "reject" and not note.strip())
+    section_id = _section_option(options)
+    agent_label = _agent_option(options)
+    via = f"as the signed-in person via {agent_label}" if agent_label else "as the signed-in person"
+    if not apply:
+        print(f"references\t{action}\t{reference_id}\t{via}\tdry-run: nothing sent")
+        return
+    if graphql is None:
+        graphql = create_authoring_client()[0].graphql
+    recorded = newsroom_reference_actions.review_reference_curation_as_signed_in_person(
+        graphql, reference_id=str(reference_id), action=action, note=note, reason_code=reason_code or "",
+        section_id=section_id, agent_label=agent_label)
+    print(f"references\t{action}\t{recorded.get('referenceId')}\t{recorded.get('status')}\t{recorded.get('reasonCode') or ''}\t{via}")
+
+
+def _relay_arguments(options: dict[str, Any], label: str) -> tuple[str, str, str, str]:
+    """The reference, the person, the agent and the delegation token every relayed decision names, or a message saying which are missing."""
     reference_id = options.get("reference") or options.get("reference-id")
     on_behalf_of = options.get("on-behalf-of")
     agent_label = options.get("agent")
@@ -135,19 +197,96 @@ def references_record_on_behalf_of(flags: list[str], *, action: str) -> None:
                                         ("--agent", agent_label), ("--instruction", options.get("instruction")), ("--delegation-file, --delegation-token or PAPYRUS_DELEGATION_TOKEN", token))
                if not value or value is True]
     if missing:
-        raise ValueError(f"references {action} requires {', '.join(missing)}.")
-    note = str(options.get("note") or "")
-    reason_code = normalize_reference_rejection_reason_code(
-        options.get("reason-code") or options.get("reasonCode"),
-        required=action == "reject" and not note.strip())
-    client, _ = create_authoring_client()
-    recorded = newsroom_reference_actions.record_delegated_curation(
-        client.graphql, reference_id=str(reference_id), action=action, delegation_token=str(token),
-        agent_label=str(agent_label), on_behalf_of=str(on_behalf_of),
-        instruction=str(options["instruction"]), note=note,
-        reason_code=reason_code or "", section_id=_section_option(options))
-    print(f"references\t{action}\t{recorded.get('referenceId')}\t{recorded.get('status')}\t"
-          f"{recorded.get('reasonCode') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
+        raise ValueError(f"{label} requires {', '.join(missing)}.")
+    return str(reference_id), str(on_behalf_of), str(agent_label), str(token)
+
+
+def _stars_option(value: Any) -> int | None:
+    """``--stars 1..5`` or ``--stars clear``, with the ``setReferenceStars`` rules (``reference_stars``)."""
+    if value is None or value is True:
+        raise ValueError("references set-stars requires --stars 1 to 5, or --stars clear to remove the rating.")
+    text = str(value).strip().lower()
+    if text in {"clear", "none"}:
+        return None
+    try:
+        return validated_stars(int(text))
+    except ValueError:
+        raise ValueError(f"--stars must be a whole number from {MINIMUM_STARS} to {MAXIMUM_STARS}, or clear.") from None
+
+
+def references_set_stars_on_behalf_of(flags: list[str], *, graphql: Any = None) -> None:
+    """papyrus references set-stars --reference <id> --stars <1-5|clear> [--agent <your name>] [--dry-run]
+
+    Rates as the person signed in to this CLI (papyrus login): their rating, recorded as theirs, with a plain note that it came through the CLI
+    (and --agent's name). No delegation, code or approval is needed. It does not change the Reference's accept or reject, and it writes unless
+    you pass --dry-run, which checks the arguments and prints what would be sent without contacting the Newsroom.
+
+    Optional, for anyone who uses delegations: with --delegation-file <path> (or --delegation-token, or --on-behalf-of) it files the rating
+    relayed under that delegation instead, which also needs --on-behalf-of <person's sign-in email>, --agent and --instruction "<the person's words>".
+    """
+    options = parse_options(flags)
+    if options.get("help"):
+        print(references_set_stars_on_behalf_of.__doc__)
+        return
+    apply = resolve_mutation_apply(options, "references set-stars")
+    if not _uses_delegation(options):
+        reference_id = options.get("reference") or options.get("reference-id")
+        if not reference_id or reference_id is True:
+            raise ValueError("references set-stars requires --reference <id>.")
+        stars = _stars_option(options.get("stars"))
+        agent_label = _agent_option(options)
+        shown = "clear" if stars is None else str(stars)
+        via = f"as the signed-in person via {agent_label}" if agent_label else "as the signed-in person"
+        if not apply:
+            print(f"references\tset-stars\t{reference_id}\t{shown}\t{via}\tdry-run: nothing sent")
+            return
+        if graphql is None:
+            graphql = create_authoring_client()[0].graphql
+        recorded = newsroom_reference_actions.set_reference_stars_as_signed_in_person(
+            graphql, reference_id=str(reference_id), stars=stars, agent_label=agent_label)
+        print(f"references\tset-stars\t{recorded.get('referenceId')}\t{'clear' if recorded.get('stars') is None else recorded.get('stars')}\t"
+              f"{recorded.get('status') or ''}\t{via}")
+        return
+    reference_id, on_behalf_of, agent_label, token = _relay_arguments(options, "references set-stars")
+    stars = _stars_option(options.get("stars"))
+    shown = "clear" if stars is None else str(stars)
+    if not apply:
+        print(f"references\tset-stars\t{reference_id}\t{shown}\ton behalf of {on_behalf_of} via {agent_label}\tdry-run: nothing sent")
+        return
+    if graphql is None:
+        graphql = create_authoring_client()[0].graphql
+    recorded = newsroom_reference_actions.record_delegated_stars(
+        graphql, reference_id=reference_id, stars=stars, delegation_token=token, agent_label=agent_label,
+        on_behalf_of=on_behalf_of, instruction=str(options["instruction"]))
+    print(f"references\tset-stars\t{recorded.get('referenceId')}\t{'clear' if recorded.get('stars') is None else recorded.get('stars')}\t"
+          f"{recorded.get('status') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
+
+
+def references_set_section(flags: list[str], *, client: Any = None) -> None:
+    """papyrus references set-section --reference <lineage id> (--section <name|slug|publication#slug> | --clear) [--agent <your name>] [--dry-run] [--json]
+
+    Changes only the Reference's section and records who changed it and when. The acceptance, its note, the feedback and the star rating are not touched,
+    so there is nothing to approve again. A section is named by display name, slug (for example security) or the qualified form machines-on-machines#security;
+    an unknown or disabled one is an error that lists the accepted forms and the sections available. --clear removes the section. It writes unless you pass
+    --dry-run, which reads the Reference and the sections, prints the change it would make, and writes nothing. Run it signed in (papyrus login, editor or admin)
+    or with an operator's AWS credentials (PAPYRUS_GRAPHQL_AUTH=iam).
+    """
+    from .reference_section import format_line, set_reference_section
+
+    options = parse_options(flags)
+    if options.get("help"):
+        print(references_set_section.__doc__)
+        return
+    apply = resolve_mutation_apply(options, "references set-section")
+    if client is None:
+        client = create_authoring_client()[0]
+    result = set_reference_section(
+        client, reference=options.get("reference") or options.get("reference-id"), section=options.get("section"),
+        clear=parse_boolean_option(options.get("clear"), False, "--clear"), dry_run=not apply, agent_label=_agent_option(options))
+    if parse_boolean_option(options.get("json"), False, "--json"):
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(format_line(result))
 
 
 DELEGATION_REQUEST_POLL_INTERVAL_SECONDS = 5.0
@@ -199,6 +338,7 @@ def references_request_delegation(
     token_path = Path(str(given_path)).expanduser() if given_path and given_path is not True else default_delegation_token_path(delegation_id)
     write_delegation_token_file(token_path, token)
     print(f"Open the Newsroom, Delegations, approve code {user_code}")
+    print("Only a person in the Newsroom can approve it; this CLI session cannot.")
     print(f"The code expires at {requested.get('pendingExpiresAt')}. After approval, use --delegation-file {token_path}")
     if not options.get("wait"):
         return
@@ -227,6 +367,7 @@ def references_list_predictions(flags: list[str]) -> None:
         else None
     )
     client, _ = create_authoring_client()
+    announce_full_read("references\tlist-predictions", "SemanticRelation, Reference", why="lists predictions across every Reference")
     relations = client.list_records("SemanticRelation")
     references = client.list_records("Reference")
     categories = client.list_records("Category")
@@ -274,7 +415,7 @@ def references_auto_accept(flags: list[str]) -> None:
                 raise ValueError(f"--{flag} must be a number above 0 and below 1.") from error
     policy = validate_auto_accept(site, policy_input)
     corpus_key = normalize_string(options.get("corpus-key")) or site
-    publication = {"publicationId": site, "corpusId": f"knowledge-corpus-{corpus_key}",
+    publication = {"publicationId": site, "corpusId": corpus_id_for_key(corpus_key),
                    "positiveLabel": normalize_string(options.get("positive-label")) or "include"}
     client, _ = create_authoring_client()
     result = run_auto_accept(client, publication, policy, now=datetime.now(timezone.utc), dry_run=bool(options.get("dry-run")))
@@ -284,36 +425,282 @@ def references_auto_accept(flags: list[str]) -> None:
     print(json.dumps({"autoAccept": "rule-backfill", **backfill}))
 
 
+def references_suggest_links(flags: list[str]) -> None:
+    """``papyrus references suggest-links --corpus-id ID --reference-id ID [--dry-run]``.
+
+    Suggests related References and concepts for one Reference from the vector index (src/papyrus_content/reference_suggestions.py)
+    and writes them as ``suggested`` links; ``--dry-run`` prints what would be written. The index is the one named by
+    ``PAPYRUS_S3_VECTOR_INDEX_ARN`` or ``amplify_outputs.json``."""
+    from papyrus_knowledge_query.services import S3VectorsProvider
+    from papyrus_knowledge_query.vector_index import _vector_index_from_outputs
+
+    from .reference_suggestions import suggest_for
+    options = parse_options(flags)
+    corpus_id = normalize_string(options.get("corpus-id"))
+    reference_id = normalize_string(options.get("reference-id"))
+    if not corpus_id or not reference_id:
+        raise ValueError("references suggest-links needs --corpus-id ID and --reference-id ID.")
+    apply = resolve_mutation_apply(options, "references suggest-links")
+    index_arn = os.environ.get("PAPYRUS_S3_VECTOR_INDEX_ARN") or _vector_index_from_outputs()
+    if not index_arn:
+        raise RuntimeError("Missing PAPYRUS_S3_VECTOR_INDEX_ARN and custom.knowledgeQuery.s3VectorIndexArn")
+    client, _ = create_authoring_client()
+    provider = S3VectorsProvider(vector_index_arn=index_arn, region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"))
+    from .suggestion_calibration import load_calibration
+    print(json.dumps(suggest_for(client, provider, reference_id, corpus_id=corpus_id, calibration=load_calibration(client), dry_run=not apply), indent=2))
+
+
+def references_retire_junk_suggestions(flags: list[str]) -> None:
+    """``papyrus references retire-junk-suggestions [--execute]``.
+
+    Lists the open ``auto:vector`` concept suggestions whose concept is a bookkeeping node (an author, a coverage, comment, quality-rating or relevance node;
+    src/papyrus_content/junk_suggestions.py). It writes nothing unless ``--execute`` is given; then it marks each suggestion rejected (reason
+    ``not_a_concept``, by ``auto:cleanup``), so it leaves the queue and is not offered again. Nothing is deleted."""
+    from .junk_suggestions import retire_junk_suggestions
+    options = parse_options(flags)
+    client, _ = create_authoring_client()
+    result = retire_junk_suggestions(client, execute=bool(options.get("execute")))
+    print(json.dumps({key: value for key, value in result.items() if key != "rows"}, indent=2))
+    for row in result["rows"]:
+        print(f"references\tretire-junk-suggestions\t{'retired' if result['executed'] else 'would retire'}\t{row['relationId']}\t{row['nodeKind']}\t{row['nodeKey']}\t{row['score']}")
+
+
 def references_backfill_feed_keys(flags: list[str]) -> None:
-    """``papyrus references backfill-feed-keys --site KEY [--corpus-key KEY] [--positive-label LABEL] [--dry-run]``.
+    """``papyrus references backfill-feed-keys (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--positive-label LABEL] [--dry-run]``.
 
     Sets the keys the References page pages through (src/papyrus_content/reference_feed_backfill.py) from each Reference's status and its
-    current Cyclotron decision. It writes only those fields. ``--dry-run`` prints the counts and writes nothing.
+    current Cyclotron decision. It writes only those fields. ``--dry-run`` prints the counts and writes nothing. ``--site KEY`` covers
+    ``knowledge-corpus-KEY``; ``--corpus-key`` names other corpora (comma-separated); ``--all-corpora`` covers every KnowledgeCorpus the
+    backend lists. The backend is the one the CLI is configured for (docs/operator-cli.md), not something ``--site`` selects.
     """
-    from .reference_feed_backfill import backfill_feed_keys
+    from .reference_feed_backfill import backfill_feed_keys, corpus_ids_for
     options = parse_options(flags)
-    site = normalize_string(options.get("site"))
-    if not site:
-        raise ValueError("references backfill-feed-keys needs --site KEY.")
     apply = resolve_mutation_apply(options, "references backfill-feed-keys")
-    corpus_key = normalize_string(options.get("corpus-key")) or site
+    from .operator_errors import require_operator_lane
+    require_operator_lane("references backfill-feed-keys", "Reference records", writing=apply)
     client, _ = create_authoring_client()
-    result = backfill_feed_keys(client, corpus_id=f"knowledge-corpus-{corpus_key}",
-                                positive_label=normalize_string(options.get("positive-label")) or "include", dry_run=not apply,
-                                progress=lambda line: print(f"references\tbackfill-feed-keys\tprogress\t{line}") if int(line.split()[0]) % 100 == 0 else None)
-    for key, value in result.items():
-        print(f"references\tbackfill-feed-keys\t{key}\t{value}")
+    corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")),
+                                all_corpora=bool(options.get("all-corpora")))
+    for corpus_id in corpus_ids:
+        result = backfill_feed_keys(client, corpus_id=corpus_id, positive_label=normalize_string(options.get("positive-label")) or "include",
+                                    dry_run=not apply,
+                                    progress=lambda line: print(f"references\tbackfill-feed-keys\tprogress\t{line}") if int(line.split()[0]) % 100 == 0 else None)
+        for key, value in result.items():
+            print(f"references\tbackfill-feed-keys\t{key}\t{value}")
+
+
+REQUEST_CHUNK = 100   # References per queue call: a transport size (one AppSync request must finish in 30 seconds), not a limit on the total
+
+
+def references_queue_predictions(flags: list[str]) -> None:
+    """``papyrus references queue-predictions (--site KEY | --corpus-key KEY[,KEY...]) [--dry-run]``.
+
+    By hand, once: asks the site's cloud Cyclotron for a prediction for every current pending Reference that has none, by queueing one request per
+    Reference exactly as a route does when it creates one (src/papyrus_content/reference_prediction_queue.py). It reads each corpus's prediction index
+    (pending and voted partitions, highest first, down to the 0.5 an unpredicted row sorts at) and writes nothing to a Reference: the router decides the queued requests and records the decisions. A Reference already queued,
+    or already predicted, is left alone. ``--dry-run`` prints the counts and queues nothing. Nothing schedules this command."""
+    from .reference_feed_backfill import corpus_ids_for
+    from .reference_prediction_queue import references_for_prediction, request_line, request_predictions, unpredicted_rows
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "references queue-predictions")
+    client, _ = create_authoring_client()
+    corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")), all_corpora=False)
+    failed = False
+    for corpus_id in corpus_ids:
+        rows = list(unpredicted_rows(client, corpus_id))
+        wanted = references_for_prediction(rows)
+        print(f"references\tqueue-predictions\t{corpus_id}\tread\t{len(rows)}\twithout-prediction\t{len(wanted)}\t{'queue' if apply else 'dry-run'}")
+        for start in range(0, len(wanted) if apply else 0, REQUEST_CHUNK):
+            request = request_predictions(client, wanted[start:start + REQUEST_CHUNK])
+            print(request_line(f"references\tqueue-predictions\t{corpus_id}", request))
+            failed = failed or not request.ok
+    if failed:
+        raise ValueError("Some predictions were not requested; see the NOT-REQUESTED lines above.")
+
+
+def references_queue_enrichment(flags: list[str]) -> None:
+    """``papyrus references queue-enrichment (--site KEY | --corpus-key KEY[,KEY...]) [--dry-run]``.
+
+    By hand, once, for the References created before every creation path asked for enrichment: queues one enrich-only request per current Reference whose
+    content is not captured in full (src/papyrus_content/reference_prediction_queue.py, ``enrichment_source_id``). The router's ``email-references`` task
+    then captures the text, writes the summary (and GROBID fields for a paper) and copies the curation onto the EXISTING Reference, exactly as it does for
+    a new one; it decides nothing and creates nothing. It reads each corpus's feed index and writes nothing to a Reference. A Reference already queued is
+    left alone, so a second run adds nothing. A video the cloud cannot fully capture is left for ``capture-thumbnails`` and ``capture-transcripts``, and
+    the counts say how many. ``--dry-run`` prints the counts and queues nothing. Writing queue rows in production is for the owner to approve; nothing schedules this."""
+    from .reference_feed_backfill import corpus_ids_for
+    from .reference_prediction_queue import feed_rows, references_for_enrichment, request_line, request_predictions, video_line, videos_needing_local_run
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "references queue-enrichment")
+    client, _ = create_authoring_client()
+    corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")), all_corpora=False)
+    failed = False
+    for corpus_id in corpus_ids:
+        rows = list(feed_rows(client, corpus_id))
+        wanted = references_for_enrichment(rows)
+        prefix = f"references\tqueue-enrichment\t{corpus_id}"
+        print(f"{prefix}\tread\t{len(rows)}\tneeding-enrichment\t{len(wanted)}\t{'queue' if apply else 'dry-run'}")
+        line = video_line(prefix, videos_needing_local_run(wanted))
+        if line:
+            print(line)
+        for start in range(0, len(wanted) if apply else 0, REQUEST_CHUNK):
+            request = request_predictions(client, wanted[start:start + REQUEST_CHUNK])
+            print(request_line(prefix, request).replace("\tprediction\t", "\tenrichment\t"))
+            failed = failed or not request.ok
+    if failed:
+        raise ValueError("Some enrichments were not requested; see the NOT-REQUESTED lines above.")
+
+
+def references_backfill_medium(flags: list[str]) -> None:
+    """``papyrus references backfill-medium (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--write]``.
+
+    Sets ``medium``, ``playlistUrl``, ``evidenceLevel`` (aggregation only, only where empty), ``mediumFeedKey`` and ``contentNeededKey`` (the videos
+    still waiting for content, for ``references capture-transcripts``) from each current Reference's address and stored capture state
+    (src/papyrus_content/reference_medium_backfill.py). Unlike the other backfills it is SAFE BY DEFAULT: without ``--write`` it prints one
+    line per Reference it would change and the counts, and writes nothing. ``--dry-run`` is accepted and means the same. Run it only after the
+    site's data API has the fields and the index (docs/reference-feed-indexes.md#the-medium-index).
+    """
+    from .reference_feed_backfill import corpus_ids_for
+    from .reference_medium_backfill import backfill_medium
+    from .operator_errors import require_operator_lane
+    options = parse_options(flags)
+    write = parse_boolean_option(options.get("write"), default=False, label="--write") and not parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    require_operator_lane("references backfill-medium", "Reference records", writing=write)
+    client, _ = create_authoring_client()
+    corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")),
+                                all_corpora=bool(options.get("all-corpora")))
+    print(f"references\tbackfill-medium\tmode\t{'write' if write else 'preview (nothing is written; add --write)'}")
+    for corpus_id in corpus_ids:
+        result = backfill_medium(client, corpus_id=corpus_id, dry_run=not write, progress=lambda line: print(f"references\tbackfill-medium\t{line}"))
+        for key, value in result.items():
+            print(f"references\tbackfill-medium\t{key}\t{value}")
+
+
+def _word_table_name(options: dict[str, Any]) -> str:
+    """``--word-table NAME``, else ``PAPYRUS_REFERENCE_WORD_TABLE``, else ``custom.referenceWordIndex.tableName`` of ``--outputs`` (default ``amplify_outputs.json``)."""
+    import json
+    import os
+    from pathlib import Path
+
+    named = normalize_string(options.get("word-table")) or os.environ.get("PAPYRUS_REFERENCE_WORD_TABLE", "").strip()
+    if named:
+        return named
+    outputs = Path(normalize_string(options.get("outputs")) or "amplify_outputs.json")
+    if outputs.is_file():
+        found = ((json.loads(outputs.read_text(encoding="utf-8")).get("custom") or {}).get("referenceWordIndex") or {}).get("tableName")
+        if found:
+            return str(found)
+    raise ValueError("references backfill-word-index needs the word table: --word-table NAME, PAPYRUS_REFERENCE_WORD_TABLE, or an amplify_outputs.json from a deploy that has it.")
+
+
+def references_backfill_word_index(flags: list[str]) -> None:
+    """``papyrus references backfill-word-index (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--word-table NAME] [--write]``.
+
+    Writes the word rows the References search reads (src/papyrus_content/reference_word_backfill.py, docs/reference-search.md#word-index), once per site,
+    right after the deploy that adds the word table and its stream consumer. SAFE BY DEFAULT: without ``--write`` it prints one line per Reference it
+    would index and the counts, and writes nothing (``--dry-run`` means the same). It reads Reference rows by curation status, never a scan, and a Reference
+    already indexed is skipped, so a second run writes nothing. It needs AWS credentials for the word table (the operator lane).
+    """
+    from .reference_feed_backfill import corpus_ids_for
+    from .reference_word_backfill import backfill_words
+    from .operator_errors import require_operator_lane
+    from papyrus_knowledge_query.reference_words import WordWriter
+    options = parse_options(flags)
+    write = parse_boolean_option(options.get("write"), default=False, label="--write") and not parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    require_operator_lane("references backfill-word-index", "the word table", writing=write)
+    client, _ = create_authoring_client()
+    corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")),
+                                all_corpora=bool(options.get("all-corpora")))
+    import boto3
+    table = boto3.resource("dynamodb").Table(_word_table_name(options))
+    writer = WordWriter(table, conflict_errors=(table.meta.client.exceptions.ConditionalCheckFailedException,))
+    print(f"references\tbackfill-word-index\tmode\t{'write' if write else 'preview (nothing is written; add --write)'}")
+    for corpus_id in corpus_ids:
+        result = backfill_words(client, writer, corpus_id=corpus_id, dry_run=not write, progress=lambda line: print(f"references\tbackfill-word-index\t{line}"))
+        for key, value in result.items():
+            print(f"references\tbackfill-word-index\t{key}\t{value}")
+
+
+def references_backfill_public_fields(flags: list[str]) -> None:
+    """``papyrus references backfill-public-fields (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--write]``.
+
+    Sets the public-blocks attributes on the rows a public page can show (docs/plans/public-blocks-from-indexes.md, src/papyrus_content/reference_public_fields.py):
+    ``publicFeedKey`` and ``publicOrderKey`` on every accepted row and on every pending row with a stored prediction of at least 0.5, and ``cardImage``,
+    ``cardSummary``, ``cardSiteName`` and ``cardPageTitle`` copied from each of those rows' preview (a video's picture is its own thumbnail copy). Rejected, archived, unpredicted and
+    low-scored rows are not read or touched. This is the one command that reads preview attachments of existing rows; it is run once per site. Like
+    ``backfill-medium`` it is SAFE BY DEFAULT: without ``--write`` it prints one line per row it would change and the counts, and writes nothing
+    (``--dry-run`` is accepted and means the same). A second run writes nothing. Run ``backfill-feed-keys`` first on a site whose pending rows never got
+    their prediction keys, and run this before the release that adds the index, so the index is complete the moment it is active.
+    """
+    from .reference_feed_backfill import corpus_ids_for
+    from .reference_public_fields import backfill_public_fields
+    from .operator_errors import require_operator_lane
+    options = parse_options(flags)
+    write = parse_boolean_option(options.get("write"), default=False, label="--write") and not parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    require_operator_lane("references backfill-public-fields", "Reference records", writing=write)
+    client, _ = create_authoring_client()
+    corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")),
+                                all_corpora=bool(options.get("all-corpora")))
+    print(f"references\tbackfill-public-fields\tmode\t{'write' if write else 'preview (nothing is written; add --write)'}")
+    for corpus_id in corpus_ids:
+        result = backfill_public_fields(client, corpus_id=corpus_id, dry_run=not write, progress=lambda line: print(f"references\tbackfill-public-fields\t{line}"))
+        for key, value in result.items():
+            print(f"references\tbackfill-public-fields\t{key}\t{value}")
+
+
+def references_retire_citation_stubs(flags: list[str]) -> None:
+    """``papyrus references retire-citation-stubs --corpus-key KEY [--dry-run]``.
+
+    Archives (never deletes) the pending References the GROBID citation graph created on its own and nobody has touched
+    (src/papyrus_content/reference_citation_stubs.py). ``KEY`` is a corpus key (``ai-ml-research``) or a full corpus id
+    (``knowledge-corpus-ai-ml-research``). ``--dry-run`` prints the counts and writes nothing.
+    """
+    from .reference_citation_stubs import retire_citation_stubs
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "references retire-citation-stubs")
+    key = normalize_string(options.get("corpus-key"))
+    if not key or "," in key:
+        raise ValueError("references retire-citation-stubs needs --corpus-key KEY (one corpus).")
+    corpus_id = key if is_corpus_id(key) else corpus_id_for_key(key)
+    client, _ = create_authoring_client()
+    result = retire_citation_stubs(client, corpus_id=corpus_id, dry_run=not apply,
+                                   progress=lambda line: print(f"references\tretire-citation-stubs\tprogress\t{line}") if int(line.split()[0]) % 100 == 0 else None)
+    for name, value in result.items():
+        print(f"references\tretire-citation-stubs\t{name}\t{value}")
+
+
+def references_duplicates(flags: list[str]) -> None:
+    """``papyrus references duplicates [--format text|json] [--groups] [--skip-text-hashes]``
+
+    Read-only. Groups the publication's current References by identity key (URL, arXiv id, DOI, captured text hash) and counts same-title
+    groups as candidates only. It lists the References, and the attachments unless ``--skip-text-hashes``; it writes nothing.
+    """
+    from .reference_duplicates_report import build_duplicates_report, render_text
+
+    options = parse_options(flags)
+    output_format = normalize_string(options.get("format")) or "text"
+    if output_format not in {"text", "json"}:
+        raise ValueError("--format must be text or json.")
+    client, _ = create_authoring_client()
+    references = client.list_records("Reference")
+    attachments = None if options.get("skip-text-hashes") else client.list_records("ReferenceAttachment")
+    report = build_duplicates_report(references, attachments)
+    if output_format == "json":
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(render_text(report, groups=bool(options.get("groups"))))
 
 
 def references_backfill_reviewed_feed_key(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references backfill-reviewed-feed-key")
+    from .operator_errors import require_operator_lane
+    require_operator_lane("references backfill-reviewed-feed-key", "Reference records", writing=apply)
     client, _ = create_authoring_client()
     references = client.list_records("Reference")
     changes: list[dict[str, Any]] = []
     for reference in references:
         curation_status = str(reference.get("curationStatus") or "pending").strip().lower() or "pending"
-        expected_reviewed_feed_key = None if curation_status == "pending" else "references#reviewed"
+        expected_reviewed_feed_key = None if curation_status == "pending" else global_key(REFERENCE_REVIEWED_FEED_KEY)
         if (reference.get("reviewedFeedKey") or None) == expected_reviewed_feed_key:
             continue
         expected = {**reference, "reviewedFeedKey": expected_reviewed_feed_key}
@@ -346,6 +733,8 @@ def references_backfill_corpus_storage_paths(flags: list[str]) -> None:
 
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references backfill-corpus-storage-paths")
+    from .operator_errors import require_operator_lane
+    require_operator_lane("references backfill-corpus-storage-paths", "Reference records", writing=apply)
     mirror_s3 = parse_boolean_option(options.get("mirror-s3"), False, "--mirror-s3")
     reference_ids = set(parse_repeated_option(flags, "reference"))
     if options.get("reference"):
@@ -535,10 +924,9 @@ def references_label(flags: list[str]) -> None:
     category_set = client.get_record("CategorySet", options["category-set"])
     if not category_set:
         raise ValueError(f"CategorySet {options['category-set']} was not found.")
-    references = client.list_records("Reference")
     categories = client.list_records("Category")
-    relations = client.list_records("SemanticRelation")
-    reference = resolve_reference_for_label(references, options["reference"])
+    reference = resolve_reference_for_label(reference_by_token(client, options["reference"]), options["reference"])
+    relations = subject_relations_for_references(client, [reference])   # find_current_authoritative_label only looks at this Reference's relations
     category = resolve_category_in_set(
         [entry for entry in categories if entry.get("categorySetId") == category_set["id"]],
         options["category"],
@@ -588,7 +976,7 @@ def references_promote(flags: list[str]) -> None:
     section = validate_section(options.get("section"))
     apply = resolve_mutation_apply(options, "references promote")
     client, _ = create_authoring_client()
-    row = client.get_record("Reference", token) or resolve_reference_any(client.list_records("Reference"), token)
+    row = client.get_record("Reference", token) or resolve_reference_any(reference_by_token(client, token), token)
     record, _missing = record_of(row)
     item_id = promotion_item_id(record, section)
     print(f"references\tpromote\t{record.reference_id}\t{record.model_id}\t{section}\t{item_id}\t{'write' if apply else 'dry run'}")
@@ -621,10 +1009,17 @@ def references_unlabel(flags: list[str]) -> None:
 def references_labels(flags: list[str]) -> None:
     options = parse_options(flags)
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
     categories = client.list_records("Category")
-    relations = client.list_records("SemanticRelation")
-    reference = resolve_reference_any(references, options["reference"]) if options.get("reference") else None
+    if options.get("reference"):
+        # One Reference: its rows and its own relations; build_label_rows keeps only that Reference's labels anyway.
+        references = reference_by_token(client, options["reference"])
+        reference = resolve_reference_any(references, options["reference"])
+        relations = subject_relations_for_references(client, [reference])
+    else:
+        announce_full_read("references\tlabels", "Reference, SemanticRelation", why="lists the labels of every Reference")
+        references = client.list_records("Reference")
+        relations = client.list_records("SemanticRelation")
+        reference = None
     category = None
     if options.get("category"):
         candidates = (
@@ -950,8 +1345,13 @@ def references_find_url_text(flags: list[str]) -> None:
     pdf_only = parse_boolean_option(options.get("pdf-only"), False, "--pdf-only")
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
+    scope = targeted_scope(client, reference_ids=reference_ids, external_item_ids=external_item_ids, corpus_id=corpus_id)
+    if scope:
+        references, attachments = scope["references"], scope["attachments"]
+    else:
+        announce_full_read("references\tfind-fetch-url-text", "Reference, ReferenceAttachment", why="no --reference or --external-item-id: sweeps the corpus")
+        references = client.list_records("Reference")
+        attachments = client.list_records("ReferenceAttachment")
     result = run_reference_source_find(
         client=client,
         references=references,
@@ -1018,6 +1418,26 @@ def references_find_url_text(flags: list[str]) -> None:
     )
 
 
+def _read_references_for(client: Any, command: str, reference_ids: set[str], external_item_ids: set[str], corpus_id: str | None, *,
+                         attachments: bool = True) -> tuple[list[dict[str, Any]], list[dict[str, Any]] | None, dict[str, Any] | None]:
+    """The References (and their attachments) a "process" command works on: the named ones by index, else the whole tables with a note saying so."""
+    scope = targeted_scope(client, reference_ids=reference_ids, external_item_ids=external_item_ids, corpus_id=corpus_id)
+    if scope:
+        return scope["references"], scope["attachments"] if attachments else None, scope
+    announce_full_read(f"references\t{command}", "Reference, ReferenceAttachment" if attachments else "Reference",
+                       why="no --reference or --external-item-id: sweeps the corpus")
+    return client.list_records("Reference"), client.list_records("ReferenceAttachment") if attachments else None, None
+
+
+def _could_have_duplicates(references: list[dict[str, Any]], corpus_id: str | None, curation_status: str,
+                           reference_ids: set[str], external_item_ids: set[str]) -> bool:
+    """Whether two or more of the named References are in scope: identifier dedupe only merges References that are all named."""
+    from .reference_url_text import _iter_candidate_references
+    candidates = _iter_candidate_references(references=references, corpus_id=corpus_id, curation_status=curation_status,
+                                            reference_ids=reference_ids, external_item_ids=external_item_ids)
+    return len({str(row.get("lineageId") or row.get("id")) for row in candidates}) >= 2
+
+
 def references_fetch_url_text(flags: list[str]) -> None:
     options = parse_options(flags)
     _require_reference_process_runtime("references process-fetch-url-text")
@@ -1056,12 +1476,20 @@ def references_fetch_url_text(flags: list[str]) -> None:
         ) from error
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
-    semantic_relations = client.list_records("SemanticRelation")
+    scope = targeted_scope(client, reference_ids=reference_ids, external_item_ids=external_item_ids, corpus_id=corpus_id)
+    if scope:
+        # Named References: read those rows and their attachments by index. The whole Reference and relation tables are read only if a
+        # citation graph or a duplicate merge needs them (DeferredRows).
+        references, attachments, semantic_relations = scope["references"], scope["attachments"], scope["relations"]
+    else:
+        announce_full_read("references\tprocess-fetch-url-text", "Reference, ReferenceAttachment, SemanticRelation", why="no --reference or --external-item-id: sweeps the corpus")
+        references = client.list_records("Reference")
+        attachments = client.list_records("ReferenceAttachment")
+        semantic_relations = client.list_records("SemanticRelation")
     result = run_reference_url_text_extraction(
         client=client,
         references=references,
+        all_references=scope["all_references"] if scope else None,
         attachments=attachments,
         semantic_relations=semantic_relations,
         corpus_key_by_id=corpus_key_by_id,
@@ -1090,19 +1518,24 @@ def references_fetch_url_text(flags: list[str]) -> None:
         }
     )
     touched_reference_ids = {reference_id for reference_id in touched_reference_ids if reference_id}
-    dedupe = run_reference_identifier_dedupe(
-        client=client,
-        references=client.list_records("Reference"),
-        attachments=attachments,
-        semantic_relations=client.list_records("SemanticRelation"),
-        corpus_id=corpus_id,
-        reference_ids=reference_ids or None,
-        external_item_ids=external_item_ids or None,
-        curation_status=curation_status,
-        touched_reference_ids=touched_reference_ids or None,
-        force=force,
-        apply=apply,
-    )
+    if scope and not _could_have_duplicates(scope["references"], corpus_id, curation_status, reference_ids, external_item_ids):
+        # One named Reference has no duplicate among the named ones: nothing to merge, nothing to read.
+        dedupe = {"records": [], "items": [], "changes": [], "changeCount": 0, "duplicateGroupCount": 0, "referencesMergedCount": 0,
+                  "relationsRewiredCount": 0, "losersBlockedCount": 0}
+    else:
+        dedupe = run_reference_identifier_dedupe(
+            client=client,
+            references=scope["all_references"] if scope else client.list_records("Reference"),
+            attachments=attachments,
+            semantic_relations=scope["relations"] if scope else client.list_records("SemanticRelation"),
+            corpus_id=corpus_id,
+            reference_ids=reference_ids or None,
+            external_item_ids=external_item_ids or None,
+            curation_status=curation_status,
+            touched_reference_ids=touched_reference_ids or None,
+            force=force,
+            apply=apply,
+        )
 
     print(f"references\tprocess-fetch-url-text\tcorpus\t{corpus_id or 'all'}")
     print(f"references\tprocess-fetch-url-text\tstatus\t{curation_status}")
@@ -1136,7 +1569,6 @@ def references_fetch_url_text(flags: list[str]) -> None:
     )
     print(f"references\tprocess-fetch-url-text\tcitation-graph-warnings\t{len(result.get('citationGraphWarnings') or [])}")
     print(f"references\tprocess-fetch-url-text\tfiltered\t{result.get('filteredCount', 0)}")
-    print(f"references\tprocess-fetch-url-text\tfallback-raw\t{result.get('fallbackRawCount', 0)}")
     print(f"references\tprocess-fetch-url-text\tchanges\t{result['changeCount']}")
     print(f"references\tprocess-fetch-url-text\tgraph-changes\t{result.get('graphChangeCount', 0)}")
     print(f"references\tprocess-fetch-url-text\treference-metadata-changes\t{result.get('referenceMetadataChangeCount', 0)}")
@@ -1172,12 +1604,6 @@ def references_fetch_url_text(flags: list[str]) -> None:
         print(
             f"reference-url-text\tfailed\t{failure.get('referenceId') or '-'}\t"
             f"{failure.get('sourceUri') or '-'}\t{failure.get('error') or 'unknown error'}"
-        )
-    for fallback in (result.get("filterFallbacks") or [])[:print_limit]:
-        print(
-            f"reference-url-text\tfilter-fallback\t{fallback.get('referenceId') or '-'}\t"
-            f"{fallback.get('sourceUri') or '-'}\t"
-            f"{json.dumps(fallback.get('reason') or {}, sort_keys=True)}"
         )
     needs_find_rows = [
         item for item in (result.get("items") or [])
@@ -1309,22 +1735,31 @@ def references_process_dedupe_identifiers(flags: list[str]) -> None:
     print_limit = print_limit if print_limit is not None else 25
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
-    semantic_relations = client.list_records("SemanticRelation")
-    dedupe = run_reference_identifier_dedupe(
-        client=client,
-        references=references,
-        attachments=attachments,
-        semantic_relations=semantic_relations,
-        corpus_id=corpus_id,
-        reference_ids=reference_ids or None,
-        external_item_ids=external_item_ids or None,
-        curation_status=curation_status,
-        touched_reference_ids=None,
-        force=force,
-        apply=apply,
-    )
+    scope = targeted_scope(client, reference_ids=reference_ids, external_item_ids=external_item_ids, corpus_id=corpus_id)
+    if scope and not _could_have_duplicates(scope["references"], corpus_id, curation_status, reference_ids, external_item_ids):
+        # Identifier dedupe only merges References that are all named; fewer than two are in scope, so there is nothing to find or read.
+        dedupe = {"duplicateGroupCount": 0, "referencesMergedCount": 0, "relationsRewiredCount": 0, "losersBlockedCount": 0, "changes": [], "changeCount": 0, "items": []}
+    else:
+        if scope:
+            references, attachments, semantic_relations = scope["all_references"], scope["attachments"], scope["relations"]
+        else:
+            announce_full_read("references\tprocess-dedupe-identifiers", "Reference, ReferenceAttachment, SemanticRelation", why="finds duplicates across the corpus")
+            references = client.list_records("Reference")
+            attachments = client.list_records("ReferenceAttachment")
+            semantic_relations = client.list_records("SemanticRelation")
+        dedupe = run_reference_identifier_dedupe(
+            client=client,
+            references=references,
+            attachments=attachments,
+            semantic_relations=semantic_relations,
+            corpus_id=corpus_id,
+            reference_ids=reference_ids or None,
+            external_item_ids=external_item_ids or None,
+            curation_status=curation_status,
+            touched_reference_ids=None,
+            force=force,
+            apply=apply,
+        )
 
     print(f"references\tprocess-dedupe-identifiers\tcorpus\t{corpus_id or 'all'}")
     print(f"references\tprocess-dedupe-identifiers\tstatus\t{curation_status}")
@@ -1383,7 +1818,7 @@ def references_process_resolve_citation_stubs(flags: list[str]) -> None:
     print_limit = print_limit if print_limit is not None else 25
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
+    references, _attachments, _scope = _read_references_for(client, "find-resolve-citation-stubs", reference_ids, external_item_ids, corpus_id, attachments=False)
     resolved = build_reference_citation_resolution_records(
         references=references,
         corpus_id=corpus_id,
@@ -1464,8 +1899,7 @@ def references_filter_extracted_text(flags: list[str]) -> None:
     metadata_model = normalize_string(options.get("metadata-model")) or DEFAULT_REFERENCE_SUMMARY_MODEL
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
+    references, attachments, scope = _read_references_for(client, "process-filter-text", reference_ids, external_item_ids, corpus_id)
     result = run_reference_extracted_text_filtering(
         client=client,
         references=references,
@@ -1494,7 +1928,6 @@ def references_filter_extracted_text(flags: list[str]) -> None:
     print(f"references\tprocess-filter-text\tplanned\t{result['plannedCount']}")
     print(f"references\tprocess-filter-text\tplanned-attachments\t{result['plannedAttachmentCount']}")
     print(f"references\tprocess-filter-text\tfiltered\t{result['filteredCount']}")
-    print(f"references\tprocess-filter-text\tfallback-raw\t{result['fallbackRawCount']}")
     print(f"references\tprocess-filter-text\tskipped-missing-source\t{result['skippedMissingSourceCount']}")
     print(f"references\tprocess-filter-text\tchanges\t{result['changeCount']}")
     print(f"references\tprocess-filter-text\tfailures\t{len(result['failures'])}")
@@ -1527,11 +1960,6 @@ def references_filter_extracted_text(flags: list[str]) -> None:
             f"reference-filter-text\tfailed\t{failure.get('referenceId') or '-'}\t"
             f"{failure.get('sourceUri') or '-'}\t{failure.get('error') or 'unknown error'}"
         )
-    for fallback in (result.get("filterFallbacks") or [])[:print_limit]:
-        print(
-            f"reference-filter-text\tfallback-raw\t{fallback.get('referenceId') or '-'}\t"
-            f"{fallback.get('sourceUri') or '-'}\t{json.dumps(fallback.get('reason') or {}, sort_keys=True)}"
-        )
     if len(result["failures"]) > print_limit:
         print(
             f"references\tprocess-filter-text\tomitted-failures\t{len(result['failures']) - print_limit}\t"
@@ -1557,7 +1985,10 @@ def references_filter_extracted_text(flags: list[str]) -> None:
     if not processed_reference_ids:
         print("references\tprocess-generate-metadata\tskipped\tno references processed by filter step")
         return
-    refreshed_attachments = client.list_records("ReferenceAttachment")
+    refreshed_attachments = (
+        attachments_for_references(client, [row for row in references if row.get("id") in processed_reference_ids or row.get("lineageId") in processed_reference_ids])
+        if scope else client.list_records("ReferenceAttachment")
+    )
     generation = run_reference_metadata_generation_from_extracted_text(
         references=references,
         attachments=refreshed_attachments,
@@ -1595,8 +2026,7 @@ def references_generate_metadata_from_text(flags: list[str]) -> None:
     bucket = normalize_string(options.get("bucket"))
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
+    references, attachments, _scope = _read_references_for(client, "process-generate-metadata", reference_ids, external_item_ids, corpus_id)
     result = run_reference_metadata_generation_from_extracted_text(
         references=references,
         attachments=attachments,

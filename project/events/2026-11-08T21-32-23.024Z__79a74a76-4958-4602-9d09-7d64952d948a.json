@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "79a74a76-4958-4602-9d09-7d64952d948a",
+  "issue_id": "PPY-16d75b41-c64d-4ad2-9b0e-3eca178f42b1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:32:23.024Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Shared bucket part 1: the projection writes under an output prefix separate from urls.basePath",
+    "description": "(being written)",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-99e30994-968c-437a-90f2-2ece44c660a6",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

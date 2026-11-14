@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
+from . import request_meter
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
@@ -230,6 +231,8 @@ def child_environment(request: dict, openai_api_key: str | None) -> dict:
     environment = {key: value for key, value in os.environ.items() if not key.startswith("PAPYRUS_GRAPHQL_")}
     environment.update(PAPYRUS_GRAPHQL_ENDPOINT=request["appsyncEndpoint"], PAPYRUS_GRAPHQL_AUTH="iam", HOME="/tmp",
                        PYTHONUNBUFFERED="1")
+    if request.get("procedureKey"):
+        environment[request_meter.ENV_CALLER] = f"stage:{request['procedureKey']}"   # the stage's own requests are attributed to it
     if openai_api_key:
         environment["OPENAI_API_KEY"] = openai_api_key
     return environment
@@ -254,6 +257,7 @@ def record_trigger_outcome(table, trigger: dict | None, result: dict) -> None:
                                                  ":f": utc_now(), ":e": result.get("error")})
 
 
+@request_meter.metered_handler("procedure-runner", task_key="procedureKey")
 def handler(event, context):
     """Lambda entry point, invoked asynchronously (by the monitoring router) with one request."""
     import boto3  # provided by the Lambda image

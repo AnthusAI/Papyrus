@@ -1,0 +1,20 @@
+{
+  "id": "PPY-0796f2aa-a729-4567-b4ef-5ded75335c48",
+  "title": "P1 Guideline document store and the writing resolver (Python, no door)",
+  "description": "What: the storage and resolution core, usable from Python before any deploy.\n\nFiles:\n- src/papyrus_content/guidelines/__init__.py, document.py (writing schemaVersion 1: voice, audience, tone, sentenceStyle, voicePatterns, structure, lexicon.prefer/avoid, glossary, headline, exemplars, bodyMarkus, constraints, locked; validation errors by field)\n- src/papyrus_content/guidelines/store.py (current version by itemBySlug / itemByTenantSlug; write a new doctrine Item version with catalog fields only plus a doctrine_document ModelAttachment via build_json_model_payload_attachment + upload_attachment_body in src/papyrus_content/model_attachments.py; expected-version check; no-op save makes no version; history)\n- src/papyrus_content/guidelines/layering.py, writing.py (resolve publication then section: prose appended, avoid-lists joined, choices replaced unless locked, constraints publication-only; fieldSources and layers {slug, version, contentHash}; warnings writing_guidelines_missing, section_constraint_ignored)\n- slugs: editorial-doctrine-writing, desk-doctrine-<sectionKey>-writing, desk-doctrine-<sectionKey>-visual-style (mirror lib/doctrine.ts)\n- src/papyrus_content/guidelines/*_test.py; features_backend/guidelines-store.feature, features_backend/guidelines-writing-resolve.feature + steps\n\nAcceptance checks:\n- publications/anthus/style-profile.yml and publications/pilobolus/style-profile.yml validate unchanged as writing documents.\n- A save writes one Item row with empty bodyMarkus/metadata and one S3 document; reading returns the same document; contentHash matches.\n- Every read is an index query or a get (a fake store fails the test on any list/scan).\n- poetry run pytest src/papyrus_content/guidelines and behave features_backend/guidelines-*.feature pass.\n\nGherkin scenarios:\n- Saving a writing document stores the text in S3 and only a catalog row in the database\n- Saving an unchanged document makes no new version\n- Saving against a stale version is refused\n- A section adds tone and voice patterns after the site's\n- A section cannot remove a word the site avoids\n- A section replaces the audience when the site leaves it open\n- A section cannot replace a field the site locks\n- A section's binding constraint is ignored with a warning\n- A site with no writing guidelines resolves with a warning, not an error\n- Every resolved field names the layer and version it came from\n\nDesign: docs/plans/guidelines-as-data.md. Gherkin specs are required and ship in the same PR. Text lives in S3, never inline in DynamoDB; no new GSI; no subscriptions. Style and voice wording is data, never code.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T00:15:33.785041Z",
+  "updated_at": "2026-11-09T00:15:33.785123Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

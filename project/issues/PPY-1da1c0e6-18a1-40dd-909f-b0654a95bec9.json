@@ -1,0 +1,20 @@
+{
+  "id": "PPY-1da1c0e6-18a1-40dd-909f-b0654a95bec9",
+  "title": "Adjacent concepts for each tracked concept",
+  "description": "For each tracked concept, the concepts most tied to it: accepted typed links first; then co-occurrence by PMI, not raw count, so a hub does not top every list; then vector neighbours from concept cards when evidence is too thin, labelled as such. Each adjacency carries the References that show it, so an agent can see why. No fixed list length: a significance rule as in `context_packs.py`, with the pack budget as the bound.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-ee757023-8014-4c31-8397-e55566c7ab80",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:47.292062Z",
+  "updated_at": "2026-11-04T02:52:47.292093Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

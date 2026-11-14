@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1d36172b-336b-4a41-8299-a9dc48a1f56b",
+  "issue_id": "PPY-d135516c-efc8-435c-8cde-94d84e46ed06",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T19:38:36.220Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Image toolchain step 1b: Image types in the operation table",
+    "description": "Build step 1b of the image toolchain (design: project/wiki/image-toolchain.md, section 9). Revised 2026-11-07 for named image types.\n\n(small follow-up to merged PR 1). The edits in 3.7: `imageType` on resolve, brief, prompt preview, search, generate and apply; `imageTypes` and `spread: types`; examples belong to a type; `image_figure_add`; three new errors; rerun the generator. Handlers still `not_implemented`.\n\nSpecs: `image-operations.feature` rerun; new examples show `imageType`; parity holds for `image_figure_add`.\n\nWhat deploys: Nothing.\n\nFulfils or changes: Amends PR 1.\n\nGherkin specs are required. Style guidance is data, never code. Spending is only approved for step 6.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": []
+  }
+}

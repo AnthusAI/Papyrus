@@ -324,8 +324,8 @@ class PromoteTests(unittest.TestCase):
             self.assertRegex(item["lineageId"], r"^item-[0-9a-f]{12}$")
             self.assertEqual(item["id"], item["lineageId"] + "-v1")
             expected = {
-                "versionNumber": 1, "versionState": "draft", "versionCreatedBy": "user:staff-sub-1", "changeReason": "reader-submission-promote", "type": "brief", "stage": "idea",
-                "status": "draft", "typeStatus": "brief#draft", "section": "unsectioned", "sectionStatus": "unsectioned#draft", "title": "A small tool", "headline": "A small tool",
+                "versionNumber": 1, "versionState": "draft", "versionCreatedBy": "user:staff-sub-1", "changeReason": "reader-submission-promote", "type": "untyped", "stage": "idea",
+                "status": "draft", "typeStatus": "untyped#draft", "section": "unsectioned", "sectionStatus": "unsectioned#draft", "title": "A small tool", "headline": "A small tool",
                 "deck": "Worked well", "__typename": "Item",
             }
             self.assertEqual({key: (int(item[key]) if key == "versionNumber" else item[key]) for key in expected}, expected)

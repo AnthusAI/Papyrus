@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 from typing import Any
 
+from ..content_item_lifecycle import is_story_item_type
 from ..newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND
+from ..section_ids import is_type_shaped
 from ..tenancy import rows_for_tenant
-from .digest import CORPUS_PREFIX, corpus_key, parse_time
+from ..tenant_knowledge_keys import is_corpus_id
+from .digest import corpus_key, parse_time
 
-STORY_TYPES = {"article", "story"}
 IN_FLIGHT_STATUSES = {"draft", "review", "in_review", "scheduled"}
-STORY_DAYS = 90
 STORY_FIELDS = "id lineageId versionState type status stage section title deck headline publishedAt updatedAt tenantId"
 STORIES_QUERY = f"""
 query ListStories($limit: Int, $nextToken: String) {{
@@ -24,7 +26,7 @@ query ListStories($limit: Int, $nextToken: String) {{
 
 
 def hosted_corpora(client: Any) -> list[dict[str, Any]]:
-    return [row for row in client.list_records("KnowledgeCorpus") if str(row.get("id") or "").startswith(CORPUS_PREFIX)]
+    return [row for row in client.list_records("KnowledgeCorpus") if is_corpus_id(str(row.get("id") or ""))]
 
 
 def corpus_ids_for(corpora: list[dict[str, Any]], publication: str) -> list[str]:
@@ -87,25 +89,27 @@ def sections_for(client: Any, stories: list[dict[str, Any]]) -> list[dict[str, s
     rows = [row for row in client.list_records("NewsroomSection") if row.get("enabled") is not False]
     if rows:
         return sorted(({"id": row["id"], "title": str(row.get("title") or row["id"])} for row in rows), key=lambda row: row["title"])
-    names = sorted({str(story["section"]) for story in stories if story.get("section")})
+    names = sorted({str(story["section"]) for story in stories if story.get("section") and not is_type_shaped(story["section"], "article")})
     return [{"id": name, "title": name} for name in names]
 
 
-def load_context(client: Any, *, now: datetime, story_days: int = STORY_DAYS) -> dict[str, Any]:
-    rows = [row for row in list_stories(client) if row.get("versionState") == "current" and row.get("type") in STORY_TYPES]
+def load_context(client: Any, *, now: datetime, story_days: int | None = None) -> dict[str, Any]:
+    rows = [row for row in list_stories(client) if row.get("versionState") == "current" and is_story_item_type(row.get("type"))]
     all_stories = [story_entry(row) for row in rows]
-    cutoff = now - timedelta(days=story_days)
+    cutoff = None if story_days is None else now - timedelta(days=story_days)
     stories = [
         story for story in all_stories
         if story["title"]
-        and (story["state"] != "published" or (parse_time(story["date"]) or cutoff) >= cutoff)
+        and (cutoff is None or story["state"] != "published" or (parse_time(story["date"]) or cutoff) >= cutoff)
     ]
     stories.sort(key=lambda story: (story["date"] or "", story["title"]), reverse=True)
     doctrine = doctrine_texts(client)
+    dates = [moment for story in stories for moment in [parse_time(story["date"])] if moment is not None]
+    window_days = story_days if story_days is not None else (max(1, math.ceil((now - min(dates)).total_seconds() / 86400)) if dates else None)
     return {
         "mission": doctrine.get("mission"),
         "policy": doctrine.get("policy"),
         "sections": sections_for(client, all_stories),
         "stories": stories,
-        "storyDays": story_days,
+        "storyDays": window_days,
     }

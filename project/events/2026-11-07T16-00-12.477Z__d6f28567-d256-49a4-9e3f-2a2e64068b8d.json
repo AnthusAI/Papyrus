@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "d6f28567-d256-49a4-9e3f-2a2e64068b8d",
+  "issue_id": "PPY-75649552-f242-4ed9-9b93-d27bbb29e4ce",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T16:00:12.477Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M4: Publish and navigate a complete multilingual site",
+    "description": "As a reader, I want the site and each article in my chosen language, so I can navigate the same reporting without losing my place.\n\nExtend the Markus projection and incremental refresh to produce stable locale URLs for home, sections, references, stories, wiki terms and public pages. Localize navigation, UI labels, provenance text, dates, metadata, feeds, search and accessible media text. Provide equivalent-page language switching and clear pending/missing translation behavior. Choose initial language from explicit URL, saved preference, browser preference, then site default; preserve explicit choices. Generate html lang, hreflang, canonical links and sitemaps for available renditions. Support language-specific public blocks.\n\nAcceptance: both locale routes resolve and link to equivalent items; URL choice wins over browser settings; site chrome and content are in the selected language; missing versions are indicated honestly; source corrections and withdrawals refresh the relevant pages and indexes. Gherkin scenarios and static/browser tests cover SEO, navigation and freshness.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-82f150e8-9010-4a9f-949e-71168ffdbdc0",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6-sol"
+    }
+  }
+}

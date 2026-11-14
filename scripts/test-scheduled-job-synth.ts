@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { App, Stack } from "aws-cdk-lib";
@@ -13,13 +14,14 @@ import { ScheduledContainerJob } from "../infra/scheduled-jobs/lib/scheduled-con
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examplePath = path.resolve(here, "../infra/amplify-app-shell/examples/shipped.site.json");
+const exampleDirectory = path.dirname(examplePath);
 const readExample = (): any => JSON.parse(fs.readFileSync(examplePath, "utf8"));
 const env = { account: "712236451410", region: "us-east-1" };
 
 function knowledgeStack(change: (site: any) => void = () => {}, imageTag = "test") {
   const raw = readExample();
   change(raw);
-  const config = resolveKnowledgeRunConfig(parseSiteConfig(raw));
+  const config = resolveKnowledgeRunConfig(parseSiteConfig(raw), process.env, exampleDirectory);
   const app = new App();
   const stack = new KnowledgeRunStack(app, "KnowledgeRun", config, { env, imageTag });
   return { stack, template: Template.fromStack(stack), config };
@@ -40,6 +42,9 @@ function policyStatements(template: Template, roleLogicalIdPrefix: string): any[
     .filter(([id]) => id.startsWith(roleLogicalIdPrefix))
     .flatMap(([, resource]) => resource.Properties.PolicyDocument.Statement);
 }
+
+const statementsOf = (built: { template: Template }, sid: string): any =>
+  policyStatements(built.template, "JobTaskRoleDefaultPolicy").find((statement) => statement.Sid === sid);
 
 // The example opts in to monitor stories; the base stack here is the template without that optional step (it is tested below and per example).
 const { stack, template, config } = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; });
@@ -195,7 +200,7 @@ const taskDefinition = Object.values(template.findResources("AWS::ECS::TaskDefin
 const staticEnvironment = Object.fromEntries(taskDefinition.Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]));
 assert.deepEqual(Object.keys(staticEnvironment).sort(), [
   "AWS_REGION", "HF_HOME", "HF_HUB_OFFLINE", "KNOWLEDGE_ALLOW_TEST_FAILURE", "KNOWLEDGE_BEATS_CONFIG", "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION", "KNOWLEDGE_AMPLIFY_APP_ID", "PAPYRUS_PLUGINS",
-  "KNOWLEDGE_APPSYNC_API_ID", "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_MONITOR_SOURCES", "KNOWLEDGE_MONITOR_SUGGESTIONS", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
+  "KNOWLEDGE_APPSYNC_API_ID", "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_DECISION_KEY_PARAMETER", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_MONITOR_SOURCES", "KNOWLEDGE_MONITOR_SUGGESTIONS", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SETTINGS_ARCHIVE", "KNOWLEDGE_SITE_BRANCH",
   "KNOWLEDGE_SITE_REPO", "KNOWLEDGE_STATE_BUCKET", "KNOWLEDGE_STATIC_SUBDIR", "PAPYRUS_EDGE_DISTRIBUTION_ID", "PAPYRUS_PROJECTION_LOCK_TABLE",
   "PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS", "PAPYRUS_PUBLICATION_KIND", "PAPYRUS_REDIRECTS_KVS_ARN", "PAPYRUS_SITE_BUCKET", "TREND_DRAFTS_MAX_AGE_DAYS",
 ].sort());
@@ -343,7 +348,7 @@ const taskStatements = policyStatements(template, "JobTaskRoleDefaultPolicy");
 const allowedActions = new Set([
   "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket", "s3:GetBucketLocation",
   "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem",
-  "ssm:GetParameter", "appsync:GraphQL", "lambda:GetFunctionConfiguration", "amplify:ListJobs", "cloudfront:CreateInvalidation", "cloudfront:DescribeKeyValueStore",
+  "ssm:GetParameter", "appsync:GraphQL", "appsync:GetGraphqlApi", "lambda:GetFunctionConfiguration", "amplify:ListJobs", "cloudfront:CreateInvalidation", "cloudfront:DescribeKeyValueStore",
   "cloudfront-keyvaluestore:DescribeKeyValueStore", "cloudfront-keyvaluestore:GetKey", "cloudfront-keyvaluestore:ListKeys",
   "cloudfront-keyvaluestore:PutKey", "cloudfront-keyvaluestore:DeleteKey", "cloudfront-keyvaluestore:UpdateKeys",
 ]);
@@ -361,7 +366,10 @@ assert.deepEqual(statementBySid("ProjectionLockTable").Resource, "arn:aws:dynamo
 assert.deepEqual(statementBySid("ReadParameters").Resource, [
   `arn:aws:ssm:us-east-1:712236451410:parameter${PROJECTION_LOCK_PARAMETER_NAME}`,
   "arn:aws:ssm:us-east-1:712236451410:parameter/papyrus/shipped/openai-api-key",
+  statementBySid("ReadParameters").Resource[2],
 ]);
+assert.match(statementBySid("ReadParameters").Resource[2], /^arn:aws:ssm:us-east-1:\d{12}:parameter\/papyrus\/shared\/typesafe-api-key$/, "the entity step reads the Jev key, and only that parameter");
+assert.equal(staticEnvironment.KNOWLEDGE_DECISION_KEY_PARAMETER, "/papyrus/shared/typesafe-api-key", "the entity step asks Jev with the shared TypeSafe key unless the site names its own");
 assert.deepEqual(statementBySid("SignAppSyncRequests").Resource, [
   "arn:aws:appsync:us-east-1:712236451410:apis/6sw6454pozbgvdgm233gqkxsxu/types/Query/fields/*",
   "arn:aws:appsync:us-east-1:712236451410:apis/6sw6454pozbgvdgm233gqkxsxu/types/Mutation/fields/*",
@@ -487,7 +495,7 @@ assert.equal(customEnvironment.HF_HOME, "/opt/hf", "computed variables win over 
 const rejects = (change: (block: any) => void, pattern: RegExp) => {
   const raw = readExample();
   change(raw.knowledgeRun);
-  assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig(raw)), pattern);
+  assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig(raw), process.env, exampleDirectory), pattern);
 };
 rejects((block) => { block.surprise = 1; }, /knowledgeRun\.surprise is not a known field/);
 rejects((block) => { delete block.siteBucket; }, /knowledgeRun\.siteBucket must be a non-empty string/);
@@ -517,7 +525,8 @@ rejects((block) => { block.corpusKey = "Not A Key"; }, /knowledgeRun\.corpusKey 
 rejects((block) => { block.corpusKey = ""; }, /knowledgeRun\.corpusKey must be a non-empty string/);
 rejects((block) => { block.openAiKeyParameter = "no-slash"; }, /knowledgeRun\.openAiKeyParameter is invalid/);
 assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.knowledgeRun; return raw; })())), /has no knowledgeRun block/);
-assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.aws; return raw; })())), /needs aws\.accountId and aws\.region/);
+assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.aws; delete raw.knowledgeRun.settingsDirectory; return raw; })())), /needs PAPYRUS_AWS_ACCOUNT_ID \(or aws\.accountId\) and aws\.region/);
+assert.equal(resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); raw.aws = { region: "us-east-1" }; return raw; })()), { PAPYRUS_AWS_ACCOUNT_ID: "111122223333" }, exampleDirectory).account, "111122223333", "the account may come from the environment");
 
 // Any site: a corpus key of its own, shared SSM parameters, and Shipped unchanged by all of it.
 const environmentOf = (built: { template: Template }): Record<string, string> =>
@@ -543,6 +552,46 @@ assert.deepEqual(withoutCorpusKey, staticEnvironment, "Shipped's task environmen
   assert.deepEqual(base.template.toJSON(), knowledgeStack((site) => { site.knowledgeRun.corpusKey = undefined; }).template.toJSON(), "an absent corpus key leaves the template untouched");
 }
 
+// Reference documents: opt-in. Without the block nothing changes; with it the tasks get the bucket and the task role may read one prefix of it.
+{
+  const MEDIA = "media-bucket-for-test";
+  const optIn = (site: any) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; site.knowledgeRun.referenceDocuments = { enabled: true, mediaBucket: MEDIA }; };
+  const off = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; });
+  const on = knowledgeStack(optIn);
+  assert.equal(off.config.referenceDocuments, undefined);
+  assert.ok(!("KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET" in environmentOf(off)), "no block: no variable");
+  assert.equal(statementsOf(off, "ReferenceDocumentTexts"), undefined, "no block: no extra permission");
+  assert.deepEqual(
+    on.config.referenceDocuments,
+    { mediaBucket: MEDIA, extractor: "markitdown", prefix: "corpora/ai-ml-research/extracted/markitdown/raw/" },
+    "the prefix follows the corpus key and the extractor",
+  );
+  const onEnvironment = environmentOf(on);
+  assert.equal(onEnvironment.KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET, MEDIA);
+  assert.equal(onEnvironment.KNOWLEDGE_REFERENCE_DOCUMENTS_EXTRACTOR, "markitdown");
+  assert.deepEqual(
+    Object.keys(onEnvironment).filter((name) => !(name in environmentOf(off))).sort(),
+    ["KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET", "KNOWLEDGE_REFERENCE_DOCUMENTS_EXTRACTOR"],
+    "opting in adds two variables and changes nothing else",
+  );
+  const texts = statementsOf(on, "ReferenceDocumentTexts");
+  assert.deepEqual(texts.Action, "s3:GetObject", "read only: no put, no delete");
+  assert.deepEqual(texts.Resource, `arn:aws:s3:::${MEDIA}/corpora/ai-ml-research/extracted/markitdown/raw/*`);
+  const list = statementsOf(on, "ReferenceDocumentList");
+  assert.deepEqual(list.Action, "s3:ListBucket");
+  assert.deepEqual(list.Resource, `arn:aws:s3:::${MEDIA}`);
+  assert.deepEqual(list.Condition, { StringLike: { "s3:prefix": ["corpora/ai-ml-research/extracted/markitdown/raw/*"] } }, "listing is limited to the same prefix");
+  const noKey = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; delete site.knowledgeRun.corpusKey; site.knowledgeRun.referenceDocuments = { enabled: true, mediaBucket: MEDIA, extractor: "pdf-text" }; });
+  assert.equal(noKey.config.referenceDocuments?.prefix, "corpora/shipped/extracted/pdf-text/raw/", "without a corpus key the siteId names the corpus");
+  const disabled = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; site.knowledgeRun.referenceDocuments = { enabled: false, mediaBucket: MEDIA }; });
+  assert.deepEqual(disabled.template.toJSON(), off.template.toJSON(), "enabled false leaves the template untouched");
+  rejects((block) => { block.referenceDocuments = []; }, /knowledgeRun\.referenceDocuments must be an object/);
+  rejects((block) => { block.referenceDocuments = { enabled: true }; }, /knowledgeRun\.referenceDocuments\.mediaBucket must be a non-empty string/);
+  rejects((block) => { block.referenceDocuments = { mediaBucket: MEDIA }; }, /knowledgeRun\.referenceDocuments\.enabled must be true or false/);
+  rejects((block) => { block.referenceDocuments = { enabled: true, mediaBucket: MEDIA, extractor: "../x" }; }, /knowledgeRun\.referenceDocuments\.extractor is invalid/);
+  rejects((block) => { block.referenceDocuments = { enabled: true, mediaBucket: MEDIA, prefix: "*" }; }, /knowledgeRun\.referenceDocuments\.prefix is not a known field/);
+}
+
 // A site may name any existing SSM parameter for the OpenAI key and the alarm address, and several sites may share them.
 const sharedKey = "/papyrus/shared/openai-api-key";
 const sharedAlarm = "/papyrus/shared/knowledge-run/alarm-email";
@@ -566,7 +615,7 @@ for (const siteId of ["shipped", "p-apyr-us"]) {
 // Every site's example config carries a daily, staggered knowledge run that files routed records and monitor-story drafts.
 const SHIPPED_KEY = "/papyrus/shipped/openai-api-key";
 const SHIPPED_ALARM = "/papyrus/shipped/knowledge-run/alarm-email";
-const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: string; distribution?: string; noMonitorStories?: boolean; excludedSourceHosts?: string[] }> = {
+const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: string; distribution?: string; noMonitorStories?: boolean; excludedSourceHosts?: string[]; referenceDocuments?: string }> = {
   shipped: { hour: 5, key: SHIPPED_KEY },
   "anth-us": { hour: 6, key: SHIPPED_KEY },
   "threat-intelligence": { hour: 7, key: "/amplify/shared/d12wnrx15qbcc2/OPENAI_API_KEY" },
@@ -575,12 +624,12 @@ const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: 
   "pilobol-us": { hour: 9, key: SHIPPED_KEY },
   "p-apyr-us": { hour: 10, key: "/papyrus/p-apyr-us/openai-api-key", corpusKey: "ai-ml-research", distribution: "E2EM0JLBC2W9WW" },
   dataparade: { hour: 11, key: "/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY", corpusKey: "data-parade" },
+  "machines-on-machines": { hour: 12, key: SHIPPED_KEY, corpusKey: "ai-ml-research", distribution: "E1PTZ8B9ZF9GCU", referenceDocuments: "corpora/ai-ml-research/extracted/markitdown/raw/" },
 };
-const exampleDirectory = path.dirname(examplePath);
 const seenHours = new Set<number>();
 for (const [siteId, expected] of Object.entries(siteExpectations)) {
   const site = JSON.parse(fs.readFileSync(path.join(exampleDirectory, `${siteId}.site.json`), "utf8"));
-  const resolved = resolveKnowledgeRunConfig(parseSiteConfig(site));
+  const resolved = resolveKnowledgeRunConfig(parseSiteConfig(site), process.env, exampleDirectory);
   assert.equal(resolved.publication, siteId);
   assert.equal(resolved.schedule, `cron(0 ${expected.hour} * * ? *)`, `${siteId} runs daily at its own hour`);
   assert.ok(!seenHours.has(expected.hour), `${siteId}: no two sites share an hour`);
@@ -592,10 +641,76 @@ for (const [siteId, expected] of Object.entries(siteExpectations)) {
   assert.equal(resolved.openAiKeyParameter, expected.key);
   assert.equal(resolved.alarmEmailParameter, SHIPPED_ALARM);
   assert.equal(resolved.corpusKey, expected.corpusKey);
+  assert.equal(resolved.referenceDocuments?.prefix, expected.referenceDocuments, `${siteId}: only the site that opted in reads References as documents`);
+  if (expected.referenceDocuments) assert.equal(resolved.stageTimeouts["typed-extraction"], 43200, `${siteId}: typed extraction of the Reference texts gets a longer timeout`);
   if (expected.distribution) assert.equal(resolved.edgeDistributionId, expected.distribution);
   const built = new KnowledgeRunStack(new App(), `KnowledgeRun-${siteId}`, resolved, { env, imageTag: "test" });
   assert.equal(built.stackName, knowledgeRunStackName(siteId));
-  assert.equal(Object.keys(Template.fromStack(built).toJSON().Resources).length, 41, `${siteId}: the same 41 resources as Shipped (42 with the CDK metadata a synth adds)`);
+  // A stack that reuses the account's one ECR repository has 40 resources, one fewer than Shipped's 41 (42 with the CDK metadata a synth adds).
+  const builtTemplate = Template.fromStack(built);
+  assert.equal(Object.keys(builtTemplate.toJSON().Resources).length, resolved.reuseImageRepository ? 40 : 41, `${siteId}: the same resources as Shipped, less the shared repository when reused`);
+  assert.equal(Object.keys(builtTemplate.findResources("AWS::ECR::Repository")).length, resolved.reuseImageRepository ? 0 : 1);
+}
+
+// Committed settings: the site's vocabulary, stop words and review guidance ship with the stack as one asset the tasks may read, and nowhere else.
+const SETTINGS_SITES = ["shipped", "machines-on-machines"];
+const withoutSettings = (siteId: string) => {
+  const site = JSON.parse(fs.readFileSync(path.join(exampleDirectory, `${siteId}.site.json`), "utf8"));
+  delete site.knowledgeRun.settingsDirectory;
+  return new KnowledgeRunStack(new App(), `KnowledgeRun-${siteId}`, resolveKnowledgeRunConfig(parseSiteConfig(site), process.env, exampleDirectory), { env, imageTag: "test" });
+};
+for (const siteId of Object.keys(siteExpectations)) {
+  const site = JSON.parse(fs.readFileSync(path.join(exampleDirectory, `${siteId}.site.json`), "utf8"));
+  const resolved = resolveKnowledgeRunConfig(parseSiteConfig(site), process.env, exampleDirectory);
+  const built = new KnowledgeRunStack(new App(), `KnowledgeRun-${siteId}`, resolved, { env, imageTag: "test" });
+  const builtTemplate = Template.fromStack(built);
+  const taskEnvironment = JSON.stringify(Object.values(builtTemplate.findResources("AWS::ECS::TaskDefinition"))[0]);
+  const readStatement = policyStatements(builtTemplate, "JobTaskRoleDefaultPolicy").find((statement) => statement.Sid === "ReadRunSettings");
+  if (!SETTINGS_SITES.includes(siteId)) {
+    assert.equal(resolved.settingsDirectory, undefined, `${siteId} commits no settings`);
+    assert.ok(!taskEnvironment.includes("KNOWLEDGE_SETTINGS_ARCHIVE"), `${siteId}: no settings variable`);
+    assert.equal(readStatement, undefined, `${siteId}: no read grant for settings`);
+    continue;
+  }
+  const directory = path.join(exampleDirectory, "knowledge-run-settings", siteId);
+  assert.equal(resolved.settingsDirectory, directory, `${siteId}: the settings directory is relative to its site file`);
+  assert.deepEqual(fs.readdirSync(directory).sort(), ["stop-words.txt", "vocabulary.yml"], `${siteId}: what a person maintains in the run's config, committed`);
+  assert.match(taskEnvironment, /KNOWLEDGE_SETTINGS_ARCHIVE/);
+  assert.match(taskEnvironment, /s3:\/\//, "the variable names the asset as an s3:// address");
+  assert.deepEqual(readStatement.Action, "s3:GetObject");
+  assert.equal(readStatement.Effect, "Allow");
+  assert.ok(!JSON.stringify(readStatement.Resource).includes("*"), `${siteId}: the grant names one object, not a prefix`);
+  assert.equal(Object.keys(builtTemplate.toJSON().Resources).length, Object.keys(Template.fromStack(withoutSettings(siteId)).toJSON().Resources).length, `${siteId}: the asset adds no resource`);
+}
+{
+  const machines = fs.readFileSync(path.join(exampleDirectory, "knowledge-run-settings", "machines-on-machines", "vocabulary.yml"), "utf8");
+  const shipped = fs.readFileSync(path.join(exampleDirectory, "knowledge-run-settings", "shipped", "vocabulary.yml"), "utf8");
+  assert.match(machines, /^description: a publication about artificial intelligence$/m, "Machines on Machines carries the evaluated description");
+  assert.match(shipped, /^description: /m, "Shipped carries its described vocabulary");
+}
+
+// Settings directory validation names the field; the directory must exist, stay beside the site file and hold only settings files.
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "run-settings-"));
+  const make = (name: string, files: Record<string, string>) => {
+    fs.mkdirSync(path.join(base, name), { recursive: true });
+    for (const [file, text] of Object.entries(files)) fs.writeFileSync(path.join(base, name, file), text);
+  };
+  make("ok", { "vocabulary.yml": "version: 1\n", "review-guidance.md": "Prefer named things.\n" });
+  make("stray", { "vocabulary.yml": "version: 1\n", "notes.txt": "x" });
+  make("empty", {});
+  const resolveWith = (settingsDirectory: string, directory: string | null = base) => {
+    const raw = readExample();
+    raw.knowledgeRun.settingsDirectory = settingsDirectory;
+    return resolveKnowledgeRunConfig(parseSiteConfig(raw), process.env, directory ?? undefined);
+  };
+  assert.equal(resolveWith("ok").settingsDirectory, path.join(base, "ok"));
+  assert.throws(() => resolveWith("stray"), /settingsDirectory holds "notes.txt", which is not a settings file/);
+  assert.throws(() => resolveWith("empty"), /settingsDirectory is empty/);
+  assert.throws(() => resolveWith("missing"), /settingsDirectory names a directory that does not exist/);
+  assert.throws(() => resolveWith("../ok"), /settingsDirectory must stay inside the site file's directory/);
+  assert.throws(() => resolveWith("ok", null), /needs the directory of the site file/);
+  fs.rmSync(base, { recursive: true, force: true });
 }
 
 console.log("scheduled job synth: ok");

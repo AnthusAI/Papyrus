@@ -1,0 +1,36 @@
+{
+  "id": "PPY-16f13a94-103c-4220-aeeb-d90708bbb7ed",
+  "title": "TI on the shared stack: definition of done and retirement of its dedicated backend",
+  "description": "Outcome: Done when: 14 days on the shared stack with no rollback; the adversarial suite green on every release in that period; TI's editors published at least one story and the monitors delivered daily; the parity report has no unexplained difference; the cost per day is recorded for the cost model (PPY-04ce84). Then, with Ryan's approval, retire TI's dedicated Amplify app, backend stack and distribution (delete after a final export kept in S3), and update the TI repository to say it is a tenant.\n\nTouches (verified at origin/develop 23fabe1d): TI repository docs, the old stack (deletion with approval), docs.\n\nAcceptance (Gherkin feature file: features_backend/ti-shared-done.feature):\nScenario: TI's old backend is retired only after the green period\n    Given 14 days without rollback and a final export stored\n    When Ryan approves the retirement\n    Then the old stack is deleted and TI is served only by the shared stack\n\nDependencies: blocked by PPY-e51189, PPY-0c4b55. Blocks PPY-8ca9a7. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-32b4c5.\n\nTesting: Checklist with evidence on the issue.\nRollout: Operation.\nRisk and mitigation: Risk: deleting the old backend removes the rollback. Mitigation: final export plus a 14-day wait.\n\nReleasable on its own: no (operation).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-fe8bc69c-453f-45f8-938d-eaabb8a366a8",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-e511893a-f11c-4ba1-9534-cbbb9ca666d5",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-0c4b556a-6823-470c-925f-807d351f8f8a",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-32b4c5ea-3445-40e9-8c12-f57568afe88e",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:24.774810Z",
+  "updated_at": "2026-11-08T18:47:09.703602Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

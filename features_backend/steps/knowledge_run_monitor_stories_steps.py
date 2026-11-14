@@ -132,7 +132,7 @@ def row(context):
 def step_command(context, site, limit):
     assert len(context.calls) == 1
     args = context.calls[0][0]
-    assert args[:5] == ["papyrus", "ideas", "monitor-stories", "--site", site] and args[args.index("--limit") + 1] == str(limit) and args[args.index("--store") + 1] == "proposals", args
+    assert args[:5] == ["papyrus", "ideas", "monitor-stories", "--site", site] and args[args.index("--limit") + 1] == str(limit) and args[args.index("--store") + 1] == "items", args
 
 
 @then("the command runs with the limit {limit:d}")

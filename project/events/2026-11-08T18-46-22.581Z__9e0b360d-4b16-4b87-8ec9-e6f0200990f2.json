@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "9e0b360d-4b16-4b87-8ec9-e6f0200990f2",
+  "issue_id": "PPY-d7274f89-41d4-44bb-99f2-24f4759af61e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:22.581Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lifecycle: active, past due, suspended (read-only) and deleted, applied through token claims",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

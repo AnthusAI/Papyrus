@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { CheckIcon, Loader2Icon, XIcon } from "lucide-react";
+import { CheckIcon, Loader2Icon, RotateCcwIcon, XIcon } from "lucide-react";
 import { UNRECORDED_CONFIDENCE } from "../lib/reference-feed-ranking";
 import { cn } from "@/lib/utils";
 import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
+import { StarRating } from "./star-rating";
 import type { CardPrediction, ReviewChoice } from "./reference-review-card";
 
 /**
@@ -63,12 +64,14 @@ export function DecisionControl({
   onChoose,
   onReasonChange,
   onReasonCommit,
+  onRetryPrediction,
   prediction,
   reason = "",
   reasonRequiredFor = null,
   showPrediction = true,
   showReason = true,
   size = "compact",
+  stars,
   statusOverlay = false,
   surface = "footer",
 }: {
@@ -87,6 +90,8 @@ export function DecisionControl({
   onReasonChange?: (text: string) => void;
   /** Save the reason on its own (on blur, or from the status row). */
   onReasonCommit?: () => void;
+  /** Offered beside "Prediction unavailable": read this item's prediction again. */
+  onRetryPrediction?: (() => void) | undefined;
   prediction: CardPrediction;
   /** The written reason, owned by the caller. */
   reason?: string;
@@ -97,6 +102,8 @@ export function DecisionControl({
   /** False where the surrounding card owns the reason field. */
   showReason?: boolean;
   size?: "compact" | "large";
+  /** Optional star rating beside Accept and Reject. Present only for a Reference: stars are editorial interest, never a vote. */
+  stars?: { value: number | null; onChange: (stars: number) => void; feedback?: RatingFeedback } | undefined;
   /** Lay the status line over the bottom padding of the nearest positioned ancestor, so it adds no height. */
   statusOverlay?: boolean;
   /** The tone the control sits on, so the bar's centre notch matches it. */
@@ -124,13 +131,20 @@ export function DecisionControl({
 
   /* What the chosen segment says about itself while the answer is in flight or held back. A segment
      never claims to be unrecorded while it is being recorded. */
-  const stagedWord = saving ? (decided ? "Updating…" : "Sending…") : needsReason ? "Needs a reason" : null;
+  const stagedWord = saving ? (decided ? "Updating…" : "Sending…") : needsReason ? (answer === "accept" ? "Not recorded yet" : "Needs a reason") : null;
 
   return (
     <div className="@container/decision grid gap-y-2" data-decision-control data-rating-grid>
       {showPrediction ? (
         <div className="grid gap-y-0.5" data-prediction>
-          <span className={cn(LABEL, "text-muted-foreground")} data-prediction-caption>{caption}</span>
+          <span className={cn(LABEL, "flex items-center gap-2 text-muted-foreground")} data-prediction-caption>
+            {caption}
+            {prediction.state === "error" && onRetryPrediction ? (
+              <button className="inline-flex items-center gap-1 rounded-full bg-[var(--feed-control)] px-2 py-0.5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring" data-retry-prediction onClick={onRetryPrediction} type="button">
+                <RotateCcwIcon aria-hidden="true" className="size-3" />Retry
+              </button>
+            ) : null}
+          </span>
           <div
             aria-label={ready ? `Prediction: ${WORD[ready.choice]}, ${confidenceText} confident` : caption}
             className="relative h-4 w-full overflow-hidden rounded-full bg-[var(--feed-control)]"
@@ -230,10 +244,12 @@ export function DecisionControl({
         })}
       </div>
 
+      {stars ? <StarRating disabled={disabled} feedback={stars.feedback} onChange={stars.onChange} size={size} value={stars.value} /> : null}
+
       {showReason ? (
         <div className="grid gap-y-1.5" data-review-reason>
           <label className={cn(LABEL, "text-muted-foreground")} htmlFor={fieldId}>
-            Reason{reasonRequiredFor ? ` · required to ${WORD[reasonRequiredFor].toLowerCase()}` : " · optional"}
+            Reason{reasonRequiredFor && (!answer || answer === reasonRequiredFor) ? ` · required to ${WORD[reasonRequiredFor].toLowerCase()}` : " · optional"}
           </label>
           {/* Written reasons only. A row of canned answers collects a label the model mostly has already;
               what trains the next prediction is a sentence. */}
@@ -264,10 +280,10 @@ export function DecisionControl({
         {note ? <span data-feed-reason>{note}</span> : null}
         {needsReason ? (
           <>
-            <span className="font-semibold text-foreground">A reason is needed to record {WORD[answer ?? "reject"]}</span>
+            <span className="font-semibold text-foreground">{answer === "accept" ? "Say why if you like, then record Accept" : `A reason is needed to record ${WORD[answer ?? "reject"]}`}</span>
             <button
               className="rounded-[var(--feed-radius-md,16px)] bg-[var(--primary)] px-2.5 py-0.5 font-semibold text-[var(--primary-foreground)] outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-[var(--feed-quiet,0.6)]"
-              disabled={!reason.trim()}
+              disabled={answer !== "accept" && !reason.trim()}
               data-review-record
               onClick={() => { if (answer) onChoose(answer); }}
               type="button"

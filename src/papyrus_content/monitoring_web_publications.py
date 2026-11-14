@@ -20,6 +20,9 @@ from .monitoring_web import DEFAULT_INTERVAL_SECONDS, TAVILY_SOURCE_URL, WEB_SEA
 #: Which publications have a web monitor, and which of them have no Cyclotron yet: configuration, not code.
 _PUBLICATIONS = json.loads((Path(__file__).resolve().parents[2] / "config" / "web-monitors.json").read_text())
 SHARED_CYCLOTRON = tuple(_PUBLICATIONS["sharedCyclotron"])
+#: A web monitor whose publication is stored under another id in the router config (`p-apyr-us` finds for the Machines on Machines
+#: backend, whose sections and doctrine are tenant `machines-on-machines`): web publication id -> router publication id.
+ROUTER_PUBLICATION = dict(_PUBLICATIONS.get("routerPublication") or {})
 DISTINCTIVE = "distinctive"
 WEB_PUBLICATIONS = (*SHARED_CYCLOTRON, DISTINCTIVE)
 DISTINCTIVE_ENTRY = {   # as in the TTAB router config, without that monitor's procedure trigger and key

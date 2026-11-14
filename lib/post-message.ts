@@ -52,3 +52,14 @@ export function postMessageMutation(args: PostMessageArguments, selection: strin
   const passed = keys.map((key) => `${key}: $${key}`).join(", ");
   return `mutation PostMessage(${declared}) { postMessage(${passed}) { ${selection} } }`;
 }
+
+/**
+ * Asks the backend to link the hashtags in a Message the signed-in person just posted to the concepts they name. The backend reads
+ * the stored Message and its author itself; the browser only says which Message to look at, and a failure never blocks posting.
+ */
+export const LINK_MESSAGE_HASHTAGS_MUTATION =
+  "mutation LinkMessageHashtags($messageId: ID!) { linkMessageHashtags(messageId: $messageId) { ok linkedNodeKeys unmatchedHashtags } }";
+
+export function messageHasHashtag(content: unknown): boolean {
+  return typeof content === "string" && /(^|[^\w&/#-])#[A-Za-z0-9]/.test(content);
+}

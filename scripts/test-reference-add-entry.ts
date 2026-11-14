@@ -6,12 +6,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
 import { createDemoCategorySteeringDashboard } from "../lib/category-repository";
 import { currentRelevanceDecisions } from "../lib/relevance-decisions";
-import { DEFAULT_RELEVANCE_CYCLOTRON, DEMO_CYCLOTRON_STATUS } from "../lib/relevance-status";
+import { DEMO_CYCLOTRON_STATUS } from "../lib/relevance-status";
 import type { CurationBootstrap } from "../lib/curation-client";
 
 const ENGINE_WORDS = /priming|cyclotron|classifier|calibration|sweep|onboarding|version/i;
-const labels = DEFAULT_RELEVANCE_CYCLOTRON.labels;
-const url = { labels, requests: [], onRequest: () => undefined };
+const onAdd = async () => ({ referenceId: "r1", alreadyThere: false, accepted: false, stars: null, problems: [] });
+const url = { onAdd };
 const scope = { accountId: "account-a", publicationId: "publication-a", bindingRevision: "binding-1" };
 const bootstrap = (overrides: Partial<CurationBootstrap>): CurationBootstrap => ({
   scope, mode: "embedded", bindingRef: null, capabilities: ["read", "review"],
@@ -44,7 +44,7 @@ test("With no curation session only the URL option renders", async () => {
   assert.ok(!urlOnly.includes("data-cyclotron-priming"));
 
   const view = renderToStaticMarkup(createElement(NewsroomReferencesView, {
-    references: [], onReview: () => undefined, cyclotronPriming: { labels, requests: [], onRequest: () => undefined },
+    references: [], onReview: () => undefined, onAddReference: onAdd,
   }));
   assert.ok(view.includes("Reference URL"));
   assert.ok(!view.includes("Import a file"));
@@ -87,7 +87,7 @@ test("Editor-facing copy never exposes engine concepts", async () => {
   const fullView = (extra: object = {}) => renderToStaticMarkup(createElement(Provider, { bootstrap: bootstrap({}) },
     createElement(NewsroomReferencesView, {
       references: dashboard.references, decisions, onReview: () => undefined, cyclotronStatus: DEMO_CYCLOTRON_STATUS,
-      cyclotronPriming: { labels, requests: [], onRequest: () => undefined },
+      onAddReference: onAdd,
       initialReferenceLineageId: pending?.lineageId ?? pending?.id, ...extra,
     })));
   const pages = [

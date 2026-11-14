@@ -89,6 +89,8 @@ def command(argv: list[str]) -> int:
     backfill.add_argument("--since", help="Only deliveries at or after this ISO timestamp (with timezone)")
     backfill.add_argument("--apply", action="store_true", help="Write the relations; without it nothing is written")
     backfill.add_argument("--dry-run", action="store_true", help="The default; accepted for clarity")
+    from .monitoring_view_cli import add_arguments as add_view_arguments
+    add_view_arguments(sub)
     window = sub.add_parser("backfill",
                             help="Load a Hugging Face monitor's history for its configured filters: pages the whole window, waits out rate limits, Ctrl-C safe and resumable (dry-run unless --apply)")
     window.add_argument("--monitor", required=True)
@@ -96,19 +98,21 @@ def command(argv: list[str]) -> int:
     window.add_argument("--until", help="Only models created before this ISO timestamp (with timezone)")
     window.add_argument("--apply", action="store_true", help="Write discoveries and the checkpoint; without it nothing is written")
     queries = sub.add_parser("web-queries",
-                             help="Draft a publication's web-search queries from its mission, policy and Cyclotron criteria (gpt-6-luna); prints them, stores them only with --write")
+                             help="Draft one web-search query per enabled section plus one for the site (gpt-6-luna) and show which old queries retire; writes only with --execute")
     target = queries.add_mutually_exclusive_group(required=True)
     target.add_argument("--publication", help="Publication id, for example anth-us")
     target.add_argument("--all", action="store_true", help="Every publication that has a web monitor")
-    queries.add_argument("--write", action="store_true", help="Store the queries as QUERY records of the monitor (an AWS write)")
-    queries.add_argument("--approved-by", help="With --write: who approved them (a query is searched only once approved)")
-    queries.add_argument("--enable", action="store_true", help="With --write: also enable the monitor")
+    queries.add_argument("--execute", action="store_true", help="Retire the old queries (kept, never searched) and write the new ones (an AWS write)")
+    queries.add_argument("--approved-by", help="With --execute: who approved the new queries (a query is searched only once approved)")
+    queries.add_argument("--retire-editor", action="store_true", help="Also retire editor-written queries (kept by default)")
     queries.add_argument("--out", help="Also save the proposal as JSON")
-    queries.add_argument("--criteria-dir", help="Directory of the lab's reviewed <publication>-relevance.json files")
     args = parser.parse_args(argv)
+    if args.command in ("overview", "page"):
+        from .monitoring_view_cli import command as view_command
+        return view_command(args)
     if args.command == "web-queries":
-        if args.enable and not args.write:
-            parser.error("--enable needs --write")
+        if args.approved_by and not args.execute:
+            parser.error("--approved-by needs --execute")
         from .monitoring_web_queries import command as web_queries
         return web_queries(args)
     if args.command == "backfill":

@@ -31,7 +31,6 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 const KIND_LABELS: Record<string, string> = {
-  story_draft: "Proposed Story",
   new_concept: "New concept",
   rename: "Rename",
   merge: "Merge",
@@ -62,6 +61,11 @@ export const PROPOSAL_FIELDS = "id kind title summary body state proposer held p
 export const LIST_PROPOSALS = `query Proposals($nextToken: String) { listProposals(limit: 500, nextToken: $nextToken) { items { ${PROPOSAL_FIELDS} } nextToken } }`;
 export const EDIT_PROPOSAL = `mutation Edit($proposalId: String!, $action: String!) { editProposal(proposalId: $proposalId, action: $action) { status id error message } }`;
 export const TRANSITION_PROPOSAL = `mutation Move($proposalId: String!, $state: String!, $reason: String) { transitionProposal(proposalId: $proposalId, state: $state, reason: $reason) { status id error message } }`;
+
+/** Generated story ideas are Items at the idea stage, not Proposals. A `story_draft` Proposal filed before that is converted by `papyrus ideas migrate-proposals`; until then it stays out of this panel. */
+export function withoutStoryDrafts<T extends { kind: string }>(rows: readonly T[]): T[] {
+  return rows.filter((row) => row.kind !== "story_draft");
+}
 
 export function stateLabel(state: string, readers = true): string {
   if (!readers && state === "in_steering") return "Waiting for review";

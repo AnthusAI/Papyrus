@@ -1,0 +1,23 @@
+{
+  "id": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+  "title": "Provisioning and tenant lifecycle: paid sign-up to live site, suspension, export and deletion",
+  "description": "Why: \"sign up, pay and you have a website\" needs a provisioning workflow, a starter site, onboarding, lifecycle states and complete export and deletion. The existing stories PPY-8bb56d (provisioning API), PPY-8e6c06 (export and deletion), PPY-bd1c6e (payment lifecycle) and PPY-e54eca (sign-up to live site) state the behaviour; the tasks in this epic implement them with exact files, models and order. Billing itself is Prospectus's (epic PPY-e0fd12 and Papyrus wait task PPY-a1e75a).\n\nOwner decisions that bind it (2026-11-07): no free plan and no trial; usage pricing through Prospectus; custom domains in every plan; tenants own 100% of their content.\n\nDone when: in staging a paid sign-up reaches a live site and an admin sign-in with no human step, a suspended tenant is read-only and can export, and a deleted tenant leaves nothing behind (proved by the export/delete tests). Ends with a p.apyr.us page.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:17.867841Z",
+  "updated_at": "2026-11-08T18:46:43.321575Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

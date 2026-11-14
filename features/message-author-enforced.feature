@@ -7,7 +7,8 @@ Feature: The backend stamps a message's author and moderates deletes
   admin, through renameThread. A deletion is soft, so replies keep their place. The router, procedures, the console responder,
   email and Slack write the model directly with their own grants, which this does not change. The browser's console chat posts its
   turns through postMessage too. These scenarios run the real resolvers against a stand-in for the AppSync runtime and read the
-  schema the data API is built from; they deploy nothing.
+  schema the data API is built from; they deploy nothing. A Message also records what kind of author wrote it: staff by default, so every Message written before readers could post
+  reads as staff, and a reader-authored Message carries the reader's id, which the public export never shows.
 
   Scenario: A post records the signed-in user whatever the client sends
     Given the data API schema and its message resolvers
@@ -51,3 +52,18 @@ Feature: The backend stamps a message's author and moderates deletes
     When the function grants and every browser writer are read
     Then the functions keep their grants and the assignment function can still create and update Messages
     And the conversation, forum and console chat writers post through postMessage and name no author
+
+  Scenario: A site that loads the schema from the package can deploy the message resolvers
+    Given the data API schema and its message resolvers
+    When the resolver files are located the way a site's deploy locates them
+    Then every message resolver is named by an absolute path to a file that exists, wherever the package is installed
+
+  Scenario: The message resolvers run on AppSync's JavaScript runtime
+    Given the data API schema and its message resolvers
+    When every resolver is checked with the rules AppSync applies to its JavaScript runtime
+    Then none uses a construct the runtime refuses, such as a classic for loop or ++, so a site's deploy is never rolled back over it
+
+  Scenario: Existing staff Messages read as staff and no reader field is public
+    Given the data API schema and its message resolvers
+    When the author kind fields on Message are read
+    Then a Message reads as staff unless a reader wrote it, and the public export names no reader or identity field

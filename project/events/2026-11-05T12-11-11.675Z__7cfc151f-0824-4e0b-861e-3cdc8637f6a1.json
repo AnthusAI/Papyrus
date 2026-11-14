@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7cfc151f-0824-4e0b-861e-3cdc8637f6a1",
+  "issue_id": "PPY-58e89179-4d12-461d-86dd-235a64273733",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:11:11.675Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cover variety: stop every Story looking the same",
+    "description": "Make lists of Stories visually varied, so a reader can tell Stories apart at a glance. The problem Ryan named is that nearly every Story has a diagram in almost the same style.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
+    "labels": []
+  }
+}

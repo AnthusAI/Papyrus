@@ -9,14 +9,13 @@ import type { ReviewRequest } from "../lib/review-requests";
 const input = JSON.parse(process.argv[2] ?? "{}") as { request: ReviewRequest; deletedStories?: string[]; storyTitles?: Record<string, string> };
 const ratings = {
   get: () => ({ pending: null, askReason: false, feedback: { phase: "idle" as const } }),
-  choose: () => undefined, setReason: () => undefined, setNote: () => undefined, commitNote: () => undefined, cancelReason: () => undefined,
+  choose: () => undefined, setReason: () => undefined, setNote: () => undefined, commitNote: () => undefined, cancelReason: () => undefined, stars: () => undefined, setStars: () => undefined, starsFeedback: () => ({ phase: "idle" as const }),
 };
 async function main() {
   const { buildNeedsMeItems } = await import("../lib/needs-me-items");
   const { RequestBody } = await import("../components/needs-me-bodies");
   const [item] = buildNeedsMeItems({
-    references: [], decisions: undefined, previews: new Map(), captures: undefined, visitRated: new Set(), requests: [input.request], drafts: {}, missingDrafts: new Set(),
-    draftsState: "ready", stay: new Set([input.request.id]), bySource: new Map(), storyTitles: input.storyTitles ?? {}, storyExcerpts: {},
+    references: [], decisions: undefined, previews: new Map(), captures: undefined, visitRated: new Set(), requests: [input.request], stay: new Set([input.request.id]), storyTitles: input.storyTitles ?? {}, storyExcerpts: {},
     deletedStories: new Set(input.deletedStories ?? []), emails: [], emailsDecided: new Map(),
   });
   const html = renderToStaticMarkup(createElement(RequestBody, {

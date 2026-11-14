@@ -4,11 +4,13 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { createLocalPreviewReportingTrail, createLocalPreviewStoriesForReference } from "../lib/local-preview-seed";
-import { EMPTY_STORY_REPORTING_TRAIL, referencesByRole, siteNameOf, stageMovesOf, type ReferenceStory, type StoryReportingTrail, type TrailAssignment, type TrailAttachment, type TrailReference, type TrailThread, type TrailVersion } from "../lib/story-reporting-trail";
+import { AGENT_NOTE_ROLE, EMPTY_STORY_REPORTING_TRAIL, agentNoteOf, referencesByRole, siteNameOf, stageMovesOf, type ReferenceStory, type StoryReportingTrail, type TrailAgentNote, type TrailAssignment, type TrailAttachment, type TrailReference, type TrailThread, type TrailVersion } from "../lib/story-reporting-trail";
+import { researchPacketOf, type ResearchPacketView } from "../lib/research-packet";
 import { configureAmplifyClient } from "./amplify-client-provider";
+import { loadModelPayloadsForOwner } from "./news-desk-taxonomy-client";
 
 type GraphqlResponse = { data?: Record<string, { items?: Record<string, unknown>[] | null; nextToken?: string | null } | null> | null; errors?: { message?: string }[] | null };
-type GraphqlClient = { graphql: (options: Record<string, unknown>) => Promise<GraphqlResponse> };
+export type GraphqlClient = { graphql: (options: Record<string, unknown>) => Promise<GraphqlResponse> };
 
 const USER_POOL = "userPool";
 const PAGE_LIMIT = 200;
@@ -64,6 +66,48 @@ async function getPreview(client: GraphqlClient, referenceLineageId: string): Pr
   }
 }
 
+/** The editor's direction, from a research assignment's `metadata` attachment (the Assignment model has no column for it). */
+async function getDirection(assignmentId: string): Promise<string | null> {
+  try {
+    const payloads = await loadModelPayloadsForOwner("assignment", assignmentId, ["metadata"]);
+    const direction = payloads.map(payload => parseMetadata(payload.json ?? payload.text).direction).find(value => typeof value === "string" && value.trim());
+    return typeof direction === "string" ? direction : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The packet a research assignment produced: the Message on its `produces` relation, and that Message's `metadata` attachment. Read-only; no Message thread is touched. */
+async function getPacket(client: GraphqlClient, assignmentId: string): Promise<ResearchPacketView | null> {
+  try {
+    const relations = await listAll(client, "listSemanticRelationsBySubjectState", "id predicate objectKind objectId", ", $subjectStateKey: String!", ", subjectStateKey: $subjectStateKey", { subjectStateKey: `assignment#${assignmentId}#current` });
+    const produced = relations.filter(relation => relation.predicate === "produces" && relation.objectKind === "message").map(relation => String(relation.objectId));
+    for (const messageId of produced) {
+      const payloads = await loadModelPayloadsForOwner("message", messageId, ["metadata"]);
+      for (const payload of payloads) {
+        const packet = researchPacketOf(parseMetadata(payload.json ?? payload.text).research);
+        if (packet) return packet;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** The AI agent notes of the story, oldest first: `agent_note` attachments owned by its first version record. A note that cannot be read is left out. */
+async function getAgentNotes(ownerId: string | null): Promise<TrailAgentNote[]> {
+  if (!ownerId) return [];
+  try {
+    const payloads = await loadModelPayloadsForOwner("item", ownerId, [AGENT_NOTE_ROLE]);
+    return payloads
+      .flatMap(payload => { const note = agentNoteOf(payload.attachment.id, payload.json, payload.attachment.createdAt); return note ? [note] : []; })
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  } catch {
+    return [];
+  }
+}
+
 /** The stories whose `uses_evidence` link names this Reference, each with its working title and stage. */
 export async function loadStoriesBasedOnReference(referenceLineageId: string, demo = false): Promise<ReferenceStory[]> {
   if (demo || isLocalPreviewEnabled()) return createLocalPreviewStoriesForReference(referenceLineageId);
@@ -84,15 +128,41 @@ export async function loadStoriesBasedOnReference(referenceLineageId: string, de
 }
 
 /** Reads the whole reporting trail of one story from the backend; the local preview serves a snapshot instead. */
-export async function loadStoryReportingTrail(lineageId: string, itemId: string, demo = false): Promise<StoryReportingTrail> {
-  if (demo || isLocalPreviewEnabled()) return createLocalPreviewReportingTrail(lineageId);
+function defaultClient(): GraphqlClient {
   configureAmplifyClient();
-  const client = generateClient<Schema>() as unknown as GraphqlClient;
+  return generateClient<Schema>() as unknown as GraphqlClient;
+}
+
+/**
+ * The newest version of a story: one indexed read of one row (the lineage index sorted by version number, newest first). The editor needs
+ * only this to say "version 2 of 5"; it used to load the whole reporting trail for it.
+ */
+export async function loadNewestStoryVersion(lineageId: string, demo = false, client?: GraphqlClient): Promise<{ id: string; versionNumber: number } | null> {
+  if (!client && (demo || isLocalPreviewEnabled())) {
+    const newest = createLocalPreviewReportingTrail(lineageId).versions[0];
+    return newest ? { id: newest.id, versionNumber: newest.versionNumber } : null;
+  }
+  const graphql = client ?? defaultClient();
+  const response = await graphql.graphql({
+    query: "query ($lineageId: ID!, $limit: Int) { listItemsByLineageAndVersion(lineageId: $lineageId, sortDirection: DESC, limit: $limit) { items { id versionNumber } nextToken } }",
+    variables: { lineageId, limit: 1 },
+    authMode: USER_POOL,
+  });
+  if (response.errors?.length) throw new Error(response.errors.map(error => error.message ?? "GraphQL error").join("; "));
+  const newest = response.data?.listItemsByLineageAndVersion?.items?.find(Boolean);
+  return newest ? { id: String(newest.id), versionNumber: Number(newest.versionNumber ?? 0) } : null;
+}
+
+export async function loadStoryReportingTrail(lineageId: string, itemId: string, demo = false, injectedClient?: GraphqlClient): Promise<StoryReportingTrail> {
+  if (!injectedClient && (demo || isLocalPreviewEnabled())) return createLocalPreviewReportingTrail(lineageId);
+  const client = injectedClient ?? defaultClient();
   const [versionRows, assignmentRows, attachmentRows, relationRows] = await Promise.all([
     listAll(client, "listItemsByLineageAndVersion", "id versionNumber versionState status stage headline title changeReason versionCreatedBy versionCreatedAt updatedAt metadata", ", $lineageId: ID!", ", lineageId: $lineageId", { lineageId }).catch(() => []),
     listAll(client, "listAssignmentsByItemLineageAndCreatedAt", "id title assignmentTypeKey status assigneeKey summary createdAt", ", $itemLineageId: ID!", ", itemLineageId: $itemLineageId", { itemLineageId: lineageId }).catch(() => []),
     listAll(client, "listModelAttachmentsByOwnerRoleAndSortKey", "id role filename mediaType byteSize", ", $ownerId: ID!", ", ownerId: $ownerId", { ownerId: itemId }).catch(() => []),
-    listAll(client, "listSemanticRelations", "id predicate subjectKind subjectLineageId objectKind objectId objectLineageId metadata", ", $filter: ModelSemanticRelationFilterInput", ", filter: $filter", { filter: { or: [{ subjectLineageId: { eq: lineageId } }, { objectLineageId: { eq: lineageId } }] } }).catch(() => []),
+    // The story's References are relations whose subject is the story: the subject-state index, as `papyrus stories references` reads them
+    // (story_reporting.story_references). A filtered listSemanticRelations here was a scan of the whole relation table on every open.
+    listAll(client, "listSemanticRelationsBySubjectState", "id predicate subjectKind subjectLineageId objectKind objectId objectLineageId metadata", ", $subjectStateKey: String!", ", subjectStateKey: $subjectStateKey", { subjectStateKey: `item#${lineageId}#current` }).catch(() => []),
   ]);
   const versions: TrailVersion[] = versionRows.map(row => ({
     id: String(row.id), versionNumber: Number(row.versionNumber ?? 0), versionState: text(row.versionState), status: text(row.status), stage: text(row.stage),
@@ -100,8 +170,10 @@ export async function loadStoryReportingTrail(lineageId: string, itemId: string,
   })).sort((left, right) => right.versionNumber - left.versionNumber);
   const assignments: TrailAssignment[] = await Promise.all(assignmentRows.map(async row => {
     const eventRows = await listAll(client, "listAssignmentEventsByAssignmentAndCreatedAt", "id eventType fromStatus toStatus actorLabel note createdAt", ", $assignmentId: ID!", ", assignmentId: $assignmentId", { assignmentId: row.id }).catch(() => []);
+    const research = row.assignmentTypeKey === "research.multi";
+    const [direction, packet] = research ? await Promise.all([getDirection(String(row.id)), row.status === "completed" ? getPacket(client, String(row.id)) : Promise.resolve(null)]) : [null, null];
     return {
-      id: String(row.id), title: String(row.title ?? ""), assignmentTypeKey: String(row.assignmentTypeKey ?? ""), status: String(row.status ?? ""), assigneeKey: text(row.assigneeKey), summary: text(row.summary), createdAt: String(row.createdAt ?? ""),
+      id: String(row.id), title: String(row.title ?? ""), assignmentTypeKey: String(row.assignmentTypeKey ?? ""), status: String(row.status ?? ""), assigneeKey: text(row.assigneeKey), summary: text(row.summary), createdAt: String(row.createdAt ?? ""), direction, packet,
       events: eventRows.map(event => ({ id: String(event.id), eventType: String(event.eventType ?? ""), fromStatus: text(event.fromStatus), toStatus: text(event.toStatus), actorLabel: text(event.actorLabel), note: text(event.note), createdAt: String(event.createdAt ?? "") })),
     };
   }));
@@ -123,7 +195,9 @@ export async function loadStoryReportingTrail(lineageId: string, itemId: string,
       role: relationRole(metadata.role), note: text(metadata.note), citationKey: text(metadata.citationKey), addedBy: text(metadata.addedBy), addedAt: text(metadata.addedAt),
     };
   })));
-  const attachments: TrailAttachment[] = attachmentRows.map(row => ({ id: String(row.id), role: text(row.role), filename: text(row.filename), mediaType: text(row.mediaType), byteSize: typeof row.byteSize === "number" ? row.byteSize : null }));
+  const firstVersion = [...versionRows].sort((left, right) => Number(left.versionNumber ?? 0) - Number(right.versionNumber ?? 0))[0];
+  const agentNotes = await getAgentNotes(firstVersion ? String(firstVersion.id) : null);
+  const attachments: TrailAttachment[] = attachmentRows.filter(row => row.role !== AGENT_NOTE_ROLE).map(row => ({ id: String(row.id), role: text(row.role), filename: text(row.filename), mediaType: text(row.mediaType), byteSize: typeof row.byteSize === "number" ? row.byteSize : null }));
   const latestRow = [...versionRows].sort((left, right) => Number(right.versionNumber ?? 0) - Number(left.versionNumber ?? 0))[0];
-  return { ...EMPTY_STORY_REPORTING_TRAIL, versions, assignments, threads, references, attachments, stageMoves: stageMovesOf(latestRow?.metadata) };
+  return { ...EMPTY_STORY_REPORTING_TRAIL, versions, assignments, threads, references, attachments, stageMoves: stageMovesOf(latestRow?.metadata), agentNotes };
 }

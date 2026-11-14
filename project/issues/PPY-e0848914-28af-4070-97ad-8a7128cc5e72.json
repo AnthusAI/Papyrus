@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e0848914-28af-4070-97ad-8a7128cc5e72",
+  "title": "Share a Story by URL: public site layout, DRAFT label, with or without a newsroom sign-in",
+  "description": "Ryan, 2026-11-04: a general Papyrus feature for every site, not only Machines on Machines. Editors need to show a Story in progress in the real public layout, clearly labeled DRAFT, including to people with no newsroom sign-in. The Machines on Machines Story does not wait for this.\n\nWhat Ryan asked for:\n- A share icon on the Story (Lucide icon, per the review UI rules) that creates a share URL.\n- The person creating it chooses who can view: anyone with the URL, or only people signed in to the newsroom.\n- The person creating it chooses what it shows: the Story's current version, which is the default and keeps following new versions, or one specific version.\n- The URL opens in the website's public layout, not in the console.\n\nWhat exists and doesn't cover this: the newsroom preview needs sign-in. Staging is whole-site, needs the editor or admin group, is off on Machines on Machines (cms.staging false), and its banner says STAGING rather than DRAFT. Giving stakeholders editor access would also give them write access.\n\nProposed details, for the owner to decide: an unguessable token stored hashed; an expiry; revoking from the newsroom; a DRAFT band on every view and in the page title; noindex and no-store headers; no analytics; no listing on any home, section, feed or sitemap; pictures that load for a viewer with no sign-in; creating, opening and revoking recorded on the Story; publishing or spiking the Story ending its links. A CLI command alongside the icon, so agents can create links too.\n\nMust never write into the live site prefix (see the 10-31 home-page snapshot incident). Needs Gherkin specs, screenshot review, and a p.apyr.us docs task. Open: whether the DRAFT band belongs in the Papyrus shell or each site's design system.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T16:06:29.404835Z",
+  "updated_at": "2026-11-04T16:26:43.679903Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
