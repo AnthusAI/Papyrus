@@ -5,6 +5,7 @@ import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { Architecture, CfnEventSourceMapping, DockerImageCode, DockerImageFunction } from "aws-cdk-lib/aws-lambda";
 import type { ITable } from "aws-cdk-lib/aws-dynamodb";
 import { Construct } from "constructs";
+import { siteApiEnvironment } from "../../site-api-access";
 
 export type ConsoleChatResponderStackProps = NestedStackProps & {
   messageTable: ITable;
@@ -28,7 +29,7 @@ export class ConsoleChatResponderStack extends NestedStack {
       PAPYRUS_MESSAGE_TABLE_NAME: props.messageTable.tableName,
       PAPYRUS_MESSAGE_THREAD_TABLE_NAME: props.threadTable.tableName,
       PAPYRUS_MESSAGE_THREAD_SEQUENCE_INDEX_NAME: "messagesByThreadSequence",
-      PAPYRUS_GRAPHQL_ENDPOINT: props.graphqlEndpoint,
+      ...siteApiEnvironment(props.graphqlEndpoint),
       PAPYRUS_CONSOLE_RESPONSE_TARGET: responseTarget,
       PAPYRUS_CONSOLE_MODEL: props.model?.trim() || process.env.PAPYRUS_CONSOLE_MODEL || "gpt-6-luna",
       PAPYRUS_CONSOLE_CONTEXT_CACHE_ROOT: "/tmp/papyrus-console/thread-context",

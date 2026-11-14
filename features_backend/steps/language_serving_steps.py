@@ -40,9 +40,11 @@ PROJECTION = {
 STRINGS = {
     "en": {"language.name": "English", "switcher.label": "Language"},
     "es-419": {"language.name": "Español", "switcher.label": "Idioma", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
-               "site.description": "Máquinas que escriben sobre máquinas.", "section.articles.label": "Artículos", "section.wiki.label": "Conceptos"},
+               "site.description": "Máquinas que escriben sobre máquinas.", "section.articles.label": "Artículos", "section.wiki.label": "Conceptos",
+               "translation.label": "Traducido por IA del {original}", "translation.original": "original en inglés"},
     "zh-Hans": {"language.name": "中文", "switcher.label": "语言", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
-                "site.description": "机器书写机器。", "section.articles.label": "文章", "section.wiki.label": "概念"},
+                "site.description": "机器书写机器。", "section.articles.label": "文章", "section.wiki.label": "概念",
+                "translation.label": "由 AI 翻译自{original}", "translation.original": "英文原文"},
 }
 LANGUAGES = {"primary": "en", "enabled": ["en", "es-419", "zh-Hans"], "prefixes": {"es-419": "es", "zh-Hans": "zh"}, "public": ["en", "es-419", "zh-Hans"]}
 NOW = "2026-11-13T00:00:00Z"

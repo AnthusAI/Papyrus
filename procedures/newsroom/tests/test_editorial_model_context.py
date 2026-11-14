@@ -164,7 +164,7 @@ def test_graphql_edit_context_is_reloaded_and_bound_to_backend_publication(monke
         if 'CanonicalEditorialPublication' in query:
             return {'listKnowledgeCorporaByRoleAndName': {'items': [
                 {'id': 'knowledge-corpus-example', 'name': 'Example', 'role': 'canonical'}], 'nextToken': None}}
-        assert variables == {'publicationKey': 'example', 'sectionId': 'a'}
+        assert variables == {'publicationKey': 'example', 'sectionId': 'a', 'tenantId': None}
         return {'getEditorialContext': json.dumps(current[0])}
     store = GraphQLEditorialStore(execute)
     first = store.get_editorial_context('a')

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from papyrus_content.env import load_dotenv
-from papyrus_content.graphql_http import authoring_credentials_available
+from papyrus_content.graphql_http import require_lane_ready
 
 from ..config import OperatorConfig, resolve_default_corpus_key
 from ..errors import OperatorError
@@ -30,12 +30,10 @@ class CloudBackend(OperatorBackend):
     load_dotenv()
     if self._fixture_root():
       return
-    if not authoring_credentials_available():
-      raise OperatorError(
-        "No AWS credentials for cloud authoring. Set AWS_PROFILE to a profile that can assume the "
-        "papyrus-authoring role (for example: aws sso login --profile <profile>).",
-        exit_code=2,
-      )
+    try:
+      require_lane_ready()
+    except ValueError as error:   # the operator lane was named and has no AWS credentials
+      raise OperatorError(str(error), exit_code=2) from None
 
   def list_references(
     self,

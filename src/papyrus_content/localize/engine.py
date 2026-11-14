@@ -87,6 +87,8 @@ class LocalizeRequest:
     run_key: str
     glossary: Any
     checker: BlockChecker
+    #: How the localization's slug is drafted at its first save (``language_serving.localized_slug``): the site's ``languages.slugs`` for this language.
+    slug_policy: str
     register_notes: list[str] = field(default_factory=list)
     previous: list[AlignedBlock] | None = None
     previous_source_hash: str | None = None

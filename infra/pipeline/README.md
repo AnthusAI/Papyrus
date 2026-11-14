@@ -38,6 +38,10 @@
 - **A rollback that is refused for a permission**: the service role is changed only through `role-stack-deploy`. The release deploys the templates on `main`, so a template fix reaches AWS only with a release; a re-run of a failed run deploys the commit that run was for.
 - **Order after a fix to both**: merge the fix, approve the `role-stack-deploy` run if it asks, remove any leftover resource the summary names, then release (or re-run the release on `main`).
 
+## The shared-tier stacks (PPY-daf673)
+
+`papyrus-shared-staging-foundation` and `papyrus-shared-prod-foundation` are in `stacks.json` with `"group": "shared"`, their own service role (`papyrus-shared-deploy-cloudformation`) and, in the workflow, their own plan and deploy roles (`papyrus-shared-plan-github`, `papyrus-shared-deploy-github`), which reach only stacks named `papyrus-shared-*`. A stack with a `hold` is planned on every pull request (the summary says **HELD**) and never created or changed; taking the `hold` out in a reviewed pull request is the go. What they create and what must be said go to first: [docs/shared-stack.md](../../docs/shared-stack.md).
+
 ## What does not fit
 
 - `papyrus-procedure-runner` takes `ImageUri`, a container image built and pushed elsewhere. The shape (zip builds that feed content-hash keys) does not apply, so it is not in `stacks.json`. It would fit once the image build is a pipeline step.

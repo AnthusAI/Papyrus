@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { compareLedgers, parseLedger, parseLedgers, SCHEMA_SOURCE } from "./lib/gsi-ledger";
+import { RESERVED_MINUTES } from "../packages/papyrus/src/backend-deploy.mjs";
+import { chunkReleases, dataStackSeconds, parseMeasurementFile, releaseBudget, secondsPerCreation } from "./lib/gsi-release-budget";
 import { readSchema } from "./lib/schema-reader";
 
 const FIXTURES = join(process.cwd(), "features_backend/fixtures/gsi-ledger");
@@ -93,4 +95,86 @@ test("the schema sources hold every deployed model and every index of it", () =>
     assert.ok(ledger.has(model.name), `${model.name} is in no schema source the ledger reads`);
     assert.equal(ledger.get(model.name)!.length, model.indexes.length, `${model.name} index count`);
   }
+});
+
+// The release budget: index creations that fit the build timeout, from the measured seconds per creation.
+const measurementFile = () => parseMeasurementFile(JSON.parse(readFileSync(join(process.cwd(), "scripts/data/gsi-deploy-measurements.json"), "utf8")));
+const withTables = (count: number, indexed: boolean) =>
+  new Map(Array.from({ length: count }, (_, i): [string, { id: string; keys: string }[]] => [`Table${i}`, indexed ? [{ id: `table${i}ByTenant`, keys: "tenantId|id" }] : []]));
+
+test("the budget comes from the measurement: job 107 took 3250 s for 23 index creations", () => {
+  const file = measurementFile();
+  assert.equal(file.measurements[0].date, "2026-11-14");
+  assert.equal(Math.round(secondsPerCreation(file.measurements[0])), 141);
+  // (120 - 10 minutes) * 60 * (1 - 0.25) / 141.3 s = 35.0
+  const budget = releaseBudget(file, 120);
+  assert.equal(budget.limit, 35);
+  // At Amplify's own default of 30 minutes the same release fits 6 creations; the measurement says job 107's 23 never fitted.
+  assert.equal(releaseBudget(file, 30).limit, 6);
+  assert.ok(releaseBudget(file, 30).limit < file.measurements[0].indexCreations);
+});
+
+test("the slowest measurement holds, so a later fast release never loosens the budget", () => {
+  const file = measurementFile();
+  const faster = { ...file, measurements: [...file.measurements, { date: "2026-12-01", label: "later", indexCreations: 20, deploySeconds: 400 }] };
+  assert.equal(releaseBudget(faster, 120).limit, 35);
+  const slower = { ...file, measurements: [...file.measurements, { date: "2026-12-01", label: "later", indexCreations: 10, deploySeconds: 3000 }] };
+  assert.equal(releaseBudget(slower, 120).limit, 16);
+});
+
+test("the budget reserves what the backend deploy command reserves, and an empty or invalid file is refused", () => {
+  assert.equal(measurementFile().reservedMinutes, RESERVED_MINUTES);
+  assert.throws(() => parseMeasurementFile({ reservedMinutes: 10, safetyMargin: 0.25, measurements: [] }), /holds no measurement/);
+  assert.throws(() => parseMeasurementFile({ reservedMinutes: 10, safetyMargin: 1, measurements: [] }), /safetyMargin/);
+  assert.throws(() => parseMeasurementFile({ reservedMinutes: 10, safetyMargin: 0.25, measurements: [{ date: "x", indexCreations: 0, deploySeconds: 5 }] }), /needs a date/);
+});
+
+test("a release that adds one index to each of 40 tables fails, naming the tables, the limit and releases 1 and 2", () => {
+  const budget = releaseBudget(measurementFile(), 120);
+  const report = compareLedgers(withTables(40, false), withTables(40, true), budget);
+  assert.equal(report.creations, 40);
+  assert.equal(report.failures.length, 1);
+  assert.match(report.failures[0], /creates 40 indexes on existing tables \(Table0\.table0ByTenant, Table1\./);
+  assert.match(report.failures[0], /only 35 fit one release/);
+  assert.match(report.failures[0], /141 s per creation \(measured 2026-11-14\)/);
+  assert.equal(report.releaseOrder.length, 2);
+  assert.match(report.releaseOrder[0], /^release 1: Table0\.table0ByTenant, .*Table34\.table34ByTenant$/);
+  assert.equal(report.releaseOrder[1], "release 2: Table35.table35ByTenant, Table36.table36ByTenant, Table37.table37ByTenant, Table38.table38ByTenant, Table39.table39ByTenant");
+});
+
+test("with a 60 minute build timeout the same release is listed as releases 1, 2 and 3", () => {
+  const budget = releaseBudget(measurementFile(), 60);
+  assert.equal(budget.limit, 15);
+  const report = compareLedgers(withTables(40, false), withTables(40, true), budget);
+  assert.equal(report.releaseOrder.length, 3);
+  assert.deepEqual(report.releaseOrder.map((line) => line.split(": ")[1].split(", ").length), [15, 15, 10]);
+});
+
+test("a release that adds one index to each of 5 tables passes and prints its estimated deploy minutes", () => {
+  const report = compareLedgers(withTables(5, false), withTables(5, true), releaseBudget(measurementFile(), 120));
+  assert.deepEqual(report.failures, []);
+  assert.match(report.estimate!, /^5 index creations on existing tables: about 12 minutes of deploy; 35 index creations fit one release/);
+  assert.equal(report.releaseOrder.length, 1);
+});
+
+test("a release exactly at the limit passes and one more fails; indexes of a new table do not count", () => {
+  const budget = releaseBudget(measurementFile(), 120);
+  assert.deepEqual(compareLedgers(withTables(35, false), withTables(35, true), budget).failures, []);
+  assert.equal(compareLedgers(withTables(36, false), withTables(36, true), budget).failures.length, 1);
+  const created = compareLedgers(new Map(), withTables(100, true), budget);
+  assert.equal(created.creations, 0);
+  assert.deepEqual(created.failures, []);
+});
+
+test("a table's second pending index waits for the next release even inside the budget split", () => {
+  const groups: [string, string][][] = [[["A", "a1"], ["B", "b1"], ["C", "c1"]], [["A", "a2"]]];
+  assert.deepEqual(chunkReleases(groups, 2).map((release) => release.map(([table, id]) => `${table}.${id}`)), [["A.a1", "B.b1"], ["C.c1"], ["A.a2"]]);
+});
+
+test("the data stack duration comes from the root stack's events, and an unfinished update is refused", () => {
+  const event = (status: string, time: string) => ({ LogicalResourceId: "data7552DF31", ResourceType: "AWS::CloudFormation::Stack", ResourceStatus: status, Timestamp: time });
+  const events = [event("UPDATE_COMPLETE", "2026-11-10T10:00:00Z"), event("UPDATE_IN_PROGRESS", "2026-11-14T17:59:16Z"), event("UPDATE_COMPLETE", "2026-11-14T18:53:26Z"), event("UPDATE_IN_PROGRESS", "2026-11-09T10:00:00Z")];
+  assert.equal(dataStackSeconds(events), 3250);
+  assert.throws(() => dataStackSeconds([event("UPDATE_IN_PROGRESS", "2026-11-14T17:59:16Z")]), /has not finished/);
+  assert.throws(() => dataStackSeconds([]), /no data stack update/);
 });

@@ -9,6 +9,7 @@ import pytest
 
 from papyrus_content.tenancy import TENANCY_MODE_ENVIRONMENT_VARIABLE
 from papyrus_content.reference_intake import intake_references, intake_email_submission_references, IntakeError
+from procedures.newsroom.tests.tenant_support import IAM_IDENTITY
 from procedures.newsroom.tests.test_story_reporting import client_with_one_story, LINEAGE
 from papyrus_content.story_reporting import link_reference_to_story, story_references
 
@@ -403,7 +404,7 @@ def test_handler_uses_validated_identity_and_returns_denials():
         assert answer["ok"] and len(c.tables["Reference"]) == 1   # the Reference exists whatever happens to its prediction request
         assert answer["prediction"]["ok"] is False and "not configured" in answer["prediction"]["error"]
         before = copy.deepcopy(c.tables)
-        e["identity"] = {}
+        e["identity"] = IAM_IDENTITY
         assert handler.handler(e, None)["errors"][0]["code"] == "intake-rejected"
         assert c.tables == before
 

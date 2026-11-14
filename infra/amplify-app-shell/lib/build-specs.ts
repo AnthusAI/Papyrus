@@ -24,6 +24,10 @@ const FRONTEND_ENVIRONMENT_CAPTURE =
 
 const CHECKOUT_AS_PAPYRUS_ROOT = "PAPYRUS_ROOT=\"$PWD\"";
 
+/** The staging export reads drafts as the Amplify build role, so it declares the operator lane; the CLI's default is a signed-in person (PPY-5f119a).
+ * The environment form, not `papyrus --auth iam`, so the line works with every engine version a site may pin. */
+const BUILD_ROLE_LANE = "PAPYRUS_GRAPHQL_AUTH=iam";
+
 const RUNTIME_OUTPUTS_COPY = "cp amplify_outputs.json .next/amplify_outputs.json";
 
 function pythonProvisioningCommands(config: AmplifyAppShellSiteConfig): string[] {
@@ -136,7 +140,7 @@ export function cmsStagingBuildSpec(config: AmplifyAppShellSiteConfig): string {
   if (preview !== undefined) {
     preBuild.push(
       ...pythonProvisioningCommands(config),
-      `${CHECKOUT_AS_PAPYRUS_ROOT} papyrus ops content export-published --drafts --out content-export --clean`,
+      `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus ops content export-published --drafts --out content-export --clean`,
       preview.buildCommand,
       `${CHECKOUT_AS_PAPYRUS_ROOT} papyrus ops content upload-preview --dir ${preview.baseDirectory} --prefix ${resolveStoragePreviewPrefix(config)}`,
     );

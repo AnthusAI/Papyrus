@@ -23,6 +23,7 @@ STATIC_CREDENTIALS = {
     "AWS_ACCESS_KEY_ID": "AKIDEXAMPLE",
     "AWS_SECRET_ACCESS_KEY": "secret-example",
     "AWS_SESSION_TOKEN": "session-example",
+    "PAPYRUS_GRAPHQL_AUTH": "iam",   # these are operator-lane tests: the lane is named, as a worker or `papyrus --auth iam` names it
 }
 NO_CREDENTIALS = {
     "AWS_EC2_METADATA_DISABLED": "true",
@@ -84,7 +85,7 @@ class SigV4AuthoringTests(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 content_commands.content_inspect([])
         text = output.getvalue()
-        self.assertIn("Auth source: AWS credential chain (IAM, SigV4)", text)
+        self.assertIn("Auth source: the operator lane, AWS credential chain (IAM, SigV4)", text)
         self.assertIn(arn, text)
         self.assertIn("GraphQL reachability: ok", text)
 
@@ -99,7 +100,7 @@ class SigV4AuthoringTests(unittest.TestCase):
         with patch("papyrus_content.graphql_http.graphql_request_headers", return_value={}), patch(
             "papyrus_content.graphql_http.graphql_endpoint", return_value="https://example.test/graphql"
         ), patch("urllib.request.urlopen", side_effect=rejection), patch.dict(
-            "os.environ", {"AWS_PROFILE": "papyrus-production"}
+            "os.environ", {"AWS_PROFILE": "papyrus-production", "PAPYRUS_GRAPHQL_AUTH": "iam"}
         ):
             with self.assertRaises(GraphQLRequestError) as raised:
                 graphql_http.execute_graphql("query {}")

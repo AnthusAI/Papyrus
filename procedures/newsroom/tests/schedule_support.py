@@ -29,9 +29,10 @@ class FakeScheduler:
     def name_for(self, item_id: str) -> str:
         return schedule_name(PREFIX, item_id)
 
-    def upsert(self, name: str, item_id: str, at: str) -> None:
-        self.schedules[name] = {"itemId": item_id, "scheduledPublishAt": at}
-        self.history.append({"itemId": item_id, "scheduledPublishAt": at})
+    def upsert(self, name: str, item_id: str, at: str, tenant_id: str | None = None) -> None:
+        entry = {"itemId": item_id, "scheduledPublishAt": at, **({"tenantId": tenant_id} if tenant_id else {})}
+        self.schedules[name] = entry
+        self.history.append(dict(entry))
 
     def delete(self, name: str) -> None:
         self.deleted.append(name)

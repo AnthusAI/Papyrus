@@ -1116,6 +1116,10 @@ An editor's research assignment on a Story ([assigning research](story-reporting
 * **Log line.** One `{"researchAssignments": ...}` line per publication: `status`, `ran`, `failed`, `expired`, `leftOpen`, `stoppedBy`.
 * **Grants.** `test_research_assignments_worker.py` runs one assignment on the real GraphQL client with its transport replaced and checks that every field it asked for is granted to `ResearchWorkerRole`, and that `RouterRole` gained no policy. The template change is a hand-run change set that needs Ryan's yes; nothing is deployed from the pull request.
 
+## One deploy unit: the code and the grants it needs
+
+`StoryWorkerFunction`, `ResearchWorkerFunction` and `RouterFunction` run the same router zip (`RouterCodeKey`) and each has its role in the same stack, so the release that ships a code change ships the IAM grants it needs in the same change set (`infra/pipeline/README.md`); nobody applies the stack first by hand. CloudFormation updates a role before the function that reads its Arn. Filing an idea makes its checklist from the site's saved Story procedure, which asks AppSync for `itemBySlug`, `listModelAttachmentsByOwnerRoleAndSortKey` and `createModelAttachmentDownload`; `test_monitoring_site_document_grants.py` counts those fields from the real code and checks the story worker, the research worker and the router hold them, so a role that is missing one fails CI, not a step. If a grant is ever missing in the cloud, the step fails with AppSync's refusal (it names the field), is delivered again up to three receives, then waits in `StoryDeadLetterQueue` (alarm `papyrus-monitoring-story-dead-letters`); the idea is already written, and the redelivery gives it its checklist once the grant is there.
+
 ## IAM (role `RouterRole`)
 
 | Statement | Why |

@@ -1,5 +1,6 @@
 import { assignmentDoctrine, resolveEditorialContext, type EditorialClient } from "../shared/editorial-context";
-import { tenantIdFromEnvironment } from "../../../lib/tenant-keys";
+import { actingFor, buildEventTenantContext, currentTenantContext } from "../shared/tenant-context";
+import { newsroomSummaryPayloadId, tenantScopedClient } from "../shared/tenant-scoped-client";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -32,13 +33,17 @@ type DataClientResult<T = unknown> = {
 
 const FINAL_STATUSES = new Set(["completed", "canceled"]);
 const IMMEDIATE_ASSIGNMENT_TYPES = new Set(["procedure.run"]);
-const NEWSROOM_SUMMARY_PAYLOAD_ID = "knowledge-raw-payload-newsroom-summary-current";
 const NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND = "knowledgeRawPayload";
 const SUMMARY_STALE_AFTER_MS = 15 * 60 * 1000;
 let clientPromise: Promise<DataClient> | null = null;
 let editorialEndpoint: string | undefined;
 
 export const handler = async (event: any): Promise<any> => {
+  const context = buildEventTenantContext(event);   // one context per call; a shared stack refuses before any read
+  return actingFor(context, () => handleField(event));
+};
+
+async function handleField(event: any): Promise<any> {
   const fieldName = normalizeRequiredString(event.info?.fieldName ?? event.fieldName, "fieldName");
   if (fieldName === "getEditorialContext") return getEditorialContext(event as Parameters<Schema["getEditorialContext"]["functionHandler"]>[0]);
   if (fieldName === "getAssignmentContext") return getAssignmentContext(event as Parameters<Schema["getAssignmentContext"]["functionHandler"]>[0]);
@@ -46,7 +51,7 @@ export const handler = async (event: any): Promise<any> => {
   if (fieldName === "listAssignmentsForObject") return listAssignmentsForObject(event as Parameters<Schema["listAssignmentsForObject"]["functionHandler"]>[0]);
   if (fieldName === "retryImmediateAssignment") return retryImmediateAssignment(event as Parameters<Schema["retryImmediateAssignment"]["functionHandler"]>[0]);
   return mutateAssignment(event as Parameters<Schema["claimAssignment"]["functionHandler"]>[0], fieldName);
-};
+}
 
 async function mutateAssignment(event: Parameters<Schema["claimAssignment"]["functionHandler"]>[0], fieldName: string) {
   const client = await getDataClient();
@@ -231,7 +236,7 @@ async function updateNewsroomSummaryForAssignmentAction(
   client: DataClient,
   input: { assignmentTypeKey: string | null; sectionKey: string | null; previousStatus: string | null; nextStatus: string | null; now: string },
 ): Promise<void> {
-  const response = await client.models.KnowledgeRawPayload.get({ id: NEWSROOM_SUMMARY_PAYLOAD_ID });
+  const response = await client.models.KnowledgeRawPayload.get({ id: newsroomSummaryPayloadId(currentTenantContext()) });
   assertNoDataErrors(response.errors, "get Newsroom summary snapshot");
   const payload = normalizeSummaryPayload(await readNewsroomSummaryPayload(client), input.now);
   payload.generatedAt = input.now;
@@ -319,7 +324,7 @@ async function listAssignmentsForObject(event: Parameters<Schema["listAssignment
 async function editorialContext(client: DataClient, scope: { publicationKey?: string; sectionId?: string | null; storyLineageId?: string | null; assignmentId?: string | null; maxCharacters?: number | null; optionalPublicationDoctrine?: boolean | null }) {
   if (!editorialEndpoint) throw new Error("Editorial context requires the configured backend endpoint.");
   return resolveEditorialContext(client as unknown as EditorialClient, {
-    ...scope, endpoint: editorialEndpoint, tenantId: tenantIdFromEnvironment(), includeGuidelines: true, readAttachment: readEditorialAttachment,
+    ...scope, endpoint: editorialEndpoint, tenantId: currentTenantContext().tenantId ?? undefined, includeGuidelines: true, readAttachment: readEditorialAttachment,
   });
 }
 
@@ -1023,7 +1028,7 @@ async function getDataClient(): Promise<DataClient> {
       return generateClient<Schema>();
     })();
   }
-  return clientPromise;
+  return tenantScopedClient(await clientPromise, currentTenantContext());
 }
 
 async function getRequiredRecord(
@@ -1201,7 +1206,7 @@ async function upsertNewsroomSummaryPayload(
   now: string,
 ): Promise<void> {
   const input = {
-    id: NEWSROOM_SUMMARY_PAYLOAD_ID,
+    id: newsroomSummaryPayloadId(currentTenantContext()),
     ownerType: "newsroom",
     ownerId: "newsroom",
     payloadKind: "summary-snapshot",
@@ -1216,7 +1221,7 @@ async function upsertNewsroomSummaryPayload(
   }
   await putJsonModelPayload(
     client as any,
-    { ownerKind: NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND, ownerId: NEWSROOM_SUMMARY_PAYLOAD_ID, importRunId: input.importRunId },
+    { ownerKind: NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND, ownerId: newsroomSummaryPayloadId(currentTenantContext()), importRunId: input.importRunId },
     "raw_payload",
     "summary-snapshot",
     payload,
@@ -1228,7 +1233,7 @@ async function readNewsroomSummaryPayload(client: DataClient): Promise<Record<st
   return readJsonModelPayload(
     client as any,
     NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND,
-    NEWSROOM_SUMMARY_PAYLOAD_ID,
+    newsroomSummaryPayloadId(currentTenantContext()),
     "raw_payload",
     "summary-snapshot",
   );

@@ -94,7 +94,7 @@ def run_task(context) -> None:
         handler, "wait_for_live_schema", lambda client: real_wait(client, sleep=sleep, clock=lambda: clock["now"])
     ):
         try:
-            handler._run_projection_task({"task": "deploy-render"})
+            handler.handler({"projectionTask": {"task": "deploy-render"}}, None)
         except live_schema.LiveSchemaIncomplete as error:
             context.failure = str(error)
     context.rendered = render.called

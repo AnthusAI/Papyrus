@@ -8,7 +8,8 @@ import { parseCloudEmail } from "./cloud-email-config";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
 import { applySiteCostTags } from "./cost-attribution";
-import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, hasReceiptGate, resolveGithubStatusTokenParameterName, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix } from "./site-config";
+import { addSharedStackDeny } from "./shared-stack-deny";
+import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, hasReceiptGate, resolveGithubStatusTokenParameterName, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix, resolveBuildTimeoutMinutes } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -107,8 +108,10 @@ export class AmplifyAppShellStack extends Stack {
   public readonly cmsAppId?: string;
   public readonly readerAppId?: string;
 
-  constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps) {
+  constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps, options: { sharedStackDeny?: boolean } = {}) {
     super(scope, id, props);
+    // Every role of a dedicated site denies the shared tier's resources (PPY-daf673); no resource is added.
+    addSharedStackDeny(this, options.sharedStackDeny);
     // Prospectus cost accounting: every resource carries the site's owner Account, app papyrus and the site ID.
     // On unless site.json says costAccounting false. These stacks are small; the backend's tags go in waves.
     if (config.costAccounting) applySiteCostTags(this, config.siteId);
@@ -220,6 +223,9 @@ export class AmplifyAppShellStack extends Stack {
       computeRoleArn: computeRole.roleArn,
       buildSpec: cmsProductionBuildSpec(config),
       jobConfig: config.cms.buildComputeType ? { buildComputeType: config.cms.buildComputeType } : undefined,
+      // Amplify's only build timeout control; on the app, so every branch gets it. The branch sets no _BUILD_TIMEOUT of its own,
+      // because a branch's variable would override this one (docs/site-hosting.md, "Build timeout").
+      environmentVariables: [{ name: "_BUILD_TIMEOUT", value: String(resolveBuildTimeoutMinutes(config.cms)) }],
       customRules: [
         ...(config.cms.redirects ?? []).map((redirect) => ({
           source: `https://${redirect.source}`,

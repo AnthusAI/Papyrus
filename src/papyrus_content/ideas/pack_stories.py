@@ -481,8 +481,7 @@ def draft_pack_ideas(
             continue
         actor = store.actor if store is not None else DEFAULT_ACTOR
         try:
-            filed = file_idea_item(client, record, actor=actor, source_text_reader=store.source_text_reader if store is not None else None, gate=gate,
-                              checklist=getattr(store, "checklist", True))
+            filed = file_idea_item(client, record, actor=actor, source_text_reader=store.source_text_reader if store is not None else None, gate=gate)
         except IdeaRefused as refusal:
             result.refused.append(refusal.as_invalid(record))
             continue

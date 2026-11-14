@@ -1,8 +1,8 @@
 # The Story translation procedure
 
 `papyrus.story.localize` (PPY-843a7c) translates one published Story into one language per run, checks it against the English, polishes it
-until the findings stop shrinking, and saves it as an unpublished version of the Story's localization. Nothing waits for a person and nothing is
-published. Plan: [multilingual publishing](plans/multilingual-publishing.md). Design notes: the procedure stages, budgets and evaluation from the
+until the findings stop shrinking, and saves it as an unpublished version of the Story's localization. Nothing waits for a person and the run never
+publishes: a person publishes the result ([Publishing a translation](#publishing-a-translation)). Plan: [multilingual publishing](plans/multilingual-publishing.md). Design notes: the procedure stages, budgets and evaluation from the
 2026-11-13 design (sections 3.1 to 3.9), with Ryan's decisions of that day.
 
 ## The record model
@@ -11,6 +11,10 @@ published. Plan: [multilingual publishing](plans/multilingual-publishing.md). De
 - A localization is a sibling lineage `{primaryLineageId}--{language}`. Each version names the primary version it came from
   (`sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`) and has `syncState`.
 - A translation has no board stage and stays out of the board and the English listings until the listing keys carry the language (plan, deploy 2).
+- Its address (`slug`) is drafted once, at its first version, by the language's slug policy (`languages.slugs`: `translated` for Spanish, `characters`
+  for Chinese; [serving](multilingual-serving.md#unicode-addresses)) and kept by every later version; `papyrus stories set-slug` changes it before the
+  first publish. It carries the original's stored pictures (each version copies the original's media rows for the pictures its text names), so the
+  publish check that every picture is present passes.
 - Its provenance is a ModelAttachment on the version (role `localization_provenance`): source, models, prompt version, Humanus, language pack,
   policy pack and glossary versions, rounds, reverted blocks, findings by category and severity, cost by purpose and the prediction, outcome, the
   alignment (each block's source block, owner, pinned flag and text) and the checklist steps it proves.
@@ -62,9 +66,65 @@ stages; the same run key started again calls no model and saves nothing. A failu
 The three model calls are made in the procedure's tool by one client (`localize/models.py`), because the judge is a Python callable for Humanus;
 their usage is reported to the runner (`model_usage`), so the run's cost counts them.
 
+## Publishing a translation
+
+A translation is published by a person, through the ordinary publish path, and nothing publishes automatically. A localization is a Story lineage of its
+own, so the commands are the English Story's, with the version id of the translation:
+
+```sh
+papyrus stories versions --story story-waymo--es-419        # the last column is the version id (story-waymo--es-419-vN); publish the newest
+papyrus ops content publish --id VERSION_ID [--verify]      # the console's Publish button does the same
+papyrus ops content unpublish --id VERSION_ID
+```
+
+Where the translation differs from an English Story, in one place each (`src/papyrus_content/localization_publish.py`, called by `publish_item`):
+
+| Rule | What it does |
+| --- | --- |
+| **The checklist is the provenance** | The English checklist (research, draft, the four review lenses, the cover, the rating) describes how a person or an agent writes a Story; a translation has none of those steps, so `publish_item` does not build or read one for it and writes no sub-task Items. What applies to a translation (translated, checked against the English, copy edited) is proven by the records of the run that saved the version. Nobody ticks it by hand. |
+| **A held translation is cleared by a person** | A run holds a translation when an error-severity faithfulness finding remains or its cost reached its ceiling. The version records `metadata.localization.outcome: held` and the run raises a flag review request (`localize-<first 24 characters of the run key>`). Publishing that version is refused (`translation-held`, naming the request) until a person answers it `approve` or `acknowledge` (`papyrus reviews answer --id ID --decision approve`). An open, rejected or missing request keeps it back. A new version of the translation is judged by its own run. A held translation never touches the English Story: its checklist, page and publication are unaffected. |
+| **Only while the original is published** | Publishing is refused (`original-unpublished`) unless the original's published row exists. The site serves a translation by the same rule (`PublishedContentSource` leaves out a translation whose original is not published): taking the original down takes the translation's pages, listings and sitemap entry off the site without touching its record, and publishing the original again brings them back. |
+| **No rating of its own** | One star rating serves every language of a Story (plan decision 10), and the original passed the site's `publishRequiresRating` gate when it was published. The run does not copy the rating, nothing asks for one, and a machine never creates one. |
+| **The site's approval gate is the site's** | A site that requires a person's approval to publish (`publish-gate`) requires it for a translation like any other Story. |
+
+Scheduled publishing and the publish step of `papyrus stories next` read the same `publish_item`: a scheduled translation that is held, or whose original
+has been taken down by the time it fires, fails with the same message and shows as overdue.
+
+### What a reader and an agent see
+
+The page of a translation says, in the page's language and apart from the Story's text, that an AI translated it, with a link to the original:
+
+> Traducido por IA del [original en inglés]
+
+- The words are two interface strings of the language, `translation.label` (with `{original}` where the link goes) and `translation.original`
+  ([interface strings](multilingual-serving.md#interface-strings)); a public language without them is refused. The label is the page's data, computed from
+  the language group (the page is in a language other than the primary's and the group's primary page is served), never text in the Story's body, so a
+  correction to the Story cannot remove it and the Markdown the translator sees never contains it.
+- Agents read the same facts: the JSON-LD has `inLanguage` and `translationOfWork` (`{@type, url, inLanguage}` of the original), and the Markdown twin
+  says `Language: es-419 · Translation: machine · Translated from: <original URL>`. The head has `hreflang` for each published language and `x-default`
+  (the original), as for every page of a group.
+- Every page of the group lists the others, so publishing or unpublishing a translation (or the original) renders the other languages of the group again,
+  in the same projection (`docs/multilingual-serving.md`).
+- A new Story announcement is not made for a translation: the new-story alert (`item-published`), the `story.published` notification and the weekly roundup
+  leave translations out, because the English Story announced the Story. The `translation.published` notification (admin class, for correctors) is not
+  built (below).
+
+### The first live Spanish article, step by step
+
+1. The English Story is published (its own checklist and rating, as always).
+2. `papyrus stories localize --story LINEAGE --language es-419 --automation SITE.story-localize`; follow it with `papyrus automations runs`.
+3. A saved translation: look at it in the console (the review link of the version), then `papyrus ops content publish --id VERSION_ID`. A held one: read the
+   reason on its review request, correct or accept it, answer the request, then publish.
+4. `papyrus stories set-slug` first if the drafted address is not the one to keep; it is fixed once published.
+
 ## Not yet
 
-- Publishing a localization (URLs, hreflang, the AI-translated label), listing keys with the language, and the `translation.published`
-  notification (M4 and M2 of the plan).
-- A person's corrections are honoured through the alignment's owner and pinned flag; the correction view that writes them is not built.
+- The `translation.published` notification to correctors (admin class) and the correction flow, which records "reviewed by a person" and would change the
+  page's label to "translated by AI and reviewed by a person" (PPY-ef71cd, PPY-c0aebc). Until then every translated page says it was translated by AI.
+- JSON-LD `translator`: no decision yet on whom to name for a machine translation.
+- Quotations marked as translated, with the original wording one tap away (PPY-c0aebc).
+- The English publish writing the translation request and starting the run (M2, PPY-bc1a38); a person asks for each translation today.
+- Listing keys with the language (`typeStatus`, `sectionStatus`, `headStageKey`), so the console, the reader app and the board show one language at a time
+  (PPY-f33254). Until then a published translation appears in those lists beside its original.
+- A person's corrections as new versions that are published at once (the correction view); a held translation is cleared or rejected, not edited, today.
 - Evaluation harness (PPY-d130d5). Nobody in-house can verify Chinese quality; every measure here is a proxy.

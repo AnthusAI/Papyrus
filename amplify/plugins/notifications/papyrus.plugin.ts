@@ -17,6 +17,7 @@ import { ALARM_MINIMUM_SENDS, BOUNCE_RATE_THRESHOLD, COMPLAINT_RATE_THRESHOLD } 
 import { functionArn, postalAddressParameterArns } from "../newsletter/sending";
 import type { PapyrusPlugin, PluginManifest, PluginWiringContext } from "../types";
 import { resolveNotificationsConfig, type NotificationsConfig } from "./config";
+import { siteApiEnvironment } from "../../site-api-access";
 
 export { resolveNotificationsConfig };
 export type { NotificationsConfig };
@@ -209,7 +210,7 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
     const environment = {
       ...notificationsEnvironment(config, { table: table.tableName, operators: operatorsParameter, key: keyParameter.parameterName }),
       EMAIL_QUEUE_URL: emailQueue.queueUrl,
-      PAPYRUS_GRAPHQL_ENDPOINT: context.graphqlEndpoint,
+      ...siteApiEnvironment(context.graphqlEndpoint),
     };
     const common = { runtime: Runtime.PYTHON_3_12, architecture: Architecture.ARM_64, code, environment };
     const router = new LambdaFunction(stack, "RouterFunction", {

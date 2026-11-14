@@ -147,15 +147,26 @@ function operationCases(operation: OperationInfo): IsolationCase {
   };
 }
 
-function functionCase(info: FunctionInfo): IsolationCase {
-  return {
-    id: `function:${info.directory}`,
-    kind: "function",
-    subject: info.directory,
-    operation: "invoke-with-foreign-tenant-input",
-    probe: `alpha reaches ${info.relativePath} (directly or through an operation) with an event naming "${FOREIGN}"`,
-    expect: `reads and writes nothing of "${FOREIGN}"`,
-  };
+function functionCases(info: FunctionInfo): IsolationCase[] {
+  return [
+    {
+      id: `function:${info.directory}`,
+      kind: "function",
+      subject: info.directory,
+      operation: "invoke-with-foreign-tenant-input",
+      probe: `alpha reaches ${info.relativePath} (directly or through an operation) with an event naming "${FOREIGN}"`,
+      expect: `reads and writes nothing of "${FOREIGN}"`,
+    },
+    {
+      // PPY-7dc463: a function takes its tenant from the caller's TenantContext, and an IAM call must name one on a shared stack.
+      id: `function:${info.directory}:iam-without-tenant`,
+      kind: "function",
+      subject: info.directory,
+      operation: "iam-call-without-tenant",
+      probe: `the platform operator role invokes ${info.relativePath} without naming a tenant`,
+      expect: "refused before any read",
+    },
+  ];
 }
 
 /** Surfaces outside the GraphQL schema, from the parent task PPY-29f730. Listed by hand: they have no schema to generate from. */
@@ -228,7 +239,7 @@ export function buildCaseTable(schema: SchemaInfo = readSchema(), functions: Fun
     ...schema.models.flatMap(indexCases),
     ...schema.models.flatMap(subscriptionCases),
     ...schema.operations.map(operationCases),
-    ...functions.map(functionCase),
+    ...functions.flatMap(functionCases),
     ...surfaceCases(),
   ];
   const count = (kind: CaseKind) => cases.filter((entry) => entry.kind === kind).length;
@@ -263,7 +274,7 @@ const KIND_OUTLINES: Outline[] = [
   { kind: "index", title: "Tenant A cannot read tenant B through any index", when: 'the "alpha" session calls <query> at one of "beta"\'s keys', columns: [["query", "subject"], ["outcome", "expect"]] },
   { kind: "subscription", title: "Tenant A receives no event of tenant B", when: 'the "alpha" session subscribes to <event> on <model> while "beta" writes', columns: [["model", "subject"], ["event", "operation"], ["outcome", "expect"]] },
   { kind: "operation", title: "Tenant A cannot use a custom query or mutation on tenant B", when: 'the "alpha" session calls <operation> with "beta"\'s ids', columns: [["operation", "subject"], ["outcome", "expect"]] },
-  { kind: "function", title: "Tenant A cannot reach tenant B through any function", when: 'the "alpha" session reaches the <function> function with an event naming "beta"', columns: [["function", "subject"], ["outcome", "expect"]] },
+  { kind: "function", title: "Tenant A cannot reach tenant B through any function", when: 'the "alpha" session or the platform operator reaches the <function> function by <call>', columns: [["function", "subject"], ["call", "operation"], ["outcome", "expect"]] },
   { kind: "surface", title: "Tenant A cannot reach tenant B outside the data API", when: 'the "alpha" session tries <surface>', columns: [["surface", "subject"], ["outcome", "expect"]] },
 ];
 

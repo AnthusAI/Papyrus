@@ -77,7 +77,7 @@ class World:
     def event(self, field: str, payload: dict, caller: Caller | None = None) -> dict:
         who = caller or self.caller
         return {"fieldName": field, "arguments": {"input": json.dumps(payload)},
-                "identity": {"username": who.actor, "sub": who.person, "issuer": "https://cognito", "groups": list(who.groups or ())}}
+                "identity": {"username": who.actor, "sub": who.person, "issuer": "https://cognito", "groups": list(who.groups or ()), "claims": {}}}
 
     def call(self, event: dict) -> dict:
         """Run the handler with the world's client, service and clock: everything outside the data (the page build) is stood in for."""

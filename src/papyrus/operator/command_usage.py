@@ -3,7 +3,7 @@
 Each entry is keyed by the words that name the command (`"stories create"`, `"ops content publish"`) and holds a one-line
 summary, the usage (flags), the lane and what the command does to the site:
 
-* lane: `editor` (works signed in with `papyrus login`), `operator` (needs AWS credentials, `PAPYRUS_GRAPHQL_AUTH=iam`),
+* lane: `editor` (works signed in with `papyrus login`), `operator` (needs AWS credentials, named with `papyrus --auth iam`),
   `both`, or `unverified` (an entry drafted from the code that nobody has run on the editor lane yet: treat it as operator-only).
 * writes: `reads` (never writes), `local` (writes only a local file), `dry-run` (writes unless `--dry-run`), `writes` (writes immediately, no `--dry-run`),
   `unknown` (drafted from the code: assume it writes immediately when the usage shows no `--dry-run`).
@@ -43,10 +43,10 @@ class Usage:
 
 
 LANE_TEXT = {
-  "editor": "editor (signed in with `papyrus login`); the operator lane (AWS credentials) is not needed.",
-  "operator": "operator (AWS credentials, PAPYRUS_GRAPHQL_AUTH=iam). A signed-in editor session is refused.",
-  "both": "both (signed-in editor with `papyrus login`, or operator with AWS credentials).",
-  "unverified": "not verified on the signed-in editor lane; treat it as operator-only (AWS credentials).",
+  "editor": "editor (signed in with `papyrus login`, the default lane); the operator lane (AWS credentials) is not needed.",
+  "operator": "operator (AWS credentials, named with `papyrus --auth iam ...` or PAPYRUS_GRAPHQL_AUTH=iam). A signed-in editor session is refused.",
+  "both": "both (signed-in editor with `papyrus login`, the default, or operator with AWS credentials named with `papyrus --auth iam`).",
+  "unverified": "not verified on the signed-in editor lane; treat it as operator-only (`papyrus --auth iam` with AWS credentials).",
 }
 WRITES_TEXT = {
   "reads": "nothing; read only.",

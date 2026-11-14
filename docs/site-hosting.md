@@ -283,6 +283,16 @@ staging branch are optional in `site.json`, so an app can be stood up and proven
 on its default `amplifyapp.com` URL first and given domains later (see
 [Custom domains and Route 53](#custom-domains-and-route-53)).
 
+### Build timeout
+
+Amplify stops a build job after 30 minutes unless the app has a `_BUILD_TIMEOUT` environment variable (whole minutes, 5 to 120; AWS Amplify Hosting user guide, "Troubleshooting build issues"). CloudFormation has no other property for it. Because the backend deploy runs in the build, a large schema release can need more than 30 minutes: Machines on Machines job 107 was stopped at 30 minutes with no error in the log while the backend CloudFormation update was still running (the update itself took 54 minutes).
+
+The app shell sets `_BUILD_TIMEOUT` on the Amplify app (`AWS::Amplify::App` `EnvironmentVariables`, so every branch gets it; no branch sets its own, which would override it) from the `cms.buildTimeoutMinutes` setting of `site.json`: a whole number from 5 to 120, default 120. Anything else fails validation and names the range. The pieces that depend on the limit read the same one: `papyrus-infra backend-deploy` leaves 10 minutes of the timeout for the rest of the build (`deployMinutes`; cost-tag waves start only if they fit in the rest), `.github/workflows/amplify-deploy.yml` waits 125 minutes by default (the 120 minute maximum plus 5 for the job to start) and its own job timeout is the wait plus 10, and the GSI ledger check limits how many index creations one release may hold (docs/releasing.md, "The release budget"). A site that lowers the setting must pass a `timeout-minutes` and use a budget to match.
+
+Rolling it out: the value is applied by the pipeline-run app-shell deploy, nothing by hand. On an existing site the app-shell stack update is a CloudFormation Modify of the `AWS::Amplify::App` (its `EnvironmentVariables` gain `_BUILD_TIMEOUT`; the app has none today), not a replacement: the app id, domain, branches and compute role stay. The first build after it can run beyond 30 minutes. Amplify's documentation does not say which job phases the timeout covers; job 107 ended at exactly 30 minutes of wall time from the job start, so treat it as the whole job. Two old aws-amplify GitHub issues report builds that still timed out with the variable set to 120 or more; check the first long backend release on a site after the change.
+
+Rules and examples: `infra/amplify-app-shell/features/build-timeout.feature`.
+
 ### Python 3.12 in Amplify builds
 
 The Amplify AL2023 build image defaults to Python 3.10 (per AWS docs; not yet
@@ -428,6 +438,30 @@ Per site:
 | Anth.us | `AWS_ACCOUNT_ID`, `AMPLIFY_APP_ID` | `PAPYRUS_AMPLIFY_APP_ID`, `PAPYRUS_EDGE_DISTRIBUTION_ARN` | `PAPYRUS_AWS_ACCOUNT_ID` | the `test "$AWS_APP_ID" = ...` literal in `amplify.yml`; `edgeDistributionArn` in `papyrus.config.ts`; `aws.accountId`; the role ARN and app id in `deploy.yml` |
 
 Anth.us is the live site: do its steps in the order above, with variables set and verified on the branch before the pull request that removes literals, and without a second deploy. A literal that is part of a URL (an `https://main.<appId>.amplifyapp.com/` entry in `PAPYRUS_OAUTH_REDIRECT_URLS`, or `PAPYRUS_SITE_PUBLIC_URL` built from `$AWS_APP_ID`) is not read by this feature: build it from `$AWS_APP_ID` in the build command, or leave it for the separate clean-up.
+
+## Automated Papyrus bumps
+
+A public Papyrus site gets "chore: bump Papyrus to X" pull requests from one reusable workflow, `.github/workflows/bump-consumer.yml`, run by [`infra/pipeline/bump_consumer.py`](../infra/pipeline/bump_consumer.py). The site calls it from a short scheduled workflow:
+
+```yaml
+name: Bump Papyrus
+on:
+  schedule: [{ cron: "17 6 * * *" }]
+  workflow_dispatch:
+permissions: { contents: write, pull-requests: write, actions: write }
+jobs:
+  bump:
+    uses: AnthusAI/Papyrus/.github/workflows/bump-consumer.yml@main
+    with:
+      base: develop          # the site's integration branch (`main` for a site with no develop)
+      ci-workflow: deploy.yml # the site's CI workflow, which must list `workflow_dispatch:` under `on:`
+```
+
+* **Target.** The newest version published on both PyPI and npm. Nothing is opened when the site is current or a bump pull request for that version is already open; older open bump pull requests are closed as superseded.
+* **Pins.** The current pin is `papyrusVersion` in `infra/site.json`. Every tracked line that names Papyrus and that exact version is rewritten (package files, requirements, README, docs, tests); other versions on such lines are history and stay. Both lockfiles are refreshed with `npm install --package-lock-only`.
+* **Staged bumps.** A deploy can add only one DynamoDB index to a table. The script compares the model indexes in `amplify/` at the two release tags; when any existing table would gain or lose more than one, the pull request is a draft whose body names the tables. Bump release by release in that case.
+* **Checks.** Pull requests and pushes made with `GITHUB_TOKEN` start no workflows, so the job dispatches the site's `ci-workflow` on the bump branch; the checks attach to the pull request head. No secret is involved. The repository setting "Allow GitHub Actions to create and approve pull requests" must be on.
+* **Never merges.** Merging into a production branch is a deploy and stays a person's decision. The schedule only runs from the repository's default branch.
 
 ## Deploy on merge to main
 
@@ -1440,14 +1474,16 @@ How a request is served:
 Staging build contract (the generated build spec, `PPY-39f928`, implements it):
 
 ```bash
-papyrus ops content export-published --drafts --out content-export --clean
+PAPYRUS_GRAPHQL_AUTH=iam papyrus ops content export-published --drafts --out content-export --clean
 python reader/build.py --content content-export --out dist
 papyrus ops content upload-preview --dir dist
 ```
 
 Then the CMS Next build (frontend-only, no `backend:` phase). The build runs as
-the Amplify service role; the CLI signs AppSync requests with that role's
-credentials (SigV4) and the role writes `preview/*`, which the storage rule
+the Amplify service role, so the export declares the operator lane
+(`PAPYRUS_GRAPHQL_AUTH=iam`; the CLI's default is a signed-in person and it
+never picks AWS credentials by itself); the CLI signs AppSync requests with
+that role's credentials (SigV4) and the role writes `preview/*`, which the storage rule
 grants to no user. No token is minted.
 
 The static reader build is different: it runs

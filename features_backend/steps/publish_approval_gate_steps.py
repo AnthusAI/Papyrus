@@ -109,12 +109,12 @@ def text_changes(context) -> None:
 
 @when("the content actions publish the item without a signed-in editor")
 def content_actions_publish(context) -> None:
-    call_content_actions(context, {"username": "iam-role"})
+    call_content_actions(context, {"username": "iam-role", "accountId": "000000000000", "userArn": "arn:aws:iam::000000000000:role/iam-role"})
 
 
 @when("the content actions publish the item for a signed-in editor")
 def content_actions_publish_editor(context) -> None:
-    call_content_actions(context, {"sub": "editor-sub-1", "username": "editor", "issuer": "https://cognito-idp.example/pool"})
+    call_content_actions(context, {"sub": "editor-sub-1", "username": "editor", "issuer": "https://cognito-idp.example/pool", "claims": {}})
 
 
 def call_content_actions(context, identity: dict) -> None:

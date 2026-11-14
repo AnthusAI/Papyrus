@@ -1,5 +1,6 @@
 /** Offline coverage of `setItemStars` in the real category-action Lambda, and of the schema rules around it: stars are private and never reach published output. */
 import assert from "node:assert/strict";
+import * as asyncHooks from "node:async_hooks";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -78,6 +79,7 @@ async function main() {
   }
   const modules: Record<string, unknown> = {
     "@aws-sdk/client-lambda": { LambdaClient: FakeLambdaClient, InvokeCommand: FakeInvokeCommand },
+    "node:async_hooks": asyncHooks,
     "node:crypto": crypto,
     "@aws-amplify/backend/function/runtime": { getAmplifyDataClientConfig: async () => ({ resourceConfig: {}, libraryOptions: {} }) },
     "aws-amplify": { Amplify: { configure: () => undefined } },

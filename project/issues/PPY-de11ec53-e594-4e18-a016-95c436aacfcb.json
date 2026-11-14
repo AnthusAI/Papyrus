@@ -17,10 +17,25 @@
       "text": "Design direction (Ryan, 2026-10-21):\n- A Papyrus agent never runs a computer. It only triggers things in the site's cloud backend. Any analysis or long work the chat agent starts is filed as a background job (a Tactus procedure run, an assignment) and handled by cloud machinery; the chat reports progress and results. This will be the common pattern for every app that embeds a chat.\n- Second consumer: Auritus. Its agent drives audio work (text-to-speech, transcription) through its own backend and has no need for a computer either.\n- So the reusable piece is Chatticus's chat core with the computer made optional: the turn protocol (POST plus per-turn SSE, Last-Event-Id replay, no always-on process), PyDurable for durable turns, and the PyAgents agent loop that runs the model and streams the response. Chatticus already distinguishes computerless turns (a worker with CPU and network but no display, browser or /workspace finishes text-only turns, and a computer is summoned only when a tool needs one), which is the natural seam: the embeddable core is the computerless path, and summoning a computer becomes an optional capability that Chatticus itself plugs in.\n- Many Chatticus features should stay out of the embed: the household and roster of named bots, computers and their screens, browser sessions, the shared workspace, and probably routines and the full approvals system (to be decided). M1 should list Chatticus's features and mark each one core, optional plug-in, or Chatticus-only.",
       "created_at": "2026-10-21T12:17:25.487913Z",
       "comment_type": "default"
+    },
+    {
+      "id": "9484c381-f24c-48de-9f46-56ac165f44d6",
+      "author": "home",
+      "text": "User reviewed the architectural plan, briefly approved implementation, then requested that implementation stop and planning be filed/pushed for a Mac agent. No production code changed. Full plan: docs/chatticus-chat-integration-plan.md; five checked Archify illustrations: docs/architecture/chatticus-chat/. Resume instructions: docs/architecture/chatticus-chat/handoff.md.\n\nClarification: current Chatticus uses TypeScript Pi Durable 1.0.2; no Python package was identified. UI/client extraction does not depend on a Python migration. Later shared-server extraction should reuse the existing TypeScript implementation, with an explicit Papyrus backend-hosting/policy decision. Earlier PyAgents/PyDurable wording should not cause a new Python chat engine to be built.\n\nChatticus planning branch: docs/chatticus-080b0e-papyrus-chat-handoff (chatticus-abde29 / chatticus-080b0e). Papyrus branch: docs/PPY-eeb023-chatticus-chat-plan. Keep all implementation records open. No package publication, merge, deployment or security-access change is authorized by this handoff. Coordinate with the other task owning loading states, Notification Center focus/removal of Go to, and mobile navigation alignment; the chat slice owns shared packages and the console adapter.",
+      "created_at": "2026-10-23T18:37:51.473559Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Papyrus chat planning handoff",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-21T12:14:25.261425Z",
-  "updated_at": "2026-10-21T12:17:25.487937Z",
+  "updated_at": "2026-10-23T18:37:51.473608Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

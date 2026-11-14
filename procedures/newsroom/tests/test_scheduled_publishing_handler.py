@@ -33,7 +33,7 @@ def site():
 
 
 def event(field: str, payload: dict, groups=("editor",)) -> dict:
-    return {"fieldName": field, "arguments": {"input": json.dumps(payload)}, "identity": {"username": "sam", "sub": "sam-sub", "issuer": "https://cognito", "groups": list(groups)}}
+    return {"fieldName": field, "arguments": {"input": json.dumps(payload)}, "identity": {"username": "sam", "sub": "sam-sub", "issuer": "https://cognito", "groups": list(groups), "claims": {}}}
 
 
 def schedule(payload: dict, groups=("editor",)) -> dict:

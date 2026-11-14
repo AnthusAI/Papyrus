@@ -122,9 +122,21 @@ def test_a_user_who_is_not_an_editor_is_refused_on_list(env, monkeypatch):
     assert code == 2 and out == "" and "editors and admins" in err and len(err.strip().splitlines()) == 1
 
 
-def test_signed_out_with_an_iam_lane_chosen_keeps_the_old_path(tmp_path, monkeypatch):
-    """Not signed in, no session file: the signed-in lane is not selected, so the AWS path (unchanged) is used."""
+def test_signed_out_with_no_lane_named_refuses_and_names_login_and_the_operator_lane(tmp_path, monkeypatch):
+    """Not signed in and no lane named: the signed-in lane is the default, so the command refuses; AWS is never tried."""
+    from papyrus_content.operator_errors import OperatorError
+    Env(tmp_path, monkeypatch, signed_in=False)
+    with patch("papyrus_content.graphql_authoring.create_authoring_client", side_effect=AssertionError("operator path used")), \
+         patch("papyrus_content.graphql_http.iam_signed_graphql_headers", side_effect=AssertionError("AWS credentials used")):
+        with pytest.raises(OperatorError, match=r"papyrus login <site>.*papyrus --auth iam"):
+            from papyrus_content.automations import run_command
+            run_command("list", [])
+
+
+def test_signed_out_with_the_iam_lane_named_keeps_the_operator_path(tmp_path, monkeypatch):
+    """Not signed in, the operator lane named: the AWS path (unchanged) is used."""
     found = Env(tmp_path, monkeypatch, signed_in=False)
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
     with patch("papyrus_content.graphql_authoring.create_authoring_client", side_effect=RuntimeError("old path reached")), \
          patch("papyrus_content.automations_signed_in.run_command", side_effect=AssertionError("signed-in lane used")):
         with pytest.raises(RuntimeError, match="old path reached"):
