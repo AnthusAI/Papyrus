@@ -775,7 +775,7 @@ LIST_FEEDBACK_BY_TENANT = (
 )
 CREATE_POLICY = "mutation CreateEditorialPolicy($input: CreateEditorialPolicyInput!) { createEditorialPolicy(input: $input) { id } }"
 UPDATE_POLICY = "mutation UpdateEditorialPolicy($input: UpdateEditorialPolicyInput!) { updateEditorialPolicy(input: $input) { id } }"
-GET_ITEM = "query GetItemForEditorialCheck($id: ID!) { getItem(id: $id) { id tenantId lineageId versionNumber section contentHash bodyMarkus } }"
+GET_ITEM = "query GetItemForEditorialCheck($id: ID!) { getItem(id: $id) { id tenantId lineageId versionNumber section contentHash bodyMarkus language languageGroupId } }"
 LIST_STORY_VERSIONS = "query ListStoryVersionsForEditorialCheck($versionState: String!, $nextToken: String) { listItemsByVersionStateAndUpdatedAt(versionState: $versionState, limit: 200, nextToken: $nextToken) { items { id tenantId lineageId versionNumber versionState type stage slug bodyMarkus } nextToken } }"
 GET_CHECK_RUN = "query GetEditorialCheckRun($id: ID!) { getEditorialCheckRun(id: $id) { id tenantId } }"
 _CHECK_RUN_SELECTION = "id tenantId itemId lineageId versionNumber section contentHash packVersion violations reviews findings lanes checkedAt"
@@ -857,9 +857,16 @@ class GraphQLEditorialStore:
         from .tenancy import configured_tenant_id
         publication = self.publication_key()
         # Optional doctrine: a publication without a mission still gets its rule checks (PPY-2c4b56).
-        result = self._execute('''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID, $tenantId: String) {
-          getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId, tenantId: $tenantId, optionalPublicationDoctrine: true)
-        }''', {'publicationKey': publication, 'sectionId': section, 'tenantId': self._shared_tenant})['getEditorialContext']
+        # A site's own backend names no tenant: the argument is sent only for a shared-stack tenant, so the query stays valid on a backend that
+        # predates the argument (GraphQL refuses an argument the schema does not declare, even as null).
+        variables = {'publicationKey': publication, 'sectionId': section}
+        declared, passed = "", ""
+        if self._shared_tenant:
+            variables['tenantId'] = self._shared_tenant
+            declared, passed = ", $tenantId: String", ", tenantId: $tenantId"
+        result = self._execute(f'''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID{declared}) {{
+          getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId{passed}, optionalPublicationDoctrine: true)
+        }}''', variables)['getEditorialContext']
         pack = checked_context(_awsjson_document(result), publication=publication, section=section)
         if (pack['publication'].get('tenantId') or None) != (self._tenant_id or configured_tenant_id() or None):
             raise ValueError('Editorial context tenant mismatch')
