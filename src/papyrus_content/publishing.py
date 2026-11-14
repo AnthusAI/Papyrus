@@ -484,6 +484,11 @@ class DryRunClient:
         self._client = client
         self.planned: list[dict[str, str]] = []
 
+    @property
+    def tenant_id(self) -> str | None:
+        """The wrapped client's tenant: a read made through a dry run is checked against the same scope as the real publish."""
+        return getattr(self._client, "tenant_id", None)
+
     def get_record(self, model_name: str, record_id: str):
         return self._client.get_record(model_name, record_id)
 
