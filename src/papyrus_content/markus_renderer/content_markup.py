@@ -97,6 +97,14 @@ _MACHINE_CREDIT_RE = re.compile(
 )
 
 
+# "Approved by NAME": the name runs to the end of the sentence. A full stop inside it belongs to the name after an initial or a title ("Ryan P. Porter", "Dr. Ada").
+_NAME_TITLES = ("Dr", "Mr", "Mrs", "Ms", "Mx", "Prof", "Jr", "Sr", "St")
+_APPROVAL_CREDIT_RE = re.compile(
+    r"[,;]?\s*\bApproved\s+by\b(?:[^.;\n]|(?<=\b[A-Z])\." + "".join(rf"|(?<=\b{title})\." for title in _NAME_TITLES) + r")*[.;]?",
+    re.I,
+)
+
+
 def is_machine_credit(text: str | None) -> bool:
     """True when a credit only says a machine made the picture ("Illustration generated with AI", "Generated").
 
@@ -104,25 +112,45 @@ def is_machine_credit(text: str | None) -> bool:
     return bool(text and _MACHINE_CREDIT_RE.match(text))
 
 
-def without_machine_credit(text: str | None) -> str | None:
-    """The credit to show: ``None`` for a machine-made statement, otherwise the credit unchanged."""
-    return None if is_machine_credit(text) else text
+def without_approval_credit(text: str | None) -> str | None:
+    """The credit with every "Approved by NAME" statement cut out. Who approved a picture is metadata (``approvedBy``), never part of what a reader sees."""
+    if not text or not _APPROVAL_CREDIT_RE.search(text):
+        return text
+    return re.sub(r"\s{2,}", " ", _APPROVAL_CREDIT_RE.sub("", text)).strip(" ,;") or None
 
 
-def drop_machine_credits(markus: str) -> str:
-    """The Markus source with the ``credit`` attribute removed from every ``::image{...}`` whose credit only says a machine made it.
+def visible_credit(text: str | None) -> str | None:
+    """The credit to show: ``None`` when it is empty, only says a machine made the picture, or only says who approved it; otherwise the credit with any
+    "Approved by NAME" statement removed and the rest unchanged."""
+    if not text:
+        return text
+    cut = without_approval_credit(text)
+    return None if not cut or is_machine_credit(cut) else cut
 
-    Only the attribute is cut (with the space that separated it), so the rest of the directive, including a multi-line one, stays valid."""
+
+def drop_hidden_credits(markus: str) -> str:
+    """The Markus source with every ``::image{...}`` credit made visible: a credit that only says a machine made the picture or who approved it is cut out as an
+    attribute, and an "Approved by NAME" statement inside a real credit is cut out of its text.
+
+    Only the credit is touched (with the space that separated it), so the rest of the directive, including a multi-line one, stays valid."""
 
     def directive(match: re.Match) -> str:
         attrs = match.group("attrs")
         out, pos = [], 0
         for attr in _ATTR_RE.finditer(attrs):
-            value = attr.group("dq") if attr.group("dq") is not None else attr.group("sq") if attr.group("sq") is not None else attr.group("bare")
-            if attr.group("key") != "credit" or not is_machine_credit(value):
+            if attr.group("key") != "credit":
+                continue
+            quote_group = next((name for name in ("dq", "sq", "bare") if attr.group(name) is not None), "bare")
+            value = attr.group(quote_group)
+            shown = visible_credit(value)
+            if shown == value:
                 continue
             start, end = attr.start(), attr.end()
             before = attrs[pos:start]
+            if shown is not None:   # a real credit with the approval cut out: keep the attribute and its quotes
+                out.append(before + attrs[start:attr.start(quote_group)] + shown + attrs[attr.end(quote_group):end])
+                pos = end
+                continue
             stripped = before.rstrip()
             if stripped:   # there is an attribute before it: cut the space that separated them
                 out.append(stripped)
@@ -309,7 +337,7 @@ def prepare_page(
                 alt=attrs.get("alt", ""),
                 layout=attrs.get("layout"),
                 caption=attrs.get("caption"),
-                credit=without_machine_credit(attrs.get("credit")),
+                credit=visible_credit(attrs.get("credit")),
                 sizes=attrs.get("sizes"),
                 loading=attrs.get("loading"),
                 src_dark=attrs.get("srcDark"),

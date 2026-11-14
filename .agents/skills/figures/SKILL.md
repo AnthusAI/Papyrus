@@ -55,7 +55,7 @@ The checker cannot tell whether a figure makes sense. Open **both** pictures and
 
 ## 6. No approval step, no credit
 
-Our own figures need no person's approval and carry no credit. Looking at both pictures (step 5) is your check; then save. A site that wants a recorded approval for its cover opts in with the design-system setting `illustrationRequireApprovalCredit` (off unless a site sets it): the Story's front matter `coverImage` record then needs `approvedBy` and `approvedAt`, and the cover's image line an `Approved by NAME` credit. That is the only approval path, and it is the site's choice, not yours: do not add an approval step, or ask for one, where the site did not set it. Third-party images are different: they are always credited. This skill never touches them.
+Our own figures need no person's approval and carry no credit. Looking at both pictures (step 5) is your check; then save. When a person does approve a cover, record it as metadata only (the Story's front matter `coverImage` record: `approvedBy`, `approvedAt`; the figure's `approved_by`), never in `credit` or a caption: the approver's name is never shown to a reader. Do not add an approval step, or ask for one, that the person did not ask for. Third-party images are different: they are always credited. This skill never touches them.
 
 ## 7. Save it into the Story
 
