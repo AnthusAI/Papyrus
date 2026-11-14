@@ -53,10 +53,11 @@ export const loadStoryChecklistSteps = async (lineageId) => createLocalPreviewSt
 export const addStoryChecklistNote = async (lineageId, stepKey, text) => { window.fixtureSaves.push({ lineageId, stepKey, note: text }); addLocalPreviewStoryStepNote(lineageId, stepKey, text); };
 export const saveStoryChecklistStep = async (lineageId, stepKey, state, input) => { window.fixtureSaves.push({ lineageId, stepKey, state, ...input }); setLocalPreviewStoryStep(lineageId, stepKey, state, input); };
 export const loadNewsroomAssignmentPage = async () => ({ items: [], nextToken: null });
+export const loadEditorNewsroomSections = async () => [];
 export const saveNewsroomAssignmentDesk = async () => undefined;
 `;
 const STUBS: Record<string, string> = {
-  "news-desk-client-provider": "export const useOptionalNewsDeskClient = () => ({ shell: { phase: 'ready', dashboard: { newsroomSections: [] } } });",
+  "news-desk-client-provider": "export const useOptionalNewsDeskClient = () => ({ shell: { phase: 'ready', auth: { status: 'signedIn' }, dashboard: { newsroomSections: [] } } });",
   "newsroom-access-gate": "export const NewsDeskAccessGate = () => null;",
   "newsroom-assignment-detail": "export const NewsroomAssignmentDetail = () => null;",
   "newsroom-ops-shell": "export const NewsroomOpsShell = ({ children, headerActions, pageTitle }) => <div className='newsroom-organizer' data-kanbus-theme='newspaper-gothic' data-color-mode={document.documentElement.dataset.colorMode || 'light'} data-sidebar-collapsed='true'><div className='organizer-workspace'><header className='organizer-topbar'><h1>{pageTitle}</h1><div className='organizer-header-actions'>{headerActions}</div></header><main className='organizer-main'>{children}</main></div></div>; export const NewsroomOpsStatusBanner = ({ children }) => <p role='alert'>{children}</p>;",
@@ -70,7 +71,7 @@ function browserBundle(): Promise<string> {
     banner: { js: 'window.process = { env: { NODE_ENV: "development", NEXT_PUBLIC_PAPYRUS_LOCAL_PREVIEW: "1" } };' },
     plugins: [{ name: "fixture-boundaries", setup(builder) {
       builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
-      builder.onResolve({ filter: /news-desk-taxonomy-client$/ }, (args) => /newsroom-board-view|use-paged-content-item-versions/.test(args.importer) ? { path: "board-client", namespace: "fixture" } : undefined);
+      builder.onResolve({ filter: /news-desk-taxonomy-client$/ }, (args) => /newsroom-board-view|use-paged-content-item-versions|use-newsroom-desk-sections/.test(args.importer) ? { path: "board-client", namespace: "fixture" } : undefined);
       builder.onResolve({ filter: /story-checklist-client$/ }, () => ({ path: "board-client", namespace: "fixture" }));
       builder.onResolve({ filter: new RegExp(`/(${Object.keys(STUBS).join("|")})$`) }, (args) => ({ path: args.path.split("/").pop()!, namespace: "fixture-stub" }));
       builder.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path }) => ({ contents: path === "navigation" ? NAVIGATION : BOARD_CLIENT, loader: "js", resolveDir: root }));
