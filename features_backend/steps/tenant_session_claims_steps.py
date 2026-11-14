@@ -311,7 +311,7 @@ def _synth(context, backend):
         env['PAPYRUS_BOOTSTRAP_STAGE'] = '1'
     config = {'productionAppId': '', 'brandId': 'claims-test'}
     if 'shared' in backend:
-        config['tenancy'] = {'mode': 'shared'}
+        config['tenancy'] = {'mode': 'shared', 'tier': 'staging'}   # a shared stack names its tier (docs/shared-stack.md); only staging has settings to synthesise
         # Only the tenancy model group is needed to read the wiring; leaving the other optional groups out makes the synth faster.
         config['excludeModelGroups'] = ['editions', 'knowledge', 'semantic', 'review', 'procedures', 'editorial', 'steering', 'variations', 'localization']
     result = subprocess.run(['npx', 'tsx', 'scripts/synth-site-backend.mts', str(directory), json.dumps(config)], cwd=REPO_ROOT,
