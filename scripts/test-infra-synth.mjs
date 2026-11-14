@@ -247,7 +247,7 @@ try {
       assert.equal(/npm run build/.test(readerSpec), false);
       assert.deepEqual(readerApp.Properties.CustomRules, [{ Source: "/<*>", Target: "/404.html", Status: "404-200" }], `${example}: reader catch-all serves a real 404 with 404.html`);
       assert.match(stagingSpec, /upload-preview/);
-      assert.match(stagingSpec, /PAPYRUS_ROOT="\$PWD" papyrus ops content export-published --drafts/, `${example}: staging export finds the checkout's amplify_outputs.json`);
+      assert.match(stagingSpec, /PAPYRUS_ROOT="\$PWD" PAPYRUS_GRAPHQL_AUTH=iam papyrus ops content export-published --drafts/, `${example}: staging export finds the checkout's amplify_outputs.json and declares the build role's operator lane`);
       assert.match(stagingSpec, /PAPYRUS_ROOT="\$PWD" papyrus ops content upload-preview/, `${example}: staging upload finds the checkout's amplify_outputs.json`);
       assert.match(stagingSpec, /cp amplify_outputs\.json \.next\/amplify_outputs\.json/, `${example}: staging ships amplify_outputs.json into the compute bundle`);
       assert.equal(/PAPYRUS_AMPLIFY_OUTPUTS/.test(stagingSpec), false, `${example}: staging must not set PAPYRUS_AMPLIFY_OUTPUTS`);
@@ -272,19 +272,23 @@ try {
     for (const subject of expectedSubjects) assert.equal(/[*?]/.test(subject), false, `${example}: wildcard subject ${subject}`);
     assert.equal(Object.keys(trust[0].Condition).length, 2);
 
-    const ciStatements = ciRole.Properties.Policies
-      ? ciRole.Properties.Policies.flatMap((policy) => policy.PolicyDocument.Statement)
-      : Object.values(template.Resources)
-          .filter((resource) => resource.Type === "AWS::IAM::Policy" && resource.Properties.Roles.some((role) => role.Ref && template.Resources[role.Ref] === ciRole))
-          .flatMap((resource) => resource.Properties.PolicyDocument.Statement);
+    // The role's own inline policies (its deny on the shared tier, PPY-daf673) and the policies attached to it.
+    const ciStatements = [
+      ...(ciRole.Properties.Policies ?? []).flatMap((policy) => policy.PolicyDocument.Statement),
+      ...Object.values(template.Resources)
+        .filter((resource) => resource.Type === "AWS::IAM::Policy" && resource.Properties.Roles.some((role) => role.Ref && template.Resources[role.Ref] === ciRole))
+        .flatMap((resource) => resource.Properties.PolicyDocument.Statement),
+    ];
     assert.ok(ciStatements.length >= 3, `${example}: CI policy statements`);
+    // The checks below are about what the role may do. Its deny on the shared tier (PPY-daf673) is not a grant, so it is not read as one.
+    const grants = ciStatements.filter((statement) => statement.Effect !== "Deny");
     const asList = (value) => (Array.isArray(value) ? value : [value]);
-    for (const statement of ciStatements) {
+    for (const statement of grants) {
       const actions = asList(statement.Action);
       assert.equal(actions.includes("*"), false, `${example}: CI action *`);
       assert.equal(asList(statement.Resource).includes("*") && actions.some((action) => action.endsWith(":*")), false, `${example}: CI service wildcard on Resource *`);
     }
-    const cloudformationStatements = ciStatements.filter((statement) => asList(statement.Action).some((action) => action.startsWith("cloudformation:")));
+    const cloudformationStatements = grants.filter((statement) => asList(statement.Action).some((action) => action.startsWith("cloudformation:")));
     assert.equal(cloudformationStatements.length, github.ciCanDeployInfra ? 1 : 0, `${example}: cloudformation statement only when ciCanDeployInfra`);
     if (github.ciCanDeployInfra) {
       assert.match(JSON.stringify(cloudformationStatements[0].Resource), new RegExp(`stack/amplify-app-shell-${siteId}/`));
@@ -606,7 +610,7 @@ try {
   }
   for (const spec of specsSeen) {
     for (const line of spec.split("\n").filter((candidate) => /\bpapyrus\s+(ops\s+)?content\b/.test(candidate))) {
-      assert.match(line.trim(), /^- (PAPYRUS_ROOT="\$PWD" )?papyrus ops content /, `content command must be invoked as 'papyrus ops content': ${line.trim()}`);
+      assert.match(line.trim(), /^- (PAPYRUS_ROOT="\$PWD" )?(PAPYRUS_GRAPHQL_AUTH=iam )?papyrus ops content /, `content command must be invoked as 'papyrus ops content': ${line.trim()}`);
     }
   }
   for (const spec of specsSeen.filter((candidate) => /npm /.test(candidate))) {

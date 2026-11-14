@@ -233,6 +233,47 @@ rewritten in the new shape the next time a site is saved.
 `papyrus logout` with no name is refused when several sites are signed in. A signed-out
 site stays in the registry so a later command cannot silently fall back to IAM.
 
+### The signed-in lane is the default; IAM only when named
+
+Every `papyrus` command runs as the person signed in with `papyrus login <site>` unless
+the process names another lane. The CLI never picks AWS credentials by itself (PPY-5f119a):
+
+| Situation | What happens |
+| --- | --- |
+| Signed in, no lane named | The command runs as you, on the site's token. |
+| Not signed in, no lane named | The command stops before it reads or writes anything: `Not signed in: run papyrus login <site>. A job that runs as its own AWS role (a worker, a deploy or CI step) declares the operator lane instead: papyrus --auth iam <group> <command>, or PAPYRUS_GRAPHQL_AUTH=iam.` Exit status 2. |
+| `papyrus --auth iam <group> <command>`, or `PAPYRUS_GRAPHQL_AUTH=iam` | The operator lane: the process's own AWS credentials (SigV4). With none, the command says so; it never tries your session instead. |
+| `--auth` and `PAPYRUS_GRAPHQL_AUTH` name different lanes | Refused, so only one of them speaks. |
+
+`--auth` is read only in the leading position, like `--site` (they combine in either
+order: `papyrus --auth iam --site <site> <group> <command>`); a `--auth` after the command's
+name keeps that command's own meaning (`home-page snapshot --auth user|iam`,
+`ops content export-published --auth guest`).
+
+**Who must declare the operator lane.** Anything that runs `papyrus`, or imports the engine
+and calls the site API, as its own AWS role: Lambdas, ECS tasks, scheduled jobs, and the
+deploy and CI steps of a site repository. Papyrus's own workers declare it in their
+definitions (the site functions through `amplify/site-api-access.ts`, the
+knowledge-run and procedure images, the procedure runner's child processes, the monitoring
+stack, the staging build's drafts export). A site repository's workflow step declares it in
+the step, for example:
+
+```yaml
+- run: papyrus design-system push "$RUNNER_TEMP/design-system" --reason "Release ${{ github.sha }}"
+  env:
+    PAPYRUS_GRAPHQL_AUTH: iam
+```
+
+The environment form works with every engine version; `papyrus --auth iam` needs the
+release that carries PPY-5f119a. Before a site bumps to that release, every deploy or CI
+step of the site that calls the CLI as a role must declare the lane, or it stops with the
+message above.
+
+**A CLI newer than the site's backend.** The signed-in lane can do only what the site's
+backend grants an editor. When a newer CLI asks an older backend for something it cannot
+do, the command fails and says so; it never switches to the operator lane to get round it.
+Upgrade the site (or, for operator work, name `--auth iam` on purpose).
+
 ### Managing concepts from the signed-in CLI
 
 An editor's token can read the concepts and links of a site and write none of them directly (the model rules allow AWS credentials only). These commands therefore go through the site's own routes, which are open to the `editor` and `admin` groups only and check what may change, so a signed-in editor needs no AWS login:
@@ -253,8 +294,8 @@ All of them write unless `--dry-run`, and `--help` sends nothing. A review may c
 Every GraphQL request carries its endpoint. The CLI uses the registered site whose
 `graphql_endpoint` equals it exactly, and a token is only ever sent to that endpoint.
 If no signed-in site owns the endpoint, the request fails and the message lists the
-signed-in sites and tells you to run `papyrus login <site>` (or to choose
-`PAPYRUS_GRAPHQL_AUTH=iam` deliberately); it never uses another site's session or your
+signed-in sites and tells you to run `papyrus login <site>` (or to name the operator lane
+with `papyrus --auth iam` deliberately); it never uses another site's session or your
 AWS credentials. A site whose file names an endpoint already registered for a different
 site is refused, so one site cannot capture another's requests. `--config` and
 `PAPYRUS_CLI_AUTH_CONFIG` still select exactly one hand-written config.
@@ -282,11 +323,11 @@ registered site that owns the endpoint, as in [How a request picks its session](
 
 The operator reference commands (`papyrus references list`, `references show`, `assignments list`) choose `local` or `cloud` when no
 `--backend`, `PAPYRUS_BACKEND` or config value says. The signed-in site chosen by this order counts as the endpoint: a signed-in editor
-gets `cloud` with no flag and no outputs file, even when a local pod is configured. On the IAM lane, or with an explicit backend,
+gets `cloud` with no flag and no outputs file, even when a local pod is configured. On the IAM lane (`--auth iam`), or with an explicit backend,
 nothing changes.
 
-Steps 3 and 5 look at the registry only on the signed-in lane (a session exists and `PAPYRUS_GRAPHQL_AUTH` is unset or `user`).
-An operator who sets `PAPYRUS_GRAPHQL_AUTH=iam` is never sent to a signed-in site by them; with no outputs file and no
+Steps 3 and 5 look at the registry only on the signed-in lane (the default: `PAPYRUS_GRAPHQL_AUTH` unset or `user`).
+An operator who names the IAM lane (`papyrus --auth iam`) is never sent to a signed-in site by them; with no outputs file and no
 endpoint variable the command fails and names `papyrus login`. Naming a site (step 1) is the only way the registry
 supplies an endpoint to the IAM lane.
 
@@ -465,9 +506,9 @@ metadata remains as a signed-out binding so a subsequent command cannot
 silently fall back to a broader IAM identity. Each site needs its own
 `papyrus login <site>`; no credential is reused across bindings.
 
-For deliberate operator work, `PAPYRUS_GRAPHQL_AUTH=iam` keeps the existing AWS
-credential chain. Managed Lambdas continue using IAM. A failed user session
-never automatically chooses that lane. The guest reader-export lane remains
+For deliberate operator work, `papyrus --auth iam` (or `PAPYRUS_GRAPHQL_AUTH=iam`)
+uses the AWS credential chain. Managed Lambdas name that lane in their own
+definitions. Neither a missing nor a failed user session ever chooses it. The guest reader-export lane remains
 read-only and cannot author private content.
 
 ## Session duration and evidence

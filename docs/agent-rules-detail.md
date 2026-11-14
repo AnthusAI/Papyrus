@@ -88,19 +88,26 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
   articles are seeded with `poetry run papyrus ops content seed-edition`). `.env*` must stay ignored, and `.env.example` is the
   committed template.
 - **GraphQL auth split (do not mix):**
+  - **The signed-in lane is the CLI's default** (PPY-5f119a). With no session and
+    no lane named, a command refuses and names `papyrus login <site>` and
+    `papyrus --auth iam`. The CLI never picks AWS credentials by itself, and a CLI
+    newer than a backend never switches lanes to get round what that backend lacks.
   - **Editorial CLI users** may use the configured native Google/Cognito login
     in [CLI login](cli-login.md), under the same server-checked user permissions
     as the newsroom. Renewable session material belongs only in the platform secure store (macOS Keychain, Linux keyring or memory agent, Windows Credential Manager);
     public publication/client selection metadata may be persisted separately.
     Never scrape browser cookies, log tokens, invent grants, use API-key/guest
     authoring, or fall back to a broader IAM identity when user auth fails.
-  - **Operator IAM commands** explicitly use `PAPYRUS_GRAPHQL_AUTH=iam` and the
+  - **Operator IAM commands** explicitly name the lane, `papyrus --auth iam` (or
+    `PAPYRUS_GRAPHQL_AUTH=iam`, the form for workers and CI steps), and use the
     standard AWS chain (SSO, assumed role, OIDC or build role). Native user login
     does not grant deployment or infrastructure authority. This user-auth lane
     intentionally replaces the former IAM-only CLI policy; it does not change
     Lambda role auth or introduce a custom authorizer.
   - **Deployed Lambda functions** call AppSync with **IAM only** (SigV4 /
-    `authMode: "iam"` on the Amplify data client). The same signing code serves
+    `authMode: "iam"` on the Amplify data client). A Python function gets the
+    site's endpoint only through `amplify/site-api-access.ts`,
+    which names the operator lane with it. The same signing code serves
     CLI and Lambdas. Do not set secrets on Lambdas for GraphQL access, and do
     not add alternate GraphQL auth paths inside Lambda code. Grant access with
     `allow.resource(<function>)` on the data schema and `appsync:GraphQL` on the

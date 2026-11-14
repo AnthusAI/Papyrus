@@ -163,6 +163,10 @@ const TENANCY_MODELS: Record<string, { fields: string[]; indexes: string[] }> = 
     fields: ["id", "tenantId", "userSub", "userProfileId", "role", "status", "grantedBy", "grantedAt"],
     indexes: ['index("userSub").queryField("listTenantMembershipsByUserSub")', 'index("tenantId").queryField("listTenantMembershipsByTenant")'],
   },
+  TenantSelection: {
+    fields: ["id", "selectedTenantId", "selectedAt"],
+    indexes: [],
+  },
   TenantDomain: {
     fields: ["id", "tenantId", "kind", "status", "verification", "certificateRef"],
     indexes: ['index("tenantId").queryField("listTenantDomainsByTenant")'],

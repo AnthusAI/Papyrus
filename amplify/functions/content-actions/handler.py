@@ -7,6 +7,7 @@ from typing import Any
 from papyrus_content import request_meter
 from papyrus_content.edge_invalidation import distribution_ids_from_environment, invalidate_revalidated_paths
 from papyrus_content.graphql_authoring import create_authoring_client
+from papyrus_content.tenant_context import acting_for, build_event_tenant_context, build_invocation_tenant_context, current_tenant_context
 from papyrus_content.markus_renderer.body_features import install_body_features
 from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
@@ -66,6 +67,12 @@ def parse_input(raw: Any) -> dict:
     if not isinstance(parsed, dict):
         raise PublishError("invalid-input", "The input must be a JSON object.")
     return parsed
+
+
+def authoring_client():
+    """The authoring client of the call being served. Its tenant is the one in the context the handler built from the event, never the environment's."""
+    client, _claims = create_authoring_client(current_tenant_context().tenant_id)
+    return client
 
 
 def actor_from_event(event: dict) -> str:
@@ -145,12 +152,19 @@ def send_to_projection_dead_letter_queue(task: dict, error: str) -> None:
         pass
 
 
+def stamped_with_tenant(task: dict) -> dict:
+    """A task carries the tenant of the call that scheduled it, so a shared stack's later invocation names it (a dedicated stack with no tenant adds nothing)."""
+    tenant_id = current_tenant_context().tenant_id
+    return {**task, "tenantId": tenant_id} if tenant_id else task
+
+
 def schedule_projection_task(task: dict, error: str) -> bool:
     """Run a projection task later, in this same function, as an asynchronous invocation.
 
     The function has an on-failure destination (the dead letter queue), so a task
     that keeps failing ends up there for ``papyrus ops content project --reconcile``.
     """
+    task = stamped_with_tenant(task)
     function_name = (os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or "").strip()
     if not function_name:
         send_to_projection_dead_letter_queue(task, error)
@@ -320,7 +334,7 @@ def refresh_site_pages_action(arguments: dict, who: str = "content-actions") -> 
         return {"ok": False, "operation": name, "error": {"code": "not_projected", "message": "This site does not project its pages to S3, so there is no edge cache to refresh from here."}}
     operation = PAGE_REFRESH_OPERATIONS.get(name)
     if operation is None:
-        return run_page_refresh(name, inputs, refresh_service(None, who))
+        return run_page_refresh(name, inputs, refresh_service(authoring_client(), who))
     if inputs.pop("jobStatus", False) is True:
         return rerender_status_action(inputs)
     background = inputs.pop("async", False) is True
@@ -328,7 +342,7 @@ def refresh_site_pages_action(arguments: dict, who: str = "content-actions") -> 
         validate_page_refresh(operation, inputs)
     except RefreshError as error:
         return {"ok": False, "operation": name, "error": {"code": error.code, "message": error.message}}
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     service = refresh_service(client, who)
     if name == "site_rerender_pages" and (inputs["scope"] != "story" or background) and not inputs.get("dryRun"):
         checked = run_page_refresh(name, {**inputs, "dryRun": True}, service)   # the guard first: nothing is scheduled that would be refused or is only a preview
@@ -398,12 +412,13 @@ def run_home_page_snapshot_task(client, task: dict | None = None) -> dict:
     grow with the corpus (``papyrus_content/home_page/incremental.py``). Any other run reads the whole corpus and leaves the private state for the next one.
     """
     context = projection_context(client)
+    tenant_id = client.tenant_id
     state_store, dirty_store, batch = home_page_stores_for(task or {})
     report = run_home_page_snapshot(
         context,
         client,
         home_page_settings_of(context.projector),
-        client_factory=lambda: create_authoring_client()[0],
+        client_factory=lambda: create_authoring_client(tenant_id)[0],   # worker threads do not inherit the call's context: the tenant is passed in
         workers=HOME_PAGE_SNAPSHOT_WORKERS,
         state_store=state_store,
         dirty=batch,
@@ -604,7 +619,7 @@ def run_page_refresh_rerender_task(client, task: dict) -> dict:
 
 
 def _run_projection_task(task: dict, lambda_context=None) -> dict:
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     if task.get("task") in ("item", "item-pages", "drain"):
         return run_queued_build(client, task, lambda_context)
     if task.get("task") == "all":
@@ -659,7 +674,7 @@ def set_story_step_action(arguments: dict, event: dict) -> dict:
         return {"ok": False, "errors": [{"code": "not-signed-in", "message": "Sign in as an editor to change a checklist step.", "line": None}]}
     agent = (arguments.get("agent") or "").strip()
     label = agent or (arguments.get("actorLabel") or "").strip() or (event.get("identity") or {}).get("username") or "editor"
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     actor = {"kind": ACTOR_AGENT if agent else ACTOR_PERSON, "label": label, "sub": person}
     try:
         if not arguments.get("state"):   # no state: a note on the step, whatever its state, changing nothing else
@@ -675,7 +690,11 @@ def set_story_step_action(arguments: dict, event: dict) -> dict:
 
 
 def save_item_draft_action(arguments: dict, actor: str, approved_by: str | None = None) -> dict:
-    client, _claims = create_authoring_client()
+    client = authoring_client()
+    if arguments.get("id") and current_tenant_context().mode == "shared" and client.get_record("Item", arguments["id"]) is None:
+        # A shared stack's editor names a story it can see: an id that is not the tenant's answers "not found" and writes nothing
+        # (a missing row and another tenant's row are indistinguishable to a tenant client, and neither is created here).
+        raise PublishError("not-found", "That story was not found.")
     if arguments.get("newVersion") and arguments.get("id"):
         existing = client.get_record("Item", arguments["id"])
         if existing is None:
@@ -780,7 +799,7 @@ def projection_status_action(arguments: dict) -> dict:
     jobs = publish_jobs_from_environment()
     if jobs is None:
         return {"ok": True, "projection": {"state": "unknown", "reason": "this site keeps no build records (no projection lock table)"}}
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     candidate = client.get_record("Item", arguments["id"]) or {}
     job = jobs.status(arguments["id"])
     answer = job_answer(job)
@@ -822,7 +841,7 @@ def start_projection_job(client, item_id: str, *, version: int | None, published
 def publish_item_action(arguments: dict, actor: str, approved_by: str | None = None) -> dict:
     if arguments.get("jobStatus"):
         return projection_status_action(arguments)
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     candidate = client.get_record("Item", arguments["id"]) or {}
     live = client.get_record("PublishedItem", published_item_id_for(candidate.get("lineageId") or arguments["id"]))
     render_preflight(client, arguments["id"])   # a page the site cannot render is refused before any published data is written
@@ -863,7 +882,7 @@ def remove_schedules(client, item: dict, version_number: int | None) -> dict:
 
 
 def unpublish_item_action(arguments: dict, actor: str) -> dict:
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     candidate = client.get_record("Item", arguments["id"]) or {}
     result = unpublish_item(client, arguments["id"], actor=actor)
     response = {"ok": True, "changed": result.changed}
@@ -888,7 +907,7 @@ def caller_from_event(event: dict) -> Caller:
 
 def schedule_item_action(arguments: dict, event: dict) -> dict:
     """``scheduleItem`` ``{"operation": "schedule" | "schedule_list", "arguments": {...}}``: the one operation table of scheduled publishing (story_schedule.OPERATIONS)."""
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     try:
         service = schedule_service(client)
     except ScheduleError as error:
@@ -915,7 +934,7 @@ def publish_scheduled_action(client, task: dict) -> dict:
 def move_story_stage_action(arguments: dict, actor: str) -> dict:
     from papyrus_content.story_reporting import move_story_stage
 
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     try:
         result = move_story_stage(client, arguments["lineageId"], arguments["stage"], actor=actor, reason=arguments.get("reason"))
     except ValueError as error:
@@ -936,7 +955,7 @@ def suggest_reference_links_action(arguments: dict) -> dict:
     index_arn = (os.environ.get("PAPYRUS_S3_VECTOR_INDEX_ARN") or "").strip()
     if not index_arn:
         return {"ok": False, "errors": [{"code": "knowledge-index-not-configured", "message": "Suggestions need the knowledge index.", "line": None}]}
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     provider = S3VectorsProvider(vector_index_arn=index_arn, region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"))
     try:
         return {"ok": True, **suggest_for(client, provider, reference_id)}
@@ -960,7 +979,7 @@ def add_story_agent_note_action(arguments: dict, person: str | None) -> dict:
 
     if not person:
         return {"ok": False, "errors": [{"code": "not-signed-in", "message": "Sign in as an editor to add an agent note.", "line": None}]}
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     try:
         version = arguments.get("versionNumber")
         result = save_agent_note(
@@ -978,7 +997,7 @@ def create_story_from_reference_action(arguments: dict, actor: str) -> dict:
     from papyrus_content.ideas.signal_queue import ReferenceSummaries
     from papyrus_content.story_from_reference import create_story_from_reference
 
-    client, _claims = create_authoring_client()
+    client = authoring_client()
     summaries = ReferenceSummaries(client)
     try:
         result = create_story_from_reference(
@@ -1012,16 +1031,25 @@ def handler(event, context=None):
 
 
 def _handle(event, context=None):
-    if PROJECTION_TASK_KEY in event:
-        return run_projection_task(event[PROJECTION_TASK_KEY], context)
+    if PROJECTION_TASK_KEY in event:   # a task the platform invoked: on a shared stack it names its tenant, like any IAM-signed call
+        task = event[PROJECTION_TASK_KEY]
+        with acting_for(build_invocation_tenant_context(task.get("tenantId"))):
+            return run_projection_task(task, context)
     if "refreshSitePages" in event:   # a direct invocation by an operator's profile: the operator lane needs no CloudFront rights of its own
-        return refresh_site_pages_action(event["refreshSitePages"], str(event.get("who") or "operator"))
+        request = event["refreshSitePages"]
+        with acting_for(build_invocation_tenant_context(request.get("tenantId"))):
+            return refresh_site_pages_action({key: value for key, value in request.items() if key != "tenantId"}, str(event.get("who") or "operator"))
+    with acting_for(build_event_tenant_context(event)):   # one context per call, from the event's identity; a shared stack refuses before any read
+        return _handle_field(event)
+
+
+def _handle_field(event):
     field = event["fieldName"]
-    arguments = parse_input(event["arguments"]["input"])
+    arguments = {key: value for key, value in parse_input(event["arguments"]["input"]).items() if key != "tenantId"}   # the tenant is never taken from the body (an IAM caller's is in the context)
     actor = actor_from_event(event)
     try:
         if field == "intakePendingReferences":
-            client, _claims = create_authoring_client()
+            client = authoring_client()
             try:
                 created = intake_references(client, arguments, event.get("identity") or {})
                 from papyrus_content.reference_prediction_queue import queue_after_intake
@@ -1029,7 +1057,7 @@ def _handle(event, context=None):
             except IntakeError as error:
                 return {"ok": False, "errors": [{"code": "intake-rejected", "message": str(error)}]}
         if field == "intakeEmailSubmissionReferences":
-            client, _claims = create_authoring_client()
+            client = authoring_client()
             try:
                 from papyrus_content.monitoring_view import default_email_store_factory
                 receipt_store = default_email_store_factory(os.environ)()
@@ -1040,7 +1068,7 @@ def _handle(event, context=None):
         if field == "correctReferenceCapture":
             from papyrus_content.reference_curation_store import CurationError, correct_reference_capture
 
-            client, _claims = create_authoring_client()
+            client = authoring_client()
             try:
                 return correct_reference_capture(client, arguments, event.get("identity") or {})
             except CurationError as error:

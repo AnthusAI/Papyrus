@@ -11,7 +11,7 @@ Feature: Figures are drawn once, rendered in light and dark, and checked the sam
   never an invented brand. The checks and the rendering run on the machine that calls them and reach no site and no AWS account.
 
   Scenario: The rules say outright that light and dark are both mandatory
-    When an agent runs "papyrus figures rules"
+    When an agent runs "papyrus figures rules --packaged"
     Then the command succeeded
     And the printed text starts with "# Figure rules"
     And the printed text contains "## 0. Light and dark are both mandatory"

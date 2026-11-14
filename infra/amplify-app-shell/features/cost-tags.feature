@@ -15,7 +15,7 @@ Feature: Every Papyrus stack tags its resources for Prospectus cost accounting
   61 of 62 stacks and rolled back (Papyrus 5.99.0). The backend splits its stacks into waves of at most 1,800 resources,
   counting each stack it tags and every parent stack above them. The site's build runs papyrus-infra backend-deploy,
   which first deploys the release alone, at the wave the stack already has, then adds one wave per deploy while the
-  build has time (Amplify stops a build after 30 minutes unless _BUILD_TIMEOUT says otherwise); the next build adds the
+  build has time (Amplify stops a build after 30 minutes unless _BUILD_TIMEOUT says otherwise; the app shell sets it from cms.buildTimeoutMinutes, 120 by default); the next build adds the
   rest. The usage senders arrive with the first wave. The site ID is the siteId of the site's own infra/site.json.
   Nothing is set by hand. Verified by scripts/test-cost-tags.ts and scripts/test-backend-deploy.mjs.
 
@@ -59,7 +59,7 @@ Feature: Every Papyrus stack tags its resources for Prospectus cost accounting
     When papyrus-infra backend-deploy runs for a site with no cost tags and 3 waves
     Then it deploys the release and wave 1, and leaves waves 2 and 3 for the following builds
     And the next build deploys the release at wave 1, then wave 2, and the one after deploys wave 2 again, then wave 3
-    And the deploy time is Amplify's build timeout (30 minutes, or _BUILD_TIMEOUT) less 10 minutes for the rest of the build
+    And the deploy time is Amplify's build timeout (_BUILD_TIMEOUT, set by the app shell to 120 minutes by default; 30 where it is unset) less 10 minutes for the rest of the build
 
   Scenario: Once the tags are complete a deploy is one pass
     Given a site whose root stack output PapyrusCostTagWave is "complete"

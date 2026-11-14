@@ -195,13 +195,14 @@ Papyrus already follows that split:
 - App-level settings belong in `.env`.
 - The seed script can still use Cognito editor credentials when seeding through
   Amplify Auth.
-- The content CLI signs authoring requests with SigV4 from the AWS credential
-  chain (`AWS_PROFILE`). It does not log into a Papyrus user pool and stores no
-  token.
+- The content CLI runs as the person signed in with `papyrus login <site>` by
+  default. It signs with SigV4 from the AWS credential chain (`AWS_PROFILE`) only
+  when the operator lane is named (`papyrus --auth iam`, PAPYRUS_GRAPHQL_AUTH=iam);
+  with no session and no lane named it refuses and says so (PPY-5f119a).
 
 Papyrus has three distinct GraphQL auth lanes:
 
 - the site reads GraphQL content with API-key auth;
 - Cognito user-pool auth remains available for app/editor surfaces;
-- the authoring CLI writes content with IAM (SigV4) credentials for the
-  authoring role.
+- the authoring CLI writes as the signed-in person (Cognito user pool) by
+  default, and with IAM (SigV4) credentials only on the named operator lane.

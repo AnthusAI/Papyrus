@@ -34,7 +34,8 @@ def credential_recovery_guidance() -> str:
     if user_auth_requested():
         return "Check your newsroom identity/publication permissions with `papyrus auth status`; renew with `papyrus login` if needed."
     profile = os.environ.get("AWS_PROFILE", "").strip() or "<profile>"
-    return f"Your AWS session may have expired or lack access. Run `aws sso login --profile {profile}` and retry."
+    return (f"This call used the operator lane (AWS credentials, chosen with --auth iam or PAPYRUS_GRAPHQL_AUTH=iam); that session may have "
+            f"expired or lack access. Run `aws sso login --profile {profile}` and retry.")
 
 
 def require_operator_lane(command_label: str, writes: str, *, writing: bool) -> None:
@@ -48,7 +49,7 @@ def require_operator_lane(command_label: str, writes: str, *, writing: bool) -> 
         return
     notice = (
         f"{command_label} is an operator command: it writes {writes}, which the signed-in editor lane cannot change. "
-        "Run it on the operator lane (AWS credentials, PAPYRUS_GRAPHQL_AUTH=iam)."
+        "Run it on the operator lane: `papyrus --auth iam ...` with AWS credentials (or PAPYRUS_GRAPHQL_AUTH=iam)."
     )
     if writing:
         raise OperatorError(f"{notice} Nothing was changed.")

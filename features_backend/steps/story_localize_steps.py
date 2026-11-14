@@ -131,7 +131,7 @@ def _collect(context):
                                lanes={"rules": True, "classifier": False})
         key = localize_record.run_key(source, language, procedure_version=procedure_version, checker_versions=checker.versions)
         return LocalizeRequest(source=source, language=language, localization_lineage=lineage, run_key=key, glossary=glossary, checker=checker,
-                               previous=previous, ceiling_usd=context.ceiling, procedure_version=procedure_version,
+                               slug_policy="translated", previous=previous, ceiling_usd=context.ceiling, procedure_version=procedure_version,
                                source_checker=lambda text: english.copy_edit(text)[0])
     return collect
 
@@ -505,3 +505,25 @@ def step_plan(context, count):
 @then("no request was written")
 def step_no_request(context):
     assert not context.client.tables.get("LocalizationRequest") and not context.started
+
+
+@given('the English Story has the stored picture "{path}"')
+def step_picture(context, path):
+    context.client.tables.setdefault("MediaAsset", {})["media-waymo"] = {
+        "id": "media-waymo", "itemId": context.primary["id"], "type": "image", "sortKey": "0001", "metadata": json.dumps({"srcPath": path})}
+
+
+@then('the saved translation\'s address is "{slug}" and not the English "{english}"')
+def step_address(context, slug, english):
+    assert _latest(context)["slug"] == slug != english, _latest(context)["slug"]
+
+
+@then('the saved translation has the stored picture "{path}", so it can be published')
+def step_has_picture(context, path):
+    pictures = [json.loads(row["metadata"])["srcPath"] for row in context.client.tables["MediaAsset"].values() if row["itemId"] == _latest(context)["id"]]
+    assert pictures == [path], pictures
+
+
+@then("the Spanish lineage has {count:d} versions")
+def step_versions_count(context, count):
+    assert len(_versions(context)) == count, [row["versionNumber"] for row in _versions(context)]

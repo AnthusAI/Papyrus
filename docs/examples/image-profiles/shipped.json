@@ -1,0 +1,93 @@
+{
+  "DRAFT": "DRAFT for Ryan to correct. Short profile for Shipped, written only from what is in the Shipped-web repository: web/css/site-theme.css (colour tokens), README.md, docs/placeholders.md, web/projection.json and web/assets/social. Shipped has no written image guidance, so the type guidance below is inferred from its palette and its periodic table of models, and needs the most correction. It is a file in this repository only: nothing has been saved to any backend.",
+  "openQuestions": [
+    "1. Shipped has no written picture style. I inferred one from the theme: flat shapes in lime and ink on warm paper, with the periodic table of models as the signature motif. Is that the look you want for story covers, and should generated pictures use the periodic-table motif at all?",
+    "2. Story covers are Shipped's only per-Story picture today (signals are mostly data and scores). Should signals get a picture type too, or stay text and score only? I gave stories two types and a social card and nothing for signals.",
+    "3. Realism. Like Threat Intelligence, no rule on generated photorealism exists here. Machines on Machines bans it as a binding rule. Do you want the same for Shipped (for example, never a realistic picture of a person or a product)? It matters more here because stories are about real releases and real makers.",
+    "4. The 'smallest width' numbers (160px covers, 120px social card, 343px inline) are placeholders copied from Machines on Machines and should be read from Shipped's story card layout. The social card size is the standard 1200 by 630; the existing default social image is web/assets/social/shipped-default.png.",
+    "5. Night pictures. Shipped has a dark theme with a dark warm ground (#141112). Should a generated cover have a Night version?"
+  ],
+  "exampleSlots": [
+    {
+      "imageType": "story-cover",
+      "exemplar": [{"name": "web/assets/social/shipped-default.png", "note": "The existing default social image is the nearest thing to the house look; confirm it is a good example before using it."}],
+      "negative": [{"name": "A realistic product shot or a portrait of a maker", "note": "Stories are about real releases; a realistic picture implies something it does not show."}]
+    },
+    {
+      "imageType": "social-card",
+      "exemplar": [{"name": "A cover cropped to 1.91:1", "note": "Subject clear of the feed's crop."}],
+      "negative": [{"name": "A card with small text in it", "note": "Link previews are shown small."}]
+    }
+  ],
+  "howToSave": "The profile is under the 'profile' key: jq .profile shipped.json > /tmp/shipped-profile.json; papyrus images profile diff --file /tmp/shipped-profile.json; papyrus images profile save --file /tmp/shipped-profile.json --reason '...' --expected-current-version-id none.",
+  "profile": {
+    "schemaVersion": 2,
+    "imageReview": "after_the_fact",
+    "identity": {
+      "summary": "Bold and flat: lime and ink on warm paper, with the periodic table of models as the recurring motif.",
+      "masterPrompt": "Flat shapes in a few solid colours: lime, near-black ink and warm paper. Square and gently rounded tiles, like the cells of a periodic table. No gradients, no texture, no outlines and no lettering in the picture.",
+      "palette": [
+        {"name": "Lime", "hex": "#c6f432", "token": "brand-fill", "role": "brand"},
+        {"name": "Deep lime", "hex": "#a8d61a", "token": "brand-deep", "role": "brand shade"},
+        {"name": "Ink", "hex": "#1a1615", "token": "papyrus-ink", "role": "ink"},
+        {"name": "Warm paper", "hex": "#f5f1ea", "token": "papyrus-bg", "role": "ground"},
+        {"name": "Paper raised", "hex": "#ffffff", "token": "paper-raised", "role": "inset"}
+      ],
+      "paletteLimit": 5,
+      "mood": ["bold", "plain"],
+      "examples": []
+    },
+    "techniques": {
+      "preferred": ["flat shapes", "grid and tile compositions"],
+      "avoided": ["gradients", "texture", "outlines", "lettering inside the picture"]
+    },
+    "treatments": {
+      "editorial-illustration": {"label": "Editorial illustration", "guidance": "A moment or an idea from the story as a flat composition of tiles and discs. It does not explain; the story does."}
+    },
+    "uses": {
+      "cover": {"label": "Story cover", "where": "Top of a story and on story cards"},
+      "inline": {"label": "In the story", "where": "Inside the story body"},
+      "social": {"label": "Social card", "where": "Link previews on other sites"}
+    },
+    "imageTypes": {
+      "story-cover": {
+        "label": "Story cover",
+        "description": "A simple, bold picture for the top of a story that still reads as a small card.",
+        "treatment": "editorial-illustration",
+        "use": "cover",
+        "display": {"where": "story pages and story cards", "smallestWidthPx": 160, "thumbnail": true},
+        "guidance": "One idea from the story as a flat composition in lime, ink and warm paper, built from tiles and discs. One focal shape in lime. Bold enough to read at card size. No lettering and no real faces or products.",
+        "avoid": ["small details", "more than one focal shape", "photographic realism", "a real person, product or logo"],
+        "sizes": {"aspectRatio": "16:9", "width": 1600, "height": 900},
+        "sources": ["generated", "stock"],
+        "examples": []
+      },
+      "story-inline-picture": {
+        "extends": "story-cover",
+        "label": "Picture in the story",
+        "description": "A larger picture inside the story that can carry more detail. Never shown as a thumbnail.",
+        "use": "inline",
+        "display": {"where": "story body", "smallestWidthPx": 343, "thumbnail": false},
+        "guidance": "The same language with room for more detail: several tiles may share the composition, with one lime focal shape.",
+        "removeFromParent": {"avoid": ["small details"]},
+        "sources": ["generated", "stock"],
+        "examples": []
+      },
+      "social-card": {
+        "extends": "story-cover",
+        "label": "Social card",
+        "description": "The picture in link previews on other sites.",
+        "use": "social",
+        "display": {"where": "link previews in feeds", "smallestWidthPx": 120, "thumbnail": true},
+        "sizes": {"aspectRatio": "1.91:1", "width": 1200, "height": 630},
+        "examples": []
+      }
+    },
+    "typePreference": {
+      "cover": ["story-cover"],
+      "inline": null,
+      "social": ["social-card"]
+    },
+    "attribution": {"generatedCredit": "Drafted by AI.", "disclosure": "Generated pictures are labelled in the credit."}
+  }
+}

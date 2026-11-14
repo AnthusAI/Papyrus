@@ -66,3 +66,12 @@ def test_a_hostname_belongs_to_one_tenant():
     with pytest.raises(DomainAlreadyClaimed):
         records.claim_domain(table.create, "beta", "Alpha.apyr.us", "custom")
     assert table.rows[("TenantDomain", "alpha.apyr.us")]["tenantId"] == "alpha"
+
+
+def test_tenant_selection_record_is_keyed_by_the_person():
+    row = records.tenant_selection_record("sub-1", "alpha", "2026-11-13T00:00:00Z")
+    assert row == {"id": "sub-1", "selectedTenantId": "alpha", "selectedAt": "2026-11-13T00:00:00Z"}
+    with pytest.raises(TenantRecordError):
+        records.tenant_selection_record(" ", "alpha", "t")
+    with pytest.raises(TenantError):
+        records.tenant_selection_record("sub-1", "Alpha", "t")

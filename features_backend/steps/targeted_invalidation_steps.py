@@ -19,6 +19,7 @@ from papyrus_content.projection.model import ProjectionReport  # noqa: E402
 from papyrus_content.projection.engine import _finish  # noqa: E402
 from papyrus_content.projection.writers import CloudFrontInvalidator, TargetedCloudFrontInvalidator, invalidation_paths_for  # noqa: E402
 from procedures.newsroom.tests.incremental_site import Site, add_item  # noqa: E402
+from procedures.newsroom.tests.tenant_support import dedicated_call  # noqa: E402
 
 
 class Edge:
@@ -108,7 +109,7 @@ def whole_site(context) -> None:
     with mock.patch.dict("os.environ", {}, clear=False), mock.patch.object(handler, "create_authoring_client", return_value=(object(), {})), mock.patch.object(
         handler, "projection_context", return_value=ctx
     ), mock.patch.object(handler, "project_all", return_value=report) as run:
-        handler._run_projection_task({"task": "all"})
+        handler.handler({"projectionTask": {"task": "all"}}, None)
     if run.call_args.args[0].invalidate is not None:
         run.call_args.args[0].invalidate(["articles/a/index.html"])
 
@@ -127,7 +128,8 @@ def deploy(context) -> None:
         handler, "deploy_render"
     ) as render:
         render.return_value = report
-        handler.run_deploy_render_task(object())
+        with dedicated_call():
+            handler.run_deploy_render_task(object())
     # What the deploy would do with the context it was given: invalidate whatever it wrote.
     if render.call_args.args[0].invalidate is not None:
         render.call_args.args[0].invalidate(["articles/a/index.html"])

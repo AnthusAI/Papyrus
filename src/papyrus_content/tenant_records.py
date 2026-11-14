@@ -7,6 +7,7 @@ definition:
 * a tenant's id is its site id (``validate_tenant_id``);
 * a membership id is ``<tenant>#<userSub>``, and the token Lambda finds a person's memberships with ONE query on the ``userSub``
   index (``list_memberships_for_user``), never a scan;
+* a tenant selection (the site a person's session acts for, read by the token Lambda) has the person's sub as its id;
 * a domain id is the lowercase hostname, so a hostname can belong to one tenant only (``claim_domain``).
 """
 
@@ -89,6 +90,15 @@ def membership_record(tenant_id: str, user_sub: str, role: str, granted_by: str,
     if user_profile_id:
         row["userProfileId"] = user_profile_id
     return row
+
+
+def tenant_selection_record(user_sub: str, tenant_id: str, selected_at: str) -> dict[str, Any]:
+    """The site a person's session acts for (PPY-0bb0fd). The id is the person's Cognito sub, so there is one row per person and
+    the token trigger reads it with one GetItem. Writing it is the first half of switching site; the second is a new token."""
+    sub = (user_sub or "").strip()
+    if not sub:
+        raise TenantRecordError("A tenant selection needs a user sub.")
+    return {"id": sub, "selectedTenantId": validate_tenant_id(tenant_id), "selectedAt": selected_at}
 
 
 def domain_record(tenant_id: str, hostname: str, kind: str, *, status: str = "pending_dns") -> dict[str, Any]:

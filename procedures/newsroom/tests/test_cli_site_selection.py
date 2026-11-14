@@ -12,7 +12,7 @@ from papyrus_content.cli_user_auth import AuthError, SiteSession, command, save_
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from papyrus_content.tenancy import tenant_id_from_options
 from procedures.newsroom.tests.test_cli_multisite_auth import Opener, site
-from papyrus.cli import _consume_site_flag
+from papyrus.cli import _consume_leading_flags
 
 A, B = site('a.anth.us'), site('b.anth.us')
 
@@ -224,16 +224,16 @@ def test_a_file_for_the_chosen_site_still_supplies_its_bucket_and_pool(monkeypat
 # --- the flag -----------------------------------------------------------------------------------
 
 def test_the_leading_site_flag_sets_the_site_and_is_removed(monkeypatch):
-    assert _consume_site_flag(['--site', 'a.anth.us', 'editorial', 'context']) == ['editorial', 'context']
+    assert _consume_leading_flags(['--site', 'a.anth.us', 'editorial', 'context']) == ['editorial', 'context']
     assert __import__('os').environ['PAPYRUS_SITE'] == 'a.anth.us'
-    assert _consume_site_flag(['--site=b.anth.us', 'references', 'list']) == ['references', 'list']
+    assert _consume_leading_flags(['--site=b.anth.us', 'references', 'list']) == ['references', 'list']
     assert __import__('os').environ['PAPYRUS_SITE'] == 'b.anth.us'
     monkeypatch.delenv('PAPYRUS_SITE')
 
 
 def test_a_site_option_after_the_command_is_left_for_the_command(monkeypatch):
     arguments = ['items', 'link-references', '--site', 'some-key']
-    assert _consume_site_flag(arguments) == arguments
+    assert _consume_leading_flags(arguments) == arguments
     assert 'PAPYRUS_SITE' not in __import__('os').environ
 
 
@@ -241,7 +241,7 @@ def test_the_leading_site_flag_needs_a_value():
     from papyrus_content.operator_errors import OperatorError
     for arguments in (['--site'], ['--site', '--backend'], ['--site=']):
         with pytest.raises(OperatorError, match='--site requires a signed-in site'):
-            _consume_site_flag(arguments)
+            _consume_leading_flags(arguments)
 
 
 # --- the site document --------------------------------------------------------------------------

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "164d12f3-b80e-4d52-9b04-1b03b5f59eae",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/home/Documents/Codex/2026-10-23/task-4/papyrus-implementation/docs/architecture/chatticus-chat/papyrus-current/candidate.json",
+  "output": "/Users/home/Documents/Codex/2026-10-23/task-4/papyrus-implementation/docs/architecture/chatticus-chat/papyrus-current/papyrus-current.html",
+  "specification": {
+    "sha256": "f22fbaed18dba725c3d1ee6d89d328e03569be043dc8c292370c0eda3ca87c24",
+    "bytes": 4265
+  },
+  "artifact": {
+    "sha256": "6d078f33d28f749c7c14b501d7992a3c02c14fb81f4878f4c17a93269b3c84c5",
+    "bytes": 755272
+  }
+}

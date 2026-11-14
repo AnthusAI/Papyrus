@@ -1,0 +1,16 @@
+{
+  "about": "Measured backend deploy time per global secondary index creation, read by scripts/check-gsi-ledger.ts to size a release (features_backend/gsi-ledger.feature). Append a measurement after each release that created indexes: npx tsx scripts/measure-gsi-deploy.ts --root-stack NAME --index-creations N --date YYYY-MM-DD --label TEXT --append (read-only CloudFormation access; docs/releasing.md).",
+  "reservedMinutes": 10,
+  "reservedMinutesNote": "What the frontend build and the steps around the deploy need inside one Amplify job; equal to RESERVED_MINUTES in packages/papyrus/src/backend-deploy.mjs (a test keeps them equal).",
+  "safetyMargin": 0.25,
+  "safetyMarginNote": "The slowest wave of the first measurement (ItemTag, 706 s) ran 25 percent over the usual wave (565 s); the budget keeps that much of the build timeout unused.",
+  "measurements": [
+    {
+      "date": "2026-11-14",
+      "label": "Machines on Machines, Amplify job 107 (Papyrus 5.111.0: tenant listing index on every tenant table, Item language-group index)",
+      "indexCreations": 23,
+      "deploySeconds": 3250,
+      "note": "The data stack update ran 17:59:16Z to 18:53:26Z (54 min 10 s). 23 model nested stacks each created one index; CloudFormation ran them in 8 sequential waves of up to 6 concurrent nested stacks, 565 s per wave (ItemTag 706 s, EditorialFeedback 632 s). Three new tables (LocalizationRequest, SiteDocument, SiteDocumentVersion) took 47 to 61 s. The deploy time includes those and the other resources of the release, so seconds per creation is an upper estimate."
+    }
+  ]
+}

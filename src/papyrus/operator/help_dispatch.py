@@ -242,10 +242,8 @@ REQUIRED_ARGUMENT_ERROR = re.compile(r"\b(required?|requires?|needs?|missing|exa
 def _leaf_path(args: list[str]) -> list[str] | None:
     """The words that name a command (not a group) when `args` is that command followed by nothing else or by its flags."""
     words = list(args)
-    if words[:1] == ["--site"]:
-        words = words[2:]
-    elif words[:1] and words[0].startswith("--site="):
-        words = words[1:]
+    while words[:1] and (words[0] in {"--site", "--auth"} or words[0].startswith(("--site=", "--auth="))):
+        words = words[2:] if words[0] in {"--site", "--auth"} else words[1:]   # the leading flags that apply to the whole command
     named: list[str] = []
     for word in words:
         if word.startswith("-"):

@@ -164,7 +164,7 @@ class EventBridgeScheduler:
     def name_for(self, item_id: str) -> str:
         return schedule_name(self.name_prefix, item_id)
 
-    def upsert(self, name: str, item_id: str, at: str) -> None:
+    def upsert(self, name: str, item_id: str, at: str, tenant_id: str | None = None) -> None:
         """Create the schedule, or move it to the new time (rescheduling keeps its name)."""
         from .newsletter.scheduler import at_expression
 
@@ -178,7 +178,7 @@ class EventBridgeScheduler:
             "Target": {
                 "Arn": self.function_arn,
                 "RoleArn": self.role_arn,
-                "Input": json.dumps({"projectionTask": {"task": TASK_NAME, "itemId": item_id, "scheduledPublishAt": at}}),
+                "Input": json.dumps({"projectionTask": {"task": TASK_NAME, "itemId": item_id, "scheduledPublishAt": at, **({"tenantId": tenant_id} if tenant_id else {})}}),
                 "DeadLetterConfig": {"Arn": self.dead_letter_arn},
             },
         }
@@ -364,7 +364,7 @@ class ScheduleService:
         for other in replaced:   # a Story has one schedule: scheduling this version replaces the earlier one
             self._remove(other)
         name = scheduler.name_for(row["id"])
-        scheduler.upsert(name, row["id"], at)   # the timer first: a timer without a row fires harmlessly, a row without a timer would never fire
+        scheduler.upsert(name, row["id"], at, self.client.tenant_id)   # the timer first: a timer without a row fires harmlessly, a row without a timer would never fire
         written = self.client.update_record_if(
             "Item",
             {"id": row["id"], "scheduledPublishAt": at, "scheduledBy": caller.actor, "scheduledAt": utc_text(self.now()), "scheduleState": SCHEDULED, "scheduleName": name,

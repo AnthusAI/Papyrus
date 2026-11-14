@@ -11,6 +11,8 @@ from pathlib import Path
 from unittest import mock
 
 from papyrus_content.edge_invalidation import InvalidationCapped
+from procedures.newsroom.tests.fake_client import FakeAuthoringClient
+from procedures.newsroom.tests.tenant_support import dedicated_call
 from papyrus_content.projection.engine import project_all
 from papyrus_content.projection.runtime import context_from_environment, targeted_invalidation
 from papyrus_content.projection.writers import CloudFrontInvalidator, TargetedCloudFrontInvalidator, invalidation_paths_for
@@ -79,7 +81,7 @@ class TargetedInvalidatorTests(unittest.TestCase):
         with mock.patch("papyrus_content.projection.runtime.load_projector"), mock.patch("papyrus_content.projection.runtime.S3PageWriter"), mock.patch(
             "papyrus_content.projection.runtime.star_store_from_environment"
         ), mock.patch("papyrus_content.projection.runtime.lease_from_environment"):  # no AWS client is built
-            context = context_from_environment(None, environment, s3_client=object(), cloudfront_client=client)
+            context = context_from_environment(FakeAuthoringClient(), environment, s3_client=object(), cloudfront_client=client)
         with self.assertRaises(InvalidationCapped):
             quiet(context.invalidate, ["a/index.html", "b/index.html"])
         self.assertEqual(len(client.paths), 3)
@@ -98,7 +100,7 @@ class TargetedInvalidatorTests(unittest.TestCase):
             with mock.patch("papyrus_content.projection.runtime.load_projector"), mock.patch("papyrus_content.projection.runtime.S3PageWriter"), mock.patch(
                 "papyrus_content.projection.runtime.star_store_from_environment"
             ), mock.patch("papyrus_content.projection.runtime.lease_from_environment"):
-                context = context_from_environment(None, {**base, **extra}, s3_client=object(), cloudfront_client=client)
+                context = context_from_environment(FakeAuthoringClient(), {**base, **extra}, s3_client=object(), cloudfront_client=client)
             made[name] = (context.invalidate, client)
         self.assertIsNone(made["off"][0])
         keys = [f"articles/{number}.html" for number in range(400)]
@@ -121,7 +123,8 @@ class HandlerTests(unittest.TestCase):
         ), mock.patch.object(handler, "projection_context", return_value=context), mock.patch.object(handler, "deploy_render", return_value=report) as render, mock.patch.object(
             handler, "drift_metric_line", return_value=""
         ):
-            handler.run_deploy_render_task(object())
+            with dedicated_call():
+                handler.run_deploy_render_task(object())
         return render.call_args.args[0]
 
     def test_a_deploy_never_invalidates_in_targeted_mode(self) -> None:
@@ -144,7 +147,7 @@ class HandlerTests(unittest.TestCase):
                 handler, "projection_context", return_value=context
             ), mock.patch.object(handler, engine_function, return_value=report) as run:
                 handler.os.environ.pop("PAPYRUS_EDGE_INVALIDATION", None)
-                handler._run_projection_task(task)
+                handler.handler({"projectionTask": task}, None)
             self.assertIsNone(run.call_args.args[0].invalidate, task)
 
     def test_a_capped_publish_response_names_the_skipped_paths(self) -> None:
@@ -154,7 +157,8 @@ class HandlerTests(unittest.TestCase):
         with mock.patch.object(handler, "projection_configured", return_value=True), mock.patch.object(handler, "project", return_value=report), mock.patch.object(
             handler, "projection_context"
         ), mock.patch.object(handler, "schedule_projection_task") as scheduled:
-            response = handler.project_item_action(object(), "item", unpublished=False)
+            with dedicated_call():
+                response = handler.project_item_action(object(), "item", unpublished=False)
         self.assertTrue(response["projected"])
         self.assertIs(response["edgePurged"], False)
         self.assertEqual(response["invalidationCapped"], ["/index.html"])
@@ -172,7 +176,8 @@ class HandlerTests(unittest.TestCase):
         with mock.patch.object(handler, "projection_configured", return_value=True), mock.patch.object(handler, "project", return_value=report), mock.patch.object(
             handler, "projection_context", return_value=context
         ):
-            response = handler.project_item_action(object(), "item", unpublished=False)
+            with dedicated_call():
+                response = handler.project_item_action(object(), "item", unpublished=False)
         self.assertEqual(response["invalidation"]["status"], "skipped")
 
 

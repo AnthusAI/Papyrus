@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "dcc38034-7fe6-4788-a1fe-afaa3a9f9c88",
+  "issue_id": "PPY-26d90f27-3824-40f6-a1c9-7a9983c9dea2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-14T00:26:26.135Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Function tenant context, batch 2: procedure-action, manage-user-role, model-attachment-upload, public-forms, reader-settings",
+    "description": "Move these handlers to the TenantContext (build_event_tenant_context / buildEventTenantContext, actingFor, tenantScopedClient) exactly as PR 1 did for content-actions, category-action, assignment-action, newsroom-summary and editorial-checks. Remove each from PENDING in scripts/test-function-tenant-context.ts. Spec: features_backend/function-tenant-context.feature. Each PR green on its own.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-7dc4633f-740e-4a88-a901-9fa4dbbc89ab",
+    "labels": [
+      "multi-tenant"
+    ]
+  }
+}

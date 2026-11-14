@@ -18,10 +18,15 @@ def content_inspect(_flags: list[str]) -> None:
     client = PapyrusGraphQLAuthoringClient(endpoint=endpoint)
     client.inspect_reachability()
 
+    from .user_auth_mode import iam_requested
+
     print(f"GraphQL endpoint: {endpoint}")
-    print("Auth source: AWS credential chain (IAM, SigV4)")
-    print(f"AWS profile: {os.environ.get('AWS_PROFILE') or 'default chain'}")
-    print(f"AWS caller: {_caller_identity_arn()}")
+    if iam_requested():
+        print("Auth source: the operator lane, AWS credential chain (IAM, SigV4), named with --auth iam or PAPYRUS_GRAPHQL_AUTH=iam")
+        print(f"AWS profile: {os.environ.get('AWS_PROFILE') or 'default chain'}")
+        print(f"AWS caller: {_caller_identity_arn()}")
+    else:
+        print("Auth source: the signed-in lane (`papyrus login`); no AWS credentials are used")
     print("GraphQL reachability: ok")
 
 

@@ -34,7 +34,7 @@ for (const name of names) {
   assert.equal(readSite(name).costAccounting, true, name);
   const offSite = readSite(name, false);
   const offTemplate = Template.fromStack(new AmplifyAppShellStack(new App(), `Off-${name}`, offSite, { env })).toJSON();
-  assert.ok(!JSON.stringify(offTemplate).includes("anthus:"), `${name}: no anthus: tag with costAccounting false`);
+  assert.ok(!JSON.stringify(offTemplate).replaceAll("aws:ResourceTag/anthus:deployment", "").includes("anthus:"), `${name}: no anthus: tag with costAccounting false`);
   if (offSite.chat?.enabled) {
     const offChat = Template.fromStack(new PapyrusChatStack(new App(), { config: offSite, env, lambdaAssetDirectory: chatLambdas })).toJSON();
     assert.ok(!JSON.stringify(offChat).includes("anthus:"), `${name}: no anthus: tag on the chat stack with costAccounting false`);

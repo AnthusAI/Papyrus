@@ -101,3 +101,18 @@ def step_command_packaged(context):
 @then("it prints the packaged general rules and does not look at the site")
 def step_prints_packaged(context):
     assert context.printed == packaged_text("rules.md")
+
+
+@when("the figure rules command is run and the site cannot be reached")
+def step_command_unreachable(context):
+    context.command_error = None
+    with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", side_effect=RuntimeError("not signed in")):
+        try:
+            figures_cli.rules_text()
+        except ValueError as error:
+            context.command_error = str(error)
+
+
+@then("it fails saying the site's figure rules could not be read")
+def step_command_failed(context):
+    assert context.command_error and "could not read the site's figure rules" in context.command_error, context.command_error

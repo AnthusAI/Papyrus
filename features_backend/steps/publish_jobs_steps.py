@@ -75,7 +75,7 @@ def step_same_job(context) -> None:
 
 @when("the build runs")
 def step_build_runs(context) -> None:
-    result = handler.run_projection_task(context.jobs_case.scheduled[0])
+    result = handler.handler({"projectionTask": context.jobs_case.scheduled[0]}, None)
     assert result["ok"], result
 
 
@@ -91,7 +91,7 @@ def step_status_done(context) -> None:
 def step_busy(context) -> None:
     context.jobs_case.lease.held_by_other = True
     try:
-        handler.run_projection_task(context.jobs_case.scheduled[1])
+        handler.handler({"projectionTask": context.jobs_case.scheduled[1]}, None)
     except handler.ProjectionTaskFailed as failed:
         context.busy_failure = failed
     context.jobs_case.lease.held_by_other = False
@@ -107,7 +107,7 @@ def step_left_queued(context) -> None:
 
 @when("the first build runs")
 def step_first_runs(context) -> None:
-    handler.run_projection_task(context.jobs_case.scheduled[0])
+    handler.handler({"projectionTask": context.jobs_case.scheduled[0]}, None)
 
 
 @then("it builds the queued story too before letting go of the lease")
@@ -118,7 +118,7 @@ def step_drained(context) -> None:
 
 @then("the retry of the second build finds its page already built")
 def step_retry_noop(context) -> None:
-    retried = handler.run_projection_task(context.jobs_case.scheduled[1])
+    retried = handler.handler({"projectionTask": context.jobs_case.scheduled[1]}, None)
     assert retried.get("alreadyBuilt") is True, retried
     assert context.jobs_case.projected == context.stories
 
