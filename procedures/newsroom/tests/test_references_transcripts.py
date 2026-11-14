@@ -42,10 +42,12 @@ class Site:
         assert model == "Reference"
         return self.rows.get(record_id)
 
+    def list_by_index(self, index, key_value, **_):
+        assert (index, key_value) == ("knowledgeCorporaByRoleAndName", "canonical")   # the one corpus the site publishes, read through its role index
+        return [{"id": CORPUS, "role": "canonical", "name": "Demo"}]
+
     def list_records(self, model):
-        assert model == "KnowledgeCorpus"
-        self.kept_listings += 1
-        return [{"id": CORPUS}]
+        raise AssertionError(f"a whole-table list of {model}")
 
     def graphql(self, query, variables):
         assert "correctReferenceCapture" in query
@@ -240,11 +242,31 @@ def test_a_site_without_the_index_is_told_it_ships_in_a_later_deploy(capsys):
     assert "content-needed index" in capsys.readouterr().err
 
 
-def test_without_a_corpus_key_the_site_lists_its_corpora():
+def test_without_a_corpus_key_the_site_publishes_its_canonical_corpus_and_no_table_is_listed():
     site = Site({ACCEPTED: []})
     out = io.StringIO()
     assert worker.command([], client=site, out=out, fetch=fetcher({})) == 0
-    assert site.kept_listings == 1 and ACCEPTED in site.asked
+    assert ACCEPTED in site.asked
+
+
+def test_without_a_corpus_key_the_request_meter_records_no_unbounded_list():
+    from papyrus_content import request_meter
+    from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
+    from fake_appsync import FakeAppSync
+    from papyrus_content import references_thumbnails, references_titles
+
+    canonical = {"id": CORPUS, "role": "canonical", "name": "Demo"}
+    backend = FakeAppSync(indexes={"listKnowledgeCorporaByRoleAndName": {"canonical": [canonical]}, "listKnowledgeCorpora": {"": [canonical]}})
+    client = PapyrusGraphQLAuthoringClient(endpoint="https://example.appsync-api.us-east-1.amazonaws.com/graphql", header_factory=lambda body: {}, site_tenant=False)
+    client._open_connection = lambda: backend   # type: ignore[method-assign]
+    request_meter.reset_for_tests()
+    try:
+        with request_meter.run("cli:references capture-transcripts", emit="log") as run:
+            for corpus_ids_of in (worker.corpus_ids_of, references_thumbnails.corpus_ids_of, references_titles.corpus_ids_of):
+                assert corpus_ids_of(client, None) == [CORPUS]
+        assert run.unbounded == {}
+    finally:
+        request_meter.reset_for_tests()
 
 
 def test_the_command_is_signed_in_only_and_imports_no_aws_library(monkeypatch):

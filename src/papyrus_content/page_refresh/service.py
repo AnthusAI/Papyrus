@@ -369,16 +369,34 @@ def verify_public_urls(urls: Sequence[str], version: int | None, seconds: float,
         sleep(5)
 
 
+#: Invalidation statuses that mean the edge was told to drop the pages (``update-live``'s ``invalidated`` and ``nothing-to-invalidate``, and
+#: ``content publish``'s stage status ``ok``). Any other status that is not a failure (``skipped``, ``unknown``, ``not-applicable``) means no purge
+#: was made, so no verdict may say PURGED.
+PURGED_STATUSES = frozenset({"invalidated", "nothing-to-invalidate", "ok"})
+
+
 def verdict_of(rendered: dict, invalidation: dict, verification: dict) -> str:
+    """The one sentence both ``update-live`` and ``content publish`` print. ``invalidation`` carries ``ok``, ``status`` and ``error``/``reason``;
+    PURGED appears only when its status says the edge was told to drop the pages."""
     if not rendered.get("ok"):
         return "NOT LIVE: the page could not be re-projected."
     if not invalidation.get("ok"):
         return f"PROJECTED BUT NOT PURGED: {invalidation.get('error', 'the invalidation failed')}"
     if verification.get("current") is True:
         return "LIVE: the public page shows the published version."
+    purged = invalidation.get("status") in PURGED_STATUSES
     if verification.get("checked"):
+        if not purged:
+            return f"NOT PURGED, THE PAGE IS STALE: {_no_purge_reason(invalidation)}; the public page does not show the published version and will not until the edge cache expires."
         return "PURGED BUT THE EDGE IS STILL STALE: the invalidation was accepted; the public page does not show the published version yet. Check again in a minute."
-    return f"PURGED, NOT VERIFIED: {verification.get('reason', 'the public page was not checked')}"
+    not_checked = verification.get("reason", "the public page was not checked")
+    if not purged:
+        return f"PROJECTED, NOT PURGED, NOT VERIFIED: {_no_purge_reason(invalidation)}; {not_checked}"
+    return f"PURGED, NOT VERIFIED: {not_checked}"
+
+
+def _no_purge_reason(invalidation: dict) -> str:
+    return f"no cache purge was made ({invalidation.get('status')}: {invalidation.get('reason') or 'no reason given'})"
 
 
 # ---------------------------------------------------------------------- what a site says it has

@@ -1,0 +1,25 @@
+{
+  "id": "PPY-bf9d2658-3f3d-4740-8bb0-4698f5ab8a49",
+  "title": "Retire and correction handling for announcements",
+  "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md (\"Retirement and corrections\").\n\nGoal: a retired Story's announcement is removed from X; a correction leaves the post (its link shows the corrected page); an editor can withdraw a post whose own text became wrong.\n\nShape: `story_retire.py` retirement deletes the post through the channel (price recorded) and marks the announcement `withdrawn: Story retired`; a scheduled retired Story loses its schedule (scheduling story); \"Withdraw announcement\" in the drawer and the operation table; no automatic new announcement for the same Story. X API edit is out of scope until its eligibility rules are verified.\n\nDepends on: the channel framework story.\n\n```gherkin\nFeature: An announcement follows its Story when the Story is retired or corrected\n  We must never leave a post on X pointing readers at something we took back.\n\n  Scenario: Retiring a Story deletes its post\n    Given an announced Article\n    When an editor retires it with a redirect\n    Then its post is deleted from X\n    And the announcement says \"Withdrawn: Story retired\"\n\n  Scenario: A correction keeps the post\n    Given an announced Article\n    When a corrected version is published with a revision note\n    Then the post stays\n    And its link shows the corrected page\n\n  Scenario: Withdrawing a post whose text is wrong\n    Given the post repeats a claim the correction removed\n    When Sam chooses \"Withdraw announcement\"\n    Then the post is deleted and recorded as withdrawn by Sam\n\n  Scenario: A failed delete is visible\n    Given X refuses to delete the post\n    Then the announcement shows \"Delete failed\" with X's message and a retry button\n```\n\nOpen questions: none.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-9f4d661c-8dac-4ab9-84ae-ea62b0963b93",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-12T18:41:39.411515Z",
+  "updated_at": "2026-11-12T18:51:02.632077Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

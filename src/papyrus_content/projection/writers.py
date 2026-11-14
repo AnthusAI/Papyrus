@@ -13,6 +13,7 @@ from typing import Any, Protocol
 
 from ..edge_invalidation import InvalidationCapped, invalidate_distribution, invalidate_exact_paths
 from ..page_refresh.paths import paths_for_page_keys
+from ..url_paths import decoded_path, encoded_path  # noqa: F401 - re-exported: the page writer's paths
 
 STATE_PREFIX = "_papyrus/"
 HEAD_WORKERS = 16
@@ -295,13 +296,13 @@ class S3PageWriter:
 
 
 def request_paths_for_key(key: str) -> tuple[str, ...]:
-    """The request paths a page answers to; the first is the canonical one (a redirect's target)."""
+    """The request paths a page answers to, percent-encoded; the first is the canonical one (a redirect's target)."""
     if key == "index.html":
         return ("/",)
     if key.endswith("/index.html"):
-        directory = "/" + key[: -len("index.html")]
+        directory = encoded_path("/" + key[: -len("index.html")])
         return (directory, directory.rstrip("/"))
-    return ("/" + key,)
+    return (encoded_path("/" + key),)
 
 
 def invalidation_paths_for(keys: list[str], url_style: str = "html") -> list[str]:

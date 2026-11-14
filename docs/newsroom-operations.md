@@ -239,6 +239,25 @@ Papyrus exports this contract now; Biblicus support for consuming it during
 taxonomy discovery or classifier train/project must be confirmed by the Biblicus
 agent before workers rely on it.
 
+### Scheduling in the newsroom (PPY-92164e, PPY-38f016)
+
+The publication's time zone is set once, in the backend's publication settings (docs/scheduled-publishing.md); the `schedule_settings` operation returns it with whether scheduling
+is on, and the console asks once per page load (`lib/schedule-zone.ts`). Everything an editor reads or types is in that zone, so the badge, the picker, the calendar and the DST
+refusals agree with how the backend reads a time. A site whose backend has scheduling off shows no badge or drawer row, and its Schedule page says so. The backend keeps one UTC
+instant on the version's Item row (`scheduledPublishAt`, `scheduledBy`, `scheduledAt`, `scheduleState`).
+
+- **Card and drawer.** A scheduled Story's board card shows an icon and words (`Scheduled: Mon 16 Nov, 4:00 AM ET`, `Overdue`, `Superseded: a newer version was saved`).
+  The Story drawer has a Schedule row (`components/story-schedule-panel.tsx`) with a date and time picker in the publication's zone, Change time, Unschedule, and the
+  editor's own zone in small type when it differs. The Publish button and the Published state are unchanged. A change shows at once and goes back to what was saved if
+  the backend refuses it, and the form keeps what was typed. A wall-clock time that does not exist (the spring-forward gap) is refused in plain words; one that happens
+  twice asks which. The console sends the UTC instant through the `schedule` operation of the `scheduleItem` mutation (`lib/content-actions-client.ts`, [scheduled publishing](scheduled-publishing.md)); the stored states are `scheduled`, `publishing` and `blocked` (shown as Superseded), and Overdue is derived from the time.
+- **Schedule page** (`/newsroom/schedule`, `components/newsroom-schedule-page.tsx`). FullCalendar 7 (`@fullcalendar/react`, MIT), loaded only on that route: week by
+  default, Day and Month, the publication's named zone, focusable events (`eventInteractive`), lists instead of the week grid on a phone, and a plain list of the same
+  items under the calendar. It reads one range of the `scheduleState` + `scheduledPublishAt` index per state (`lib/story-schedule-query.ts`), never the whole table.
+  Drag to reschedule is not built: dropping on a nonexistent local time needs its own refusal and undo.
+- **Tests.** `npm run test:story-schedule` (unit tests, browser scenarios on fake preview data with a fixed clock, and the Gherkin in
+  `features/newsroom-story-schedule.feature`).
+
 ## Current Production Edition
 
 The production `edition-current` record is the AI/ML corpus first edition dated

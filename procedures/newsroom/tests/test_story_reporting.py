@@ -56,7 +56,7 @@ class FakeAuthoringClient:
 
 def client_with_one_story():
     first_version = {
-        "id": LINEAGE, "lineageId": LINEAGE, "versionNumber": 1, "versionState": "current", "type": "article", "slug": "sandbox-escape",
+        "id": LINEAGE, "lineageId": LINEAGE, "versionNumber": 1, "versionState": "current", "language": "en", "type": "article", "slug": "sandbox-escape",
         "section": None, "status": "draft", "stage": "reporting", "headline": "Sandbox escape", "title": "Sandbox escape", "aliases": [],
         "metadata": json.dumps({"frontMatterYaml": 'title: "Sandbox escape"'}), "bodyMarkus": "First draft.", "createdAt": NOW, "updatedAt": NOW,
     }

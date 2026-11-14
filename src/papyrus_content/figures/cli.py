@@ -148,7 +148,7 @@ def figures_directive(tokens: list[str]) -> int:
     if len(folders) != 1:
         raise ValueError("figures directive takes one figure folder.")
     metadata = load_metadata(Path(folders[0]))
-    missing = [key for key in ("slug", "layout", "alt", "caption", "credit") if not metadata.get(key)]
+    missing = [key for key in ("slug", "layout", "alt", "caption") if not metadata.get(key)]
     if missing:
         raise ValueError(f"figure.json is missing {', '.join(missing)}.")
     print(image_directive(metadata))

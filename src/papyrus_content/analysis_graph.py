@@ -5,12 +5,13 @@ import json
 from collections.abc import Iterable
 from typing import Any
 
+from .tenant_knowledge_keys import SEMANTIC_RELATION_FEED_KEY, global_key
 from .categories_commands import is_current_accepted_reference
 from .categories_steering import semantic_state_key
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .ids import hash_short, safe_id
 from .model_attachments import download_attachment_buffer, model_attachment_id
-from .records import build_record_change_from_current, build_record_changes_tolerating_optional_models
+from .records import build_record_change_from_current, build_record_changes
 from .knowledge_snapshot.keys import entity_key
 from .knowledge_snapshot.publish_run import STATUS_GENERATED, STATUS_REJECTED, NodeIndex, new_node_row
 from .relation_types import load_semantic_relation_type_seeds, normalize_relation_type_key, semantic_relation_type_fields_for_predicate
@@ -445,7 +446,7 @@ def plan_graph_artifact_import(
         else []
     )
     if resolve_existing:
-        import_changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+        import_changes = build_record_changes(client, plan["records"])
     else:
         import_changes = [
             {
@@ -762,7 +763,7 @@ def _graph_semantic_relation_record(
         "importedAt": imported_at,
         "createdAt": imported_at,
         "updatedAt": imported_at,
-        "newsroomFeedKey": "semanticRelations",
+        "newsroomFeedKey": global_key(SEMANTIC_RELATION_FEED_KEY),
         "metadata": json.dumps(metadata),
     }
 

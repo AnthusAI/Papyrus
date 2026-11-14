@@ -121,6 +121,21 @@ def public_current(context) -> None:
     assert context.payload["stages"]["verified"]["status"] == "current", context.payload
 
 
+@then("the cache invalidation stage is reported as skipped")
+def invalidation_skipped(context) -> None:
+    assert context.payload["stages"]["invalidated"]["status"] == "skipped", context.payload
+
+
+@then("the verdict says no purge was made")
+def verdict_no_purge(context) -> None:
+    assert "NOT PURGED" in context.payload["verdict"], context.payload["verdict"]
+
+
+@then("the verdict does not say the page was purged")
+def verdict_not_purged(context) -> None:
+    assert not context.payload["verdict"].startswith("PURGED"), context.payload["verdict"]
+
+
 @then("the page is reported as written")
 def page_written(context) -> None:
     assert context.payload["stages"]["projected"]["status"] == "ok" and context.payload["pagePublished"], context.payload

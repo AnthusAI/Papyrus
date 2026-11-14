@@ -26,6 +26,7 @@ from ..reference_medium import MEDIUM_VIDEO, medium_of
 from ..reference_thumbnails import EDITOR_IMAGE, public_image as thumbnail_image
 from ..reference_feed_keys import accept_probability as decision_probability
 from ..reference_titles import first_usable_title, needs_title, readable_name
+from ..tenancy import STORED_RECORD_ID_FIELD
 from .ordering import RANK_FIELD, rank_records, valid_stars
 
 if TYPE_CHECKING:
@@ -79,6 +80,11 @@ EXCLUDED_REFERENCE_FIELDS = {
     "importRunId": PLUMBING,
     "discoveredByMonitorId": PLUMBING,
     "curationDecisionRelationId": PLUMBING,
+    "curationSectionUpdatedBy": IDENTITY + " (who set the Section)",
+    "curationSectionUpdatedAt": "editorial provenance: when the Section was set is private; the pages treat a machine and a person's Section the same",
+    "curationSectionActorKind": "editorial provenance: whether a person or the site cyclotron set the Section is private (docs/reference-auto-section.md)",
+    "curationSectionReason": "editorial provenance: the machine's evidence for its Section",
+    "curationSectionDecisionRelationId": PLUMBING,
     "starRatedAt": "editorial signal: when an editor rated it is private (the count itself is published as stars on an accepted Reference)",
     "starRatedBy": IDENTITY + " (who rated it)",
     "newsroomFeedKey": PLUMBING,
@@ -290,7 +296,17 @@ def preview_of(client: Any, row: Mapping[str, Any]) -> Mapping[str, Any] | None:
 
 
 def section_labels_of(client: Any) -> dict[str, str]:
-    return {str(section["id"]): str(section.get("title") or "") for section in client.list_records("NewsroomSection") if section.get("id")}
+    """Section titles keyed by the section id exactly as a Reference's ``curationSectionId`` (and a thread's ``sectionId``) stores it.
+
+    The client hands a section back with its tenant prefix stripped from ``id`` and the stored form in ``storedId`` ("publication#slug"); a
+    client of a backend without a tenant has no ``storedId`` and ``id`` is the stored form. Keying by the stored form means every lookup is a
+    plain one, and an id that matches no section finds no title.
+    """
+    return {
+        str(section.get(STORED_RECORD_ID_FIELD) or section["id"]): str(section.get("title") or "")
+        for section in client.list_records("NewsroomSection")
+        if section.get("id")
+    }
 
 
 @dataclass(frozen=True)

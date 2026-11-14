@@ -19,6 +19,10 @@ class Settings:
     item_url_style: str
     theme: Mapping[str, Any]
     lists: tuple[Mapping[str, Any], ...]
+    #: The sentence the subscribe form shows; a signup must carry exactly this wording (it is the consent evidence).
+    consent: str = ""
+    #: How long a stranger's address is held unconfirmed and the confirmation link works.
+    confirm_window_seconds: int = 72 * 3600
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str] = os.environ) -> "Settings":
@@ -32,4 +36,6 @@ class Settings:
             item_url_style=environment.get("ITEM_URL_STYLE", "html"),
             theme=json.loads(environment["THEME_JSON"]),
             lists=tuple(json.loads(environment.get("LISTS_JSON", "[]"))),
+            consent=environment.get("CONSENT", ""),
+            confirm_window_seconds=int(environment.get("CONFIRM_WINDOW_SECONDS", str(72 * 3600))),
         )

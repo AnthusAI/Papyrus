@@ -4,7 +4,7 @@ from .layering import resolve_guidelines
 from .store import GuidelineStore
 from . import agent_instructions as _agent_instructions  # noqa: F401  (registers the agent-instructions kind)
 from .writing import resolve_writing
-from . import byline as _byline, figure_rules as _figure_rules  # noqa: F401  (register the site-rule kinds)
+from . import announcement as _announcement, byline as _byline, figure_rules as _figure_rules, procedure as _procedure  # noqa: F401  (register the site-rule kinds)
 
 __all__ = ["Field", "GuidelineError", "GuidelineStore", "KindSpec", "Problem", "digest", "kind_names", "kind_spec", "register_kind", "resolve_guidelines",
            "resolve_writing", "slug_for", "unregister_kind", "validate_document"]

@@ -1,0 +1,28 @@
+{
+  "id": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
+  "title": "One notification system: newsletters and subscriptions go through Caducus",
+  "description": "**Decision (Ryan, 2026-11-12).** All notifications, newsletters and subscriptions included, go through ONE Caducus setup (AnthusAI/Caducus, docs/notifications-plan.md; the Papyrus `notifications` plugin is the client). The separate `newsletter` plugin (own subscriber table, roundup issues, approval, send ledger, panel, archive) converges: notifications owns subscribers and consent; the roundup/issue becomes a notification kind. Reusable parts are pushed DOWN into Caducus so every product gets them. Shipped and Distinctive Mark use the newsletter plugin today and must not break; Machines on Machines launches directly on the unified system.\n\n**Goal.** One subscriber directory, one consent record, one send path, one suppression and pause story per site. The newsletter plugin is retired, not kept as a second system, and no shim is left behind.\n\n**Stories.** Public audiences plus subscribe pages end to end; subscriber and consent ownership plus migration; issue/roundup as a notification kind; story-type selection with editor cuts; Analytics events; deliverability readiness; MoM launch. Separate story under PPY-1b83d3: the standardized quality ranking.\n\n**Related, not duplicated:** PPY-4d1143 (notifications rollout), PPY-bbc8e5 (alert-list migration, alert lists only), PPY-c522bf (sending identity), PPY-f361ee (reader pages), PPY-819117 (SES events to EventBridge), PPY-19a098 (M2 issues, built in the newsletter plugin), PPY-99738c (compatibility shims, linked not duplicated).\n\n**Order.** Public audiences, then ownership, then issue kind, then selection; deliverability and Analytics in parallel; MoM launch last.\n\n**Acceptance.** Shipped, Distinctive and MoM send their roundups through Caducus; `src/papyrus_content/newsletter` subscriber, consent and send code is gone; each child story is accepted.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-31455fd1-82ca-4dbf-a1be-fd91aec680e0",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7d76b583-9397-4e61-b4ae-b7d28a3c10c7",
+      "author": "home",
+      "text": "Decisions (Ryan, 2026-11-12): Shipped/Distinctive send freeze during migration is fine (PPY-6b2d35); no issue_open and GA4 from the page only (PPY-5a1607); no DMARC mailbox exists yet, task PPY-6bcae9 filed (priority 1, blocks MoM launch); MoM weekly send Monday 04:00 America/New_York for now (PPY-f4b164); the console responder is off on DataParade, no issue needed. Also filed PPY-0e8d66 (three-star floor, under PPY-1b83d3) and reshaped PPY-4108ef/PPY-849bf1 into the living issue Story and its inserter rules.",
+      "created_at": "2026-11-12T13:04:32.866963Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-12T12:44:57.478234Z",
+  "updated_at": "2026-11-12T13:04:32.867186Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

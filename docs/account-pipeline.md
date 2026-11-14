@@ -128,7 +128,7 @@ Two reusable workflows and one script do it, `infra/pipeline/amplify_first_build
 - **`first-build.yml`** runs only for a push or manual dispatch on `main`, as `<prefix>-github-deploy`, and runs `amplify_first_build.py run --commit-id <sha>`. It is idempotent and resumable. It marks its Amplify jobs with the commit message `first-build pass 1` and `first-build pass 2` and decides from the branch's jobs: a pass-2 job succeeded means done; a running first-build job is waited for; a pass-1 job that succeeded means remove `PAPYRUS_BOOTSTRAP_STAGE` (update-branch replaces the whole variable map, so it reads the branch first and keeps every other variable exactly) and start pass 2; no first-build job yet means set the variable, start pass 1, wait, remove the variable, start pass 2, wait. It polls every 20 seconds with an overall timeout of 50 minutes. When pass 2 has succeeded it runs `gh workflow disable` on the watcher, with the job's own token.
 - A failed or cancelled pass stops the run with exit 1 and a message, and never loops. A person reads the Amplify job log and fixes the cause. A failed first create can also leave the Amplify backend root stack `amplify-<appId>-<branch>-branch-<hash>` in `ROLLBACK_COMPLETE`; CloudFormation cannot update it, so a person or the pipeline deletes it first. Then dispatch `first-build.yml` with `retry-failed` true to start again. If the timeout runs out, the Amplify job keeps running; running again resumes waiting.
 
-The callers (the file names are the caller's; `actions: write` is needed to dispatch and disable):
+The callers (the file names are the caller's; the watcher needs `actions: write` to dispatch the build and to disable itself):
 
 ```yaml
 # .github/workflows/first-build-watch.yml  (default branch)
@@ -151,7 +151,7 @@ name: first-build
 on: { workflow_dispatch: { inputs: { retry-failed: { type: boolean, default: false } } } }
 jobs:
   first-build:
-    permissions: { contents: read, id-token: write, actions: write }
+    permissions: { contents: read, id-token: write }
     uses: AnthusAI/Papyrus/.github/workflows/first-build.yml@<papyrus tag>
     with:
       prefix: myco

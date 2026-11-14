@@ -21,6 +21,7 @@ const outputs = {
         fromName: "Example News",
         basePath: "posts",
         lists: [{ id: "stories", name: "New stories", description: "" }],
+        consent: "I agree to get the emails I choose from Example News and can unsubscribe at any time.",
         theme: { accent: "#aa3300", text: "#111111", background: "#ffffff" },
       },
     },
@@ -95,7 +96,7 @@ const location = (response: Response) => new URL(response.headers.get("location"
     assert.equal(calls.length, 1);
     assert.equal(calls[0].functionName, "notifications-fn");
     assert.deepEqual(calls[0].event, {
-      action: "subscribe", email: "reader@example.test", lists: ["stories"], page: "", consent: "", formId: "", honeypot: "", renderedAt: 5, ip: "203.0.113.9", userAgent: "agent",
+      action: "subscribe", email: "reader@example.test", lists: ["stories"], page: "", consent: "", formId: "", origin: siteOrigin, honeypot: "", ip: "203.0.113.9", userAgent: "agent",
     });
     const failing = harness(() => {
       throw new Error("boom");
@@ -104,6 +105,10 @@ const location = (response: Response) => new URL(response.headers.get("location"
     const accepted = harness({ statusCode: 202, body: { status: "check_email", secret: "x" } });
     const ok = await handleNotificationsSubscribe(request("POST", "/api/notifications/subscribe", { body: "{}" }), accepted.options);
     assert.deepEqual(await ok.json(), { status: "check_email" }, "only the status word is passed on");
+    // The network limit is said to the person (it says nothing about any address).
+    const slow = await handleNotificationsSubscribe(request("POST", "/api/notifications/subscribe", { body: "{}" }), harness({ statusCode: 429, body: { status: "slow_down" } }).options);
+    assert.equal(slow.status, 429);
+    assert.deepEqual(await slow.json(), { status: "slow_down" });
   }
 
   // The environment names the function; without a function the routes answer 503, never a throw.
@@ -178,6 +183,14 @@ const location = (response: Response) => new URL(response.headers.get("location"
     const { calls, options } = harness();
     const lists = await handleNotificationsState(request("GET", "/api/notifications/state?kind=lists&lists=stories,missing,Bad%20Id"), options);
     assert.deepEqual(await lists.json(), { status: "ready", lists: [{ id: "stories", name: "New stories" }] });
+    const offered = await handleNotificationsState(request("GET", "/api/notifications/state?kind=offered"), options);
+    assert.equal(offered.status, 200);
+    assert.deepEqual(await offered.json(), {
+      status: "ready",
+      lists: [{ id: "stories", name: "New stories", description: "" }],
+      consent: "I agree to get the emails I choose from Example News and can unsubscribe at any time.",
+    }, "the form shows the site's own consent wording");
+    assert.equal(calls.length, 0, "the offered lists come from the site's settings and ask the function nothing");
     assert.equal((await handleNotificationsState(request("GET", "/api/notifications/state?kind=other"), options)).status, 400);
     assert.equal((await handleNotificationsState(request("GET", "/api/notifications/state?kind=confirm"), options)).status, 400);
     const unavailable = await handleNotificationsState(request("GET", `/api/notifications/state?kind=confirm&t=${TOKEN}`), options);

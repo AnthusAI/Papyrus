@@ -33,16 +33,54 @@ TENANT_FIELD_MODELS = frozenset({
     "MessageThread", "ModelAttachment", "SemanticRelationType", "SemanticRelation", "Tag", "ItemTag", "Edition", "EditionItem",
     "PublishedEdition", "PublishedEditionItem", "PublishedCategorySet", "PublishedCategory", "EditorialPolicy",
     "EditorialCheckSettings", "EditorialFeedback", "EditorialCheckRun", "Proposal", "ReaderProfile", "ReaderHandle", "ReaderVote",
-    "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction", "SignupEntry",
+    "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction", "SignupEntry", "LocalizationRequest",
 })
-TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus", "headStageKey")
+TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus", "headStageKey", "languageGroupId")
 TENANT_SLUG_FIELD = "tenantSlug"
 TENANT_SLUG_MODELS = frozenset({"Item", "PublishedItem"})
 TENANT_SCOPED_RECORD_ID_MODELS = frozenset({"NewsroomSection"})
 STORED_RECORD_ID_FIELD = "storedId"
 TENANT_INDEX_REDIRECTS = {"itemBySlug": "itemByTenantSlug"}
 #: Indexes whose partition key is stored tenant-prefixed (a field in TENANT_SCOPED_INDEX_FIELDS): a query names the tenant's own partition.
-TENANT_PREFIXED_INDEXES = frozenset({"itemsByHeadStage"})
+TENANT_PREFIXED_INDEXES = frozenset({"itemsByHeadStage", "itemsByLanguageGroup"})
+#: The index of each model whose partition is ``tenantId``: the query field that lists every row of one tenant (PPY-1ce06f). Declared in
+#: amplify/data/schema.ts and the plugin and function schemas; test_tenancy.py checks that this map and those declarations agree. A model whose
+#: rows can be listed by tenant through another index (Reference through its corpora, docs/tenant-key-inventory.md) is not here.
+TENANT_FIELD = "tenantId"
+TENANT_LISTING_QUERIES = {
+    "Automation": "listAutomationsByTenant",
+    "CategoryKeyword": "listCategoryKeywordsByTenant",
+    "CurationDelegationRecord": "listCurationDelegationRecordsByTenant",
+    "EditionItem": "listEditionItemsByTenant",
+    "EditorialCheckRun": "listEditorialCheckRunsByTenant",
+    "EditorialCheckSettings": "listEditorialCheckSettingsByTenant",
+    "EditorialFeedback": "listEditorialFeedbackByTenant",
+    "EditorialPolicy": "listEditorialPoliciesByTenant",
+    "ItemTag": "listItemTagsByTenant",
+    "KnowledgeRawPayload": "listKnowledgeRawPayloadsByTenant",
+    "ModerationAction": "listModerationActionsByTenant",
+    "NewsroomSection": "listNewsroomSectionsByTenantAndSortOrder",
+    "PublishedCategory": "listPublishedCategoriesByTenant",
+    "PublishedEditionItem": "listPublishedEditionItemsByTenant",
+    "PublishedItem": "listPublishedItemsByTenant",
+    "ReaderFlag": "listReaderFlagsByTenant",
+    "ReaderHandle": "listReaderHandlesByTenant",
+    "ReaderProfile": "listReaderProfilesByTenant",
+    "ReaderReport": "listReaderReportsByTenant",
+    "ReaderVote": "listReaderVotesByTenant",
+    "ReferenceAttachment": "listReferenceAttachmentsByTenant",
+    "ReviewReadMark": "listReviewReadMarksByTenant",
+    "ReviewRecipientRule": "listReviewRecipientRulesByTenant",
+    "ReviewRequest": "listReviewRequestsByTenant",
+    "SemanticNode": "listSemanticNodesByTenant",
+    "SemanticRelation": "listSemanticRelationsByTenant",
+    "SignupEntry": "listSignupEntriesByTenant",
+    "SteeringDecision": "listSteeringDecisionsByTenant",
+    "StoryVariation": "listStoryVariationsByTenant",
+    "Tag": "listTagsByTenant",
+    "TenantDomain": "listTenantDomainsByTenant",
+    "TenantMembership": "listTenantMembershipsByTenant",
+}
 
 
 def is_shared_stack() -> bool:
@@ -167,3 +205,16 @@ def tenant_scoped_index(tenant_id: str | None, index_name: str, key_value: str) 
     if not tenant_id or index_name not in TENANT_INDEX_REDIRECTS:
         return index_name, key_value
     return TENANT_INDEX_REDIRECTS[index_name], tenant_scoped_value(tenant_id, key_value)
+
+
+def require_tenant_for_tenanted_rows(tenant_id: str | None, rows: Iterable[dict[str, Any]]) -> None:
+    """Refuse a command that has no tenant when the backend's Items carry one: what it wrote would have no tenant stamp,
+    and every tenant-scoped reader (the renders, the console) would never see it. Pass the Items the command already read."""
+    if tenant_id:
+        return
+    tenants = sorted({str(row["tenantId"]) for row in rows if row.get("tenantId")})
+    if tenants:
+        raise TenantError(
+            f"This backend's Items belong to tenant {', '.join(tenants)}, but this command has no tenant, so what it writes would be invisible to the publication. "
+            "Pass --tenant, or set PAPYRUS_TENANT_ID (the cloud knowledge run: the knowledgeRun `environment` of the site's infra/site.json)."
+        )

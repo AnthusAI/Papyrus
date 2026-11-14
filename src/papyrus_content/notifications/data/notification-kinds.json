@@ -5,8 +5,8 @@
       "channels": [
         "email"
       ],
-      "class": "operator",
-      "defaultOn": true
+      "class": "public",
+      "defaultOn": false
     }
   }
 }

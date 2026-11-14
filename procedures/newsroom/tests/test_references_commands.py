@@ -103,7 +103,6 @@ class ReferenceCommandsTests(unittest.TestCase):
             "citationRelationsCreatedCount": 0,
             "citationGraphWarnings": [],
             "filteredCount": 0,
-            "fallbackRawCount": 0,
             "changeCount": 0,
             "graphChangeCount": 0,
             "referenceMetadataChangeCount": 0,
@@ -120,7 +119,6 @@ class ReferenceCommandsTests(unittest.TestCase):
             "changes": [],
             "items": [],
             "graphRecords": [],
-            "filterFallbacks": [],
         }
         mock_run_dedupe.return_value = {
             "duplicateGroupCount": 0,
@@ -160,14 +158,12 @@ class ReferenceCommandsTests(unittest.TestCase):
             "plannedCount": 1,
             "plannedAttachmentCount": 1,
             "filteredCount": 1,
-            "fallbackRawCount": 0,
             "skippedMissingSourceCount": 0,
             "changeCount": 1,
             "failures": [],
             "items": [],
             "changes": [],
             "processedReferenceIds": {"reference-1"},
-            "filterFallbacks": [],
         }
         mock_run_metadata.return_value = {
             "attemptedCount": 1,
@@ -1090,7 +1086,7 @@ class ReferenceCommandsTests(unittest.TestCase):
 
     @mock.patch("papyrus_content.reference_url_text._extract_url_text")
     @mock.patch("papyrus_content.reference_url_text._filter_article_text")
-    def test_build_reference_url_text_attachment_plans_falls_back_to_raw_when_filter_fails(
+    def test_build_reference_url_text_attachment_plans_fails_the_reference_when_filter_fails(
         self,
         mock_filter,
         mock_extract,
@@ -1147,20 +1143,12 @@ class ReferenceCommandsTests(unittest.TestCase):
             force=False,
         )
 
-        self.assertEqual(result["fallbackRawCount"], 1)
-        self.assertEqual(len(result["filterFallbacks"]), 1)
-        canonical_plan = next(
-            plan for plan in result["plans"] if plan["record"]["expected"]["role"] == "extracted_text"
-        )
-        canonical_body = canonical_plan["body"].decode("utf-8")
-        self.assertEqual(canonical_body, "Raw extracted text")
-        metadata = json.loads(canonical_plan["record"]["expected"]["metadata"])
-        self.assertEqual(metadata["filterStatus"], "fallback_raw")
-        self.assertEqual(metadata["filterRetryFailureCount"], 1)
-        self.assertEqual(metadata["filterRetryRoundsUsed"], 3)
-        self.assertEqual(metadata["filterRetryLastCode"], "old_str_not_unique")
-        self.assertEqual(metadata["filterAgenticLoop"]["rounds_used"], 3)
-        self.assertEqual(result["filterFallbacks"][0]["reason"]["details"]["retry_trace"][0]["failure_code"], "old_str_not_unique")
+        self.assertEqual(result["filteredCount"], 0)
+        self.assertEqual(len(result["failures"]), 1)
+        self.assertEqual(result["failures"][0]["reason"]["code"], "empty_spans")
+        self.assertEqual(result["failures"][0]["reason"]["details"]["retry_trace"][0]["failure_code"], "old_str_not_unique")
+        roles = [plan["record"]["expected"]["role"] for plan in result["plans"]]
+        self.assertNotIn("extracted_text", roles)
 
     @mock.patch("papyrus_content.reference_url_text.resolve_storage_bucket_name", return_value="test-bucket")
     @mock.patch("papyrus_content.reference_url_text._filter_article_text")
@@ -1223,7 +1211,6 @@ class ReferenceCommandsTests(unittest.TestCase):
 
         self.assertEqual(result["plannedCount"], 1)
         self.assertEqual(result["filteredCount"], 1)
-        self.assertEqual(result["fallbackRawCount"], 0)
         self.assertEqual(result["processedReferenceIds"], ["reference-1"])
         self.assertEqual(result["plannedAttachmentCount"], 2)
         by_role = {plan["record"]["expected"]["role"]: plan for plan in result["plans"]}
@@ -1576,11 +1563,11 @@ class ReferenceCommandsTests(unittest.TestCase):
             "plannedCount": 0, "plannedAttachmentCount": 0, "plannedReferenceMetadataCount": 0,
             "authorsParsedCount": 0, "authorsLinkedCount": 0, "citationsParsedCount": 0, "citationsUpsertedCount": 0,
             "citationsSkippedLowConfidenceCount": 0, "citationRelationsCreatedCount": 0, "citationGraphWarnings": [],
-            "filteredCount": 0, "fallbackRawCount": 0, "changeCount": 0, "graphChangeCount": 0,
+            "filteredCount": 0, "changeCount": 0, "graphChangeCount": 0,
             "referenceMetadataChangeCount": 0, "attachmentChangeCount": 0, "failures": [], "failedGrobidCount": 0,
             "doiResolvedCount": 0, "doiPdfSelectedCount": 0, "doiPdfMissedCount": 0, "doiSearchUsedCount": 0,
             "doiSearchHitCount": 0, "doiApiFallbackUsedCount": 0, "doiPaywalledOrBlockedCount": 0,
-            "changes": [], "items": [], "graphRecords": [], "filterFallbacks": [],
+            "changes": [], "items": [], "graphRecords": [],
         }
         dedupe_result = {"duplicateGroupCount": 0, "referencesMergedCount": 0, "relationsRewiredCount": 0, "losersBlockedCount": 0}
         client = mock.Mock()

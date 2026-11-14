@@ -154,6 +154,10 @@ class ProjectionContext:
         attach = getattr(self.projector, "attach_store", None)
         if attach is not None:
             attach(self.writer)
+        languages = getattr(self.source, "serving_languages", None)
+        use_languages = getattr(self.projector, "use_languages", None)
+        if languages is not None and use_languages is not None:
+            use_languages(languages)   # read when the projector first needs them: the site's languages from the editorial check settings
 
 
 def _leased(function):
@@ -513,9 +517,25 @@ def _project_publication(
     )
     if report.follow_up_item_pages and not context.defer_follow_up:
         _run_follow_up(context, report, current.item_id)
+    _render_dependents(context, report, site_before, site, current.item_id)
     if context.keep_state:
         write_item_state(context.writer, state)
     _converge(context, report, site, current.item_id, state)
+
+
+def _render_dependents(context: ProjectionContext, report: ProjectionReport, before: SiteIndex, after: SiteIndex, item_id: str) -> None:
+    """Render again the pages of the other items this change shows on: the other languages of a Story's language group, whose switcher and ``hreflang``
+    list the languages that are published (``dependent_item_ids``). As many as the group has languages; nothing when every item page is rendered anyway."""
+    dependents = getattr(context.projector, "dependent_item_ids", None)
+    if dependents is None or (report.follow_up_item_pages and not context.defer_follow_up):
+        return
+    by_id = {summary.item_id: summary for summary in after.items}
+    for dependent in dependents(before, after, item_id):
+        summary = by_id.get(dependent)
+        if summary is None:
+            continue
+        pages = context.projector.item_pages(after.load_item(dependent), after)
+        _write_item_pages(context, report, pages, {key: summary.version_number for key in pages})
 
 
 def _without_lineage(registry: Registry, lineage_id: str | None) -> Registry:
@@ -566,6 +586,7 @@ def _project_removal(
     _write_listing_pages(context, report, listing_pages, inputs)
     if report.follow_up_item_pages and not context.defer_follow_up:
         _run_follow_up(context, report, item_id)
+    _render_dependents(context, report, site_before, site, item_id)
     _delete_pages(context, report, set(page_keys) - set(inputs))
     report.item_paths = list(page_keys)
     _delete_pages(context, report, removed - _item_keys(context, site))

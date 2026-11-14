@@ -10,9 +10,17 @@
   "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9034ebae-0443-455d-a5f7-5b0298d16380",
+      "author": "home",
+      "text": "Merged in #1423. Decision: the image prompt skeleton was already built only from the site's own image profile (binding constraints, e.g. no real person). What was shared was data/figures/rules.md, so a site-rule kind 'figure-rules' (bodyMarkus, the complete text) now replaces it per site; papyrus figures rules prints the site's and says which.",
+      "created_at": "2026-11-12T11:55:55.267320Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-11T17:15:59.896114Z",
-  "updated_at": "2026-11-11T17:15:59.896152Z",
+  "updated_at": "2026-11-12T11:55:55.267628Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

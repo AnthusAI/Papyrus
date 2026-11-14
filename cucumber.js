@@ -170,6 +170,11 @@ module.exports = {
     require: ["features/step_definitions/newsroom-writing-guidelines-admin.steps.js"],
     format: ["summary"],
   },
+  newsroomAnnouncements: {
+    paths: ["features/newsroom-announcements.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/newsroom-announcements.steps.js"],
+    format: ["summary"],
+  },
   coverImagePicker: {
     paths: ["features/cover-image-picker.feature"],
     require: ["features/step_definitions/cover-image-picker.steps.js"],
@@ -198,6 +203,11 @@ module.exports = {
   markdownTwinDisplay: {
     paths: ["features/markdown-twin-display.feature"],
     require: ["features/step_definitions/markdown-twin-display.steps.js"],
+    format: ["summary"],
+  },
+  noFallbacks: {
+    paths: ["features/no-fallbacks.feature"],
+    require: ["features/step_definitions/no-fallbacks.steps.js"],
     format: ["summary"],
   },
   messageAuthorEnforced: {
@@ -248,6 +258,11 @@ module.exports = {
   storyStars: {
     paths: ["features/newsroom-story-stars.feature"],
     require: ["features/step_definitions/story-stars.steps.js"],
+    format: ["summary"],
+  },
+  storySchedule: {
+    paths: ["features/newsroom-story-schedule.feature"],
+    require: ["features/step_definitions/story-schedule.steps.js"],
     format: ["summary"],
   },
   autoAcceptedList: {

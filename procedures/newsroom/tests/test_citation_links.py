@@ -123,3 +123,40 @@ def test_the_checklist_check_names_a_key_that_is_not_among_the_entries():
 
 def test_the_checklist_check_passes_when_every_marker_resolves_and_the_directive_is_present():
     assert lens(WITH_DIRECTIVE)["state"] == "pass"
+
+
+PAPER = {
+    "type": "article",
+    "title": "Foundation Models and Fair Use",
+    "container-title": "SSRN",
+    "author": [{"family": "Lemley", "given": "Mark"}],
+    "issued": {"date-parts": [[2026]]},
+}
+DOI = "10.2139/ssrn.7682724"
+URL = "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7682724"
+
+
+def bibliography_entry(**identifiers: str) -> str:
+    from papyrus_content.markus_renderer.citations import CitationCollector, CitationRendering
+
+    collector = CitationCollector({"lemley": {**PAPER, **identifiers}}, CitationRendering())
+    collector.number_for("lemley")
+    return collector.list_html()
+
+
+def test_a_source_with_a_doi_and_a_url_separates_the_url_link_from_the_doi():
+    entry = bibliography_entry(DOI=DOI, URL=URL)
+    assert f"ssrn.7682724 <a href=\"{URL}\"" in entry
+    assert "ssrn.7682724<a" not in entry
+
+
+def test_a_source_with_only_a_doi_ends_with_the_doi():
+    entry = bibliography_entry(DOI=DOI)
+    assert entry.endswith("ssrn.7682724</li></ol>")
+    assert "<a " not in entry
+
+
+def test_a_source_with_only_a_url_links_it_after_a_space():
+    entry = bibliography_entry(URL=URL)
+    assert f"In SSRN. <a href=\"{URL}\"" in entry
+    assert "doi.org" not in entry

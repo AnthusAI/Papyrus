@@ -8,7 +8,8 @@ import { a } from "@aws-amplify/backend";
  * (`FunctionDirectiveStack`). CloudFormation allows 500 resources in a stack, and that stack grows by six resources per
  * Lambda-backed field. Giving every field that calls the same Lambda the same name makes them share one data source,
  * role, policy and function configuration, so each extra field costs only its resolver. The Lambda receives the same
- * event as before (`typeName`, `fieldName`, `arguments`, `identity`), so no handler changes.
+ * event as before (`typeName`, `fieldName`, `arguments`, `identity`), so no handler changes. `fieldName` is at the top level and there is no
+ * `info` object; a Python handler reads it with `papyrus_content.appsync_event.operation_name`.
  *
  * Every function used this way is registered here and handed to `defineData({ functions })`, which is how Amplify
  * resolves a handler given by name.

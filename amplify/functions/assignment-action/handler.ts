@@ -742,7 +742,7 @@ function runIngestionReferenceRegisterViaCli(input: {
     "input.sourceUri",
   );
   const title = normalizeOptionalString(input.input.title) ?? "Untitled source";
-  const corpusKey = normalizeOptionalString(input.input.corpusKey ?? input.input.corpus_key) ?? "AI-ML-research";
+  const corpusKey = normalizeRequiredString(input.input.corpusKey ?? input.input.corpus_key, "input.corpusKey");
   const ingestionRationale = normalizeOptionalString(input.input.ingestionRationale ?? input.input.ingestion_rationale)
     ?? `Registered from procedure ingestion.reference.register for ${externalItemId}.`;
   const tempDir = mkdtempSync(path.join(tmpdir(), "papyrus-ingestion-reference-register-"));

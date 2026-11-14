@@ -522,3 +522,49 @@ def test_the_new_modules_are_in_the_collector_and_router_zips():
 
     assert {"monitoring_feed", "monitoring_hf_papers"} <= set(build.package_modules(build.COLLECTOR_ROOTS))
     assert {"monitoring_feed", "monitoring_hf_papers"} <= set(build.package_modules(build.ROUTER_ROOTS))
+
+
+# --- a site adds a feed host as data (PPY-94458e) --------------------------------------------------------------------
+
+NEW_HOST_FEED = "https://feeds.satirejournal.com/rss.xml"
+
+
+def test_a_feed_on_a_new_public_host_is_accepted_when_the_config_names_the_source():
+    config = _validate_config({"sourceType": "feed", "sourceUrl": NEW_HOST_FEED, "intervalSeconds": 3600, "sourceName": "Satire Journal"})
+    assert config["sourceName"] == "Satire Journal" and config["sourceUrl"] == NEW_HOST_FEED
+    with pytest.raises(ValueError, match="names the source"):
+        _validate_config({"sourceType": "feed", "sourceUrl": NEW_HOST_FEED, "intervalSeconds": 3600})   # a host that is not built in needs the name
+    assert "sourceName" not in _validate_config({"sourceType": "feed", "sourceUrl": SECURITY_FEED, "intervalSeconds": 3600})   # a built-in host needs none
+
+
+@pytest.mark.parametrize("url", ["https://localhost/rss", "https://127.0.0.1/rss", "https://10.0.0.5/rss", "https://[::1]/rss", "https://printer.local/rss", "https://intranet/rss",
+                                 "https://metadata.internal/rss", "http://feeds.satirejournal.com/rss.xml", "https://feeds.satirejournal.com:8443/rss.xml",
+                                 "https://user:pw" + "@feeds.satirejournal.com/rss.xml", "https://feeds.satirejournal.com/rss.xml#x"])
+def test_a_name_never_makes_a_private_or_unsafe_address_acceptable(url):
+    with pytest.raises(ValueError):
+        _validate_config({"sourceType": "feed", "sourceUrl": url, "intervalSeconds": 3600, "sourceName": "Anything"})
+
+
+@pytest.mark.parametrize("name", ["", "  ", 5, "x" * 81, "bad\nname"])
+def test_a_source_name_is_a_short_plain_name(name):
+    with pytest.raises(ValueError, match="sourceName"):
+        _validate_config({"sourceType": "feed", "sourceUrl": NEW_HOST_FEED, "intervalSeconds": 3600, "sourceName": name})
+
+
+def test_the_fetch_of_a_named_host_checks_the_address_and_reads_it(monkeypatch):
+    with pytest.raises(ValueError):
+        feed.fetch_feed(NEW_HOST_FEED)   # the fetch alone does not know the name: a host that is not built in is refused
+    seen = []
+    monkeypatch.setattr(feed, "urlopen", lambda request, **k: seen.append(request.full_url) or (_ for _ in ()).throw(RuntimeError("stop")))
+    with pytest.raises(RuntimeError):
+        feed.fetch_feed(NEW_HOST_FEED, True)
+    assert seen == [NEW_HOST_FEED]
+    source = feed.feed_source({"sourceUrl": NEW_HOST_FEED, "sourceName": "Satire Journal"}, None)
+    with pytest.raises(RuntimeError):
+        source["fetch_page"](None)
+
+
+def test_the_name_in_the_config_is_the_name_shown_for_the_source():
+    mr = pytest.importorskip("papyrus_content.monitoring_router")
+    assert mr.source_name_for(NEW_HOST_FEED, "feed", "Satire Journal") == "Satire Journal"
+    assert mr.source_name_for(NEW_HOST_FEED, "feed") == "Feed" and mr.source_name_for(SECURITY_FEED, "feed") == "arXiv"

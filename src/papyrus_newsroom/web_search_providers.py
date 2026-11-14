@@ -2,7 +2,7 @@
 
 A thin adapter over ``papyrus_content.web_search``, which owns every provider (tavily, openai, perplexity, gemini, bedrock), the
 key lookup and the fallback chain. This module only shapes the answer into the reference-research payload the Tactus tools
-read. Configuration: ``WEB_SEARCH_PROVIDERS`` (ordered, comma separated; a fallback chain) or the older ``WEB_SEARCH_PROVIDER``.
+read. Configuration: ``WEB_SEARCH_PROVIDERS`` (ordered, comma separated; the chain).
 """
 
 from __future__ import annotations
@@ -13,11 +13,10 @@ import urllib.parse
 from typing import Any
 
 from papyrus_content.model_defaults import DEFAULT_LLM_MODEL
-from papyrus_content.web_search import (CHAIN_ENV, DEFAULT_CHAIN, PROVIDERS, SINGLE_ENV, OpenAIProvider, SearchChain, SearchRequest, SearchResponse,
+from papyrus_content.web_search import (CHAIN_ENV, DEFAULT_CHAIN, PROVIDERS, OpenAIProvider, SearchChain, SearchRequest, SearchResponse,
                                         chain_names, parse_names)
 
 WebSearchProviderName = str
-WEB_SEARCH_PROVIDER_ENV = SINGLE_ENV
 WEB_SEARCH_PROVIDERS_ENV = CHAIN_ENV
 WEB_SEARCH_PATH = "papyrus.reference.web_search"
 DEFAULT_WEB_SEARCH_PROVIDER: WebSearchProviderName = DEFAULT_CHAIN[0]
@@ -25,7 +24,7 @@ _SUPPORTED_PROVIDERS: frozenset[str] = frozenset(PROVIDERS)
 
 
 def normalize_web_search_provider(value: Any) -> WebSearchProviderName:
-    """The first provider of the configured chain: an explicit name wins, then ``WEB_SEARCH_PROVIDERS``, ``WEB_SEARCH_PROVIDER``, tavily."""
+    """The first provider of the configured chain: an explicit name wins, then ``WEB_SEARCH_PROVIDERS``, tavily."""
     return web_search_chain_names(value)[0]
 
 

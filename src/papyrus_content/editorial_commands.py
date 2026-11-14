@@ -1,18 +1,22 @@
 """`papyrus editorial`: the site's editorial policies, checked by Humanus from the command line.
 
-    papyrus editorial pack [--section KEY] [--output FILE]
+    papyrus editorial pack [--section KEY] [--language TAG] [--output FILE]
     papyrus editorial import --profile publications/<pub>/style-profile.yml [--replace]
-    papyrus editorial check --draft FILE [--section KEY] [--pack FILE] [--output FILE]
-    papyrus editorial suggest --draft FILE (--finding-id ID | --select TEXT) [--note TEXT] [--section KEY] [--pack FILE]
+    papyrus editorial check --draft FILE [--story LINEAGE] [--section KEY] [--language TAG] [--pack FILE] [--output FILE]
+    papyrus editorial suggest --draft FILE [--story LINEAGE] (--finding-id ID | --select TEXT) [--note TEXT] [--section KEY] [--language TAG] [--pack FILE]
     papyrus editorial policies list | import-starter NAME | ensure-defaults
     papyrus editorial policies add --file PACK [--dry-run] [--publication KEY] [--actor NAME]
-    papyrus editorial policies export --file PACK [--pack-id ID] [--pack-version V]
+    papyrus editorial policies export --file PACK [--language TAG] [--pack-id ID] [--pack-version V]
     papyrus editorial check-version --item VERSION_ID [--json]
     papyrus editorial check-drafts [--limit N] [--dry-run]
 
 Policies and settings come from the site (EditorialPolicy / EditorialCheckSettings,
 read with the authoring role) unless `--pack` names a Humanus policy-pack file.
 The newsroom's article editor runs the same checks; this is for agents and scripts.
+
+A draft is checked in its language: `--language`, or the site's primary language (the
+editorial settings' `languages.primary`), which is the language every Story is written in
+until the multilingual plan's Story language field exists (`editorial_languages`).
 """
 
 from __future__ import annotations
@@ -31,15 +35,19 @@ from .editorial_checks import (
     PUBLICATION_SCOPE,
     GraphQLEditorialStore,
     Services,
+    check_draft,
     check_editorial,
-    compose_pack,
     ensure_default_policies,
     import_starter_pack,
-    policy_record_id,
+    policy_identity,
     record_from_policy,
     settings_from,
     suggest_rewrite,
 )
+from .editorial_languages import ANY_LANGUAGE, primary_language, site_language
+
+STORY_HELP = "The story (lineage id or slug) this draft revises, so its own saved versions are not compared as other stories by the cross-story boilerplate check."
+LANGUAGE_HELP = "Language of the draft (en, es-419, zh-Hans ...). Default: the site's primary language, the language its Stories are written in."
 
 
 class PackFileStore:
@@ -54,8 +62,10 @@ class PackFileStore:
             import yaml
 
             payload = yaml.safe_load(text)
-        self._records = [record_from_policy(policy, scope=PUBLICATION_SCOPE, source=f"file:{path.name}") for policy in payload["policies"]]
+        self._records = [record_from_policy(policy, scope=PUBLICATION_SCOPE, language=pack.language, source=f"file:{path.name}") for policy in payload["policies"]]
         self._guidance = pack.guidance or ""
+        # The file's language is the only language it can check; a language-neutral file checks text in any language the caller names.
+        self._languages = None if pack.language == ANY_LANGUAGE else {"primary": pack.language, "enabled": [pack.language]}
 
     def list_policies(self) -> list[dict[str, Any]]:
         return self._records
@@ -71,7 +81,7 @@ class PackFileStore:
                              warnings=['Explicit file policy; not current hosted doctrine.'])
 
     def get_settings(self) -> dict[str, Any] | None:
-        return {"settings": {"guidance": self._guidance}}
+        return {"settings": {"guidance": self._guidance, **({"languages": self._languages} if self._languages else {})}}
 
     def list_feedback(self) -> list[dict[str, Any]]:
         return []
@@ -104,29 +114,35 @@ def _read_draft(path: str) -> str:
     return draft.read_text(encoding="utf-8")
 
 
+def _language(args: argparse.Namespace, settings: dict[str, Any]) -> str:
+    return args.language or primary_language(settings)
+
+
 def editorial_pack(flags: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog="papyrus editorial pack", description="Print the site's policy pack for a desk.")
+    parser = argparse.ArgumentParser(prog="papyrus editorial pack", description="Print the site's policy pack for a section and language.")
     parser.add_argument("--section", default=None, help="Desk key whose policies replace publication policies with the same key.")
+    parser.add_argument("--language", default=None, help="The language of the text the pack checks. Default: the site's primary language.")
     parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
     store = GraphQLEditorialStore()
     from .editorial_model_context import editing_pack
-    _emit(editing_pack(store, args.section, settings_from(store)), args.output)
+    settings = settings_from(store)
+    _emit(editing_pack(store, args.section, settings, site_language(_language(args, settings), settings)), args.output)
 
 
 def import_style_profile(store, profile: Path, *, replace: bool) -> dict[str, int]:
     """Add a style profile's controls to the store as publication policies."""
-    existing = {policy_record_id(r["policyKey"], r["scope"]): r for r in store.list_policies()}
+    existing = {policy_identity(r): r for r in store.list_policies()}
     pack = humanus.policy_pack_from_style_profile(profile)
     counts = {"created": 0, "replaced": 0, "skipped": 0}
     for policy in pack["policies"]:
-        record = record_from_policy(policy, scope=PUBLICATION_SCOPE, source=f"style-profile:{pack['packId']}")
-        current = existing.get(record["id"])
+        record = record_from_policy(policy, scope=PUBLICATION_SCOPE, language=pack["language"], source=f"style-profile:{pack['packId']}")
+        current = existing.get(policy_identity(record))
         if current is None:
             store.create_policy(record)
             counts["created"] += 1
         elif replace:
-            store.update_policy({**record, "version": int(current.get("version") or 1) + 1})
+            store.update_policy({**record, "id": current["id"], "version": int(current.get("version") or 1) + 1})
             counts["replaced"] += 1
         else:
             counts["skipped"] += 1
@@ -149,12 +165,15 @@ def editorial_import(flags: list[str]) -> None:
 def editorial_check(flags: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="papyrus editorial check", description="Check a draft against the site's editorial policies.")
     parser.add_argument("--draft", required=True, help="Markus/Markdown body to check (read-only).")
+    parser.add_argument("--story", default=None, help=STORY_HELP)
     parser.add_argument("--section", default=None, help="Desk key, for desk policies.")
-    parser.add_argument("--pack", default=None, help="Use this Humanus policy-pack file instead of the site's policies.")
+    parser.add_argument("--language", default=None, help=LANGUAGE_HELP)
+    parser.add_argument("--pack", default=None, help="Use this Humanus policy-pack file instead of the site's policies. A policy file has no stories, so the cross-story boilerplate check cannot run; the output's notRun list says so.")
     parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
     services = Services(store=_store(args.pack))
-    _emit(check_editorial({"body": _read_draft(args.draft), "format": "markus", "section": args.section}, services), args.output)
+    language = _language(args, settings_from(services.store))
+    _emit(check_draft({"body": _read_draft(args.draft), "format": "markus", "section": args.section, "language": language}, services, story=args.story), args.output)
 
 
 def editorial_suggest(flags: list[str]) -> None:
@@ -167,15 +186,18 @@ def editorial_suggest(flags: list[str]) -> None:
     target.add_argument("--finding-id", help="A finding id from `papyrus editorial check` on the same draft.")
     target.add_argument("--select", help="Exact text of the draft to rewrite.")
     parser.add_argument("--note", default=None, help="Editor note, e.g. 'shorter'.")
+    parser.add_argument("--story", default=None, help=STORY_HELP)
     parser.add_argument("--section", default=None)
+    parser.add_argument("--language", default=None, help=LANGUAGE_HELP)
     parser.add_argument("--pack", default=None)
     parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
     body = _read_draft(args.draft)
     services = Services(store=_store(args.pack))
-    arguments: dict[str, Any] = {"body": body, "format": "markus", "section": args.section, "note": args.note}
+    language = _language(args, settings_from(services.store))
+    arguments: dict[str, Any] = {"body": body, "format": "markus", "section": args.section, "language": language, "note": args.note}
     if args.finding_id:
-        result = check_editorial({"body": body, "format": "markus", "section": args.section}, services)
+        result = check_draft({"body": body, "format": "markus", "section": args.section, "language": language}, services, story=args.story)
         finding = next((f for f in result["findings"] if f["id"] == args.finding_id), None)
         if finding is None:
             raise ValueError(f"No finding {args.finding_id} in this draft; run `papyrus editorial check` again.")
@@ -197,9 +219,11 @@ def editorial_policies_pack(store, args: argparse.Namespace) -> None:
         raise ValueError(f"This site's publication is not {args.publication}; nothing was changed.")
     path = Path(args.file).resolve()
     if args.action == "export":
-        pack, left_out = policy_pack.export_pack(store, pack_id=args.pack_id, pack_version=args.pack_version)
+        language = args.language or primary_language(settings_from(store))
+        pack, left_out = policy_pack.export_pack(store, pack_id=args.pack_id, pack_version=args.pack_version, language=language)
         policy_pack.write_pack(path, pack)
-        print(f"Exported {len(pack['policies'])} policies to {path}" + (f" ({left_out} desk policies left out: a pack has no desk scope)" if left_out else ""))
+        print(f"Exported {len(pack['policies'])} {pack['language']} policies to {path}"
+              + (f" ({left_out} left out: a pack has one language and no section scope)" if left_out else ""))
         return
     payload = policy_pack.load_pack_payload(path)
     steps = policy_pack.plan_policies(store, payload, actor=args.actor or policy_pack.DEFAULT_ACTOR)
@@ -217,8 +241,8 @@ def editorial_policies(flags: list[str]) -> None:
     listing = subcommands.add_parser("list", help="The site's policies: key, scope, severity, enabled, source.")
     listing.add_argument("--json", action="store_true")
     starter = subcommands.add_parser("import-starter", help="Add a Humanus starter pack's policies that the site does not have yet.")
-    starter.add_argument("name", help="ai-writing-tells, plain-language or asd-ste100")
-    subcommands.add_parser("ensure-defaults", help="Import the default starter packs once (what a deploy does).")
+    starter.add_argument("name", help="A starter pack Humanus ships: ai-writing-tells, plain-language, asd-ste100, typography-es, ai-writing-tells-zh-hans ...")
+    subcommands.add_parser("ensure-defaults", help="Write the language of older policies, then import the starter packs of every enabled language once (what a deploy does).")
     add = subcommands.add_parser("add", help="Create or version policies (with classifier questions) from a policy-pack-v1 file.")
     add.add_argument("--file", required=True, help="Humanus policy-pack-v1 file (JSON or YAML).")
     add.add_argument("--dry-run", action="store_true", help="Print the plan; write nothing.")
@@ -226,6 +250,8 @@ def editorial_policies(flags: list[str]) -> None:
     add.add_argument("--actor", default=None, help=f"Who ran this, recorded in each policy's source (default {policy_pack.DEFAULT_ACTOR}).")
     export = subcommands.add_parser("export", help="Write the site's publication policies as a policy-pack-v1 file.")
     export.add_argument("--file", required=True, help="Output file (.json, .yml or .yaml).")
+    export.add_argument("--language", default=None, help="The pack's language: its policies written for exactly this language (or * for the neutral ones). "
+                                                         "Default: the site's primary language.")
     export.add_argument("--pack-id", default="site-policies")
     export.add_argument("--pack-version", default=None, help="Default: the highest policy version.")
     export.add_argument("--publication", default=None, help="Refuse unless the site's publication key is this.")
@@ -234,12 +260,12 @@ def editorial_policies(flags: list[str]) -> None:
     if args.action in ("add", "export"):
         editorial_policies_pack(store, args)
     elif args.action == "list":
-        rows = sorted(store.list_policies(), key=lambda row: (row["scope"], row["policyKey"]))
+        rows = sorted(store.list_policies(), key=lambda row: (row["scope"], row.get("language") or "", row["policyKey"]))
         if args.json:
-            _emit([{key: row.get(key) for key in ("policyKey", "scope", "severity", "enabled", "source", "version")} for row in rows], None)
+            _emit([{key: row.get(key) for key in ("policyKey", "scope", "language", "severity", "enabled", "source", "version")} for row in rows], None)
             return
         for row in rows:
-            print(f"{row['scope']}\t{row['policyKey']}\t{row['severity']}\t{'enabled' if row.get('enabled') else 'disabled'}\t{row.get('source')}")
+            print(f"{row['scope']}\t{row.get('language')}\t{row['policyKey']}\t{row['severity']}\t{'enabled' if row.get('enabled') else 'disabled'}\t{row.get('source')}")
         print(f"{len(rows)} policies")
     elif args.action == "import-starter":
         counts = import_starter_pack({"name": args.name}, Services(store=store))

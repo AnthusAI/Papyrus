@@ -5,6 +5,7 @@ import { createEmptyCategorySteeringDashboard } from "./category-dashboard";
 import { applyPilobolusDemoDashboardContent } from "./newsroom-demo-dashboard";
 import { getNewsroomDemoProfile, isPilobolusDemoBrand } from "./newsroom-demo-profile";
 import { resolveSiteBrandId, type SiteBrandId } from "./site-brand";
+import { corpusIdForKey } from "./tenant-knowledge-keys";
 
 export { createEmptyCategorySteeringDashboard };
 
@@ -819,7 +820,7 @@ function stringArray(value: unknown): string[] {
 
 function knowledgeCorpusIdFromKey(corpusKey: string): string {
   const safeKey = String(corpusKey || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "unknown";
-  return `knowledge-corpus-${safeKey}`;
+  return corpusIdForKey(safeKey);
 }
 
 export async function loadCategorySteeringDashboard(): Promise<CategorySteeringDashboard> {
