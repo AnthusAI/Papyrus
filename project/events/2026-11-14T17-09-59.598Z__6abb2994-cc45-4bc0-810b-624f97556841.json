@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6abb2994-cc45-4bc0-810b-624f97556841",
+  "issue_id": "PPY-87ce2349-25b9-402b-bda0-64ae12976e8a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-14T17:09:59.598Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A deploy refuses to silently remove a deployed optional feature",
+    "description": "Found while landing #1429 (optional backend features default off). A deploy whose synthesized flags turn a feature off removes that feature's resources: the console responder function and Message stream trigger, the inbound email receipt rule, functions and EventBridge rules, the storage backup plan. No table or bucket goes, but mail to a removed inbound address bounces and backups silently stop.\n\nGuard in `papyrus-infra backend-deploy`: before deploying, read the deployed root stack outputs (the `inboundEmail`, `storageBackups` and console responder entries, the way cost-tag waves already read PapyrusCostTagWave), compare them with the synthesized flags, and refuse the deploy, naming the feature, unless the site writes that feature as an explicit `false` in papyrus.config.ts. A feature that was never deployed is unaffected. No fallback and no override flag.\n\nGherkin:\nFeature: A deploy never silently removes a deployed feature\n  Scenario: Inbound email is deployed and the synthesized flag is off by default\n    Given the deployed root stack reports inbound email on\n    And the site does not write features.inboundEmail\n    When backend-deploy runs\n    Then it refuses before changing anything, naming inboundEmail and how to keep or remove it\n  Scenario: The site writes the feature as an explicit false\n    Given the deployed root stack reports storage backups on\n    And the site writes features.storageBackups as false\n    When backend-deploy runs\n    Then the deploy proceeds\n  Scenario: A feature that was never deployed\n    Given the deployed root stack reports the console responder off\n    When backend-deploy runs with it off\n    Then the deploy proceeds\n  Scenario: A first deploy\n    Given no root stack exists\n    Then there is nothing to compare and the deploy proceeds\n\nNeeds a gated AWS test (the stack outputs come from a real deployed stack); unit-test the comparison with recorded outputs.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+    "labels": []
+  }
+}
