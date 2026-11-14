@@ -141,9 +141,9 @@ def automation_procedure_key(client, automation_id: str | None) -> str | None:
 
 
 def collect(client, *, story: str, language: str, judge, procedure_version: str, ceiling_usd: float | None = None,
-            decision_model: Any = None, automation_id: str | None = None) -> LocalizeRequest:
+            decision_model: Any = None, automation_id: str | None = None, procedure_key: str | None = None) -> LocalizeRequest:
     """Stage 1: everything the run needs, read through indexes. Refuses a Story that is not published or is marked do-not-localize.
-    ``automation_id`` names the automation that runs the procedure; its procedure's earlier runs give the cost prediction."""
+    ``procedure_key`` (or the procedure of ``automation_id``) names the registered procedure whose earlier runs give the cost prediction."""
     from ..editorial_checks import GraphQLEditorialStore, settings_from
     from ..editorial_languages import site_language, starter_packs_for, story_language
     from ..editorial_model_context import editing_pack_and_context
@@ -181,7 +181,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
                            lanes=lanes, decision_model=decision_model)
     english = BlockChecker(source_language=source_language, target_language=source_language, glossary=glossary, copy_edit_pack=source_pack,
                            judge=None, lanes={"rules": True, "classifier": False})
-    procedure_key = automation_procedure_key(client, automation_id)
+    procedure_key = procedure_key or automation_procedure_key(client, automation_id)
     history = spend_history(client, procedure_key) if procedure_key else []
     key = run_key(source, target, procedure_version=procedure_version, checker_versions=checker.versions)
     characters = sum(len(block.text) for block in blocks_of(source.body, title=source.title, deck=source.deck) if block.translated)
