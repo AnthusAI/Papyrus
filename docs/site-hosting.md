@@ -919,7 +919,16 @@ backend: {
 ```
 
 Write all four, `false` included: `features` wins over the branch variables, and an explicit
-`false` is a decision that a person can read. A site that already sets all four in
+`false` is a decision that a person can read.
+
+Papyrus's own legacy backend (`amplify/backend.ts`, the old p.apyr.us Amplify app in the legacy
+account) is the one backend that relies on the old defaults. It does not build on its own
+(auto-build is off for its branches), so nothing changes until someone starts a build of it by hand.
+Before anyone does, set `features: { consoleResponder: true, inboundEmail: true, slack: false,
+storageBackups: true }` in `amplify/backend.ts`, or that deploy removes the console responder, the
+inbound email receipt rule and the storage backups.
+
+A site that already sets all four in
 `papyrus.config.ts`, or in `cms.environment` of `infra/site.json`, changes nothing.
 
 Names that are account-global or region-global are derived in
