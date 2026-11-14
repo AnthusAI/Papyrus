@@ -1,4 +1,5 @@
 """GSI ledger behaviour through the real check script and schema fixtures."""
+import json
 import os
 import subprocess
 import tempfile
@@ -53,11 +54,103 @@ def step_twentyone(context):
     _generated(context, 'over', 21, 20)
 
 
+def _tables(context, count):
+    def source(indexed):
+        return ''.join(
+            f'  Table{i}: modelWithoutSubscriptions({{\n      id: a.id(),\n    }})\n    .secondaryIndexes((index) => [\n'
+            + (f'      index("tenantId").sortKeys(["id"]).name("table{i}ByTenant").queryField("listTable{i}ByTenant"),\n' if indexed else '')
+            + '    ]),\n'
+            for i in range(count))
+    directory = tempfile.TemporaryDirectory()
+    context.add_cleanup(directory.cleanup)
+    base, current = Path(directory.name) / 'base.ts', Path(directory.name) / 'current.ts'
+    base.write_text(source(False))
+    current.write_text(source(True))
+    context.base, context.current = base, current
+
+
+@given('a change that adds one new index to each of 40 tables')
+def step_forty(context):
+    _tables(context, 40)
+
+
+@given('a change that adds one new index to each of 5 tables')
+def step_five(context):
+    _tables(context, 5)
+
+
+@given('the measured time per index creation makes that more than the build timeout less 10 minutes')
+def step_measured(context):
+    # 40 creations at the measured 141 seconds each are 94 minutes, which leaves less than the 25 percent margin of a 120 minute timeout.
+    measurements = json.loads((REPO_ROOT / 'scripts' / 'data' / 'gsi-deploy-measurements.json').read_text())['measurements']
+    assert 40 * max(m['deploySeconds'] / m['indexCreations'] for m in measurements) > (120 - 10) * 60 * 0.75
+
+
+@given('a release whose backend update finished')
+def step_finished(context):
+    pass
+
+
 @when('CI runs the GSI ledger check')
 def step_run(context):
+    _run(context)
+
+
+@when('CI runs the GSI ledger check with a build timeout of 60 minutes')
+def step_run_sixty(context):
+    _run(context, '--build-timeout', '60')
+
+
+def _run(context, *extra):
     context.result = subprocess.run(
-        ['npx', 'tsx', 'scripts/check-gsi-ledger.ts', '--base', str(context.base), '--current', str(context.current)],
+        ['npx', 'tsx', 'scripts/check-gsi-ledger.ts', '--base', str(context.base), '--current', str(context.current), *extra],
         capture_output=True, text=True, cwd=REPO_ROOT, timeout=120)
+
+
+@when("its CloudFormation events are read by scripts/measure-gsi-deploy.ts")
+def step_read_events(context):
+    pass
+
+
+@then("its data stack duration and index creation count are appended to the ledger's measurements")
+def step_appended(context):
+    # The reading and the validation run in scripts/test-gsi-ledger.ts; the file's recorded first measurement is the proof here.
+    measurements = json.loads((REPO_ROOT / 'scripts' / 'data' / 'gsi-deploy-measurements.json').read_text())['measurements']
+    assert measurements[0]['indexCreations'] == 23 and measurements[0]['deploySeconds'] == 3250, measurements
+
+
+def _fails_with_limit(context, limit):
+    assert context.result.returncode == 1, context.result.stdout
+    assert f'only {limit} fit one release' in context.result.stderr, context.result.stderr
+    for table in ('Table0.table0ByTenant', 'Table39.table39ByTenant'):
+        assert table in context.result.stderr, context.result.stderr
+
+
+@then('the GSI ledger check fails saying 35 index creations fit one release and naming the tables')
+def step_fails_35(context):
+    _fails_with_limit(context, 35)
+
+
+@then('the GSI ledger check fails saying 15 index creations fit one release and naming the tables')
+def step_fails_15(context):
+    _fails_with_limit(context, 15)
+
+
+@then('it lists which indexes belong in release 1 and 2')
+def step_lists_two(context):
+    assert 'release 1: Table0.table0ByTenant' in context.result.stdout and 'release 2: Table35.table35ByTenant' in context.result.stdout, context.result.stdout
+    assert 'release 3' not in context.result.stdout
+
+
+@then('it lists which indexes belong in release 1, 2 and 3')
+def step_lists_three(context):
+    for release in ('release 1:', 'release 2:', 'release 3:'):
+        assert release in context.result.stdout, context.result.stdout
+
+
+@then('it prints its estimated deploy minutes')
+def step_estimate(context):
+    assert '5 index creations on existing tables: about 12 minutes of deploy' in context.result.stdout, context.result.stdout
 
 
 @then('the GSI ledger check fails naming Reference and both indexes')

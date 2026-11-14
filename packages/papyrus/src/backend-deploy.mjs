@@ -18,7 +18,11 @@ export const COST_TAG_WAVE_OUTPUT = "PapyrusCostTagWave";
 export const COST_TAG_WAVES_COMPLETE = "complete";
 /** More passes than any backend needs; a plan that never completes stops here instead of deploying forever. */
 export const MAX_PASSES = 12;
-/** Amplify's default build timeout, and what the frontend build and the steps around the deploy need after it. */
+/**
+ * What Amplify allows a job when `_BUILD_TIMEOUT` is unset (30 minutes), used only for a build whose app has no such variable. The app shell
+ * sets `_BUILD_TIMEOUT` from `cms.buildTimeoutMinutes` (default 120), which `deployMinutes` reads. RESERVED_MINUTES is what the frontend
+ * build and the steps around the deploy need.
+ */
 export const DEFAULT_BUILD_TIMEOUT_MINUTES = 30;
 export const RESERVED_MINUTES = 10;
 
@@ -37,7 +41,7 @@ export function firstPassWave(deployed) {
   return deployed ? String(deployed.wave) : null;
 }
 
-/** Minutes this command may spend deploying: the build timeout (_BUILD_TIMEOUT, else 30) less what the rest needs. */
+/** Minutes this command may spend deploying: the build timeout (_BUILD_TIMEOUT, which the app shell sets from cms.buildTimeoutMinutes; else Amplify's 30) less what the rest needs. */
 export function deployMinutes(environment = process.env) {
   const timeout = Number(environment._BUILD_TIMEOUT) || DEFAULT_BUILD_TIMEOUT_MINUTES;
   return Math.max(timeout - RESERVED_MINUTES, 0);

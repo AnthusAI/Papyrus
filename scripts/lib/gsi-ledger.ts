@@ -5,10 +5,13 @@
 //   - a table that gains more than one index since the baseline fails;
 //   - an index that keeps its name but changes its keys fails;
 //   - a table with more than TABLE_LIMIT indexes fails;
-//   - every table whose indexes changed reports how many index slots it has left.
+//   - every table whose indexes changed reports how many index slots it has left;
+//   - a release that creates more indexes on existing tables than fit the build timeout fails (the release budget, scripts/lib/gsi-release-budget.ts).
 
 /** The DynamoDB limit of global secondary indexes per table (AWS docs, "Service, account, and table quotas in Amazon DynamoDB": Global secondary indexes per table). */
 export const TABLE_LIMIT = 20;
+
+import { chunkReleases, describeBudget, estimatedMinutes, type Budget } from "./gsi-release-budget";
 
 export interface IndexEntry {
   /** The index name when set, otherwise its query field: what DynamoDB sees as the index. */
@@ -22,6 +25,10 @@ export interface Report {
   warnings: string[];
   slots: string[];
   releaseOrder: string[];
+  /** Index creations on tables that already exist (a new table's indexes are created with it, in seconds). */
+  creations: number;
+  /** One line with the estimated deploy minutes, when a budget was given and the release creates indexes. */
+  estimate?: string;
 }
 
 /** The files that declare data models: the core schema and each plugin's and function's own schema. */
@@ -65,9 +72,10 @@ export function parseLedgers(sources: { path: string; source: string }[]): Ledge
   return ledger;
 }
 
-export function compareLedgers(baseline: Ledger, current: Ledger): Report {
-  const report: Report = { failures: [], warnings: [], slots: [], releaseOrder: [] };
+export function compareLedgers(baseline: Ledger, current: Ledger, budget?: Budget): Report {
+  const report: Report = { failures: [], warnings: [], slots: [], releaseOrder: [], creations: 0 };
   const pending: [string, string][][] = [];
+  const creating: string[] = [];
   for (const [table, entries] of current) {
     if (entries.length > TABLE_LIMIT) {
       report.failures.push(`${table} has ${entries.length} indexes; DynamoDB allows ${TABLE_LIMIT} per table.`);
@@ -91,10 +99,26 @@ export function compareLedgers(baseline: Ledger, current: Ledger): Report {
     added.forEach((entry, position) => {
       (pending[position] ??= []).push([table, entry.id]);
     });
+    if (baseline.has(table)) {
+      report.creations += added.length;
+      creating.push(...added.map((entry) => `${table}.${entry.id}`));
+    }
     if (baseline.has(table)) for (const gone of dropped) report.warnings.push(`${table} drops index ${gone}.`);
   }
-  pending.forEach((group, position) => {
+  const over = budget !== undefined && report.creations > budget.limit;
+  // Within the budget the releases are the one-per-table groups; over it, each group is also split to fit the budget.
+  const releases = over ? chunkReleases(pending, budget.limit) : pending;
+  releases.forEach((group, position) => {
     report.releaseOrder.push(`release ${position + 1}: ${group.map(([table, id]) => `${table}.${id}`).join(", ")}`);
   });
+  if (budget && report.creations > 0) {
+    report.estimate = `${report.creations} index creations on existing tables: about ${estimatedMinutes(report.creations, budget)} minutes of deploy; ${describeBudget(budget)}`;
+  }
+  if (over) {
+    report.failures.push(
+      `This release creates ${report.creations} indexes on existing tables (${creating.join(", ")}), but only ${budget.limit} fit one release: ${describeBudget(budget)} ` +
+        `Split it as listed in the release order below, or raise cms.buildTimeoutMinutes (at most 120).`,
+    );
+  }
   return report;
 }
