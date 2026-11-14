@@ -12,9 +12,17 @@
     "multi-tenant"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "404072b4-6414-41e8-9ece-0b890abc6c69",
+      "author": "home",
+      "text": "Reader plugins (reader-steering, home-page, signup, newsletter, notifications, alexa) and cli-login-pages: the reader API takes its tenant from the host (docs/plans/multi-tenant-architecture.md, readers), so these move together with the TenantDomain lookup. The content-actions tasks they send (reader-snapshot, home-page-snapshot) must name the tenant on a shared stack (PPY-0a9b8c).",
+      "created_at": "2026-11-14T01:45:38.215436Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-14T00:26:26.637956Z",
-  "updated_at": "2026-11-14T00:26:26.637987Z",
+  "updated_at": "2026-11-14T01:45:38.215650Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

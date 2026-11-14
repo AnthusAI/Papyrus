@@ -12,9 +12,17 @@
     "multi-tenant"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ce44e779-11f8-4d98-a6cb-d02be43dac2b",
+      "author": "home",
+      "text": "Needs decisions before code: proposal-actions writes the Proposal table through boto3 and scans it for story drafts (no tenant index on Proposal); monitoring-view, automation-view, knowledge-query (S3 Vectors search, the knowledge-search surface) and image-service call modules whose stores read PAPYRUS_TENANT_ID or no tenant; renditions and reference-word-index are triggered by S3 and stream events, not AppSync, so they take the tenant from the key or the record, which is the invocation context (build_invocation_tenant_context).",
+      "created_at": "2026-11-14T01:45:38.114608Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-14T00:26:26.411971Z",
-  "updated_at": "2026-11-14T00:26:26.412007Z",
+  "updated_at": "2026-11-14T01:45:38.114826Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -12,9 +12,17 @@
     "multi-tenant"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7e772a4e-6798-4949-8518-ac8159bd4f20",
+      "author": "home",
+      "text": "Needs decisions before code: procedure-action lists whole ProcedureDefinition, ProcedureVersion and ProcedureRun tables and finds a definition by key in memory, and names records procedure-definition-<key>: on a shared stack the ids need the tenant and the lists need tenant indexes (none exist; GSI ledger: one new index per table per release). model-attachment-upload builds S3 keys from owner ids, and the visual-style profile has one global owner id (item-editorial-doctrine-visual-style). public-forms and reader-settings have no signed-in tenant claim (Function URL and reader sessions): their tenant is the host's (TenantDomain). manage-user-role works on the global identity models.",
+      "created_at": "2026-11-14T01:45:37.992953Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-14T00:26:26.135169Z",
-  "updated_at": "2026-11-14T00:26:26.136167Z",
+  "updated_at": "2026-11-14T01:45:37.993191Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

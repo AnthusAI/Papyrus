@@ -37,10 +37,17 @@
       "text": "PR 1 of the sequence: branch feature/PPY-7dc463-function-tenant-context, PR #1514 (head 533d68eaa). Moves content-actions, category-action, assignment-action, newsroom-summary and editorial-checks to the TenantContext and adds scripts/test-function-tenant-context.ts with the pending list (features_backend/fixtures/function-tenant-context/handlers.json). Verified locally: function-tenant-context.feature, test_function_tenant_context.py, test-function-tenant-context.ts, the Python unit suite and all three behave shards, the TypeScript tests and cucumber profiles that touch the changed modules, typecheck, lint, schema-parity, tenant-key-inventory, tenant-isolation-cases, gsi-ledger, tenancy-mode. No AWS calls, nothing deployed. Remaining handlers: PPY-26d90f, PPY-7e3a20, PPY-01360c, PPY-0a9b8c; last PR PPY-13c5b3.",
       "created_at": "2026-11-14T01:23:15.744407Z",
       "comment_type": "default"
+    },
+    {
+      "id": "f01db9bc-afd4-4b59-af8b-179ccbaa7dbb",
+      "author": "home",
+      "text": "PR 1 (#1514) is green on every check at head 6e23a88c4 (a staging fix for the compiled package came after 533d68eaa). Findings that shape the remaining batches, read from the handlers: (1) a handler that keeps a singleton record id for every tenant (the Newsroom summary snapshot, the doctrine and visual-style Items, procedure definitions named by key) needs that id scoped by tenant on a shared stack; (2) a handler that lists a whole model and then finds a row (procedure-action, the proposal-actions scan for story drafts) needs a tenant index, and ProcedureDefinition, ProcedureVersion, ProcedureRun and Proposal have none yet (the GSI ledger allows one new index per table per release); (3) model-attachment-upload signs S3 keys built from owner ids, so its keys need the tenant before it can move; (4) public-forms, reader-settings and the reader plugins have no signed-in tenant claim: their tenant comes from the host (TenantDomain), which is a decision; (5) manage-user-role works on the global identity models (UserProfile, UserIdentity, PublicHandleClaim), which are reviewed as global, plus UserRoleAssignment; (6) monitoring-view, automation-view, knowledge-query and image-service are thin entry points over large modules whose stores read PAPYRUS_TENANT_ID or no tenant at all.",
+      "created_at": "2026-11-14T01:45:37.661607Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T18:46:18.693026Z",
-  "updated_at": "2026-11-14T01:23:16.096899Z",
+  "updated_at": "2026-11-14T01:45:37.662322Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
