@@ -57,9 +57,15 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
 - **`kbs` stays the board.** Kanbus owns issues, columns, screenshots, and
   workflow transitions. `papyrus` owns newsroom objects (references, assignments,
   editions, knowledge). Do not merge `kbs` into `papyrus`.
-- **Auth is operator UX.** Cloud authoring signs with the AWS credential chain
-  (`AWS_PROFILE`); there is no `papyrus auth` group and no token to refresh.
-  Missing AWS credentials must print recovery guidance, not a Python traceback.
+- **Auth: signed in by default, IAM only when named.** Every command runs as the
+  person signed in with `papyrus login <site>`. Operator work names the operator
+  lane, `papyrus --auth iam <group> <command>` (or `PAPYRUS_GRAPHQL_AUTH=iam`),
+  and then signs with the AWS credential chain (`AWS_PROFILE`). With no session
+  and no lane named, a command refuses before it does anything and names both
+  (`papyrus login <site>`, `papyrus --auth iam`); it never picks AWS credentials
+  by itself. Workers and the deploy and CI steps that run as their own role
+  declare the lane in their own definitions ([CLI login](cli-login.md#the-signed-in-lane-is-the-default-iam-only-when-named)).
+  Missing credentials on either lane print recovery guidance, not a Python traceback.
 - **Local pod references** live under `stories/<story-id>/references/*.json`.
   `papyrus references register --backend local` requires `--story <story-id>`
   or `local.defaultStory` in operator CLI config; never hard-code a story path.
@@ -155,12 +161,12 @@ Signed in with `papyrus login`, an editor runs a newsroom command from any direc
 `papyrus --site shipped.anth.us editorial context --backend cloud --format text`, or set `PAPYRUS_SITE`; otherwise the site the
 working directory declares in `infra/site.json` is used, then an `amplify_outputs.json`, then the only signed-in site. Several
 signed-in sites and no choice is an error that lists them. The flag is leading because several commands take their own `--site`
-after the command name, and those keep their meaning. An operator on `PAPYRUS_GRAPHQL_AUTH=iam` is never sent to a signed-in site
+after the command name, and those keep their meaning. An operator on the IAM lane (`papyrus --auth iam`) is never sent to a signed-in site
 by the directory or the only-site rules. Full order, the site file that carries the tenant, and the upgrade hint for an unknown
 command: [CLI login](cli-login.md#picking-the-site-for-a-command). Executable spec: `features_backend/cli-site-selection.feature`.
 
 `stories save-version` follows the same lane rule as `link-reference`: signed in, the version names the signed-in person and
-`--author-label` is optional and ignored; on `PAPYRUS_GRAPHQL_AUTH=iam` it is required. `stories save-version --images` needs no outputs file
+`--author-label` is optional and ignored; on the IAM lane (`--auth iam`) it is required. `stories save-version --images` needs no outputs file
 signed in: the site publishes its media bucket and identity pool ([CLI login](cli-login.md#the-site-file-tenant-and-version)).
 
 Run from inside a Papyrus checkout, an installed `papyrus` stops at `papyrus-root-guard`, because it is a different install from that

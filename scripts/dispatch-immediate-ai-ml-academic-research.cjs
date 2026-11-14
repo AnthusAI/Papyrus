@@ -115,6 +115,7 @@ function ensureAuthoringEnv() {
   if (!process.env.PAPYRUS_GRAPHQL_ENDPOINT) {
     process.env.PAPYRUS_GRAPHQL_ENDPOINT = DEFAULT_ENDPOINT;
   }
+  process.env.PAPYRUS_GRAPHQL_AUTH = "iam"; // break-glass: the operator lane, named on purpose (PPY-5f119a)
 }
 
 function runNpm(args) {

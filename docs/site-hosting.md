@@ -1406,14 +1406,16 @@ How a request is served:
 Staging build contract (the generated build spec, `PPY-39f928`, implements it):
 
 ```bash
-papyrus ops content export-published --drafts --out content-export --clean
+PAPYRUS_GRAPHQL_AUTH=iam papyrus ops content export-published --drafts --out content-export --clean
 python reader/build.py --content content-export --out dist
 papyrus ops content upload-preview --dir dist
 ```
 
 Then the CMS Next build (frontend-only, no `backend:` phase). The build runs as
-the Amplify service role; the CLI signs AppSync requests with that role's
-credentials (SigV4) and the role writes `preview/*`, which the storage rule
+the Amplify service role, so the export declares the operator lane
+(`PAPYRUS_GRAPHQL_AUTH=iam`; the CLI's default is a signed-in person and it
+never picks AWS credentials by itself); the CLI signs AppSync requests with
+that role's credentials (SigV4) and the role writes `preview/*`, which the storage rule
 grants to no user. No token is minted.
 
 The static reader build is different: it runs

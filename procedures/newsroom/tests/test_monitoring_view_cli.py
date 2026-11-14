@@ -54,7 +54,11 @@ class Env:
                                  graphql_endpoint=ENDPOINT, callback_uri="http://127.0.0.1:5182/oauth/callback", refresh_lifetime_seconds=172800)
         clock = [1000.0]
         self.session = SiteSession(self.config, store=MemoryStore(), provider=Provider(clock), clock=lambda: clock[0], receive=lambda *a: "fixture-code")
-        if signed_in: self.session.login()
+        if signed_in:
+            self.session.login()
+            # `papyrus login` leaves its registry of signed-in sites here; without one nothing is signed in anywhere.
+            (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+            (tmp_path / "state" / "user-session.json").write_text("{}")
         self.requests = []
         self.answer = graphql_answer("monitoringOverview", OVERVIEW)
 
