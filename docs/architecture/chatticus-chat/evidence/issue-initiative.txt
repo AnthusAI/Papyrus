@@ -1,0 +1,23 @@
+ID: PPY-de11ec
+Title: Newsroom chat agent: a pop-out chat pane that can use every backend feature, built on Chatticus as a dependency
+Type: initiative
+Status: open
+Priority: 1
+Assignee: -
+Parent: -
+Labels: -
+Right now: (no right-now summary)
+Description:
+An authenticated editor in the newsroom (CMS) pops out a chat pane and talks to an agent that can do anything the backend can do for that editor: read and edit stories, run editorial checks, publish with approval, manage references and sections, run Tactus procedures and skills. The agent acts with the signed-in editor's own permissions, and consequential actions (publish, delete, send) stop for the editor's approval in the pane.
+
+The chat technology is not rebuilt here. It comes from Chatticus (AnthusAI/Chatticus), where the team keeps its chat-session code, used as a dependency so the decisions are made once and shared by every system that needs chat: per-turn server-sent events instead of WebSockets (cheaper: the browser POSTs a message and reads SSE scoped to that turn, reconnecting with Last-Event-Id; no always-on process, so idle costs nothing), durable turns that survive a closed laptop (PyDurable, per Ryan), and the agent loop (PyAgents on PyDurable, per Ryan). Papyrus today has its own chat stack (amplify/functions/console-chat-responder, a Rust Lambda pinned to tactus 0.44.1, console-chat-enqueue, and the Slack events/delivery path); that duplication is what this initiative removes.
+
+Principle (Ryan, 2026-10-21): DRY and centralized. Shared chat behaviour lives in Chatticus and is consumed as packages; Papyrus supplies only its tools, its auth and its pane.
+
+Done when: an editor signed in to a site's newsroom opens the chat pane, asks the agent to do real newsroom work, the agent does it through Papyrus tools with the editor's permissions and approvals, the transcript streams over Chatticus's SSE turn protocol, and Papyrus no longer carries its own chat engine.
+Comments:
+  [b20d94] home: Design direction (Ryan, 2026-10-21):
+- A Papyrus agent never runs a computer. It only triggers things in the site's cloud backend. Any analysis or long work the chat agent starts is filed as a background job (a Tactus procedure run, an assignment) and handled by cloud machinery; the chat reports progress and results. This will be the common pattern for every app that embeds a chat.
+- Second consumer: Auritus. Its agent drives audio work (text-to-speech, transcription) through its own backend and has no need for a computer either.
+- So the reusable piece is Chatticus's chat core with the computer made optional: the turn protocol (POST plus per-turn SSE, Last-Event-Id replay, no always-on process), PyDurable for durable turns, and the PyAgents agent loop that runs the model and streams the response. Chatticus already distinguishes computerless turns (a worker with CPU and network but no display, browser or /workspace finishes text-only turns, and a computer is summoned only when a tool needs one), which is the natural seam: the embeddable core is the computerless path, and summoning a computer becomes an optional capability that Chatticus itself plugs in.
+- Many Chatticus features should stay out of the embed: the household and roster of named bots, computers and their screens, browser sessions, the shared workspace, and probably routines and the full approvals system (to be decided). M1 should list Chatticus's features and mark each one core, optional plug-in, or Chatticus-only.

@@ -1,0 +1,11 @@
+ID: PPY-34b042
+Title: M5 Run skills and Tactus procedures from the chat
+Type: epic
+Status: open
+Priority: 2
+Assignee: -
+Parent: PPY-de11ec53-e594-4e18-a016-95c436aacfcb
+Labels: -
+Right now: (no right-now summary)
+Description:
+The chat agent can load the same SKILL.md skills the procedures use and start, watch and approve Tactus procedure runs (see PPY-8e13f6, Tactus procedures). Example: an editor asks for a write-up of a new TTAB decision and the agent runs the ruling-analysis skill.

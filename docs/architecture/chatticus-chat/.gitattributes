@@ -1,0 +1,2 @@
+# Preserve the exact Archify bytes bound to the validation receipts.
+*.html -whitespace

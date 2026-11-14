@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "6d0661c8-2df3-451b-8af1-e4103abace58",
+  "issue_id": "PPY-61ee2322-b395-4deb-9174-a08bae0d4c62",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T18:30:23.561Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Consume shared Chatticus chat presentation in the newsroom console",
+    "description": "As a signed-in editor, I want the newsroom console to consume the shared Chatticus chat surface so that chat UI is reused without cloning an agent engine.\n\nFeature: Shared newsroom chat presentation\n  Scenario: Render an editorial conversation\n    Given a signed-in editor has an active console conversation\n    When the newsroom renders its messages using the shared package\n    Then the editor sees their conversation and can send a message once\n    And Papyrus retains its current auth and editorial context adapter\n  Scenario: Preserve host context actions\n    Given a console conversation includes a Papyrus navigation action\n    When the editor selects that action\n    Then Papyrus handles the navigation without a Chatticus product dependency\n\nFirst slice of PPY-a438d0 / PPY-7962e3. Chatticus tracking: chatticus-abde29 / chatticus-080b0e. UI/client extraction is independent of the later server-runtime migration. Shared server, per-editor isolation and delegated tools remain separate acceptance gates. No deployment or registry publication authorized.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7962e353-86cb-4f89-abb7-48e39ed22a1c",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "Papyrus chat integration",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}
