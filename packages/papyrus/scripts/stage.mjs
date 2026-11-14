@@ -136,6 +136,8 @@ compileList.push("lib/reference-policy.ts", "lib/newsroom-references.ts", "lib/r
 compileList.push("lib/message-hashtags.ts", "lib/wiki.ts");
 // category-action builds the knowledge keys through the one tenant-mode-aware builder (reference-links.ts, message-hashtags.ts).
 compileList.push("lib/tenant-knowledge-keys.ts", "lib/tenant-keys.ts");
+// ... and from the call's TenantContext, which those helpers read (the one handler-side module they import; PPY-7dc463).
+compileList.push("amplify/functions/shared/tenant-context.ts");
 // category-action's Story-source role route repeats the editor/admin check with the one staff-group list (story-reference-role.ts).
 compileList.push("lib/staff-groups.ts");
 const compiled = new Set(compileList.map((r) => r.replace(/\.ts$/, ".js")));

@@ -1,5 +1,6 @@
 /** Offline coverage of the real category-action Lambda's `setReferenceSection` (PPY-b5cb8e): the section changes and nothing about the vote does. */
 import assert from "node:assert/strict";
+import * as asyncHooks from "node:async_hooks";
 import * as crypto from "node:crypto";
 import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
@@ -38,6 +39,7 @@ async function main() {
   const client = { models: Object.fromEntries(["Reference", "Message", "SemanticRelation", "NewsroomSection"].map((name) => [name, model(name)])) };
   const modules: Record<string, unknown> = {
     "@aws-sdk/client-lambda": { LambdaClient: class { async send() { throw new Error("no network in this test"); } }, InvokeCommand: class {} },
+    "node:async_hooks": asyncHooks,
     "node:crypto": crypto,
     "@aws-amplify/backend/function/runtime": { getAmplifyDataClientConfig: async () => ({ resourceConfig: {}, libraryOptions: {} }) },
     "aws-amplify": { Amplify: { configure: () => undefined } },

@@ -113,7 +113,7 @@ def start_backend(context, *, publication: bool, rejects_writes: bool = False) -
 
 
 def call_action(context, field: str, payload: dict) -> dict:
-    event = {"fieldName": field, "arguments": {"input": json.dumps(payload)}, "identity": {"username": "behave-editor"}}
+    event = {"fieldName": field, "arguments": {"input": json.dumps(payload)}, "identity": {"username": "behave-editor", "claims": {}}}
     clients = {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client, "ssm": NoLockParameter()}
     with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
         "boto3.client", side_effect=lambda name, **_kwargs: clients[name]

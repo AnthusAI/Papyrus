@@ -19,6 +19,7 @@ from .operator_errors import GraphQLRequestError, GraphQLTimeoutError, credentia
 from .tenancy import (
     TENANT_FIELD,
     TENANT_ID_ENVIRONMENT_VARIABLE,
+    is_shared_stack,
     TENANT_LISTING_QUERIES,
     TENANT_MODELS,
     TenantError,
@@ -1319,7 +1320,7 @@ class PapyrusGraphQLAuthoringClient:
         return result.get("updateNewsroomSummary") or {}
 
     def _require_row_in_tenant(self, model_name: str, record_id: str) -> None:
-        if not self.tenant_id or model_name not in TENANT_MODELS:
+        if not self.tenant_id or not (model_name in TENANT_MODELS or (model_name in TENANT_FIELD_MODELS and is_shared_stack())):
             return
         if self.get_record(model_name, record_id) is None:
             raise TenantError(f"{model_name} {record_id} does not exist in tenant {self.tenant_id}.")

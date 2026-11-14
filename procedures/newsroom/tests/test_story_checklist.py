@@ -11,6 +11,7 @@ from papyrus_content import newsroom_process as process
 from papyrus_content import story_checklist as checklist
 from papyrus_content.story_reporting import create_story, latest_story_version, save_story_version
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient
+from procedures.newsroom.tests.tenant_support import IAM_IDENTITY, dedicated_call
 from procedures.newsroom.tests.test_create_story_from_reference import backend as reference_backend, create as create_from_reference
 
 PERSON = {"kind": "person", "label": "Ryan", "sub": "sub-1"}
@@ -113,7 +114,7 @@ def test_the_set_step_action_stamps_the_signed_in_person_and_records_an_agent_as
     item = create_story(client, title="Acted", section_key=None, actor="AI")
     lineage = item["lineageId"]
     person_event = {"identity": {"sub": "sub-1", "issuer": "https://cognito.example.test", "username": "ryan"}}
-    with patch.object(handler, "create_authoring_client", lambda: (client, None)):
+    with dedicated_call(), patch.object(handler, "create_authoring_client", lambda *_args, **_kwargs: (client, None)):
         refused = handler.set_story_step_action({"lineageId": lineage, "stepKey": "outline", "state": "skipped"}, person_event)
         assert refused["ok"] is False and "needs a reason" in refused["errors"][0]["message"]
         ok = handler.set_story_step_action({"lineageId": lineage, "stepKey": "outline", "state": "skipped", "reason": "Wrote it by hand"}, person_event)
@@ -126,7 +127,7 @@ def test_the_set_step_action_stamps_the_signed_in_person_and_records_an_agent_as
         assert (row["actorKind"], row["actorLabel"], row["actorSub"]) == ("agent", "AI", "sub-1")
         refused = handler.set_story_step_action({"lineageId": lineage, "stepKey": "review_search", "state": "open", "agent": "AI"}, person_event)
         assert refused["ok"] is False and "Only a person reopens" in refused["errors"][0]["message"]
-        anonymous = handler.set_story_step_action({"lineageId": lineage, "stepKey": "outline", "state": "open"}, {"identity": {}})
+        anonymous = handler.set_story_step_action({"lineageId": lineage, "stepKey": "outline", "state": "open"}, {"identity": IAM_IDENTITY})
         assert anonymous["errors"][0]["code"] == "not-signed-in"
 
 
@@ -385,7 +386,7 @@ def test_the_set_step_action_without_a_state_adds_a_note_as_the_signed_in_person
     client = FakeAuthoringClient()
     lineage = create_story(client, title="Action note", section_key=None, actor="AI")["lineageId"]
     event = {"identity": {"sub": "sub-1", "issuer": "https://cognito.example.test", "username": "ryan"}}
-    with patch.object(handler, "create_authoring_client", lambda: (client, None)):
+    with dedicated_call(), patch.object(handler, "create_authoring_client", lambda *_args, **_kwargs: (client, None)):
         assert handler.set_story_step_action({"lineageId": lineage, "stepKey": "draft", "note": "Needs a stronger lede"}, event)["ok"]
         assert handler.set_story_step_action({"lineageId": lineage, "stepKey": "draft", "note": "Agreed", "agent": "AI"}, event)["ok"]
         refused = handler.set_story_step_action({"lineageId": lineage, "stepKey": "draft", "note": " "}, event)
