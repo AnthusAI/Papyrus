@@ -19,7 +19,7 @@ from .model import ItemSummary, ProjectedItem, SiteIndex
 from .story_stars import known_stars, stars_of_lineage
 from .site_relations import SiteRelations, read_site_relations
 from .stored import PROJECTION_METADATA_KEY, projection_metadata
-from ..item_language import bare_group_id, item_language, item_language_group, localization_original
+from ..item_language import bare_group_id, is_localization_of, item_language, item_language_group, localization_original
 
 
 class ProjectionSourceError(Exception):
@@ -55,7 +55,7 @@ def served(summaries) -> list[ItemSummary]:
     summaries = list(summaries)
     lineages = {summary.lineage_id for summary in summaries}
     return [summary for summary in summaries
-            if summary.language_group_id in (None, summary.lineage_id) or summary.language_group_id in lineages]
+            if not is_localization_of(summary.lineage_id, summary.language_group_id, summary.language) or summary.language_group_id in lineages]
 
 
 def split_output_path(output_path: str, *, nested: bool = False) -> tuple[str | None, str]:

@@ -22,6 +22,7 @@ import functools
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
+from ...item_language import is_localization_of
 from ..model import ItemSummary
 from .config import NavLink, StandardSettings
 from .interface_strings import LANGUAGE_NAME_KEY
@@ -75,7 +76,7 @@ class LanguageView:
 
     def original_of(self, summary: ItemSummary) -> Alternate | None:
         """The primary-language page a served translation is a translation of; None for any page that is not one (a Story of its own, in any language)."""
-        if summary.language in (None, self.primary) or summary.language_group_id in (None, summary.lineage_id):
+        if not is_localization_of(summary.lineage_id, summary.language_group_id, summary.language):
             return None
         original = self.member_of(summary).get(self.primary)
         url = self.item_url(self.primary, original) if original is not None else None

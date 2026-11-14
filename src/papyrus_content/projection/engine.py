@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from ..edge_invalidation import InvalidationCapped
+from ..item_language import is_localization_of
 from .body_cache import BodyCache
 from .lease import ProjectionLease
 from .item_state import (
@@ -492,7 +493,7 @@ def _project_translations(context: ProjectionContext, report: ProjectionReport, 
     if translations is None:
         return
     lineage_id = summary.lineage_id or context.source.lineage_id_of(item_id)   # a state read back from the store does not keep the lineage
-    if summary.language_group_id not in (None, lineage_id):
+    if is_localization_of(lineage_id, summary.language_group_id, summary.language):
         return
     for translation in translations(lineage_id):
         _absorb(report, project(context, translation))
