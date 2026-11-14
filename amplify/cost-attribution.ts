@@ -6,6 +6,8 @@ import path from "node:path";
 import { applyCostTagWaves, costTagWave } from "./cost-tag-waves";
 import { costTags } from "./vendor/anthus-cost-accounting/tags";
 import { OWNER, type CostTagConfiguration } from "./vendor/anthus-cost-accounting/cdk";
+import { isReservedDeployment, type SharedTierPlan } from "./shared-stack/names";
+import { SHARED } from "./vendor/anthus-cost-accounting/tags";
 
 /**
  * Prospectus cost accounting in a site's Amplify backend (Prospectus docs/COST_ACCOUNTING.md).
@@ -54,7 +56,17 @@ export function siteCostAttribution(env: Record<string, string | undefined> = pr
     );
   }
   if (!SITE_ID.test(siteId)) throw new Error("The site ID must be lower-case letters, digits and hyphens.");
+  if (isReservedDeployment(siteId)) throw new Error(`The site ID ${siteId} is a deployment value of the shared tier (shared, shared-prod, shared-staging); a dedicated site cannot use it.`);
   return { account: OWNER, app: "papyrus", deployment: siteId, wave };
+}
+
+/**
+ * A shared stack's cost attribution: account `shared` (Prospectus splits the cost by each tenant's reported usage) and the
+ * tier's own deployment value, so each stack has its own line in Cost Explorer and its own budget. Always every wave: a
+ * shared stack is created fresh by the pipeline, so there is no earlier release to split the tagging across.
+ */
+export function sharedStackCostAttribution(plan: SharedTierPlan): SiteCostAttribution {
+  return { account: SHARED, app: "papyrus", deployment: plan.deployment, wave: Number.POSITIVE_INFINITY };
 }
 
 /**

@@ -126,7 +126,8 @@ const offTemplates = synthBackend(path.join(scratch, "off"), {});
 {
   assert.equal(waveOutput(offTemplates), undefined, "no wave output without a wave");
   for (const [file, template] of Object.entries<any>(offTemplates)) {
-    const text = JSON.stringify(template);
+    // The shared-stack deny names the tag key in a condition; that is not a tag on a resource.
+    const text = JSON.stringify(template).replaceAll("aws:ResourceTag/anthus:deployment", "");
     assert.ok(!text.includes("anthus:"), `${file} has an anthus: tag`);
     assert.ok(!text.includes("SendUsageToOwnProspectusQueue"), `${file} grants usage sends`);
     for (const resource of Object.values<any>(template.Resources ?? {})) {
