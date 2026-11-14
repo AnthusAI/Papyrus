@@ -55,6 +55,15 @@ Feature: A generated image has no credit line
     When the lens checks run
     Then the finding "P10" is a "pass"
 
+  Scenario: Saving or publishing a body whose picture credit names the approver is refused
+    Given a Story with this body
+      """
+      ::image{src="assets/harbour.png" alt="A harbour at dusk" caption="An imagined scene." credit="Approved by Ryan Porter"}
+      """
+    When the body is checked for saving and publishing
+    Then it is refused with the code "image-credit-approver"
+    And the refusal says to record the approval as metadata
+
   Scenario: A figure with a caption and a machine credit shows only the caption
     Given a Story picture with the caption "The harbour at dusk" credited "Illustration generated with AI"
     When the picture is rendered on the page

@@ -88,3 +88,22 @@ def twin_still_valid(context):
 @then('the picture in the Markdown copy is credited "{expected}"')
 def credit_in_twin(context, expected):
     assert f'credit="{expected}"' in context.twin, context.twin
+
+
+@when("the body is checked for saving and publishing")
+def check_body_for_save(context):
+    from papyrus_content.markus_renderer.derive import derive_body
+    from features_backend.steps.lens_check_steps import state as lens_state
+
+    lens = lens_state(context)
+    context.derivation = derive_body(lens["front"], lens["body"])
+
+
+@then('it is refused with the code "{code}"')
+def refused_with_code(context, code):
+    assert not context.derivation.ok and context.derivation.errors[0].code == code, context.derivation
+
+
+@then("the refusal says to record the approval as metadata")
+def refusal_names_metadata(context):
+    assert "coverImage" in context.derivation.errors[0].message and "approvedBy" in context.derivation.errors[0].message

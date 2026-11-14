@@ -7,7 +7,7 @@ Feature: Illustration is a checklist step and a publish gate
   approve a cover, the approval is metadata: the front matter coverImage record names who approved it (or who picked it, for a stock
   picture picked in the newsroom). It is never a visible credit: a generated cover has no credit line and a third-party picture keeps
   its own. The approver's name is never shown to a reader, not in a caption, a credit or the Markdown copy:
-  a stray "Approved by NAME" in an image credit is dropped when the page is rendered. Where the site requires dark figures, a figure cover
+  a stray "Approved by NAME" in an image credit is dropped when a page is rendered, and saving or publishing a version whose image credit (or front matter cover credit) says it is refused with an explanation. Where the site requires dark figures, a figure cover
   also has a stored dark picture. The only other way to close the step is an exception: a person skips it, or marks it not
   applicable, with a reason. Which Story types need a cover is a site setting, and articles do by default. A Story published
   before the step existed is not marked as failing, but a revision of it cannot publish until the step is closed.
@@ -55,13 +55,13 @@ Feature: Illustration is a checklist step and a publish gate
     And the checklist item "illustration" is "done"
     And the cover shows no credit line and no approval text
 
-  Scenario: A cover whose image line still names an approver closes the step; the reader never sees the name (see generated-image-credit.feature)
+  Scenario: A cover whose image line names an approver is refused, loudly, on every site
     Given a Story at the "copywriting" stage
     And the Story has a figure cover approved by "Sierra" and an "Approved by" line on its image
     And every required step is closed
     When the Story is published by an editor
-    Then publishing succeeded
-    And the checklist item "illustration" is "done"
+    Then publishing was refused saying "names who approved the picture"
+    And publishing was refused saying "coverImage"
 
   Scenario: A third-party picture keeps its credit and needs no approval line
     Given a Story at the "copywriting" stage

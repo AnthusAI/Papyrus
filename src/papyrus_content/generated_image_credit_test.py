@@ -56,3 +56,14 @@ def test_an_approval_inside_a_real_credit_is_cut_from_the_attribute_and_an_appro
               '::image{\\n  src="b.png"\\n  credit="Approved by Ryan Porter."\\n  alt="x"\\n}').replace("\\n", "\n")
     assert drop_hidden_credits(source) == ('::image{src="a.png" credit="Drafted by AI. Source: Wen."}\n'
                                            '::image{\n  src="b.png"\n  alt="x"\n}')
+
+
+def test_saving_and_publishing_refuse_a_credit_that_names_the_approver():
+    from papyrus_content.markus_renderer.derive import derive_body
+
+    refused = derive_body("title: T", '::image{src="assets/a.png" alt="x" caption="An imagined scene." credit="Approved by Ryan Porter"}\n\nText.\n')
+    assert not refused.ok and refused.errors[0].code == "image-credit-approver" and "line 1" in refused.errors[0].message
+    refused = derive_body("title: T\ncoverImage:\n  srcPath: assets/a.png\n  credit: Drafted by AI. Approved by Ryan.", "Text.\n")
+    assert not refused.ok and refused.errors[0].code == "image-credit-approver" and "coverImage.credit" in refused.errors[0].message
+    clean = derive_body("title: T\ncoverImage:\n  srcPath: assets/a.png\n  approvedBy: Ryan Porter", '::image{src="assets/a.png" alt="x" caption="An imagined scene."}\n\nText.\n')
+    assert clean.ok or clean.errors[0].code != "image-credit-approver"

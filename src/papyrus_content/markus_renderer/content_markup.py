@@ -128,6 +128,34 @@ def visible_credit(text: str | None) -> str | None:
     return None if not cut or is_machine_credit(cut) else cut
 
 
+_FRONT_MATTER_CREDIT_KEYS = ("imageCredit", "coverCredit", "credit")
+
+
+def approval_credit_problems(source: str) -> list[str]:
+    """Every place a page source names who approved a picture in a credit: each ``::image{...}`` credit, and the front matter's ``imageCredit``,
+    ``coverCredit``, ``credit`` and ``coverImage.credit``. Used where a body is saved or published, which refuses it: approval is metadata
+    (``coverImage`` ``approvedBy``), never part of what a reader sees. Rendering does not refuse; it drops the statement (``visible_credit``)."""
+    import yaml
+
+    front_matter, body = split_front_matter(source)
+    problems: list[str] = []
+    masked, _ = _mask_code(body)
+    for match in _IMAGE_DIRECTIVE_RE.finditer(masked):
+        credit = parse_attrs(match.group("attrs")).get("credit")
+        if credit and _APPROVAL_CREDIT_RE.search(credit):
+            line = masked.count("\n", 0, match.start()) + 1
+            problems.append(f'line {line}: the credit {credit!r} names who approved the picture')
+    try:
+        loaded = yaml.safe_load(front_matter) or {} if front_matter else {}
+    except yaml.YAMLError:
+        loaded = {}
+    if isinstance(loaded, dict):
+        cover = loaded.get("coverImage")
+        values = [(key, loaded.get(key)) for key in _FRONT_MATTER_CREDIT_KEYS] + [("coverImage.credit", cover.get("credit") if isinstance(cover, dict) else None)]
+        problems += [f"front matter {key}: {value!r} names who approved the picture" for key, value in values if isinstance(value, str) and _APPROVAL_CREDIT_RE.search(value)]
+    return problems
+
+
 def drop_hidden_credits(markus: str) -> str:
     """The Markus source with every ``::image{...}`` credit made visible: a credit that only says a machine made the picture or who approved it is cut out as an
     attribute, and an "Approved by NAME" statement inside a real credit is cut out of its text.
