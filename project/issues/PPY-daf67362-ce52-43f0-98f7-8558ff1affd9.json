@@ -26,9 +26,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3fb5475a-d028-4c20-9b72-693d4e6d3efb",
+      "author": "home",
+      "text": "Templates and tests only, nothing created or deployed. Branch feature/PPY-daf673-shared-stack-templates, PR #1513 to develop. Verified locally: shared-stack-bootstrap.feature (14 scenarios), test-shared-stack, app-shell deny harness, test_stack_deploy, cfn-lint, typecheck, lint, schema-parity, gsi-ledger, bootstrap-stage (1970 resources), infra synth/cost-tag tests. Needs approval after merge (pipeline roles change). Open decision 1: how the pipeline creates the Amplify backend; the first create covers only the two foundation stacks (held in stacks.json). Go list: docs/shared-stack.md.",
+      "created_at": "2026-11-14T00:15:50.248998Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:21.148813Z",
-  "updated_at": "2026-11-13T19:21:13.339688Z",
+  "updated_at": "2026-11-14T00:15:50.249600Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
