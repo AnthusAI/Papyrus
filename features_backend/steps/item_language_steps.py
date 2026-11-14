@@ -34,6 +34,10 @@ class RecordingClient(PapyrusGraphQLAuthoringClient):
         self.stored = stored
         self.sent: list[dict] = []
 
+    def list_by_index(self, index_name, key_value, **kwargs):
+        assert index_name == "itemsByLineageAndVersion", index_name
+        return [dict(row) for row in self.stored.values() if row.get("lineageId") == key_value]
+
     def _send_graphql(self, query, variables=None):
         variables = variables or {}
         if "GetEditorialCheckSettings" in query:
@@ -61,7 +65,8 @@ def step_client(context, tenant):
 def step_stored(context, lineage, language, group):
     stored_id = f"{lineage}-v1"   # Item ids are not tenant-prefixed (tenancy.TENANT_SCOPED_RECORD_ID_MODELS)
     context.stored[stored_id] = {"id": stored_id, "tenantId": context.tenant, "lineageId": lineage, "versionNumber": 1, "language": language,
-                                 "languageGroupId": group}
+                                 "languageGroupId": group, "versionState": "current", "type": "article", "slug": lineage, "title": "Rivers",
+                                 "versionCreatedAt": "2026-11-01T00:00:00Z"}
 
 
 def _story(lineage: str, **extra) -> dict:
@@ -91,6 +96,61 @@ def step_create_translation(context, lineage, language):
 def _written(context) -> dict:
     (sent,) = context.recording.sent
     return sent["input"]
+
+
+def _sent_inputs(context, **where) -> list[dict]:
+    return [sent["input"] for sent in context.recording.sent if all(sent["input"].get(key) == value for key, value in where.items())]
+
+
+@given('the Story "{lineage}" has a saved version with no language, written by a Papyrus older than the language fields')
+def step_stored_without_language(context, lineage):
+    context.stored[f"{lineage}-v1"] = {"id": f"{lineage}-v1", "tenantId": context.tenant, "lineageId": lineage, "versionNumber": 1, "versionState": "current",
+                                       "type": "article", "slug": lineage, "title": "Rivers", "status": "draft", "versionCreatedAt": "2026-11-01T00:00:00Z",
+                                       "metadata": "{\"frontMatterYaml\": \"title: Rivers\\n\"}"}
+
+
+@when('an editor saves a new version of the Story "{lineage}" with `papyrus stories save-version`')
+def step_save_version(context, lineage):
+    from papyrus_content.story_reporting import save_story_version
+
+    save_story_version(context.recording, lineage, front_matter_yaml="title: Rivers\n", body_markus="Water.\n", actor="An editor", change_reason="Edit")
+
+
+@then('the new version "{version_id}" is written with the language "{language}" and the language group "{group}"')
+def step_new_version_language(context, version_id, language, group):
+    (row,) = _sent_inputs(context, id=version_id)
+    assert row["language"] == language and row["languageGroupId"] == group, row
+
+
+@then("the version can be published because its language is known")
+def step_publishable(context):
+    from papyrus_content.item_language import item_language, item_language_group
+
+    row = next(sent["input"] for sent in context.recording.sent if sent["input"].get("versionState") == "current" and sent["input"].get("versionNumber") == 2)
+    assert item_language(row) and item_language_group(row), row
+
+
+@when('a writer creates the version "{version_id}" of the Story "{lineage}" following "{previous}" without naming a language')
+def step_create_following(context, version_id, lineage, previous):
+    context.recording.create_record("Item", {**_story(lineage), "id": version_id, "versionNumber": 2, "previousVersionId": previous})
+
+
+@when('the checklist writes the second version of the step "{step}" of the Story "{lineage}"')
+def step_checklist_second(context, step, lineage):
+    from papyrus_content.story_checklist import _write
+
+    context.stored[f"{step}-v1"] = {"id": f"{step}-v1", "tenantId": context.tenant, "lineageId": step, "versionNumber": 1, "language": "en",
+                                    "languageGroupId": step}   # the step's first version, which the second supersedes
+
+    row = {"id": step, "storyLineageId": lineage, "stepKey": "illustration", "stepOrder": 7, "templateVersion": 1, "title": "Illustrate", "command": "x",
+           "notes": [], "versionNumber": 2, "state": "done", "history": [{"state": "done"}], "written": {"by": "A person", "at": "2026-11-14T00:00:00Z", "reason": "done"}}
+    _write(context.recording, row)
+
+
+@then('the step version "{version_id}" is written with the language "{language}"')
+def step_step_language(context, version_id, language):
+    (row,) = _sent_inputs(context, id=version_id)
+    assert row["language"] == language and row["languageGroupId"], row
 
 
 @then('the Item written has the language "{language}"')

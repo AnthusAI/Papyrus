@@ -31,6 +31,13 @@ SYNC_STATE_FIELD = "syncState"
 LOCALIZATION_SEPARATOR = "--"
 
 
+#: What a row without a language means. This version writes a language on every Item it creates, so such a row was written before the fields existed
+#: or by a Papyrus release older than the one that added them (5.110.0): a CLI or function still on an older release writes rows without one, and
+#: running the command repairs those rows but not the writer, which has to be upgraded.
+MISSING_CAUSE = ("The row was written before the language fields existed, or by a Papyrus older than 5.110.0 (check the version of the CLI or function that "
+                 "saved it, and upgrade it: an older writer keeps producing rows without a language). ")
+
+
 class ItemLanguageMissing(ValueError):
     """A saved Item version has no language: it was written before the field existed and the backfill has not reached it."""
 
@@ -46,8 +53,8 @@ def item_language(row: dict[str, Any]) -> str:
     """The language a saved row is written in. Refuses a row without one, naming the command that writes it."""
     language = row.get(LANGUAGE_FIELD)
     if not language:
-        raise ItemLanguageMissing(f"Item {row.get('id') or row.get('lineageId') or '?'} has no language yet. "
-                                  "Run `papyrus stories languages` (it writes the site's primary language on every row written before the field existed).")
+        raise ItemLanguageMissing(f"Item {row.get('id') or row.get('lineageId') or '?'} has no language yet. " + MISSING_CAUSE
+                                  + "Run `papyrus stories languages` (it writes the site's primary language on every row that lacks it).")
     return str(language)
 
 
@@ -55,8 +62,8 @@ def item_language_group(row: dict[str, Any]) -> str:
     """The language group a saved row belongs to (as stored, tenant-prefixed on a tenant backend). Refuses a row without one, naming the command that writes it."""
     group = row.get(LANGUAGE_GROUP_FIELD)
     if not group:
-        raise ItemLanguageMissing(f"Item {row.get('id') or row.get('lineageId') or '?'} has no language group yet. "
-                                  "Run `papyrus stories languages` (it writes each row's own lineage as its group on every row written before the field existed).")
+        raise ItemLanguageMissing(f"Item {row.get('id') or row.get('lineageId') or '?'} has no language group yet. " + MISSING_CAUSE
+                                  + "Run `papyrus stories languages` (it writes each row's own lineage as its group on every row that lacks it).")
     return str(group)
 
 
