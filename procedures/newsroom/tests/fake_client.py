@@ -218,5 +218,15 @@ class FakeAuthoringClient:
         self._table(model_name).pop(record_id, None)
         self._maybe_fail("delete", model_name)
 
+    def delete_lineage_row(self, model_name: str, record_id: str, lineage_id: str) -> bool:
+        """As the real client: True when it deleted the row, False when the row is already gone; a row of another lineage is refused."""
+        row = self._table(model_name).get(record_id)
+        if row is None:
+            return False
+        if row.get("itemLineageId") != lineage_id:
+            raise ValueError(f"{model_name} {record_id} belongs to lineage {row.get('itemLineageId')}, not {lineage_id}.")
+        self.delete_record(model_name, record_id)
+        return True
+
     def write_calls(self) -> list[tuple[str, str, Any]]:
         return [call for call in self.calls if call[0] in ("create", "upsert", "update", "delete")]

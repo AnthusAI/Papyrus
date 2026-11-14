@@ -1293,6 +1293,30 @@ class PapyrusGraphQLAuthoringClient:
         self._require_row_in_tenant(model_name, record_id)
         self.graphql(MUTATIONS[model_name]["delete"], {"input": {"id": self._stored_record_id(model_name, record_id)}})
 
+    def delete_lineage_row(self, model_name: str, record_id: str, lineage_id: str) -> bool:
+        """Delete one row that a lineage's own index partition listed, whether or not it carries this client's ``tenantId``. True when it deleted
+        the row, False when the row is already gone.
+
+        ``delete_record`` refuses a row it cannot read as the tenant's, and a row written before tenant stamping (or by a writer that did not stamp it)
+        has no ``tenantId``: the index lists it, the tenant-checked read cannot see it, and the delete failed with "does not exist in tenant". The row
+        is the lineage's all the same: its ``itemLineageId`` names the lineage whose publish is pruning it, and a lineage id belongs to one tenant. So
+        this reads the row unscoped and deletes it when it is unstamped or this tenant's and names this lineage; a row of another tenant, or of
+        another lineage, is refused. A row that is already gone (an index that lags a delete, or an overlapping publish of the same lineage) is the
+        state the caller wanted, so it is not an error."""
+        if model_name not in MUTATIONS:
+            raise ValueError(f"Unsupported model for delete: {model_name}")
+        stored_id = self._stored_record_id(model_name, record_id)
+        row = self.get_record_unscoped(model_name, stored_id)
+        if row is None:
+            return False
+        owner = row.get("tenantId")
+        if owner and owner != self.tenant_id:
+            raise TenantError(f"{model_name} {record_id} belongs to tenant {owner}, not {self.tenant_id}.")
+        if row.get("itemLineageId") != lineage_id:
+            raise TenantError(f"{model_name} {record_id} belongs to lineage {row.get('itemLineageId')}, not {lineage_id}.")
+        self.graphql(MUTATIONS[model_name]["delete"], {"input": {"id": stored_id}})
+        return True
+
     def safe_list_records(self, model_name: str) -> list[dict[str, Any]]:
         try:
             return self.list_records(model_name)
